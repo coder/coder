@@ -1364,16 +1364,26 @@ func (a *agent) Close() error {
 	// Set final state and wait for it to be reported because context
 	// cancellation will stop the report loop.
 	a.setLifecycle(ctx, lifecycleState)
-	// TODO(mafredri): What if the agent token is revoked, build outdated, etc.?
-	for s := range a.lifecycleReported {
-		if s == lifecycleState {
-			break
-		}
-	}
 
 	if lifecycleState != codersdk.WorkspaceAgentLifecycleOff {
 		// TODO(mafredri): Delay shutdown, ensure debugging is possible.
 		_ = false
+	}
+
+	// Wait for the lifecycle to be reported, but don't wait forever so
+	// that we don't break user expectations.
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+lifecycleWaitLoop:
+	for {
+		select {
+		case <-ctx.Done():
+			break lifecycleWaitLoop
+		case s := <-a.lifecycleReported:
+			if s == lifecycleState {
+				break lifecycleWaitLoop
+			}
+		}
 	}
 
 	close(a.closed)
