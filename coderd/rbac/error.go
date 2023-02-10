@@ -47,6 +47,10 @@ func ForbiddenWithInternal(internal error, subject Subject, action Action, objec
 	}
 }
 
+func (e UnauthorizedError) Unwrap() error {
+	return e.internal
+}
+
 // Error implements the error interface.
 func (UnauthorizedError) Error() string {
 	return errUnauthorized

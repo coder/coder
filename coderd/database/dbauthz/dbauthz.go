@@ -5,14 +5,13 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
-	"github.com/google/uuid"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/open-policy-agent/opa/topdown"
 )
 
 var _ database.Store = (*querier)(nil)
@@ -44,11 +43,18 @@ func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 	// Only log the errors if it is an UnauthorizedError error.
 	internalError := new(rbac.UnauthorizedError)
 	if err != nil && xerrors.As(err, &internalError) {
-		logger.Debug(ctx, "unauthorized",
-			slog.F("internal", internalError.Internal()),
-			slog.F("input", internalError.Input()),
-			slog.Error(err),
-		)
+		// A common false flag is when the user cancels the request. This can be checked
+		// by checking if the error is a topdown.Error and if the error code is
+		// topdown.CancelErr. If the error is not a topdown.Error, or the code is not
+		// topdown.CancelErr, then we should log it.
+		e := new(topdown.Error)
+		if !xerrors.As(err, &e) || e.Code != topdown.CancelErr {
+			logger.Debug(ctx, "unauthorized",
+				slog.F("internal", internalError.Internal()),
+				slog.F("input", internalError.Input()),
+				slog.Error(err),
+			)
+		}
 	}
 	return NotAuthorizedError{
 		Err: err,
