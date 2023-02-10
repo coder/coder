@@ -157,14 +157,6 @@ func New(options *Options) *API {
 		options = &Options{}
 	}
 	experiments := initExperiments(options.Logger, options.DeploymentConfig.Experiments.Value, options.DeploymentConfig.Experimental.Value)
-	// TODO: remove this once we promote authz_querier out of experiments.
-	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
-		options.Database = dbauthz.New(
-			options.Database,
-			options.Authorizer,
-			options.Logger.Named("authz_query"),
-		)
-	}
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
@@ -207,7 +199,11 @@ func New(options *Options) *API {
 	}
 	// TODO: remove this once we promote authz_querier out of experiments.
 	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
-		options.Database = dbauthz.New(options.Database, options.Authorizer, options.Logger.Named("authz_querier"))
+		options.Database = dbauthz.New(
+			options.Database,
+			options.Authorizer,
+			options.Logger.Named("authz_querier"),
+		)
 	}
 	if options.SetUserGroups == nil {
 		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
