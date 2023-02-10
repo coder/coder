@@ -22,8 +22,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisionerd/proto"
@@ -95,8 +93,6 @@ func New(clientDialer Dialer, opts *Options) *Server {
 		opts.Metrics = &mets
 	}
 
-	// TODO: Scope down the permissions of the system context for provisionerd
-	ctx := dbauthz.WithAuthorizeSystemContext(context.Background(), rbac.RolesAdminSystem())
 	ctx, ctxCancel := context.WithCancel(ctx)
 	daemon := &Server{
 		opts:   opts,
