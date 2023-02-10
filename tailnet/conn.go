@@ -721,6 +721,8 @@ func (c *Conn) SetConnStatsCallback(maxPeriod time.Duration, maxConns int, dump 
 		_ = old.Shutdown(ctx)
 	}
 
+	now := time.Now()
+	dump(now, now.Add(time.Nanosecond), map[netlogtype.Connection]netlogtype.Counts{}, map[netlogtype.Connection]netlogtype.Counts{})
 	c.tunDevice.SetStatistics(connStats)
 }
 
