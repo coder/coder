@@ -538,13 +538,14 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		Stage:     "Parsing template parameters",
 		CreatedAt: time.Now().UnixMilli(),
 	})
-	parameterSchemas, err := r.runTemplateImportParse(ctx)
+	parameterSchemas, templateVariables, err := r.runTemplateImportParse(ctx)
 	if err != nil {
 		return nil, r.failedJobf("run parse: %s", err)
 	}
 	updateResponse, err := r.update(ctx, &proto.UpdateJobRequest{
-		JobId:            r.job.JobId,
-		ParameterSchemas: parameterSchemas,
+		JobId:             r.job.JobId,
+		ParameterSchemas:  parameterSchemas,
+		TemplateVariables: templateVariables,
 	})
 	if err != nil {
 		return nil, r.failedJobf("update job: %s", err)
@@ -603,8 +604,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	}, nil
 }
 
-// Parses parameter schemas from source.
-func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.ParameterSchema, error) {
+// Parses template variables and parameter schemas from source.
+func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.ParameterSchema, []*sdkproto.TemplateVariable, error) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -612,13 +613,13 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Parame
 		Directory: r.workDirectory,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("parse source: %w", err)
+		return nil, nil, xerrors.Errorf("parse source: %w", err)
 	}
 	defer stream.Close()
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			return nil, xerrors.Errorf("recv parse source: %w", err)
+			return nil, nil, xerrors.Errorf("recv parse source: %w", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Parse_Response_Log:
@@ -636,11 +637,13 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Parame
 			})
 		case *sdkproto.Parse_Response_Complete:
 			r.logger.Info(context.Background(), "parse complete",
-				slog.F("parameter_schemas", msgType.Complete.ParameterSchemas))
+				slog.F("parameter_schemas", msgType.Complete.ParameterSchemas),
+				slog.F("template_variables", msgType.Complete.TemplateVariables),
+			)
 
-			return msgType.Complete.ParameterSchemas, nil
+			return msgType.Complete.ParameterSchemas, msgType.Complete.TemplateVariables, nil
 		default:
-			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
+			return nil, nil, xerrors.Errorf("invalid message type %q received from provisioner",
 				reflect.TypeOf(msg.Type).String())
 		}
 	}

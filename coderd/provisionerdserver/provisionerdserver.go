@@ -379,6 +379,31 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		}
 	}
 
+	if len(request.TemplateVariables) > 0 {
+		templateVersion, err := server.Database.GetTemplateVersionByJobID(ctx, job.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template version by job id: %w", err)
+		}
+
+		for _, templateVariable := range request.TemplateVariables {
+			server.Logger.Debug(ctx, "insert template variable", slog.F("template_version_id", templateVersion.ID), slog.F("template_variable", templateVariable))
+
+			_, err = server.Database.InsertTemplateVersionVariable(ctx, database.InsertTemplateVersionVariableParams{
+				TemplateVersionID: templateVersion.ID,
+				Name:              templateVariable.Name,
+				Description:       templateVariable.Description,
+				Type:              templateVariable.Type,
+				DefaultValue:      templateVariable.DefaultValue,
+				Required:          templateVariable.Required,
+				Sensitive:         templateVariable.Sensitive,
+				// FIXME value
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("insert parameter schema: %w", err)
+			}
+		}
+	}
+
 	if len(request.ParameterSchemas) > 0 {
 		for index, protoParameter := range request.ParameterSchemas {
 			validationTypeSystem, err := convertValidationTypeSystem(protoParameter.ValidationTypeSystem)
