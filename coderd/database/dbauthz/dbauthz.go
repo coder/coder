@@ -43,7 +43,7 @@ func (NotAuthorizedError) Unwrap() error {
 func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) error {
 	// Only log the errors if it is an UnauthorizedError error.
 	internalError := new(rbac.UnauthorizedError)
-	if err != nil && xerrors.As(err, internalError) {
+	if err != nil && xerrors.As(err, &internalError) {
 		logger.Debug(ctx, "unauthorized",
 			slog.F("internal", internalError.Internal()),
 			slog.F("input", internalError.Input()),
