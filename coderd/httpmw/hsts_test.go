@@ -11,6 +11,8 @@ import (
 )
 
 func TestHSTS(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		Name    string
 		MaxAge  int
