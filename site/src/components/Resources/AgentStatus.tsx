@@ -19,7 +19,7 @@ import Link from "@material-ui/core/Link"
 // connected:ready, connected:shutting_down, connected:shutdown_timeout,
 // connected:shutdown_error, connected:off.
 
-const ReadyLifeCycle: React.FC = () => {
+const ReadyLifecycle: React.FC = () => {
   const styles = useStyles()
   const { t } = useTranslation("workspacePage")
 
@@ -234,7 +234,7 @@ const ShutdownErrorLifecycle: React.FC<{
   )
 }
 
-const OffLifeCycle: React.FC = () => {
+const OffLifecycle: React.FC = () => {
   const styles = useStyles()
   const { t } = useTranslation("workspacePage")
 
@@ -260,12 +260,12 @@ const ConnectedStatus: React.FC<{
   // release indicating startup script behavior has changed.
   // https://github.com/coder/coder/issues/5749
   if (agent.login_before_ready) {
-    return <ReadyLifeCycle />
+    return <ReadyLifecycle />
   }
   return (
     <ChooseOne>
       <Cond condition={agent.lifecycle_state === "ready"}>
-        <ReadyLifeCycle />
+        <ReadyLifecycle />
       </Cond>
       <Cond condition={agent.lifecycle_state === "start_timeout"}>
         <StartTimeoutLifecycle agent={agent} />
@@ -274,7 +274,7 @@ const ConnectedStatus: React.FC<{
         <StartErrorLifecycle agent={agent} />
       </Cond>
       <Cond condition={agent.lifecycle_state === "shutting_down"}>
-        <ShuttingDownLifecycle agent={agent} />
+        <ShuttingDownLifecycle />
       </Cond>
       <Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
         <ShutdownTimeoutLifecycle agent={agent} />
@@ -283,7 +283,7 @@ const ConnectedStatus: React.FC<{
         <ShutdownErrorLifecycle agent={agent} />
       </Cond>
       <Cond condition={agent.lifecycle_state === "off"}>
-        <OffLifeCycle />
+        <OffLifecycle />
       </Cond>
       <Cond>
         <StartingLifecycle />
