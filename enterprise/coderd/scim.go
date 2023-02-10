@@ -14,6 +14,7 @@ import (
 
 	agpl "github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 )
@@ -155,7 +156,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, _, err := api.AGPL.CreateUser(ctx, api.Database, agpl.CreateUserRequest{
+	user, _, err := api.AGPL.CreateUser(dbauthz.AsSystem(ctx), api.Database, agpl.CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Username: sUser.UserName,
 			Email:    email,
@@ -207,7 +208,7 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbUser, err := api.Database.GetUserByID(ctx, uid)
+	dbUser, err := api.Database.GetUserByID(dbauthz.AsSystem(ctx), uid)
 	if err != nil {
 		_ = handlerutil.WriteError(rw, err)
 		return
@@ -220,7 +221,7 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 		status = database.UserStatusSuspended
 	}
 
-	_, err = api.Database.UpdateUserStatus(r.Context(), database.UpdateUserStatusParams{
+	_, err = api.Database.UpdateUserStatus(dbauthz.AsSystem(r.Context()), database.UpdateUserStatusParams{
 		ID:        dbUser.ID,
 		Status:    status,
 		UpdatedAt: database.Now(),

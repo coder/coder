@@ -27,7 +27,6 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/parameter"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner"
@@ -502,7 +501,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		Valid:  failJob.Error != "",
 	}
 
-	err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+	err = server.Database.UpdateProvisionerJobWithCompleteByID(dbauthz.AsSystem(ctx), database.UpdateProvisionerJobWithCompleteByIDParams{
 		ID:          jobID,
 		CompletedAt: job.CompletedAt,
 		UpdatedAt:   database.Now(),
@@ -525,7 +524,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal workspace provision input: %w", err)
 		}
-		build, err := server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+		build, err := server.Database.UpdateWorkspaceBuildByID(dbauthz.AsSystem(ctx), database.UpdateWorkspaceBuildByIDParams{
 			ID:               input.WorkspaceBuildID,
 			UpdatedAt:        database.Now(),
 			ProvisionerState: jobType.WorkspaceBuild.State,
@@ -544,12 +543,12 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 	// if failed job is a workspace build, audit the outcome
 	if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
 		auditor := server.Auditor.Load()
-		build, err := server.Database.GetWorkspaceBuildByJobID(ctx, job.ID)
+		build, err := server.Database.GetWorkspaceBuildByJobID(dbauthz.AsSystem(ctx), job.ID)
 		if err != nil {
 			server.Logger.Error(ctx, "audit log - get build", slog.Error(err))
 		} else {
 			auditAction := auditActionFromTransition(build.Transition)
-			workspace, err := server.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
+			workspace, err := server.Database.GetWorkspaceByID(dbauthz.AsSystem(ctx), build.WorkspaceID)
 			if err != nil {
 				server.Logger.Error(ctx, "audit log - get workspace", slog.Error(err))
 			} else {
@@ -605,13 +604,13 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
 func (server *Server) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
 	// TODO: make a provisionerd role
-	ctx = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+	// ctx = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 	jobID, err := uuid.Parse(completed.JobId)
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
 	server.Logger.Debug(ctx, "CompleteJob starting", slog.F("job_id", jobID))
-	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
+	job, err := server.Database.GetProvisionerJobByID(dbauthz.AsSystem(ctx), jobID)
 	if err != nil {
 		return nil, xerrors.Errorf("get job by id: %w", err)
 	}
@@ -642,7 +641,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 					slog.F("resource_type", resource.Type),
 					slog.F("transition", transition))
 
-				err = InsertWorkspaceResource(ctx, server.Database, jobID, transition, resource, telemetrySnapshot)
+				err = InsertWorkspaceResource(dbauthz.AsSystem(ctx), server.Database, jobID, transition, resource, telemetrySnapshot)
 				if err != nil {
 					return nil, xerrors.Errorf("insert resource: %w", err)
 				}
@@ -658,7 +657,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			if err != nil {
 				return nil, xerrors.Errorf("marshal parameter options: %w", err)
 			}
-			_, err = server.Database.InsertTemplateVersionParameter(ctx, database.InsertTemplateVersionParameterParams{
+			_, err = server.Database.InsertTemplateVersionParameter(dbauthz.AsSystem(ctx), database.InsertTemplateVersionParameterParams{
 				TemplateVersionID:   input.TemplateVersionID,
 				Name:                richParameter.Name,
 				Description:         richParameter.Description,
@@ -678,7 +677,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			}
 		}
 
-		err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+		err = server.Database.UpdateProvisionerJobWithCompleteByID(dbauthz.AsSystem(ctx), database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        jobID,
 			UpdatedAt: database.Now(),
 			CompletedAt: sql.NullTime{
@@ -700,7 +699,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			return nil, xerrors.Errorf("unmarshal job data: %w", err)
 		}
 
-		workspaceBuild, err := server.Database.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
+		workspaceBuild, err := server.Database.GetWorkspaceBuildByID(dbauthz.AsSystem(ctx), input.WorkspaceBuildID)
 		if err != nil {
 			return nil, xerrors.Errorf("get workspace build: %w", err)
 		}
@@ -711,7 +710,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		err = server.Database.InTx(func(db database.Store) error {
 			now := database.Now()
 			var workspaceDeadline time.Time
-			workspace, getWorkspaceError = db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
+			workspace, getWorkspaceError = db.GetWorkspaceByID(dbauthz.AsSystem(ctx), workspaceBuild.WorkspaceID)
 			if getWorkspaceError == nil {
 				if workspace.Ttl.Valid {
 					workspaceDeadline = now.Add(time.Duration(workspace.Ttl.Int64))
@@ -721,7 +720,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				// In any case, since this is just for the TTL, try and continue anyway.
 				server.Logger.Error(ctx, "fetch workspace for build", slog.F("workspace_build_id", workspaceBuild.ID), slog.F("workspace_id", workspaceBuild.WorkspaceID))
 			}
-			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			err = db.UpdateProvisionerJobWithCompleteByID(dbauthz.AsSystem(ctx), database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID:        jobID,
 				UpdatedAt: database.Now(),
 				CompletedAt: sql.NullTime{
@@ -732,7 +731,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			if err != nil {
 				return xerrors.Errorf("update provisioner job: %w", err)
 			}
-			_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+			_, err = db.UpdateWorkspaceBuildByID(dbauthz.AsSystem(ctx), database.UpdateWorkspaceBuildByIDParams{
 				ID:               workspaceBuild.ID,
 				Deadline:         workspaceDeadline,
 				ProvisionerState: jobType.WorkspaceBuild.State,
@@ -749,7 +748,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 					dur := time.Duration(protoAgent.GetConnectionTimeoutSeconds()) * time.Second
 					agentTimeouts[dur] = true
 				}
-				err = InsertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource, telemetrySnapshot)
+				err = InsertWorkspaceResource(dbauthz.AsSystem(ctx), db, job.ID, workspaceBuild.Transition, protoResource, telemetrySnapshot)
 				if err != nil {
 					return xerrors.Errorf("insert provisioner job: %w", err)
 				}
@@ -798,7 +797,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				return nil
 			}
 
-			err = db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
+			err = db.UpdateWorkspaceDeletedByID(dbauthz.AsSystem(ctx), database.UpdateWorkspaceDeletedByIDParams{
 				ID:      workspaceBuild.WorkspaceID,
 				Deleted: true,
 			})
