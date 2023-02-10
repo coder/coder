@@ -410,7 +410,10 @@ func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request
 // error while looking it up, an HTML error page is returned and false is
 // returned so the caller can return early.
 func (api *API) lookupWorkspaceApp(rw http.ResponseWriter, r *http.Request, agentID uuid.UUID, appSlug string) (database.WorkspaceApp, bool) {
-	app, err := api.Database.GetWorkspaceAppByAgentIDAndSlug(r.Context(), database.GetWorkspaceAppByAgentIDAndSlugParams{
+	// dbauthz.AsSystem is allowed here as the app authz is checked later.
+	// The app authz is determined by the sharing level.
+	//nolint:gocritic
+	app, err := api.Database.GetWorkspaceAppByAgentIDAndSlug(dbauthz.AsSystem(r.Context()), database.GetWorkspaceAppByAgentIDAndSlugParams{
 		AgentID: agentID,
 		Slug:    appSlug,
 	})
