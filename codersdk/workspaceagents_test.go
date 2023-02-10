@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"tailscale.com/tailcfg"
 
@@ -55,21 +56,34 @@ func TestWorkspaceAgentMetadata(t *testing.T) {
 func TestAgentReportStats(t *testing.T) {
 	t.Parallel()
 
-	var numReports atomic.Int64
+	var (
+		numReports       atomic.Int64
+		numIntervalCalls atomic.Int64
+		wantInterval     = 5 * time.Millisecond
+	)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		numReports.Add(1)
 		httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.StatsResponse{
-			ReportInterval: 5 * time.Millisecond,
+			ReportInterval: wantInterval,
 		})
 	}))
 	parsed, err := url.Parse(srv.URL)
 	require.NoError(t, err)
 	client := agentsdk.New(parsed)
 
+	assertStatInterval := func(interval time.Duration) {
+		numIntervalCalls.Add(1)
+		assert.Equal(t, wantInterval, interval)
+	}
+
+	chanLen := 3
+	statCh := make(chan *agentsdk.Stats, chanLen)
+	for i := 0; i < chanLen; i++ {
+		statCh <- &agentsdk.Stats{ConnsByProto: map[string]int64{}}
+	}
+
 	ctx := context.Background()
-	closeStream, err := client.ReportStats(ctx, slogtest.Make(t, nil), func() *agentsdk.Stats {
-		return &agentsdk.Stats{}
-	})
+	closeStream, err := client.ReportStats(ctx, slogtest.Make(t, nil), statCh, assertStatInterval)
 	require.NoError(t, err)
 	defer closeStream.Close()
 
@@ -77,4 +91,6 @@ func TestAgentReportStats(t *testing.T) {
 		func() bool { return numReports.Load() >= 3 },
 		testutil.WaitMedium, testutil.IntervalFast,
 	)
+	closeStream.Close()
+	require.Equal(t, int64(1), numIntervalCalls.Load())
 }

@@ -97,8 +97,7 @@ type WorkspaceAgentConnectionInfo struct {
 type DialWorkspaceAgentOptions struct {
 	Logger slog.Logger
 	// BlockEndpoints forced a direct connection through DERP.
-	BlockEndpoints     bool
-	EnableTrafficStats bool
+	BlockEndpoints bool
 }
 
 func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (*WorkspaceAgentConn, error) {
@@ -121,11 +120,10 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 
 	ip := tailnet.IP()
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:          []netip.Prefix{netip.PrefixFrom(ip, 128)},
-		DERPMap:            connInfo.DERPMap,
-		Logger:             options.Logger,
-		BlockEndpoints:     options.BlockEndpoints,
-		EnableTrafficStats: options.EnableTrafficStats,
+		Addresses:      []netip.Prefix{netip.PrefixFrom(ip, 128)},
+		DERPMap:        connInfo.DERPMap,
+		Logger:         options.Logger,
+		BlockEndpoints: options.BlockEndpoints,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
