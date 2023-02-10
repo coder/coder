@@ -327,12 +327,13 @@ func New(options *Options) *API {
 				Optional:                    true,
 			}),
 			// TODO: We should remove this auth context after middleware.
-			httpmw.SystemAuthCtx,
-			// Redirect to the login page if the user tries to open an app with
-			// "me" as the username and they are not logged in.
-			httpmw.ExtractUserParam(api.Database, true),
-			// Extracts the <workspace.agent> from the url
-			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
+			httpmw.AsAuthzSystem(
+				// Redirect to the login page if the user tries to open an app with
+				// "me" as the username and they are not logged in.
+				httpmw.ExtractUserParam(api.Database, true),
+				// Extracts the <workspace.agent> from the url
+				httpmw.ExtractWorkspaceAndAgentParam(api.Database),
+			),
 		)
 		r.HandleFunc("/*", api.workspaceAppsProxyPath)
 	}

@@ -113,7 +113,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 			Groups: []string{},
 			Scope:  rbac.ScopeAll,
 		}
-		ctx := dbauthz.WithAuthorizeContext(context.Background(), actor)
+		ctx := dbauthz.As(context.Background(), actor)
 
 		var testCase expects
 		testCaseF(db, &testCase)

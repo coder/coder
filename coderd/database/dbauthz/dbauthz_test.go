@@ -42,7 +42,7 @@ func TestInTX(t *testing.T) {
 	}
 
 	w := dbgen.Workspace(t, db, database.Workspace{})
-	ctx := dbauthz.WithAuthorizeContext(context.Background(), actor)
+	ctx := dbauthz.As(context.Background(), actor)
 	err := q.InTx(func(tx database.Store) error {
 		// The inner tx should use the parent's authz
 		_, err := tx.GetWorkspaceByID(ctx, w.ID)
@@ -63,7 +63,7 @@ func TestNew(t *testing.T) {
 			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
 		}
 		subj = rbac.Subject{}
-		ctx  = dbauthz.WithAuthorizeContext(context.Background(), rbac.Subject{})
+		ctx  = dbauthz.As(context.Background(), rbac.Subject{})
 	)
 
 	// Double wrap should not cause an actual double wrap. So only 1 rbac call
@@ -95,7 +95,7 @@ func TestDBAuthzRecursive(t *testing.T) {
 	}
 	for i := 0; i < reflect.TypeOf(q).NumMethod(); i++ {
 		var ins []reflect.Value
-		ctx := dbauthz.WithAuthorizeContext(context.Background(), actor)
+		ctx := dbauthz.As(context.Background(), actor)
 
 		ins = append(ins, reflect.ValueOf(ctx))
 		method := reflect.TypeOf(q).Method(i)
