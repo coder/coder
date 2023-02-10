@@ -12,7 +12,7 @@ import (
 // usage as a system user in some cases, but not all cases. To avoid large
 // refactors, we use this middleware to temporarily set the context to a system.
 //
-// TODO: Refact the middleware functions to not require this.
+// TODO: Refactor the middleware functions to not require this.
 func AsAuthzSystem(mws ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
 	chain := chi.Chain(mws...)
 	return func(next http.Handler) http.Handler {
