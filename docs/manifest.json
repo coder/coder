@@ -37,6 +37,11 @@
           "path": "./install/kubernetes.md"
         },
         {
+          "title": "OpenShift",
+          "description": "Install Coder on OpenShift",
+          "path": "./install/openshift.md"
+        },
+        {
           "title": "Docker",
           "description": "Install Coder with Docker / docker-compose",
           "path": "./install/docker.md"
