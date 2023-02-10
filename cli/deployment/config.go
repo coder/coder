@@ -378,7 +378,7 @@ func newConfig() *codersdk.DeploymentConfig {
 			Name: "Strict-Transport-Security",
 			Usage: "Controls if the 'Strict-Transport-Security' header is set on all static file responses. " +
 				"This header should only be set if the server is accessed via HTTPS. This value is the MaxAge in seconds of " +
-				"the header." +
+				"the header.",
 			Default: 0,
 			Flag:    "strict-transport-security",
 		},
