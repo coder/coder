@@ -230,7 +230,11 @@ func New(options *Options) *API {
 	staticHandler = httpmw.HSTS(staticHandler, options.StrictTransportSecurityCfg)
 
 	r := chi.NewRouter()
+	ctx, cancel := context.WithCancel(context.Background())
 	api := &API{
+		ctx:    ctx,
+		cancel: cancel,
+
 		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
@@ -676,6 +680,11 @@ func New(options *Options) *API {
 }
 
 type API struct {
+	// ctx is canceled immediately on shutdown, it can be used to abort
+	// interruptible tasks.
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	*Options
 	// ID is a uniquely generated ID on initialization.
 	// This is used to associate objects with a specific
@@ -710,6 +719,8 @@ type API struct {
 
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
+	api.cancel()
+
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Wait()
 	api.WebsocketWaitMutex.Unlock()

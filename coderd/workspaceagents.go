@@ -601,7 +601,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		Valid: true,
 	}
 	disconnectedAt := workspaceAgent.DisconnectedAt
-	updateConnectionTimes := func() error {
+	updateConnectionTimes := func(ctx context.Context) error {
 		err = api.Database.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
 			ID:               workspaceAgent.ID,
 			FirstConnectedAt: firstConnectedAt,
@@ -620,15 +620,23 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	}
 
 	defer func() {
+		// If connection closed then context will be canceled, try to
+		// ensure our final update is sent. By waiting at most the agent
+		// inactive disconnect timeout we ensure that we don't block but
+		// also guarantee that the agent will be considered disconnected
+		// by normal status check.
+		ctx, cancel := context.WithTimeout(api.ctx, api.AgentInactiveDisconnectTimeout)
+		defer cancel()
+
 		disconnectedAt = sql.NullTime{
 			Time:  database.Now(),
 			Valid: true,
 		}
-		_ = updateConnectionTimes()
-		_ = api.Pubsub.Publish(watchWorkspaceChannel(build.WorkspaceID), []byte{})
+		_ = updateConnectionTimes(ctx)
+		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 	}()
 
-	err = updateConnectionTimes()
+	err = updateConnectionTimes(ctx)
 	if err != nil {
 		_ = conn.Close(websocket.StatusGoingAway, err.Error())
 		return
@@ -668,7 +676,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			Time:  database.Now(),
 			Valid: true,
 		}
-		err = updateConnectionTimes()
+		err = updateConnectionTimes(ctx)
 		if err != nil {
 			_ = conn.Close(websocket.StatusGoingAway, err.Error())
 			return
