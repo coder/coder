@@ -24,7 +24,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestAuthorizeAllEndpoints(t *testing.T) {
-	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), "authz_querier") {
+	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), string(codersdk.ExperimentAuthzQuerier)) {
 		t.Skip("Skipping TestAuthorizeAllEndpoints for authz_querier experiment")
 	}
 	t.Parallel()

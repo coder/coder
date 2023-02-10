@@ -11,10 +11,11 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/codersdk"
 )
 
 func TestAuthorizeAllEndpoints(t *testing.T) {
-	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), "authz_querier") {
+	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), string(codersdk.ExperimentAuthzQuerier)) {
 		t.Skip("Skipping TestAuthorizeAllEndpoints for authz_querier experiment")
 	}
 	t.Parallel()
