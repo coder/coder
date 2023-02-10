@@ -85,17 +85,18 @@ func TestHSTS(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			got, err := httpmw.HSTS(handler, tt.MaxAge, tt.Options)
+			cfg, err := httpmw.HSTSConfigOptions(tt.MaxAge, tt.Options)
 			if tt.wantErr {
 				require.Error(t, err, "Expect error, HSTS(%v, %v)", tt.MaxAge, tt.Options)
 				return
 			}
-
 			require.NoError(t, err, "Expect no error, HSTS(%v, %v)", tt.MaxAge, tt.Options)
+
+			got := httpmw.HSTS(handler, cfg)
 			req := httptest.NewRequest("GET", "/", nil)
 			res := httptest.NewRecorder()
-
 			got.ServeHTTP(res, req)
+			
 			require.Equal(t, tt.expectHeader, res.Header().Get("Strict-Transport-Security"), "expected header value")
 		})
 	}

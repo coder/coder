@@ -457,34 +457,39 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 
 			options := &coderd.Options{
-				AccessURL:                      accessURLParsed,
-				AppHostname:                    appHostname,
-				AppHostnameRegex:               appHostnameRegex,
-				Logger:                         logger.Named("coderd"),
-				Database:                       dbfake.New(),
-				DERPMap:                        derpMap,
-				Pubsub:                         database.NewPubsubInMemory(),
-				CacheDir:                       cacheDir,
-				GoogleTokenValidator:           googleTokenValidator,
-				GitAuthConfigs:                 gitAuthConfigs,
-				RealIPConfig:                   realIPConfig,
-				SecureAuthCookie:               cfg.SecureAuthCookie.Value,
-				StrictTransportSecurityAge:     cfg.StrictTransportSecurity.Value,
-				StrictTransportSecurityOptions: cfg.StrictTransportSecurityOptions.Value,
-				SSHKeygenAlgorithm:             sshKeygenAlgorithm,
-				TracerProvider:                 tracerProvider,
-				Telemetry:                      telemetry.NewNoop(),
-				MetricsCacheRefreshInterval:    cfg.MetricsCacheRefreshInterval.Value,
-				AgentStatsRefreshInterval:      cfg.AgentStatRefreshInterval.Value,
-				DeploymentConfig:               cfg,
-				PrometheusRegistry:             prometheus.NewRegistry(),
-				APIRateLimit:                   cfg.RateLimit.API.Value,
-				LoginRateLimit:                 loginRateLimit,
-				FilesRateLimit:                 filesRateLimit,
-				HTTPClient:                     httpClient,
+				AccessURL:                   accessURLParsed,
+				AppHostname:                 appHostname,
+				AppHostnameRegex:            appHostnameRegex,
+				Logger:                      logger.Named("coderd"),
+				Database:                    dbfake.New(),
+				DERPMap:                     derpMap,
+				Pubsub:                      database.NewPubsubInMemory(),
+				CacheDir:                    cacheDir,
+				GoogleTokenValidator:        googleTokenValidator,
+				GitAuthConfigs:              gitAuthConfigs,
+				RealIPConfig:                realIPConfig,
+				SecureAuthCookie:            cfg.SecureAuthCookie.Value,
+				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
+				TracerProvider:              tracerProvider,
+				Telemetry:                   telemetry.NewNoop(),
+				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Value,
+				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value,
+				DeploymentConfig:            cfg,
+				PrometheusRegistry:          prometheus.NewRegistry(),
+				APIRateLimit:                cfg.RateLimit.API.Value,
+				LoginRateLimit:              loginRateLimit,
+				FilesRateLimit:              filesRateLimit,
+				HTTPClient:                  httpClient,
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates
+			}
+
+			if cfg.StrictTransportSecurity.Value > 0 {
+				options.StrictTransportSecurityCfg, err = httpmw.HSTSConfigOptions(cfg.StrictTransportSecurity.Value, cfg.StrictTransportSecurityOptions.Value)
+				if err != nil {
+					return xerrors.Errorf("coderd: setting hsts header failed (options: %v): %w", cfg.StrictTransportSecurityOptions.Value, err)
+				}
 			}
 
 			if cfg.UpdateCheck.Value {

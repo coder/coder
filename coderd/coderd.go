@@ -103,8 +103,7 @@ type Options struct {
 	OIDCConfig                     *OIDCConfig
 	PrometheusRegistry             *prometheus.Registry
 	SecureAuthCookie               bool
-	StrictTransportSecurityAge     int
-	StrictTransportSecurityOptions []string
+	StrictTransportSecurityCfg     httpmw.HSTSConfig
 	SSHKeygenAlgorithm             gitsshkey.Algorithm
 	Telemetry                      telemetry.Reporter
 	TracerProvider                 trace.TracerProvider
@@ -228,10 +227,7 @@ func New(options *Options) *API {
 	// Static file handler must be wrapped with HSTS handler if the
 	// StrictTransportSecurityAge is set. We only need to set this header on
 	// static files since it only affects browsers.
-	staticHandler, err = httpmw.HSTS(staticHandler, options.StrictTransportSecurityAge, options.StrictTransportSecurityOptions)
-	if err != nil {
-		panic(xerrors.Errorf("coderd: setting hsts header failed (options: %v): %w", options.StrictTransportSecurityOptions, err))
-	}
+	staticHandler = httpmw.HSTS(staticHandler, options.StrictTransportSecurityCfg)
 
 	r := chi.NewRouter()
 	api := &API{
