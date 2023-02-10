@@ -130,9 +130,27 @@ func setupProxyTest(t *testing.T, opts *setupProxyTestOpts) (*codersdk.Client, c
 		opts.AppHost = proxyTestSubdomainRaw
 	}
 
-	// #nosec
-	ln, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
+	// Start a listener on a random port greater than the minimum app port.
+	var (
+		ln      net.Listener
+		tcpAddr *net.TCPAddr
+	)
+	for i := 0; i < 10; i++ {
+		var err error
+		// #nosec
+		ln, err = net.Listen("tcp", ":0")
+		require.NoError(t, err)
+
+		var ok bool
+		tcpAddr, ok = ln.Addr().(*net.TCPAddr)
+		require.True(t, ok)
+		if tcpAddr.Port < codersdk.WorkspaceAgentMinimumListeningPort {
+			_ = ln.Close()
+			time.Sleep(20 * time.Millisecond)
+			continue
+		}
+	}
+
 	server := http.Server{
 		ReadHeaderTimeout: time.Minute,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -148,8 +166,6 @@ func setupProxyTest(t *testing.T, opts *setupProxyTestOpts) (*codersdk.Client, c
 		_ = ln.Close()
 	})
 	go server.Serve(ln)
-	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
-	require.True(t, ok)
 
 	deploymentConfig := coderdtest.DeploymentConfig(t)
 	deploymentConfig.DisablePathApps.Value = opts.DisablePathApps
@@ -714,7 +730,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		if val, ok := appSlugOrPort.(string); ok {
 			appSlugOrPortStr = val
 		} else {
-			port, ok = appSlugOrPort.(uint16)
+			port, ok := appSlugOrPort.(uint16)
 			require.True(t, ok)
 			appSlugOrPortStr = strconv.Itoa(int(port))
 		}

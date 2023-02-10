@@ -13,6 +13,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -56,8 +57,8 @@ func (r workspaceAppRequest) Validate() error {
 	if r.WorkspaceAndAgent == "" && r.WorkspaceNameOrID == "" {
 		return xerrors.New("workspace name or ID is required")
 	}
-	if r.AgentNameOrID != "" && r.WorkspaceAndAgent == "" {
-		return xerrors.New("agent name or ID is required")
+	if r.WorkspaceAndAgent != "" && r.AgentNameOrID != "" {
+		return xerrors.New("workspace name or ID is required when agent ID is set")
 	}
 	if r.AppSlugOrPort == "" {
 		return xerrors.New("app slug or port is required")
@@ -291,7 +292,6 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 		}
 
 		// Verify the user has access to the app.
-		// TODO: this logic has differences on subdomains, so verify that
 		authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, appReq.AccessMethod, workspace, appSharingLevel)
 		if !ok {
 			return
@@ -306,8 +306,22 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 
 			// Redirect to login as they don't have permission to access the app and
 			// they aren't signed in.
-			// TODO: redirect logic is different on subdomains
-			httpmw.RedirectToLogin(rw, r, httpmw.SignedOutErrorMessage)
+			if appReq.AccessMethod == workspaceAppAccessMethodSubdomain {
+				redirectURI := *r.URL
+				redirectURI.Scheme = api.AccessURL.Scheme
+				redirectURI.Host = httpapi.RequestHost(r)
+
+				u := *api.AccessURL
+				u.Path = "/api/v2/applications/auth-redirect"
+				q := u.Query()
+				q.Add(redirectURIQueryParam, redirectURI.String())
+				u.RawQuery = q.Encode()
+
+				http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
+			} else {
+				httpmw.RedirectToLogin(rw, r, httpmw.SignedOutErrorMessage)
+			}
+			return
 		}
 
 		ticketOK = true
@@ -464,6 +478,7 @@ func (api *API) fetchWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Re
 }
 
 func (api *API) writeWorkspaceApp404(rw http.ResponseWriter, r *http.Request, req workspaceAppRequest, msg string) {
+	slog.Helper()
 	api.Logger.Debug(r.Context(),
 		"workspace app 404: "+msg,
 		slog.F("username_or_id", req.UsernameOrID),
@@ -471,6 +486,7 @@ func (api *API) writeWorkspaceApp404(rw http.ResponseWriter, r *http.Request, re
 		slog.F("agent_name_or_id", req.AgentNameOrID),
 		slog.F("app_slug_or_port", req.AppSlugOrPort),
 	)
+
 	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 		Status:       http.StatusNotFound,
 		Title:        "Not Found",
@@ -481,6 +497,7 @@ func (api *API) writeWorkspaceApp404(rw http.ResponseWriter, r *http.Request, re
 }
 
 func (api *API) writeWorkspaceApp500(rw http.ResponseWriter, r *http.Request, req workspaceAppRequest, err error, msg string) {
+	slog.Helper()
 	api.Logger.Warn(r.Context(),
 		"workspace app auth server error: "+msg,
 		slog.Error(err),

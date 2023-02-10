@@ -225,6 +225,42 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				return
 			}
 
+			// If the request has the special query param then we need to set a
+			// cookie and strip that query parameter.
+			if encryptedAPIKey := r.URL.Query().Get(subdomainProxyAPIKeyParam); encryptedAPIKey != "" {
+				// Exchange the encoded API key for a real one.
+				_, token, err := decryptAPIKey(r.Context(), api.Database, encryptedAPIKey)
+				if err != nil {
+					site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+						Status:      http.StatusBadRequest,
+						Title:       "Bad Request",
+						Description: "Could not decrypt API key. Please remove the query parameter and try again.",
+						// Retry is disabled because the user needs to remove
+						// the query parameter before they try again.
+						RetryEnabled: false,
+						DashboardURL: api.AccessURL.String(),
+					})
+					return
+				}
+
+				api.setWorkspaceAppCookie(rw, r, token)
+
+				// Strip the query parameter.
+				path := r.URL.Path
+				if path == "" {
+					path = "/"
+				}
+				q := r.URL.Query()
+				q.Del(subdomainProxyAPIKeyParam)
+				rawQuery := q.Encode()
+				if rawQuery != "" {
+					path += "?" + q.Encode()
+				}
+
+				http.Redirect(rw, r, path, http.StatusTemporaryRedirect)
+				return
+			}
+
 			ticket, ok := api.resolveWorkspaceApp(rw, r, workspaceAppRequest{
 				AccessMethod:      workspaceAppAccessMethodSubdomain,
 				UsernameOrID:      app.Username,
@@ -379,95 +415,6 @@ func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request
 	}
 
 	http.Redirect(rw, r, redirectURI, http.StatusTemporaryRedirect)
-}
-
-// checkWorkspaceApplicationAuth authorizes the user using api.AppAuthorizer
-// for a given app share level in the given workspace. If the user is not
-// authorized or a server error occurs, a discrete HTML error page is rendered
-// and false is returned so the caller can return early.
-func (api *API) checkWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, accessMethod workspaceAppAccessMethod, workspace database.Workspace, appSharingLevel database.AppSharingLevel) bool {
-	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, accessMethod, workspace, appSharingLevel)
-	if !ok {
-		return false
-	}
-	if !authed {
-		renderApplicationNotFound(rw, r, api.AccessURL)
-		return false
-	}
-
-	return true
-}
-
-// verifyWorkspaceApplicationSubdomainAuth checks that the request is authorized
-// to access the given application. If the user does not have a app session key,
-// they will be redirected to the route below. If the user does have a session
-// key but insufficient permissions a static error page will be rendered.
-func (api *API) verifyWorkspaceApplicationSubdomainAuth(rw http.ResponseWriter, r *http.Request, host string, workspace database.Workspace, appSharingLevel database.AppSharingLevel) bool {
-	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspaceAppAccessMethodSubdomain, workspace, appSharingLevel)
-	if !ok {
-		return false
-	}
-	if authed {
-		return true
-	}
-
-	_, hasAPIKey := httpmw.APIKeyOptional(r)
-	if hasAPIKey {
-		// The request has a valid API key but insufficient permissions.
-		renderApplicationNotFound(rw, r, api.AccessURL)
-		return false
-	}
-
-	// If the request has the special query param then we need to set a cookie
-	// and strip that query parameter.
-	if encryptedAPIKey := r.URL.Query().Get(subdomainProxyAPIKeyParam); encryptedAPIKey != "" {
-		// Exchange the encoded API key for a real one.
-		_, token, err := decryptAPIKey(r.Context(), api.Database, encryptedAPIKey)
-		if err != nil {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusBadRequest,
-				Title:       "Bad Request",
-				Description: "Could not decrypt API key. Please remove the query parameter and try again.",
-				// Retry is disabled because the user needs to remove the query
-				// parameter before they try again.
-				RetryEnabled: false,
-				DashboardURL: api.AccessURL.String(),
-			})
-			return false
-		}
-
-		api.setWorkspaceAppCookie(rw, r, token)
-
-		// Strip the query parameter.
-		path := r.URL.Path
-		if path == "" {
-			path = "/"
-		}
-		q := r.URL.Query()
-		q.Del(subdomainProxyAPIKeyParam)
-		rawQuery := q.Encode()
-		if rawQuery != "" {
-			path += "?" + q.Encode()
-		}
-
-		http.Redirect(rw, r, path, http.StatusTemporaryRedirect)
-		return false
-	}
-
-	// If the user doesn't have a session key, redirect them to the API endpoint
-	// for application auth.
-	redirectURI := *r.URL
-	redirectURI.Scheme = api.AccessURL.Scheme
-	redirectURI.Host = host
-
-	u := *api.AccessURL
-	u.Path = "/api/v2/applications/auth-redirect"
-	q := u.Query()
-	q.Add(redirectURIQueryParam, redirectURI.String())
-	u.RawQuery = q.Encode()
-
-	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
-	return false
 }
 
 // setWorkspaceAppCookie sets a cookie on the workspace app domain. If the app
