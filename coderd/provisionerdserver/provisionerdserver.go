@@ -244,8 +244,15 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			},
 		}
 	case database.ProvisionerJobTypeTemplateVersionImport:
+		var input TemplateVersionImportJob
+		err = json.Unmarshal(job.Input, &input)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
+		}
+
 		protoJob.Type = &proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
+				VariableValues: convertVariableValues(input.VariableValues),
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl: server.AccessURL.String(),
 				},
@@ -386,6 +393,8 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		}
 
 		var variableValues []*sdkproto.VariableValue
+		server.Logger.Info(ctx, "variable values from request", slog.F("template_version_id", templateVersion.ID), slog.F("variable_values", request.VariableValues))
+
 		for _, templateVariable := range request.TemplateVariables {
 			server.Logger.Info(ctx, "insert template variable", slog.F("template_version_id", templateVersion.ID), slog.F("template_variable", templateVariable))
 
@@ -1174,6 +1183,17 @@ func convertRichParameterValues(workspaceBuildParameters []database.WorkspaceBui
 		}
 	}
 	return protoParameters
+}
+
+func convertVariableValues(variableValues []codersdk.VariableValue) []*sdkproto.VariableValue {
+	protoVariableValues := make([]*sdkproto.VariableValue, len(variableValues))
+	for i, variableValue := range variableValues {
+		protoVariableValues[i] = &sdkproto.VariableValue{
+			Name:  variableValue.Name,
+			Value: variableValue.Value,
+		}
+	}
+	return protoVariableValues
 }
 
 func convertComputedParameterValues(parameters []parameter.ComputedValue) ([]*sdkproto.ParameterValue, error) {

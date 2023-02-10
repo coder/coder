@@ -133,6 +133,7 @@ type createValidTemplateVersionArgs struct {
 	Provisioner   database.ProvisionerType
 	FileID        uuid.UUID
 	ParameterFile string
+	ValuesFile    string
 	// Template is only required if updating a template's active version.
 	Template *codersdk.Template
 	// ReuseParameters will attempt to reuse params from the Template field
@@ -145,6 +146,11 @@ type createValidTemplateVersionArgs struct {
 func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
 	client := args.Client
 
+	variableValues, err := loadVariableValues(args.ValuesFile)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	req := codersdk.CreateTemplateVersionRequest{
 		Name:            args.Name,
 		StorageMethod:   codersdk.ProvisionerStorageMethodFile,
@@ -152,6 +158,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		Provisioner:     codersdk.ProvisionerType(args.Provisioner),
 		ParameterValues: parameters,
 		ProvisionerTags: args.ProvisionerTags,
+		VariableValues:  variableValues,
 	}
 	if args.Template != nil {
 		req.TemplateID = args.Template.ID
