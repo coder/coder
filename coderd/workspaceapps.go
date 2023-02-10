@@ -1023,7 +1023,7 @@ func decryptAPIKey(ctx context.Context, db database.Store, encryptedAPIKey strin
 
 	// Lookup the API key so we can decrypt it.
 	keyID := object.Header.KeyID
-	key, err := db.GetAPIKeyByID(ctx, keyID)
+	key, err := db.GetAPIKeyByID(dbauthz.AsSystem(ctx), keyID)
 	if err != nil {
 		return database.APIKey{}, "", xerrors.Errorf("get API key by key ID: %w", err)
 	}
