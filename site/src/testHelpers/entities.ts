@@ -401,6 +401,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   lifecycle_state: "starting",
   login_before_ready: false,
   startup_script_timeout_seconds: 120,
+  shutdown_script_timeout_seconds: 120,
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -476,6 +477,34 @@ export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-start-error",
   name: "a-workspace-agent-errored-while-running-startup-script",
   lifecycle_state: "start_error",
+}
+
+export const MockWorkspaceAgentShuttingDown: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-shutting-down",
+  name: "a-shutting-down-workspace-agent",
+  lifecycle_state: "shutting_down",
+}
+
+export const MockWorkspaceAgentShutdownTimeout: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-shutdown-timeout",
+  name: "a-workspace-agent-timed-out-while-running-shutdownup-script",
+  lifecycle_state: "shutdown_timeout",
+}
+
+export const MockWorkspaceAgentShutdownError: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-shutdown-error",
+  name: "a-workspace-agent-errored-while-running-shutdownup-script",
+  lifecycle_state: "shutdown_error",
+}
+
+export const MockWorkspaceAgentOff: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-off",
+  name: "a-workspace-agent-is-shut-down",
+  lifecycle_state: "off",
 }
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {

@@ -16,7 +16,8 @@ import Link from "@material-ui/core/Link"
 // If we think in the agent status and lifecycle into a single enum/state I’d
 // say we would have: connecting, timeout, disconnected, connected:created,
 // connected:starting, connected:start_timeout, connected:start_error,
-// connected:ready
+// connected:ready, connected:shutting_down, connected:shutdown_timeout,
+// connected:shutdown_error, connected:off.
 
 const ReadyLifeCycle: React.FC = () => {
   const styles = useStyles()
@@ -132,6 +133,122 @@ const StartErrorLifecycle: React.FC<{
   )
 }
 
+const ShuttingDownLifecycle: React.FC = () => {
+  const styles = useStyles()
+  const { t } = useTranslation("workspacePage")
+
+  return (
+    <Tooltip title={t("agentStatus.connected.shuttingDown")}>
+      <div
+        role="status"
+        aria-label={t("agentStatus.connected.shuttingDown")}
+        className={combineClasses([styles.status, styles.connecting])}
+      />
+    </Tooltip>
+  )
+}
+
+const ShutdownTimeoutLifecycle: React.FC<{
+  agent: WorkspaceAgent
+}> = ({ agent }) => {
+  const { t } = useTranslation("agent")
+  const styles = useStyles()
+  const anchorRef = useRef<SVGSVGElement>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const id = isOpen ? "timeout-popover" : undefined
+
+  return (
+    <>
+      <WarningRounded
+        ref={anchorRef}
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        role="status"
+        aria-label={t("status.shutdownTimeout")}
+        className={styles.timeoutWarning}
+      />
+      <HelpPopover
+        id={id}
+        open={isOpen}
+        anchorEl={anchorRef.current}
+        onOpen={() => setIsOpen(true)}
+        onClose={() => setIsOpen(false)}
+      >
+        <HelpTooltipTitle>{t("shutdownTimeoutTooltip.title")}</HelpTooltipTitle>
+        <HelpTooltipText>
+          {t("shutdownTimeoutTooltip.message")}{" "}
+          <Link
+            target="_blank"
+            rel="noreferrer"
+            href={agent.troubleshooting_url}
+          >
+            {t("shutdownTimeoutTooltip.link")}
+          </Link>
+          .
+        </HelpTooltipText>
+      </HelpPopover>
+    </>
+  )
+}
+
+const ShutdownErrorLifecycle: React.FC<{
+  agent: WorkspaceAgent
+}> = ({ agent }) => {
+  const { t } = useTranslation("agent")
+  const styles = useStyles()
+  const anchorRef = useRef<SVGSVGElement>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const id = isOpen ? "timeout-popover" : undefined
+
+  return (
+    <>
+      <WarningRounded
+        ref={anchorRef}
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        role="status"
+        aria-label={t("status.error")}
+        className={styles.errorWarning}
+      />
+      <HelpPopover
+        id={id}
+        open={isOpen}
+        anchorEl={anchorRef.current}
+        onOpen={() => setIsOpen(true)}
+        onClose={() => setIsOpen(false)}
+      >
+        <HelpTooltipTitle>{t("shutdownErrorTooltip.title")}</HelpTooltipTitle>
+        <HelpTooltipText>
+          {t("shutdownErrorTooltip.message")}{" "}
+          <Link
+            target="_blank"
+            rel="noreferrer"
+            href={agent.troubleshooting_url}
+          >
+            {t("shutdownErrorTooltip.link")}
+          </Link>
+          .
+        </HelpTooltipText>
+      </HelpPopover>
+    </>
+  )
+}
+
+const OffLifeCycle: React.FC = () => {
+  const styles = useStyles()
+  const { t } = useTranslation("workspacePage")
+
+  return (
+    <Tooltip title={t("agentStatus.connected.off")}>
+      <div
+        role="status"
+        aria-label={t("agentStatus.connected.off")}
+        className={combineClasses([styles.status, styles.disconnected])}
+      />
+    </Tooltip>
+  )
+}
+
 const ConnectedStatus: React.FC<{
   agent: WorkspaceAgent
 }> = ({ agent }) => {
@@ -155,6 +272,18 @@ const ConnectedStatus: React.FC<{
       </Cond>
       <Cond condition={agent.lifecycle_state === "start_error"}>
         <StartErrorLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "shutting_down"}>
+        <ShuttingDownLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
+        <ShutdownTimeoutLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "shutdown_error"}>
+        <ShutdownErrorLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "off"}>
+        <OffLifeCycle />
       </Cond>
       <Cond>
         <StartingLifecycle />
