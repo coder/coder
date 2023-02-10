@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/netlogtype"
 
 	"github.com/coder/coder/codersdk"
 )
@@ -92,6 +93,7 @@ func vscodeSSH() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("find workspace: %w", err)
 			}
+
 			var agent codersdk.WorkspaceAgent
 			var found bool
 			for _, resource := range workspace.LatestBuild.Resources {
@@ -117,19 +119,20 @@ func vscodeSSH() *cobra.Command {
 					break
 				}
 			}
-			agentConn, err := client.DialWorkspaceAgent(ctx, agent.ID, &codersdk.DialWorkspaceAgentOptions{
-				EnableTrafficStats: true,
-			})
+
+			agentConn, err := client.DialWorkspaceAgent(ctx, agent.ID, &codersdk.DialWorkspaceAgentOptions{})
 			if err != nil {
 				return xerrors.Errorf("dial workspace agent: %w", err)
 			}
 			defer agentConn.Close()
+
 			agentConn.AwaitReachable(ctx)
 			rawSSH, err := agentConn.SSH(ctx)
 			if err != nil {
 				return err
 			}
 			defer rawSSH.Close()
+
 			// Copy SSH traffic over stdio.
 			go func() {
 				_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
@@ -137,41 +140,57 @@ func vscodeSSH() *cobra.Command {
 			go func() {
 				_, _ = io.Copy(rawSSH, cmd.InOrStdin())
 			}()
+
 			// The VS Code extension obtains the PID of the SSH process to
 			// read the file below which contains network information to display.
 			//
 			// We get the parent PID because it's assumed `ssh` is calling this
 			// command via the ProxyCommand SSH option.
 			networkInfoFilePath := filepath.Join(networkInfoDir, fmt.Sprintf("%d.json", os.Getppid()))
-			ticker := time.NewTicker(networkInfoInterval)
-			defer ticker.Stop()
-			lastCollected := time.Now()
-			for {
-				select {
-				case <-ctx.Done():
-					return nil
-				case <-ticker.C:
+
+			statsErrChan := make(chan error, 1)
+			cb := func(start, end time.Time, virtual, _ map[netlogtype.Connection]netlogtype.Counts) {
+				sendErr := func(err error) {
+					select {
+					case statsErrChan <- err:
+					default:
+					}
 				}
-				stats, err := collectNetworkStats(ctx, agentConn, lastCollected)
+
+				stats, err := collectNetworkStats(ctx, agentConn, start, end, virtual)
 				if err != nil {
-					return err
+					sendErr(err)
+					return
 				}
+
 				rawStats, err := json.Marshal(stats)
 				if err != nil {
-					return err
+					sendErr(err)
+					return
 				}
 				err = afero.WriteFile(fs, networkInfoFilePath, rawStats, 0600)
 				if err != nil {
-					return err
+					sendErr(err)
+					return
 				}
-				lastCollected = time.Now()
+			}
+
+			now := time.Now()
+			cb(now, now.Add(time.Nanosecond), map[netlogtype.Connection]netlogtype.Counts{}, map[netlogtype.Connection]netlogtype.Counts{})
+			agentConn.SetConnStatsCallback(networkInfoInterval, 2048, cb)
+
+			select {
+			case <-ctx.Done():
+				return nil
+			case err := <-statsErrChan:
+				return err
 			}
 		},
 	}
 	cmd.Flags().StringVarP(&networkInfoDir, "network-info-dir", "", "", "Specifies a directory to write network information periodically.")
 	cmd.Flags().StringVarP(&sessionTokenFile, "session-token-file", "", "", "Specifies a file that contains a session token.")
 	cmd.Flags().StringVarP(&urlFile, "url-file", "", "", "Specifies a file that contains the Coder URL.")
-	cmd.Flags().DurationVarP(&networkInfoInterval, "network-info-interval", "", 3*time.Second, "Specifies the interval to update network information.")
+	cmd.Flags().DurationVarP(&networkInfoInterval, "network-info-interval", "", 5*time.Second, "Specifies the interval to update network information.")
 	return cmd
 }
 
@@ -184,7 +203,7 @@ type sshNetworkStats struct {
 	DownloadBytesSec int64              `json:"download_bytes_sec"`
 }
 
-func collectNetworkStats(ctx context.Context, agentConn *codersdk.WorkspaceAgentConn, lastCollected time.Time) (*sshNetworkStats, error) {
+func collectNetworkStats(ctx context.Context, agentConn *codersdk.WorkspaceAgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
 	latency, p2p, err := agentConn.Ping(ctx)
 	if err != nil {
 		return nil, err
@@ -216,13 +235,13 @@ func collectNetworkStats(ctx context.Context, agentConn *codersdk.WorkspaceAgent
 
 	totalRx := uint64(0)
 	totalTx := uint64(0)
-	for _, stat := range agentConn.ExtractTrafficStats() {
+	for _, stat := range counts {
 		totalRx += stat.RxBytes
 		totalTx += stat.TxBytes
 	}
 	// Tracking the time since last request is required because
 	// ExtractTrafficStats() resets its counters after each call.
-	dur := time.Since(lastCollected)
+	dur := end.Sub(start)
 	uploadSecs := float64(totalTx) / dur.Seconds()
 	downloadSecs := float64(totalRx) / dur.Seconds()
 
