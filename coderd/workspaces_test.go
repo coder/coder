@@ -1533,7 +1533,8 @@ func TestWorkspaceWatcher(t *testing.T) {
 		select {
 		case <-ctx.Done():
 			require.FailNow(t, "timed out waiting for event", event)
-		case <-wc:
+		case _, ok := <-wc:
+			require.True(t, ok, "watch channel closed: %s", event)
 			logger.Info(ctx, "done waiting for event", slog.F("event", event))
 		}
 	}
