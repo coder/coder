@@ -369,11 +369,8 @@ func GitAuthLink(t testing.TB, db database.Store, orig database.GitAuthLink) dat
 
 func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVersion) database.TemplateVersion {
 	version, err := db.InsertTemplateVersion(context.Background(), database.InsertTemplateVersionParams{
-		ID: takeFirst(orig.ID, uuid.New()),
-		TemplateID: uuid.NullUUID{
-			UUID:  takeFirst(orig.TemplateID.UUID, uuid.New()),
-			Valid: takeFirst(orig.TemplateID.Valid, true),
-		},
+		ID:             takeFirst(orig.ID, uuid.New()),
+		TemplateID:     orig.TemplateID,
 		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
 		CreatedAt:      takeFirst(orig.CreatedAt, database.Now()),
 		UpdatedAt:      takeFirst(orig.UpdatedAt, database.Now()),

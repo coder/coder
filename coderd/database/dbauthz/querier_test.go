@@ -235,6 +235,17 @@ func (s *MethodTestSuite) TestProvsionerJob() {
 		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
 			Asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}).Returns()
 	}))
+	s.Run("TemplateVersionNoTemplate/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
+		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeTemplateVersionImport,
+		})
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: uuid.Nil, Valid: false},
+			JobID:      j.ID,
+		})
+		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
+			Asserts(v.RBACObjectNoTemplate(), []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}).Returns()
+	}))
 	s.Run("TemplateVersionDryRun/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
 		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
