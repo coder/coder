@@ -25,8 +25,7 @@ func TestApplicationURLString(t *testing.T) {
 		{
 			Name: "AppName",
 			URL: httpapi.ApplicationURL{
-				AppSlug:       "app",
-				Port:          0,
+				AppSlugOrPort: "app",
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
 				Username:      "user",
@@ -36,24 +35,11 @@ func TestApplicationURLString(t *testing.T) {
 		{
 			Name: "Port",
 			URL: httpapi.ApplicationURL{
-				AppSlug:       "",
-				Port:          8080,
+				AppSlugOrPort: "8080",
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
 				Username:      "user",
 			},
-			Expected: "8080--agent--workspace--user",
-		},
-		{
-			Name: "Both",
-			URL: httpapi.ApplicationURL{
-				AppSlug:       "app",
-				Port:          8080,
-				AgentName:     "agent",
-				WorkspaceName: "workspace",
-				Username:      "user",
-			},
-			// Prioritizes port over app name.
 			Expected: "8080--agent--workspace--user",
 		},
 	}
@@ -111,8 +97,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			Name:      "AppName--Agent--Workspace--User",
 			Subdomain: "app--agent--workspace--user",
 			Expected: httpapi.ApplicationURL{
-				AppSlug:       "app",
-				Port:          0,
+				AppSlugOrPort: "app",
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
 				Username:      "user",
@@ -122,8 +107,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			Name:      "Port--Agent--Workspace--User",
 			Subdomain: "8080--agent--workspace--user",
 			Expected: httpapi.ApplicationURL{
-				AppSlug:       "",
-				Port:          8080,
+				AppSlugOrPort: "8080",
 				AgentName:     "agent",
 				WorkspaceName: "workspace",
 				Username:      "user",
@@ -133,8 +117,7 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			Name:      "HyphenatedNames",
 			Subdomain: "app-slug--agent-name--workspace-name--user-name",
 			Expected: httpapi.ApplicationURL{
-				AppSlug:       "app-slug",
-				Port:          0,
+				AppSlugOrPort: "app-slug",
 				AgentName:     "agent-name",
 				WorkspaceName: "workspace-name",
 				Username:      "user-name",

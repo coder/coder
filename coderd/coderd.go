@@ -281,21 +281,9 @@ func New(options *Options) *API {
 		httpmw.Prometheus(options.PrometheusRegistry),
 		// handleSubdomainApplications checks if the first subdomain is a valid
 		// app URL. If it is, it will serve that application.
-		api.handleSubdomainApplications(
-			apiRateLimiter,
-			// Middleware to impose on the served application.
-			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
-				DB:            options.Database,
-				OAuth2Configs: oauthConfigs,
-				// The code handles the the case where the user is not
-				// authenticated automatically.
-				RedirectToLogin:             false,
-				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
-				Optional:                    true,
-			}),
-			httpmw.ExtractUserParam(api.Database, false),
-			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
-		),
+		//
+		// Workspace apps do their own auth.
+		api.handleSubdomainApplications(apiRateLimiter),
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -309,24 +297,8 @@ func New(options *Options) *API {
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
 
 	apps := func(r chi.Router) {
-		r.Use(
-			apiRateLimiter,
-			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
-				DB:            options.Database,
-				OAuth2Configs: oauthConfigs,
-				// Optional is true to allow for public apps. If an
-				// authorization check fails and the user is not authenticated,
-				// they will be redirected to the login page by the app handler.
-				RedirectToLogin:             false,
-				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
-				Optional:                    true,
-			}),
-			// Redirect to the login page if the user tries to open an app with
-			// "me" as the username and they are not logged in.
-			httpmw.ExtractUserParam(api.Database, true),
-			// Extracts the <workspace.agent> from the url
-			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
-		)
+		// Workspace apps do their own auth.
+		r.Use(apiRateLimiter)
 		r.HandleFunc("/*", api.workspaceAppsProxyPath)
 	}
 	// %40 is the encoded character of the @ symbol. VS Code Web does

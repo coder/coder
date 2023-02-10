@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -304,7 +305,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s", workspace.Name, proxyTestAppNameOwner), nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@%s/%s/apps/%s", coderdtest.FirstUserParams.Username, workspace.Name, proxyTestAppNameOwner), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -323,7 +324,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s", workspace.Name, proxyTestAppNameOwner), nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@%s/%s/apps/%s", coderdtest.FirstUserParams.Username, workspace.Name, proxyTestAppNameOwner), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -344,7 +345,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := requestWithRetries(ctx, t, userClient, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s", workspace.Name, proxyTestAppNameOwner), nil)
+		resp, err := requestWithRetries(ctx, t, userClient, http.MethodGet, fmt.Sprintf("/@%s/%s/apps/%s", coderdtest.FirstUserParams.Username, workspace.Name, proxyTestAppNameOwner), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -356,7 +357,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s", workspace.Name, proxyTestAppNameOwner), nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@%s/%s/apps/%s", coderdtest.FirstUserParams.Username, workspace.Name, proxyTestAppNameOwner), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -368,7 +369,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/", workspace.Name, proxyTestAppNameOwner), nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@%s/%s/apps/%s/", coderdtest.FirstUserParams.Username, workspace.Name, proxyTestAppNameOwner), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
@@ -383,7 +384,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/?%s", workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery), nil)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@%s/%s/apps/%s/?%s", coderdtest.FirstUserParams.Username, workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
@@ -398,7 +399,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/?%s", workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery), nil, func(r *http.Request) {
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@%s/%s/apps/%s/?%s", coderdtest.FirstUserParams.Username, workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery), nil, func(r *http.Request) {
 			r.Header.Set("Cf-Connecting-IP", "1.1.1.1")
 		})
 		require.NoError(t, err)
@@ -416,7 +417,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/", workspace.Name, proxyTestAppNameFake), nil)
+		resp, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/@%s/%s/apps/%s/", coderdtest.FirstUserParams.Username, workspace.Name, proxyTestAppNameFake), nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode)
@@ -706,18 +707,16 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 
 	// proxyURL generates a URL for the proxy subdomain. The default path is a
 	// slash.
-	proxyURL := func(t *testing.T, client *codersdk.Client, appNameOrPort interface{}, pathAndQuery ...string) string {
+	proxyURL := func(t *testing.T, client *codersdk.Client, appSlugOrPort interface{}, pathAndQuery ...string) string {
 		t.Helper()
 
-		var (
-			appName string
-			port    uint16
-		)
-		if val, ok := appNameOrPort.(string); ok {
-			appName = val
+		appSlugOrPortStr := ""
+		if val, ok := appSlugOrPort.(string); ok {
+			appSlugOrPortStr = val
 		} else {
-			port, ok = appNameOrPort.(uint16)
+			port, ok = appSlugOrPort.(uint16)
 			require.True(t, ok)
+			appSlugOrPortStr = strconv.Itoa(int(port))
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -736,8 +735,7 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		require.NoError(t, err, "get app host")
 
 		subdomain := httpapi.ApplicationURL{
-			AppSlug:       appName,
-			Port:          port,
+			AppSlugOrPort: appSlugOrPortStr,
 			AgentName:     proxyTestAgentName,
 			WorkspaceName: res.Workspaces[0].Name,
 			Username:      me.Username,
@@ -1092,7 +1090,7 @@ func TestAppSubdomainLogout(t *testing.T) {
 			req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 			if c.cookie != "" {
 				req.AddCookie(&http.Cookie{
-					Name:  httpmw.DevURLSessionTokenCookie,
+					Name:  codersdk.DevURLSessionTokenCookie,
 					Value: c.cookie,
 				})
 			}
@@ -1109,7 +1107,7 @@ func TestAppSubdomainLogout(t *testing.T) {
 				cookies := resp.Cookies()
 				require.Len(t, cookies, 1, "logout response cookies")
 				cookie := cookies[0]
-				require.Equal(t, httpmw.DevURLSessionTokenCookie, cookie.Name)
+				require.Equal(t, codersdk.DevURLSessionTokenCookie, cookie.Name)
 				require.Equal(t, "", cookie.Value)
 				require.True(t, cookie.Expires.Before(time.Now()), "cookie should be expired")
 
@@ -1264,7 +1262,7 @@ func TestAppSharing(t *testing.T) {
 			u := fmt.Sprintf("/@%s/%s.%s/apps/%s/?%s", username, workspaceName, agentName, appName, proxyTestAppQuery)
 			if !isPathApp {
 				subdomain := httpapi.ApplicationURL{
-					AppSlug:       appName,
+					AppSlugOrPort: appName,
 					AgentName:     agentName,
 					WorkspaceName: workspaceName,
 					Username:      username,
@@ -1512,7 +1510,7 @@ func TestWorkspaceAppsNonCanonicalHeaders(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		u, err := client.URL.Parse(fmt.Sprintf("/@me/%s/apps/%s/?%s", workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery))
+		u, err := client.URL.Parse(fmt.Sprintf("/@%s/%s/apps/%s/?%s", coderdtest.FirstUserParams.Username, workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery))
 		require.NoError(t, err)
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)

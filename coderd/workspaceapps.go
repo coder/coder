@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	jose "gopkg.in/square/go-jose.v2"
@@ -93,9 +92,6 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 // workspaceAppsProxyPath proxies requests to a workspace application
 // through a relative URL path.
 func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
-	workspace := httpmw.WorkspaceParam(r)
-	agent := httpmw.WorkspaceAgentParam(r)
-
 	if api.DeploymentConfig.DisablePathApps.Value {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusUnauthorized,
@@ -107,32 +103,43 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// We do not support port proxying on paths, so lookup the app by slug.
-	appSlug := chi.URLParam(r, "workspaceapp")
-	app, ok := api.lookupWorkspaceApp(rw, r, agent.ID, appSlug)
-	if !ok {
+	// If the username in the request is @me, then redirect to the current
+	// username. The resolveWorkspaceApp function does not accept @me for
+	// security purposes.
+	if chi.URLParam(r, "user") == codersdk.Me {
+		mw := chi.Middlewares([]func(http.Handler) http.Handler{
+			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+				DB: api.Database,
+				OAuth2Configs: &httpmw.OAuth2Configs{
+					Github: api.GithubOAuth2Config,
+					OIDC:   api.OIDCConfig,
+				},
+				// Optional is true to allow for public apps. If an authorization check
+				// fails and the user is not authenticated, they will be redirected to
+				// the login page below.
+				RedirectToLogin:             true,
+				DisableSessionExpiryRefresh: api.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+				Optional:                    false,
+			}),
+			httpmw.ExtractUserParam(api.Database, true),
+		})
+
+		mw.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			user := httpmw.UserParam(r)
+			http.Redirect(rw, r, strings.Replace(r.URL.Path, "@me", "@"+user.Username, 1), http.StatusTemporaryRedirect)
+		}).ServeHTTP(rw, r)
 		return
 	}
 
-	appSharingLevel := database.AppSharingLevelOwner
-	if app.SharingLevel != "" {
-		appSharingLevel = app.SharingLevel
-	}
-	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspaceAppAccessMethodPath, workspace, appSharingLevel)
+	ticket, ok := api.resolveWorkspaceApp(rw, r, workspaceAppRequest{
+		AccessMethod:      workspaceAppAccessMethodPath,
+		UsernameOrID:      chi.URLParam(r, "user"),
+		WorkspaceAndAgent: chi.URLParam(r, "workspace_and_agent"),
+		// We don't support port proxying on paths. The resolveWorkspaceApp
+		// method won't allow port proxying on path-based apps.
+		AppSlugOrPort: chi.URLParam(r, "workspaceapp"),
+	})
 	if !ok {
-		return
-	}
-	if !authed {
-		_, hasAPIKey := httpmw.APIKeyOptional(r)
-		if hasAPIKey {
-			// The request has a valid API key but insufficient permissions.
-			renderApplicationNotFound(rw, r, api.AccessURL)
-			return
-		}
-
-		// Redirect to login as they don't have permission to access the app and
-		// they aren't signed in.
-		httpmw.RedirectToLogin(rw, r, httpmw.SignedOutErrorMessage)
 		return
 	}
 
@@ -144,14 +151,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		chiPath = "/" + chiPath
 	}
 
-	api.proxyWorkspaceApplication(proxyApplication{
-		AccessMethod: workspaceAppAccessMethodPath,
-		Workspace:    workspace,
-		Agent:        agent,
-		App:          &app,
-		Port:         0,
-		Path:         chiPath,
-	}, rw, r)
+	api.proxyWorkspaceApplication(rw, r, *ticket, chiPath)
 }
 
 // handleSubdomainApplications handles subdomain-based application proxy
@@ -225,45 +225,22 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				return
 			}
 
-			workspaceAgentKey := fmt.Sprintf("%s.%s", app.WorkspaceName, app.AgentName)
-			chiCtx := chi.RouteContext(ctx)
-			chiCtx.URLParams.Add("workspace_and_agent", workspaceAgentKey)
-			chiCtx.URLParams.Add("user", app.Username)
+			ticket, ok := api.resolveWorkspaceApp(rw, r, workspaceAppRequest{
+				AccessMethod:      workspaceAppAccessMethodSubdomain,
+				UsernameOrID:      app.Username,
+				WorkspaceNameOrID: app.WorkspaceName,
+				AgentNameOrID:     app.AgentName,
+				AppSlugOrPort:     app.AppSlugOrPort,
+			})
+			if !ok {
+				return
+			}
 
-			// Use the passed in app middlewares before passing to the proxy app.
+			// Use the passed in app middlewares before passing to the proxy
+			// app.
 			mws := chi.Middlewares(middlewares)
 			mws.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-				workspace := httpmw.WorkspaceParam(r)
-				agent := httpmw.WorkspaceAgentParam(r)
-
-				var workspaceAppPtr *database.WorkspaceApp
-				if app.AppSlug != "" {
-					workspaceApp, ok := api.lookupWorkspaceApp(rw, r, agent.ID, app.AppSlug)
-					if !ok {
-						return
-					}
-
-					workspaceAppPtr = &workspaceApp
-				}
-
-				// Verify application auth. This function will redirect or
-				// return an error page if the user doesn't have permission.
-				sharingLevel := database.AppSharingLevelOwner
-				if workspaceAppPtr != nil && workspaceAppPtr.SharingLevel != "" {
-					sharingLevel = workspaceAppPtr.SharingLevel
-				}
-				if !api.verifyWorkspaceApplicationSubdomainAuth(rw, r, host, workspace, sharingLevel) {
-					return
-				}
-
-				api.proxyWorkspaceApplication(proxyApplication{
-					AccessMethod: workspaceAppAccessMethodSubdomain,
-					Workspace:    workspace,
-					Agent:        agent,
-					App:          workspaceAppPtr,
-					Port:         app.Port,
-					Path:         r.URL.Path,
-				}, rw, r)
+				api.proxyWorkspaceApplication(rw, r, *ticket, r.URL.Path)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
@@ -320,7 +297,7 @@ func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request
 
 	// Delete the API key and cookie first before attempting to parse/validate
 	// the redirect URI.
-	cookie, err := r.Cookie(httpmw.DevURLSessionTokenCookie)
+	cookie, err := r.Cookie(codersdk.DevURLSessionTokenCookie)
 	if err == nil && cookie.Value != "" {
 		id, secret, err := httpmw.SplitAPIToken(cookie.Value)
 		// If it's not a valid token then we don't need to delete it from the
@@ -402,133 +379,6 @@ func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request
 	}
 
 	http.Redirect(rw, r, redirectURI, http.StatusTemporaryRedirect)
-}
-
-// lookupWorkspaceApp looks up the workspace application by slug in the given
-// agent and returns it. If the application is not found or there was a server
-// error while looking it up, an HTML error page is returned and false is
-// returned so the caller can return early.
-func (api *API) lookupWorkspaceApp(rw http.ResponseWriter, r *http.Request, agentID uuid.UUID, appSlug string) (database.WorkspaceApp, bool) {
-	app, err := api.Database.GetWorkspaceAppByAgentIDAndSlug(r.Context(), database.GetWorkspaceAppByAgentIDAndSlugParams{
-		AgentID: agentID,
-		Slug:    appSlug,
-	})
-	if xerrors.Is(err, sql.ErrNoRows) {
-		renderApplicationNotFound(rw, r, api.AccessURL)
-		return database.WorkspaceApp{}, false
-	}
-	if err != nil {
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusInternalServerError,
-			Title:        "Internal Server Error",
-			Description:  "Could not fetch workspace application: " + err.Error(),
-			RetryEnabled: true,
-			DashboardURL: api.AccessURL.String(),
-		})
-		return database.WorkspaceApp{}, false
-	}
-
-	return app, true
-}
-
-//nolint:revive
-func (api *API) authorizeWorkspaceApp(r *http.Request, accessMethod workspaceAppAccessMethod, sharingLevel database.AppSharingLevel, workspace database.Workspace) (bool, error) {
-	ctx := r.Context()
-
-	if accessMethod == "" {
-		accessMethod = workspaceAppAccessMethodPath
-	}
-	isPathApp := accessMethod == workspaceAppAccessMethodPath
-
-	// If path-based app sharing is disabled (which is the default), we can
-	// force the sharing level to be "owner" so that the user can only access
-	// their own apps.
-	//
-	// Site owners are blocked from accessing path-based apps unless the
-	// Dangerous.AllowPathAppSiteOwnerAccess flag is enabled in the check below.
-	if isPathApp && !api.DeploymentConfig.Dangerous.AllowPathAppSharing.Value {
-		sharingLevel = database.AppSharingLevelOwner
-	}
-
-	// Short circuit if not authenticated.
-	roles, ok := httpmw.UserAuthorizationOptional(r)
-	if !ok {
-		// The user is not authenticated, so they can only access the app if it
-		// is public.
-		return sharingLevel == database.AppSharingLevelPublic, nil
-	}
-
-	// Block anyone from accessing workspaces they don't own in path-based apps
-	// unless the admin disables this security feature. This blocks site-owners
-	// from accessing any apps from any user's workspaces.
-	//
-	// When the Dangerous.AllowPathAppSharing flag is not enabled, the sharing
-	// level will be forced to "owner", so this check will always be true for
-	// workspaces owned by different users.
-	if isPathApp &&
-		sharingLevel == database.AppSharingLevelOwner &&
-		workspace.OwnerID.String() != roles.Actor.ID &&
-		!api.DeploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value {
-
-		return false, nil
-	}
-
-	// Do a standard RBAC check. This accounts for share level "owner" and any
-	// other RBAC rules that may be in place.
-	//
-	// Regardless of share level or whether it's enabled or not, the owner of
-	// the workspace can always access applications (as long as their API key's
-	// scope allows it).
-	err := api.Authorizer.Authorize(ctx, roles.Actor, rbac.ActionCreate, workspace.ApplicationConnectRBAC())
-	if err == nil {
-		return true, nil
-	}
-
-	switch sharingLevel {
-	case database.AppSharingLevelOwner:
-		// We essentially already did this above with the regular RBAC check.
-		// Owners can always access their own apps according to RBAC rules, so
-		// they have already been returned from this function.
-	case database.AppSharingLevelAuthenticated:
-		// The user is authenticated at this point, but we need to make sure
-		// that they have ApplicationConnect permissions to their own
-		// workspaces. This ensures that the key's scope has permission to
-		// connect to workspace apps.
-		object := rbac.ResourceWorkspaceApplicationConnect.WithOwner(roles.Actor.ID)
-		err := api.Authorizer.Authorize(ctx, roles.Actor, rbac.ActionCreate, object)
-		if err == nil {
-			return true, nil
-		}
-	case database.AppSharingLevelPublic:
-		// We don't really care about scopes and stuff if it's public anyways.
-		// Someone with a restricted-scope API key could just not submit the
-		// API key cookie in the request and access the page.
-		return true, nil
-	}
-
-	// No checks were successful.
-	return false, nil
-}
-
-// fetchWorkspaceApplicationAuth authorizes the user using api.AppAuthorizer
-// for a given app share level in the given workspace. The user's authorization
-// status is returned. If a server error occurs, a HTML error page is rendered
-// and false is returned so the caller can return early.
-func (api *API) fetchWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, accessMethod workspaceAppAccessMethod, workspace database.Workspace, appSharingLevel database.AppSharingLevel) (authed bool, ok bool) {
-	ok, err := api.authorizeWorkspaceApp(r, accessMethod, appSharingLevel, workspace)
-	if err != nil {
-		api.Logger.Error(r.Context(), "authorize workspace app", slog.Error(err))
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusInternalServerError,
-			Title:        "Internal Server Error",
-			Description:  "Could not verify authorization. Please try again or contact an administrator.",
-			RetryEnabled: true,
-			DashboardURL: api.AccessURL.String(),
-		})
-		return false, false
-	}
-
-	return ok, true
 }
 
 // checkWorkspaceApplicationAuth authorizes the user using api.AppAuthorizer
@@ -652,7 +502,7 @@ func (api *API) setWorkspaceAppCookie(rw http.ResponseWriter, r *http.Request, t
 	}
 	cookieHost := "." + hostSplit[1]
 	http.SetCookie(rw, &http.Cookie{
-		Name:     httpmw.DevURLSessionTokenCookie,
+		Name:     codersdk.DevURLSessionTokenCookie,
 		Value:    token,
 		Domain:   cookieHost,
 		Path:     "/",
@@ -775,35 +625,10 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
 }
 
-// proxyApplication are the required fields to proxy a workspace application.
-type proxyApplication struct {
-	AccessMethod workspaceAppAccessMethod
-	Workspace    database.Workspace
-	Agent        database.WorkspaceAgent
-
-	// Either App or Port must be set, but not both.
-	App  *database.WorkspaceApp
-	Port uint16
-
-	// SharingLevel MUST be set to database.AppSharingLevelOwner by default for
-	// ports.
-	SharingLevel database.AppSharingLevel
-	// Path must either be empty or have a leading slash.
-	Path string
-}
-
-func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.ResponseWriter, r *http.Request) {
+func (api *API) proxyWorkspaceApplication(rw http.ResponseWriter, r *http.Request, ticket workspaceAppTicket, path string) {
 	ctx := r.Context()
 
-	sharingLevel := database.AppSharingLevelOwner
-	if proxyApp.App != nil && proxyApp.App.SharingLevel != "" {
-		sharingLevel = proxyApp.App.SharingLevel
-	}
-	if !api.checkWorkspaceApplicationAuth(rw, r, proxyApp.AccessMethod, proxyApp.Workspace, sharingLevel) {
-		return
-	}
-
-	// Filter IP headers from untrusted origins!
+	// Filter IP headers from untrusted origins.
 	httpmw.FilterUntrustedOriginHeaders(api.RealIPConfig, r)
 	// Ensure proper IP headers get sent to the forwarded application.
 	err := httpmw.EnsureXForwardedForHeader(r)
@@ -812,32 +637,12 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		return
 	}
 
-	// If the app does not exist, but the app slug is a port number, then route
-	// to the port as an "anonymous app". We only support HTTP for port-based
-	// URLs.
-	//
-	// This is only supported for subdomain-based applications.
-	internalURL := fmt.Sprintf("http://127.0.0.1:%d", proxyApp.Port)
-	if proxyApp.App != nil {
-		if !proxyApp.App.Url.Valid {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:       http.StatusBadRequest,
-				Title:        "Bad Request",
-				Description:  fmt.Sprintf("Application %q does not have a URL set.", proxyApp.App.Slug),
-				RetryEnabled: true,
-				DashboardURL: api.AccessURL.String(),
-			})
-			return
-		}
-		internalURL = proxyApp.App.Url.String
-	}
-
-	appURL, err := url.Parse(internalURL)
+	appURL, err := url.Parse(ticket.AppURL)
 	if err != nil {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusBadRequest,
 			Title:        "Bad Request",
-			Description:  fmt.Sprintf("Application has an invalid URL %q: %s", internalURL, err.Error()),
+			Description:  fmt.Sprintf("Application has an invalid URL %q: %s", ticket.AppURL, err.Error()),
 			RetryEnabled: true,
 			DashboardURL: api.AccessURL.String(),
 		})
@@ -851,7 +656,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		portInt, err := strconv.Atoi(port)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("App URL %q has an invalid port %q.", internalURL, port),
+				Message: fmt.Sprintf("App URL %q has an invalid port %q.", ticket.AppURL, port),
 				Detail:  err.Error(),
 			})
 			return
@@ -866,14 +671,14 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 	}
 
 	// Ensure path and query parameter correctness.
-	if proxyApp.Path == "" {
+	if path == "" {
 		// Web applications typically request paths relative to the
 		// root URL. This allows for routing behind a proxy or subpath.
 		// See https://github.com/coder/code-server/issues/241 for examples.
 		http.Redirect(rw, r, r.URL.Path+"/", http.StatusTemporaryRedirect)
 		return
 	}
-	if proxyApp.Path == "/" && r.URL.RawQuery == "" && appURL.RawQuery != "" {
+	if path == "/" && r.URL.RawQuery == "" && appURL.RawQuery != "" {
 		// If the application defines a default set of query parameters,
 		// we should always respect them. The reverse proxy will merge
 		// query parameters for server-side requests, but sometimes
@@ -884,7 +689,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		return
 	}
 
-	r.URL.Path = proxyApp.Path
+	r.URL.Path = path
 	appURL.RawQuery = ""
 
 	proxy := httputil.NewSingleHostReverseProxy(appURL)
@@ -898,7 +703,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		})
 	}
 
-	conn, release, err := api.workspaceAgentCache.Acquire(r, proxyApp.Agent.ID)
+	conn, release, err := api.workspaceAgentCache.Acquire(r, ticket.AgentID)
 	if err != nil {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusBadGateway,

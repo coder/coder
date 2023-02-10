@@ -24,13 +24,6 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// The special cookie name used for subdomain-based application proxying.
-// TODO: this will make dogfooding harder so come up with a more unique
-// solution
-//
-//nolint:gosec
-const DevURLSessionTokenCookie = "coder_devurl_session_token"
-
 type apiKeyContextKey struct{}
 
 // APIKeyOptional may return an API key from the ExtractAPIKey handler.
@@ -382,7 +375,7 @@ func apiTokenFromRequest(r *http.Request) string {
 		return headerValue
 	}
 
-	cookie, err = r.Cookie(DevURLSessionTokenCookie)
+	cookie, err = r.Cookie(codersdk.DevURLSessionTokenCookie)
 	if err == nil && cookie.Value != "" {
 		return cookie.Value
 	}
