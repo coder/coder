@@ -674,7 +674,7 @@ func New(options *Options) *API {
 
 type API struct {
 	// ctx is canceled immediately on shutdown, it can be used to abort
-	// interruptable tasks.
+	// interruptible tasks.
 	ctx    context.Context
 	cancel context.CancelFunc
 
