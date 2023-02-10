@@ -370,7 +370,10 @@ func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 		stopTimes   []float64
 		deleteTimes []float64
 	)
-	for _, wb := range q.workspaceBuilds {
+	q.mutex.RLock()
+	workspaceBuilds := slices.Clone(q.workspaceBuilds)
+	q.mutex.RUnlock()
+	for _, wb := range workspaceBuilds {
 		version, err := q.GetTemplateVersionByID(ctx, wb.TemplateVersionID)
 		if err != nil {
 			return emptyRow, err
