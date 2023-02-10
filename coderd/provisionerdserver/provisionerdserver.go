@@ -385,8 +385,21 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 			return nil, xerrors.Errorf("get template version by job id: %w", err)
 		}
 
+		var variableValues []*sdkproto.VariableValue
 		for _, templateVariable := range request.TemplateVariables {
 			server.Logger.Info(ctx, "insert template variable", slog.F("template_version_id", templateVersion.ID), slog.F("template_variable", templateVariable))
+
+			var value = templateVariable.DefaultValue
+			for _, v := range request.VariableValues {
+				if v.Name == templateVariable.Name {
+					value = v.Value
+					variableValues = append(variableValues, &sdkproto.VariableValue{
+						Name:  v.Name,
+						Value: v.Value,
+					})
+					break
+				}
+			}
 
 			_, err = server.Database.InsertTemplateVersionVariable(ctx, database.InsertTemplateVersionVariableParams{
 				TemplateVersionID: templateVersion.ID,
@@ -396,12 +409,17 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 				DefaultValue:      templateVariable.DefaultValue,
 				Required:          templateVariable.Required,
 				Sensitive:         templateVariable.Sensitive,
-				// FIXME value
+				Value:             value,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("insert parameter schema: %w", err)
 			}
 		}
+
+		return &proto.UpdateJobResponse{
+			Canceled:       job.CanceledAt.Valid,
+			VariableValues: variableValues,
+		}, nil
 	}
 
 	if len(request.ParameterSchemas) > 0 {
@@ -1216,7 +1234,8 @@ func auditActionFromTransition(transition database.WorkspaceTransition) database
 }
 
 type TemplateVersionImportJob struct {
-	TemplateVersionID uuid.UUID `json:"template_version_id"`
+	TemplateVersionID uuid.UUID                `json:"template_version_id"`
+	VariableValues    []codersdk.VariableValue `json:"variable_values"`
 }
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.

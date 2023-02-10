@@ -199,6 +199,7 @@ export interface CreateTemplateVersionRequest {
   readonly provisioner: ProvisionerType
   readonly tags: Record<string, string>
   readonly parameter_values?: CreateParameterRequest[]
+  readonly variable_values?: VariableValue[]
 }
 
 // From codersdk/audit.go
@@ -895,6 +896,12 @@ export interface UsersRequest extends Pagination {
 export interface ValidationError {
   readonly field: string
   readonly detail: string
+}
+
+// From codersdk/organizations.go
+export interface VariableValue {
+  readonly name: string
+  readonly value: string
 }
 
 // From codersdk/workspaces.go

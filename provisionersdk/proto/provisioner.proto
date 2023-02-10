@@ -92,6 +92,12 @@ message RichParameterValue {
     string value = 2;
 }
 
+// VariableValue holds the key/value mapping of a Terraform variable.
+message VariableValue {
+    string name = 1;
+    string value = 2;
+}
+
 // LogLevel represents severity of the log.
 enum LogLevel {
     TRACE = 0;
@@ -227,6 +233,7 @@ message Provision {
         Config config = 1;
         repeated ParameterValue parameter_values = 2;
 		repeated RichParameterValue rich_parameter_values = 3;
+		repeated VariableValue variable_values = 4;
     }
 
     message Apply {
