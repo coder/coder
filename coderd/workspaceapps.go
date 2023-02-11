@@ -264,7 +264,7 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 
 			ticket, ok := api.resolveWorkspaceApp(rw, r, workspaceAppRequest{
 				AccessMethod:      workspaceAppAccessMethodSubdomain,
-				BasePath:          "",
+				BasePath:          "/",
 				UsernameOrID:      app.Username,
 				WorkspaceNameOrID: app.WorkspaceName,
 				AgentNameOrID:     app.AgentName,

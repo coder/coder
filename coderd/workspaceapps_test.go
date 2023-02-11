@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httputil"
 	"net/url"
 	"strconv"
@@ -400,10 +401,40 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@%s/%s/apps/%s/?%s", coderdtest.FirstUserParams.Username, workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery), nil)
+		basePath := fmt.Sprintf("/@%s/%s/apps/%s/", coderdtest.FirstUserParams.Username, workspace.Name, proxyTestAppNameOwner)
+		path := fmt.Sprintf("%s?%s", basePath, proxyTestAppQuery)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, path, nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, proxyTestAppBody, string(body))
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var sessionTicketCookie *http.Cookie
+		for _, c := range resp.Cookies() {
+			if c.Name == codersdk.DevURLSessionTicketCookie {
+				sessionTicketCookie = c
+				break
+			}
+		}
+		require.NotNil(t, sessionTicketCookie, "no session ticket in response")
+		require.Equal(t, sessionTicketCookie.Path, basePath, "incorrect path on session ticket cookie")
+
+		// Ensure the session ticket cookie is valid.
+		ticketClient := codersdk.New(client.URL)
+		ticketClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
+		ticketClient.HTTPClient.Transport = client.HTTPClient.Transport
+		u, err := ticketClient.URL.Parse(path)
+		require.NoError(t, err)
+		ticketClient.HTTPClient.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err)
+		ticketClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{sessionTicketCookie})
+
+		resp, err = requestWithRetries(ctx, t, ticketClient, http.MethodGet, path, nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		body, err = io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, proxyTestAppBody, string(body))
 		require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -879,10 +910,39 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, proxyURL(t, client, proxyTestAppNameOwner, "/", proxyTestAppQuery), nil)
+		uStr := proxyURL(t, client, proxyTestAppNameOwner, "/", proxyTestAppQuery)
+		u, err := url.Parse(uStr)
+		require.NoError(t, err)
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, uStr, nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, proxyTestAppBody, string(body))
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var sessionTicketCookie *http.Cookie
+		for _, c := range resp.Cookies() {
+			if c.Name == codersdk.DevURLSessionTicketCookie {
+				sessionTicketCookie = c
+				break
+			}
+		}
+		require.NotNil(t, sessionTicketCookie, "no session ticket in response")
+		require.Equal(t, sessionTicketCookie.Path, "/", "incorrect path on session ticket cookie")
+
+		// Ensure the session ticket cookie is valid.
+		ticketClient := codersdk.New(client.URL)
+		ticketClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
+		ticketClient.HTTPClient.Transport = client.HTTPClient.Transport
+		ticketClient.HTTPClient.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err)
+		ticketClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{sessionTicketCookie})
+
+		resp, err = requestWithRetries(ctx, t, ticketClient, http.MethodGet, uStr, nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		body, err = io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, proxyTestAppBody, string(body))
 		require.Equal(t, http.StatusOK, resp.StatusCode)

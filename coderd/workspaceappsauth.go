@@ -44,6 +44,9 @@ func (r workspaceAppRequest) Validate() error {
 	if r.AccessMethod != workspaceAppAccessMethodPath && r.AccessMethod != workspaceAppAccessMethodSubdomain {
 		return xerrors.Errorf("invalid access method: %q", r.AccessMethod)
 	}
+	if r.BasePath == "" {
+		return xerrors.New("base path is required")
+	}
 	if r.UsernameOrID == "" {
 		return xerrors.New("username or ID is required")
 	}
@@ -81,23 +84,6 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 		return nil, false
 	}
 
-	// Get the existing ticket from the request.
-	ticketCookie, err := r.Cookie(codersdk.DevURLSessionTicketCookie)
-	if err == nil {
-		ticket, err := api.parseWorkspaceAppTicket(ticketCookie.Value)
-		if err == nil {
-			if ticket.MatchesRequest(appReq) {
-				// The request has a ticket, which is a valid ticket signed by
-				// us, and matches the app that the user was trying to access.
-				return nil, true
-			}
-		}
-	}
-
-	// There's no ticket or it's invalid, so we need to check auth using the
-	// session token, validate auth and access to the app, then generate a new
-	// ticket.
-
 	if appReq.WorkspaceAndAgent != "" {
 		// workspace.agent
 		workspaceAndAgent := strings.SplitN(appReq.WorkspaceAndAgent, ".", 2)
@@ -115,6 +101,23 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 		}
 	}
 
+	// Get the existing ticket from the request.
+	ticketCookie, err := r.Cookie(codersdk.DevURLSessionTicketCookie)
+	if err == nil {
+		ticket, err := api.parseWorkspaceAppTicket(ticketCookie.Value)
+		if err == nil {
+			if ticket.MatchesRequest(appReq) {
+				// The request has a ticket, which is a valid ticket signed by
+				// us, and matches the app that the user was trying to access.
+				return &ticket, true
+			}
+		}
+	}
+
+	// There's no ticket or it's invalid, so we need to check auth using the
+	// session token, validate auth and access to the app, then generate a new
+	// ticket.
+	//
 	// We use the regular API key extraction middleware here to avoid any
 	// differences in behavior between the two.
 	var (
@@ -583,7 +586,7 @@ func (api *API) parseWorkspaceAppTicket(ticketStr string) (workspaceAppTicket, e
 		return workspaceAppTicket{}, xerrors.Errorf("parse JWS: %w", err)
 	}
 
-	output, err := object.Verify(api.AppSigningKey)
+	output, err := object.Verify(&api.AppSigningKey.PublicKey)
 	if err != nil {
 		return workspaceAppTicket{}, xerrors.Errorf("verify JWS: %w", err)
 	}
