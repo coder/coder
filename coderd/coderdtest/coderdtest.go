@@ -79,6 +79,68 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
+// TestAppSigningKey is used as the signing key in tests to avoid generating a
+// new keypair for each test. This is exported so `coder server` tests can also
+// use it.
+//
+// Generated with:
+//
+//	openssl genrsa 4096 | openssl pkcs8 -topk8 -nocrypt
+const TestAppSigningKey = `
+-----BEGIN PRIVATE KEY-----
+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
+fU+3mLRVC00Fs6X0PiWYE5OlXJ7K
+-----END PRIVATE KEY-----
+`
+
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
 	// server's URL. Setting this may result in unexpected behavior (especially
@@ -99,6 +161,7 @@ type Options struct {
 	TLSCertificates      []tls.Certificate
 	GitAuthConfigs       []*gitauth.Config
 	TrialGenerator       func(context.Context, string) error
+	AppSigningKey        *rsa.PrivateKey
 
 	// All rate limits default to -1 (unlimited) in tests if not set.
 	APIRateLimit   int
@@ -266,6 +329,16 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 		require.NoError(t, err)
 	}
 
+	if options.AppSigningKey == nil {
+		appSigningKeyBlock, _ := pem.Decode([]byte(TestAppSigningKey))
+		require.NotNil(t, appSigningKeyBlock)
+		appSigningKeyInterface, err := x509.ParsePKCS8PrivateKey(appSigningKeyBlock.Bytes)
+		require.NoError(t, err)
+		appSigningKey, ok := appSigningKeyInterface.(*rsa.PrivateKey)
+		require.True(t, ok)
+		options.AppSigningKey = appSigningKey
+	}
+
 	return func(h http.Handler) {
 			mutex.Lock()
 			defer mutex.Unlock()
@@ -324,6 +397,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			DeploymentConfig:            options.DeploymentConfig,
 			UpdateCheckOptions:          options.UpdateCheckOptions,
 			SwaggerEndpoint:             options.SwaggerEndpoint,
+			AppSigningKey:               options.AppSigningKey,
 		}
 }
 

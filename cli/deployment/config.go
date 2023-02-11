@@ -556,6 +556,13 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:    "disable-password-auth",
 			Default: false,
 		},
+		InsecureAppSigningKeyFile: &codersdk.DeploymentConfigField[string]{
+			Name:    "Insecure App Signing Key File",
+			Usage:   "Path to a file containing a signing key for app signing. This should only be used during tests.",
+			Flag:    "insecure-app-signing-key-file",
+			Default: "",
+			Hidden:  true,
+		},
 	}
 }
 

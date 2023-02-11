@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"gopkg.in/square/go-jose.v2"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
@@ -522,16 +524,19 @@ func (api *API) writeWorkspaceApp500(rw http.ResponseWriter, r *http.Request, re
 //
 // The JSON field names are short to reduce the size of the ticket.
 type workspaceAppTicket struct {
-	AccessMethod      workspaceAppAccessMethod `json:"am"`
-	UsernameOrID      string                   `json:"u"`
-	WorkspaceNameOrID string                   `json:"w"`
-	AgentNameOrID     string                   `json:"ag"`
-	AppSlugOrPort     string                   `json:"ap"`
+	// Request details.
+	AccessMethod      workspaceAppAccessMethod `json:"access_method"`
+	UsernameOrID      string                   `json:"username_or_id"`
+	WorkspaceNameOrID string                   `json:"workspace_name_or_id"`
+	AgentNameOrID     string                   `json:"agent_name_or_id"`
+	AppSlugOrPort     string                   `json:"app_slug_or_port"`
 
-	UserID      uuid.UUID `json:"uid"`
-	WorkspaceID uuid.UUID `json:"wid"`
-	AgentID     uuid.UUID `json:"aid"`
-	AppURL      string    `json:"url"`
+	// Trusted resolved details.
+	Expiry      int64     `json:"expiry"` // set by generateWorkspaceAppTicket
+	UserID      uuid.UUID `json:"user_id"`
+	WorkspaceID uuid.UUID `json:"workspace_id"`
+	AgentID     uuid.UUID `json:"agent_id"`
+	AppURL      string    `json:"app_url"`
 }
 
 func (t workspaceAppTicket) MatchesRequest(req workspaceAppRequest) bool {
@@ -543,20 +548,51 @@ func (t workspaceAppTicket) MatchesRequest(req workspaceAppRequest) bool {
 }
 
 func (api *API) generateWorkspaceAppTicket(payload workspaceAppTicket) (string, error) {
-	// TODO: implement this
-	return "valid ticket", nil
+	payload.Expiry = time.Now().Add(1 * time.Minute).Unix()
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return "", xerrors.Errorf("marshal payload to JSON: %w", err)
+	}
+
+	// We use symmetric signing with an RSA key to support satellites in the
+	// future.
+	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.PS512, Key: api.AppSigningKey}, nil)
+	if err != nil {
+		return "", xerrors.Errorf("create signer: %w", err)
+	}
+
+	signedObject, err := signer.Sign(payloadBytes)
+	if err != nil {
+		return "", xerrors.Errorf("sign payload: %w", err)
+	}
+
+	serialized, err := signedObject.CompactSerialize()
+	if err != nil {
+		return "", xerrors.Errorf("serialize JWS: %w", err)
+	}
+
+	return serialized, nil
 }
 
-func (api *API) parseWorkspaceAppTicket(ticket string) (workspaceAppTicket, error) {
-	// TODO: implement this
-	return workspaceAppTicket{
-		UsernameOrID:      "username",
-		WorkspaceNameOrID: "workspace",
-		AgentNameOrID:     "agent",
-		AppSlugOrPort:     "app",
-		UserID:            uuid.New(),
-		WorkspaceID:       uuid.New(),
-		AgentID:           uuid.New(),
-		AppURL:            "http://localhost:3000",
-	}, nil
+func (api *API) parseWorkspaceAppTicket(ticketStr string) (workspaceAppTicket, error) {
+	object, err := jose.ParseSigned(ticketStr)
+	if err != nil {
+		return workspaceAppTicket{}, xerrors.Errorf("parse JWS: %w", err)
+	}
+
+	output, err := object.Verify(api.AppSigningKey)
+	if err != nil {
+		return workspaceAppTicket{}, xerrors.Errorf("verify JWS: %w", err)
+	}
+
+	var ticket workspaceAppTicket
+	err = json.Unmarshal(output, &ticket)
+	if err != nil {
+		return workspaceAppTicket{}, xerrors.Errorf("unmarshal payload: %w", err)
+	}
+	if ticket.Expiry < time.Now().Unix() {
+		return workspaceAppTicket{}, xerrors.New("ticket expired")
+	}
+
+	return ticket, nil
 }

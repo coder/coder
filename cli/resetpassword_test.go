@@ -44,6 +44,7 @@ func TestResetPassword(t *testing.T) {
 		"--access-url", "http://example.com",
 		"--postgres-url", connectionURL,
 		"--cache-dir", t.TempDir(),
+		"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 	)
 	go func() {
 		defer close(serverDone)

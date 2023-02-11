@@ -7,9 +7,11 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -579,19 +581,81 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				defer options.Pubsub.Close()
 			}
 
-			deploymentID, err := options.Database.GetDeploymentID(ctx)
-			if errors.Is(err, sql.ErrNoRows) {
-				err = nil
-			}
-			if err != nil {
-				return xerrors.Errorf("get deployment id: %w", err)
-			}
-			if deploymentID == "" {
-				deploymentID = uuid.NewString()
-				err = options.Database.InsertDeploymentID(ctx, deploymentID)
+			var deploymentID string
+			err = options.Database.InTx(func(tx database.Store) error {
+				// This will block until the lock is acquired, and will be
+				// automatically released when the transaction ends.
+				err := tx.AcquireLock(ctx, database.LockID("deployment_startup"))
 				if err != nil {
-					return xerrors.Errorf("set deployment id: %w", err)
+					return xerrors.Errorf("acquire lock: %w", err)
 				}
+
+				deploymentID, err = tx.GetDeploymentID(ctx)
+				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+					return xerrors.Errorf("get deployment id: %w", err)
+				}
+				if deploymentID == "" {
+					deploymentID = uuid.NewString()
+					err = tx.InsertDeploymentID(ctx, deploymentID)
+					if err != nil {
+						return xerrors.Errorf("set deployment id: %w", err)
+					}
+				}
+
+				appSigningKeyStr, err := tx.GetAppSigningKey(ctx)
+				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+					return xerrors.Errorf("get app signing key: %w", err)
+				}
+				if appSigningKeyStr == "" {
+					if cfg.InsecureAppSigningKeyFile.Value != "" {
+						bytes, err := os.ReadFile(cfg.InsecureAppSigningKeyFile.Value)
+						if err != nil {
+							return xerrors.Errorf("read insecure app signing key file %q: %w", cfg.InsecureAppSigningKeyFile.Value, err)
+						}
+						appSigningKeyStr = string(bytes)
+					} else {
+						appSigningKey, err := rsa.GenerateKey(rand.Reader, 4096)
+						if err != nil {
+							return xerrors.Errorf("generate new app signing key: %w", err)
+						}
+
+						keyBytes, err := x509.MarshalPKCS8PrivateKey(appSigningKey)
+						if err != nil {
+							return xerrors.Errorf("marshal app signing key: %w", err)
+						}
+
+						pemBytes := pem.EncodeToMemory(&pem.Block{
+							Type:  "RSA PRIVATE KEY",
+							Bytes: keyBytes,
+						})
+
+						err = tx.InsertAppSigningKey(ctx, string(pemBytes))
+						if err != nil {
+							return xerrors.Errorf("insert app signing key: %w", err)
+						}
+
+						appSigningKeyStr = string(pemBytes)
+					}
+				}
+
+				pemBlock, _ := pem.Decode([]byte(appSigningKeyStr))
+				if pemBlock == nil {
+					return xerrors.New("failed to decode app signing key: no PEM block found")
+				}
+				appSigningKeyInterface, err := x509.ParsePKCS8PrivateKey(pemBlock.Bytes)
+				if err != nil {
+					return xerrors.Errorf("failed to parse app signing key as RSA key: %w", err)
+				}
+				appSigningKey, ok := appSigningKeyInterface.(*rsa.PrivateKey)
+				if !ok {
+					return xerrors.Errorf("app signing key is not an *rsa.PrivateKey, got %T", appSigningKeyInterface)
+				}
+
+				options.AppSigningKey = appSigningKey
+				return nil
+			}, nil)
+			if err != nil {
+				return err
 			}
 
 			// Disable telemetry if the in-memory database is used unless explicitly defined!

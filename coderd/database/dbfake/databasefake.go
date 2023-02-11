@@ -64,6 +64,7 @@ func New() database.Store {
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
 			licenses:                  make([]database.License, 0),
+			locks:                     map[int64]struct{}{},
 		},
 	}
 }
@@ -87,6 +88,11 @@ func (inTxMutex) RUnlock() {}
 type fakeQuerier struct {
 	mutex rwMutex
 	*data
+}
+
+type fakeTx struct {
+	*fakeQuerier
+	locks map[int64]struct{}
 }
 
 type data struct {
@@ -123,11 +129,15 @@ type data struct {
 	workspaceResources        []database.WorkspaceResource
 	workspaces                []database.Workspace
 
+	// Locks is a map of lock names. Any keys within the map are currently
+	// locked.
+	locks           map[int64]struct{}
 	deploymentID    string
 	derpMeshKey     string
 	lastUpdateCheck []byte
 	serviceBanner   []byte
 	logoURL         string
+	appSigningKey   string
 	lastLicenseID   int32
 }
 
@@ -195,11 +205,47 @@ func (*fakeQuerier) Ping(_ context.Context) (time.Duration, error) {
 	return 0, nil
 }
 
+func (*fakeQuerier) AcquireLock(_ context.Context, _ int64) error {
+	return xerrors.New("AcquireLock must only be called within a transaction")
+}
+func (*fakeQuerier) TryAcquireLock(_ context.Context, _ int64) (bool, error) {
+	return false, xerrors.New("TryAcquireLock must only be called within a transaction")
+}
+
+func (tx *fakeTx) AcquireLock(_ context.Context, id int64) error {
+	if _, ok := tx.fakeQuerier.locks[id]; ok {
+		return xerrors.Errorf("cannot acquire lock %d: already held", id)
+	}
+	tx.fakeQuerier.locks[id] = struct{}{}
+	tx.locks[id] = struct{}{}
+	return nil
+}
+func (tx *fakeTx) TryAcquireLock(_ context.Context, id int64) (bool, error) {
+	if _, ok := tx.fakeQuerier.locks[id]; ok {
+		return false, nil
+	}
+	tx.fakeQuerier.locks[id] = struct{}{}
+	tx.locks[id] = struct{}{}
+	return true, nil
+}
+func (tx *fakeTx) releaseLocks() {
+	for id := range tx.locks {
+		delete(tx.fakeQuerier.locks, id)
+	}
+	tx.locks = map[int64]struct{}{}
+}
+
 // InTx doesn't rollback data properly for in-memory yet.
 func (q *fakeQuerier) InTx(fn func(database.Store) error, _ *sql.TxOptions) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-	return fn(&fakeQuerier{mutex: inTxMutex{}, data: q.data})
+	tx := &fakeTx{
+		fakeQuerier: &fakeQuerier{mutex: inTxMutex{}, data: q.data},
+		locks:       map[int64]struct{}{},
+	}
+	defer tx.releaseLocks()
+
+	return fn(tx)
 }
 
 func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
@@ -3785,6 +3831,21 @@ func (q *fakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	}
 
 	return q.logoURL, nil
+}
+
+func (q *fakeQuerier) GetAppSigningKey(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.appSigningKey, nil
+}
+
+func (q *fakeQuerier) InsertAppSigningKey(_ context.Context, data string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.appSigningKey = data
+	return nil
 }
 
 func (q *fakeQuerier) InsertLicense(

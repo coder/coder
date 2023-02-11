@@ -40,6 +40,7 @@ const (
 
 	// DevURLSessionTokenCookie is the name of the cookie that stores a devurl
 	// token on app domains.
+	//nolint:gosec
 	DevURLSessionTokenCookie = "coder_devurl_session_token"
 	// DevURLSessionTicketCookie is the name of the cookie that stores a
 	// temporary JWT that can be used to authenticate instead of the session

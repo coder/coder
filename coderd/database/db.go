@@ -12,6 +12,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"hash/fnv"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -102,4 +103,11 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *sql.TxOptions) err
 		return xerrors.Errorf("commit transaction: %w", err)
 	}
 	return nil
+}
+
+// LockID hashes the given string into an int64 to use with lock functions.
+func LockID(name string) int64 {
+	hash := fnv.New64()
+	_, _ = hash.Write([]byte(name))
+	return int64(hash.Sum64())
 }

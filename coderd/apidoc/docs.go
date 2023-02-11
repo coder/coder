@@ -6095,6 +6095,9 @@ const docTemplate = `{
                 "in_memory_database": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
                 },
+                "insecure_app_signing_key_file": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
                 "logging": {
                     "$ref": "#/definitions/codersdk.LoggingConfig"
                 },

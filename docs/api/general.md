@@ -401,6 +401,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "usage": "string",
     "value": true
   },
+  "insecure_app_signing_key_file": {
+    "default": "string",
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": "string"
+  },
   "logging": {
     "human": {
       "default": "string",
