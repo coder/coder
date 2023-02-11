@@ -409,6 +409,41 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 
+	t.Run("RedirectsMe", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := requestWithRetries(ctx, t, client, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/?%s", workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery), nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+		loc, err := resp.Location()
+		require.NoError(t, err)
+		require.NotContains(t, loc.Path, "@me")
+		require.Contains(t, loc.Path, "@"+coderdtest.FirstUserParams.Username)
+	})
+
+	t.Run("RedirectsMeUnauthenticated", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		unauthenticatedClient := codersdk.New(client.URL)
+		unauthenticatedClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
+		unauthenticatedClient.HTTPClient.Transport = client.HTTPClient.Transport
+
+		resp, err := requestWithRetries(ctx, t, unauthenticatedClient, http.MethodGet, fmt.Sprintf("/@me/%s/apps/%s/?%s", workspace.Name, proxyTestAppNameOwner, proxyTestAppQuery), nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+		loc, err := resp.Location()
+		require.NoError(t, err)
+		require.Equal(t, "/login", loc.Path)
+	})
+
 	t.Run("ForwardsIP", func(t *testing.T) {
 		t.Parallel()
 
@@ -437,6 +472,18 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusBadGateway, resp.StatusCode)
+	})
+
+	t.Run("NoProxyPort", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/@%s/%s/apps/%d/", coderdtest.FirstUserParams.Username, workspace.Name, 8080), nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusNotFound, resp.StatusCode)
 	})
 }
 

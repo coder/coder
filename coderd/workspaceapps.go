@@ -131,8 +131,17 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Determine the real path that was hit. The * URL parameter in Chi will not
+	// include the leading slash if it was present, so we need to add it back.
+	chiPath := chi.URLParam(r, "*")
+	basePath := strings.TrimSuffix(r.URL.Path, chiPath)
+	if strings.HasSuffix(basePath, "/") {
+		chiPath = "/" + chiPath
+	}
+
 	ticket, ok := api.resolveWorkspaceApp(rw, r, workspaceAppRequest{
 		AccessMethod:      workspaceAppAccessMethodPath,
+		BasePath:          basePath,
 		UsernameOrID:      chi.URLParam(r, "user"),
 		WorkspaceAndAgent: chi.URLParam(r, "workspace_and_agent"),
 		// We don't support port proxying on paths. The resolveWorkspaceApp
@@ -141,14 +150,6 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	})
 	if !ok {
 		return
-	}
-
-	// Determine the real path that was hit. The * URL parameter in Chi will not
-	// include the leading slash if it was present, so we need to add it back.
-	chiPath := chi.URLParam(r, "*")
-	basePath := strings.TrimSuffix(r.URL.Path, chiPath)
-	if strings.HasSuffix(basePath, "/") {
-		chiPath = "/" + chiPath
 	}
 
 	api.proxyWorkspaceApplication(rw, r, *ticket, chiPath)
@@ -263,6 +264,7 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 
 			ticket, ok := api.resolveWorkspaceApp(rw, r, workspaceAppRequest{
 				AccessMethod:      workspaceAppAccessMethodSubdomain,
+				BasePath:          "",
 				UsernameOrID:      app.Username,
 				WorkspaceNameOrID: app.WorkspaceName,
 				AgentNameOrID:     app.AgentName,

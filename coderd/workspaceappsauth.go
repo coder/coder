@@ -26,6 +26,11 @@ import (
 
 type workspaceAppRequest struct {
 	AccessMethod workspaceAppAccessMethod
+	// BasePath of the app. For path apps, this is the path prefix in the router
+	// for this particular app. For subdomain apps, this should be "/". This is
+	// used for setting the cookie path.
+	BasePath string
+
 	UsernameOrID string
 	// WorkspaceAndAgent xor WorkspaceNameOrID are required.
 	WorkspaceAndAgent string // workspace.agent
@@ -77,7 +82,6 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 	}
 
 	// Get the existing ticket from the request.
-	// TODO: multiple tickets on same domain for path apps is an issue
 	ticketCookie, err := r.Cookie(codersdk.DevURLSessionTicketCookie)
 	if err == nil {
 		ticket, err := api.parseWorkspaceAppTicket(ticketCookie.Value)
@@ -340,11 +344,10 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 	}
 
 	// Write the ticket cookie.
-	// TODO: multiple ticket cookies on app paths is an issue, maybe use path cookies?
 	http.SetCookie(rw, &http.Cookie{
 		Name:  codersdk.DevURLSessionTicketCookie,
 		Value: ticketStr,
-		Path:  "/",
+		Path:  appReq.BasePath,
 		// TODO: constant/configurable expiry
 		Expires: time.Now().Add(time.Minute),
 	})
