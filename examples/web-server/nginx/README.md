@@ -84,7 +84,7 @@ server {
 > - `YOUR_SUBDOMAIN` by your (sub)domain e.g. `coder.example.com`
 > - the port and ip in `proxy_pass` if applicable
 
-## Automatic certificates refreshing
+## Refresh certificates automatically
 
 - Create a new file in `/etc/cron.weekly` : `sudo touch /etc/cron.weekly/certbot`
 - Make it executable : `sudo chmod +x /etc/cron.weekly/certbot`
