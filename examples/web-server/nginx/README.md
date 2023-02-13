@@ -19,7 +19,7 @@
 
 - and activate this file : `sudo ln -s /etc/nginx/sites-available/YOUR_SUBDOMAIN /etc/nginx/sites-enabled/YOUR_SUBDOMAIN`
 
-## Install and configure letsencrypt certbot
+## Install and configure LetsEncrypt Certbot
 
 Install letsencrypt **certbot** : follow the instructions on [certbot website](https://certbot.eff.org/instructions?ws=other&os=pip&tab=wildcard)
 
