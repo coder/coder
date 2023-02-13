@@ -10,12 +10,16 @@ import (
 )
 
 func loadVariableValues(variablesFile string) ([]codersdk.VariableValue, error) {
+	var values []codersdk.VariableValue
+	if variablesFile == "" {
+		return values, nil
+	}
+
 	variablesMap, err := createVariablesMapFromFile(variablesFile)
 	if err != nil {
 		return nil, err
 	}
 
-	var values []codersdk.VariableValue
 	for name, value := range variablesMap {
 		values = append(values, codersdk.VariableValue{
 			Name:  name,
