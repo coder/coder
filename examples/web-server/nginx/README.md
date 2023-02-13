@@ -15,9 +15,9 @@
 
 > This example assumes Coder is running locally on `127.0.0.1:3000` for the subdomain `YOUR_SUBDOMAIN` e.g. `coder.example.com`.
 
-- create a new file for this app : `sudo touch /etc/nginx/sites-available/YOUR_SUBDOMAIN`
+- Create NGINX configuration for this app : `sudo touch /etc/nginx/sites-available/YOUR_SUBDOMAIN`
 
-- and activate this file : `sudo ln -s /etc/nginx/sites-available/YOUR_SUBDOMAIN /etc/nginx/sites-enabled/YOUR_SUBDOMAIN`
+- Activate this file : `sudo ln -s /etc/nginx/sites-available/YOUR_SUBDOMAIN /etc/nginx/sites-enabled/YOUR_SUBDOMAIN`
 
 ## Install and configure LetsEncrypt Certbot
 
