@@ -9,7 +9,9 @@
 
 3. Stop **nginx** :
 
-- `sudo service stop nginx`
+    ```console
+     sudo service stop nginx
+     ```
 
 ## Adding Coder deployment subdomain
 
