@@ -32,7 +32,6 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			// dbauthz.AsSystem(ctx) := dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 			tokenValue := apiTokenFromRequest(r)
 			if tokenValue == "" {
 				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
@@ -48,6 +47,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 				})
 				return
 			}
+			//nolint:gocritic // System needs to be able to get workspace agents.
 			agent, err := db.GetWorkspaceAgentByAuthToken(dbauthz.AsSystem(ctx), token)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
@@ -65,6 +65,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 
+			//nolint:gocritic // System needs to be able to get workspace agents.
 			subject, err := getAgentSubject(dbauthz.AsSystem(ctx), db, agent)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

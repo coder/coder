@@ -102,6 +102,7 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, entitlements.HasLicense)
 		coderdtest.CreateFirstUser(t, client)
+		//nolint:gocritic // unit test
 		ctx := dbauthz.AsSystem(context.Background())
 		_, err = api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: database.Now(),
@@ -132,6 +133,7 @@ func TestEntitlements(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client)
 		// Valid
 		ctx := context.Background()
+		//nolint:gocritic // unit test
 		_, err = api.Database.InsertLicense(dbauthz.AsSystem(ctx), database.InsertLicenseParams{
 			UploadedAt: database.Now(),
 			Exp:        database.Now().AddDate(1, 0, 0),
@@ -143,6 +145,7 @@ func TestEntitlements(t *testing.T) {
 		})
 		require.NoError(t, err)
 		// Expired
+		//nolint:gocritic // unit test
 		_, err = api.Database.InsertLicense(dbauthz.AsSystem(ctx), database.InsertLicenseParams{
 			UploadedAt: database.Now(),
 			Exp:        database.Now().AddDate(-1, 0, 0),
@@ -152,6 +155,7 @@ func TestEntitlements(t *testing.T) {
 		})
 		require.NoError(t, err)
 		// Invalid
+		//nolint:gocritic // unit test
 		_, err = api.Database.InsertLicense(dbauthz.AsSystem(ctx), database.InsertLicenseParams{
 			UploadedAt: database.Now(),
 			Exp:        database.Now().AddDate(1, 0, 0),

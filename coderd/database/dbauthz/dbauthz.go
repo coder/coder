@@ -8,10 +8,11 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/open-policy-agent/opa/topdown"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
-	"github.com/open-policy-agent/opa/topdown"
 )
 
 var _ database.Store = (*querier)(nil)

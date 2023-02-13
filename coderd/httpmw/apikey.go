@@ -116,7 +116,6 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			// systemCtx := dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
 			// Write wraps writing a response to redirect if the handler
 			// specified it should. This redirect is used for user-facing pages
 			// like workspace applications.
@@ -161,6 +160,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				return
 			}
 
+			//nolint:gocritic // System needs to fetch API key to check if it's valid.
 			key, err := cfg.DB.GetAPIKeyByID(dbauthz.AsSystem(ctx), keyID)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
@@ -194,6 +194,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				changed = false
 			)
 			if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
+				//nolint:gocritic // System needs to fetch UserLink to check if it's valid.
 				link, err = cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystem(ctx), database.GetUserLinkByUserIDLoginTypeParams{
 					UserID:    key.UserID,
 					LoginType: key.LoginType,
@@ -277,6 +278,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				}
 			}
 			if changed {
+				//nolint:gocritic // System needs to update API Key LastUsed
 				err := cfg.DB.UpdateAPIKeyByID(dbauthz.AsSystem(ctx), database.UpdateAPIKeyByIDParams{
 					ID:        key.ID,
 					LastUsed:  key.LastUsed,
@@ -293,6 +295,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				// If the API Key is associated with a user_link (e.g. Github/OIDC)
 				// then we want to update the relevant oauth fields.
 				if link.UserID != uuid.Nil {
+					// nolint:gocritic
 					link, err = cfg.DB.UpdateUserLink(dbauthz.AsSystem(ctx), database.UpdateUserLinkParams{
 						UserID:            link.UserID,
 						LoginType:         link.LoginType,
@@ -312,6 +315,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 				// We only want to update this occasionally to reduce DB write
 				// load. We update alongside the UserLink and APIKey since it's
 				// easier on the DB to colocate writes.
+				// nolint:gocritic
 				_, err = cfg.DB.UpdateUserLastSeenAt(dbauthz.AsSystem(ctx), database.UpdateUserLastSeenAtParams{
 					ID:         key.UserID,
 					LastSeenAt: database.Now(),
@@ -329,6 +333,7 @@ func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 			// If the key is valid, we also fetch the user roles and status.
 			// The roles are used for RBAC authorize checks, and the status
 			// is to block 'suspended' users from accessing the platform.
+			// nolint:gocritic
 			roles, err := cfg.DB.GetAuthorizationUserRoles(dbauthz.AsSystem(ctx), key.UserID)
 			if err != nil {
 				write(http.StatusUnauthorized, codersdk.Response{

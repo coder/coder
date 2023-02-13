@@ -887,6 +887,7 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 
 	const stage = "Commit quota"
 
+	//nolint:gocritic // TODO: make a provisionerd role
 	resp, err := r.quotaCommitter.CommitQuota(dbauthz.AsSystem(ctx), &proto.CommitQuotaRequest{
 		JobId:     r.job.JobId,
 		DailyCost: int32(cost),

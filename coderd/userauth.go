@@ -40,8 +40,7 @@ import (
 // @Router /users/login [post]
 func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx = r.Context()
-		// dbauthz.AsSystem(ctx)         = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+		ctx               = r.Context()
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
 			Audit:   *auditor,
@@ -58,6 +57,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//nolint:gocritic // In order to login, we need to get the user first!
 	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystem(ctx), database.GetUserByEmailOrUsernameParams{
 		Email: loginWithPassword.Email,
 	})
@@ -732,8 +732,7 @@ func (e httpError) Error() string {
 
 func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cookie, database.APIKey, error) {
 	var (
-		ctx = r.Context()
-		// dbauthz.AsSystem(ctx) = dbauthz.WithAuthorizeSystemContext(ctx, rbac.RolesAdminSystem())
+		ctx  = r.Context()
 		user database.User
 	)
 
@@ -767,6 +766,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		// with OIDC for the first time.
 		if user.ID == uuid.Nil {
 			var organizationID uuid.UUID
+			//nolint:gocritic
 			organizations, _ := tx.GetOrganizations(dbauthz.AsSystem(ctx))
 			if len(organizations) > 0 {
 				// Add the user to the first organization. Once multi-organization
@@ -775,6 +775,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				organizationID = organizations[0].ID
 			}
 
+			//nolint:gocritic
 			_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystem(ctx), database.GetUserByEmailOrUsernameParams{
 				Username: params.Username,
 			})
@@ -788,6 +789,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 
 					params.Username = httpapi.UsernameFrom(alternate)
 
+					//nolint:gocritic
 					_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystem(ctx), database.GetUserByEmailOrUsernameParams{
 						Username: params.Username,
 					})
@@ -807,6 +809,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				}
 			}
 
+			//nolint:gocritic
 			user, _, err = api.CreateUser(dbauthz.AsSystem(ctx), tx, CreateUserRequest{
 				CreateUserRequest: codersdk.CreateUserRequest{
 					Email:          params.Email,
@@ -821,6 +824,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		if link.UserID == uuid.Nil {
+			//nolint:gocritic
 			link, err = tx.InsertUserLink(dbauthz.AsSystem(ctx), database.InsertUserLinkParams{
 				UserID:            user.ID,
 				LoginType:         params.LoginType,
@@ -835,6 +839,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		if link.UserID != uuid.Nil {
+			//nolint:gocritic
 			link, err = tx.UpdateUserLink(dbauthz.AsSystem(ctx), database.UpdateUserLinkParams{
 				UserID:            user.ID,
 				LoginType:         params.LoginType,
@@ -849,6 +854,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 
 		// Ensure groups are correct.
 		if len(params.Groups) > 0 {
+			//nolint:gocritic
 			err := api.Options.SetUserGroups(dbauthz.AsSystem(ctx), tx, user.ID, params.Groups)
 			if err != nil {
 				return xerrors.Errorf("set user groups: %w", err)
@@ -882,6 +888,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			// In such cases in the current implementation this user can now no
 			// longer sign in until an administrator finds the offending built-in
 			// user and changes their username.
+			//nolint:gocritic
 			user, err = tx.UpdateUserProfile(dbauthz.AsSystem(ctx), database.UpdateUserProfileParams{
 				ID:        user.ID,
 				Email:     user.Email,
@@ -900,6 +907,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		return nil, database.APIKey{}, xerrors.Errorf("in tx: %w", err)
 	}
 
+	//nolint:gocritic
 	cookie, key, err := api.createAPIKey(dbauthz.AsSystem(ctx), createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  params.LoginType,

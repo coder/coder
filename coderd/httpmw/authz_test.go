@@ -14,6 +14,7 @@ import (
 )
 
 func TestAsAuthzSystem(t *testing.T) {
+	t.Parallel()
 	userActor := coderdtest.RandomRBACSubject()
 
 	base := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -62,6 +63,7 @@ func TestAsAuthzSystem(t *testing.T) {
 				mwAssertSystem,
 				mwAssertSystem,
 			),
+			// Assert no user present outside of the AsAuthzSystem chain
 			mwAssertNoUser,
 			// ----
 			// Set to the user actor
@@ -85,10 +87,10 @@ func TestAsAuthzSystem(t *testing.T) {
 	handler.ServeHTTP(res, req)
 }
 
-func mwAssert(assert func(req *http.Request)) func(next http.Handler) http.Handler {
+func mwAssert(assertF func(req *http.Request)) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			assert(r)
+			assertF(r)
 			next.ServeHTTP(rw, r)
 		})
 	}

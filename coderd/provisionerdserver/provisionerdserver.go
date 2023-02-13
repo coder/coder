@@ -57,7 +57,7 @@ type Server struct {
 
 // AcquireJob queries the database to lock a job.
 func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-	// TODO: make a provisionerd role
+	//nolint:gocritic //TODO: make a provisionerd role
 	ctx = dbauthz.AsSystem(ctx)
 	// This prevents loads of provisioner daemons from consistently
 	// querying the database when no jobs are available.
@@ -273,6 +273,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 }
 
 func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
+	//nolint:gocritic //TODO: make a provisionerd role
 	ctx = dbauthz.AsSystem(ctx)
 	jobID, err := uuid.Parse(request.JobId)
 	if err != nil {
@@ -303,7 +304,7 @@ func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuot
 }
 
 func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
-	// TODO: make a provisionerd role
+	//nolint:gocritic //TODO: make a provisionerd role
 	ctx = dbauthz.AsSystem(ctx)
 	parsedID, err := uuid.Parse(request.JobId)
 	if err != nil {
@@ -351,6 +352,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 				slog.F("stage", log.Stage),
 				slog.F("output", log.Output))
 		}
+		//nolint:gocritic //TODO: make a provisionerd role
 		logs, err := server.Database.InsertProvisionerJobLogs(dbauthz.AsSystem(context.Background()), insertParams)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
@@ -476,7 +478,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 }
 
 func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.Empty, error) {
-	// TODO: make a provisionerd role
+	//nolint:gocritic // TODO: make a provisionerd role
 	ctx = dbauthz.AsSystem(ctx)
 	jobID, err := uuid.Parse(failJob.JobId)
 	if err != nil {
@@ -604,7 +606,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
 func (server *Server) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
-	// TODO: make a provisionerd role
+	//nolint:gocritic // TODO: make a provisionerd role
 	ctx = dbauthz.AsSystem(ctx)
 	jobID, err := uuid.Parse(completed.JobId)
 	if err != nil {

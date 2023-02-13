@@ -127,6 +127,7 @@ func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 
 func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, instanceID string) {
 	ctx := r.Context()
+	//nolint:gocritic // needed for auth instance id
 	agent, err := api.Database.GetWorkspaceAgentByInstanceID(dbauthz.AsSystem(ctx), instanceID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -141,6 +142,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
+	//nolint:gocritic // needed for auth instance id
 	resource, err := api.Database.GetWorkspaceResourceByID(dbauthz.AsSystem(ctx), agent.ResourceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -149,6 +151,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
+	//nolint:gocritic // needed for auth instance id
 	job, err := api.Database.GetProvisionerJobByID(dbauthz.AsSystem(ctx), resource.JobID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -172,6 +175,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
+	//nolint:gocritic // needed for auth instance id
 	resourceHistory, err := api.Database.GetWorkspaceBuildByID(dbauthz.AsSystem(ctx), jobData.WorkspaceBuildID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -183,6 +187,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	// This token should only be exchanged if the instance ID is valid
 	// for the latest history. If an instance ID is recycled by a cloud,
 	// we'd hate to leak access to a user's workspace.
+	//nolint:gocritic // needed for auth instance id
 	latestHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(dbauthz.AsSystem(ctx), resourceHistory.WorkspaceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

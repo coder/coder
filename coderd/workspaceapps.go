@@ -331,6 +331,7 @@ func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request
 			// different auth formats, and tricks this endpoint into deleting an
 			// unchecked API key, we validate that the secret matches the secret
 			// we store in the database.
+			//nolint:gocritic // needed for workspace app logout
 			apiKey, err := api.Database.GetAPIKeyByID(dbauthz.AsSystem(ctx), id)
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -350,6 +351,7 @@ func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request
 					})
 					return
 				}
+				//nolint:gocritic // needed for workspace app logout
 				err = api.Database.DeleteAPIKeyByID(dbauthz.AsSystem(ctx), id)
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1023,6 +1025,7 @@ func decryptAPIKey(ctx context.Context, db database.Store, encryptedAPIKey strin
 
 	// Lookup the API key so we can decrypt it.
 	keyID := object.Header.KeyID
+	//nolint:gocritic // needed to check API key
 	key, err := db.GetAPIKeyByID(dbauthz.AsSystem(ctx), keyID)
 	if err != nil {
 		return database.APIKey{}, "", xerrors.Errorf("get API key by key ID: %w", err)

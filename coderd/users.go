@@ -38,6 +38,7 @@ import (
 // @Router /users/first [get]
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	//nolint:gocritic // needed for first user check
 	userCount, err := api.Database.GetUserCount(dbauthz.AsSystem(ctx))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -79,6 +80,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// This should only function for the first user.
+	//nolint:gocritic // needed to create first user
 	userCount, err := api.Database.GetUserCount(dbauthz.AsSystem(ctx))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -119,6 +121,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//nolint:gocritic // needed to create first user
 	user, organizationID, err := api.CreateUser(dbauthz.AsSystem(ctx), api.Database, CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Email:    createUser.Email,
@@ -148,6 +151,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// 	the user. Maybe I add this ability to grant roles in the createUser api
 	//	and add some rbac bypass when calling api functions this way??
 	// Add the admin role to this first user.
+	//nolint:gocritic // needed to create first user
 	_, err = api.Database.UpdateUserRoles(dbauthz.AsSystem(ctx), database.UpdateUserRolesParams{
 		GrantedRoles: []string{rbac.RoleOwner()},
 		ID:           user.ID,

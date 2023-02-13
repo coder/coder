@@ -8,11 +8,13 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// AsAuthzSystem is a bit of a kludge for now. Some middleware functions require
-// usage as a system user in some cases, but not all cases. To avoid large
-// refactors, we use this middleware to temporarily set the context to a system.
+// AsAuthzSystem is a chained handler that temporarily sets the dbauthz context
+// to System for the inner handlers, and resets the context afterwards.
 //
 // TODO: Refactor the middleware functions to not require this.
+// This is a bit of a kludge for now as some middleware functions require
+// usage as a system user in some cases, but not all cases. To avoid large
+// refactors, we use this middleware to temporarily set the context to a system.
 func AsAuthzSystem(mws ...func(http.Handler) http.Handler) func(http.Handler) http.Handler {
 	chain := chi.Chain(mws...)
 	return func(next http.Handler) http.Handler {
@@ -24,6 +26,7 @@ func AsAuthzSystem(mws ...func(http.Handler) http.Handler) func(http.Handler) ht
 				before = dbauthz.AsRemoveActor
 			}
 
+			// nolint:gocritic // AsAuthzSystem needs to do this.
 			r = r.WithContext(dbauthz.AsSystem(ctx))
 			chain.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 				r = r.WithContext(dbauthz.As(r.Context(), before))

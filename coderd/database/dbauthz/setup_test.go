@@ -151,8 +151,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 				"GetAuthorizedWorkspaces",
 				"GetAuthorizedTemplates",
 			}, methodName) {
-
-			// Some methods do no make rbac assertions because they use
+			// Some methods do not make RBAC assertions because they use
 			// SQL. We still want to test that they return an error if the
 			// actor is not set.
 			s.NoActorErrorTest(callMethod)

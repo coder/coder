@@ -34,7 +34,7 @@ type Stats struct {
 // New returns a new autobuild executor.
 func New(ctx context.Context, db database.Store, log slog.Logger, tick <-chan time.Time) *Executor {
 	le := &Executor{
-		// Use an authorized context
+		//nolint:gocritic // TODO: make an autostart role instead of using System
 		ctx:  dbauthz.AsSystem(ctx),
 		db:   db,
 		tick: tick,
