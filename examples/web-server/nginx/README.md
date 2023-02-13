@@ -3,6 +3,7 @@
 ## Requirements
 
 1. You'll need a subdomain and the a wildcard subdomain configured that resolves to server.
+
 2. Install **nginx** (assuming you're on Debian/Ubuntu):
 
     ```console
@@ -12,76 +13,90 @@
 3. Stop NGINX:
 
     ```console
-     sudo service stop nginx
-     ```
+    sudo service stop nginx
+    ```
 
 ## Adding Coder deployment subdomain
 
 > This example assumes Coder is running locally on `127.0.0.1:3000` for the subdomain `YOUR_SUBDOMAIN` e.g. `coder.example.com`.
 
-- Create NGINX configuration for this app: `sudo touch /etc/nginx/sites-available/YOUR_SUBDOMAIN`
+1. Create NGINX configuration for this app:
 
-- Activate this file : `sudo ln -s /etc/nginx/sites-available/YOUR_SUBDOMAIN /etc/nginx/sites-enabled/YOUR_SUBDOMAIN`
+    ```console
+    sudo touch /etc/nginx/sites-available/YOUR_SUBDOMAIN
+    ```
+
+2. Activate this file :
+
+    ```console
+    sudo ln -s /etc/nginx/sites-available/YOUR_SUBDOMAIN /etc/nginx/sites-enabled/YOUR_SUBDOMAIN
+    ```
 
 ## Install and configure LetsEncrypt Certbot
 
-Install LetsEncrypt Certbot: Refer to the [CertBot documentation](https://certbot.eff.org/instructions?ws=other&os=pip&tab=wildcard)
+1. Install LetsEncrypt Certbot: Refer to the [CertBot documentation](https://certbot.eff.org/instructions?ws=other&os=pip&tab=wildcard)
 
 ## Create DNS provider credentials
 
-- Create an API token for the DNS provider you're using: e.g [CloudFlare](https://dash.cloudflare.com/profile/api-tokens) with the following permissions:
+1. Create an API token for the DNS provider you're using: e.g [CloudFlare](https://dash.cloudflare.com/profile/api-tokens) with the following permissions:
+      - Zone - DNS - Edit
 
-  - Zone - DNS - Edit
+2. Create a file in `.secrets/certbot/cloudflare.ini` with the following content :
 
-- Create a file in `.secrets/certbot/cloudflare.ini` with the following content :
-  - `dns_cloudflare_api_token = YOUR_API_TOKEN`
+    - `dns_cloudflare_api_token = YOUR_API_TOKEN`
 
 ## Create the certificate
 
-- Create the wildcard certificate:
+1. Create the wildcard certificate:
 
-```console
-sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials ~/.secrets/certbot/cloudflare.ini -d coder.example.com *.coder.example.com
-```
+    ```console
+    sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials ~/.secrets/certbot/cloudflare.ini -d coder.example.com *.coder.example.com
+    ```
 
 ## Configure nginx
 
-Edit the file with : `sudo nano /etc/nginx/sites-available/YOUR_SUBDOMAIN` and add the following content :
+1. Edit the file with :
 
-```nginx
-server {
-    server_name YOUR_SUBDOMAIN;
+    ```console
+    sudo nano /etc/nginx/sites-available/YOUR_SUBDOMAIN
+    ```
 
-    # HTTP configuration
-    listen 80;
-    listen [::]:80;
+2. Add the following content :
 
-    # HTTP to HTTPS
-    if ($scheme != "https") {
-        return 301 https://$host$request_uri;
-    } # managed by Certbot
+    ```nginx
+    server {
+        server_name YOUR_SUBDOMAIN;
 
-    # HTTPS configuration
-    listen [::]:443 ssl ipv6only=on; # managed by Certbot
-    listen 443 ssl; # managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/YOUR_SUBDOMAIN/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/YOUR_SUBDOMAIN/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+        # HTTP configuration
+        listen 80;
+        listen [::]:80;
 
-    location / {
-        proxy_pass  http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
-        proxy_set_header Host $server_name;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
-        add_header Strict-Transport-Security "max-age=15552000; includeSubDomains" always;
+        # HTTP to HTTPS
+        if ($scheme != "https") {
+            return 301 https://$host$request_uri;
+        }
+
+        # HTTPS configuration
+        listen [::]:443 ssl ipv6only=on;
+        listen 443 ssl;
+        ssl_certificate /etc/letsencrypt/live/YOUR_SUBDOMAIN/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/YOUR_SUBDOMAIN/privkey.pem;
+        include /etc/letsencrypt/options-ssl-nginx.conf;
+        ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+        location / {
+            proxy_pass  http://127.0.0.1:3000;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+            proxy_set_header Host $server_name;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+            add_header Strict-Transport-Security "max-age=15552000; includeSubDomains" always;
+        }
     }
-}
-```
+    ```
 
 > Don't forget to change :
 >
@@ -90,17 +105,27 @@ server {
 
 ## Refresh certificates automatically
 
-- Create a new file in `/etc/cron.weekly` : `sudo touch /etc/cron.weekly/certbot`
-- Make it executable : `sudo chmod +x /etc/cron.weekly/certbot`
-- And add this code :
+1. Create a new file in `/etc/cron.weekly` :
 
-```sh
-#!/bin/sh
-sudo certbot renew -q
-```
+    ```console
+    sudo touch /etc/cron.weekly/certbot
+    ```
+
+2. Make it executable :
+
+    ```console
+    sudo chmod +x /etc/cron.weekly/certbot
+    ```
+
+3. And add this code :
+
+    ```sh
+    #!/bin/sh
+    sudo certbot renew -q
+    ```
 
 ## Restart NGINX
 
 - `sudo service nginx restart`
 
-And that's it, you should now be able to access Coder via `https://YOUR_SUBDOMAIN`!
+And that's it, you should now be able to access Coder at `https://YOUR_SUBDOMAIN`!
