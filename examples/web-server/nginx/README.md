@@ -1,4 +1,4 @@
-# How to use nginx as a reverse-proxy with letsencrypt
+# How to use NGINX as a reverse-proxy with LetsEncrypt
 
 ## Requirements
 
