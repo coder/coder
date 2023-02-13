@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -252,6 +253,11 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	if entitlements.RequireTelemetry && !api.DeploymentConfig.Telemetry.Enable.Value {
+		return xerrors.New("telemetry disabled, but a license requires telemetry")
+	}
+
 	entitlements.Experimental = api.DeploymentConfig.Experimental.Value || len(api.AGPL.Experiments) != 0
 
 	featureChanged := func(featureName codersdk.FeatureName) (changed bool, enabled bool) {
