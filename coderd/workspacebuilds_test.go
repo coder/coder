@@ -185,13 +185,11 @@ func TestWorkspaceBuilds(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		first := coderdtest.CreateFirstUser(t, client)
-		second := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, "owner")
+		second, secondUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, "owner")
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		secondUser, err := second.User(ctx, codersdk.Me)
-		require.NoError(t, err, "fetch me")
 		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -307,7 +305,7 @@ func TestWorkspaceBuildsProvisionerState(t *testing.T) {
 
 		// A regular user on the very same template must not be able to modify the
 		// state.
-		regularUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		regularUser, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 
 		workspace = coderdtest.CreateWorkspace(t, regularUser, first.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, regularUser, workspace.LatestBuild.ID)
@@ -425,7 +423,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
-		userClient := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		workspace := coderdtest.CreateWorkspace(t, userClient, owner.OrganizationID, template.ID)
 		var build codersdk.WorkspaceBuild
 
@@ -578,6 +576,7 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	numLogs := len(auditor.AuditLogs)
 	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 	user := coderdtest.CreateFirstUser(t, client)
+	numLogs++ // add an audit log for login
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 	numLogs++ // add an audit log for template version creation
 	numLogs++ // add an audit log for template version update
@@ -871,6 +870,18 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
+		monotonicIncreasingNumberRichParameters := []*proto.RichParameter{
+			{Name: stringParameterName, Type: "string", Mutable: true},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: 3, ValidationMax: 10, ValidationMonotonic: "increasing"},
+			{Name: boolParameterName, Type: "bool", Mutable: true},
+		}
+
+		monotonicDecreasingNumberRichParameters := []*proto.RichParameter{
+			{Name: stringParameterName, Type: "string", Mutable: true},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: 3, ValidationMax: 10, ValidationMonotonic: "decreasing"},
+			{Name: boolParameterName, Type: "bool", Mutable: true},
+		}
+
 		stringRichParameters := []*proto.RichParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
 			{Name: numberParameterName, Type: "number", Mutable: true},
@@ -899,6 +910,14 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			{numberParameterName, "3", true, numberRichParameters},
 			{numberParameterName, "10", true, numberRichParameters},
 			{numberParameterName, "11", false, numberRichParameters},
+
+			{numberParameterName, "6", false, monotonicIncreasingNumberRichParameters},
+			{numberParameterName, "7", true, monotonicIncreasingNumberRichParameters},
+			{numberParameterName, "8", true, monotonicIncreasingNumberRichParameters},
+
+			{numberParameterName, "6", true, monotonicDecreasingNumberRichParameters},
+			{numberParameterName, "7", true, monotonicDecreasingNumberRichParameters},
+			{numberParameterName, "8", false, monotonicDecreasingNumberRichParameters},
 
 			{stringParameterName, "", true, stringRichParameters},
 			{stringParameterName, "foobar", true, stringRichParameters},

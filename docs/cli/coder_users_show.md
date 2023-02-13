@@ -16,7 +16,7 @@ coder users show <username|user_id|'me'> [flags]
 
 ```
   -h, --help            help for show
-  -o, --output string   Output format. Available formats are: table, json. (default "table")
+  -o, --output string   Output format. Available formats: table, json (default "table")
 ```
 
 ### Options inherited from parent commands

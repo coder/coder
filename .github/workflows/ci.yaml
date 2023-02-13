@@ -121,7 +121,8 @@ jobs:
               - 'site/**'
             k8s:
               - 'helm/**'
-              - Dockerfile
+              - scripts/Dockerfile
+              - scripts/Dockerfile.base
               - scripts/helm.sh
       - id: debug
         run: |
@@ -580,9 +581,6 @@ jobs:
           make -B site/out/index.html
 
       - run: yarn playwright:install
-        working-directory: site
-
-      - run: yarn playwright:install-deps
         working-directory: site
 
       - run: yarn playwright:test

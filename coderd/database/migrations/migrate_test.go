@@ -331,6 +331,10 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 					s.Add(table, count)
 				}
 			}
+
+			// Test that migration down is successful after up.
+			err = migrations.Down(db)
+			require.NoError(t, err, "final migration down should be successful")
 		})
 	}
 }

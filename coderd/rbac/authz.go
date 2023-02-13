@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 // Subject is a struct that contains all the elements of a subject in an rbac
@@ -24,6 +25,25 @@ type Subject struct {
 	Roles  ExpandableRoles
 	Groups []string
 	Scope  ExpandableScope
+}
+
+func (s Subject) Equal(b Subject) bool {
+	if s.ID != b.ID {
+		return false
+	}
+
+	if !slice.SameElements(s.Groups, b.Groups) {
+		return false
+	}
+
+	if !slice.SameElements(s.SafeRoleNames(), b.SafeRoleNames()) {
+		return false
+	}
+
+	if s.SafeScopeName() != b.SafeScopeName() {
+		return false
+	}
+	return true
 }
 
 // SafeScopeName prevent nil pointer dereference.
@@ -119,7 +139,8 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 
 // RegoAuthorizer will use a prepared rego query for performing authorize()
 type RegoAuthorizer struct {
-	query rego.PreparedEvalQuery
+	query        rego.PreparedEvalQuery
+	partialQuery rego.PreparedPartialQuery
 
 	authorizeHist *prometheus.HistogramVec
 	prepareHist   prometheus.Histogram
@@ -131,9 +152,10 @@ var (
 	// Load the policy from policy.rego in this directory.
 	//
 	//go:embed policy.rego
-	policy    string
-	queryOnce sync.Once
-	query     rego.PreparedEvalQuery
+	policy       string
+	queryOnce    sync.Once
+	query        rego.PreparedEvalQuery
+	partialQuery rego.PreparedPartialQuery
 )
 
 func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
@@ -145,6 +167,21 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 		).PrepareForEval(context.Background())
 		if err != nil {
 			panic(xerrors.Errorf("compile rego: %w", err))
+		}
+
+		partialQuery, err = rego.New(
+			rego.Unknowns([]string{
+				"input.object.id",
+				"input.object.owner",
+				"input.object.org_owner",
+				"input.object.acl_user_list",
+				"input.object.acl_group_list",
+			}),
+			rego.Query("data.authz.allow = true"),
+			rego.Module("policy.rego", policy),
+		).PrepareForPartial(context.Background())
+		if err != nil {
+			panic(xerrors.Errorf("compile partial rego: %w", err))
 		}
 	})
 
@@ -187,7 +224,8 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 	})
 
 	return &RegoAuthorizer{
-		query: query,
+		query:        query,
+		partialQuery: partialQuery,
 
 		authorizeHist: authorizeHistogram,
 		prepareHist:   prepareHistogram,
@@ -243,34 +281,18 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action A
 		return xerrors.Errorf("subject must have a scope")
 	}
 
-	subjRoles, err := subject.Roles.Expand()
+	astV, err := regoInputValue(subject, action, object)
 	if err != nil {
-		return xerrors.Errorf("expand roles: %w", err)
+		return xerrors.Errorf("convert input to value: %w", err)
 	}
 
-	subjScope, err := subject.Scope.Expand()
+	results, err := a.query.Eval(ctx, rego.EvalParsedInput(astV))
 	if err != nil {
-		return xerrors.Errorf("expand scope: %w", err)
-	}
-
-	input := map[string]interface{}{
-		"subject": authSubject{
-			ID:     subject.ID,
-			Roles:  subjRoles,
-			Groups: subject.Groups,
-			Scope:  subjScope,
-		},
-		"object": object,
-		"action": action,
-	}
-
-	results, err := a.query.Eval(ctx, rego.EvalInput(input))
-	if err != nil {
-		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), input, results)
+		return ForbiddenWithInternal(xerrors.Errorf("eval rego: %w", err), subject, action, object, results)
 	}
 
 	if !results.Allowed() {
-		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), input, results)
+		return ForbiddenWithInternal(xerrors.Errorf("policy disallows request"), subject, action, object, results)
 	}
 	return nil
 }
@@ -285,7 +307,7 @@ func (a RegoAuthorizer) Prepare(ctx context.Context, subject Subject, action Act
 	)
 	defer span.End()
 
-	prepared, err := newPartialAuthorizer(ctx, subject, action, objectType)
+	prepared, err := a.newPartialAuthorizer(ctx, subject, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("new partial authorizer: %w", err)
 	}

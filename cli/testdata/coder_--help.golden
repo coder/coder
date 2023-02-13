@@ -36,6 +36,7 @@ Workspace Commands:
   create         Create a workspace
   delete         Delete a workspace
   list           List workspaces
+  ping           Ping a workspace
   rename         Rename a workspace
   restart        Restart a workspace
   schedule       Schedule automated start and stop times for workspaces
@@ -48,7 +49,7 @@ Workspace Commands:
 
 Flags:
       --global-config coder   Path to the global coder config directory.
-                              Consumes $CODER_CONFIG_DIR (default "/tmp/coder-cli-test-config")
+                              Consumes $CODER_CONFIG_DIR (default "~/.config/coderv2")
       --header stringArray    HTTP headers added to all requests. Provide as "Key=Value".
                               Consumes $CODER_HEADER
   -h, --help                  help for coder

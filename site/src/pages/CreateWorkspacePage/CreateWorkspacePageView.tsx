@@ -31,7 +31,6 @@ export interface CreateWorkspacePageViewProps {
   templates?: TypesGen.Template[]
   selectedTemplate?: TypesGen.Template
   templateParameters?: TypesGen.TemplateVersionParameter[]
-
   templateSchema?: TypesGen.ParameterSchema[]
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   canCreateForUser?: boolean
@@ -216,8 +215,6 @@ export const CreateWorkspacePageView: FC<
                   value={props.owner}
                   onChange={props.setOwner}
                   label={t("ownerLabel")}
-                  inputMargin="dense"
-                  showAvatar
                 />
               </Stack>
             </div>
@@ -239,20 +236,23 @@ export const CreateWorkspacePageView: FC<
                 spacing={4} // Spacing here is diff because the fields here don't have the MUI floating label spacing
                 className={styles.formSectionFields}
               >
-                {props.templateSchema.map((schema) => (
-                  <ParameterInput
-                    disabled={form.isSubmitting}
-                    key={schema.id}
-                    defaultValue={parameterValues[schema.name]}
-                    onChange={(value) => {
-                      setParameterValues({
-                        ...parameterValues,
-                        [schema.name]: value,
-                      })
-                    }}
-                    schema={schema}
-                  />
-                ))}
+                {props.templateSchema
+                  // We only want to show schema that have redisplay_value equals true
+                  .filter((schema) => schema.redisplay_value)
+                  .map((schema) => (
+                    <ParameterInput
+                      disabled={form.isSubmitting}
+                      key={schema.id}
+                      defaultValue={parameterValues[schema.name]}
+                      onChange={(value) => {
+                        setParameterValues({
+                          ...parameterValues,
+                          [schema.name]: value,
+                        })
+                      }}
+                      schema={schema}
+                    />
+                  ))}
               </Stack>
             </div>
           )}
@@ -493,6 +493,7 @@ export const workspaceBuildParameterValue = (
 export const ValidationSchemaForRichParameters = (
   ns: string,
   templateParameters?: TypesGen.TemplateVersionParameter[],
+  lastBuildParameters?: TypesGen.WorkspaceBuildParameter[],
 ): Yup.AnySchema => {
   const { t } = useTranslation(ns)
 
@@ -515,28 +516,62 @@ export const ValidationSchemaForRichParameters = (
               switch (templateParameter.type) {
                 case "number":
                   if (
-                    templateParameter.validation_min === 0 &&
-                    templateParameter.validation_max === 0
+                    templateParameter.validation_min &&
+                    templateParameter.validation_max
                   ) {
-                    return true
+                    if (
+                      Number(val) < templateParameter.validation_min ||
+                      templateParameter.validation_max < Number(val)
+                    ) {
+                      return ctx.createError({
+                        path: ctx.path,
+                        message: t("validationNumberNotInRange", {
+                          min: templateParameter.validation_min,
+                          max: templateParameter.validation_max,
+                        }),
+                      })
+                    }
                   }
 
                   if (
-                    Number(val) < templateParameter.validation_min ||
-                    templateParameter.validation_max < Number(val)
+                    templateParameter.validation_monotonic &&
+                    lastBuildParameters
                   ) {
-                    return ctx.createError({
-                      path: ctx.path,
-                      message: t("validationNumberNotInRange", {
-                        min: templateParameter.validation_min,
-                        max: templateParameter.validation_max,
-                      }),
-                    })
+                    const lastBuildParameter = lastBuildParameters.find(
+                      (last) => last.name === name,
+                    )
+                    if (lastBuildParameter) {
+                      switch (templateParameter.validation_monotonic) {
+                        case "increasing":
+                          if (Number(lastBuildParameter.value) > Number(val)) {
+                            return ctx.createError({
+                              path: ctx.path,
+                              message: t("validationNumberNotIncreasing", {
+                                last: lastBuildParameter.value,
+                              }),
+                            })
+                          }
+                          break
+                        case "decreasing":
+                          if (Number(lastBuildParameter.value) < Number(val)) {
+                            return ctx.createError({
+                              path: ctx.path,
+                              message: t("validationNumberNotDecreasing", {
+                                last: lastBuildParameter.value,
+                              }),
+                            })
+                          }
+                          break
+                      }
+                    }
                   }
                   break
                 case "string":
                   {
-                    if (templateParameter.validation_regex.length === 0) {
+                    if (
+                      !templateParameter.validation_regex ||
+                      templateParameter.validation_regex.length === 0
+                    ) {
                       return true
                     }
 

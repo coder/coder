@@ -160,12 +160,15 @@ resource "coder_agent" "coder" {
   startup_script = <<EOT
 #!/bin/bash
 
-# install code-server 4.8.3
-curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
+# Install code-server 4.8.3 under /tmp/code-server using the "standalone" installation
+# that does not require root permissions. Note that /tmp may be mounted in tmpfs which
+# can lead to increased RAM usage. To avoid this, you can pre-install code-server inside
+# the Docker image or VM image.
+curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
 
-# The & prevents the startup_script from blocking so the
-# next commands can run.
-code-server --auth none --port &
+# The & prevents the startup_script from blocking so the next commands can run.
+# The stdout and stderr of code-server is redirected to /tmp/code-server.log.
+/tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
 
 # var.repo and var.dotfiles_uri is specified
 # elsewhere in the Terraform code as input

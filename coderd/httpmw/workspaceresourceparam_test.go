@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/httpmw"
 )
@@ -46,7 +46,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractWorkspaceResourceParam(db))
 		rtr.Get("/", nil)
@@ -61,7 +61,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractWorkspaceResourceParam(db),
@@ -80,7 +80,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	t.Run("FoundBadJobType", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractWorkspaceResourceParam(db),
@@ -102,7 +102,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractWorkspaceResourceParam(db),

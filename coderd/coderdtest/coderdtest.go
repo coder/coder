@@ -428,7 +428,7 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 var FirstUserParams = codersdk.CreateFirstUserRequest{
 	Email:    "testuser@coder.com",
 	Username: "testuser",
-	Password: "testpass",
+	Password: "SomeSecurePassword!",
 }
 
 // CreateFirstUser creates a user with preset credentials and authenticates
@@ -447,12 +447,7 @@ func CreateFirstUser(t *testing.T, client *codersdk.Client) codersdk.CreateFirst
 }
 
 // CreateAnotherUser creates and authenticates a new user.
-func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) *codersdk.Client {
-	userClient, _ := createAnotherUserRetry(t, client, organizationID, 5, roles...)
-	return userClient
-}
-
-func CreateAnotherUserWithUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles...)
 }
 
@@ -460,7 +455,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       randomUsername(),
-		Password:       "testpass",
+		Password:       "SomeSecurePassword!",
 		OrganizationID: organizationID,
 	}
 
@@ -525,7 +520,7 @@ func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	t.Helper()
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
-	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
+	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
 		FileID:        file.ID,
@@ -572,7 +567,7 @@ func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUI
 func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, templateID uuid.UUID) codersdk.TemplateVersion {
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
-	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, data)
+	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
 	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
 		TemplateID:    templateID,

@@ -63,6 +63,7 @@ jobs:
 
       - name: Create release notes
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # We always have to set this since there might be commits on
           # main that didn't have a PR.
           CODER_IGNORE_MISSING_COMMIT_METADATA: "1"
@@ -112,17 +113,17 @@ jobs:
           set -euo pipefail
           wget -O /tmp/nfpm.deb https://github.com/goreleaser/nfpm/releases/download/v2.18.1/nfpm_amd64.deb
           sudo dpkg -i /tmp/nfpm.deb
+          rm /tmp/nfpm.deb
 
       - name: Install rcodesign
         run: |
           set -euo pipefail
-
-          # Install a prebuilt binary of rcodesign for linux amd64. Once the
-          # following PR is merged and released upstream, we can download
-          # directly from GitHub releases instead:
-          #   https://github.com/indygreg/PyOxidizer/pull/635
-          wget -O /tmp/rcodesign https://cdn.discordapp.com/attachments/283356472258199552/1016767245717872700/rcodesign
-          sudo install --mode 755 /tmp/rcodesign /usr/local/bin/rcodesign
+          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
+          sudo tar -xzf /tmp/rcodesign.tar.gz \
+            -C /usr/bin \
+            --strip-components=1 \
+            apple-codesign-0.22.0-x86_64-unknown-linux-musl/rcodesign
+          rm /tmp/rcodesign.tar.gz
 
       - name: Setup Apple Developer certificate and API key
         run: |
@@ -160,6 +161,39 @@ jobs:
       - name: Delete Apple Developer certificate and API key
         run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
 
+      - name: Determine base image tag
+        id: image-base-tag
+        run: |
+          set -euo pipefail
+          if [[ "${CODER_RELEASE:-}" != *t* ]] || [[ "${CODER_DRY_RUN:-}" == *t* ]]; then
+            # Empty value means use the default and avoid building a fresh one.
+            echo "tag=" >> $GITHUB_OUTPUT
+          else
+            echo "tag=$(CODER_IMAGE_BASE=ghcr.io/coder/coder-base ./scripts/image_tag.sh)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create empty base-build-context directory
+        if: steps.image-base-tag.outputs.tag != ''
+        run: mkdir base-build-context
+
+      - name: Install depot.dev CLI
+        if: steps.image-base-tag.outputs.tag != ''
+        uses: depot/setup-action@v1
+
+      # This uses OIDC authentication, so no auth variables are required.
+      - name: Build base Docker image via depot.dev
+        if: steps.image-base-tag.outputs.tag != ''
+        uses: depot/build-push-action@v1
+        with:
+          project: wl5hnrrkns
+          context: base-build-context
+          file: scripts/Dockerfile.base
+          pull: true
+          no-cache: true
+          push: true
+          tags: |
+            ${{ steps.image-base-tag.outputs.tag }}
+
       - name: Build Linux Docker images
         run: |
           set -euxo pipefail
@@ -188,6 +222,8 @@ jobs:
               --target "$(./scripts/image_tag.sh --version latest)" \
               $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
           fi
+        env:
+          CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
 
       - name: ls build
         run: ls -lh build
@@ -251,6 +287,15 @@ jobs:
             ./build/*.deb
             ./build/*.rpm
           retention-days: 7
+
+      - name: Start Packer builds
+        if: ${{ !inputs.dry_run }}
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          repository: coder/packages
+          event-type: coder-release
+          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}"}'
 
   publish-winget:
     name: Publish to winget-pkgs
@@ -333,11 +378,3 @@ jobs:
           # For gh CLI. We need a real token since we're commenting on a PR in a
           # different repo.
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
-
-      - name: Start Packer builds
-        uses: peter-evans/repository-dispatch@v2
-        with:
-          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
-          repository: coder/packages
-          event-type: coder-release
-          client-payload: '{"coder_version": "${{ needs.release.outputs.version }}"}'

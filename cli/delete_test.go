@@ -39,7 +39,7 @@ func TestDelete(t *testing.T) {
 				assert.ErrorIs(t, err, io.EOF)
 			}
 		}()
-		pty.ExpectMatch("Cleaning Up")
+		pty.ExpectMatch("workspace has been deleted")
 		<-doneChan
 	})
 
@@ -68,7 +68,7 @@ func TestDelete(t *testing.T) {
 				assert.ErrorIs(t, err, io.EOF)
 			}
 		}()
-		pty.ExpectMatch("Cleaning Up")
+		pty.ExpectMatch("workspace has been deleted")
 		<-doneChan
 	})
 
@@ -77,7 +77,7 @@ func TestDelete(t *testing.T) {
 		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		adminUser := coderdtest.CreateFirstUser(t, adminClient)
 		orgID := adminUser.OrganizationID
-		client := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
 		user, err := client.User(context.Background(), codersdk.Me)
 		require.NoError(t, err)
 
@@ -102,7 +102,7 @@ func TestDelete(t *testing.T) {
 			}
 		}()
 
-		pty.ExpectMatch("Cleaning Up")
+		pty.ExpectMatch("workspace has been deleted")
 		<-doneChan
 
 		workspace, err = client.Workspace(context.Background(), workspace.ID)

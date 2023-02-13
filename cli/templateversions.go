@@ -36,7 +36,12 @@ func templateVersions() *cobra.Command {
 }
 
 func templateVersionsList() *cobra.Command {
-	return &cobra.Command{
+	formatter := cliui.NewOutputFormatter(
+		cliui.TableFormat([]templateVersionRow{}, nil),
+		cliui.JSONFormat(),
+	)
+
+	cmd := &cobra.Command{
 		Use:   "list <template>",
 		Args:  cobra.ExactArgs(1),
 		Short: "List all the versions of the specified template",
@@ -62,7 +67,8 @@ func templateVersionsList() *cobra.Command {
 				return xerrors.Errorf("get template versions by template: %w", err)
 			}
 
-			out, err := displayTemplateVersions(template.ActiveVersionID, versions...)
+			rows := templateVersionsToRows(template.ActiveVersionID, versions...)
+			out, err := formatter.Format(cmd.Context(), rows)
 			if err != nil {
 				return xerrors.Errorf("render table: %w", err)
 			}
@@ -71,19 +77,26 @@ func templateVersionsList() *cobra.Command {
 			return err
 		},
 	}
+
+	formatter.AttachFlags(cmd)
+	return cmd
 }
 
 type templateVersionRow struct {
-	Name      string    `table:"name"`
-	CreatedAt time.Time `table:"created at"`
-	CreatedBy string    `table:"created by"`
-	Status    string    `table:"status"`
-	Active    string    `table:"active"`
+	// For json format:
+	TemplateVersion codersdk.TemplateVersion `table:"-"`
+
+	// For table format:
+	Name      string    `json:"-" table:"name,default_sort"`
+	CreatedAt time.Time `json:"-" table:"created at"`
+	CreatedBy string    `json:"-" table:"created by"`
+	Status    string    `json:"-" table:"status"`
+	Active    string    `json:"-" table:"active"`
 }
 
-// displayTemplateVersions will return a table displaying existing
-// template versions for the specified template.
-func displayTemplateVersions(activeVersionID uuid.UUID, templateVersions ...codersdk.TemplateVersion) (string, error) {
+// templateVersionsToRows converts a list of template versions to a list of rows
+// for outputting.
+func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...codersdk.TemplateVersion) []templateVersionRow {
 	rows := make([]templateVersionRow, len(templateVersions))
 	for i, templateVersion := range templateVersions {
 		var activeStatus = ""
@@ -100,5 +113,5 @@ func displayTemplateVersions(activeVersionID uuid.UUID, templateVersions ...code
 		}
 	}
 
-	return cliui.DisplayTable(rows, "name", nil)
+	return rows
 }

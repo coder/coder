@@ -22,10 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/xerrors"
-	"tailscale.com/net/speedtest"
-	"tailscale.com/tailcfg"
-
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
 	"github.com/pion/udp"
@@ -37,6 +33,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
+	"golang.org/x/xerrors"
+	"tailscale.com/net/speedtest"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -52,6 +51,8 @@ import (
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
+
+// NOTE: These tests only work when your default shell is bash for some reason.
 
 func TestAgent_Stats_SSH(t *testing.T) {
 	t.Parallel()
@@ -305,7 +306,7 @@ func TestAgent_TCPLocalForwarding(t *testing.T) {
 		}
 	}()
 
-	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, remotePort)}, []string{"sleep", "10"})
+	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%d:127.0.0.1:%d", randomPort, remotePort)}, []string{"sleep", "5"})
 	err = cmd.Start()
 	require.NoError(t, err)
 
@@ -372,7 +373,7 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 		}
 	}()
 
-	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", randomPort, localPort)}, []string{"sleep", "10"})
+	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", randomPort, localPort)}, []string{"sleep", "5"})
 	err = cmd.Start()
 	require.NoError(t, err)
 
@@ -437,7 +438,7 @@ func TestAgent_UnixLocalForwarding(t *testing.T) {
 		}
 	}()
 
-	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%s:%s", localSocketPath, remoteSocketPath)}, []string{"sleep", "10"})
+	cmd := setupSSHCommand(t, []string{"-L", fmt.Sprintf("%s:%s", localSocketPath, remoteSocketPath)}, []string{"sleep", "5"})
 	err = cmd.Start()
 	require.NoError(t, err)
 
@@ -495,7 +496,7 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 		}
 	}()
 
-	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"sleep", "10"})
+	cmd := setupSSHCommand(t, []string{"-R", fmt.Sprintf("%s:%s", remoteSocketPath, localSocketPath)}, []string{"sleep", "5"})
 	err = cmd.Start()
 	require.NoError(t, err)
 
@@ -703,7 +704,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
-			StartupScript:        "sleep 10",
+			StartupScript:        "sleep 5",
 			StartupScriptTimeout: time.Nanosecond,
 		}, 0)
 
@@ -784,6 +785,56 @@ func TestAgent_Lifecycle(t *testing.T) {
 			// This is the expected case.
 			require.Equal(t, want, got)
 		}
+	})
+}
+
+func TestAgent_Startup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EmptyDirectory", func(t *testing.T) {
+		t.Parallel()
+
+		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+			StartupScript:        "true",
+			StartupScriptTimeout: 30 * time.Second,
+			Directory:            "",
+		}, 0)
+		assert.Eventually(t, func() bool {
+			return client.getStartup().Version != ""
+		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Equal(t, "", client.getStartup().ExpandedDirectory)
+	})
+
+	t.Run("HomeDirectory", func(t *testing.T) {
+		t.Parallel()
+
+		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+			StartupScript:        "true",
+			StartupScriptTimeout: 30 * time.Second,
+			Directory:            "~",
+		}, 0)
+		assert.Eventually(t, func() bool {
+			return client.getStartup().Version != ""
+		}, testutil.WaitShort, testutil.IntervalFast)
+		homeDir, err := os.UserHomeDir()
+		require.NoError(t, err)
+		require.Equal(t, homeDir, client.getStartup().ExpandedDirectory)
+	})
+
+	t.Run("HomeEnvironmentVariable", func(t *testing.T) {
+		t.Parallel()
+
+		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+			StartupScript:        "true",
+			StartupScriptTimeout: 30 * time.Second,
+			Directory:            "$HOME",
+		}, 0)
+		assert.Eventually(t, func() bool {
+			return client.getStartup().Version != ""
+		}, testutil.WaitShort, testutil.IntervalFast)
+		homeDir, err := os.UserHomeDir()
+		require.NoError(t, err)
+		require.Equal(t, homeDir, client.getStartup().ExpandedDirectory)
 	})
 }
 
@@ -1103,17 +1154,16 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 	closer := agent.New(agent.Options{
 		Client:                 c,
 		Filesystem:             fs,
-		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()
 	})
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:          []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:            metadata.DERPMap,
-		Logger:             slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
-		EnableTrafficStats: true,
+		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		DERPMap:   metadata.DERPMap,
+		Logger:    slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
 	})
 	require.NoError(t, err)
 	clientConn, serverConn := net.Pipe()
@@ -1178,6 +1228,7 @@ type client struct {
 
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
+	startup         agentsdk.PostStartupRequest
 }
 
 func (c *client) Metadata(_ context.Context) (agentsdk.Metadata, error) {
@@ -1200,28 +1251,27 @@ func (c *client) Listen(_ context.Context) (net.Conn, error) {
 	return clientConn, nil
 }
 
-func (c *client) ReportStats(ctx context.Context, _ slog.Logger, stats func() *agentsdk.Stats) (io.Closer, error) {
+func (c *client) ReportStats(ctx context.Context, _ slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error) {
 	doneCh := make(chan struct{})
 	ctx, cancel := context.WithCancel(ctx)
 
 	go func() {
 		defer close(doneCh)
 
-		t := time.NewTicker(500 * time.Millisecond)
-		defer t.Stop()
+		setInterval(500 * time.Millisecond)
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-t.C:
-			}
-			select {
-			case c.statsChan <- stats():
-			case <-ctx.Done():
-				return
-			default:
-				// We don't want to send old stats.
-				continue
+			case stat := <-statsChan:
+				select {
+				case c.statsChan <- stat:
+				case <-ctx.Done():
+					return
+				default:
+					// We don't want to send old stats.
+					continue
+				}
 			}
 		}
 	}()
@@ -1250,7 +1300,16 @@ func (*client) PostAppHealth(_ context.Context, _ agentsdk.PostAppHealthsRequest
 	return nil
 }
 
-func (*client) PostVersion(_ context.Context, _ string) error {
+func (c *client) getStartup() agentsdk.PostStartupRequest {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.startup
+}
+
+func (c *client) PostStartup(_ context.Context, startup agentsdk.PostStartupRequest) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.startup = startup
 	return nil
 }
 

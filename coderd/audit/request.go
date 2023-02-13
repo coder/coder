@@ -31,6 +31,10 @@ type Request[T Auditable] struct {
 
 	Old T
 	New T
+
+	// This optional field can be passed in when the userID cannot be determined from the API Key
+	// such as in the case of login, when the audit log is created prior the API Key's existence.
+	UserID uuid.UUID
 }
 
 type BuildAuditParams[T Auditable] struct {
@@ -64,6 +68,9 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.PublicKey
 	case database.AuditableGroup:
 		return typed.Group.Name
+	case database.APIKey:
+		// this isn't used
+		return ""
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -85,6 +92,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.UserID
 	case database.AuditableGroup:
 		return typed.Group.ID
+	case database.APIKey:
+		return typed.UserID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -106,6 +115,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeGitSshKey
 	case database.AuditableGroup:
 		return database.ResourceTypeGroup
+	case database.APIKey:
+		return database.ResourceTypeApiKey
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -130,7 +141,14 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 
 		// If no resources were provided, there's nothing we can audit.
 		if ResourceID(req.Old) == uuid.Nil && ResourceID(req.New) == uuid.Nil {
-			return
+			// If the request action is a login or logout, we always want to audit it even if
+			// there is no diff. This is so we can capture events where an API Key is never created
+			// because an unknown user fails to login.
+			// TODO: introduce the concept of an anonymous user so we always have a userID even
+			// when dealing with a mystery user. https://github.com/coder/coder/issues/6054
+			if req.params.Action != database.AuditActionLogin && req.params.Action != database.AuditActionLogout {
+				return
+			}
 		}
 
 		var diffRaw = []byte("{}")
@@ -150,16 +168,24 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			p.AdditionalFields = json.RawMessage("{}")
 		}
 
+		var userID uuid.UUID
+		key, ok := httpmw.APIKeyOptional(p.Request)
+		if ok {
+			userID = key.UserID
+		} else {
+			userID = req.UserID
+		}
+
 		ip := parseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:               uuid.New(),
 			Time:             database.Now(),
-			UserID:           httpmw.APIKey(p.Request).UserID,
+			UserID:           userID,
 			Ip:               ip,
 			UserAgent:        sql.NullString{String: p.Request.UserAgent(), Valid: true},
-			ResourceType:     either(req.Old, req.New, ResourceType[T]),
-			ResourceID:       either(req.Old, req.New, ResourceID[T]),
-			ResourceTarget:   either(req.Old, req.New, ResourceTarget[T]),
+			ResourceType:     either(req.Old, req.New, ResourceType[T], req.params.Action),
+			ResourceID:       either(req.Old, req.New, ResourceID[T], req.params.Action),
+			ResourceTarget:   either(req.Old, req.New, ResourceTarget[T], req.params.Action),
 			Action:           p.Action,
 			Diff:             diffRaw,
 			StatusCode:       int32(sw.Status),
@@ -202,9 +228,9 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 		UserID:           p.UserID,
 		Ip:               ip,
 		UserAgent:        sql.NullString{},
-		ResourceType:     either(p.Old, p.New, ResourceType[T]),
-		ResourceID:       either(p.Old, p.New, ResourceID[T]),
-		ResourceTarget:   either(p.Old, p.New, ResourceTarget[T]),
+		ResourceType:     either(p.Old, p.New, ResourceType[T], p.Action),
+		ResourceID:       either(p.Old, p.New, ResourceID[T], p.Action),
+		ResourceTarget:   either(p.Old, p.New, ResourceTarget[T], p.Action),
 		Action:           p.Action,
 		Diff:             diffRaw,
 		StatusCode:       int32(p.Status),
@@ -221,10 +247,14 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 	}
 }
 
-func either[T Auditable, R any](old, new T, fn func(T) R) R {
+func either[T Auditable, R any](old, new T, fn func(T) R, auditAction database.AuditAction) R {
 	if ResourceID(new) != uuid.Nil {
 		return fn(new)
 	} else if ResourceID(old) != uuid.Nil {
+		return fn(old)
+	} else if auditAction == database.AuditActionLogin || auditAction == database.AuditActionLogout {
+		// If the request action is a login or logout, we always want to audit it even if
+		// there is no diff. See the comment in audit.InitRequest for more detail.
 		return fn(old)
 	} else {
 		panic("both old and new are nil")

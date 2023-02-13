@@ -87,12 +87,9 @@ func TestUserShow(t *testing.T) {
 
 	t.Run("Table", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
 		client := coderdtest.New(t, nil)
 		admin := coderdtest.CreateFirstUser(t, client)
-		other := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-		otherUser, err := other.User(ctx, codersdk.Me)
-		require.NoError(t, err, "fetch other user")
+		_, otherUser := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		cmd, root := clitest.New(t, "users", "show", otherUser.Username)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
@@ -114,7 +111,7 @@ func TestUserShow(t *testing.T) {
 		ctx := context.Background()
 		client := coderdtest.New(t, nil)
 		admin := coderdtest.CreateFirstUser(t, client)
-		other := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		other, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		otherUser, err := other.User(ctx, codersdk.Me)
 		require.NoError(t, err, "fetch other user")
 		cmd, root := clitest.New(t, "users", "show", otherUser.Username, "-o", "json")

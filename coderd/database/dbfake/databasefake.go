@@ -1,4 +1,4 @@
-package databasefake
+package dbfake
 
 import (
 	"context"
@@ -370,8 +370,10 @@ func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 		stopTimes   []float64
 		deleteTimes []float64
 	)
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
 	for _, wb := range q.workspaceBuilds {
-		version, err := q.GetTemplateVersionByID(ctx, wb.TemplateVersionID)
+		version, err := q.getTemplateVersionByIDNoLock(ctx, wb.TemplateVersionID)
 		if err != nil {
 			return emptyRow, err
 		}
@@ -379,17 +381,18 @@ func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 			continue
 		}
 
-		job, err := q.GetProvisionerJobByID(ctx, wb.JobID)
+		job, err := q.getProvisionerJobByIDNoLock(ctx, wb.JobID)
 		if err != nil {
 			return emptyRow, err
 		}
 		if job.CompletedAt.Valid {
 			took := job.CompletedAt.Time.Sub(job.StartedAt.Time).Seconds()
-			if wb.Transition == database.WorkspaceTransitionStart {
+			switch wb.Transition {
+			case database.WorkspaceTransitionStart:
 				startTimes = append(startTimes, took)
-			} else if wb.Transition == database.WorkspaceTransitionStop {
+			case database.WorkspaceTransitionStop:
 				stopTimes = append(stopTimes, took)
-			} else if wb.Transition == database.WorkspaceTransitionDelete {
+			case database.WorkspaceTransitionDelete:
 				deleteTimes = append(deleteTimes, took)
 			}
 		}
@@ -1797,10 +1800,14 @@ func (q *fakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 	return parameters, nil
 }
 
-func (q *fakeQuerier) GetTemplateVersionByID(_ context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
+func (q *fakeQuerier) GetTemplateVersionByID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	return q.getTemplateVersionByIDNoLock(ctx, templateVersionID)
+}
+
+func (q *fakeQuerier) getTemplateVersionByIDNoLock(_ context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
 	for _, templateVersion := range q.templateVersions {
 		if templateVersion.ID != templateVersionID {
 			continue
@@ -2232,10 +2239,14 @@ func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg dat
 	return database.WorkspaceApp{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProvisionerJobByID(_ context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+func (q *fakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	return q.getProvisionerJobByIDNoLock(ctx, id)
+}
+
+func (q *fakeQuerier) getProvisionerJobByIDNoLock(_ context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	for _, provisionerJob := range q.provisionerJobs {
 		if provisionerJob.ID != id {
 			continue
@@ -2573,18 +2584,19 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 
 	//nolint:gosimple
 	param := database.TemplateVersionParameter{
-		TemplateVersionID: arg.TemplateVersionID,
-		Name:              arg.Name,
-		Description:       arg.Description,
-		Type:              arg.Type,
-		Mutable:           arg.Mutable,
-		DefaultValue:      arg.DefaultValue,
-		Icon:              arg.Icon,
-		Options:           arg.Options,
-		ValidationError:   arg.ValidationError,
-		ValidationRegex:   arg.ValidationRegex,
-		ValidationMin:     arg.ValidationMin,
-		ValidationMax:     arg.ValidationMax,
+		TemplateVersionID:   arg.TemplateVersionID,
+		Name:                arg.Name,
+		Description:         arg.Description,
+		Type:                arg.Type,
+		Mutable:             arg.Mutable,
+		DefaultValue:        arg.DefaultValue,
+		Icon:                arg.Icon,
+		Options:             arg.Options,
+		ValidationError:     arg.ValidationError,
+		ValidationRegex:     arg.ValidationRegex,
+		ValidationMin:       arg.ValidationMin,
+		ValidationMax:       arg.ValidationMax,
+		ValidationMonotonic: arg.ValidationMonotonic,
 	}
 	q.templateVersionParameters = append(q.templateVersionParameters, param)
 	return param, nil
@@ -3191,7 +3203,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg 
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAgentVersionByID(_ context.Context, arg database.UpdateWorkspaceAgentVersionByIDParams) error {
+func (q *fakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -3205,6 +3217,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentVersionByID(_ context.Context, arg dat
 		}
 
 		agent.Version = arg.Version
+		agent.ExpandedDirectory = arg.ExpandedDirectory
 		q.workspaceAgents[index] = agent
 		return nil
 	}

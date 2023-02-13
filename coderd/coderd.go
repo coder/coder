@@ -103,6 +103,7 @@ type Options struct {
 	OIDCConfig                     *OIDCConfig
 	PrometheusRegistry             *prometheus.Registry
 	SecureAuthCookie               bool
+	StrictTransportSecurityCfg     httpmw.HSTSConfig
 	SSHKeygenAlgorithm             gitsshkey.Algorithm
 	Telemetry                      telemetry.Reporter
 	TracerProvider                 trace.TracerProvider
@@ -222,12 +223,22 @@ func New(options *Options) *API {
 		options.MetricsCacheRefreshInterval,
 	)
 
+	staticHandler := site.Handler(site.FS(), binFS, binHashes)
+	// Static file handler must be wrapped with HSTS handler if the
+	// StrictTransportSecurityAge is set. We only need to set this header on
+	// static files since it only affects browsers.
+	staticHandler = httpmw.HSTS(staticHandler, options.StrictTransportSecurityCfg)
+
 	r := chi.NewRouter()
+	ctx, cancel := context.WithCancel(context.Background())
 	api := &API{
+		ctx:    ctx,
+		cancel: cancel,
+
 		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
-		siteHandler: site.Handler(site.FS(), binFS, binHashes),
+		siteHandler: staticHandler,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -252,17 +263,19 @@ func New(options *Options) *API {
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
-		DB:              options.Database,
-		OAuth2Configs:   oauthConfigs,
-		RedirectToLogin: false,
-		Optional:        false,
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+		Optional:                    false,
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
-		DB:              options.Database,
-		OAuth2Configs:   oauthConfigs,
-		RedirectToLogin: true,
-		Optional:        false,
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             true,
+		DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+		Optional:                    false,
 	})
 
 	// API rate limit middleware. The counter is local and not shared between
@@ -287,8 +300,9 @@ func New(options *Options) *API {
 				OAuth2Configs: oauthConfigs,
 				// The code handles the the case where the user is not
 				// authenticated automatically.
-				RedirectToLogin: false,
-				Optional:        true,
+				RedirectToLogin:             false,
+				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+				Optional:                    true,
 			}),
 			httpmw.ExtractUserParam(api.Database, false),
 			httpmw.ExtractWorkspaceAndAgentParam(api.Database),
@@ -314,8 +328,9 @@ func New(options *Options) *API {
 				// Optional is true to allow for public apps. If an
 				// authorization check fails and the user is not authenticated,
 				// they will be redirected to the login page by the app handler.
-				RedirectToLogin: false,
-				Optional:        true,
+				RedirectToLogin:             false,
+				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+				Optional:                    true,
 			}),
 			// Redirect to the login page if the user tries to open an app with
 			// "me" as the username and they are not logged in.
@@ -549,7 +564,7 @@ func New(options *Options) *API {
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/metadata", api.workspaceAgentMetadata)
-				r.Post("/version", api.postWorkspaceAgentVersion)
+				r.Post("/startup", api.postWorkspaceAgentStartup)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
@@ -665,6 +680,11 @@ func New(options *Options) *API {
 }
 
 type API struct {
+	// ctx is canceled immediately on shutdown, it can be used to abort
+	// interruptible tasks.
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	*Options
 	// ID is a uniquely generated ID on initialization.
 	// This is used to associate objects with a specific
@@ -675,7 +695,8 @@ type API struct {
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
-	HTTPAuth                          *HTTPAuthorizer
+
+	HTTPAuth *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"
 	APIHandler chi.Router
@@ -698,6 +719,8 @@ type API struct {
 
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
+	api.cancel()
+
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Wait()
 	api.WebsocketWaitMutex.Unlock()

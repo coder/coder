@@ -92,8 +92,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const styles = useStyles()
   const navigate = useNavigate()
   const serverVersion = buildInfo?.version || ""
-  const hasTemplateIcon =
-    workspace.template_icon && workspace.template_icon !== ""
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
     <AlertBanner
@@ -159,14 +157,14 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         }
       >
         <Stack direction="row" spacing={3} alignItems="center">
-          {hasTemplateIcon && (
-            <Avatar
-              size="xl"
-              src={workspace.template_icon}
-              variant="square"
-              fitImage
-            />
-          )}
+          <Avatar
+            size="xl"
+            src={workspace.template_icon}
+            variant={workspace.template_icon ? "square" : undefined}
+            fitImage={Boolean(workspace.template_icon)}
+          >
+            {workspace.name}
+          </Avatar>
           <div>
             <PageHeaderTitle>
               {workspace.name}

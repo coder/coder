@@ -199,7 +199,7 @@ func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Success 200 {array} parameter.ComputedValue
+// @Success 200 {array} codersdk.TemplateVersionParameter
 // @Router /templateversions/{templateversion}/rich-parameters [get]
 func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1458,18 +1458,25 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 			Icon:        option.Icon,
 		})
 	}
+
+	descriptionPlaintext, err := parameter.Plaintext(param.Description)
+	if err != nil {
+		return codersdk.TemplateVersionParameter{}, err
+	}
 	return codersdk.TemplateVersionParameter{
-		Name:            param.Name,
-		Description:     param.Description,
-		Type:            param.Type,
-		Mutable:         param.Mutable,
-		DefaultValue:    param.DefaultValue,
-		Icon:            param.Icon,
-		Options:         options,
-		ValidationRegex: param.ValidationRegex,
-		ValidationMin:   param.ValidationMin,
-		ValidationMax:   param.ValidationMax,
-		ValidationError: param.ValidationError,
+		Name:                 param.Name,
+		Description:          param.Description,
+		DescriptionPlaintext: descriptionPlaintext,
+		Type:                 param.Type,
+		Mutable:              param.Mutable,
+		DefaultValue:         param.DefaultValue,
+		Icon:                 param.Icon,
+		Options:              options,
+		ValidationRegex:      param.ValidationRegex,
+		ValidationMin:        param.ValidationMin,
+		ValidationMax:        param.ValidationMax,
+		ValidationError:      param.ValidationError,
+		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
 	}, nil
 }
 

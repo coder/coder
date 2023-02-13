@@ -10,7 +10,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
@@ -27,7 +27,7 @@ func TestEntitlements(t *testing.T) {
 
 	t.Run("Defaults", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, all)
 		require.NoError(t, err)
 		require.False(t, entitlements.HasLicense)
@@ -39,7 +39,7 @@ func TestEntitlements(t *testing.T) {
 	})
 	t.Run("SingleLicenseNothing", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{}),
 			Exp: time.Now().Add(time.Hour),
@@ -55,7 +55,7 @@ func TestEntitlements(t *testing.T) {
 	})
 	t.Run("SingleLicenseAll", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: func() license.Features {
@@ -78,7 +78,7 @@ func TestEntitlements(t *testing.T) {
 	})
 	t.Run("SingleLicenseGrace", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -104,7 +104,7 @@ func TestEntitlements(t *testing.T) {
 	})
 	t.Run("SingleLicenseNotEntitled", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{}),
 			Exp: time.Now().Add(time.Hour),
@@ -132,7 +132,7 @@ func TestEntitlements(t *testing.T) {
 	})
 	t.Run("TooManyUsers", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		db.InsertUser(context.Background(), database.InsertUserParams{
 			Username:  "test1",
 			LoginType: database.LoginTypePassword,
@@ -156,7 +156,7 @@ func TestEntitlements(t *testing.T) {
 	})
 	t.Run("MaximizeUserLimit", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		db.InsertUser(context.Background(), database.InsertUserParams{})
 		db.InsertUser(context.Background(), database.InsertUserParams{})
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
@@ -182,7 +182,7 @@ func TestEntitlements(t *testing.T) {
 	})
 	t.Run("MultipleLicenseEnabled", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		// One trial
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			Exp: time.Now().Add(time.Hour),
@@ -206,7 +206,7 @@ func TestEntitlements(t *testing.T) {
 
 	t.Run("AllFeatures", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			Exp: time.Now().Add(time.Hour),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
@@ -228,7 +228,7 @@ func TestEntitlements(t *testing.T) {
 
 	t.Run("MultipleReplicasNoLicense", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 2, 1, coderdenttest.Keys, all)
 		require.NoError(t, err)
 		require.False(t, entitlements.HasLicense)
@@ -238,7 +238,7 @@ func TestEntitlements(t *testing.T) {
 
 	t.Run("MultipleReplicasNotEntitled", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			Exp: time.Now().Add(time.Hour),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
@@ -258,7 +258,7 @@ func TestEntitlements(t *testing.T) {
 
 	t.Run("MultipleReplicasGrace", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -280,7 +280,7 @@ func TestEntitlements(t *testing.T) {
 
 	t.Run("MultipleGitAuthNoLicense", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 2, coderdenttest.Keys, all)
 		require.NoError(t, err)
 		require.False(t, entitlements.HasLicense)
@@ -290,7 +290,7 @@ func TestEntitlements(t *testing.T) {
 
 	t.Run("MultipleGitAuthNotEntitled", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			Exp: time.Now().Add(time.Hour),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
@@ -310,7 +310,7 @@ func TestEntitlements(t *testing.T) {
 
 	t.Run("MultipleGitAuthGrace", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
+		db := dbfake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				GraceAt:   time.Now().Add(-time.Hour),

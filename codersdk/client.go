@@ -109,10 +109,13 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 
 	var r io.Reader
 	if body != nil {
-		if data, ok := body.([]byte); ok {
+		switch data := body.(type) {
+		case io.Reader:
+			r = data
+		case []byte:
 			r = bytes.NewReader(data)
-		} else {
-			// Assume JSON if not bytes.
+		default:
+			// Assume JSON in all other cases.
 			buf := bytes.NewBuffer(nil)
 			enc := json.NewEncoder(buf)
 			enc.SetEscapeHTML(false)
@@ -120,7 +123,6 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 			if err != nil {
 				return nil, xerrors.Errorf("encode body: %w", err)
 			}
-
 			r = buf
 		}
 	}

@@ -22,10 +22,10 @@ import (
 // All methods take in a 'seed' object. Any provided fields in the seed will be
 // maintained. Any fields omitted will have sensible defaults generated.
 
-func AuditLog(t *testing.T, db database.Store, seed database.AuditLog) database.AuditLog {
+func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.AuditLog {
 	log, err := db.InsertAuditLog(context.Background(), database.InsertAuditLogParams{
 		ID:             takeFirst(seed.ID, uuid.New()),
-		Time:           takeFirst(seed.Time, time.Now()),
+		Time:           takeFirst(seed.Time, database.Now()),
 		UserID:         takeFirst(seed.UserID, uuid.New()),
 		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
 		Ip: pqtype.Inet{
@@ -50,11 +50,11 @@ func AuditLog(t *testing.T, db database.Store, seed database.AuditLog) database.
 	return log
 }
 
-func Template(t *testing.T, db database.Store, seed database.Template) database.Template {
+func Template(t testing.TB, db database.Store, seed database.Template) database.Template {
 	template, err := db.InsertTemplate(context.Background(), database.InsertTemplateParams{
 		ID:                           takeFirst(seed.ID, uuid.New()),
-		CreatedAt:                    takeFirst(seed.CreatedAt, time.Now()),
-		UpdatedAt:                    takeFirst(seed.UpdatedAt, time.Now()),
+		CreatedAt:                    takeFirst(seed.CreatedAt, database.Now()),
+		UpdatedAt:                    takeFirst(seed.UpdatedAt, database.Now()),
 		OrganizationID:               takeFirst(seed.OrganizationID, uuid.New()),
 		Name:                         takeFirst(seed.Name, namesgenerator.GetRandomName(1)),
 		Provisioner:                  takeFirst(seed.Provisioner, database.ProvisionerTypeEcho),
@@ -72,7 +72,7 @@ func Template(t *testing.T, db database.Store, seed database.Template) database.
 	return template
 }
 
-func APIKey(t *testing.T, db database.Store, seed database.APIKey) (key database.APIKey, token string) {
+func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database.APIKey, token string) {
 	id, _ := cryptorand.String(10)
 	secret, _ := cryptorand.String(22)
 	hashed := sha256.Sum256([]byte(secret))
@@ -84,10 +84,10 @@ func APIKey(t *testing.T, db database.Store, seed database.APIKey) (key database
 		HashedSecret:    takeFirstSlice(seed.HashedSecret, hashed[:]),
 		IPAddress:       pqtype.Inet{},
 		UserID:          takeFirst(seed.UserID, uuid.New()),
-		LastUsed:        takeFirst(seed.LastUsed, time.Now()),
-		ExpiresAt:       takeFirst(seed.ExpiresAt, time.Now().Add(time.Hour)),
-		CreatedAt:       takeFirst(seed.CreatedAt, time.Now()),
-		UpdatedAt:       takeFirst(seed.UpdatedAt, time.Now()),
+		LastUsed:        takeFirst(seed.LastUsed, database.Now()),
+		ExpiresAt:       takeFirst(seed.ExpiresAt, database.Now().Add(time.Hour)),
+		CreatedAt:       takeFirst(seed.CreatedAt, database.Now()),
+		UpdatedAt:       takeFirst(seed.UpdatedAt, database.Now()),
 		LoginType:       takeFirst(seed.LoginType, database.LoginTypePassword),
 		Scope:           takeFirst(seed.Scope, database.APIKeyScopeAll),
 	})
@@ -95,11 +95,11 @@ func APIKey(t *testing.T, db database.Store, seed database.APIKey) (key database
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
 }
 
-func WorkspaceAgent(t *testing.T, db database.Store, orig database.WorkspaceAgent) database.WorkspaceAgent {
+func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgent) database.WorkspaceAgent {
 	workspace, err := db.InsertWorkspaceAgent(context.Background(), database.InsertWorkspaceAgentParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
-		CreatedAt:  takeFirst(orig.CreatedAt, time.Now()),
-		UpdatedAt:  takeFirst(orig.UpdatedAt, time.Now()),
+		CreatedAt:  takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:  takeFirst(orig.UpdatedAt, database.Now()),
 		Name:       takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		ResourceID: takeFirst(orig.ResourceID, uuid.New()),
 		AuthToken:  takeFirst(orig.AuthToken, uuid.New()),
@@ -136,12 +136,12 @@ func WorkspaceAgent(t *testing.T, db database.Store, orig database.WorkspaceAgen
 	return workspace
 }
 
-func Workspace(t *testing.T, db database.Store, orig database.Workspace) database.Workspace {
+func Workspace(t testing.TB, db database.Store, orig database.Workspace) database.Workspace {
 	workspace, err := db.InsertWorkspace(context.Background(), database.InsertWorkspaceParams{
 		ID:                takeFirst(orig.ID, uuid.New()),
 		OwnerID:           takeFirst(orig.OwnerID, uuid.New()),
-		CreatedAt:         takeFirst(orig.CreatedAt, time.Now()),
-		UpdatedAt:         takeFirst(orig.UpdatedAt, time.Now()),
+		CreatedAt:         takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
 		OrganizationID:    takeFirst(orig.OrganizationID, uuid.New()),
 		TemplateID:        takeFirst(orig.TemplateID, uuid.New()),
 		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
@@ -152,11 +152,11 @@ func Workspace(t *testing.T, db database.Store, orig database.Workspace) databas
 	return workspace
 }
 
-func WorkspaceBuild(t *testing.T, db database.Store, orig database.WorkspaceBuild) database.WorkspaceBuild {
+func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuild) database.WorkspaceBuild {
 	build, err := db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
 		ID:                takeFirst(orig.ID, uuid.New()),
-		CreatedAt:         takeFirst(orig.CreatedAt, time.Now()),
-		UpdatedAt:         takeFirst(orig.UpdatedAt, time.Now()),
+		CreatedAt:         takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
 		WorkspaceID:       takeFirst(orig.WorkspaceID, uuid.New()),
 		TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
 		BuildNumber:       takeFirst(orig.BuildNumber, 1),
@@ -164,21 +164,21 @@ func WorkspaceBuild(t *testing.T, db database.Store, orig database.WorkspaceBuil
 		InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
 		JobID:             takeFirst(orig.JobID, uuid.New()),
 		ProvisionerState:  takeFirstSlice(orig.ProvisionerState, []byte{}),
-		Deadline:          takeFirst(orig.Deadline, time.Now().Add(time.Hour)),
+		Deadline:          takeFirst(orig.Deadline, database.Now().Add(time.Hour)),
 		Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
 	})
 	require.NoError(t, err, "insert workspace build")
 	return build
 }
 
-func User(t *testing.T, db database.Store, orig database.User) database.User {
+func User(t testing.TB, db database.Store, orig database.User) database.User {
 	user, err := db.InsertUser(context.Background(), database.InsertUserParams{
 		ID:             takeFirst(orig.ID, uuid.New()),
 		Email:          takeFirst(orig.Email, namesgenerator.GetRandomName(1)),
 		Username:       takeFirst(orig.Username, namesgenerator.GetRandomName(1)),
 		HashedPassword: takeFirstSlice(orig.HashedPassword, []byte{}),
-		CreatedAt:      takeFirst(orig.CreatedAt, time.Now()),
-		UpdatedAt:      takeFirst(orig.UpdatedAt, time.Now()),
+		CreatedAt:      takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:      takeFirst(orig.UpdatedAt, database.Now()),
 		RBACRoles:      takeFirstSlice(orig.RBACRoles, []string{}),
 		LoginType:      takeFirst(orig.LoginType, database.LoginTypePassword),
 	})
@@ -186,31 +186,43 @@ func User(t *testing.T, db database.Store, orig database.User) database.User {
 	return user
 }
 
-func Organization(t *testing.T, db database.Store, orig database.Organization) database.Organization {
+func GitSSHKey(t testing.TB, db database.Store, orig database.GitSSHKey) database.GitSSHKey {
+	key, err := db.InsertGitSSHKey(context.Background(), database.InsertGitSSHKeyParams{
+		UserID:     takeFirst(orig.UserID, uuid.New()),
+		CreatedAt:  takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:  takeFirst(orig.UpdatedAt, database.Now()),
+		PrivateKey: takeFirst(orig.PrivateKey, ""),
+		PublicKey:  takeFirst(orig.PublicKey, ""),
+	})
+	require.NoError(t, err, "insert ssh key")
+	return key
+}
+
+func Organization(t testing.TB, db database.Store, orig database.Organization) database.Organization {
 	org, err := db.InsertOrganization(context.Background(), database.InsertOrganizationParams{
 		ID:          takeFirst(orig.ID, uuid.New()),
 		Name:        takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		Description: takeFirst(orig.Description, namesgenerator.GetRandomName(1)),
-		CreatedAt:   takeFirst(orig.CreatedAt, time.Now()),
-		UpdatedAt:   takeFirst(orig.UpdatedAt, time.Now()),
+		CreatedAt:   takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:   takeFirst(orig.UpdatedAt, database.Now()),
 	})
 	require.NoError(t, err, "insert organization")
 	return org
 }
 
-func OrganizationMember(t *testing.T, db database.Store, orig database.OrganizationMember) database.OrganizationMember {
+func OrganizationMember(t testing.TB, db database.Store, orig database.OrganizationMember) database.OrganizationMember {
 	mem, err := db.InsertOrganizationMember(context.Background(), database.InsertOrganizationMemberParams{
 		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
 		UserID:         takeFirst(orig.UserID, uuid.New()),
-		CreatedAt:      takeFirst(orig.CreatedAt, time.Now()),
-		UpdatedAt:      takeFirst(orig.UpdatedAt, time.Now()),
+		CreatedAt:      takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:      takeFirst(orig.UpdatedAt, database.Now()),
 		Roles:          takeFirstSlice(orig.Roles, []string{}),
 	})
 	require.NoError(t, err, "insert organization")
 	return mem
 }
 
-func Group(t *testing.T, db database.Store, orig database.Group) database.Group {
+func Group(t testing.TB, db database.Store, orig database.Group) database.Group {
 	group, err := db.InsertGroup(context.Background(), database.InsertGroupParams{
 		ID:             takeFirst(orig.ID, uuid.New()),
 		Name:           takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
@@ -222,7 +234,7 @@ func Group(t *testing.T, db database.Store, orig database.Group) database.Group 
 	return group
 }
 
-func GroupMember(t *testing.T, db database.Store, orig database.GroupMember) database.GroupMember {
+func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) database.GroupMember {
 	member := database.GroupMember{
 		UserID:  takeFirst(orig.UserID, uuid.New()),
 		GroupID: takeFirst(orig.GroupID, uuid.New()),
@@ -236,11 +248,11 @@ func GroupMember(t *testing.T, db database.Store, orig database.GroupMember) dat
 	return member
 }
 
-func ProvisionerJob(t *testing.T, db database.Store, orig database.ProvisionerJob) database.ProvisionerJob {
+func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJob) database.ProvisionerJob {
 	job, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
 		ID:             takeFirst(orig.ID, uuid.New()),
-		CreatedAt:      takeFirst(orig.CreatedAt, time.Now()),
-		UpdatedAt:      takeFirst(orig.UpdatedAt, time.Now()),
+		CreatedAt:      takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:      takeFirst(orig.UpdatedAt, database.Now()),
 		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
 		InitiatorID:    takeFirst(orig.InitiatorID, uuid.New()),
 		Provisioner:    takeFirst(orig.Provisioner, database.ProvisionerTypeEcho),
@@ -254,10 +266,38 @@ func ProvisionerJob(t *testing.T, db database.Store, orig database.ProvisionerJo
 	return job
 }
 
-func WorkspaceResource(t *testing.T, db database.Store, orig database.WorkspaceResource) database.WorkspaceResource {
+func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) database.WorkspaceApp {
+	resource, err := db.InsertWorkspaceApp(context.Background(), database.InsertWorkspaceAppParams{
+		ID:          takeFirst(orig.ID, uuid.New()),
+		CreatedAt:   takeFirst(orig.CreatedAt, database.Now()),
+		AgentID:     takeFirst(orig.AgentID, uuid.New()),
+		Slug:        takeFirst(orig.Slug, namesgenerator.GetRandomName(1)),
+		DisplayName: takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
+		Icon:        takeFirst(orig.Icon, namesgenerator.GetRandomName(1)),
+		Command: sql.NullString{
+			String: takeFirst(orig.Command.String, "ls"),
+			Valid:  orig.Command.Valid,
+		},
+		Url: sql.NullString{
+			String: takeFirst(orig.Url.String),
+			Valid:  orig.Url.Valid,
+		},
+		External:             orig.External,
+		Subdomain:            orig.Subdomain,
+		SharingLevel:         takeFirst(orig.SharingLevel, database.AppSharingLevelOwner),
+		HealthcheckUrl:       takeFirst(orig.HealthcheckUrl, "https://localhost:8000"),
+		HealthcheckInterval:  takeFirst(orig.HealthcheckInterval, 60),
+		HealthcheckThreshold: takeFirst(orig.HealthcheckThreshold, 60),
+		Health:               takeFirst(orig.Health, database.WorkspaceAppHealthHealthy),
+	})
+	require.NoError(t, err, "insert app")
+	return resource
+}
+
+func WorkspaceResource(t testing.TB, db database.Store, orig database.WorkspaceResource) database.WorkspaceResource {
 	resource, err := db.InsertWorkspaceResource(context.Background(), database.InsertWorkspaceResourceParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
-		CreatedAt:  takeFirst(orig.CreatedAt, time.Now()),
+		CreatedAt:  takeFirst(orig.CreatedAt, database.Now()),
 		JobID:      takeFirst(orig.JobID, uuid.New()),
 		Transition: takeFirst(orig.Transition, database.WorkspaceTransitionStart),
 		Type:       takeFirst(orig.Type, "fake_resource"),
@@ -274,7 +314,7 @@ func WorkspaceResource(t *testing.T, db database.Store, orig database.WorkspaceR
 	return resource
 }
 
-func WorkspaceResourceMetadatums(t *testing.T, db database.Store, seed database.WorkspaceResourceMetadatum) []database.WorkspaceResourceMetadatum {
+func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.WorkspaceResourceMetadatum) []database.WorkspaceResourceMetadatum {
 	meta, err := db.InsertWorkspaceResourceMetadata(context.Background(), database.InsertWorkspaceResourceMetadataParams{
 		WorkspaceResourceID: takeFirst(seed.WorkspaceResourceID, uuid.New()),
 		Key:                 []string{takeFirst(seed.Key, namesgenerator.GetRandomName(1))},
@@ -285,11 +325,11 @@ func WorkspaceResourceMetadatums(t *testing.T, db database.Store, seed database.
 	return meta
 }
 
-func File(t *testing.T, db database.Store, orig database.File) database.File {
+func File(t testing.TB, db database.Store, orig database.File) database.File {
 	file, err := db.InsertFile(context.Background(), database.InsertFileParams{
 		ID:        takeFirst(orig.ID, uuid.New()),
 		Hash:      takeFirst(orig.Hash, hex.EncodeToString(make([]byte, 32))),
-		CreatedAt: takeFirst(orig.CreatedAt, time.Now()),
+		CreatedAt: takeFirst(orig.CreatedAt, database.Now()),
 		CreatedBy: takeFirst(orig.CreatedBy, uuid.New()),
 		Mimetype:  takeFirst(orig.Mimetype, "application/x-tar"),
 		Data:      takeFirstSlice(orig.Data, []byte{}),
@@ -298,21 +338,36 @@ func File(t *testing.T, db database.Store, orig database.File) database.File {
 	return file
 }
 
-func UserLink(t *testing.T, db database.Store, orig database.UserLink) database.UserLink {
+func UserLink(t testing.TB, db database.Store, orig database.UserLink) database.UserLink {
 	link, err := db.InsertUserLink(context.Background(), database.InsertUserLinkParams{
 		UserID:            takeFirst(orig.UserID, uuid.New()),
 		LoginType:         takeFirst(orig.LoginType, database.LoginTypeGithub),
 		LinkedID:          takeFirst(orig.LinkedID),
 		OAuthAccessToken:  takeFirst(orig.OAuthAccessToken, uuid.NewString()),
 		OAuthRefreshToken: takeFirst(orig.OAuthAccessToken, uuid.NewString()),
-		OAuthExpiry:       takeFirst(orig.OAuthExpiry, time.Now().Add(time.Hour*24)),
+		OAuthExpiry:       takeFirst(orig.OAuthExpiry, database.Now().Add(time.Hour*24)),
 	})
 
 	require.NoError(t, err, "insert link")
 	return link
 }
 
-func TemplateVersion(t *testing.T, db database.Store, orig database.TemplateVersion) database.TemplateVersion {
+func GitAuthLink(t testing.TB, db database.Store, orig database.GitAuthLink) database.GitAuthLink {
+	link, err := db.InsertGitAuthLink(context.Background(), database.InsertGitAuthLinkParams{
+		ProviderID:        takeFirst(orig.ProviderID, uuid.New().String()),
+		UserID:            takeFirst(orig.UserID, uuid.New()),
+		OAuthAccessToken:  takeFirst(orig.OAuthAccessToken, uuid.NewString()),
+		OAuthRefreshToken: takeFirst(orig.OAuthAccessToken, uuid.NewString()),
+		OAuthExpiry:       takeFirst(orig.OAuthExpiry, database.Now().Add(time.Hour*24)),
+		CreatedAt:         takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
+	})
+
+	require.NoError(t, err, "insert git auth link")
+	return link
+}
+
+func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVersion) database.TemplateVersion {
 	version, err := db.InsertTemplateVersion(context.Background(), database.InsertTemplateVersionParams{
 		ID: takeFirst(orig.ID, uuid.New()),
 		TemplateID: uuid.NullUUID{
@@ -320,8 +375,8 @@ func TemplateVersion(t *testing.T, db database.Store, orig database.TemplateVers
 			Valid: takeFirst(orig.TemplateID.Valid, true),
 		},
 		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
-		CreatedAt:      takeFirst(orig.CreatedAt, time.Now()),
-		UpdatedAt:      takeFirst(orig.UpdatedAt, time.Now()),
+		CreatedAt:      takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:      takeFirst(orig.UpdatedAt, database.Now()),
 		Name:           takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		Readme:         takeFirst(orig.Readme, namesgenerator.GetRandomName(1)),
 		JobID:          takeFirst(orig.JobID, uuid.New()),
@@ -331,11 +386,11 @@ func TemplateVersion(t *testing.T, db database.Store, orig database.TemplateVers
 	return version
 }
 
-func ParameterSchema(t *testing.T, db database.Store, seed database.ParameterSchema) database.ParameterSchema {
+func ParameterSchema(t testing.TB, db database.Store, seed database.ParameterSchema) database.ParameterSchema {
 	scheme, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
 		ID:                       takeFirst(seed.ID, uuid.New()),
 		JobID:                    takeFirst(seed.JobID, uuid.New()),
-		CreatedAt:                takeFirst(seed.CreatedAt, time.Now()),
+		CreatedAt:                takeFirst(seed.CreatedAt, database.Now()),
 		Name:                     takeFirst(seed.Name, namesgenerator.GetRandomName(1)),
 		Description:              takeFirst(seed.Description, namesgenerator.GetRandomName(1)),
 		DefaultSourceScheme:      takeFirst(seed.DefaultSourceScheme, database.ParameterSourceSchemeNone),
@@ -355,12 +410,12 @@ func ParameterSchema(t *testing.T, db database.Store, seed database.ParameterSch
 	return scheme
 }
 
-func ParameterValue(t *testing.T, db database.Store, seed database.ParameterValue) database.ParameterValue {
+func ParameterValue(t testing.TB, db database.Store, seed database.ParameterValue) database.ParameterValue {
 	scheme, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
 		ID:                takeFirst(seed.ID, uuid.New()),
 		Name:              takeFirst(seed.Name, namesgenerator.GetRandomName(1)),
-		CreatedAt:         takeFirst(seed.CreatedAt, time.Now()),
-		UpdatedAt:         takeFirst(seed.UpdatedAt, time.Now()),
+		CreatedAt:         takeFirst(seed.CreatedAt, database.Now()),
+		UpdatedAt:         takeFirst(seed.UpdatedAt, database.Now()),
 		Scope:             takeFirst(seed.Scope, database.ParameterScopeWorkspace),
 		ScopeID:           takeFirst(seed.ScopeID, uuid.New()),
 		SourceScheme:      takeFirst(seed.SourceScheme, database.ParameterSourceSchemeNone),

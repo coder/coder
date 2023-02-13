@@ -55,6 +55,8 @@ func featuresList() *cobra.Command {
 				return err
 			}
 
+			// This uses custom formatting as the JSON output outputs an object
+			// as opposed to a list from the table output.
 			out := ""
 			switch outputFormat {
 			case "table", "":
@@ -88,7 +90,7 @@ func featuresList() *cobra.Command {
 }
 
 type featureRow struct {
-	Name        codersdk.FeatureName `table:"name"`
+	Name        codersdk.FeatureName `table:"name,default_sort"`
 	Entitlement string               `table:"entitlement"`
 	Enabled     bool                 `table:"enabled"`
 	Limit       *int64               `table:"limit"`

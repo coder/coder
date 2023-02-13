@@ -230,6 +230,13 @@ func (r *remoteReporter) deployment() error {
 	if sysInfo.Containerized != nil {
 		containerized = *sysInfo.Containerized
 	}
+
+	// Tracks where Coder was installed from!
+	installSource := os.Getenv("CODER_TELEMETRY_INSTALL_SOURCE")
+	if installSource != "" && installSource != "aws_marketplace" {
+		return xerrors.Errorf("invalid installce source: %s", installSource)
+	}
+
 	data, err := json.Marshal(&Deployment{
 		ID:                 r.options.DeploymentID,
 		Architecture:       sysInfo.Architecture,
@@ -243,6 +250,7 @@ func (r *remoteReporter) deployment() error {
 		OIDCAuth:           r.options.OIDCAuth,
 		OIDCIssuerURL:      r.options.OIDCIssuerURL,
 		Prometheus:         r.options.Prometheus,
+		InstallSource:      installSource,
 		STUN:               r.options.STUN,
 		Tunnel:             r.options.Tunnel,
 		OSType:             sysInfo.OS.Type,
@@ -677,6 +685,7 @@ type Deployment struct {
 	OIDCAuth           bool       `json:"oidc_auth"`
 	OIDCIssuerURL      string     `json:"oidc_issuer_url"`
 	Prometheus         bool       `json:"prometheus"`
+	InstallSource      string     `json:"install_source"`
 	STUN               bool       `json:"stun"`
 	OSType             string     `json:"os_type"`
 	OSFamily           string     `json:"os_family"`

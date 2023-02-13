@@ -164,6 +164,12 @@ RUN apt-get update --quiet && apt-get install --yes \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
+# Install the docker buildx component.
+RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"(v[^"]+)".*/\1/') && \
+	mkdir -p /usr/local/lib/docker/cli-plugins && \
+	curl -Lo /usr/local/lib/docker/cli-plugins/docker-buildx "https://github.com/docker/buildx/releases/download/${DOCKER_BUILDX_VERSION}/buildx-${DOCKER_BUILDX_VERSION}.linux-amd64" && \
+	chmod a+x /usr/local/lib/docker/cli-plugins/docker-buildx
+
 # See https://github.com/cli/cli/issues/6175#issuecomment-1235984381 for proof
 # the apt repository is unreliable
 RUN curl -L https://github.com/cli/cli/releases/download/v2.14.7/gh_2.14.7_linux_amd64.deb -o gh.deb && \

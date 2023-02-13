@@ -2,7 +2,11 @@
 # cross-compiled, it cannot have ANY "RUN" commands. All binaries are built
 # using the go toolchain on the host and then copied into the build context by
 # scripts/build_docker.sh.
-FROM alpine:latest
+#
+# If you need RUN commands (e.g. to install tools via apk), add them to
+# Dockerfile.base instead, which supports "RUN" commands.
+ARG BASE_IMAGE
+FROM $BASE_IMAGE
 
 # LABEL doesn't add any real layers so it's fine (and easier) to do it here than
 # in the build script.
@@ -14,17 +18,7 @@ LABEL \
 	org.opencontainers.image.source="https://github.com/coder/coder" \
 	org.opencontainers.image.version="$CODER_VERSION"
 
-# Create coder group and user. We cannot use `addgroup` and `adduser` because
-# they won't work if we're building the image for a different architecture.
-COPY --chown=0:0 --chmod=644 group passwd /etc/
-COPY --chown=1000:1000 --chmod=700 empty-dir /home/coder
-
 # The coder binary is injected by scripts/build_docker.sh.
 COPY --chown=1000:1000 --chmod=755 coder /opt/coder
-
-USER 1000:1000
-ENV HOME=/home/coder
-ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt
-WORKDIR /home/coder
 
 ENTRYPOINT [ "/opt/coder", "server" ]

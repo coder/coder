@@ -107,6 +107,7 @@ spec:
             {{- end }}
             {{- end }}
             {{- end }}
+          securityContext: {{ toYaml .Values.coder.securityContext | nindent 12 }}
           readinessProbe:
             httpGet:
               path: /api/v2/buildinfo

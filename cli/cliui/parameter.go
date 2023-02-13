@@ -63,8 +63,8 @@ func ParameterSchema(cmd *cobra.Command, parameterSchema codersdk.ParameterSchem
 
 func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), Styles.Bold.Render(templateVersionParameter.Name))
-	if templateVersionParameter.Description != "" {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+strings.TrimSpace(strings.Join(strings.Split(templateVersionParameter.Description, "\n"), "\n  "))+"\n")
+	if templateVersionParameter.DescriptionPlaintext != "" {
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+strings.TrimSpace(strings.Join(strings.Split(templateVersionParameter.DescriptionPlaintext, "\n"), "\n  "))+"\n")
 	}
 
 	var err error
@@ -114,5 +114,5 @@ func validateRichPrompt(value string, p codersdk.TemplateVersionParameter) error
 	return codersdk.ValidateWorkspaceBuildParameter(p, codersdk.WorkspaceBuildParameter{
 		Name:  p.Name,
 		Value: value,
-	})
+	}, nil)
 }

@@ -228,19 +228,21 @@
 | ------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `state` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
 
-## agentsdk.PostVersionRequest
+## agentsdk.PostStartupRequest
 
 ```json
 {
+  "expanded_directory": "string",
   "version": "string"
 }
 ```
 
 ### Properties
 
-| Name      | Type   | Required | Restrictions | Description |
-| --------- | ------ | -------- | ------------ | ----------- |
-| `version` | string | false    |              |             |
+| Name                 | Type   | Required | Restrictions | Description |
+| -------------------- | ------ | -------- | ------------ | ----------- |
+| `expanded_directory` | string | false    |              |             |
+| `version`            | string | false    |              |             |
 
 ## agentsdk.Stats
 
@@ -484,6 +486,8 @@
 | `delete` |
 | `start`  |
 | `stop`   |
+| `login`  |
+| `logout` |
 
 ## codersdk.AuditDiff
 
@@ -1143,6 +1147,43 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `transition` | `stop`   |
 | `transition` | `delete` |
 
+## codersdk.CreateWorkspaceRequest
+
+```json
+{
+  "autostart_schedule": "string",
+  "name": "string",
+  "parameter_values": [
+    {
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
+      "destination_scheme": "none",
+      "name": "string",
+      "source_scheme": "none",
+      "source_value": "string"
+    }
+  ],
+  "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "ttl_ms": 0
+}
+```
+
+### Properties
+
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------- |
+| `autostart_schedule`    | string                                                                        | false    |              |                                                                                                |
+| `name`                  | string                                                                        | true     |              |                                                                                                |
+| `parameter_values`      | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest)   | false    |              | Parameter values allows for additional parameters to be provided during the initial provision. |
+| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |                                                                                                |
+| `template_id`           | string                                                                        | true     |              |                                                                                                |
+| `ttl_ms`                | integer                                                                       | false    |              |                                                                                                |
+
 ## codersdk.DAUEntry
 
 ```json
@@ -1647,7 +1688,29 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       }
     }
   },
+  "disable_password_auth": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
+  },
   "disable_path_apps": {
+    "default": true,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": true
+  },
+  "disable_session_expiry_refresh": {
     "default": true,
     "enterprise": true,
     "flag": "string",
@@ -1771,6 +1834,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "usage": "string",
       "value": "string"
     }
+  },
+  "max_session_expiry": {
+    "default": 0,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": 0
   },
   "max_token_lifetime": {
     "default": 0,
@@ -2182,6 +2256,28 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "usage": "string",
     "value": "string"
   },
+  "strict_transport_security": {
+    "default": 0,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": 0
+  },
+  "strict_transport_security_options": {
+    "default": ["string"],
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": ["string"]
+  },
   "swagger": {
     "enable": {
       "default": true,
@@ -2416,13 +2512,16 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `cache_directory`                    | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
 | `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                                       | false    |              |                                                 |
 | `derp`                               | [codersdk.DERP](#codersdkderp)                                                                                             | false    |              |                                                 |
+| `disable_password_auth`              | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
 | `disable_path_apps`                  | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
+| `disable_session_expiry_refresh`     | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
 | `experimental`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              | Experimental Use Experiments instead.           |
 | `experiments`                        | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
 | `gitauth`                            | [codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig](#codersdkdeploymentconfigfield-array_codersdk_gitauthconfig) | false    |              |                                                 |
 | `http_address`                       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
 | `in_memory_database`                 | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
 | `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                                           | false    |              |                                                 |
+| `max_session_expiry`                 | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
 | `max_token_lifetime`                 | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
 | `metrics_cache_refresh_interval`     | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
 | `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                                                             | false    |              |                                                 |
@@ -2438,6 +2537,8 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `scim_api_key`                       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
 | `secure_auth_cookie`                 | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
 | `ssh_keygen_algorithm`               | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
+| `strict_transport_security`          | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)                                                   | false    |              |                                                 |
+| `strict_transport_security_options`  | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
 | `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                                           | false    |              |                                                 |
 | `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                                       | false    |              |                                                 |
 | `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                                                   | false    |              |                                                 |
@@ -2732,9 +2833,10 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 #### Enumerated Values
 
-| Value           |
-| --------------- |
-| `authz_querier` |
+| Value             |
+| ----------------- |
+| `authz_querier`   |
+| `template_editor` |
 
 ## codersdk.Feature
 
@@ -4458,6 +4560,81 @@ Parameter represents a set value for the scope.
 | `template_id`     | string                                             | false    |              |             |
 | `updated_at`      | string                                             | false    |              |             |
 
+## codersdk.TemplateVersionParameter
+
+```json
+{
+  "default_value": "string",
+  "description": "string",
+  "description_plaintext": "string",
+  "icon": "string",
+  "mutable": true,
+  "name": "string",
+  "options": [
+    {
+      "description": "string",
+      "icon": "string",
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "type": "string",
+  "validation_error": "string",
+  "validation_max": 0,
+  "validation_min": 0,
+  "validation_monotonic": "increasing",
+  "validation_regex": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type                                                                                        | Required | Restrictions | Description |
+| ----------------------- | ------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `default_value`         | string                                                                                      | false    |              |             |
+| `description`           | string                                                                                      | false    |              |             |
+| `description_plaintext` | string                                                                                      | false    |              |             |
+| `icon`                  | string                                                                                      | false    |              |             |
+| `mutable`               | boolean                                                                                     | false    |              |             |
+| `name`                  | string                                                                                      | false    |              |             |
+| `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
+| `type`                  | string                                                                                      | false    |              |             |
+| `validation_error`      | string                                                                                      | false    |              |             |
+| `validation_max`        | integer                                                                                     | false    |              |             |
+| `validation_min`        | integer                                                                                     | false    |              |             |
+| `validation_monotonic`  | [codersdk.ValidationMonotonicOrder](#codersdkvalidationmonotonicorder)                      | false    |              |             |
+| `validation_regex`      | string                                                                                      | false    |              |             |
+
+#### Enumerated Values
+
+| Property               | Value        |
+| ---------------------- | ------------ |
+| `type`                 | `string`     |
+| `type`                 | `number`     |
+| `type`                 | `bool`       |
+| `validation_monotonic` | `increasing` |
+| `validation_monotonic` | `decreasing` |
+
+## codersdk.TemplateVersionParameterOption
+
+```json
+{
+  "description": "string",
+  "icon": "string",
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+| ------------- | ------ | -------- | ------------ | ----------- |
+| `description` | string | false    |              |             |
+| `icon`        | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `value`       | string | false    |              |             |
+
 ## codersdk.TraceConfig
 
 ```json
@@ -4751,6 +4928,21 @@ Parameter represents a set value for the scope.
 | `detail` | string | true     |              |             |
 | `field`  | string | true     |              |             |
 
+## codersdk.ValidationMonotonicOrder
+
+```json
+"increasing"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value        |
+| ------------ |
+| `increasing` |
+| `decreasing` |
+
 ## codersdk.Workspace
 
 ```json
@@ -4815,6 +5007,7 @@ Parameter represents a set value for the scope.
               "property1": "string",
               "property2": "string"
             },
+            "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
@@ -4937,6 +5130,7 @@ Parameter represents a set value for the scope.
     "property1": "string",
     "property2": "string"
   },
+  "expanded_directory": "string",
   "first_connected_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "instance_id": "string",
@@ -4977,6 +5171,7 @@ Parameter represents a set value for the scope.
 | `disconnected_at`                | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `environment_variables`          | object                                                               | false    |              |                                                                                                                                                                                                            |
 | » `[any property]`               | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `expanded_directory`             | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `first_connected_at`             | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `id`                             | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `instance_id`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
@@ -5270,6 +5465,7 @@ Parameter represents a set value for the scope.
             "property1": "string",
             "property2": "string"
           },
+          "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
@@ -5438,6 +5634,7 @@ Parameter represents a set value for the scope.
         "property1": "string",
         "property2": "string"
       },
+      "expanded_directory": "string",
       "first_connected_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "instance_id": "string",
@@ -5628,6 +5825,7 @@ Parameter represents a set value for the scope.
                   "property1": "string",
                   "property2": "string"
                 },
+                "expanded_directory": "string",
                 "first_connected_at": "2019-08-24T14:15:22Z",
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "instance_id": "string",

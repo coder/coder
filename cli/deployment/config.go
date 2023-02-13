@@ -374,6 +374,20 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:  "secure-auth-cookie",
 		},
+		StrictTransportSecurity: &codersdk.DeploymentConfigField[int]{
+			Name: "Strict-Transport-Security",
+			Usage: "Controls if the 'Strict-Transport-Security' header is set on all static file responses. " +
+				"This header should only be set if the server is accessed via HTTPS. This value is the MaxAge in seconds of " +
+				"the header.",
+			Default: 0,
+			Flag:    "strict-transport-security",
+		},
+		StrictTransportSecurityOptions: &codersdk.DeploymentConfigField[[]string]{
+			Name: "Strict-Transport-Security Options",
+			Usage: "Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. " +
+				"The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.",
+			Flag: "strict-transport-security-options",
+		},
 		SSHKeygenAlgorithm: &codersdk.DeploymentConfigField[string]{
 			Name:    "SSH Keygen Algorithm",
 			Usage:   "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
@@ -486,7 +500,7 @@ func newConfig() *codersdk.DeploymentConfig {
 		},
 		MaxTokenLifetime: &codersdk.DeploymentConfigField[time.Duration]{
 			Name:    "Max Token Lifetime",
-			Usage:   "The maximum lifetime duration for any user creating a token.",
+			Usage:   "The maximum lifetime duration users can specify when creating an API token.",
 			Flag:    "max-token-lifetime",
 			Default: 24 * 30 * time.Hour,
 		},
@@ -536,6 +550,24 @@ func newConfig() *codersdk.DeploymentConfig {
 			Name:    "Disable Path Apps",
 			Usage:   "Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.",
 			Flag:    "disable-path-apps",
+			Default: false,
+		},
+		SessionDuration: &codersdk.DeploymentConfigField[time.Duration]{
+			Name:    "Session Duration",
+			Usage:   "The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.",
+			Flag:    "session-duration",
+			Default: 24 * time.Hour,
+		},
+		DisableSessionExpiryRefresh: &codersdk.DeploymentConfigField[bool]{
+			Name:    "Disable Session Expiry Refresh",
+			Usage:   "Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.",
+			Flag:    "disable-session-expiry-refresh",
+			Default: false,
+		},
+		DisablePasswordAuth: &codersdk.DeploymentConfigField[bool]{
+			Name:    "Disable Password Authentication",
+			Usage:   "Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.",
+			Flag:    "disable-password-auth",
 			Default: false,
 		},
 	}

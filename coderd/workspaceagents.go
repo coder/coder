@@ -155,17 +155,17 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// @Summary Submit workspace agent version
-// @ID submit-workspace-agent-version
+// @Summary Submit workspace agent startup
+// @ID submit-workspace-agent-startup
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Agents
-// @Param request body agentsdk.PostVersionRequest true "Version request"
+// @Param request body agentsdk.PostStartupRequest true "Startup request"
 // @Success 200
-// @Router /workspaceagents/me/version [post]
+// @Router /workspaceagents/me/startup [post]
 // @x-apidocgen {"skip": true}
-func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
@@ -177,7 +177,7 @@ func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var req agentsdk.PostVersionRequest
+	var req agentsdk.PostStartupRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -192,9 +192,10 @@ func (api *API) postWorkspaceAgentVersion(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := api.Database.UpdateWorkspaceAgentVersionByID(ctx, database.UpdateWorkspaceAgentVersionByIDParams{
-		ID:      apiAgent.ID,
-		Version: req.Version,
+	if err := api.Database.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
+		ID:                apiAgent.ID,
+		Version:           req.Version,
+		ExpandedDirectory: req.ExpandedDirectory,
 	}); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error setting agent version",
@@ -600,7 +601,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		Valid: true,
 	}
 	disconnectedAt := workspaceAgent.DisconnectedAt
-	updateConnectionTimes := func() error {
+	updateConnectionTimes := func(ctx context.Context) error {
 		err = api.Database.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
 			ID:               workspaceAgent.ID,
 			FirstConnectedAt: firstConnectedAt,
@@ -619,15 +620,23 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	}
 
 	defer func() {
+		// If connection closed then context will be canceled, try to
+		// ensure our final update is sent. By waiting at most the agent
+		// inactive disconnect timeout we ensure that we don't block but
+		// also guarantee that the agent will be considered disconnected
+		// by normal status check.
+		ctx, cancel := context.WithTimeout(api.ctx, api.AgentInactiveDisconnectTimeout)
+		defer cancel()
+
 		disconnectedAt = sql.NullTime{
 			Time:  database.Now(),
 			Valid: true,
 		}
-		_ = updateConnectionTimes()
-		_ = api.Pubsub.Publish(watchWorkspaceChannel(build.WorkspaceID), []byte{})
+		_ = updateConnectionTimes(ctx)
+		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 	}()
 
-	err = updateConnectionTimes()
+	err = updateConnectionTimes(ctx)
 	if err != nil {
 		_ = conn.Close(websocket.StatusGoingAway, err.Error())
 		return
@@ -667,7 +676,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			Time:  database.Now(),
 			Valid: true,
 		}
-		err = updateConnectionTimes()
+		err = updateConnectionTimes(ctx)
 		if err != nil {
 			_ = conn.Close(websocket.StatusGoingAway, err.Error())
 			return
@@ -782,6 +791,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		Version:                     dbAgent.Version,
 		EnvironmentVariables:        envs,
 		Directory:                   dbAgent.Directory,
+		ExpandedDirectory:           dbAgent.ExpandedDirectory,
 		Apps:                        apps,
 		ConnectionTimeoutSeconds:    dbAgent.ConnectionTimeoutSeconds,
 		TroubleshootingURL:          troubleshootingURL,

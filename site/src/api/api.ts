@@ -309,6 +309,17 @@ export const createTemplate = async (
   return response.data
 }
 
+export const updateActiveTemplateVersion = async (
+  templateId: string,
+  data: TypesGen.UpdateActiveTemplateVersion,
+): Promise<Types.Message> => {
+  const response = await axios.patch<Types.Message>(
+    `/api/v2/templates/${templateId}/versions`,
+    data,
+  )
+  return response.data
+}
+
 export const updateTemplateMeta = async (
   templateId: string,
   data: TypesGen.UpdateTemplateMeta,
@@ -429,6 +440,15 @@ export const cancelWorkspaceBuild = async (
 ): Promise<Types.Message> => {
   const response = await axios.patch(
     `/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
+  )
+  return response.data
+}
+
+export const cancelTemplateVersionBuild = async (
+  templateVersionId: TypesGen.TemplateVersion["id"],
+): Promise<Types.Message> => {
+  const response = await axios.patch(
+    `/api/v2/templateversions/${templateVersionId}/cancel`,
   )
   return response.data
 }
@@ -624,8 +644,22 @@ export const putWorkspaceExtension = async (
 }
 
 export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
-  const response = await axios.get("/api/v2/entitlements")
-  return response.data
+  try {
+    const response = await axios.get("/api/v2/entitlements")
+    return response.data
+  } catch (ex) {
+    if (axios.isAxiosError(ex) && ex.response?.status === 404) {
+      return {
+        errors: [],
+        experimental: false,
+        features: withDefaultFeatures({}),
+        has_license: false,
+        trial: false,
+        warnings: [],
+      }
+    }
+    throw ex
+  }
 }
 
 export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
@@ -757,8 +791,20 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
 }
 
 export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
-  const response = await axios.get(`/api/v2/appearance`)
-  return response.data
+  try {
+    const response = await axios.get(`/api/v2/appearance`)
+    return response.data || {}
+  } catch (ex) {
+    if (axios.isAxiosError(ex) && ex.response?.status === 404) {
+      return {
+        logo_url: "",
+        service_banner: {
+          enabled: false,
+        },
+      }
+    }
+    throw ex
+  }
 }
 
 export const updateAppearance = async (

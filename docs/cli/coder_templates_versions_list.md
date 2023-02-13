@@ -9,7 +9,9 @@ coder templates versions list <template> [flags]
 ### Options
 
 ```
-  -h, --help   help for list
+  -c, --column strings   Columns to display in table output. Available columns: name, created at, created by, status, active (default [name,created at,created by,status,active])
+  -h, --help             help for list
+  -o, --output string    Output format. Available formats: table, json (default "table")
 ```
 
 ### Options inherited from parent commands

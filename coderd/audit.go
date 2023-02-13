@@ -57,19 +57,10 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	filter.Offset = int32(page.Offset)
+	filter.Limit = int32(page.Limit)
 
-	dblogs, err := api.Database.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
-		Offset:       int32(page.Offset),
-		Limit:        int32(page.Limit),
-		ResourceType: filter.ResourceType,
-		ResourceID:   filter.ResourceID,
-		Action:       filter.Action,
-		Username:     filter.Username,
-		Email:        filter.Email,
-		DateFrom:     filter.DateFrom,
-		DateTo:       filter.DateTo,
-		BuildReason:  filter.BuildReason,
-	})
+	dblogs, err := api.Database.GetAuditLogsOffset(ctx, filter)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -253,28 +244,21 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		StatusCode:       dblog.StatusCode,
 		AdditionalFields: dblog.AdditionalFields,
 		User:             user,
-		Description:      auditLogDescription(dblog, additionalFields),
+		Description:      auditLogDescription(dblog),
 		ResourceLink:     resourceLink,
 		IsDeleted:        isDeleted,
 	}
 }
 
-func auditLogDescription(alog database.GetAuditLogsOffsetRow, additionalFields audit.AdditionalFields) string {
+func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	str := fmt.Sprintf("{user} %s",
 		codersdk.AuditAction(alog.Action).Friendly(),
 	)
 
-	// Strings for starting/stopping workspace builds follow the below format:
-	// "{user | 'Coder automatically'} started build #{build_number} for workspace {target}"
-	// where target is a workspace (name) instead of a workspace build
-	// passed in on the FE via AuditLog.AdditionalFields rather than derived in request.go:35
-	if alog.ResourceType == database.ResourceTypeWorkspaceBuild && alog.Action != database.AuditActionDelete {
-		if len(additionalFields.BuildNumber) == 0 {
-			str += " build for"
-		} else {
-			str += fmt.Sprintf(" build #%s for",
-				additionalFields.BuildNumber)
-		}
+	// API Key resources do not have targets and follow the below format:
+	// "User {logged in | logged out}"
+	if alog.ResourceType == database.ResourceTypeApiKey {
+		return str
 	}
 
 	// We don't display the name (target) for git ssh keys. It's fairly long and doesn't
@@ -487,6 +471,10 @@ func actionFromString(actionString string) string {
 	case codersdk.AuditActionStart:
 		return actionString
 	case codersdk.AuditActionStop:
+		return actionString
+	case codersdk.AuditActionLogin:
+		return actionString
+	case codersdk.AuditActionLogout:
 		return actionString
 	default:
 	}

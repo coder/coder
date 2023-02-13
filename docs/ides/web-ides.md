@@ -52,11 +52,12 @@ resource "coder_agent" "main" {
     #!/bin/sh
     # install code-server
     # add '-s -- --version x.x.x' to install a specific code-server version
-    curl -fsSL https://code-server.dev/install.sh | sh
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
 
     # start code-server on a specific port
     # authn is off since the user already authn-ed into the coder deployment
-    code-server --auth none --port 13337
+    # & is used to run the process in the background
+    /tmp/code-server/bin/code-server --auth none --port 13337 &
     EOF
 }
 ```
@@ -67,7 +68,9 @@ For advanced use, we recommend installing code-server in your VM snapshot or con
 FROM codercom/enterprise-base:ubuntu
 
 # install the latest version
+USER root
 RUN curl -fsSL https://code-server.dev/install.sh | sh
+USER coder
 
 # pre-install VS Code extensions
 RUN code-server --install-extension eamodio.gitlens
@@ -97,44 +100,9 @@ resource "coder_app" "code-server" {
 
 ## JetBrains Projector
 
-[JetBrains Projector](https://jetbrains.github.io/projector-client/mkdocs/latest/) is a JetBrains Incubator project which renders JetBrains IDEs in the web browser.
+[JetBrains Projector](https://jetbrains.github.io/projector-client/mkdocs/latest/) is a JetBrains Incubator project which renders JetBrains IDEs in the web browser. JetBrains has [suspended the project](https://lp.jetbrains.com/projector/) so Coder no longer provides example templates or support.
 
-![PyCharm in Coder](../images/projector-pycharm.png)
-
-> It is common to see latency and performance issues with Projector. We recommend using [JetBrains Gateway](https://youtrack.jetbrains.com/issues/GTW) whenever possible (also no Template edits required!)
-
-Workspace requirements:
-
-- JetBrains projector CLI
-- At least 4 CPU cores and 4 GB RAM
-
-- CLion
-- PyCharm
-- DataGrip
-- GoLand
-- IntelliJ IDEA Community
-- IntelliJ IDEA Ultimate
-- PhpStorm
-- PyCharm Community
-- PyCharm Professional
-- Rider
-- RubyMine
-- WebStorm
-
-**Pre-built templates:**
-
-You can reference/use these pre-built templates with JetBrains projector:
-
-- IntelliJ
-  ([Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-intellij))
-
-- PyCharm
-  ([Kubernetes](https://github.com/sharkymark/v2-templates/tree/main/multi-projector-pycharm))
-
-> You need to have a valid `~/.kube/config` on your Coder host and a namespace
-> on a Kubernetes cluster to use the Kubernetes pod template examples.
-
-======= ![PyCharm in Coder](../images/projector-pycharm.png)
+Use [JetBrains Gateway](./gateway.md) to remotely connect to a Coder workspace.
 
 ## JupyterLab
 

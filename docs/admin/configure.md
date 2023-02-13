@@ -111,6 +111,12 @@ To restart Coder after applying system changes:
 sudo systemctl restart coder
 ```
 
+## Configuring Coder behind a proxy
+
+To configure Coder behind a corporate proxy, set the environment variables `HTTP_PROXY` and
+`HTTPS_PROXY`. Be sure to restart the server. Lowercase values (e.g. `http_proxy`) are also
+respected in this case.
+
 ## Up Next
 
 - [Get started using Coder](../quickstart.md).

@@ -19,7 +19,8 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/databasefake"
+	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/telemetry"
 )
 
@@ -34,79 +35,38 @@ func TestTelemetry(t *testing.T) {
 
 		var err error
 
-		db := databasefake.New()
+		db := dbfake.New()
 
 		ctx := context.Background()
-		_, err = db.InsertAPIKey(ctx, database.InsertAPIKeyParams{
-			ID:        uuid.NewString(),
-			LastUsed:  database.Now(),
-			Scope:     database.APIKeyScopeAll,
-			LoginType: database.LoginTypePassword,
-		})
-		assert.NoError(t, err)
-		_, err = db.InsertParameterSchema(ctx, database.InsertParameterSchemaParams{
-			ID:                       uuid.New(),
-			CreatedAt:                database.Now(),
+		_, _ = dbgen.APIKey(t, db, database.APIKey{})
+		_ = dbgen.ParameterSchema(t, db, database.ParameterSchema{
 			DefaultSourceScheme:      database.ParameterSourceSchemeNone,
 			DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
 			ValidationTypeSystem:     database.ParameterTypeSystemNone,
 		})
-		assert.NoError(t, err)
-		_, err = db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:            uuid.New(),
-			CreatedAt:     database.Now(),
+		_ = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
 			Provisioner:   database.ProvisionerTypeTerraform,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
 		})
-		assert.NoError(t, err)
-		_, err = db.InsertTemplate(ctx, database.InsertTemplateParams{
-			ID:          uuid.New(),
-			CreatedAt:   database.Now(),
+		_ = dbgen.Template(t, db, database.Template{
 			Provisioner: database.ProvisionerTypeTerraform,
 		})
-		assert.NoError(t, err)
-		_, err = db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-			ID:        uuid.New(),
-			CreatedAt: database.Now(),
-		})
-		assert.NoError(t, err)
-		_, err = db.InsertUser(ctx, database.InsertUserParams{
-			ID:        uuid.New(),
-			CreatedAt: database.Now(),
-			LoginType: database.LoginTypePassword,
-		})
-		assert.NoError(t, err)
-		_, err = db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
-			ID:        uuid.New(),
-			CreatedAt: database.Now(),
-		})
-		assert.NoError(t, err)
-		_, err = db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
-			ID:           uuid.New(),
-			CreatedAt:    database.Now(),
+		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{})
+		_ = dbgen.User(t, db, database.User{})
+		_ = dbgen.Workspace(t, db, database.Workspace{})
+		_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
 			SharingLevel: database.AppSharingLevelOwner,
 			Health:       database.WorkspaceAppHealthDisabled,
 		})
-		assert.NoError(t, err)
-		_, err = db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-			ID:        uuid.New(),
-			CreatedAt: database.Now(),
-		})
-		assert.NoError(t, err)
-		_, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
-			ID:         uuid.New(),
-			CreatedAt:  database.Now(),
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			Transition: database.WorkspaceTransitionStart,
 			Reason:     database.BuildReasonAutostart,
 		})
-		assert.NoError(t, err)
-		_, err = db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
-			ID:         uuid.New(),
-			CreatedAt:  database.Now(),
+		_ = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			Transition: database.WorkspaceTransitionStart,
 		})
-		assert.NoError(t, err)
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: database.Now(),
 			JWT:        "",
@@ -114,7 +74,7 @@ func TestTelemetry(t *testing.T) {
 			UUID:       uuid.New(),
 		})
 		assert.NoError(t, err)
-		snapshot := collectSnapshot(t, db)
+		_, snapshot := collectSnapshot(t, db)
 		require.Len(t, snapshot.ParameterSchemas, 1)
 		require.Len(t, snapshot.ProvisionerJobs, 1)
 		require.Len(t, snapshot.Licenses, 1)
@@ -129,29 +89,36 @@ func TestTelemetry(t *testing.T) {
 	})
 	t.Run("HashedEmail", func(t *testing.T) {
 		t.Parallel()
-		db := databasefake.New()
-		_, err := db.InsertUser(context.Background(), database.InsertUserParams{
-			ID:        uuid.New(),
-			Email:     "kyle@coder.com",
-			CreatedAt: database.Now(),
-			LoginType: database.LoginTypePassword,
+		db := dbfake.New()
+		_ = dbgen.User(t, db, database.User{
+			Email: "kyle@coder.com",
 		})
-		require.NoError(t, err)
-		snapshot := collectSnapshot(t, db)
+		_, snapshot := collectSnapshot(t, db)
 		require.Len(t, snapshot.Users, 1)
 		require.Equal(t, snapshot.Users[0].EmailHashed, "bb44bf07cf9a2db0554bba63a03d822c927deae77df101874496df5a6a3e896d@coder.com")
 	})
 }
 
-func collectSnapshot(t *testing.T, db database.Store) *telemetry.Snapshot {
+// nolint:paralleltest
+func TestTelemetryInstallSource(t *testing.T) {
+	t.Setenv("CODER_TELEMETRY_INSTALL_SOURCE", "aws_marketplace")
+	db := dbfake.New()
+	deployment, _ := collectSnapshot(t, db)
+	require.Equal(t, "aws_marketplace", deployment.InstallSource)
+}
+
+func collectSnapshot(t *testing.T, db database.Store) (*telemetry.Deployment, *telemetry.Snapshot) {
 	t.Helper()
-	deployment := make(chan struct{}, 64)
+	deployment := make(chan *telemetry.Deployment, 64)
 	snapshot := make(chan *telemetry.Snapshot, 64)
 	r := chi.NewRouter()
 	r.Post("/deployment", func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, buildinfo.Version(), r.Header.Get(telemetry.VersionHeader))
 		w.WriteHeader(http.StatusAccepted)
-		deployment <- struct{}{}
+		dd := &telemetry.Deployment{}
+		err := json.NewDecoder(r.Body).Decode(dd)
+		require.NoError(t, err)
+		deployment <- dd
 	})
 	r.Post("/snapshot", func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, buildinfo.Version(), r.Header.Get(telemetry.VersionHeader))
@@ -173,6 +140,5 @@ func collectSnapshot(t *testing.T, db database.Store) *telemetry.Snapshot {
 	})
 	require.NoError(t, err)
 	t.Cleanup(reporter.Close)
-	<-deployment
-	return <-snapshot
+	return <-deployment, <-snapshot
 }

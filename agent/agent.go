@@ -72,10 +72,10 @@ type Options struct {
 type Client interface {
 	Metadata(ctx context.Context) (agentsdk.Metadata, error)
 	Listen(ctx context.Context) (net.Conn, error)
-	ReportStats(ctx context.Context, log slog.Logger, stats func() *agentsdk.Stats) (io.Closer, error)
+	ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
-	PostVersion(ctx context.Context, version string) error
+	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
 }
 
 func New(options Options) io.Closer {
@@ -112,6 +112,7 @@ func New(options Options) io.Closer {
 		logDir:                 options.LogDir,
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
+		connStatsChan:          make(chan *agentsdk.Stats, 1),
 	}
 	a.init(ctx)
 	return a
@@ -143,7 +144,8 @@ type agent struct {
 	lifecycleMu     sync.Mutex // Protects following.
 	lifecycleState  codersdk.WorkspaceAgentLifecycle
 
-	network *tailnet.Conn
+	network       *tailnet.Conn
+	connStatsChan chan *agentsdk.Stats
 }
 
 // runLoop attempts to start the agent in a retry loop.
@@ -236,16 +238,29 @@ func (a *agent) run(ctx context.Context) error {
 	}
 	a.sessionToken.Store(&sessionToken)
 
-	err = a.client.PostVersion(ctx, buildinfo.Version())
-	if err != nil {
-		return xerrors.Errorf("update workspace agent version: %w", err)
-	}
-
 	metadata, err := a.client.Metadata(ctx)
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
 	a.logger.Info(ctx, "fetched metadata")
+
+	// Expand the directory and send it back to coderd so external
+	// applications that rely on the directory can use it.
+	//
+	// An example is VS Code Remote, which must know the directory
+	// before initializing a connection.
+	metadata.Directory, err = expandDirectory(metadata.Directory)
+	if err != nil {
+		return xerrors.Errorf("expand directory: %w", err)
+	}
+	err = a.client.PostStartup(ctx, agentsdk.PostStartupRequest{
+		Version:           buildinfo.Version(),
+		ExpandedDirectory: metadata.Directory,
+	})
+	if err != nil {
+		return xerrors.Errorf("update workspace agent version: %w", err)
+	}
+
 	oldMetadata := a.metadata.Swap(metadata)
 
 	// The startup script should only execute on the first run!
@@ -268,10 +283,13 @@ func (a *agent) run(ctx context.Context) error {
 
 		scriptDone := make(chan error, 1)
 		scriptStart := time.Now()
-		go func() {
+		err := a.trackConnGoroutine(func() {
 			defer close(scriptDone)
 			scriptDone <- a.runStartupScript(ctx, metadata.StartupScript)
-		}()
+		})
+		if err != nil {
+			return xerrors.Errorf("track startup script: %w", err)
+		}
 		go func() {
 			var timeout <-chan time.Time
 			// If timeout is zero, an older version of the coder
@@ -335,11 +353,20 @@ func (a *agent) run(ctx context.Context) error {
 			return xerrors.New("agent is closed")
 		}
 
+		setStatInterval := func(d time.Duration) {
+			network.SetConnStatsCallback(d, 2048,
+				func(_, _ time.Time, virtual, _ map[netlogtype.Connection]netlogtype.Counts) {
+					select {
+					case a.connStatsChan <- convertAgentStats(virtual):
+					default:
+						a.logger.Warn(ctx, "network stat dropped")
+					}
+				},
+			)
+		}
+
 		// Report statistics from the created network.
-		cl, err := a.client.ReportStats(ctx, a.logger, func() *agentsdk.Stats {
-			stats := network.ExtractTrafficStats()
-			return convertAgentStats(stats)
-		})
+		cl, err := a.client.ReportStats(ctx, a.logger, a.connStatsChan, setStatInterval)
 		if err != nil {
 			a.logger.Error(ctx, "report stats", slog.Error(err))
 		} else {
@@ -383,10 +410,9 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 
 func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:          []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
-		DERPMap:            derpMap,
-		Logger:             a.logger.Named("tailnet"),
-		EnableTrafficStats: true,
+		Addresses: []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
+		DERPMap:   derpMap,
+		Logger:    a.logger.Named("tailnet"),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
@@ -800,7 +826,11 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 
 	cmd := exec.CommandContext(ctx, shell, args...)
 	cmd.Dir = metadata.Directory
-	if cmd.Dir == "" {
+
+	// If the metadata directory doesn't exist, we run the command
+	// in the users home directory.
+	_, err = os.Stat(cmd.Dir)
+	if cmd.Dir == "" || err != nil {
 		// Default to user home if a directory is not set.
 		homedir, err := userHomeDir()
 		if err != nil {
@@ -1310,4 +1340,21 @@ func userHomeDir() (string, error) {
 		return "", xerrors.Errorf("current user: %w", err)
 	}
 	return u.HomeDir, nil
+}
+
+// expandDirectory converts a directory path to an absolute path.
+// It primarily resolves the home directory and any environment
+// variables that may be set
+func expandDirectory(dir string) (string, error) {
+	if dir == "" {
+		return "", nil
+	}
+	if dir[0] == '~' {
+		home, err := userHomeDir()
+		if err != nil {
+			return "", err
+		}
+		dir = filepath.Join(home, dir[1:])
+	}
+	return os.ExpandEnv(dir), nil
 }

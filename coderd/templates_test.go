@@ -61,10 +61,11 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		assert.Equal(t, expected.Name, got.Name)
 		assert.Equal(t, expected.Description, got.Description)
 
-		require.Len(t, auditor.AuditLogs, 3)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[0].Action)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[1].Action)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[2].Action)
+		require.Len(t, auditor.AuditLogs, 4)
+		assert.Equal(t, database.AuditActionLogin, auditor.AuditLogs[0].Action)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[1].Action)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[2].Action)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[3].Action)
 	})
 
 	t.Run("AlreadyExists", func(t *testing.T) {
@@ -285,8 +286,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
 		assert.False(t, req.AllowUserCancelWorkspaceJobs)
 
-		require.Len(t, auditor.AuditLogs, 4)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[3].Action)
+		require.Len(t, auditor.AuditLogs, 5)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[4].Action)
 	})
 
 	t.Run("NoMaxTTL", func(t *testing.T) {
@@ -448,8 +449,8 @@ func TestDeleteTemplate(t *testing.T) {
 		err := client.DeleteTemplate(ctx, template.ID)
 		require.NoError(t, err)
 
-		require.Len(t, auditor.AuditLogs, 4)
-		assert.Equal(t, database.AuditActionDelete, auditor.AuditLogs[3].Action)
+		require.Len(t, auditor.AuditLogs, 5)
+		assert.Equal(t, database.AuditActionDelete, auditor.AuditLogs[4].Action)
 	})
 
 	t.Run("Workspaces", func(t *testing.T) {

@@ -3,11 +3,18 @@
 # This script builds a Docker image of Coder containing the given binary, for
 # the given architecture. Only linux binaries are supported at this time.
 #
-# Usage: ./build_docker.sh --arch amd64 [--version 1.2.3] [--target image_tag] [--push] path/to/coder
+# Usage: ./build_docker.sh --arch amd64 [--version 1.2.3] [--target image_tag] [--build-base image_tag] [--push] path/to/coder
 #
 # The --arch parameter is required and accepts a Golang arch specification. It
 # will be automatically mapped to a suitable architecture that Docker accepts
 # before being passed to `docker buildx build`.
+#
+# The --build-base parameter is optional and specifies to build the base image
+# in Dockerfile.base instead of pulling a copy from the registry. The string
+# value is the tag to use for the built image (not pushed). This also consumes
+# $CODER_IMAGE_BUILD_BASE_TAG for easily forcing a fresh build in CI.
+#
+# The default base image can be controlled via $CODER_BASE_IMAGE_TAG.
 #
 # The image will be built and tagged against the image tag returned by
 # ./image_tag.sh unless a --target parameter is supplied.
@@ -22,12 +29,15 @@ set -euo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+DEFAULT_BASE="${CODER_BASE_IMAGE_TAG:-ghcr.io/coder/coder-base:latest}"
+
 arch=""
 image_tag=""
+build_base="${CODER_IMAGE_BUILD_BASE_TAG:-}"
 version=""
 push=0
 
-args="$(getopt -o "" -l arch:,target:,version:,push -- "$@")"
+args="$(getopt -o "" -l arch:,target:,build-base:,version:,push -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -42,6 +52,10 @@ while true; do
 	--version)
 		version="$2"
 		shift 2
+		;;
+	--build-base)
+		build_base="$2"
+		shift
 		;;
 	--push)
 		push=1
@@ -98,31 +112,37 @@ fi
 cdroot
 temp_dir="$(TMPDIR="$(dirname "$input_file")" mktemp -d)"
 ln "$input_file" "$temp_dir/coder"
-ln Dockerfile "$temp_dir/"
+ln ./scripts/Dockerfile.base "$temp_dir/"
+ln ./scripts/Dockerfile "$temp_dir/"
 
 cd "$temp_dir"
 
+export DOCKER_BUILDKIT=1
+
+base_image="$DEFAULT_BASE"
+if [[ "$build_base" != "" ]]; then
+	log "--- Building base Docker image for $arch ($build_base)"
+	docker build \
+		--platform "$arch" \
+		--tag "$build_base" \
+		--no-cache \
+		-f Dockerfile.base \
+		. 1>&2
+
+	base_image="$build_base"
+else
+	docker pull --platform "$arch" "$base_image" 1>&2
+fi
+
 log "--- Building Docker image for $arch ($image_tag)"
 
-# Pull the base image, copy the /etc/group and /etc/passwd files out of it, and
-# add the coder group and user. We have to do this in a separate step instead of
-# using the RUN directive in the Dockerfile because you can't use RUN if you're
-# building the image for a different architecture than the host.
-docker pull --platform "$arch" alpine:latest 1>&2
-
-temp_container_id="$(docker create --platform "$arch" alpine:latest)"
-docker cp "$temp_container_id":/etc/group ./group 1>&2
-docker cp "$temp_container_id":/etc/passwd ./passwd 1>&2
-docker rm "$temp_container_id" 1>&2
-
-echo "coder:x:1000:coder" >>./group
-echo "coder:x:1000:1000::/:/bin/sh" >>./passwd
-mkdir ./empty-dir
-
-docker buildx build \
+docker build \
 	--platform "$arch" \
+	--build-arg "BASE_IMAGE=$base_image" \
 	--build-arg "CODER_VERSION=$version" \
+	--no-cache \
 	--tag "$image_tag" \
+	-f Dockerfile \
 	. 1>&2
 
 cdroot
