@@ -21,6 +21,7 @@
             "motd_file": null,
             "os": "linux",
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
             "startup_script_timeout": 300,
             "troubleshooting_url": null
@@ -44,6 +45,7 @@
             "motd_file": "/etc/motd",
             "os": "darwin",
             "shutdown_script": "echo bye bye",
+            "shutdown_script_timeout": 30,
             "startup_script": null,
             "startup_script_timeout": 30,
             "troubleshooting_url": null
@@ -67,6 +69,7 @@
             "motd_file": null,
             "os": "windows",
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
             "startup_script_timeout": 300,
             "troubleshooting_url": "https://coder.com/troubleshoot"
@@ -110,6 +113,7 @@
           "motd_file": null,
           "os": "linux",
           "shutdown_script": null,
+          "shutdown_script_timeout": 300,
           "startup_script": null,
           "startup_script_timeout": 300,
           "troubleshooting_url": null
@@ -146,6 +150,7 @@
           "motd_file": "/etc/motd",
           "os": "darwin",
           "shutdown_script": "echo bye bye",
+          "shutdown_script_timeout": 30,
           "startup_script": null,
           "startup_script_timeout": 30,
           "troubleshooting_url": null
@@ -182,6 +187,7 @@
           "motd_file": null,
           "os": "windows",
           "shutdown_script": null,
+          "shutdown_script_timeout": 300,
           "startup_script": null,
           "startup_script_timeout": 300,
           "troubleshooting_url": "https://coder.com/troubleshoot"
@@ -224,7 +230,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.6.10"
+        "version_constraint": "0.6.12"
       },
       "null": {
         "name": "null",
@@ -273,6 +279,9 @@
             },
             "shutdown_script": {
               "constant_value": "echo bye bye"
+            },
+            "shutdown_script_timeout": {
+              "constant_value": 30
             },
             "startup_script_timeout": {
               "constant_value": 30

@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.10"
+      version = "0.6.12"
     }
   }
 }
@@ -13,13 +13,14 @@ resource "coder_agent" "dev1" {
 }
 
 resource "coder_agent" "dev2" {
-  os                     = "darwin"
-  arch                   = "amd64"
-  connection_timeout     = 1
-  motd_file              = "/etc/motd"
-  startup_script_timeout = 30
-  login_before_ready     = true
-  shutdown_script        = "echo bye bye"
+  os                      = "darwin"
+  arch                    = "amd64"
+  connection_timeout      = 1
+  motd_file               = "/etc/motd"
+  startup_script_timeout  = 30
+  login_before_ready      = true
+  shutdown_script         = "echo bye bye"
+  shutdown_script_timeout = 30
 }
 
 resource "coder_agent" "dev3" {
