@@ -2,18 +2,20 @@
 
 ## Requirements
 
-1. You'll need a subdomain and the a wildcard subdomain configured that resolves to server.
+1. Start a Coder deployment with a wildcard subdomain. See [this guide](https://coder.com/docs/coder/v1.20/setup/installation#step-1-create-a-subdomain) for more information.
+1. You'll need a subdomain and the a wildcard subdomain configured that resolves to server's public ip.
+   > For example, to use `coder.example.com` as your subdomain, configure `coder.example.com` and `*.coder.example.com` to point to your server's public ip. This can be done by adding A records in your DNS provider's dashboard.
 
-2. Install **nginx** (assuming you're on Debian/Ubuntu):
+2. Install NGINX (assuming you're on Debian/Ubuntu):
 
     ```console
     sudo apt install nginx
     ```
 
-3. Stop NGINX:
+3. Stop NGINX service:
 
     ```console
-    sudo service stop nginx
+    sudo systemctl stop nginx
     ```
 
 ## Adding Coder deployment subdomain
@@ -26,7 +28,7 @@
     sudo touch /etc/nginx/sites-available/YOUR_SUBDOMAIN
     ```
 
-2. Activate this file :
+2. Activate this file:
 
     ```console
     sudo ln -s /etc/nginx/sites-available/YOUR_SUBDOMAIN /etc/nginx/sites-enabled/YOUR_SUBDOMAIN
@@ -41,9 +43,17 @@
 1. Create an API token for the DNS provider you're using: e.g [CloudFlare](https://dash.cloudflare.com/profile/api-tokens) with the following permissions:
       - Zone - DNS - Edit
 
-2. Create a file in `.secrets/certbot/cloudflare.ini` with the following content :
+2. Create a file in `.secrets/certbot/cloudflare.ini` with the following content:
 
-    - `dns_cloudflare_api_token = YOUR_API_TOKEN`
+    ```ini
+    dns_cloudflare_api_token = YOUR_API_TOKEN
+    ```
+
+3. Set the correct permissions:
+
+    ```console
+    sudo chmod 600 ~/.secrets/certbot/cloudflare.ini
+    ```
 
 ## Create the certificate
 
@@ -55,13 +65,13 @@
 
 ## Configure nginx
 
-1. Edit the file with :
+1. Edit the file with:
 
     ```console
     sudo nano /etc/nginx/sites-available/YOUR_SUBDOMAIN
     ```
 
-2. Add the following content :
+2. Add the following content:
 
     ```nginx
     server {
@@ -81,14 +91,11 @@
         listen 443 ssl;
         ssl_certificate /etc/letsencrypt/live/YOUR_SUBDOMAIN/fullchain.pem;
         ssl_certificate_key /etc/letsencrypt/live/YOUR_SUBDOMAIN/privkey.pem;
-        include /etc/letsencrypt/options-ssl-nginx.conf;
-        ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
         location / {
             proxy_pass  http://127.0.0.1:3000; # Change this to your coder deployment port default is 3000
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection $connection_upgrade;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -98,25 +105,25 @@
     }
     ```
 
-> Don't forget to change :
+> Don't forget to change:
 >
 > - `YOUR_SUBDOMAIN` by your (sub)domain e.g. `coder.example.com`
 
 ## Refresh certificates automatically
 
-1. Create a new file in `/etc/cron.weekly` :
+1. Create a new file in `/etc/cron.weekly`:
 
     ```console
     sudo touch /etc/cron.weekly/certbot
     ```
 
-2. Make it executable :
+2. Make it executable:
 
     ```console
     sudo chmod +x /etc/cron.weekly/certbot
     ```
 
-3. And add this code :
+3. And add this code:
 
     ```sh
     #!/bin/sh
@@ -125,6 +132,6 @@
 
 ## Restart NGINX
 
-- `sudo service nginx restart`
+- `sudo systemctl restart nginx`
 
 And that's it, you should now be able to access Coder at `https://YOUR_SUBDOMAIN`!
