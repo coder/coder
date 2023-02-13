@@ -5,7 +5,6 @@ import (
 	"crypto/ed25519"
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -255,7 +254,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if entitlements.RequireTelemetry && !api.DeploymentConfig.Telemetry.Enable.Value {
-		return xerrors.New("telemetry disabled, but a license requires telemetry")
+		// We can't fail because then the user couldn't remove the offending
+		// license w/o a restart.
+		entitlements.Errors = append(
+			entitlements.Errors, "License requires telemetry but telemetry is disabled",
+		)
+		api.Logger.Error(ctx, "license requires telemetry enabled")
+		return nil
 	}
 
 	entitlements.Experimental = api.DeploymentConfig.Experimental.Value || len(api.AGPL.Experiments) != 0
