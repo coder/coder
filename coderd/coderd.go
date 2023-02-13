@@ -104,6 +104,7 @@ type Options struct {
 	OIDCConfig                     *OIDCConfig
 	PrometheusRegistry             *prometheus.Registry
 	SecureAuthCookie               bool
+	StrictTransportSecurityCfg     httpmw.HSTSConfig
 	SSHKeygenAlgorithm             gitsshkey.Algorithm
 	Telemetry                      telemetry.Reporter
 	TracerProvider                 trace.TracerProvider
@@ -224,12 +225,22 @@ func New(options *Options) *API {
 		options.MetricsCacheRefreshInterval,
 	)
 
+	staticHandler := site.Handler(site.FS(), binFS, binHashes)
+	// Static file handler must be wrapped with HSTS handler if the
+	// StrictTransportSecurityAge is set. We only need to set this header on
+	// static files since it only affects browsers.
+	staticHandler = httpmw.HSTS(staticHandler, options.StrictTransportSecurityCfg)
+
 	r := chi.NewRouter()
+	ctx, cancel := context.WithCancel(context.Background())
 	api := &API{
+		ctx:    ctx,
+		cancel: cancel,
+
 		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
-		siteHandler: site.Handler(site.FS(), binFS, binHashes),
+		siteHandler: staticHandler,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -675,6 +686,11 @@ func New(options *Options) *API {
 }
 
 type API struct {
+	// ctx is canceled immediately on shutdown, it can be used to abort
+	// interruptible tasks.
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	*Options
 	// ID is a uniquely generated ID on initialization.
 	// This is used to associate objects with a specific
@@ -709,6 +725,8 @@ type API struct {
 
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
+	api.cancel()
+
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Wait()
 	api.WebsocketWaitMutex.Unlock()

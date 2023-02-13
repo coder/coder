@@ -118,6 +118,10 @@ coder server [flags]
                                                           Consumes $CODER_MAX_SESSION_EXPIRY (default 24h0m0s)
       --ssh-keygen-algorithm string                       The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
                                                           Consumes $CODER_SSH_KEYGEN_ALGORITHM (default "ed25519")
+      --strict-transport-security int                     Controls if the 'Strict-Transport-Security' header is set on all static file responses. This header should only be set if the server is accessed via HTTPS. This value is the MaxAge in seconds of the header.
+                                                          Consumes $CODER_STRICT_TRANSPORT_SECURITY
+      --strict-transport-security-options strings         Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.
+                                                          Consumes $CODER_STRICT_TRANSPORT_SECURITY_OPTIONS
       --swagger-enable                                    Expose the swagger endpoint via /swagger.
                                                           Consumes $CODER_SWAGGER_ENABLE
       --telemetry                                         Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.

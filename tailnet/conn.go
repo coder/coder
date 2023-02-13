@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
@@ -214,28 +215,23 @@ func NewConn(options *Options) (*Conn, error) {
 			return
 		}
 		server.lastStatus = s.AsOf
-		server.lastEndpoints = make([]string, 0, len(s.LocalAddrs))
-		for _, addr := range s.LocalAddrs {
-			server.lastEndpoints = append(server.lastEndpoints, addr.Addr.String())
+		if endpointsEqual(s.LocalAddrs, server.lastEndpoints) {
+			// No need to update the node if nothing changed!
+			server.lastMutex.Unlock()
+			return
 		}
+		server.lastEndpoints = append([]tailcfg.Endpoint{}, s.LocalAddrs...)
 		server.lastMutex.Unlock()
 		server.sendNode()
 	})
 	wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
 		server.logger.Debug(context.Background(), "netinfo callback", slog.F("netinfo", ni))
-		// If the lastMutex is blocked, it's possible that
-		// multiple NetInfo callbacks occur at the same time.
-		//
-		// We need to ensure only the latest is sent!
-		asOf := time.Now()
 		server.lastMutex.Lock()
-		if asOf.Before(server.lastNetInfo) {
+		if reflect.DeepEqual(server.lastNetInfo, ni) {
 			server.lastMutex.Unlock()
 			return
 		}
-		server.lastNetInfo = asOf
-		server.lastPreferredDERP = ni.PreferredDERP
-		server.lastDERPLatency = ni.DERPLatency
+		server.lastNetInfo = ni.Clone()
 		server.lastMutex.Unlock()
 		server.sendNode()
 	})
@@ -285,12 +281,10 @@ type Conn struct {
 	nodeChanged bool
 	// It's only possible to store these values via status functions,
 	// so the values must be stored for retrieval later on.
-	lastStatus        time.Time
-	lastNetInfo       time.Time
-	lastEndpoints     []string
-	lastPreferredDERP int
-	lastDERPLatency   map[string]float64
-	nodeCallback      func(node *Node)
+	lastStatus    time.Time
+	lastEndpoints []tailcfg.Endpoint
+	lastNetInfo   *tailcfg.NetInfo
+	nodeCallback  func(node *Node)
 
 	trafficStats *connstats.Statistics
 }
@@ -589,6 +583,17 @@ func (c *Conn) Node() *Node {
 }
 
 func (c *Conn) selfNode() *Node {
+	endpoints := make([]string, 0, len(c.lastEndpoints))
+	for _, addr := range c.lastEndpoints {
+		endpoints = append(endpoints, addr.Addr.String())
+	}
+	var preferredDERP int
+	var derpLatency map[string]float64
+	if c.lastNetInfo != nil {
+		preferredDERP = c.lastNetInfo.PreferredDERP
+		derpLatency = c.lastNetInfo.DERPLatency
+	}
+
 	node := &Node{
 		ID:            c.netMap.SelfNode.ID,
 		AsOf:          database.Now(),
@@ -596,9 +601,9 @@ func (c *Conn) selfNode() *Node {
 		Addresses:     c.netMap.SelfNode.Addresses,
 		AllowedIPs:    c.netMap.SelfNode.AllowedIPs,
 		DiscoKey:      c.magicConn.DiscoPublicKey(),
-		Endpoints:     c.lastEndpoints,
-		PreferredDERP: c.lastPreferredDERP,
-		DERPLatency:   c.lastDERPLatency,
+		Endpoints:     endpoints,
+		PreferredDERP: preferredDERP,
+		DERPLatency:   derpLatency,
 	}
 	if c.blockEndpoints {
 		node.Endpoints = nil
@@ -773,4 +778,16 @@ func Logger(logger slog.Logger) tslogger.Logf {
 	return tslogger.Logf(func(format string, args ...any) {
 		logger.Debug(context.Background(), fmt.Sprintf(format, args...))
 	})
+}
+
+func endpointsEqual(x, y []tailcfg.Endpoint) bool {
+	if len(x) != len(y) {
+		return false
+	}
+	for i := range x {
+		if x[i] != y[i] {
+			return false
+		}
+	}
+	return true
 }

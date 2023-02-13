@@ -977,9 +977,14 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 
 					d, _ := json.Marshal(map[string]interface{}{
 						// This is not perfect marshal, but it is good enough for debugging this test.
-						"subject": subject,
-						"object":  c.resource,
-						"action":  a,
+						"subject": authSubject{
+							ID:     subject.ID,
+							Roles:  must(subject.Roles.Expand()),
+							Groups: subject.Groups,
+							Scope:  must(subject.Scope.Expand()),
+						},
+						"object": c.resource,
+						"action": a,
 					})
 
 					// Logging only

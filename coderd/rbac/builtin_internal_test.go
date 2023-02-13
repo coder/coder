@@ -51,7 +51,11 @@ func BenchmarkRBACValueAllocation(b *testing.B) {
 	})
 	b.Run("JSONRegoValue", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, err := ast.InterfaceToValue(jsonSubject)
+			_, err := ast.InterfaceToValue(map[string]interface{}{
+				"subject": jsonSubject,
+				"action":  ActionRead,
+				"object":  obj,
+			})
 			require.NoError(b, err)
 		}
 	})
