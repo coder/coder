@@ -26,6 +26,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -625,7 +626,11 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		// inactive disconnect timeout we ensure that we don't block but
 		// also guarantee that the agent will be considered disconnected
 		// by normal status check.
-		ctx, cancel := context.WithTimeout(api.ctx, api.AgentInactiveDisconnectTimeout)
+		//
+		// Use a system context as the agent has disconnected and that token
+		// may no longer be valid.
+		//nolint:gocritic
+		ctx, cancel := context.WithTimeout(dbauthz.AsSystem(api.ctx), api.AgentInactiveDisconnectTimeout)
 		defer cancel()
 
 		disconnectedAt = sql.NullTime{
