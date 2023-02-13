@@ -112,15 +112,32 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//nolint:gocritic // System needs to fetch user roles in order to login user.
+	roles, err := api.Database.GetAuthorizationUserRoles(dbauthz.AsSystem(ctx), user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+		})
+		return
+	}
+
 	// If the user logged into a suspended account, reject the login request.
-	if user.Status != database.UserStatusActive {
+	if roles.Status != database.UserStatusActive {
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Your account is suspended. Contact an admin to reactivate your account.",
 		})
 		return
 	}
 
-	cookie, key, err := api.createAPIKey(dbauthz.AsSystem(ctx), createAPIKeyParams{
+	userSubj := rbac.Subject{
+		ID:     user.ID.String(),
+		Roles:  rbac.RoleNames(roles.Roles),
+		Groups: roles.Groups,
+		Scope:  rbac.ScopeAll,
+	}
+
+	//nolint:gocritic // Creating the API key as the user instead of as system.
+	cookie, key, err := api.createAPIKey(dbauthz.As(ctx, userSubj), createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  database.LoginTypePassword,
 		RemoteAddr: r.RemoteAddr,
