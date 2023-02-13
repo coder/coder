@@ -1529,19 +1529,25 @@ func TestWorkspaceWatcher(t *testing.T) {
 
 	// Wait events are easier to debug with timestamped logs.
 	logger := slogtest.Make(t, nil).Named(t.Name()).Leveled(slog.LevelDebug)
-	wait := func(event string) {
-		select {
-		case <-ctx.Done():
-			require.FailNow(t, "timed out waiting for event", event)
-		case <-wc:
-			logger.Info(ctx, "done waiting for event", slog.F("event", event))
+	wait := func(event string, ready func(w codersdk.Workspace) bool) {
+		for {
+			select {
+			case <-ctx.Done():
+				require.FailNow(t, "timed out waiting for event", event)
+			case w, ok := <-wc:
+				require.True(t, ok, "watch channel closed: %s", event)
+				if ready == nil || ready(w) {
+					logger.Info(ctx, "done waiting for event", slog.F("event", event))
+					return
+				}
+			}
 		}
 	}
 
 	coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
-	wait("workspace build being created")
-	wait("workspace build being acquired")
-	wait("workspace build completing")
+	wait("workspace build being created", nil)
+	wait("workspace build being acquired", nil)
+	wait("workspace build completing", nil)
 
 	// Unfortunately, this will add ~1s to the test due to the granularity
 	// of agent timeout seconds. However, if we don't do this we won't know
@@ -1549,8 +1555,8 @@ func TestWorkspaceWatcher(t *testing.T) {
 	//
 	// Note that the first timeout is from `coderdtest.CreateWorkspace` and
 	// the latter is from `coderdtest.CreateWorkspaceBuild`.
-	wait("agent timeout after create")
-	wait("agent timeout after start")
+	wait("agent timeout after create", nil)
+	wait("agent timeout after start", nil)
 
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
@@ -1562,28 +1568,33 @@ func TestWorkspaceWatcher(t *testing.T) {
 		_ = agentCloser.Close()
 	}()
 
-	wait("agent connected")
+	wait("agent connected/ready", func(w codersdk.Workspace) bool {
+		return w.LatestBuild.Resources[0].Agents[0].Status == codersdk.WorkspaceAgentConnected &&
+			w.LatestBuild.Resources[0].Agents[0].LifecycleState == codersdk.WorkspaceAgentLifecycleReady
+	})
 	agentCloser.Close()
-	wait("agent disconnected")
+	wait("agent disconnected", func(w codersdk.Workspace) bool {
+		return w.LatestBuild.Resources[0].Agents[0].Status == codersdk.WorkspaceAgentDisconnected
+	})
 
 	closeFunc.Close()
 	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
-	wait("first is for the workspace build itself")
+	wait("first is for the workspace build itself", nil)
 	err = client.CancelWorkspaceBuild(ctx, build.ID)
 	require.NoError(t, err)
-	wait("second is for the build cancel")
+	wait("second is for the build cancel", nil)
 
 	err = client.UpdateWorkspace(ctx, workspace.ID, codersdk.UpdateWorkspaceRequest{
 		Name: "another",
 	})
 	require.NoError(t, err)
-	wait("update workspace name")
+	wait("update workspace name", nil)
 
 	err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
 		ID: template.ActiveVersionID,
 	})
 	require.NoError(t, err)
-	wait("update active template version")
+	wait("update active template version", nil)
 
 	cancel()
 }
