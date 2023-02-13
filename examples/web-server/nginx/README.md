@@ -21,7 +21,7 @@
 
 ## Install and configure LetsEncrypt Certbot
 
-Install letsencrypt **certbot** : follow the instructions on [certbot website](https://certbot.eff.org/instructions?ws=other&os=pip&tab=wildcard)
+Install LetsEncrypt Certbot: Refer to the [CertBot documentation](https://certbot.eff.org/instructions?ws=other&os=pip&tab=wildcard)
 
 ## Create dns provider credentials
 
