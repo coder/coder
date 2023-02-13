@@ -8,7 +8,6 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -100,11 +99,12 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 
 	id, err := uuid.Parse(claims.ID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Invalid license ID %q", claims.ID),
-			Detail:  err.Error(),
-		})
-		return
+		// If no uuid is in the license, we generate a random uuid.
+		// This is not ideal, and this should be fixed to require a uuid
+		// for all licenses. We require this patch to support older licenses.
+		// TODO: In the future (April 2023?) we should remove this and reissue
+		// old licenses with a uuid.
+		id = uuid.New()
 	}
 	dl, err := api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 		UploadedAt: database.Now(),
