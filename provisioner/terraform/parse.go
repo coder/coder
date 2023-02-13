@@ -46,12 +46,9 @@ func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 		return xerrors.Errorf("load module: %s", formatDiagnostics(request.Directory, diags))
 	}
 
-	flags, flagsDiags, err := loadEnabledFeatures(request.Directory)
+	flags, flagsDiags := loadEnabledFeatures(request.Directory)
 	if flagsDiags.HasErrors() {
 		return xerrors.Errorf("load coder provider features: %s", formatDiagnostics(request.Directory, diags))
-	}
-	if err != nil {
-		return xerrors.Errorf("load coder provider features: %w", err)
 	}
 
 	// Sort variables by (filename, line) to make the ordering consistent
@@ -95,31 +92,64 @@ func (*server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_
 	})
 }
 
-func loadEnabledFeatures(moduleDir string) (map[string]bool, hcl.Diagnostics, error) {
+func loadEnabledFeatures(moduleDir string) (map[string]bool, hcl.Diagnostics) {
 	flags := map[string]bool{}
 	var diags hcl.Diagnostics
 
-	// FIXME: Only flags placed in the "main.tf" are considered.
-	mainFilepath := path.Join(moduleDir, "main.tf")
-	_, err := os.Stat(mainFilepath)
+	entries, err := os.ReadDir(moduleDir)
+	if err != nil {
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Failed to read module directory",
+			Detail:   fmt.Sprintf("Module directory %s does not exist or cannot be read.", moduleDir),
+		})
+		return flags, diags
+	}
+
+	var found bool
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".tf") {
+			continue
+		}
+
+		flags, found, diags = parseFeatures(path.Join(moduleDir, entry.Name()))
+		if found {
+			break
+		}
+	}
+	return flags, diags
+}
+
+func parseFeatures(hclFilepath string) (map[string]bool, bool, hcl.Diagnostics) {
+	flags := map[string]bool{}
+	var diags hcl.Diagnostics
+
+	_, err := os.Stat(hclFilepath)
 	if os.IsNotExist(err) {
-		return flags, diags, nil
+		return flags, false, diags
 	} else if err != nil {
-		return flags, diags, xerrors.Errorf("can't stat file %q: %w", mainFilepath, err)
+		diags = append(diags, &hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  fmt.Sprintf("Failed to open %q file", hclFilepath),
+		})
+		return flags, false, diags
 	}
 
 	parser := hclparse.NewParser()
-	mainFile, diags := parser.ParseHCLFile(mainFilepath)
+	parsedHCL, diags := parser.ParseHCLFile(hclFilepath)
 	if diags.HasErrors() {
-		return flags, diags, xerrors.Errorf("can't parse file %q: %w", mainFilepath, diags)
+		return flags, false, diags
 	}
 
-	content, _ := mainFile.Body.Content(terraformWithFeaturesSchema)
+	var found bool
+	content, _ := parsedHCL.Body.Content(terraformWithFeaturesSchema)
 	for _, block := range content.Blocks {
 		if block.Type == "provider" && block.Labels[0] == "coder" {
 			content, _, partialDiags := block.Body.PartialContent(providerFeaturesConfigSchema)
 			diags = append(diags, partialDiags...)
 			if attr, defined := content.Attributes[featureUseManagedVariables]; defined {
+				found = true
+
 				var useManagedVariables bool
 				partialDiags := gohcl.DecodeExpression(attr.Expr, nil, &useManagedVariables)
 				diags = append(diags, partialDiags...)
@@ -127,7 +157,7 @@ func loadEnabledFeatures(moduleDir string) (map[string]bool, hcl.Diagnostics, er
 			}
 		}
 	}
-	return flags, diags, nil
+	return flags, found, diags
 }
 
 // Converts a Terraform variable to a provisioner parameter.

@@ -195,7 +195,7 @@ func TestParse(t *testing.T) {
 		{
 			Name: "enable-managed-variables-without-default",
 			Files: map[string]string{
-				"main.tf": `variable "A" {
+				"main2.tf": `variable "A" {
 				description = "Testing!"
 				type = string
 				sensitive = true
