@@ -23,10 +23,12 @@
 
 Install LetsEncrypt Certbot: Refer to the [CertBot documentation](https://certbot.eff.org/instructions?ws=other&os=pip&tab=wildcard)
 
-## Create dns provider credentials
+## Create DNS provider credentials
 
-- Create an API token for the dns provider you're using : e.g cloudflare [here](https://dash.cloudflare.com/profile/api-tokens) with the following permissions :
+- Create an API token for the DNS provider you're using: e.g [CloudFlare](https://dash.cloudflare.com/profile/api-tokens) with the following permissions:
+
   - Zone - DNS - Edit
+
 - Create a file in `.secrets/certbot/cloudflare.ini` with the following content :
   - `dns_cloudflare_api_token = YOUR_API_TOKEN`
 
