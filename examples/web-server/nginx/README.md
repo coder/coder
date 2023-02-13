@@ -5,7 +5,9 @@
 1. You'll need a subdomain and the a wildcard subdomain configured that resolves to server.
 2. Install **nginx** (assuming you're on Debian/Ubuntu):
 
-- `sudo apt install nginx`
+    ```console
+    sudo apt install nginx
+    ```
 
 3. Stop NGINX:
 
