@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -79,6 +80,8 @@ var (
 				Site: permissions(map[string][]Action{
 					ResourceWildcard.Type: {WildcardSymbol},
 				}),
+				Org:  map[string][]Permission{},
+				User: []Permission{},
 			}
 		},
 
@@ -94,6 +97,7 @@ var (
 					// All users can see the provisioner daemons.
 					ResourceProvisionerDaemon.Type: {ActionRead},
 				}),
+				Org: map[string][]Permission{},
 				User: permissions(map[string][]Action{
 					ResourceWildcard.Type: {WildcardSymbol},
 				}),
@@ -113,6 +117,8 @@ var (
 					ResourceTemplate.Type: {ActionRead},
 					ResourceAuditLog.Type: {ActionRead},
 				}),
+				Org:  map[string][]Permission{},
+				User: []Permission{},
 			}
 		},
 
@@ -128,6 +134,8 @@ var (
 					// CRUD to provisioner daemons for now.
 					ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 				}),
+				Org:  map[string][]Permission{},
+				User: []Permission{},
 			}
 		},
 
@@ -142,6 +150,8 @@ var (
 					ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 					ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 				}),
+				Org:  map[string][]Permission{},
+				User: []Permission{},
 			}
 		},
 
@@ -151,6 +161,7 @@ var (
 			return Role{
 				Name:        roleName(orgAdmin, organizationID),
 				DisplayName: "Organization Admin",
+				Site:        []Permission{},
 				Org: map[string][]Permission{
 					organizationID: {
 						{
@@ -160,6 +171,7 @@ var (
 						},
 					},
 				},
+				User: []Permission{},
 			}
 		},
 
@@ -169,6 +181,7 @@ var (
 			return Role{
 				Name:        roleName(orgMember, organizationID),
 				DisplayName: "",
+				Site:        []Permission{},
 				Org: map[string][]Permission{
 					organizationID: {
 						{
@@ -192,6 +205,7 @@ var (
 						},
 					},
 				},
+				User: []Permission{},
 			}
 		},
 	}
@@ -422,5 +436,9 @@ func permissions(perms map[string][]Action) []Permission {
 			})
 		}
 	}
+	// Deterministic ordering of permissions
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].ResourceType < list[j].ResourceType
+	})
 	return list
 }

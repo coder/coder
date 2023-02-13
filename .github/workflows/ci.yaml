@@ -583,9 +583,6 @@ jobs:
       - run: yarn playwright:install
         working-directory: site
 
-      - run: yarn playwright:install-deps
-        working-directory: site
-
       - run: yarn playwright:test
         env:
           DEBUG: pw:api

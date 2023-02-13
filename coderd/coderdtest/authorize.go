@@ -12,7 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/cryptorand"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -445,7 +448,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck, skipRoutes map[string]string) {
 	// Always fail auth from this point forward
 	a.authorizer.Wrapped = &FakeAuthorizer{
-		AlwaysReturn: rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), nil, nil),
+		AlwaysReturn: rbac.ForbiddenWithInternal(xerrors.New("fake implementation"), rbac.Subject{}, "", rbac.Object{}, nil),
 	}
 
 	routeMissing := make(map[string]bool)
@@ -543,9 +546,7 @@ func (a *AuthTester) Test(ctx context.Context, assertRoute map[string]RouteCheck
 }
 
 type authCall struct {
-	Actor  rbac.Subject
-	Action rbac.Action
-	Object rbac.Object
+	rbac.AuthCall
 
 	asserted bool
 }
@@ -621,9 +622,11 @@ func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action rbac.
 	r.Lock()
 	defer r.Unlock()
 	r.Called = append(r.Called, authCall{
-		Actor:  subject,
-		Action: action,
-		Object: object,
+		AuthCall: rbac.AuthCall{
+			Actor:  subject,
+			Action: action,
+			Object: object,
+		},
 	})
 }
 
@@ -742,4 +745,68 @@ func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Obje
 // in memory databases. This fake version will not work against a SQL database.
 func (*fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
 	return "not a valid sql string", nil
+}
+
+// Random rbac helper funcs
+
+func RandomRBACAction() rbac.Action {
+	all := rbac.AllActions()
+	return all[must(cryptorand.Intn(len(all)))]
+}
+
+func RandomRBACObject() rbac.Object {
+	return rbac.Object{
+		ID:    uuid.NewString(),
+		Owner: uuid.NewString(),
+		OrgID: uuid.NewString(),
+		Type:  randomRBACType(),
+		ACLUserList: map[string][]rbac.Action{
+			namesgenerator.GetRandomName(1): {RandomRBACAction()},
+		},
+		ACLGroupList: map[string][]rbac.Action{
+			namesgenerator.GetRandomName(1): {RandomRBACAction()},
+		},
+	}
+}
+
+func randomRBACType() string {
+	all := []string{
+		rbac.ResourceWorkspace.Type,
+		rbac.ResourceWorkspaceExecution.Type,
+		rbac.ResourceWorkspaceApplicationConnect.Type,
+		rbac.ResourceAuditLog.Type,
+		rbac.ResourceTemplate.Type,
+		rbac.ResourceGroup.Type,
+		rbac.ResourceFile.Type,
+		rbac.ResourceProvisionerDaemon.Type,
+		rbac.ResourceOrganization.Type,
+		rbac.ResourceRoleAssignment.Type,
+		rbac.ResourceOrgRoleAssignment.Type,
+		rbac.ResourceAPIKey.Type,
+		rbac.ResourceUser.Type,
+		rbac.ResourceUserData.Type,
+		rbac.ResourceOrganizationMember.Type,
+		rbac.ResourceWildcard.Type,
+		rbac.ResourceLicense.Type,
+		rbac.ResourceDeploymentConfig.Type,
+		rbac.ResourceReplicas.Type,
+		rbac.ResourceDebugInfo.Type,
+	}
+	return all[must(cryptorand.Intn(len(all)))]
+}
+
+func RandomRBACSubject() rbac.Subject {
+	return rbac.Subject{
+		ID:     uuid.NewString(),
+		Roles:  rbac.RoleNames{rbac.RoleMember()},
+		Groups: []string{namesgenerator.GetRandomName(1)},
+		Scope:  rbac.ScopeAll,
+	}
+}
+
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }
