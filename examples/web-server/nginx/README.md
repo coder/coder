@@ -4,7 +4,7 @@
 
 1. Start a Coder deployment with a wildcard subdomain. See [this guide](https://coder.com/docs/v2/latest/admin/configure#wildcard-access-url) for more information.
 
-2. You'll need a subdomain and the a wildcard subdomain configured that resolves to server's public ip.
+2. Configure your DNS provider to point your YOUR_SUBDOMAIN and \*.YOUR_SUBDOMAIN to your server's public ip.
 
    > For example, to use `coder.example.com` as your subdomain, configure `coder.example.com` and `*.coder.example.com` to point to your server's public ip. This can be done by adding A records in your DNS provider's dashboard.
 
@@ -108,9 +108,14 @@
    }
    ```
 
-> Don't forget to change:
->
-> - `YOUR_SUBDOMAIN` by your (sub)domain e.g. `coder.example.com`
+   > Don't forget to change:
+   > `YOUR_SUBDOMAIN` by your (sub)domain e.g. `coder.example.com`
+
+3. Test the configuration:
+
+   ```console
+   sudo nginx -t
+   ```
 
 ## Refresh certificates automatically
 
@@ -135,6 +140,8 @@
 
 ## Restart NGINX
 
-- `sudo systemctl restart nginx`
+```console
+sudo systemctl restart nginx
+```
 
 And that's it, you should now be able to access Coder at `https://YOUR_SUBDOMAIN`!
