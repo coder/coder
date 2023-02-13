@@ -5791,6 +5791,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
                     }
                 },
+                "user_variable_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.VariableValue"
+                    }
+                },
                 "workspace_name": {
                     "type": "string"
                 }
@@ -7981,6 +7987,17 @@ const docTemplate = `{
                 "MonotonicOrderIncreasing",
                 "MonotonicOrderDecreasing"
             ]
+        },
+        "codersdk.VariableValue": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.Workspace": {
             "type": "object",

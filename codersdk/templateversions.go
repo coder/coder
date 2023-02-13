@@ -166,6 +166,7 @@ type CreateTemplateVersionDryRunRequest struct {
 	WorkspaceName       string                    `json:"workspace_name"`
 	ParameterValues     []CreateParameterRequest  `json:"parameter_values"`
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values"`
+	UserVariableValues  []VariableValue           `json:"user_variable_values,omitempty"`
 }
 
 // CreateTemplateVersionDryRun begins a dry-run provisioner job against the

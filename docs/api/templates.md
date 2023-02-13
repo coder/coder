@@ -560,6 +560,12 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
       "value": "string"
     }
   ],
+  "user_variable_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "workspace_name": "string"
 }
 ```
@@ -1294,6 +1300,12 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
     }
   ],
   "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "user_variable_values": [
     {
       "name": "string",
       "value": "string"

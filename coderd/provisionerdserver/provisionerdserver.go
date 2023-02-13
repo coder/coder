@@ -1260,7 +1260,7 @@ func auditActionFromTransition(transition database.WorkspaceTransition) database
 
 type TemplateVersionImportJob struct {
 	TemplateVersionID  uuid.UUID                `json:"template_version_id"`
-	UserVariableValues []codersdk.VariableValue `json:"variable_values"`
+	UserVariableValues []codersdk.VariableValue `json:"user_variable_values"`
 }
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.
@@ -1275,6 +1275,7 @@ type TemplateVersionDryRunJob struct {
 	WorkspaceName       string                             `json:"workspace_name"`
 	ParameterValues     []database.ParameterValue          `json:"parameter_values"`
 	RichParameterValues []database.WorkspaceBuildParameter `json:"rich_parameter_values"`
+	UserVariableValues  []codersdk.VariableValue           `json:"user_variable_values"`
 }
 
 // ProvisionerJobLogsNotifyMessage is the payload published on

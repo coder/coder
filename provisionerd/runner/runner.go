@@ -793,7 +793,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	// Run the template import provision task since it's already a dry run.
 	resources, _, err := r.runTemplateImportProvisionWithRichParameters(ctx,
 		r.job.GetTemplateDryRun().GetParameterValues(),
-		nil, // FIXME variable values
+		nil,
 		r.job.GetTemplateDryRun().GetRichParameterValues(),
 		metadata,
 	)

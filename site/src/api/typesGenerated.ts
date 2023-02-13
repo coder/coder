@@ -187,6 +187,7 @@ export interface CreateTemplateVersionDryRunRequest {
   readonly workspace_name: string
   readonly parameter_values: CreateParameterRequest[]
   readonly rich_parameter_values: WorkspaceBuildParameter[]
+  readonly user_variable_values?: VariableValue[]
 }
 
 // From codersdk/organizations.go
