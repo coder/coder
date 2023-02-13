@@ -1318,14 +1318,6 @@ func (a *agent) Close() error {
 	ctx := context.Background()
 	a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleShuttingDown)
 
-	// Close services before running shutdown script.
-	// TODO(mafredri): Gracefully shutdown:
-	// - Cancel startup script, if running
-	// - Close active SSH server connections
-	// - Close processes (send HUP, wait, etc.)
-
-	// TODO(mafredri): Only run shutdown script if the agent is 'ready'?
-
 	lifecycleState := codersdk.WorkspaceAgentLifecycleOff
 	if metadata, ok := a.metadata.Load().(agentsdk.Metadata); ok && metadata.ShutdownScript != "" {
 		scriptDone := make(chan error, 1)
@@ -1364,11 +1356,6 @@ func (a *agent) Close() error {
 	// Set final state and wait for it to be reported because context
 	// cancellation will stop the report loop.
 	a.setLifecycle(ctx, lifecycleState)
-
-	if lifecycleState != codersdk.WorkspaceAgentLifecycleOff {
-		// TODO(mafredri): Delay shutdown, ensure debugging is possible.
-		_ = false
-	}
 
 	// Wait for the lifecycle to be reported, but don't wait forever so
 	// that we don't break user expectations.
