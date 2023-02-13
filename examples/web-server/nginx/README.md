@@ -34,7 +34,7 @@ Install LetsEncrypt Certbot: Refer to the [CertBot documentation](https://certbo
 
 ## Create the certificate
 
-- Create the wildcard certificate :
+- Create the wildcard certificate:
 
 ```console
 sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials ~/.secrets/certbot/cloudflare.ini -d coder.example.com *.coder.example.com
