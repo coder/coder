@@ -426,7 +426,7 @@ func (c *Conn) Status() *ipnstate.Status {
 
 // Ping sends a Disco ping to the Wireguard engine.
 // The bool returned is true if the ping was performed P2P.
-func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, bool, error) {
+func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, bool, *ipnstate.PingResult, error) {
 	errCh := make(chan error, 1)
 	prChan := make(chan *ipnstate.PingResult, 1)
 	go c.wireguardEngine.Ping(ip, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
@@ -438,11 +438,11 @@ func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, bool, er
 	})
 	select {
 	case err := <-errCh:
-		return 0, false, err
+		return 0, false, nil, err
 	case <-ctx.Done():
-		return 0, false, ctx.Err()
+		return 0, false, nil, ctx.Err()
 	case pr := <-prChan:
-		return time.Duration(pr.LatencySeconds * float64(time.Second)), pr.Endpoint != "", nil
+		return time.Duration(pr.LatencySeconds * float64(time.Second)), pr.Endpoint != "", pr, nil
 	}
 }
 
@@ -471,7 +471,7 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		defer cancel()
 
-		_, _, err := c.Ping(ctx, ip)
+		_, _, _, err := c.Ping(ctx, ip)
 		if err == nil {
 			completed()
 		}

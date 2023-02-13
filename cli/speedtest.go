@@ -71,7 +71,7 @@ func speedtest() *cobra.Command {
 						return ctx.Err()
 					case <-ticker.C:
 					}
-					dur, p2p, err := conn.Ping(ctx)
+					dur, p2p, _, err := conn.Ping(ctx)
 					if err != nil {
 						continue
 					}
