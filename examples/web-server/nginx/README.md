@@ -93,7 +93,7 @@ server {
 sudo certbot renew -q
 ```
 
-## Restart nginx
+## Restart NGINX
 
 - `sudo service nginx restart`
 
