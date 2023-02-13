@@ -142,6 +142,10 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get template version: %s", err))
 		}
+		templateVariables, err := server.Database.GetTemplateVersionVariables(ctx, templateVersion.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return nil, failJob(fmt.Sprintf("get template version variables: %s", err))
+		}
 		template, err := server.Database.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get template: %s", err))
@@ -193,6 +197,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 				State:               workspaceBuild.ProvisionerState,
 				ParameterValues:     protoParameters,
 				RichParameterValues: convertRichParameterValues(workspaceBuildParameters),
+				VariableValues:      asVariableValues(templateVariables),
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:            server.AccessURL.String(),
 					WorkspaceTransition: transition,
@@ -1283,4 +1288,22 @@ type ProvisionerJobLogsNotifyMessage struct {
 // to publish updates to job logs on.
 func ProvisionerJobLogsNotifyChannel(jobID uuid.UUID) string {
 	return fmt.Sprintf("provisioner-log-logs:%s", jobID)
+}
+
+func asVariableValues(templateVariables []database.TemplateVersionVariable) []*sdkproto.VariableValue {
+	var apiVariableValues []*sdkproto.VariableValue
+	for _, v := range templateVariables {
+		var value = v.Value
+		if value == "" && v.DefaultValue != "" {
+			value = v.DefaultValue
+		}
+
+		if value != "" || v.Required {
+			apiVariableValues = append(apiVariableValues, &sdkproto.VariableValue{
+				Name:  v.Name,
+				Value: v.Value,
+			})
+		}
+	}
+	return apiVariableValues
 }

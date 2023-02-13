@@ -438,6 +438,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 			slog.F("state_length", len(jobType.WorkspaceBuild.State)),
 			slog.F("parameters", jobType.WorkspaceBuild.ParameterValues),
 			slog.F("rich_parameter_values", jobType.WorkspaceBuild.RichParameterValues),
+			slog.F("variable_values", jobType.WorkspaceBuild.VariableValues), // FIXME to be redacted
 		)
 		return r.runWorkspaceBuild(ctx)
 	default:
@@ -969,6 +970,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				Config:              config,
 				ParameterValues:     r.job.GetWorkspaceBuild().ParameterValues,
 				RichParameterValues: r.job.GetWorkspaceBuild().RichParameterValues,
+				VariableValues:      r.job.GetWorkspaceBuild().VariableValues,
 			},
 		},
 	})

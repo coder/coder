@@ -16,8 +16,9 @@ message AcquiredJob {
         string workspace_name = 2;
         repeated provisioner.ParameterValue parameter_values = 3;
         repeated provisioner.RichParameterValue rich_parameter_values = 4;
-        provisioner.Provision.Metadata metadata = 5;
-        bytes state = 6;
+		repeated provisioner.VariableValue variable_values = 5;
+        provisioner.Provision.Metadata metadata = 6;
+        bytes state = 7;
     }
     message TemplateImport {
         provisioner.Provision.Metadata metadata = 1;

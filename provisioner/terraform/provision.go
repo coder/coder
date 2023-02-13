@@ -138,8 +138,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		return xerrors.Errorf("initialize terraform: %w", err)
 	}
 	s.logger.Debug(ctx, "ran initialization")
-
-	env, err := provisionEnv(config, request.GetPlan().GetParameterValues(), request.GetPlan().GetVariableValues(), request.GetPlan().GetRichParameterValues())
+	env, err := provisionEnv(config, request.GetPlan().GetParameterValues(), request.GetPlan().GetRichParameterValues())
 	if err != nil {
 		return err
 	}
@@ -202,10 +201,13 @@ func planVars(plan *proto.Provision_Plan) ([]string, error) {
 			return nil, xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
 		}
 	}
+	for _, variable := range plan.VariableValues {
+		vars = append(vars, fmt.Sprintf("%s=%s", variable.Name, variable.Value))
+	}
 	return vars, nil
 }
 
-func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue, variableValues []*proto.VariableValue, richParams []*proto.RichParameterValue) ([]string, error) {
+func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue, richParams []*proto.RichParameterValue) ([]string, error) {
 	env := safeEnviron()
 	env = append(env,
 		"CODER_AGENT_URL="+config.Metadata.CoderUrl,
@@ -228,9 +230,6 @@ func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue
 		default:
 			return nil, xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
 		}
-	}
-	for _, variable := range variableValues {
-		env = append(env, fmt.Sprintf("%s=%s", variable.Name, variable.Value))
 	}
 	for _, param := range richParams {
 		env = append(env, provider.ParameterEnvironmentVariable(param.Name)+"="+param.Value)

@@ -282,15 +282,7 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	templateVersionVariables, err := convertTemplateVersionVariables(dbTemplateVersionVariables)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting template version parameter.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, templateVersionVariables)
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersionVariables(dbTemplateVersionVariables))
 }
 
 // @Summary Get parameters by template version
@@ -1531,19 +1523,15 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 	}, nil
 }
 
-func convertTemplateVersionVariables(dbVariables []database.TemplateVersionVariable) ([]codersdk.TemplateVersionVariable, error) {
+func convertTemplateVersionVariables(dbVariables []database.TemplateVersionVariable) []codersdk.TemplateVersionVariable {
 	variables := make([]codersdk.TemplateVersionVariable, 0)
 	for _, dbVariable := range dbVariables {
-		param, err := convertTemplateVersionVariable(dbVariable)
-		if err != nil {
-			return nil, err
-		}
-		variables = append(variables, param)
+		variables = append(variables, convertTemplateVersionVariable(dbVariable))
 	}
-	return variables, nil
+	return variables
 }
 
-func convertTemplateVersionVariable(variable database.TemplateVersionVariable) (codersdk.TemplateVersionVariable, error) {
+func convertTemplateVersionVariable(variable database.TemplateVersionVariable) codersdk.TemplateVersionVariable {
 	return codersdk.TemplateVersionVariable{
 		Name:         variable.Name,
 		Description:  variable.Description,
@@ -1552,7 +1540,7 @@ func convertTemplateVersionVariable(variable database.TemplateVersionVariable) (
 		DefaultValue: variable.DefaultValue,
 		Required:     variable.Required,
 		Sensitive:    variable.Sensitive,
-	}, nil
+	}
 }
 
 func watchTemplateChannel(id uuid.UUID) string {
