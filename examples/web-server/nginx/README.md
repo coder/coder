@@ -50,7 +50,7 @@
 1. Create the wildcard certificate:
 
     ```console
-    sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials ~/.secrets/certbot/cloudflare.ini -d coder.example.com *.coder.example.com
+    sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials ~/.secrets/certbot/cloudflare.ini -d coder.example.com -d *.coder.example.com
     ```
 
 ## Configure nginx
