@@ -1303,8 +1303,8 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 		templateVersionID := uuid.New()
 		jobInput, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
-			TemplateVersionID: templateVersionID,
-			VariableValues:    req.VariableValues,
+			TemplateVersionID:  templateVersionID,
+			UserVariableValues: req.VariableValues,
 		})
 		if err != nil {
 			return xerrors.Errorf("marshal job input: %w", err)

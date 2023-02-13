@@ -257,7 +257,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 
 		protoJob.Type = &proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
-				VariableValues: convertVariableValues(input.VariableValues),
+				UserVariableValues: convertVariableValues(input.UserVariableValues),
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl: server.AccessURL.String(),
 				},
@@ -402,7 +402,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 			server.Logger.Debug(ctx, "insert template variable", slog.F("template_version_id", templateVersion.ID), slog.F("template_variable", templateVariable))
 
 			var value = templateVariable.DefaultValue
-			for _, v := range request.VariableValues {
+			for _, v := range request.UserVariableValues {
 				if v.Name == templateVariable.Name {
 					value = v.Value
 					break
@@ -1259,8 +1259,8 @@ func auditActionFromTransition(transition database.WorkspaceTransition) database
 }
 
 type TemplateVersionImportJob struct {
-	TemplateVersionID uuid.UUID                `json:"template_version_id"`
-	VariableValues    []codersdk.VariableValue `json:"variable_values"`
+	TemplateVersionID  uuid.UUID                `json:"template_version_id"`
+	UserVariableValues []codersdk.VariableValue `json:"variable_values"`
 }
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.

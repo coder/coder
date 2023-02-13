@@ -417,7 +417,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 	switch jobType := r.job.Type.(type) {
 	case *proto.AcquiredJob_TemplateImport_:
 		r.logger.Debug(context.Background(), "acquired job is template import",
-			slog.F("variable_values", redactVariableValues(jobType.TemplateImport.VariableValues)),
+			slog.F("user_variable_values", redactVariableValues(jobType.TemplateImport.UserVariableValues)),
 		)
 
 		failedJob := r.runReadmeParse(ctx)
@@ -549,10 +549,10 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	// Once Terraform template variables are parsed, the runner can pass variables
 	// to store in database and filter valid ones.
 	updateResponse, err := r.update(ctx, &proto.UpdateJobRequest{
-		JobId:             r.job.JobId,
-		ParameterSchemas:  parameterSchemas,
-		TemplateVariables: templateVariables,
-		VariableValues:    r.job.GetTemplateImport().GetVariableValues(),
+		JobId:              r.job.JobId,
+		ParameterSchemas:   parameterSchemas,
+		TemplateVariables:  templateVariables,
+		UserVariableValues: r.job.GetTemplateImport().GetUserVariableValues(),
 	})
 	if err != nil {
 		return nil, r.failedJobf("update job: %s", err)
