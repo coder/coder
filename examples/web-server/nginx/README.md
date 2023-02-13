@@ -99,4 +99,4 @@ sudo certbot renew -q
 
 - `sudo service nginx restart`
 
-And that's it, you should now be able to access coder via `https://YOUR_SUBDOMAIN` !
+And that's it, you should now be able to access Coder via `https://YOUR_SUBDOMAIN`!
