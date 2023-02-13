@@ -96,6 +96,7 @@ message RichParameterValue {
 message VariableValue {
     string name = 1;
     string value = 2;
+	bool sensitive = 3;
 }
 
 // LogLevel represents severity of the log.

@@ -417,7 +417,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 	switch jobType := r.job.Type.(type) {
 	case *proto.AcquiredJob_TemplateImport_:
 		r.logger.Debug(context.Background(), "acquired job is template import",
-			slog.F("variable_values", jobType.TemplateImport.VariableValues), // FIXME to be redacted
+			slog.F("variable_values", redactVariableValues(jobType.TemplateImport.VariableValues)),
 		)
 
 		failedJob := r.runReadmeParse(ctx)
@@ -438,7 +438,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 			slog.F("state_length", len(jobType.WorkspaceBuild.State)),
 			slog.F("parameters", jobType.WorkspaceBuild.ParameterValues),
 			slog.F("rich_parameter_values", jobType.WorkspaceBuild.RichParameterValues),
-			slog.F("variable_values", jobType.WorkspaceBuild.VariableValues), // FIXME to be redacted
+			slog.F("variable_values", redactVariableValues(jobType.WorkspaceBuild.VariableValues)),
 		)
 		return r.runWorkspaceBuild(ctx)
 	default:
@@ -1073,5 +1073,17 @@ func (r *Runner) flushQueuedLogs(ctx context.Context) {
 }
 
 func redactVariableValues(variableValues []*sdkproto.VariableValue) []*sdkproto.VariableValue {
-
+	var redacted []*sdkproto.VariableValue
+	for _, v := range variableValues {
+		if v.Sensitive {
+			redacted = append(redacted, &sdkproto.VariableValue{
+				Name:      v.Name,
+				Value:     "*redacted*",
+				Sensitive: true,
+			})
+			continue
+		}
+		redacted = append(redacted, v)
+	}
+	return redacted
 }

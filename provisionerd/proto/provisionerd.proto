@@ -111,7 +111,7 @@ message UpdateJobResponse {
     // If parameter schemas are sent, the job will respond
     // with resolved parameter values.
     repeated provisioner.ParameterValue parameter_values = 2;
-	repeated provisioner.VariableValue variable_values = 5;
+	repeated provisioner.VariableValue variable_values = 3;
 }
 
 message CommitQuotaRequest {

@@ -409,13 +409,10 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 				}
 			}
 
-			if templateVariable.Required && value == "" {
-				return nil, xerrors.Errorf("template variable %q is required but it is missing", templateVariable.Name)
-			}
-
 			variableValues = append(variableValues, &sdkproto.VariableValue{
-				Name:  templateVariable.Name,
-				Value: value,
+				Name:      templateVariable.Name,
+				Value:     value,
+				Sensitive: templateVariable.Sensitive,
 			})
 
 			_, err = server.Database.InsertTemplateVersionVariable(ctx, database.InsertTemplateVersionVariableParams{
@@ -1303,8 +1300,9 @@ func asVariableValues(templateVariables []database.TemplateVersionVariable) []*s
 
 		if value != "" || v.Required {
 			apiVariableValues = append(apiVariableValues, &sdkproto.VariableValue{
-				Name:  v.Name,
-				Value: v.Value,
+				Name:      v.Name,
+				Value:     v.Value,
+				Sensitive: v.Sensitive,
 			})
 		}
 	}

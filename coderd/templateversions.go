@@ -417,6 +417,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		WorkspaceName:       req.WorkspaceName,
 		ParameterValues:     parameterValues,
 		RichParameterValues: richParameterValues,
+		// FIXME Variable values?
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
