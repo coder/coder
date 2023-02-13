@@ -7,7 +7,7 @@
 
 - `sudo apt install nginx`
 
-3. Stop **nginx** :
+3. Stop NGINX:
 
     ```console
      sudo service stop nginx
