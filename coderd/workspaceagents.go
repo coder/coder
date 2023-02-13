@@ -637,7 +637,13 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			Time:  database.Now(),
 			Valid: true,
 		}
-		_ = updateConnectionTimes(ctx)
+		err := updateConnectionTimes(ctx)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to update agent disconnect time",
+				slog.Error(err),
+				slog.F("workspace", build.WorkspaceID),
+			)
+		}
 		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 	}()
 
