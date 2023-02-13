@@ -3,7 +3,7 @@
 ## Requirements
 
 1. You'll need a subdomain and the a wildcard subdomain configured that resolves to server.
-2. Install **nginx** (assuming you're on debian/ubuntu):
+2. Install **nginx** (assuming you're on Debian/Ubuntu):
 
 - `sudo apt install nginx`
 
