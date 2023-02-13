@@ -220,6 +220,10 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get template version: %s", err))
 		}
+		templateVariables, err := server.Database.GetTemplateVersionVariables(ctx, templateVersion.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return nil, failJob(fmt.Sprintf("get template version variables: %s", err))
+		}
 
 		// Compute parameters for the dry-run to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
@@ -242,6 +246,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
 				ParameterValues:     protoParameters,
 				RichParameterValues: convertRichParameterValues(input.RichParameterValues),
+				VariableValues:      asVariableValues(templateVariables),
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:      server.AccessURL.String(),
 					WorkspaceName: input.WorkspaceName,
@@ -1275,7 +1280,6 @@ type TemplateVersionDryRunJob struct {
 	WorkspaceName       string                             `json:"workspace_name"`
 	ParameterValues     []database.ParameterValue          `json:"parameter_values"`
 	RichParameterValues []database.WorkspaceBuildParameter `json:"rich_parameter_values"`
-	UserVariableValues  []codersdk.VariableValue           `json:"user_variable_values"`
 }
 
 // ProvisionerJobLogsNotifyMessage is the payload published on

@@ -430,6 +430,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 			slog.F("workspace_name", jobType.TemplateDryRun.Metadata.WorkspaceName),
 			slog.F("parameters", jobType.TemplateDryRun.ParameterValues),
 			slog.F("rich_parameter_values", jobType.TemplateDryRun.RichParameterValues),
+			slog.F("variable_values", redactVariableValues(jobType.TemplateDryRun.VariableValues)),
 		)
 		return r.runTemplateDryRun(ctx)
 	case *proto.AcquiredJob_WorkspaceBuild_:
@@ -793,7 +794,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	// Run the template import provision task since it's already a dry run.
 	resources, _, err := r.runTemplateImportProvisionWithRichParameters(ctx,
 		r.job.GetTemplateDryRun().GetParameterValues(),
-		nil,
+		r.job.GetTemplateDryRun().GetVariableValues(),
 		r.job.GetTemplateDryRun().GetRichParameterValues(),
 		metadata,
 	)
