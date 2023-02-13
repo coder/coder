@@ -293,6 +293,15 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If password auth is disabled, don't allow new users to be
+	// created with a password!
+	if api.DeploymentConfig.DisablePasswordAuth.Value {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You cannot manually provision new users with password authentication disabled!",
+		})
+		return
+	}
+
 	// TODO: @emyrk Authorize the organization create if the createUser will do that.
 
 	_, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
