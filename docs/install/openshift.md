@@ -85,7 +85,7 @@ coder:
           key: url
           name: coder-db-url
     - name: CODER_ACCESS_URL
-      value: 'https://coder-example.apps.openshiftapps.com'
+      value: "https://coder-example.apps.openshiftapps.com"
 ```
 
 ### 5. Configure the Coder service
