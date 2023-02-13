@@ -416,7 +416,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 	}
 	switch jobType := r.job.Type.(type) {
 	case *proto.AcquiredJob_TemplateImport_:
-		r.logger.Info(context.Background(), "acquired job is template import",
+		r.logger.Debug(context.Background(), "acquired job is template import",
 			slog.F("variable_values", jobType.TemplateImport.VariableValues), // FIXME to be redacted
 		)
 
@@ -1070,4 +1070,8 @@ func (r *Runner) flushQueuedLogs(ctx context.Context) {
 		}
 		r.logger.Error(ctx, "flush queued logs", slog.Error(err))
 	}
+}
+
+func redactVariableValues(variableValues []*sdkproto.VariableValue) []*sdkproto.VariableValue {
+
 }

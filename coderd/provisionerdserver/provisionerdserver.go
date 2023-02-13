@@ -398,22 +398,25 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		}
 
 		var variableValues []*sdkproto.VariableValue
-		server.Logger.Info(ctx, "variable values from request", slog.F("template_version_id", templateVersion.ID), slog.F("variable_values", request.VariableValues))
-
 		for _, templateVariable := range request.TemplateVariables {
-			server.Logger.Info(ctx, "insert template variable", slog.F("template_version_id", templateVersion.ID), slog.F("template_variable", templateVariable))
+			server.Logger.Debug(ctx, "insert template variable", slog.F("template_version_id", templateVersion.ID), slog.F("template_variable", templateVariable))
 
 			var value = templateVariable.DefaultValue
 			for _, v := range request.VariableValues {
 				if v.Name == templateVariable.Name {
 					value = v.Value
-					variableValues = append(variableValues, &sdkproto.VariableValue{
-						Name:  v.Name,
-						Value: v.Value,
-					})
 					break
 				}
 			}
+
+			if templateVariable.Required && value == "" {
+				return nil, xerrors.Errorf("template variable %q is required but it is missing", templateVariable.Name)
+			}
+
+			variableValues = append(variableValues, &sdkproto.VariableValue{
+				Name:  templateVariable.Name,
+				Value: value,
+			})
 
 			_, err = server.Database.InsertTemplateVersionVariable(ctx, database.InsertTemplateVersionVariableParams{
 				TemplateVersionID: templateVersion.ID,
