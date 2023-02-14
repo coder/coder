@@ -1343,6 +1343,30 @@ func (q *sqlQuerier) DeleteLicense(ctx context.Context, id int32) (int32, error)
 	return id, err
 }
 
+const getLicenseByID = `-- name: GetLicenseByID :one
+SELECT
+	id, uploaded_at, jwt, exp, uuid
+FROM
+	licenses
+WHERE
+	id = $1
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetLicenseByID(ctx context.Context, id int32) (License, error) {
+	row := q.db.QueryRowContext(ctx, getLicenseByID, id)
+	var i License
+	err := row.Scan(
+		&i.ID,
+		&i.UploadedAt,
+		&i.JWT,
+		&i.Exp,
+		&i.UUID,
+	)
+	return i, err
+}
+
 const getLicenses = `-- name: GetLicenses :many
 SELECT id, uploaded_at, jwt, exp, uuid
 FROM licenses
@@ -6496,6 +6520,62 @@ type GetWorkspaceByOwnerIDAndNameParams struct {
 
 func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceByOwnerIDAndName, arg.OwnerID, arg.Deleted, arg.Name)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.TemplateID,
+		&i.Deleted,
+		&i.Name,
+		&i.AutostartSchedule,
+		&i.Ttl,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const getWorkspaceByWorkspaceAppID = `-- name: GetWorkspaceByWorkspaceAppID :one
+SELECT
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
+FROM
+	workspaces
+WHERE
+		workspaces.id = (
+		SELECT
+			workspace_id
+		FROM
+			workspace_builds
+		WHERE
+				workspace_builds.job_id = (
+				SELECT
+					job_id
+				FROM
+					workspace_resources
+				WHERE
+						workspace_resources.id = (
+						SELECT
+							resource_id
+						FROM
+							workspace_agents
+						WHERE
+								workspace_agents.id = (
+								SELECT
+									agent_id
+								FROM
+									workspace_apps
+								WHERE
+									workspace_apps.id = $1
+								)
+					)
+			)
+	)
+`
+
+func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceByWorkspaceAppID, workspaceAppID)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,

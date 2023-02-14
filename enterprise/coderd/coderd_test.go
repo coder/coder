@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/database/dbauthz"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -100,7 +102,9 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, entitlements.HasLicense)
 		coderdtest.CreateFirstUser(t, client)
-		_, err = api.Database.InsertLicense(context.Background(), database.InsertLicenseParams{
+		//nolint:gocritic // unit test
+		ctx := dbauthz.AsSystem(context.Background())
+		_, err = api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: database.Now(),
 			Exp:        database.Now().AddDate(1, 0, 0),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
@@ -128,7 +132,9 @@ func TestEntitlements(t *testing.T) {
 		require.False(t, entitlements.HasLicense)
 		coderdtest.CreateFirstUser(t, client)
 		// Valid
-		_, err = api.Database.InsertLicense(context.Background(), database.InsertLicenseParams{
+		ctx := context.Background()
+		//nolint:gocritic // unit test
+		_, err = api.Database.InsertLicense(dbauthz.AsSystem(ctx), database.InsertLicenseParams{
 			UploadedAt: database.Now(),
 			Exp:        database.Now().AddDate(1, 0, 0),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
@@ -139,7 +145,8 @@ func TestEntitlements(t *testing.T) {
 		})
 		require.NoError(t, err)
 		// Expired
-		_, err = api.Database.InsertLicense(context.Background(), database.InsertLicenseParams{
+		//nolint:gocritic // unit test
+		_, err = api.Database.InsertLicense(dbauthz.AsSystem(ctx), database.InsertLicenseParams{
 			UploadedAt: database.Now(),
 			Exp:        database.Now().AddDate(-1, 0, 0),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
@@ -148,7 +155,8 @@ func TestEntitlements(t *testing.T) {
 		})
 		require.NoError(t, err)
 		// Invalid
-		_, err = api.Database.InsertLicense(context.Background(), database.InsertLicenseParams{
+		//nolint:gocritic // unit test
+		_, err = api.Database.InsertLicense(dbauthz.AsSystem(ctx), database.InsertLicenseParams{
 			UploadedAt: database.Now(),
 			Exp:        database.Now().AddDate(1, 0, 0),
 			JWT:        "invalid",

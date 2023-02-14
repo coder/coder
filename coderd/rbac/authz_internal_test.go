@@ -1039,7 +1039,6 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 	}
 }
 
-
 func must[T any](value T, err error) T {
 	if err != nil {
 		panic(err)

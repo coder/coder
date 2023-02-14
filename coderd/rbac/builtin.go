@@ -133,6 +133,8 @@ var (
 					ResourceWorkspace.Type: {ActionRead},
 					// CRUD to provisioner daemons for now.
 					ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+					// Needs to read all organizations since
+					ResourceOrganization.Type: {ActionRead},
 				}),
 				Org:  map[string][]Permission{},
 				User: []Permission{},
@@ -217,6 +219,12 @@ var (
 	// The first key is the actor role, the second is the roles they can assign.
 	//	map[actor_role][assign_role]<can_assign>
 	assignRoles = map[string]map[string]bool{
+		"system": {
+			owner:     true,
+			member:    true,
+			orgAdmin:  true,
+			orgMember: true,
+		},
 		owner: {
 			owner:         true,
 			auditor:       true,
