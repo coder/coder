@@ -137,7 +137,7 @@ changelog="$(
 		if ((${#changes} > 0)); then
 			echo -e "\n### ${section_titles["$cat"]}\n"
 			if [[ $cat == experimental ]]; then
-				echo -e "These features or changes are experimental and may change or be removed in future releases.\n"
+				echo -e "These changes are feature-flagged and can be enabled with the `--experiments` server flag. They may change or be removed in future releases.\n"
 			fi
 			echo -e "$changes"
 		fi
