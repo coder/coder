@@ -150,10 +150,10 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 	// https://github.com/coder/coder/pull/6012
 	&database.License{}: {
 		"id":          ActionIgnore,
-		"uploaded_at": ActionIgnore,
+		"uploaded_at": ActionTrack,
 		"jwt":         ActionIgnore,
 		"exp":         ActionTrack,
-		"uuid":        ActionIgnore,
+		"uuid":        ActionTrack,
 	},
 })
 

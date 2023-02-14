@@ -72,10 +72,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 		// this isn't used
 		return ""
 	case database.License:
-		// this isn't used
-		// TODO: return an ID here when the below ticket is completed:
-		// https://github.com/coder/coder/pull/6012
-		return ""
+		return typed.UUID.String()
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -100,9 +97,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.APIKey:
 		return typed.UserID
 	case database.License:
-		// TODO: return a valid ID here when the below ticket is completed:
-		// https://github.com/coder/coder/pull/6012
-		return uuid.New()
+		return typed.UUID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
