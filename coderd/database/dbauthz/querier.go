@@ -438,12 +438,16 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 		}
 	}
 
-	if len(added) > 0 && q.authorizeContext(ctx, rbac.ActionCreate, roleAssign) != nil {
-		return logNotAuthorizedError(ctx, q.log, xerrors.Errorf("not authorized to assign roles"))
+	if len(added) > 0 {
+		if err := q.authorizeContext(ctx, rbac.ActionCreate, roleAssign); err != nil {
+			return err
+		}
 	}
 
-	if len(removed) > 0 && q.authorizeContext(ctx, rbac.ActionDelete, roleAssign) != nil {
-		return logNotAuthorizedError(ctx, q.log, xerrors.Errorf("not authorized to delete roles"))
+	if len(removed) > 0 {
+		if err := q.authorizeContext(ctx, rbac.ActionDelete, roleAssign); err != nil {
+			return err
+		}
 	}
 
 	for _, roleName := range grantedRoles {
@@ -1221,7 +1225,7 @@ func (q *querier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uui
 			continue
 		}
 		// Otherwise, we cannot read the workspace, so we cannot read the agent.
-		return nil, logNotAuthorizedError(ctx, q.log, err)
+		return nil, err
 	}
 	return agents, nil
 }
