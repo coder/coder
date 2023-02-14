@@ -3,6 +3,8 @@ package httpmw
 import (
 	"net/http"
 
+	"github.com/coder/coder/coderd/rbac"
+
 	"github.com/coder/coder/coderd/database/dbauthz"
 
 	"github.com/go-chi/chi/v5"
@@ -34,4 +36,17 @@ func AsAuthzSystem(mws ...func(http.Handler) http.Handler) func(http.Handler) ht
 			})).ServeHTTP(rw, r)
 		})
 	}
+}
+
+// AttachAuthzCache enables the authz cache for the authorizer. All rbac checks will
+// run against the cache, meaning duplicate checks will not be performed.
+//
+// Note the cache is safe for multiple actors. So mixing user and system checks
+// is ok.
+func AttachAuthzCache(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		ctx := rbac.WithCacheCtx(r.Context())
+
+		next.ServeHTTP(rw, r.WithContext(ctx))
+	})
 }

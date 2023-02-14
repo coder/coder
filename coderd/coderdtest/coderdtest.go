@@ -184,7 +184,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), string(codersdk.ExperimentAuthzQuerier)) {
 		if options.Authorizer == nil {
 			options.Authorizer = &RecordingAuthorizer{
-				Wrapped: rbac.NewAuthorizer(prometheus.NewRegistry()),
+				Wrapped: rbac.NewCachingAuthorizer(prometheus.NewRegistry()),
 			}
 		}
 		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
