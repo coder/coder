@@ -227,6 +227,7 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, organization uuid.U
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func
 // is called if a read or write error is encountered.
+// @typescript-ignore wsNetConn
 type wsNetConn struct {
 	cancel context.CancelFunc
 	net.Conn
