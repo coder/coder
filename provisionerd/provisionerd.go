@@ -521,7 +521,7 @@ func (p *Server) closeWithError(err error) error {
 	p.opts.Logger.Debug(context.Background(), "closing server with error", slog.Error(err))
 
 	if c, ok := p.clientValue.Load().(proto.DRPCProvisionerDaemonClient); ok {
-		_ = c.Close()
+		_ = c.DRPCConn().Close()
 	}
 
 	return err
