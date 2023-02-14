@@ -176,13 +176,35 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 }
 
 type workspaceQuerier interface {
-	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]GetWorkspacesRow, error)
+	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]WorkspaceWithData, error)
+}
+
+// WorkspaceWithData includes information returned by the api for a workspace.
+type WorkspaceWithData struct {
+	Workspace
+
+	// These template fields are included in the response for a workspace.
+	// This means if you can read a workspace, you can also read these limited
+	// template fields as they are metadata of the workspace.
+	TemplateName                         string
+	TemplateIcon                         string
+	TemplateDisplayName                  string
+	TemplateAllowUserCancelWorkspaceJobs bool
+	TemplateActiveVersionID              uuid.UUID
+
+	LatestBuild    WorkspaceBuild
+	LatestBuildJob ProvisionerJob
+
+	// Count is the total number of workspaces applicable to the query.
+	// This is used for pagination as the total number of returned workspaces
+	// could be less than this number.
+	Count int64 `db:"count" json:"count"`
 }
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
 // clause.
-func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]GetWorkspacesRow, error) {
+func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]WorkspaceWithData, error) {
 	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
@@ -204,6 +226,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.OwnerUsername,
 		arg.TemplateName,
 		pq.Array(arg.TemplateIds),
+		pq.Array(arg.WorkspaceIds),
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
@@ -214,9 +237,9 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		return nil, xerrors.Errorf("get authorized workspaces: %w", err)
 	}
 	defer rows.Close()
-	var items []GetWorkspacesRow
+	var items []WorkspaceWithData
 	for rows.Next() {
-		var i GetWorkspacesRow
+		var i WorkspaceWithData
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -229,6 +252,35 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.AutostartSchedule,
 			&i.Ttl,
 			&i.LastUsedAt,
+			&i.TemplateName,
+			&i.TemplateIcon,
+			&i.TemplateDisplayName,
+			&i.TemplateAllowUserCancelWorkspaceJobs,
+			&i.TemplateActiveVersionID,
+			&i.LatestBuild.ID,
+			&i.LatestBuild.CreatedAt,
+			&i.LatestBuild.UpdatedAt,
+			&i.LatestBuild.TemplateVersionID,
+			&i.LatestBuild.BuildNumber,
+			&i.LatestBuild.Transition,
+			&i.LatestBuild.JobID,
+			&i.LatestBuild.InitiatorID,
+			&i.LatestBuild.Reason,
+			&i.LatestBuild.DailyCost,
+			&i.LatestBuildJob.ID,
+			&i.LatestBuildJob.CreatedAt,
+			&i.LatestBuildJob.UpdatedAt,
+			&i.LatestBuildJob.StartedAt,
+			&i.LatestBuildJob.CompletedAt,
+			&i.LatestBuildJob.CanceledAt,
+			&i.LatestBuildJob.Error,
+			&i.LatestBuildJob.OrganizationID,
+			&i.LatestBuildJob.Provisioner,
+			&i.LatestBuildJob.StorageMethod,
+			&i.LatestBuildJob.Type,
+			&i.LatestBuildJob.WorkerID,
+			&i.LatestBuildJob.FileID,
+			&i.LatestBuildJob.Tags,
 			&i.Count,
 		); err != nil {
 			return nil, err

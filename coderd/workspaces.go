@@ -1093,6 +1093,37 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}, nil
 }
 
+func convertWorkspaceData(
+	workspace database.WorkspaceWithData,
+	workspaceBuild codersdk.WorkspaceBuild,
+	owner *database.User,
+) codersdk.Workspace {
+	var autostartSchedule *string
+	if workspace.AutostartSchedule.Valid {
+		autostartSchedule = &workspace.AutostartSchedule.String
+	}
+
+	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
+	return codersdk.Workspace{
+		ID:                                   workspace.ID,
+		CreatedAt:                            workspace.CreatedAt,
+		UpdatedAt:                            workspace.UpdatedAt,
+		OwnerID:                              workspace.OwnerID,
+		OwnerName:                            owner.Username,
+		TemplateID:                           workspace.TemplateID,
+		LatestBuild:                          workspaceBuild,
+		TemplateName:                         workspace.TemplateName,
+		TemplateIcon:                         workspace.TemplateIcon,
+		TemplateDisplayName:                  workspace.TemplateDisplayName,
+		TemplateAllowUserCancelWorkspaceJobs: workspace.TemplateAllowUserCancelWorkspaceJobs,
+		Outdated:                             workspaceBuild.TemplateVersionID != workspace.TemplateActiveVersionID,
+		Name:                                 workspace.Name,
+		AutostartSchedule:                    autostartSchedule,
+		TTLMillis:                            ttlMillis,
+		LastUsedAt:                           workspace.LastUsedAt,
+	}
+}
+
 func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]codersdk.Workspace, error) {
 	buildByWorkspaceID := map[uuid.UUID]codersdk.WorkspaceBuild{}
 	for _, workspaceBuild := range data.builds {

@@ -6427,25 +6427,25 @@ SELECT
 FROM
 	workspaces
 WHERE
-	workspaces.id = (
+		workspaces.id = (
 		SELECT
 			workspace_id
 		FROM
 			workspace_builds
 		WHERE
-			workspace_builds.job_id = (
+				workspace_builds.job_id = (
 				SELECT
 					job_id
 				FROM
 					workspace_resources
 				WHERE
-					workspace_resources.id = (
+						workspace_resources.id = (
 						SELECT
 							resource_id
 						FROM
 							workspace_agents
 						WHERE
-							workspace_agents.id = $1
+								workspace_agents.id = $1
 					)
 			)
 	)
@@ -6476,7 +6476,7 @@ SELECT
 FROM
 	workspaces
 WHERE
-	id = $1
+		id = $1
 LIMIT
 	1
 `
@@ -6506,9 +6506,9 @@ SELECT
 FROM
 	workspaces
 WHERE
-	owner_id = $1
-	AND deleted = $2
-	AND LOWER("name") = LOWER($3)
+		owner_id = $1
+  AND deleted = $2
+  AND LOWER("name") = LOWER($3)
 ORDER BY created_at DESC
 `
 
@@ -6567,8 +6567,8 @@ WHERE
 								FROM
 									workspace_apps
 								WHERE
-									workspace_apps.id = $1
-								)
+										workspace_apps.id = $1
+							)
 					)
 			)
 	)
@@ -6595,177 +6595,214 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, COUNT(*) OVER () as count
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at,
+	-- Template fields that are readable from a workspace
+	-- These values should never be null. This is required for sqlc to not
+	-- generate nullable golang fields.
+	COALESCE(templates.name, '') AS template_name,
+	COALESCE(templates.icon, '') AS template_icon,
+	COALESCE(templates.display_name, 'unknown') AS template_display_name,
+	COALESCE(templates.allow_user_cancel_workspace_jobs, false) AS template_allow_user_cancel,
+	COALESCE(templates.active_version_id, '00000000-0000-0000-0000-000000000000'::uuid) AS template_active_version_id,
+	-- Workspace build fields
+	COALESCE(latest_build.id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_id,
+	COALESCE(latest_build.created_at, '0001-01-01 00:00:00+00:00') AS latest_build_created_at,
+	COALESCE(latest_build.updated_at, '0001-01-01 00:00:00+00:00') AS latest_build_updated_at,
+	COALESCE(latest_build.template_version_id, '00000000-0000-0000-0000-000000000000'::uuid)  AS latest_build_template_version_id,
+	COALESCE(latest_build.build_number, -1) AS latest_build_number,
+	COALESCE(latest_build.transition, 'start') AS latest_build_transition,
+	COALESCE(latest_build.job_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_id,
+	COALESCE(latest_build.initiator_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_initiator_id,
+	COALESCE(latest_build.reason, 'initiator') AS latest_build_reason,
+	COALESCE(latest_build.daily_cost, 0) AS latest_build_daily_cost,
+	-- Provisioner job fields
+	COALESCE(latest_build_job.id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_id,
+	COALESCE(latest_build_job.created_at, '0001-01-01 00:00:00+00:00') AS latest_build_job_created_at,
+	COALESCE(latest_build_job.updated_at, '0001-01-01 00:00:00+00:00') AS latest_build_job_updated_at,
+	latest_build_job.started_at AS latest_build_job_started_at,
+	latest_build_job.completed_at AS latest_build_job_completed_at,
+	latest_build_job.canceled_at AS latest_build_job_canceled_at,
+	COALESCE(latest_build_job.error, 'job not found') AS latest_build_job_error,
+	COALESCE(latest_build_job.organization_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_organization_id,
+	COALESCE(latest_build_job.provisioner, 'echo') AS latest_build_job_provisioner,
+	COALESCE(latest_build_job.storage_method, 'file') AS latest_build_job_storage_method,
+	COALESCE(latest_build_job.type, 'workspace_build') AS latest_build_job_type,
+	COALESCE(latest_build_job.worker_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_worker_id,
+	COALESCE(latest_build_job.file_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_file_id,
+	COALESCE(latest_build_job.tags, '{}') AS latest_build_job_tags,
+
+	-- For pagination
+	COUNT(*) OVER () as count
 FROM
 	workspaces
-LEFT JOIN LATERAL (
-	SELECT
-		workspace_builds.transition,
-		provisioner_jobs.id AS provisioner_job_id,
-		provisioner_jobs.started_at,
-		provisioner_jobs.updated_at,
-		provisioner_jobs.canceled_at,
-		provisioner_jobs.completed_at,
-		provisioner_jobs.error
-	FROM
-		workspace_builds
-	LEFT JOIN
-		provisioner_jobs
-	ON
-		provisioner_jobs.id = workspace_builds.job_id
-	WHERE
-		workspace_builds.workspace_id = workspaces.id
-	ORDER BY
-		build_number DESC
-	LIMIT
-		1
-) latest_build ON TRUE
+		LEFT JOIN
+	templates ON templates.id = workspaces.template_id
+		LEFT JOIN LATERAL
+		( -- Join the latest workspace build
+		SELECT
+			id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost
+		FROM
+			workspace_builds
+		WHERE
+				workspaces.id = workspace_builds.workspace_id
+		ORDER BY
+			build_number DESC
+			FETCH FIRST 1 ROW ONLY
+		) latest_build
+				  ON true
+		LEFT JOIN
+	provisioner_jobs latest_build_job ON latest_build.job_id = latest_build_job.id
 WHERE
-	-- Optionally include deleted workspaces
-	workspaces.deleted = $1
-	AND CASE
-		WHEN $2 :: text != '' THEN
-			CASE
-				WHEN $2 = 'pending' THEN
-					latest_build.started_at IS NULL
-				WHEN $2 = 'starting' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NULL AND
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
-					latest_build.transition = 'start'::workspace_transition
+  -- Optionally include deleted workspaces
+		workspaces.deleted = $1
+  AND CASE
+		  WHEN $2 :: text != '' THEN
+			  CASE
+				  WHEN $2 = 'pending' THEN
+					  latest_build_job.started_at IS NULL
+				  WHEN $2 = 'starting' THEN
+						  latest_build_job.started_at IS NOT NULL AND
+						  latest_build_job.canceled_at IS NULL AND
+						  latest_build_job.completed_at IS NULL AND
+						  latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+						  latest_build.transition = 'start'::workspace_transition
 
-				WHEN $2 = 'running' THEN
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
-					latest_build.transition = 'start'::workspace_transition
+				  WHEN $2 = 'running' THEN
+						  latest_build_job.completed_at IS NOT NULL AND
+						  latest_build_job.canceled_at IS NULL AND
+						  latest_build_job.error IS NULL AND
+						  latest_build.transition = 'start'::workspace_transition
 
-				WHEN $2 = 'stopping' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NULL AND
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
-					latest_build.transition = 'stop'::workspace_transition
+				  WHEN $2 = 'stopping' THEN
+						  latest_build_job.error IS NOT NULL AND
+						  latest_build_job.canceled_at IS NULL AND
+						  latest_build_job.completed_at IS NULL AND
+						  latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+						  latest_build.transition = 'stop'::workspace_transition
 
-				WHEN $2 = 'stopped' THEN
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
-					latest_build.transition = 'stop'::workspace_transition
+				  WHEN $2 = 'stopped' THEN
+						  latest_build_job.completed_at IS NOT NULL AND
+						  latest_build_job.canceled_at IS NULL AND
+						  latest_build_job.error IS NULL AND
+						  latest_build.transition = 'stop'::workspace_transition
 
-				WHEN $2 = 'failed' THEN
-					(latest_build.canceled_at IS NOT NULL AND
-						latest_build.error IS NOT NULL) OR
-					(latest_build.completed_at IS NOT NULL AND
-						latest_build.error IS NOT NULL)
+				  WHEN $2 = 'failed' THEN
+						  (latest_build_job.canceled_at IS NOT NULL AND
+						   latest_build_job.error IS NOT NULL) OR
+						  (latest_build_job.completed_at IS NOT NULL AND
+						   latest_build_job.error IS NOT NULL)
 
-				WHEN $2 = 'canceling' THEN
-					latest_build.canceled_at IS NOT NULL AND
-					latest_build.completed_at IS NULL
+				  WHEN $2 = 'canceling' THEN
+						  latest_build_job.canceled_at IS NOT NULL AND
+						  latest_build_job.completed_at IS NULL
 
-				WHEN $2 = 'canceled' THEN
-					latest_build.canceled_at IS NOT NULL AND
-					latest_build.completed_at IS NOT NULL
+				  WHEN $2 = 'canceled' THEN
+						  latest_build_job.canceled_at IS NOT NULL AND
+						  latest_build_job.completed_at IS NOT NULL
 
-				WHEN $2 = 'deleted' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
-					latest_build.transition = 'delete'::workspace_transition
+				  WHEN $2 = 'deleted' THEN
+						  latest_build_job.error IS NOT NULL AND
+						  latest_build_job.canceled_at IS NULL AND
+						  latest_build_job.completed_at IS NOT NULL AND
+						  latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+						  latest_build.transition = 'delete'::workspace_transition
 
-				WHEN $2 = 'deleting' THEN
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
-					latest_build.transition = 'delete'::workspace_transition
-
-				ELSE
-					true
-			END
-		ELSE true
+				  WHEN $2 = 'deleting' THEN
+						  latest_build_job.completed_at IS NOT NULL AND
+						  latest_build_job.canceled_at IS NULL AND
+						  latest_build_job.error IS NULL AND
+						  latest_build.transition = 'delete'::workspace_transition
+				  ELSE
+					  true
+				  END
+		  ELSE true
 	END
-	-- Filter by owner_id
-	AND CASE
-		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			owner_id = $3
-		ELSE true
+  -- Filter by owner_id
+  AND CASE
+		  WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				  owner_id = $3
+		  ELSE true
 	END
-	-- Filter by owner_name
-	AND CASE
-		WHEN $4 :: text != '' THEN
-			owner_id = (SELECT id FROM users WHERE lower(username) = lower($4) AND deleted = false)
-		ELSE true
+  -- Filter by owner_name
+  AND CASE
+		  WHEN $4 :: text != '' THEN
+				  owner_id = (SELECT id FROM users WHERE lower(username) = lower($4) AND deleted = false)
+		  ELSE true
 	END
-	-- Filter by template_name
-	-- There can be more than 1 template with the same name across organizations.
-	-- Use the organization filter to restrict to 1 org if needed.
-	AND CASE
-		WHEN $5 :: text != '' THEN
-			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($5) AND deleted = false)
-		ELSE true
+  -- Filter by template_name
+  -- There can be more than 1 template with the same name across organizations.
+  -- Use the organization filter to restrict to 1 org if needed.
+  AND CASE
+		  WHEN $5 :: text != '' THEN
+				  lower(templates.name) = lower($5)
+		  ELSE true
 	END
-	-- Filter by template_ids
-	AND CASE
-		WHEN array_length($6 :: uuid[], 1) > 0 THEN
-			template_id = ANY($6)
-		ELSE true
+  -- Filter by template_ids
+  AND CASE
+		  WHEN array_length($6 :: uuid[], 1) > 0 THEN
+				  template_id = ANY($6)
+		  ELSE true
 	END
-	-- Filter by name, matching on substring
-	AND CASE
-		WHEN $7 :: text != '' THEN
-			name ILIKE '%' || $7 || '%'
-		ELSE true
+  -- Filter by workspace_ids
+  AND CASE
+		  WHEN array_length($7 :: uuid[], 1) > 0 THEN
+				  id = ANY($7)
+		  ELSE true
 	END
-	-- Filter by agent status
-	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
-	AND CASE
-		WHEN $8 :: text != '' THEN
-			(
-				SELECT COUNT(*)
-				FROM
-					workspace_resources
-				JOIN
-					workspace_agents
-				ON
-					workspace_agents.resource_id = workspace_resources.id
-				WHERE
-					workspace_resources.job_id = latest_build.provisioner_job_id AND
-					latest_build.transition = 'start'::workspace_transition AND
-					$8 = (
-						CASE
-							WHEN workspace_agents.first_connected_at IS NULL THEN
-								CASE
-									WHEN workspace_agents.connection_timeout_seconds > 0 AND NOW() - workspace_agents.created_at > workspace_agents.connection_timeout_seconds * INTERVAL '1 second' THEN
-										'timeout'
-									ELSE
-										'connecting'
-								END
-							WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
-								'disconnected'
-							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $9 :: bigint THEN
-								'disconnected'
-							WHEN workspace_agents.last_connected_at IS NOT NULL THEN
-								'connected'
-							ELSE
-								NULL
-						END
-					)
-			) > 0
-		ELSE true
+  -- Filter by name, matching on substring
+  AND CASE
+		  WHEN $8 :: text != '' THEN
+				  name ILIKE '%' || $8 || '%'
+		  ELSE true
 	END
-	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
-	-- @authorize_filter
+  -- Filter by agent status
+  -- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
+  AND CASE
+		  WHEN $9 :: text != '' THEN
+				  (
+					  SELECT COUNT(*)
+					  FROM
+						  workspace_resources
+							  JOIN
+						  workspace_agents
+						  ON
+								  workspace_agents.resource_id = workspace_resources.id
+					  WHERE
+							  workspace_resources.job_id = latest_build.provisioner_job_id AND
+							  latest_build.transition = 'start'::workspace_transition AND
+							  $9 = (
+							  CASE
+								  WHEN workspace_agents.first_connected_at IS NULL THEN
+									  CASE
+										  WHEN workspace_agents.connection_timeout_seconds > 0 AND NOW() - workspace_agents.created_at > workspace_agents.connection_timeout_seconds * INTERVAL '1 second' THEN
+											  'timeout'
+										  ELSE
+											  'connecting'
+										  END
+								  WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
+									  'disconnected'
+								  WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $10 :: bigint THEN
+									  'disconnected'
+								  WHEN workspace_agents.last_connected_at IS NOT NULL THEN
+									  'connected'
+								  ELSE
+									  NULL
+								  END
+							  )
+				  ) > 0
+		  ELSE true
+	END
+  -- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
+  -- @authorize_filter
 ORDER BY
 	last_used_at DESC
 LIMIT
 	CASE
-		WHEN $11 :: integer > 0 THEN
-			$11
-	END
-OFFSET
-	$10
+		WHEN $12 :: integer > 0 THEN
+			$12
+		END
+	OFFSET
+	$11
 `
 
 type GetWorkspacesParams struct {
@@ -6775,6 +6812,7 @@ type GetWorkspacesParams struct {
 	OwnerUsername                         string      `db:"owner_username" json:"owner_username"`
 	TemplateName                          string      `db:"template_name" json:"template_name"`
 	TemplateIds                           []uuid.UUID `db:"template_ids" json:"template_ids"`
+	WorkspaceIds                          []uuid.UUID `db:"workspace_ids" json:"workspace_ids"`
 	Name                                  string      `db:"name" json:"name"`
 	HasAgent                              string      `db:"has_agent" json:"has_agent"`
 	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
@@ -6783,18 +6821,47 @@ type GetWorkspacesParams struct {
 }
 
 type GetWorkspacesRow struct {
-	ID                uuid.UUID      `db:"id" json:"id"`
-	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
-	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
-	OrganizationID    uuid.UUID      `db:"organization_id" json:"organization_id"`
-	TemplateID        uuid.UUID      `db:"template_id" json:"template_id"`
-	Deleted           bool           `db:"deleted" json:"deleted"`
-	Name              string         `db:"name" json:"name"`
-	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
-	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
-	Count             int64          `db:"count" json:"count"`
+	ID                           uuid.UUID                `db:"id" json:"id"`
+	CreatedAt                    time.Time                `db:"created_at" json:"created_at"`
+	UpdatedAt                    time.Time                `db:"updated_at" json:"updated_at"`
+	OwnerID                      uuid.UUID                `db:"owner_id" json:"owner_id"`
+	OrganizationID               uuid.UUID                `db:"organization_id" json:"organization_id"`
+	TemplateID                   uuid.UUID                `db:"template_id" json:"template_id"`
+	Deleted                      bool                     `db:"deleted" json:"deleted"`
+	Name                         string                   `db:"name" json:"name"`
+	AutostartSchedule            sql.NullString           `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl                          sql.NullInt64            `db:"ttl" json:"ttl"`
+	LastUsedAt                   time.Time                `db:"last_used_at" json:"last_used_at"`
+	TemplateName                 string                   `db:"template_name" json:"template_name"`
+	TemplateIcon                 string                   `db:"template_icon" json:"template_icon"`
+	TemplateDisplayName          string                   `db:"template_display_name" json:"template_display_name"`
+	TemplateAllowUserCancel      bool                     `db:"template_allow_user_cancel" json:"template_allow_user_cancel"`
+	TemplateActiveVersionID      uuid.UUID                `db:"template_active_version_id" json:"template_active_version_id"`
+	LatestBuildID                uuid.UUID                `db:"latest_build_id" json:"latest_build_id"`
+	LatestBuildCreatedAt         time.Time                `db:"latest_build_created_at" json:"latest_build_created_at"`
+	LatestBuildUpdatedAt         time.Time                `db:"latest_build_updated_at" json:"latest_build_updated_at"`
+	LatestBuildTemplateVersionID uuid.UUID                `db:"latest_build_template_version_id" json:"latest_build_template_version_id"`
+	LatestBuildNumber            int32                    `db:"latest_build_number" json:"latest_build_number"`
+	LatestBuildTransition        WorkspaceTransition      `db:"latest_build_transition" json:"latest_build_transition"`
+	LatestBuildJobID             uuid.UUID                `db:"latest_build_job_id" json:"latest_build_job_id"`
+	LatestBuildInitiatorID       uuid.UUID                `db:"latest_build_initiator_id" json:"latest_build_initiator_id"`
+	LatestBuildReason            BuildReason              `db:"latest_build_reason" json:"latest_build_reason"`
+	LatestBuildDailyCost         int32                    `db:"latest_build_daily_cost" json:"latest_build_daily_cost"`
+	LatestBuildJobID_2           uuid.UUID                `db:"latest_build_job_id_2" json:"latest_build_job_id_2"`
+	LatestBuildJobCreatedAt      time.Time                `db:"latest_build_job_created_at" json:"latest_build_job_created_at"`
+	LatestBuildJobUpdatedAt      time.Time                `db:"latest_build_job_updated_at" json:"latest_build_job_updated_at"`
+	LatestBuildJobStartedAt      sql.NullTime             `db:"latest_build_job_started_at" json:"latest_build_job_started_at"`
+	LatestBuildJobCompletedAt    sql.NullTime             `db:"latest_build_job_completed_at" json:"latest_build_job_completed_at"`
+	LatestBuildJobCanceledAt     sql.NullTime             `db:"latest_build_job_canceled_at" json:"latest_build_job_canceled_at"`
+	LatestBuildJobError          string                   `db:"latest_build_job_error" json:"latest_build_job_error"`
+	LatestBuildJobOrganizationID uuid.UUID                `db:"latest_build_job_organization_id" json:"latest_build_job_organization_id"`
+	LatestBuildJobProvisioner    ProvisionerType          `db:"latest_build_job_provisioner" json:"latest_build_job_provisioner"`
+	LatestBuildJobStorageMethod  ProvisionerStorageMethod `db:"latest_build_job_storage_method" json:"latest_build_job_storage_method"`
+	LatestBuildJobType           ProvisionerJobType       `db:"latest_build_job_type" json:"latest_build_job_type"`
+	LatestBuildJobWorkerID       uuid.NullUUID            `db:"latest_build_job_worker_id" json:"latest_build_job_worker_id"`
+	LatestBuildJobFileID         uuid.UUID                `db:"latest_build_job_file_id" json:"latest_build_job_file_id"`
+	LatestBuildJobTags           json.RawMessage          `db:"latest_build_job_tags" json:"latest_build_job_tags"`
+	Count                        int64                    `db:"count" json:"count"`
 }
 
 func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
@@ -6805,6 +6872,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.OwnerUsername,
 		arg.TemplateName,
 		pq.Array(arg.TemplateIds),
+		pq.Array(arg.WorkspaceIds),
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
@@ -6830,6 +6898,35 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.AutostartSchedule,
 			&i.Ttl,
 			&i.LastUsedAt,
+			&i.TemplateName,
+			&i.TemplateIcon,
+			&i.TemplateDisplayName,
+			&i.TemplateAllowUserCancel,
+			&i.TemplateActiveVersionID,
+			&i.LatestBuildID,
+			&i.LatestBuildCreatedAt,
+			&i.LatestBuildUpdatedAt,
+			&i.LatestBuildTemplateVersionID,
+			&i.LatestBuildNumber,
+			&i.LatestBuildTransition,
+			&i.LatestBuildJobID,
+			&i.LatestBuildInitiatorID,
+			&i.LatestBuildReason,
+			&i.LatestBuildDailyCost,
+			&i.LatestBuildJobID_2,
+			&i.LatestBuildJobCreatedAt,
+			&i.LatestBuildJobUpdatedAt,
+			&i.LatestBuildJobStartedAt,
+			&i.LatestBuildJobCompletedAt,
+			&i.LatestBuildJobCanceledAt,
+			&i.LatestBuildJobError,
+			&i.LatestBuildJobOrganizationID,
+			&i.LatestBuildJobProvisioner,
+			&i.LatestBuildJobStorageMethod,
+			&i.LatestBuildJobType,
+			&i.LatestBuildJobWorkerID,
+			&i.LatestBuildJobFileID,
+			&i.LatestBuildJobTags,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -6848,16 +6945,16 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 const insertWorkspace = `-- name: InsertWorkspace :one
 INSERT INTO
 	workspaces (
-		id,
-		created_at,
-		updated_at,
-		owner_id,
-		organization_id,
-		template_id,
-		name,
-		autostart_schedule,
-		ttl
-	)
+	id,
+	created_at,
+	updated_at,
+	owner_id,
+	organization_id,
+	template_id,
+	name,
+	autostart_schedule,
+	ttl
+)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
 `
@@ -6909,8 +7006,8 @@ UPDATE
 SET
 	name = $2
 WHERE
-	id = $1
-	AND deleted = false
+		id = $1
+  AND deleted = false
 RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
 `
 
@@ -6944,7 +7041,7 @@ UPDATE
 SET
 	autostart_schedule = $2
 WHERE
-	id = $1
+		id = $1
 `
 
 type UpdateWorkspaceAutostartParams struct {
@@ -6963,7 +7060,7 @@ UPDATE
 SET
 	deleted = $2
 WHERE
-	id = $1
+		id = $1
 `
 
 type UpdateWorkspaceDeletedByIDParams struct {
@@ -6982,7 +7079,7 @@ UPDATE
 SET
 	last_used_at = $2
 WHERE
-	id = $1
+		id = $1
 `
 
 type UpdateWorkspaceLastUsedAtParams struct {
@@ -7001,7 +7098,7 @@ UPDATE
 SET
 	ttl = $2
 WHERE
-	id = $1
+		id = $1
 `
 
 type UpdateWorkspaceTTLParams struct {

@@ -75,31 +75,63 @@ WHERE
 
 -- name: GetWorkspaces :many
 SELECT
-	workspaces.*, COUNT(*) OVER () as count
+	workspaces.*,
+	-- Template fields that are readable from a workspace
+	-- These values should never be null. This is required for sqlc to not
+	-- generate nullable golang fields.
+	COALESCE(templates.name, '') AS template_name,
+	COALESCE(templates.icon, '') AS template_icon,
+	COALESCE(templates.display_name, 'unknown') AS template_display_name,
+	COALESCE(templates.allow_user_cancel_workspace_jobs, false) AS template_allow_user_cancel,
+	COALESCE(templates.active_version_id, '00000000-0000-0000-0000-000000000000'::uuid) AS template_active_version_id,
+	-- Workspace build fields
+	COALESCE(latest_build.id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_id,
+	COALESCE(latest_build.created_at, '0001-01-01 00:00:00+00:00') AS latest_build_created_at,
+	COALESCE(latest_build.updated_at, '0001-01-01 00:00:00+00:00') AS latest_build_updated_at,
+	COALESCE(latest_build.template_version_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_template_version_id,
+	COALESCE(latest_build.build_number, -1) AS latest_build_number,
+	COALESCE(latest_build.transition, 'start') AS latest_build_transition,
+	COALESCE(latest_build.job_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_id,
+	COALESCE(latest_build.initiator_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_initiator_id,
+	COALESCE(latest_build.reason, 'initiator') AS latest_build_reason,
+	COALESCE(latest_build.daily_cost, 0) AS latest_build_daily_cost,
+	-- Provisioner job fields
+	COALESCE(latest_build_job.id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_id,
+	COALESCE(latest_build_job.created_at, '0001-01-01 00:00:00+00:00') AS latest_build_job_created_at,
+	COALESCE(latest_build_job.updated_at, '0001-01-01 00:00:00+00:00') AS latest_build_job_updated_at,
+	latest_build_job.started_at AS latest_build_job_started_at,
+	latest_build_job.completed_at AS latest_build_job_completed_at,
+	latest_build_job.canceled_at AS latest_build_job_canceled_at,
+	COALESCE(latest_build_job.error, 'job not found') AS latest_build_job_error,
+	COALESCE(latest_build_job.organization_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_organization_id,
+	COALESCE(latest_build_job.provisioner, 'echo') AS latest_build_job_provisioner,
+	COALESCE(latest_build_job.storage_method, 'file') AS latest_build_job_storage_method,
+	COALESCE(latest_build_job.type, 'workspace_build') AS latest_build_job_type,
+	COALESCE(latest_build_job.worker_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_worker_id,
+	COALESCE(latest_build_job.file_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_file_id,
+	COALESCE(latest_build_job.tags, '{}') AS latest_build_job_tags,
+
+	-- For pagination
+	COUNT(*) OVER () as count
 FROM
 	workspaces
-LEFT JOIN LATERAL (
-	SELECT
-		workspace_builds.transition,
-		provisioner_jobs.id AS provisioner_job_id,
-		provisioner_jobs.started_at,
-		provisioner_jobs.updated_at,
-		provisioner_jobs.canceled_at,
-		provisioner_jobs.completed_at,
-		provisioner_jobs.error
-	FROM
-		workspace_builds
-	LEFT JOIN
-		provisioner_jobs
-	ON
-		provisioner_jobs.id = workspace_builds.job_id
-	WHERE
-		workspace_builds.workspace_id = workspaces.id
-	ORDER BY
-		build_number DESC
-	LIMIT
-		1
-) latest_build ON TRUE
+		LEFT JOIN
+	templates ON templates.id = workspaces.template_id
+		LEFT JOIN LATERAL
+		( -- Join the latest workspace build
+		SELECT
+			*
+		FROM
+			workspace_builds
+		WHERE
+			workspaces.id = workspace_builds.workspace_id
+		ORDER BY
+			build_number DESC
+			FETCH FIRST 1 ROW ONLY
+		) latest_build
+			ON true
+		LEFT JOIN
+	provisioner_jobs latest_build_job ON latest_build.job_id = latest_build_job.id
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
@@ -107,63 +139,62 @@ WHERE
 		WHEN @status :: text != '' THEN
 			CASE
 				WHEN @status = 'pending' THEN
-					latest_build.started_at IS NULL
+					latest_build_job.started_at IS NULL
 				WHEN @status = 'starting' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NULL AND
+					latest_build_job.started_at IS NOT NULL AND
+					latest_build_job.canceled_at IS NULL AND
+					latest_build_job.completed_at IS NULL AND
 					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
 					latest_build.transition = 'start'::workspace_transition
 
 				WHEN @status = 'running' THEN
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
+					latest_build_job.completed_at IS NOT NULL AND
+					latest_build_job.canceled_at IS NULL AND
+					latest_build_job.error IS NULL AND
 					latest_build.transition = 'start'::workspace_transition
 
 				WHEN @status = 'stopping' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NULL AND
+					latest_build_job.error IS NOT NULL AND
+					latest_build_job.canceled_at IS NULL AND
+					latest_build_job.completed_at IS NULL AND
 					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
 					latest_build.transition = 'stop'::workspace_transition
 
 				WHEN @status = 'stopped' THEN
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
+					latest_build_job.completed_at IS NOT NULL AND
+					latest_build_job.canceled_at IS NULL AND
+					latest_build_job.error IS NULL AND
 					latest_build.transition = 'stop'::workspace_transition
 
 				WHEN @status = 'failed' THEN
-					(latest_build.canceled_at IS NOT NULL AND
-						latest_build.error IS NOT NULL) OR
-					(latest_build.completed_at IS NOT NULL AND
-						latest_build.error IS NOT NULL)
+					(latest_build_job.canceled_at IS NOT NULL AND
+					 latest_build_job.error IS NOT NULL) OR
+					(latest_build_job.completed_at IS NOT NULL AND
+					 latest_build_job.error IS NOT NULL)
 
 				WHEN @status = 'canceling' THEN
-					latest_build.canceled_at IS NOT NULL AND
-					latest_build.completed_at IS NULL
+					latest_build_job.canceled_at IS NOT NULL AND
+					latest_build_job.completed_at IS NULL
 
 				WHEN @status = 'canceled' THEN
-					latest_build.canceled_at IS NOT NULL AND
-					latest_build.completed_at IS NOT NULL
+					latest_build_job.canceled_at IS NOT NULL AND
+					latest_build_job.completed_at IS NOT NULL
 
 				WHEN @status = 'deleted' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NOT NULL AND
+					latest_build_job.error IS NOT NULL AND
+					latest_build_job.canceled_at IS NULL AND
+					latest_build_job.completed_at IS NOT NULL AND
 					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
 					latest_build.transition = 'delete'::workspace_transition
 
 				WHEN @status = 'deleting' THEN
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
+					latest_build_job.completed_at IS NOT NULL AND
+					latest_build_job.canceled_at IS NULL AND
+					latest_build_job.error IS NULL AND
 					latest_build.transition = 'delete'::workspace_transition
-
 				ELSE
 					true
-			END
+				END
 		ELSE true
 	END
 	-- Filter by owner_id
@@ -183,13 +214,19 @@ WHERE
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN @template_name :: text != '' THEN
-			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name) AND deleted = false)
+				lower(templates.name) = lower(@template_name)
 		ELSE true
 	END
 	-- Filter by template_ids
 	AND CASE
 		WHEN array_length(@template_ids :: uuid[], 1) > 0 THEN
 			template_id = ANY(@template_ids)
+		ELSE true
+	END
+	-- Filter by workspace_ids
+	AND CASE
+		WHEN array_length(@workspace_ids :: uuid[], 1) > 0 THEN
+			id = ANY(@workspace_ids)
 		ELSE true
 	END
 	-- Filter by name, matching on substring
@@ -206,30 +243,30 @@ WHERE
 				SELECT COUNT(*)
 				FROM
 					workspace_resources
-				JOIN
+						JOIN
 					workspace_agents
-				ON
-					workspace_agents.resource_id = workspace_resources.id
+					ON
+						workspace_agents.resource_id = workspace_resources.id
 				WHERE
 					workspace_resources.job_id = latest_build.provisioner_job_id AND
 					latest_build.transition = 'start'::workspace_transition AND
 					@has_agent = (
-						CASE
-							WHEN workspace_agents.first_connected_at IS NULL THEN
-								CASE
-									WHEN workspace_agents.connection_timeout_seconds > 0 AND NOW() - workspace_agents.created_at > workspace_agents.connection_timeout_seconds * INTERVAL '1 second' THEN
-										'timeout'
-									ELSE
-										'connecting'
+					CASE
+						WHEN workspace_agents.first_connected_at IS NULL THEN
+							CASE
+								WHEN workspace_agents.connection_timeout_seconds > 0 AND NOW() - workspace_agents.created_at > workspace_agents.connection_timeout_seconds * INTERVAL '1 second' THEN
+									'timeout'
+								ELSE
+									'connecting'
 								END
-							WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
-								'disconnected'
-							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * @agent_inactive_disconnect_timeout_seconds :: bigint THEN
-								'disconnected'
-							WHEN workspace_agents.last_connected_at IS NOT NULL THEN
-								'connected'
-							ELSE
-								NULL
+						WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
+							'disconnected'
+						WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * @agent_inactive_disconnect_timeout_seconds :: bigint THEN
+							'disconnected'
+						WHEN workspace_agents.last_connected_at IS NOT NULL THEN
+							'connected'
+						ELSE
+							NULL
 						END
 					)
 			) > 0
