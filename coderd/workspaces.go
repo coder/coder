@@ -271,10 +271,12 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Summary Create user workspace by organization
 // @ID create-user-workspace-by-organization
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Workspaces
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param user path string true "Username, UUID, or me"
+// @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
 // @Success 200 {object} codersdk.Workspace
 // @Router /organizations/{organization}/members/{user}/workspaces [post]
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -369,6 +371,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// TODO: This should be a system call as the actor might not be able to
+	// read other workspaces. Ideally we check the error on create and look for
+	// a postgres conflict error.
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
 		OwnerID: user.ID,
 		Name:    createWorkspace.Name,

@@ -9,15 +9,20 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4) RETURNING *;
 
--- name: GetLicense :one
-SELECT *
-FROM licenses
-WHERE id = $1;
-
 -- name: GetLicenses :many
 SELECT *
 FROM licenses
 ORDER BY (id);
+
+-- name: GetLicenseByID :one
+SELECT
+	*
+FROM
+	licenses
+WHERE
+	id = $1
+LIMIT
+	1;
 
 -- name: GetUnexpiredLicenses :many
 SELECT *

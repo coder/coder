@@ -126,6 +126,8 @@ type DeploymentConfig struct {
 	TLS                             *TLSConfig                              `json:"tls" typescript:",notnull"`
 	Trace                           *TraceConfig                            `json:"trace" typescript:",notnull"`
 	SecureAuthCookie                *DeploymentConfigField[bool]            `json:"secure_auth_cookie" typescript:",notnull"`
+	StrictTransportSecurity         *DeploymentConfigField[int]             `json:"strict_transport_security" typescript:",notnull"`
+	StrictTransportSecurityOptions  *DeploymentConfigField[[]string]        `json:"strict_transport_security_options" typescript:",notnull"`
 	SSHKeygenAlgorithm              *DeploymentConfigField[string]          `json:"ssh_keygen_algorithm" typescript:",notnull"`
 	MetricsCacheRefreshInterval     *DeploymentConfigField[time.Duration]   `json:"metrics_cache_refresh_interval" typescript:",notnull"`
 	AgentStatRefreshInterval        *DeploymentConfigField[time.Duration]   `json:"agent_stat_refresh_interval" typescript:",notnull"`

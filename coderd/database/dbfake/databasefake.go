@@ -370,8 +370,10 @@ func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 		stopTimes   []float64
 		deleteTimes []float64
 	)
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
 	for _, wb := range q.workspaceBuilds {
-		version, err := q.GetTemplateVersionByID(ctx, wb.TemplateVersionID)
+		version, err := q.getTemplateVersionByIDNoLock(ctx, wb.TemplateVersionID)
 		if err != nil {
 			return emptyRow, err
 		}
@@ -379,17 +381,18 @@ func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 			continue
 		}
 
-		job, err := q.GetProvisionerJobByID(ctx, wb.JobID)
+		job, err := q.getProvisionerJobByIDNoLock(ctx, wb.JobID)
 		if err != nil {
 			return emptyRow, err
 		}
 		if job.CompletedAt.Valid {
 			took := job.CompletedAt.Time.Sub(job.StartedAt.Time).Seconds()
-			if wb.Transition == database.WorkspaceTransitionStart {
+			switch wb.Transition {
+			case database.WorkspaceTransitionStart:
 				startTimes = append(startTimes, took)
-			} else if wb.Transition == database.WorkspaceTransitionStop {
+			case database.WorkspaceTransitionStop:
 				stopTimes = append(stopTimes, took)
-			} else if wb.Transition == database.WorkspaceTransitionDelete {
+			case database.WorkspaceTransitionDelete:
 				deleteTimes = append(deleteTimes, took)
 			}
 		}
@@ -610,6 +613,14 @@ func (q *fakeQuerier) GetAuthorizedUserCount(ctx context.Context, params databas
 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
+
+	// Call this to match the same function calls as the SQL implementation.
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+		if err != nil {
+			return -1, err
+		}
+	}
 
 	users := make([]database.User, 0, len(q.users))
 
@@ -888,6 +899,14 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
+
+	if prepared != nil {
+		// Call this to match the same function calls as the SQL implementation.
+		_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	workspaces := make([]database.Workspace, 0)
 	for _, workspace := range q.workspaces {
@@ -1223,6 +1242,23 @@ func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 	}
 	if found != nil {
 		return *found, nil
+	}
+	return database.Workspace{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
+	if err := validateDatabaseType(workspaceAppID); err != nil {
+		return database.Workspace{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, workspaceApp := range q.workspaceApps {
+		workspaceApp := workspaceApp
+		if workspaceApp.ID == workspaceAppID {
+			return q.GetWorkspaceByAgentID(context.Background(), workspaceApp.AgentID)
+		}
 	}
 	return database.Workspace{}, sql.ErrNoRows
 }
@@ -1643,6 +1679,14 @@ func (q *fakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	// Call this to match the same function calls as the SQL implementation.
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithACL())
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	var templates []database.Template
 	for _, template := range q.templates {
 		if prepared != nil && prepared.Authorize(ctx, template.RBACObject()) != nil {
@@ -1797,10 +1841,14 @@ func (q *fakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 	return parameters, nil
 }
 
-func (q *fakeQuerier) GetTemplateVersionByID(_ context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
+func (q *fakeQuerier) GetTemplateVersionByID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	return q.getTemplateVersionByIDNoLock(ctx, templateVersionID)
+}
+
+func (q *fakeQuerier) getTemplateVersionByIDNoLock(_ context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
 	for _, templateVersion := range q.templateVersions {
 		if templateVersion.ID != templateVersionID {
 			continue
@@ -2232,10 +2280,14 @@ func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg dat
 	return database.WorkspaceApp{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetProvisionerJobByID(_ context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+func (q *fakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	return q.getProvisionerJobByIDNoLock(ctx, id)
+}
+
+func (q *fakeQuerier) getProvisionerJobByIDNoLock(_ context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	for _, provisionerJob := range q.provisionerJobs {
 		if provisionerJob.ID != id {
 			continue
@@ -3808,13 +3860,13 @@ func (q *fakeQuerier) InsertLicense(
 	return l, nil
 }
 
-func (q *fakeQuerier) GetLicense(_ context.Context, id int32) (database.License, error) {
+func (q *fakeQuerier) GetLicenseByID(_ context.Context, id int32) (database.License, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, l := range q.licenses {
-		if l.ID == id {
-			return l, nil
+	for _, license := range q.licenses {
+		if license.ID == id {
+			return license, nil
 		}
 	}
 	return database.License{}, sql.ErrNoRows

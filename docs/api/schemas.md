@@ -1147,6 +1147,43 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `transition` | `stop`   |
 | `transition` | `delete` |
 
+## codersdk.CreateWorkspaceRequest
+
+```json
+{
+  "autostart_schedule": "string",
+  "name": "string",
+  "parameter_values": [
+    {
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
+      "destination_scheme": "none",
+      "name": "string",
+      "source_scheme": "none",
+      "source_value": "string"
+    }
+  ],
+  "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "ttl_ms": 0
+}
+```
+
+### Properties
+
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------- |
+| `autostart_schedule`    | string                                                                        | false    |              |                                                                                                |
+| `name`                  | string                                                                        | true     |              |                                                                                                |
+| `parameter_values`      | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest)   | false    |              | Parameter values allows for additional parameters to be provided during the initial provision. |
+| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |                                                                                                |
+| `template_id`           | string                                                                        | true     |              |                                                                                                |
+| `ttl_ms`                | integer                                                                       | false    |              |                                                                                                |
+
 ## codersdk.DAUEntry
 
 ```json
@@ -2219,6 +2256,28 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "usage": "string",
     "value": "string"
   },
+  "strict_transport_security": {
+    "default": 0,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": 0
+  },
+  "strict_transport_security_options": {
+    "default": ["string"],
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": ["string"]
+  },
   "swagger": {
     "enable": {
       "default": true,
@@ -2478,6 +2537,8 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `scim_api_key`                       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
 | `secure_auth_cookie`                 | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
 | `ssh_keygen_algorithm`               | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
+| `strict_transport_security`          | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)                                                   | false    |              |                                                 |
+| `strict_transport_security_options`  | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
 | `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                                           | false    |              |                                                 |
 | `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                                       | false    |              |                                                 |
 | `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                                                   | false    |              |                                                 |

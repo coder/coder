@@ -309,6 +309,8 @@ export interface DeploymentConfig {
   readonly tls: TLSConfig
   readonly trace: TraceConfig
   readonly secure_auth_cookie: DeploymentConfigField<boolean>
+  readonly strict_transport_security: DeploymentConfigField<number>
+  readonly strict_transport_security_options: DeploymentConfigField<string[]>
   readonly ssh_keygen_algorithm: DeploymentConfigField<string>
   readonly metrics_cache_refresh_interval: DeploymentConfigField<number>
   readonly agent_stat_refresh_interval: DeploymentConfigField<number>

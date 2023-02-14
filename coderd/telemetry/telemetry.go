@@ -645,7 +645,7 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 func ConvertLicense(license database.License) License {
 	return License{
 		UploadedAt: license.UploadedAt,
-		UUID:       license.Uuid.UUID,
+		UUID:       license.UUID,
 	}
 }
 

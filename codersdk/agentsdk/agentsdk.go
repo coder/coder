@@ -159,6 +159,8 @@ func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
 		return nil, codersdk.ReadBodyAsError(res)
 	}
 
+	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+
 	// Ping once every 30 seconds to ensure that the websocket is alive. If we
 	// don't get a response within 30s we kill the websocket and reconnect.
 	// See: https://github.com/coder/coder/pull/5824
@@ -195,7 +197,7 @@ func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
 		}
 	}()
 
-	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
+	return wsNetConn, nil
 }
 
 type PostAppHealthsRequest struct {
@@ -368,44 +370,55 @@ func (c *Client) AuthAzureInstanceIdentity(ctx context.Context) (AuthenticateRes
 
 // ReportStats begins a stat streaming connection with the Coder server.
 // It is resilient to network failures and intermittent coderd issues.
-func (c *Client) ReportStats(
-	ctx context.Context,
-	log slog.Logger,
-	getStats func() *Stats,
-) (io.Closer, error) {
+func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *Stats, setInterval func(time.Duration)) (io.Closer, error) {
+	var interval time.Duration
 	ctx, cancel := context.WithCancel(ctx)
+	exited := make(chan struct{})
+
+	postStat := func(stat *Stats) {
+		var nextInterval time.Duration
+		for r := retry.New(100*time.Millisecond, time.Minute); r.Wait(ctx); {
+			resp, err := c.PostStats(ctx, stat)
+			if err != nil {
+				if !xerrors.Is(err, context.Canceled) {
+					log.Error(ctx, "report stats", slog.Error(err))
+				}
+				continue
+			}
+
+			nextInterval = resp.ReportInterval
+			break
+		}
+
+		if nextInterval != 0 && interval != nextInterval {
+			setInterval(nextInterval)
+		}
+		interval = nextInterval
+	}
+
+	// Send an empty stat to get the interval.
+	postStat(&Stats{ConnsByProto: map[string]int64{}})
 
 	go func() {
-		// Immediately trigger a stats push to get the correct interval.
-		timer := time.NewTimer(time.Nanosecond)
-		defer timer.Stop()
+		defer close(exited)
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-timer.C:
-			}
-
-			var nextInterval time.Duration
-			for r := retry.New(100*time.Millisecond, time.Minute); r.Wait(ctx); {
-				resp, err := c.PostStats(ctx, getStats())
-				if err != nil {
-					if !xerrors.Is(err, context.Canceled) {
-						log.Error(ctx, "report stats", slog.Error(err))
-					}
-					continue
+			case stat, ok := <-statsChan:
+				if !ok {
+					return
 				}
 
-				nextInterval = resp.ReportInterval
-				break
+				postStat(stat)
 			}
-			timer.Reset(nextInterval)
 		}
 	}()
 
 	return closeFunc(func() error {
 		cancel()
+		<-exited
 		return nil
 	}), nil
 }
@@ -517,4 +530,45 @@ type closeFunc func() error
 
 func (c closeFunc) Close() error {
 	return c()
+}
+
+// wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func
+// is called if a read or write error is encountered.
+type wsNetConn struct {
+	cancel context.CancelFunc
+	net.Conn
+}
+
+func (c *wsNetConn) Read(b []byte) (n int, err error) {
+	n, err = c.Conn.Read(b)
+	if err != nil {
+		c.cancel()
+	}
+	return n, err
+}
+
+func (c *wsNetConn) Write(b []byte) (n int, err error) {
+	n, err = c.Conn.Write(b)
+	if err != nil {
+		c.cancel()
+	}
+	return n, err
+}
+
+func (c *wsNetConn) Close() error {
+	defer c.cancel()
+	return c.Conn.Close()
+}
+
+// websocketNetConn wraps websocket.NetConn and returns a context that
+// is tied to the parent context and the lifetime of the conn. Any error
+// during read or write will cancel the context, but not close the
+// conn. Close should be called to release context resources.
+func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websocket.MessageType) (context.Context, net.Conn) {
+	ctx, cancel := context.WithCancel(ctx)
+	nc := websocket.NetConn(ctx, conn, msgType)
+	return ctx, &wsNetConn{
+		cancel: cancel,
+		Conn:   nc,
+	}
 }

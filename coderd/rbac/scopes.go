@@ -3,6 +3,8 @@ package rbac
 import (
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"golang.org/x/xerrors"
 )
 
@@ -39,6 +41,29 @@ func (s Scope) Expand() (Scope, error) {
 
 func (s Scope) Name() string {
 	return s.Role.Name
+}
+
+// WorkspaceAgentScope returns a scope that is the same as ScopeAll but can only
+// affect resources in the allow list. Only a scope is returned as the roles
+// should come from the workspace owner.
+func WorkspaceAgentScope(workspaceID, ownerID uuid.UUID) Scope {
+	allScope, err := ScopeAll.Expand()
+	if err != nil {
+		panic("failed to expand scope all, this should never happen")
+	}
+	return Scope{
+		// TODO: We want to limit the role too to be extra safe.
+		// Even though the allowlist blocks anything else, it is still good
+		// incase we change the behavior of the allowlist. The allowlist is new
+		// and evolving.
+		Role: allScope.Role,
+		// This prevents the agent from being able to access any other resource.
+		AllowIDList: []string{
+			workspaceID.String(),
+			ownerID.String(),
+			// TODO: Might want to include the template the workspace uses too?
+		},
+	}
 }
 
 const (

@@ -6,6 +6,7 @@ import * as TypesGen from "../api/typesGenerated"
 import range from "lodash/range"
 import { Permissions } from "xServices/auth/authXService"
 import { TemplateVersionFiles } from "util/templateVersion"
+import { FileTree } from "util/filetree"
 
 export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
   entries: [
@@ -301,6 +302,42 @@ spec {
 }
 }
 `,
+}
+
+export const MockTemplateVersionFileTree: FileTree = {
+  "README.md": "# Example\n\nThis is an example template.",
+  "main.tf": `// Provides info about the workspace.
+data "coder_workspace" "me" {}
+
+// Provides the startup script used to download
+// the agent and communicate with Coder.
+resource "coder_agent" "dev" {
+os = "linux"
+arch = "amd64"
+}
+
+resource "kubernetes_pod" "main" {
+// Ensures that the Pod dies when the workspace shuts down!
+count = data.coder_workspace.me.start_count
+metadata {
+  name      = "dev-\${data.coder_workspace.me.id}"
+}
+spec {
+  container {
+    image   = "ubuntu"
+    command = ["sh", "-c", coder_agent.main.init_script]
+    env {
+      name  = "CODER_AGENT_TOKEN"
+      value = coder_agent.main.token
+    }
+  }
+}
+}
+`,
+  images: {
+    "java.Dockerfile": "FROM eclipse-temurin:17-jdk-jammy",
+    "python.Dockerfile": "FROM python:3.8-slim-buster",
+  },
 }
 
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {

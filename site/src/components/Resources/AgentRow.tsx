@@ -119,6 +119,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                 userName={workspace.owner_name}
                 workspaceName={workspace.name}
                 agentName={agent.name}
+                folderPath={agent.expanded_directory}
               />
             )}
             {applicationsHost !== undefined && applicationsHost !== "" && (

@@ -485,6 +485,13 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				options.TLSCertificates = tlsConfig.Certificates
 			}
 
+			if cfg.StrictTransportSecurity.Value > 0 {
+				options.StrictTransportSecurityCfg, err = httpmw.HSTSConfigOptions(cfg.StrictTransportSecurity.Value, cfg.StrictTransportSecurityOptions.Value)
+				if err != nil {
+					return xerrors.Errorf("coderd: setting hsts header failed (options: %v): %w", cfg.StrictTransportSecurityOptions.Value, err)
+				}
+			}
+
 			if cfg.UpdateCheck.Value {
 				options.UpdateCheckOptions = &updatecheck.Options{
 					// Avoid spamming GitHub API checking for updates.
@@ -723,7 +730,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// the request is not to a local IP.
 			var handler http.Handler = coderAPI.RootHandler
 			if cfg.RedirectToAccessURL.Value {
-				handler = redirectToAccessURL(handler, accessURLParsed, tunnel != nil)
+				handler = redirectToAccessURL(handler, accessURLParsed, tunnel != nil, appHostnameRegex)
 			}
 
 			// ReadHeaderTimeout is purposefully not enabled. It caused some
@@ -1470,7 +1477,7 @@ func configureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile stri
 }
 
 // nolint:revive
-func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool) http.Handler {
+func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool, appHostnameRegex *regexp.Regexp) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		redirect := func() {
 			http.Redirect(w, r, accessURL.String(), http.StatusTemporaryRedirect)
@@ -1484,12 +1491,17 @@ func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool) 
 			return
 		}
 
-		if r.Host != accessURL.Host {
-			redirect()
+		if r.Host == accessURL.Host {
+			handler.ServeHTTP(w, r)
 			return
 		}
 
-		handler.ServeHTTP(w, r)
+		if appHostnameRegex != nil && appHostnameRegex.MatchString(r.Host) {
+			handler.ServeHTTP(w, r)
+			return
+		}
+
+		redirect()
 	})
 }
 

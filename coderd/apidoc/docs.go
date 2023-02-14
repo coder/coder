@@ -1066,6 +1066,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1089,6 +1092,15 @@ const docTemplate = `{
                         "name": "user",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Create workspace request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateWorkspaceRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -5902,6 +5914,41 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateWorkspaceRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "template_id"
+            ],
+            "properties": {
+                "autostart_schedule": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameter_values": {
+                    "description": "ParameterValues allows for additional parameters to be provided\nduring the initial provision.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
+                    }
+                },
+                "rich_parameter_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
+                    }
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "ttl_ms": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.DAUEntry": {
             "type": "object",
             "properties": {
@@ -6098,6 +6145,12 @@ const docTemplate = `{
                 },
                 "ssh_keygen_algorithm": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "strict_transport_security": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
+                },
+                "strict_transport_security_options": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
                 },
                 "swagger": {
                     "$ref": "#/definitions/codersdk.SwaggerConfig"

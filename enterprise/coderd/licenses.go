@@ -110,14 +110,19 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	id, err := uuid.Parse(claims.ID)
+	if err != nil {
+		// If no uuid is in the license, we generate a random uuid.
+		// This is not ideal, and this should be fixed to require a uuid
+		// for all licenses. We require this patch to support older licenses.
+		// TODO: In the future (April 2023?) we should remove this and reissue
+		// old licenses with a uuid.
+		id = uuid.New()
+	}
 	dl, err := api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 		UploadedAt: database.Now(),
 		JWT:        addLicense.License,
 		Exp:        expTime,
-		Uuid: uuid.NullUUID{
-			UUID:  id,
-			Valid: err == nil,
-		},
+		UUID:       id,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -209,7 +214,7 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dl, err := api.Database.GetLicense(ctx, int32(id))
+	dl, err := api.Database.GetLicenseByID(ctx, int32(id))
 	if err != nil {
 		// don't fail the HTTP request simply because we cannot audit
 		api.Logger.Warn(context.Background(), "could not retrieve license; cannot audit", slog.Error(err))
@@ -262,7 +267,7 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 func convertLicense(dl database.License, c jwt.MapClaims) codersdk.License {
 	return codersdk.License{
 		ID:         dl.ID,
-		UUID:       dl.Uuid.UUID,
+		UUID:       dl.UUID,
 		UploadedAt: dl.UploadedAt,
 		Claims:     c,
 	}

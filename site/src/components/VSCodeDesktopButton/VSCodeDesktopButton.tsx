@@ -7,11 +7,12 @@ export interface VSCodeDesktopButtonProps {
   userName: string
   workspaceName: string
   agentName?: string
+  folderPath?: string
 }
 
 export const VSCodeDesktopButton: FC<
   PropsWithChildren<VSCodeDesktopButtonProps>
-> = ({ userName, workspaceName, agentName }) => {
+> = ({ userName, workspaceName, agentName, folderPath }) => {
   const [loading, setLoading] = useState(false)
 
   return (
@@ -31,6 +32,9 @@ export const VSCodeDesktopButton: FC<
             })
             if (agentName) {
               query.set("agent", agentName)
+            }
+            if (folderPath) {
+              query.set("folder", folderPath)
             }
 
             location.href = `vscode://coder.coder-remote/open?${query.toString()}`

@@ -2,12 +2,9 @@ package httpmw_test
 
 import (
 	"context"
-	"crypto/sha256"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -15,72 +12,31 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
 )
 
 func TestTemplateVersionParam(t *testing.T) {
 	t.Parallel()
 
 	setupAuthentication := func(db database.Store) (*http.Request, database.Template) {
-		var (
-			id, secret = randomAPIKeyParts()
-			hashed     = sha256.Sum256([]byte(secret))
-		)
-		r := httptest.NewRequest("GET", "/", nil)
-		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
-
-		userID := uuid.New()
-		username, err := cryptorand.String(8)
-		require.NoError(t, err)
-		user, err := db.InsertUser(r.Context(), database.InsertUserParams{
-			ID:             userID,
-			Email:          "testaccount@coder.com",
-			HashedPassword: hashed[:],
-			Username:       username,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-			LoginType:      database.LoginTypePassword,
+		user := dbgen.User(t, db, database.User{})
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID: user.ID,
 		})
-		require.NoError(t, err)
-
-		_, err = db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
-			ID:           id,
-			UserID:       user.ID,
-			HashedSecret: hashed[:],
-			LastUsed:     database.Now(),
-			ExpiresAt:    database.Now().Add(time.Minute),
-			LoginType:    database.LoginTypePassword,
-			Scope:        database.APIKeyScopeAll,
-		})
-		require.NoError(t, err)
-
-		orgID := uuid.New()
-		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
-			ID:          orgID,
-			Name:        "banana",
-			Description: "wowie",
-			CreatedAt:   database.Now(),
-			UpdatedAt:   database.Now(),
-		})
-		require.NoError(t, err)
-
-		_, err = db.InsertOrganizationMember(r.Context(), database.InsertOrganizationMemberParams{
-			OrganizationID: orgID,
+		organization := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
-		})
-		require.NoError(t, err)
-
-		template, err := db.InsertTemplate(context.Background(), database.InsertTemplateParams{
-			ID:             uuid.New(),
 			OrganizationID: organization.ID,
-			Name:           "moo",
+		})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID: organization.ID,
 			Provisioner:    database.ProvisionerTypeEcho,
 		})
-		require.NoError(t, err)
+
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
 
 		ctx := chi.NewRouteContext()
 		ctx.URLParams.Add("organization", organization.Name)
@@ -139,12 +95,9 @@ func TestTemplateVersionParam(t *testing.T) {
 		})
 
 		r, template := setupAuthentication(db)
-		templateVersion, err := db.InsertTemplateVersion(context.Background(), database.InsertTemplateVersionParams{
-			ID:             uuid.New(),
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 			OrganizationID: template.OrganizationID,
-			Name:           "moo",
 		})
-		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("templateversion", templateVersion.ID.String())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
