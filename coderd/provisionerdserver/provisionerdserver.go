@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -403,6 +404,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		}
 
 		var variableValues []*sdkproto.VariableValue
+		var variablesWithMissingValues []string
 		for _, templateVariable := range request.TemplateVariables {
 			server.Logger.Debug(ctx, "insert template variable", slog.F("template_version_id", templateVersion.ID), slog.F("template_variable", templateVariable))
 
@@ -412,6 +414,10 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 					value = v.Value
 					break
 				}
+			}
+
+			if templateVariable.Required && value == "" {
+				variablesWithMissingValues = append(variablesWithMissingValues, templateVariable.Name)
 			}
 
 			variableValues = append(variableValues, &sdkproto.VariableValue{
@@ -433,6 +439,10 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 			if err != nil {
 				return nil, xerrors.Errorf("insert parameter schema: %w", err)
 			}
+		}
+
+		if len(variablesWithMissingValues) > 0 {
+			return nil, xerrors.Errorf("required template variables need values: %s", strings.Join(variablesWithMissingValues, ", "))
 		}
 
 		return &proto.UpdateJobResponse{

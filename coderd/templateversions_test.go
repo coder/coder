@@ -1142,6 +1142,10 @@ func TestTemplateVersionVariables(t *testing.T) {
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
 	templateVersion := coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
+	// As the first variable is marked as required and misses the default value,
+	// the job will fail, but will populate the template_version_variables table with existing variables.
+	require.Contains(t, templateVersion.Job.Error, "required template variables need values")
+
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
