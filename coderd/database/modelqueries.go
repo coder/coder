@@ -183,6 +183,11 @@ type workspaceQuerier interface {
 type WorkspaceWithData struct {
 	Workspace
 
+	// User related fields.
+	OwnerUserName                  string
+	LatestBuildInitiatorUsername   string
+	LatestBuildTemplateVersionName string
+
 	// These template fields are included in the response for a workspace.
 	// This means if you can read a workspace, you can also read these limited
 	// template fields as they are metadata of the workspace.
@@ -236,6 +241,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	if err != nil {
 		return nil, xerrors.Errorf("get authorized workspaces: %w", err)
 	}
+	// TODO: Switch to sqlx for row scan?
 	defer rows.Close()
 	var items []WorkspaceWithData
 	for rows.Next() {

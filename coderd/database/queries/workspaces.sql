@@ -76,62 +76,79 @@ WHERE
 -- name: GetWorkspaces :many
 SELECT
 	workspaces.*,
+	-- Owner fields. Required for UI.
+	workspace_owner.username AS owner_username,
+	latest_build.initiator_username AS latest_build_initiator_username,
+	latest_build.template_version_name AS latest_build_template_version_name,
+
 	-- Template fields that are readable from a workspace
 	-- These values should never be null. This is required for sqlc to not
 	-- generate nullable golang fields.
-	COALESCE(templates.name, '') AS template_name,
-	COALESCE(templates.icon, '') AS template_icon,
-	COALESCE(templates.display_name, 'unknown') AS template_display_name,
-	COALESCE(templates.allow_user_cancel_workspace_jobs, false) AS template_allow_user_cancel,
-	COALESCE(templates.active_version_id, '00000000-0000-0000-0000-000000000000'::uuid) AS template_active_version_id,
+	templates.name AS template_name,
+	templates.icon AS template_icon,
+	templates.display_name AS template_display_name,
+	templates.allow_user_cancel_workspace_jobs AS template_allow_user_cancel,
+	templates.active_version_id AS template_active_version_id,
 	-- Workspace build fields
-	COALESCE(latest_build.id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_id,
-	COALESCE(latest_build.created_at, '0001-01-01 00:00:00+00:00') AS latest_build_created_at,
-	COALESCE(latest_build.updated_at, '0001-01-01 00:00:00+00:00') AS latest_build_updated_at,
-	COALESCE(latest_build.template_version_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_template_version_id,
-	COALESCE(latest_build.build_number, -1) AS latest_build_number,
-	COALESCE(latest_build.transition, 'start') AS latest_build_transition,
-	COALESCE(latest_build.job_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_id,
-	COALESCE(latest_build.initiator_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_initiator_id,
-	COALESCE(latest_build.reason, 'initiator') AS latest_build_reason,
-	COALESCE(latest_build.daily_cost, 0) AS latest_build_daily_cost,
+	latest_build.id AS latest_build_id,
+	latest_build.created_at AS latest_build_created_at,
+	latest_build.updated_at AS latest_build_updated_at,
+	latest_build.deadline AS latest_build_deadline,
+	latest_build.template_version_id AS latest_build_template_version_id,
+	latest_build.build_number AS latest_build_number,
+	latest_build.transition AS latest_build_transition,
+	latest_build.job_id AS latest_build_job_id,
+	latest_build.initiator_id AS latest_build_initiator_id,
+	latest_build.reason AS latest_build_reason,
+	latest_build.daily_cost AS latest_build_daily_cost,
 	-- Provisioner job fields
-	COALESCE(latest_build_job.id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_id,
-	COALESCE(latest_build_job.created_at, '0001-01-01 00:00:00+00:00') AS latest_build_job_created_at,
-	COALESCE(latest_build_job.updated_at, '0001-01-01 00:00:00+00:00') AS latest_build_job_updated_at,
+	latest_build_job.id AS latest_build_job_id,
+	latest_build_job.created_at AS latest_build_job_created_at,
+	latest_build_job.updated_at AS latest_build_job_updated_at,
 	latest_build_job.started_at AS latest_build_job_started_at,
 	latest_build_job.completed_at AS latest_build_job_completed_at,
 	latest_build_job.canceled_at AS latest_build_job_canceled_at,
-	COALESCE(latest_build_job.error, 'job not found') AS latest_build_job_error,
-	COALESCE(latest_build_job.organization_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_organization_id,
-	COALESCE(latest_build_job.provisioner, 'echo') AS latest_build_job_provisioner,
-	COALESCE(latest_build_job.storage_method, 'file') AS latest_build_job_storage_method,
-	COALESCE(latest_build_job.type, 'workspace_build') AS latest_build_job_type,
-	COALESCE(latest_build_job.worker_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_worker_id,
-	COALESCE(latest_build_job.file_id, '00000000-0000-0000-0000-000000000000'::uuid) AS latest_build_job_file_id,
-	COALESCE(latest_build_job.tags, '{}') AS latest_build_job_tags,
+	latest_build_job.error AS latest_build_job_error,
+	latest_build_job.organization_id AS latest_build_job_organization_id,
+	latest_build_job.provisioner AS latest_build_job_provisioner,
+	latest_build_job.storage_method AS latest_build_job_storage_method,
+	latest_build_job.type AS latest_build_job_type,
+	latest_build_job.worker_id AS latest_build_job_worker_id,
+	latest_build_job.file_id AS latest_build_job_file_id,
+	latest_build_job.tags AS latest_build_job_tags,
 
 	-- For pagination
 	COUNT(*) OVER () as count
 FROM
 	workspaces
-		LEFT JOIN
-	templates ON templates.id = workspaces.template_id
-		LEFT JOIN LATERAL
-		( -- Join the latest workspace build
-		SELECT
-			*
-		FROM
-			workspace_builds
-		WHERE
-			workspaces.id = workspace_builds.workspace_id
-		ORDER BY
-			build_number DESC
-			FETCH FIRST 1 ROW ONLY
-		) latest_build
-			ON true
-		LEFT JOIN
-	provisioner_jobs latest_build_job ON latest_build.job_id = latest_build_job.id
+	    INNER JOIN
+	    	users workspace_owner ON workspaces.owner_id = workspace_owner.id
+		INNER JOIN
+			templates ON templates.id = workspaces.template_id
+	    -- All workspaces are created with a workspace build and provisioner job.
+	    -- So an inner join is ok.
+		INNER JOIN LATERAL
+			( -- Join the latest workspace build
+			SELECT
+				workspace_builds.*,
+				users.username AS initiator_username,
+				template_versions.name AS template_version_name
+			FROM
+				workspace_builds
+			INNER JOIN
+				template_versions ON
+				    workspace_builds.template_version_id = template_versions.id
+			LEFT JOIN
+				users ON workspace_builds.initiator_id = users.id
+			WHERE
+				workspaces.id = workspace_builds.workspace_id
+			ORDER BY
+				build_number DESC
+				FETCH FIRST 1 ROW ONLY
+			) latest_build
+				ON true
+		INNER JOIN
+			provisioner_jobs latest_build_job ON latest_build.job_id = latest_build_job.id
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
@@ -226,13 +243,13 @@ WHERE
 	-- Filter by workspace_ids
 	AND CASE
 		WHEN array_length(@workspace_ids :: uuid[], 1) > 0 THEN
-			id = ANY(@workspace_ids)
+			workspaces.id = ANY(@workspace_ids)
 		ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
 		WHEN @name :: text != '' THEN
-			name ILIKE '%' || @name || '%'
+			workspaces.name ILIKE '%' || @name || '%'
 		ELSE true
 	END
 	-- Filter by agent status
@@ -248,7 +265,7 @@ WHERE
 					ON
 						workspace_agents.resource_id = workspace_resources.id
 				WHERE
-					workspace_resources.job_id = latest_build.provisioner_job_id AND
+					workspace_resources.job_id = latest_build_job.id AND
 					latest_build.transition = 'start'::workspace_transition AND
 					@has_agent = (
 					CASE

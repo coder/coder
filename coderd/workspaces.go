@@ -166,18 +166,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces := database.ConvertWorkspaceRows(workspaceRows)
-
-	data, err := api.workspaceData(ctx, workspaces)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resources.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	wss, err := convertWorkspaces(workspaces, data)
+	wss, err := convertWorkspaceDatas(workspaceRows)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting workspaces.",
@@ -1093,35 +1082,73 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}, nil
 }
 
+func convertWorkspaceDatas(
+	workspaces []database.WorkspaceWithData,
+) ([]codersdk.Workspace, error) {
+	converted := make([]codersdk.Workspace, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		convertedWorkspace, err := convertWorkspaceData(workspace)
+		if err != nil {
+			return nil, err
+		}
+		converted = append(converted, convertedWorkspace)
+	}
+	return converted, nil
+}
+
 func convertWorkspaceData(
 	workspace database.WorkspaceWithData,
-	workspaceBuild codersdk.WorkspaceBuild,
-	owner *database.User,
-) codersdk.Workspace {
+) (codersdk.Workspace, error) {
 	var autostartSchedule *string
 	if workspace.AutostartSchedule.Valid {
 		autostartSchedule = &workspace.AutostartSchedule.String
 	}
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
+	job := convertProvisionerJob(workspace.LatestBuildJob)
+	transition := codersdk.WorkspaceTransition(workspace.LatestBuild.Transition)
 	return codersdk.Workspace{
-		ID:                                   workspace.ID,
-		CreatedAt:                            workspace.CreatedAt,
-		UpdatedAt:                            workspace.UpdatedAt,
-		OwnerID:                              workspace.OwnerID,
-		OwnerName:                            owner.Username,
-		TemplateID:                           workspace.TemplateID,
-		LatestBuild:                          workspaceBuild,
+		ID:         workspace.ID,
+		CreatedAt:  workspace.CreatedAt,
+		UpdatedAt:  workspace.UpdatedAt,
+		OwnerID:    workspace.OwnerID,
+		OwnerName:  workspace.OwnerUserName,
+		TemplateID: workspace.TemplateID,
+		LatestBuild: codersdk.WorkspaceBuild{
+			// These 3 fields requires 3 additional joins which kinda sucks :/.
+			WorkspaceOwnerName:  workspace.OwnerUserName,
+			TemplateVersionName: workspace.LatestBuildTemplateVersionName,
+			InitiatorUsername:   workspace.LatestBuildInitiatorUsername,
+
+			ID:                workspace.LatestBuild.ID,
+			CreatedAt:         workspace.LatestBuild.CreatedAt,
+			UpdatedAt:         workspace.LatestBuild.UpdatedAt,
+			WorkspaceID:       workspace.ID,
+			WorkspaceName:     workspace.Name,
+			WorkspaceOwnerID:  workspace.OwnerID,
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			BuildNumber:       workspace.LatestBuild.BuildNumber,
+			Transition:        transition,
+			InitiatorID:       workspace.LatestBuild.InitiatorID,
+			Job:               job,
+			Reason:            codersdk.BuildReason(workspace.LatestBuild.Reason),
+			Resources:         []codersdk.WorkspaceResource{
+				// TODO: How do we get these?
+			},
+			Deadline:  codersdk.NewNullTime(workspace.LatestBuild.Deadline, !workspace.LatestBuild.Deadline.IsZero()),
+			Status:    convertWorkspaceStatus(job.Status, transition),
+			DailyCost: 0,
+		},
 		TemplateName:                         workspace.TemplateName,
 		TemplateIcon:                         workspace.TemplateIcon,
 		TemplateDisplayName:                  workspace.TemplateDisplayName,
 		TemplateAllowUserCancelWorkspaceJobs: workspace.TemplateAllowUserCancelWorkspaceJobs,
-		Outdated:                             workspaceBuild.TemplateVersionID != workspace.TemplateActiveVersionID,
+		Outdated:                             workspace.LatestBuild.TemplateVersionID != workspace.TemplateActiveVersionID,
 		Name:                                 workspace.Name,
 		AutostartSchedule:                    autostartSchedule,
 		TTLMillis:                            ttlMillis,
 		LastUsedAt:                           workspace.LastUsedAt,
-	}
+	}, nil
 }
 
 func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]codersdk.Workspace, error) {
