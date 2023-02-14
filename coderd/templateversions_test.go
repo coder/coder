@@ -1099,3 +1099,65 @@ func TestTemplateExamples(t *testing.T) {
 		require.EqualValues(t, ls, ex)
 	})
 }
+
+func TestTemplateVersionVariables(t *testing.T) {
+	t.Parallel()
+
+	templateVariables := []*proto.TemplateVariable{
+		{
+			Name:        "first_variable",
+			Description: "This is the first variable",
+			Type:        "string",
+			Required:    true,
+			Sensitive:   true,
+		},
+		{
+			Name:         "second_variable",
+			Description:  "This is the second variable",
+			DefaultValue: "123",
+			Type:         "number",
+		},
+	}
+
+	echoResponses := &echo.Responses{
+		Parse: []*proto.Parse_Response{
+			{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						TemplateVariables: templateVariables,
+					},
+				},
+			},
+		},
+		ProvisionPlan: echo.ProvisionComplete,
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		}},
+	}
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+	templateVersion := coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	actualVariables, err := client.TemplateVersionVariables(ctx, templateVersion.ID)
+	require.NoError(t, err)
+
+	require.Len(t, actualVariables, 2)
+	for i := range templateVariables {
+		require.Equal(t, templateVariables[i].Name, actualVariables[i].Name)
+		require.Equal(t, templateVariables[i].Description, actualVariables[i].Description)
+		require.Equal(t, templateVariables[i].Type, actualVariables[i].Type)
+		require.Equal(t, templateVariables[i].DefaultValue, actualVariables[i].DefaultValue)
+		require.Equal(t, templateVariables[i].Required, actualVariables[i].Required)
+		require.Equal(t, templateVariables[i].Sensitive, actualVariables[i].Sensitive)
+	}
+
+	require.Equal(t, "", actualVariables[0].Value)
+	require.Equal(t, templateVariables[1].DefaultValue, actualVariables[1].Value)
+}

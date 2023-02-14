@@ -150,6 +150,20 @@ func (c *Client) TemplateVersionResources(ctx context.Context, version uuid.UUID
 	return resources, json.NewDecoder(res.Body).Decode(&resources)
 }
 
+// TemplateVersionVariables returns resources a template version variables.
+func (c *Client) TemplateVersionVariables(ctx context.Context, version uuid.UUID) ([]TemplateVersionVariable, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/variables", version), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var variables []TemplateVersionVariable
+	return variables, json.NewDecoder(res.Body).Decode(&variables)
+}
+
 // TemplateVersionLogsBefore returns logs that occurred before a specific log ID.
 func (c *Client) TemplateVersionLogsBefore(ctx context.Context, version uuid.UUID, before int64) ([]ProvisionerJobLog, error) {
 	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/templateversions/%s/logs", version), before)
