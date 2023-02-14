@@ -61,6 +61,10 @@ func (e *UnauthorizedError) Internal() error {
 	return e.internal
 }
 
+func (e *UnauthorizedError) SetInternal(err error) {
+	e.internal = err
+}
+
 func (e *UnauthorizedError) Input() map[string]interface{} {
 	return map[string]interface{}{
 		"subject": e.subject,
