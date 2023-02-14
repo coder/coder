@@ -82,9 +82,12 @@ func activityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 		return nil
 	}, nil)
 	if err != nil {
-		log.Error(ctx, "bump failed", slog.Error(err),
-			slog.F("workspace_id", workspaceID),
-		)
+		if !xerrors.Is(err, context.Canceled) {
+			// Bump will fail if the context is cancelled, but this is ok.
+			log.Error(ctx, "bump failed", slog.Error(err),
+				slog.F("workspace_id", workspaceID),
+			)
+		}
 		return
 	}
 
