@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -22,7 +23,115 @@ import (
 	"github.com/coder/coder/site"
 )
 
-// TODO: move auth methods from workspaceapps.go to this file.
+// workspaceApplicationAuth is an endpoint on the main router that handles
+// redirects from the subdomain handler.
+//
+// This endpoint is under /api so we don't return the friendly error page here.
+// Any errors on this endpoint should be errors that are unlikely to happen
+// in production unless the user messes with the URL.
+//
+// @Summary Redirect to URI with encrypted API key
+// @ID redirect-to-uri-with-encrypted-api-key
+// @Security CoderSessionToken
+// @Tags Applications
+// @Param redirect_uri query string false "Redirect destination"
+// @Success 307
+// @Router /applications/auth-redirect [get]
+func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if api.AppHostname == "" {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "The server does not accept subdomain-based application requests.",
+		})
+		return
+	}
+
+	apiKey := httpmw.APIKey(r)
+	if !api.Authorize(r, rbac.ActionCreate, apiKey) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Get the redirect URI from the query parameters and parse it.
+	redirectURI := r.URL.Query().Get(redirectURIQueryParam)
+	if redirectURI == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing redirect_uri query parameter.",
+		})
+		return
+	}
+	u, err := url.Parse(redirectURI)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid redirect_uri query parameter.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Force the redirect URI to use the same scheme as the access URL for
+	// security purposes.
+	u.Scheme = api.AccessURL.Scheme
+
+	// Ensure that the redirect URI is a subdomain of api.AppHostname and is a
+	// valid app subdomain.
+	subdomain, ok := httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, u.Host)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The redirect_uri query parameter must be a valid app subdomain.",
+		})
+		return
+	}
+	_, err = httpapi.ParseSubdomainAppURL(subdomain)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The redirect_uri query parameter must be a valid app subdomain.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Create the application_connect-scoped API key with the same lifetime as
+	// the current session.
+	exp := apiKey.ExpiresAt
+	lifetimeSeconds := apiKey.LifetimeSeconds
+	if exp.IsZero() || time.Until(exp) > api.DeploymentConfig.SessionDuration.Value {
+		exp = database.Now().Add(api.DeploymentConfig.SessionDuration.Value)
+		lifetimeSeconds = int64(api.DeploymentConfig.SessionDuration.Value.Seconds())
+	}
+	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
+		UserID:          apiKey.UserID,
+		LoginType:       database.LoginTypePassword,
+		ExpiresAt:       exp,
+		LifetimeSeconds: lifetimeSeconds,
+		Scope:           database.APIKeyScopeApplicationConnect,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Encrypt the API key.
+	encryptedAPIKey, err := encryptAPIKey(encryptedAPIKeyPayload{
+		APIKey: cookie.Value,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to encrypt API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Redirect to the redirect URI with the encrypted API key in the query
+	// parameters.
+	q := u.Query()
+	q.Set(subdomainProxyAPIKeyParam, encryptedAPIKey)
+	u.RawQuery = q.Encode()
+	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
+}
 
 type workspaceAppRequest struct {
 	AccessMethod workspaceAppAccessMethod
@@ -33,7 +142,7 @@ type workspaceAppRequest struct {
 
 	UsernameOrID string
 	// WorkspaceAndAgent xor WorkspaceNameOrID are required.
-	WorkspaceAndAgent string // workspace.agent
+	WorkspaceAndAgent string // "workspace" or "workspace.agent"
 	WorkspaceNameOrID string
 	// AgentNameOrID is not required if the workspace has only one agent.
 	AgentNameOrID string
@@ -57,18 +166,22 @@ func (r workspaceAppRequest) Validate() error {
 		//
 		// This is also mitigated by storing the workspace/agent ID in the
 		// ticket, but we block it here to be double safe.
-		return xerrors.New("username cannot be \"me\" in app requests")
+		//
+		// Subdomain apps have never been used with "me" from our code, and path
+		// apps now have a redirect to remove the "me" from the URL.
+		return xerrors.New(`username cannot be "me" in app requests`)
 	}
 	if r.WorkspaceAndAgent != "" {
+		split := strings.Split(r.WorkspaceAndAgent, ".")
+		if split[0] == "" || (len(split) == 2 && split[1] == "") || len(split) > 2 {
+			return xerrors.Errorf("invalid workspace and agent: %q", r.WorkspaceAndAgent)
+		}
 		if r.WorkspaceNameOrID != "" || r.AgentNameOrID != "" {
 			return xerrors.New("dev error: cannot specify both WorkspaceAndAgent and (WorkspaceNameOrID and AgentNameOrID)")
 		}
 	}
 	if r.WorkspaceAndAgent == "" && r.WorkspaceNameOrID == "" {
 		return xerrors.New("workspace name or ID is required")
-	}
-	if r.WorkspaceAndAgent != "" && r.AgentNameOrID != "" {
-		return xerrors.New("workspace name or ID is required when agent ID is set")
 	}
 	if r.AppSlugOrPort == "" {
 		return xerrors.New("app slug or port is required")
@@ -80,7 +193,7 @@ func (r workspaceAppRequest) Validate() error {
 func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, appReq workspaceAppRequest) (*workspaceAppTicket, bool) {
 	err := appReq.Validate()
 	if err != nil {
-		api.writeWorkspaceApp500(rw, r, appReq, err, "invalid app request")
+		api.writeWorkspaceApp500(rw, r, &appReq, err, "invalid app request")
 		return nil, false
 	}
 
@@ -96,7 +209,7 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 		// Sanity check.
 		err := appReq.Validate()
 		if err != nil {
-			api.writeWorkspaceApp500(rw, r, appReq, err, "invalid app request")
+			api.writeWorkspaceApp500(rw, r, &appReq, err, "invalid app request")
 			return nil, false
 		}
 	}
@@ -156,10 +269,10 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 			})
 		}
 		if xerrors.Is(userErr, sql.ErrNoRows) {
-			api.writeWorkspaceApp404(rw, r, appReq, fmt.Sprintf("user %q not found", appReq.UsernameOrID))
+			api.writeWorkspaceApp404(rw, r, &appReq, fmt.Sprintf("user %q not found", appReq.UsernameOrID))
 			return
 		} else if userErr != nil {
-			api.writeWorkspaceApp500(rw, r, appReq, userErr, "get user")
+			api.writeWorkspaceApp500(rw, r, &appReq, userErr, "get user")
 			return
 		}
 		ticket.UserID = user.ID
@@ -179,10 +292,10 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 			})
 		}
 		if xerrors.Is(workspaceErr, sql.ErrNoRows) {
-			api.writeWorkspaceApp404(rw, r, appReq, fmt.Sprintf("workspace %q not found", appReq.WorkspaceNameOrID))
+			api.writeWorkspaceApp404(rw, r, &appReq, fmt.Sprintf("workspace %q not found", appReq.WorkspaceNameOrID))
 			return
 		} else if workspaceErr != nil {
-			api.writeWorkspaceApp500(rw, r, appReq, workspaceErr, "get workspace")
+			api.writeWorkspaceApp500(rw, r, &appReq, workspaceErr, "get workspace")
 			return
 		}
 		ticket.WorkspaceID = workspace.ID
@@ -198,13 +311,13 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 		} else {
 			build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
 			if err != nil {
-				api.writeWorkspaceApp500(rw, r, appReq, err, "get latest workspace build")
+				api.writeWorkspaceApp500(rw, r, &appReq, err, "get latest workspace build")
 				return
 			}
 
 			resources, err := api.Database.GetWorkspaceResourcesByJobID(r.Context(), build.JobID)
 			if err != nil {
-				api.writeWorkspaceApp500(rw, r, appReq, err, "get workspace resources")
+				api.writeWorkspaceApp500(rw, r, &appReq, err, "get workspace resources")
 				return
 			}
 			resourcesIDs := []uuid.UUID{}
@@ -214,13 +327,13 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 
 			agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(r.Context(), resourcesIDs)
 			if err != nil {
-				api.writeWorkspaceApp500(rw, r, appReq, err, "get workspace agents")
+				api.writeWorkspaceApp500(rw, r, &appReq, err, "get workspace agents")
 				return
 			}
 
 			if appReq.AgentNameOrID == "" {
 				if len(agents) != 1 {
-					api.writeWorkspaceApp404(rw, r, appReq, "no agent specified, but multiple exist in workspace")
+					api.writeWorkspaceApp404(rw, r, &appReq, "no agent specified, but multiple exist in workspace")
 					return
 				}
 
@@ -241,10 +354,10 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 			}
 		}
 		if xerrors.Is(agentErr, sql.ErrNoRows) {
-			api.writeWorkspaceApp404(rw, r, appReq, fmt.Sprintf("agent %q not found", appReq.AgentNameOrID))
+			api.writeWorkspaceApp404(rw, r, &appReq, fmt.Sprintf("agent %q not found", appReq.AgentNameOrID))
 			return
 		} else if agentErr != nil {
-			api.writeWorkspaceApp500(rw, r, appReq, agentErr, "get agent")
+			api.writeWorkspaceApp500(rw, r, &appReq, agentErr, "get agent")
 			return
 		}
 
@@ -252,16 +365,16 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 		if !trustAgent {
 			agentResource, err := api.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
 			if err != nil {
-				api.writeWorkspaceApp500(rw, r, appReq, err, "get agent resource")
+				api.writeWorkspaceApp500(rw, r, &appReq, err, "get agent resource")
 				return
 			}
 			build, err := api.Database.GetWorkspaceBuildByJobID(r.Context(), agentResource.JobID)
 			if err != nil {
-				api.writeWorkspaceApp500(rw, r, appReq, err, "get agent workspace build")
+				api.writeWorkspaceApp500(rw, r, &appReq, err, "get agent workspace build")
 				return
 			}
 			if build.WorkspaceID != workspace.ID {
-				api.writeWorkspaceApp404(rw, r, appReq, "agent does not belong to workspace")
+				api.writeWorkspaceApp404(rw, r, &appReq, "agent does not belong to workspace")
 				return
 			}
 		}
@@ -309,7 +422,7 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 			_, hasAPIKey := httpmw.APIKeyOptional(r)
 			if hasAPIKey {
 				// The request has a valid API key but insufficient permissions.
-				renderApplicationNotFound(rw, r, api.AccessURL)
+				api.writeWorkspaceApp404(rw, r, &appReq, "insufficient permissions")
 				return
 			}
 
@@ -339,14 +452,23 @@ func (api *API) resolveWorkspaceApp(rw http.ResponseWriter, r *http.Request, app
 		return nil, false
 	}
 
-	// Sign the ticket.
-	ticketStr, err := api.generateWorkspaceAppTicket(ticket)
-	if err != nil {
-		api.writeWorkspaceApp500(rw, r, appReq, err, "generate ticket")
+	// As a sanity check, ensure the ticket we just made is valid for this
+	// request.
+	if !ticket.MatchesRequest(appReq) {
+		api.writeWorkspaceApp500(rw, r, &appReq, nil, "fresh ticket does not match request")
 		return nil, false
 	}
 
-	// Write the ticket cookie.
+	// Sign the ticket.
+	ticketStr, err := api.generateWorkspaceAppTicket(ticket)
+	if err != nil {
+		api.writeWorkspaceApp500(rw, r, &appReq, err, "generate ticket")
+		return nil, false
+	}
+
+	// Write the ticket cookie. We always want this to apply to the current
+	// hostname (even for subdomain apps, without any wildcard shenanigans,
+	// because the ticket is only valid for a single app).
 	http.SetCookie(rw, &http.Cookie{
 		Name:  codersdk.DevURLSessionTicketCookie,
 		Value: ticketStr,
@@ -368,7 +490,7 @@ func (api *API) lookupWorkspaceApp(rw http.ResponseWriter, r *http.Request, agen
 		Slug:    appSlug,
 	})
 	if xerrors.Is(err, sql.ErrNoRows) {
-		renderApplicationNotFound(rw, r, api.AccessURL)
+		api.writeWorkspaceApp404(rw, r, nil, "application not found in agent by slug")
 		return database.WorkspaceApp{}, false
 	}
 	if err != nil {
@@ -485,34 +607,47 @@ func (api *API) fetchWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Re
 	return ok, true
 }
 
-func (api *API) writeWorkspaceApp404(rw http.ResponseWriter, r *http.Request, req workspaceAppRequest, msg string) {
-	slog.Helper()
-	api.Logger.Debug(r.Context(),
-		"workspace app 404: "+msg,
-		slog.F("username_or_id", req.UsernameOrID),
-		slog.F("workspace_name_or_id", req.WorkspaceNameOrID),
-		slog.F("agent_name_or_id", req.AgentNameOrID),
-		slog.F("app_slug_or_port", req.AppSlugOrPort),
-	)
+// writeWorkspaceApp404 writes a HTML 404 error page for a workspace app. If
+// appReq is not nil, it will be used to log the request details at debug level.
+func (api *API) writeWorkspaceApp404(rw http.ResponseWriter, r *http.Request, appReq *workspaceAppRequest, msg string) {
+	if appReq != nil {
+		slog.Helper()
+		api.Logger.Debug(r.Context(),
+			"workspace app 404: "+msg,
+			slog.F("username_or_id", appReq.UsernameOrID),
+			slog.F("workspace_and_agent", appReq.WorkspaceAndAgent),
+			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),
+			slog.F("agent_name_or_id", appReq.AgentNameOrID),
+			slog.F("app_slug_or_port", appReq.AppSlugOrPort),
+		)
+	}
 
 	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 		Status:       http.StatusNotFound,
-		Title:        "Not Found",
-		Description:  "The requested application could not be found.",
+		Title:        "Application Not Found",
+		Description:  "The application or workspace you are trying to access does not exist or you do not have permission to access it.",
 		RetryEnabled: false,
 		DashboardURL: api.AccessURL.String(),
 	})
 }
 
-func (api *API) writeWorkspaceApp500(rw http.ResponseWriter, r *http.Request, req workspaceAppRequest, err error, msg string) {
+// writeWorkspaceApp500 writes a HTML 500 error page for a workspace app. If
+// appReq is not nil, it's fields will be added to the logged error message.
+func (api *API) writeWorkspaceApp500(rw http.ResponseWriter, r *http.Request, appReq *workspaceAppRequest, err error, msg string) {
 	slog.Helper()
+	ctx := r.Context()
+	if appReq != nil {
+		slog.With(ctx,
+			slog.F("username_or_id", appReq.UsernameOrID),
+			slog.F("workspace_and_agent", appReq.WorkspaceAndAgent),
+			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),
+			slog.F("agent_name_or_id", appReq.AgentNameOrID),
+			slog.F("app_name_or_port", appReq.AppSlugOrPort),
+		)
+	}
 	api.Logger.Warn(r.Context(),
 		"workspace app auth server error: "+msg,
 		slog.Error(err),
-		slog.F("username_or_id", req.UsernameOrID),
-		slog.F("workspace_name_or_id", req.WorkspaceNameOrID),
-		slog.F("agent_name_or_id", req.AgentNameOrID),
-		slog.F("app_name_or_port", req.AppSlugOrPort),
 	)
 
 	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{

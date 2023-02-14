@@ -25,7 +25,6 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
@@ -107,6 +106,8 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	// username. The resolveWorkspaceApp function does not accept @me for
 	// security purposes.
 	if chi.URLParam(r, "user") == codersdk.Me {
+		// This is janky, but sadly necessary to extract the user's API key and
+		// user details in a manner consistent of the rest of the API.
 		mw := chi.Middlewares([]func(http.Handler) http.Handler{
 			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 				DB: api.Database,
@@ -114,12 +115,12 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 					Github: api.GithubOAuth2Config,
 					OIDC:   api.OIDCConfig,
 				},
-				// Optional is true to allow for public apps. If an authorization check
-				// fails and the user is not authenticated, they will be redirected to
-				// the login page below.
 				RedirectToLogin:             true,
 				DisableSessionExpiryRefresh: api.DeploymentConfig.DisableSessionExpiryRefresh.Value,
-				Optional:                    false,
+				// Optional is true to allow for public apps. If an
+				// authorization check fails and the user is not authenticated,
+				// they will be redirected to the login page below.
+				Optional: false,
 			}),
 			httpmw.ExtractUserParam(api.Database, true),
 		})
@@ -310,7 +311,7 @@ func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *htt
 
 	// Check if the request is part of a logout flow.
 	if subdomain == appLogoutHostname {
-		api.handleWorkspaceAppLogout(rw, r)
+		api.handleWorkspaceSubdomainAppLogout(rw, r)
 		return httpapi.ApplicationURL{}, false
 	}
 
@@ -330,7 +331,7 @@ func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *htt
 	return app, true
 }
 
-func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request) {
+func (api *API) handleWorkspaceSubdomainAppLogout(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Delete the API key and cookie first before attempting to parse/validate
@@ -462,116 +463,6 @@ func (api *API) setWorkspaceAppCookie(rw http.ResponseWriter, r *http.Request, t
 	})
 
 	return true
-}
-
-// workspaceApplicationAuth is an endpoint on the main router that handles
-// redirects from the subdomain handler.
-//
-// This endpoint is under /api so we don't return the friendly error page here.
-// Any errors on this endpoint should be errors that are unlikely to happen
-// in production unless the user messes with the URL.
-//
-// @Summary Redirect to URI with encrypted API key
-// @ID redirect-to-uri-with-encrypted-api-key
-// @Security CoderSessionToken
-// @Tags Applications
-// @Param redirect_uri query string false "Redirect destination"
-// @Success 307
-// @Router /applications/auth-redirect [get]
-func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if api.AppHostname == "" {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "The server does not accept subdomain-based application requests.",
-		})
-		return
-	}
-
-	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, rbac.ActionCreate, apiKey) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	// Get the redirect URI from the query parameters and parse it.
-	redirectURI := r.URL.Query().Get(redirectURIQueryParam)
-	if redirectURI == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Missing redirect_uri query parameter.",
-		})
-		return
-	}
-	u, err := url.Parse(redirectURI)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid redirect_uri query parameter.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	// Force the redirect URI to use the same scheme as the access URL for
-	// security purposes.
-	u.Scheme = api.AccessURL.Scheme
-
-	// Ensure that the redirect URI is a subdomain of api.AppHostname and is a
-	// valid app subdomain.
-	subdomain, ok := httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, u.Host)
-	if !ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The redirect_uri query parameter must be a valid app subdomain.",
-		})
-		return
-	}
-	_, err = httpapi.ParseSubdomainAppURL(subdomain)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The redirect_uri query parameter must be a valid app subdomain.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Create the application_connect-scoped API key with the same lifetime as
-	// the current session.
-	exp := apiKey.ExpiresAt
-	lifetimeSeconds := apiKey.LifetimeSeconds
-	if exp.IsZero() || time.Until(exp) > api.DeploymentConfig.SessionDuration.Value {
-		exp = database.Now().Add(api.DeploymentConfig.SessionDuration.Value)
-		lifetimeSeconds = int64(api.DeploymentConfig.SessionDuration.Value.Seconds())
-	}
-	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
-		UserID:          apiKey.UserID,
-		LoginType:       database.LoginTypePassword,
-		ExpiresAt:       exp,
-		LifetimeSeconds: lifetimeSeconds,
-		Scope:           database.APIKeyScopeApplicationConnect,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to create API key.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Encrypt the API key.
-	encryptedAPIKey, err := encryptAPIKey(encryptedAPIKeyPayload{
-		APIKey: cookie.Value,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to encrypt API key.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Redirect to the redirect URI with the encrypted API key in the query
-	// parameters.
-	q := u.Query()
-	q.Set(subdomainProxyAPIKeyParam, encryptedAPIKey)
-	u.RawQuery = q.Encode()
-	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
 }
 
 func (api *API) proxyWorkspaceApplication(rw http.ResponseWriter, r *http.Request, ticket workspaceAppTicket, path string) {
@@ -806,16 +697,4 @@ func decryptAPIKey(ctx context.Context, db database.Store, encryptedAPIKey strin
 	}
 
 	return key, payload.APIKey, nil
-}
-
-// renderApplicationNotFound should always be used when the app is not found or
-// the current user doesn't have permission to access it.
-func renderApplicationNotFound(rw http.ResponseWriter, r *http.Request, accessURL *url.URL) {
-	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-		Status:       http.StatusNotFound,
-		Title:        "Application Not Found",
-		Description:  "The application or workspace you are trying to access does not exist or you do not have permission to access it.",
-		RetryEnabled: false,
-		DashboardURL: accessURL.String(),
-	})
 }
