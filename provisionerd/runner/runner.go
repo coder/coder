@@ -24,6 +24,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/provisionerd/proto"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
@@ -886,7 +887,8 @@ func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource
 
 	const stage = "Commit quota"
 
-	resp, err := r.quotaCommitter.CommitQuota(ctx, &proto.CommitQuotaRequest{
+	//nolint:gocritic // TODO: make a provisionerd role
+	resp, err := r.quotaCommitter.CommitQuota(dbauthz.AsSystem(ctx), &proto.CommitQuotaRequest{
 		JobId:     r.job.JobId,
 		DailyCost: int32(cost),
 	})

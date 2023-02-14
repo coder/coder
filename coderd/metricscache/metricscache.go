@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/retry"
 )
@@ -142,6 +143,8 @@ func countUniqueUsers(rows []database.GetTemplateDAUsRow) int {
 }
 
 func (c *Cache) refresh(ctx context.Context) error {
+	//nolint:gocritic // This is a system service.
+	ctx = dbauthz.AsSystem(ctx)
 	err := c.database.DeleteOldAgentStats(ctx)
 	if err != nil {
 		return xerrors.Errorf("delete old stats: %w", err)

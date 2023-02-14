@@ -614,6 +614,14 @@ func (q *fakeQuerier) GetAuthorizedUserCount(ctx context.Context, params databas
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	// Call this to match the same function calls as the SQL implementation.
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+		if err != nil {
+			return -1, err
+		}
+	}
+
 	users := make([]database.User, 0, len(q.users))
 
 	for _, user := range q.users {
@@ -891,6 +899,14 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
+
+	if prepared != nil {
+		// Call this to match the same function calls as the SQL implementation.
+		_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	workspaces := make([]database.Workspace, 0)
 	for _, workspace := range q.workspaces {
@@ -1226,6 +1242,23 @@ func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 	}
 	if found != nil {
 		return *found, nil
+	}
+	return database.Workspace{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
+	if err := validateDatabaseType(workspaceAppID); err != nil {
+		return database.Workspace{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, workspaceApp := range q.workspaceApps {
+		workspaceApp := workspaceApp
+		if workspaceApp.ID == workspaceAppID {
+			return q.GetWorkspaceByAgentID(context.Background(), workspaceApp.AgentID)
+		}
 	}
 	return database.Workspace{}, sql.ErrNoRows
 }
@@ -1645,6 +1678,14 @@ func (q *fakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
+
+	// Call this to match the same function calls as the SQL implementation.
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithACL())
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	var templates []database.Template
 	for _, template := range q.templates {
@@ -3817,6 +3858,18 @@ func (q *fakeQuerier) InsertLicense(
 	q.lastLicenseID = l.ID
 	q.licenses = append(q.licenses, l)
 	return l, nil
+}
+
+func (q *fakeQuerier) GetLicenseByID(_ context.Context, id int32) (database.License, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, license := range q.licenses {
+		if license.ID == id {
+			return license, nil
+		}
+	}
+	return database.License{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetLicenses(_ context.Context) ([]database.License, error) {

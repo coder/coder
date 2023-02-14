@@ -257,7 +257,7 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 		}
 		return nil, ReadBodyAsError(res)
 	}
-	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
+	return websocket.NetConn(context.Background(), conn, websocket.MessageBinary), nil
 }
 
 // WorkspaceAgentListeningPorts returns a list of ports that are currently being

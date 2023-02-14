@@ -921,6 +921,10 @@ func TestTemplateAccess(t *testing.T) {
 
 	testTemplateRead := func(t *testing.T, org orgSetup, usr *codersdk.Client, read []codersdk.Template) {
 		found, err := usr.TemplatesByOrganization(ctx, org.Org.ID)
+		if len(read) == 0 && err != nil {
+			require.ErrorContains(t, err, "Resource not found")
+			return
+		}
 		require.NoError(t, err, "failed to get templates")
 
 		exp := make(map[uuid.UUID]codersdk.Template)
