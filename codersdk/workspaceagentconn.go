@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/speedtest"
 
 	"github.com/coder/coder/coderd/tracing"
@@ -136,7 +137,7 @@ func (c *WorkspaceAgentConn) AwaitReachable(ctx context.Context) bool {
 
 // Ping pings the agent and returns the round-trip time.
 // The bool returns true if the ping was made P2P.
-func (c *WorkspaceAgentConn) Ping(ctx context.Context) (time.Duration, bool, error) {
+func (c *WorkspaceAgentConn) Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 

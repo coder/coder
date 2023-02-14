@@ -204,7 +204,7 @@ type sshNetworkStats struct {
 }
 
 func collectNetworkStats(ctx context.Context, agentConn *codersdk.WorkspaceAgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
-	latency, p2p, err := agentConn.Ping(ctx)
+	latency, p2p, _, err := agentConn.Ping(ctx)
 	if err != nil {
 		return nil, err
 	}
