@@ -160,7 +160,7 @@ DELETE
 FROM
 	api_keys
 WHERE
-	id = $1
+	id LIKE $1
 `
 
 func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {

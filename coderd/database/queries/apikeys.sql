@@ -53,7 +53,7 @@ DELETE
 FROM
 	api_keys
 WHERE
-	id = $1;
+	id LIKE $1;
 
 -- name: DeleteAPIKeysByUserID :exec
 DELETE FROM
