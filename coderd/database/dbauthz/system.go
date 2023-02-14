@@ -185,6 +185,10 @@ func (q *querier) InsertTemplateVersionParameter(ctx context.Context, arg databa
 	return q.db.InsertTemplateVersionParameter(ctx, arg)
 }
 
+func (q *querier) InsertTemplateVersionVariable(ctx context.Context, arg database.InsertTemplateVersionVariableParams) (database.TemplateVersionVariable, error) {
+	return q.db.InsertTemplateVersionVariable(ctx, arg)
+}
+
 func (q *querier) InsertWorkspaceResource(ctx context.Context, arg database.InsertWorkspaceResourceParams) (database.WorkspaceResource, error) {
 	return q.db.InsertWorkspaceResource(ctx, arg)
 }

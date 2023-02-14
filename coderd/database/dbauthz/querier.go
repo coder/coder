@@ -720,6 +720,29 @@ func (q *querier) GetTemplateVersionParameters(ctx context.Context, templateVers
 	return q.db.GetTemplateVersionParameters(ctx, templateVersionID)
 }
 
+func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
+	tv, err := q.db.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var object rbac.Objecter
+	template, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		object = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		object = tv.RBACObject(template)
+	}
+
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, object); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateVersionVariables(ctx, templateVersionID)
+}
+
 func (q *querier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
 	// TODO: This is so inefficient
 	versions, err := q.db.GetTemplateVersionsByIDs(ctx, ids)
