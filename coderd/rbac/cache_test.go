@@ -13,7 +13,7 @@ import (
 
 // BenchmarkCacher benchmarks the performance of the cacher with a given
 // cache size. The expected cache size in prod will usually be 1-2. In Filter
-// cases it can get as high as 10, making the limit in prod ~<12.
+// cases it can get as high as 10.
 func BenchmarkCacher(b *testing.B) {
 	b.ResetTimer()
 	// Size of the cache.
