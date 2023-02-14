@@ -396,13 +396,16 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
 	echoClient, echoServer := provisionersdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	serveDone := make(chan struct{})
 	t.Cleanup(func() {
 		_ = echoClient.Close()
 		_ = echoServer.Close()
 		cancelFunc()
+		<-serveDone
 	})
 	fs := afero.NewMemMapFs()
 	go func() {
+		defer close(serveDone)
 		err := echo.Serve(ctx, fs, &provisionersdk.ServeOptions{
 			Listener: echoServer,
 		})
