@@ -4054,6 +4054,7 @@ Parameter represents a set value for the scope.
 | `git_ssh_key`      |
 | `api_key`          |
 | `group`            |
+| `license`          |
 
 ## codersdk.Response
 
