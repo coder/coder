@@ -47,7 +47,7 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	actorRoles := httpmw.UserAuthorization(r)
 
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
