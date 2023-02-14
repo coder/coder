@@ -1090,10 +1090,16 @@ func createProvisionerDaemonClient(t *testing.T, server provisionerDaemonTestSer
 	require.NoError(t, err)
 	srv := drpcserver.New(mux)
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(cancelFunc)
+	closed := make(chan struct{})
 	go func() {
+		defer close(closed)
 		_ = srv.Serve(ctx, serverPipe)
 	}()
+	t.Cleanup(func() {
+		cancelFunc()
+		_ = serverPipe.Close()
+		<-closed
+	})
 	return proto.NewDRPCProvisionerDaemonClient(clientPipe)
 }
 

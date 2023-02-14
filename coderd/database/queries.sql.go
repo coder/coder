@@ -1387,7 +1387,7 @@ func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
 			&i.UploadedAt,
 			&i.JWT,
 			&i.Exp,
-			&i.Uuid,
+			&i.UUID,
 		); err != nil {
 			return nil, err
 		}
@@ -1423,7 +1423,7 @@ func (q *sqlQuerier) GetUnexpiredLicenses(ctx context.Context) ([]License, error
 			&i.UploadedAt,
 			&i.JWT,
 			&i.Exp,
-			&i.Uuid,
+			&i.UUID,
 		); err != nil {
 			return nil, err
 		}
@@ -1451,10 +1451,10 @@ VALUES
 `
 
 type InsertLicenseParams struct {
-	UploadedAt time.Time     `db:"uploaded_at" json:"uploaded_at"`
-	JWT        string        `db:"jwt" json:"jwt"`
-	Exp        time.Time     `db:"exp" json:"exp"`
-	Uuid       uuid.NullUUID `db:"uuid" json:"uuid"`
+	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
+	JWT        string    `db:"jwt" json:"jwt"`
+	Exp        time.Time `db:"exp" json:"exp"`
+	UUID       uuid.UUID `db:"uuid" json:"uuid"`
 }
 
 func (q *sqlQuerier) InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error) {
@@ -1462,7 +1462,7 @@ func (q *sqlQuerier) InsertLicense(ctx context.Context, arg InsertLicenseParams)
 		arg.UploadedAt,
 		arg.JWT,
 		arg.Exp,
-		arg.Uuid,
+		arg.UUID,
 	)
 	var i License
 	err := row.Scan(
@@ -1470,7 +1470,7 @@ func (q *sqlQuerier) InsertLicense(ctx context.Context, arg InsertLicenseParams)
 		&i.UploadedAt,
 		&i.JWT,
 		&i.Exp,
-		&i.Uuid,
+		&i.UUID,
 	)
 	return i, err
 }
