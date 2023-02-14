@@ -1097,7 +1097,6 @@ func createProvisionerDaemonClient(t *testing.T, server provisionerDaemonTestSer
 	}()
 	t.Cleanup(func() {
 		cancelFunc()
-		_ = serverPipe.Close()
 		<-closed
 	})
 	return proto.NewDRPCProvisionerDaemonClient(clientPipe)
@@ -1117,10 +1116,15 @@ func createProvisionerClient(t *testing.T, server provisionerTestServer) sdkprot
 	require.NoError(t, err)
 	srv := drpcserver.New(mux)
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(cancelFunc)
+	closed := make(chan struct{})
 	go func() {
+		defer close(closed)
 		_ = srv.Serve(ctx, serverPipe)
 	}()
+	t.Cleanup(func() {
+		cancelFunc()
+		<-closed
+	})
 	return sdkproto.NewDRPCProvisionerClient(clientPipe)
 }
 
@@ -1150,6 +1154,7 @@ type provisionerDaemonTestServer struct {
 func (p *provisionerDaemonTestServer) AcquireJob(ctx context.Context, empty *proto.Empty) (*proto.AcquiredJob, error) {
 	return p.acquireJob(ctx, empty)
 }
+
 func (p *provisionerDaemonTestServer) CommitQuota(ctx context.Context, com *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
 	if p.commitQuota == nil {
 		return &proto.CommitQuotaResponse{

@@ -447,6 +447,8 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 		Logger:    api.Logger.Named("tailnet"),
 	})
 	if err != nil {
+		_ = clientConn.Close()
+		_ = serverConn.Close()
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
 
