@@ -1217,6 +1217,5 @@ func TestTemplateVersionVariables(t *testing.T) {
 
 		require.Equal(t, "", actualVariables[0].Value)
 		require.Equal(t, templateVariables[1].DefaultValue, actualVariables[1].Value)
-
 	})
 }
