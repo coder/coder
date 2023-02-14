@@ -61,6 +61,7 @@ func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 			slog.Error(err),
 		)
 	}
+
 	return NotAuthorizedError{
 		Err: err,
 	}
