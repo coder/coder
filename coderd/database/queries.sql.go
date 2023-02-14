@@ -1362,7 +1362,7 @@ func (q *sqlQuerier) GetLicenseByID(ctx context.Context, id int32) (License, err
 		&i.UploadedAt,
 		&i.JWT,
 		&i.Exp,
-		&i.Uuid,
+		&i.UUID,
 	)
 	return i, err
 }

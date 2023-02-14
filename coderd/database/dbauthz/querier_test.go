@@ -280,7 +280,7 @@ func (s *MethodTestSuite) TestProvsionerJob() {
 func (s *MethodTestSuite) TestLicense() {
 	s.Run("GetLicenses", s.Subtest(func(db database.Store, check *expects) {
 		l, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
-			Uuid: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			UUID: uuid.New(),
 		})
 		require.NoError(s.T(), err)
 		check.Args().Asserts(l, rbac.ActionRead).
@@ -298,14 +298,14 @@ func (s *MethodTestSuite) TestLicense() {
 	}))
 	s.Run("GetLicenseByID", s.Subtest(func(db database.Store, check *expects) {
 		l, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
-			Uuid: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			UUID: uuid.New(),
 		})
 		require.NoError(s.T(), err)
 		check.Args(l.ID).Asserts(l, rbac.ActionRead).Returns(l)
 	}))
 	s.Run("DeleteLicense", s.Subtest(func(db database.Store, check *expects) {
 		l, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
-			Uuid: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			UUID: uuid.New(),
 		})
 		require.NoError(s.T(), err)
 		check.Args(l.ID).Asserts(l, rbac.ActionDelete)
