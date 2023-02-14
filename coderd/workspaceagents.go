@@ -639,10 +639,15 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		}
 		err := updateConnectionTimes(ctx)
 		if err != nil {
-			api.Logger.Error(ctx, "failed to update agent disconnect time",
-				slog.Error(err),
-				slog.F("workspace", build.WorkspaceID),
-			)
+			// This is a bug with unit tests that cancel the app context and
+			// cause this error log to be generated. We should fix the unit tests
+			// as this is a valid log.
+			if !xerrors.Is(err, context.Canceled) {
+				api.Logger.Error(ctx, "failed to update agent disconnect time",
+					slog.Error(err),
+					slog.F("workspace", build.WorkspaceID),
+				)
+			}
 		}
 		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 	}()
