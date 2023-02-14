@@ -67,7 +67,7 @@ coder:
     # coder.securityContext.readOnlyRootFilesystem -- Mounts the container's
     # root filesystem as read-only. It is recommended to leave this setting
     # enabled in production. This will override the same setting in the pod
-    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: null
     # coder.securityContext.seccompProfile -- Sets the seccomp profile for
     # the coder container.
     seccompProfile:
