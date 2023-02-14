@@ -200,7 +200,7 @@ export interface CreateTemplateVersionRequest {
   readonly provisioner: ProvisionerType
   readonly tags: Record<string, string>
   readonly parameter_values?: CreateParameterRequest[]
-  readonly variable_values?: VariableValue[]
+  readonly user_variable_values?: VariableValue[]
 }
 
 // From codersdk/audit.go

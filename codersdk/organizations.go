@@ -55,7 +55,7 @@ type CreateTemplateVersionRequest struct {
 	// during the dry-run provision stage.
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
 
-	VariableValues []VariableValue `json:"variable_values,omitempty"`
+	UserVariableValues []VariableValue `json:"user_variable_values,omitempty"`
 }
 
 type VariableValue struct {
