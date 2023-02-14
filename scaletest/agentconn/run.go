@@ -141,7 +141,7 @@ func waitForDisco(ctx context.Context, logs io.Writer, conn *codersdk.WorkspaceA
 	for i := 0; i < pingAttempts; i++ {
 		_, _ = fmt.Fprintf(logs, "\tDisco ping attempt %d/%d...\n", i+1, pingAttempts)
 		pingCtx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
-		_, p2p, err := conn.Ping(pingCtx)
+		_, p2p, _, err := conn.Ping(pingCtx)
 		cancel()
 		if err == nil {
 			_, _ = fmt.Fprintf(logs, "\tDisco ping succeeded after %d attempts, p2p = %v\n", i+1, p2p)
