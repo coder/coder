@@ -3,11 +3,10 @@ package httpmw
 import (
 	"net/http"
 
-	"github.com/coder/coder/coderd/rbac"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/coder/coder/coderd/database/dbauthz"
-
-	"github.com/go-chi/chi/v5"
+	"github.com/coder/coder/coderd/rbac"
 )
 
 // AsAuthzSystem is a chained handler that temporarily sets the dbauthz context
