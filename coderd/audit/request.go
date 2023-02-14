@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
@@ -72,7 +73,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 		// this isn't used
 		return ""
 	case database.License:
-		return typed.UUID.String()
+		return strconv.Itoa(int(typed.ID))
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
