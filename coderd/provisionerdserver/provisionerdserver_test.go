@@ -113,7 +113,25 @@ func TestAcquireJob(t *testing.T) {
 			Type:          database.ProvisionerJobTypeTemplateVersionImport,
 			Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
 				TemplateVersionID: version.ID,
+				UserVariableValues: []codersdk.VariableValue{
+					{Name: "second", Value: "bah"},
+				},
 			})),
+		})
+		_ = dbgen.TemplateVersionVariable(t, srv.Database, database.TemplateVersionVariable{
+			TemplateVersionID: version.ID,
+			Name:              "first",
+			Value:             "first_value",
+			DefaultValue:      "default_value",
+			Sensitive:         true,
+		})
+		_ = dbgen.TemplateVersionVariable(t, srv.Database, database.TemplateVersionVariable{
+			TemplateVersionID: version.ID,
+			Name:              "second",
+			Value:             "second_value",
+			DefaultValue:      "default_value",
+			Required:          true,
+			Sensitive:         false,
 		})
 		workspace := dbgen.Workspace(t, srv.Database, database.Workspace{
 			TemplateID: template.ID,
@@ -168,6 +186,17 @@ func TestAcquireJob(t *testing.T) {
 				WorkspaceBuildId: build.ID.String(),
 				WorkspaceName:    workspace.Name,
 				ParameterValues:  []*sdkproto.ParameterValue{},
+				VariableValues: []*sdkproto.VariableValue{
+					{
+						Name:      "first",
+						Value:     "first_value",
+						Sensitive: true,
+					},
+					{
+						Name:  "second",
+						Value: "second_value",
+					},
+				},
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:            srv.AccessURL.String(),
 					WorkspaceTransition: sdkproto.WorkspaceTransition_START,
@@ -245,6 +274,47 @@ func TestAcquireJob(t *testing.T) {
 
 		want, err := json.Marshal(&proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
+				Metadata: &sdkproto.Provision_Metadata{
+					CoderUrl: srv.AccessURL.String(),
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.JSONEq(t, string(want), string(got))
+	})
+	t.Run("TemplateVersionImportWithUserVariable", func(t *testing.T) {
+		t.Parallel()
+		srv := setup(t, false)
+		ctx := context.Background()
+
+		user := dbgen.User(t, srv.Database, database.User{})
+		version := dbgen.TemplateVersion(t, srv.Database, database.TemplateVersion{})
+		file := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+		_ = dbgen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
+			FileID:        file.ID,
+			InitiatorID:   user.ID,
+			Provisioner:   database.ProvisionerTypeEcho,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Type:          database.ProvisionerJobTypeTemplateVersionImport,
+			Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+				TemplateVersionID: version.ID,
+				UserVariableValues: []codersdk.VariableValue{
+					{Name: "first", Value: "first_value"},
+				},
+			})),
+		})
+
+		job, err := srv.AcquireJob(ctx, nil)
+		require.NoError(t, err)
+
+		got, err := json.Marshal(job.Type)
+		require.NoError(t, err)
+
+		want, err := json.Marshal(&proto.AcquiredJob_TemplateImport_{
+			TemplateImport: &proto.AcquiredJob_TemplateImport{
+				UserVariableValues: []*sdkproto.VariableValue{
+					{Name: "first", Value: "first_value"},
+				},
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl: srv.AccessURL.String(),
 				},
@@ -383,6 +453,92 @@ func TestUpdateJob(t *testing.T) {
 		version, err = srv.Database.GetTemplateVersionByID(ctx, version.ID)
 		require.NoError(t, err)
 		require.Equal(t, "# hello world", version.Readme)
+	})
+
+	t.Run("TemplateVariables", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Valid", func(t *testing.T) {
+			srv := setup(t, false)
+			job := setupJob(t, srv)
+			version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+				ID:    uuid.New(),
+				JobID: job,
+			})
+			require.NoError(t, err)
+			firstTemplateVariable := &sdkproto.TemplateVariable{
+				Name:         "first",
+				Type:         "string",
+				DefaultValue: "default_value",
+				Sensitive:    true,
+			}
+			secondTemplateVariable := &sdkproto.TemplateVariable{
+				Name:      "second",
+				Type:      "string",
+				Required:  true,
+				Sensitive: true,
+			}
+			response, err := srv.UpdateJob(ctx, &proto.UpdateJobRequest{
+				JobId: job.String(),
+				TemplateVariables: []*sdkproto.TemplateVariable{
+					firstTemplateVariable,
+					secondTemplateVariable,
+				},
+				UserVariableValues: []*sdkproto.VariableValue{
+					{
+						Name:  "second",
+						Value: "foobar",
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.Len(t, response.VariableValues, 2)
+
+			templateVariables, err := srv.Database.GetTemplateVersionVariables(ctx, version.ID)
+			require.NoError(t, err)
+			require.Len(t, templateVariables, 2)
+			require.Equal(t, templateVariables[0].Value, firstTemplateVariable.DefaultValue)
+			require.Equal(t, templateVariables[1].Value, "foobar")
+		})
+
+		t.Run("Missing required value", func(t *testing.T) {
+			srv := setup(t, false)
+			job := setupJob(t, srv)
+			version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+				ID:    uuid.New(),
+				JobID: job,
+			})
+			require.NoError(t, err)
+			firstTemplateVariable := &sdkproto.TemplateVariable{
+				Name:         "first",
+				Type:         "string",
+				DefaultValue: "default_value",
+				Sensitive:    true,
+			}
+			secondTemplateVariable := &sdkproto.TemplateVariable{
+				Name:      "second",
+				Type:      "string",
+				Required:  true,
+				Sensitive: true,
+			}
+			response, err := srv.UpdateJob(ctx, &proto.UpdateJobRequest{
+				JobId: job.String(),
+				TemplateVariables: []*sdkproto.TemplateVariable{
+					firstTemplateVariable,
+					secondTemplateVariable,
+				},
+			})
+			require.Error(t, err) // required template variables need values
+			require.Nil(t, response)
+
+			// Even though there is an error returned, variables are stored in the database
+			// to show the schema in the site UI.
+			templateVariables, err := srv.Database.GetTemplateVersionVariables(ctx, version.ID)
+			require.NoError(t, err)
+			require.Len(t, templateVariables, 2)
+			require.Equal(t, templateVariables[0].Value, firstTemplateVariable.DefaultValue)
+			require.Equal(t, templateVariables[1].Value, "")
+		})
 	})
 }
 

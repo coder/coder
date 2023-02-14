@@ -386,6 +386,21 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 	return version
 }
 
+func TemplateVersionVariable(t testing.TB, db database.Store, orig database.TemplateVersionVariable) database.TemplateVersionVariable {
+	version, err := db.InsertTemplateVersionVariable(context.Background(), database.InsertTemplateVersionVariableParams{
+		TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
+		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		Description:       takeFirst(orig.Description, namesgenerator.GetRandomName(1)),
+		Type:              takeFirst(orig.Type, "string"),
+		Value:             takeFirst(orig.Value, ""),
+		DefaultValue:      takeFirst(orig.DefaultValue, namesgenerator.GetRandomName(1)),
+		Required:          takeFirst(orig.Required, false),
+		Sensitive:         takeFirst(orig.Sensitive, false),
+	})
+	require.NoError(t, err, "insert template version variable")
+	return version
+}
+
 func ParameterSchema(t testing.TB, db database.Store, seed database.ParameterSchema) database.ParameterSchema {
 	scheme, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
 		ID:                       takeFirst(seed.ID, uuid.New()),
