@@ -158,7 +158,7 @@ func TestAppHealth_NotSpamming(t *testing.T) {
 	// Ensure we haven't made more than 2 (expected 1 + 1 for buffer) requests in the last second.
 	// if there is a bug where we are spamming the healthcheck route this will catch it.
 	time.Sleep(time.Second)
-	require.LessOrEqual(t, *counter, int32(2))
+	require.LessOrEqual(t, atomic.LoadInt32(counter), int32(2))
 }
 
 func setupAppReporter(ctx context.Context, t *testing.T, apps []codersdk.WorkspaceApp, handlers []http.Handler) (agent.WorkspaceAgentApps, func()) {

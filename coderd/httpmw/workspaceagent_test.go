@@ -19,11 +19,10 @@ import (
 func TestWorkspaceAgent(t *testing.T) {
 	t.Parallel()
 
-	setup := func(db database.Store) (*http.Request, uuid.UUID) {
-		token := uuid.New()
+	setup := func(db database.Store, token uuid.UUID) *http.Request {
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, token.String())
-		return r, token
+		return r
 	}
 
 	t.Run("None", func(t *testing.T) {
@@ -34,7 +33,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			httpmw.ExtractWorkspaceAgent(db),
 		)
 		rtr.Get("/", nil)
-		r, _ := setup(db)
+		r := setup(db, uuid.New())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
@@ -46,6 +45,24 @@ func TestWorkspaceAgent(t *testing.T) {
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
+		var (
+			user      = dbgen.User(t, db, database.User{})
+			workspace = dbgen.Workspace(t, db, database.Workspace{
+				OwnerID: user.ID,
+			})
+			job      = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
+			resource = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+				JobID: job.ID,
+			})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID: workspace.ID,
+				JobID:       job.ID,
+			})
+			agent = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ResourceID: resource.ID,
+			})
+		)
+
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractWorkspaceAgent(db),
@@ -54,10 +71,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			_ = httpmw.WorkspaceAgent(r)
 			rw.WriteHeader(http.StatusOK)
 		})
-		r, token := setup(db)
-		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			AuthToken: token,
-		})
+		r := setup(db, agent.AuthToken)
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 

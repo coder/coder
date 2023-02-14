@@ -66,7 +66,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		UserACL:                      seed.UserACL,
 		GroupACL:                     seed.GroupACL,
 		DisplayName:                  takeFirst(seed.DisplayName, namesgenerator.GetRandomName(1)),
-		AllowUserCancelWorkspaceJobs: takeFirst(seed.AllowUserCancelWorkspaceJobs, true),
+		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
 	})
 	require.NoError(t, err, "insert template")
 	return template
@@ -369,11 +369,8 @@ func GitAuthLink(t testing.TB, db database.Store, orig database.GitAuthLink) dat
 
 func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVersion) database.TemplateVersion {
 	version, err := db.InsertTemplateVersion(context.Background(), database.InsertTemplateVersionParams{
-		ID: takeFirst(orig.ID, uuid.New()),
-		TemplateID: uuid.NullUUID{
-			UUID:  takeFirst(orig.TemplateID.UUID, uuid.New()),
-			Valid: takeFirst(orig.TemplateID.Valid, true),
-		},
+		ID:             takeFirst(orig.ID, uuid.New()),
+		TemplateID:     orig.TemplateID,
 		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
 		CreatedAt:      takeFirst(orig.CreatedAt, database.Now()),
 		UpdatedAt:      takeFirst(orig.UpdatedAt, database.Now()),

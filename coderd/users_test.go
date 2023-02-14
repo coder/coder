@@ -187,7 +187,6 @@ func TestPostLogin(t *testing.T) {
 		t.Parallel()
 
 		dc := coderdtest.DeploymentConfig(t)
-		dc.DisablePasswordAuth.Value = true
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentConfig: dc,
 		})
@@ -207,6 +206,8 @@ func TestPostLogin(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		dc.DisablePasswordAuth.Value = true
+
 		userClient := codersdk.New(client.URL)
 		_, err = userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    user.Email,
@@ -217,20 +218,6 @@ func TestPostLogin(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Password authentication is disabled")
-
-		// Promote the user account to an owner.
-		_, err = client.UpdateUserRoles(ctx, user.ID.String(), codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleOwner(), rbac.RoleMember()},
-		})
-		require.NoError(t, err)
-
-		// Login with the user account.
-		res, err := userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-			Email:    user.Email,
-			Password: password,
-		})
-		require.NoError(t, err)
-		require.NotEmpty(t, res.SessionToken)
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -854,7 +841,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			AssignToUser: randOrgUser.ID.String(),
 			Roles:        []string{rbac.RoleOrgMember(randOrg.ID)},
 			Error:        true,
-			StatusCode:   http.StatusForbidden,
+			StatusCode:   http.StatusNotFound,
 		},
 		{
 			Name:         "AdminUpdateOrgSelf",

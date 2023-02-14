@@ -20,6 +20,29 @@ import (
 	"github.com/quasilyte/go-ruleguard/dsl/types"
 )
 
+// dbauthzAuthorizationContext is a lint rule that protects the usage of
+// system contexts. This is a dangerous pattern that can lead to
+// leaking database information as a system context can be essentially
+// "sudo".
+//
+// Anytime a function like "AsSystem" is used, it should be accompanied by a comment
+// explaining why it's ok and a nolint.
+func dbauthzAuthorizationContext(m dsl.Matcher) {
+	m.Import("context")
+	m.Import("github.com/coder/coder/coderd/database/dbauthz")
+
+	m.Match(
+		`dbauthz.$f($c)`,
+	).
+		Where(
+			m["c"].Type.Implements("context.Context") &&
+				// Only report on functions that start with "As".
+				m["f"].Text.Matches("^As"),
+		).
+		// Instructions for fixing the lint error should be included on the dangerous function.
+		Report("Using '$f' is dangerous and should be accompanied by a comment explaining why it's ok and a nolint.")
+}
+
 // Use xerrors everywhere! It provides additional stacktrace info!
 //
 //nolint:unused,deadcode,varnamelen
