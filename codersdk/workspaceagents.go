@@ -174,7 +174,9 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 				options.Logger.Debug(ctx, "failed to dial", slog.Error(err))
 				continue
 			}
-			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(node []*tailnet.Node) error {
+			ctx, wsNetConn := websocketNetConn(ctx, ws, websocket.MessageBinary)
+			defer wsNetConn.Close()
+			sendNode, errChan := tailnet.ServeCoordinator(wsNetConn, func(node []*tailnet.Node) error {
 				return conn.UpdateNodes(node)
 			})
 			conn.SetNodeCallback(sendNode)
@@ -257,7 +259,7 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 		}
 		return nil, ReadBodyAsError(res)
 	}
-	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
+	return websocket.NetConn(context.Background(), conn, websocket.MessageBinary), nil
 }
 
 // WorkspaceAgentListeningPorts returns a list of ports that are currently being
