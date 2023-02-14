@@ -359,6 +359,7 @@ export interface Entitlements {
   readonly errors: string[]
   readonly has_license: boolean
   readonly trial: boolean
+  readonly require_telemetry: boolean
   readonly experimental: boolean
 }
 

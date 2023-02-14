@@ -254,6 +254,17 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	if entitlements.RequireTelemetry && !api.DeploymentConfig.Telemetry.Enable.Value {
+		// We can't fail because then the user couldn't remove the offending
+		// license w/o a restart.
+		api.entitlements.Errors = []string{
+			"License requires telemetry but telemetry is disabled",
+		}
+		api.Logger.Error(ctx, "license requires telemetry enabled")
+		return nil
+	}
+
 	entitlements.Experimental = api.DeploymentConfig.Experimental.Value || len(api.AGPL.Experiments) != 0
 
 	featureChanged := func(featureName codersdk.FeatureName) (changed bool, enabled bool) {

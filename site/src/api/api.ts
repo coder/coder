@@ -654,6 +654,7 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
         experimental: false,
         features: withDefaultFeatures({}),
         has_license: false,
+        require_telemetry: false,
         trial: false,
         warnings: [],
       }

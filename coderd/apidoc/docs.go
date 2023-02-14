@@ -6422,6 +6422,9 @@ const docTemplate = `{
                 "has_license": {
                     "type": "boolean"
                 },
+                "require_telemetry": {
+                    "type": "boolean"
+                },
                 "trial": {
                     "type": "boolean"
                 },
