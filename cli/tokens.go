@@ -86,9 +86,12 @@ func createToken() *cobra.Command {
 }
 
 func listTokens() *cobra.Command {
-	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]codersdk.APIKey{}, nil),
-		cliui.JSONFormat(),
+	var (
+		all       bool
+		formatter = cliui.NewOutputFormatter(
+			cliui.TableFormat([]codersdk.APIKey{}, nil),
+			cliui.JSONFormat(),
+		)
 	)
 
 	cmd := &cobra.Command{
@@ -101,9 +104,11 @@ func listTokens() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			keys, err := client.Tokens(cmd.Context(), codersdk.Me)
+			keys, err := client.Tokens(cmd.Context(), codersdk.Me, codersdk.GetTokensRequest{
+				All: all,
+			})
 			if err != nil {
-				return xerrors.Errorf("create tokens: %w", err)
+				return xerrors.Errorf("list tokens: %w", err)
 			}
 
 			if len(keys) == 0 {
@@ -121,6 +126,9 @@ func listTokens() *cobra.Command {
 			return err
 		},
 	}
+
+	cmd.Flags().BoolVarP(&all, "all", "a", false,
+		"Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).")
 
 	formatter.AttachFlags(cmd)
 	return cmd

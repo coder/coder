@@ -14,8 +14,8 @@ SELECT * FROM api_keys WHERE last_used > $1;
 -- name: GetAPIKeysByLoginType :many
 SELECT * FROM api_keys WHERE login_type = $1;
 
--- name: GetTokensByUserID :many
-SELECT * FROM api_keys WHERE login_type='token' AND user_id = $1;
+-- name: GetAPIKeysByUserID :many
+SELECT * FROM api_keys WHERE login_type = $1 AND user_id = $2;
 
 -- name: InsertAPIKey :one
 INSERT INTO

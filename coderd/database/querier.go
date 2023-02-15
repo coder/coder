@@ -31,6 +31,7 @@ type sqlcQuerier interface {
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error)
+	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveUserCount(ctx context.Context) (int64, error)
 	// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -92,7 +93,6 @@ type sqlcQuerier interface {
 	GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error)
 	GetTemplates(ctx context.Context) ([]Template, error)
 	GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error)
-	GetTokensByUserID(ctx context.Context, userID uuid.UUID) ([]APIKey, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)

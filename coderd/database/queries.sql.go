@@ -249,12 +249,17 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginT
 	return items, nil
 }
 
-const getAPIKeysLastUsedAfter = `-- name: GetAPIKeysLastUsedAfter :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope FROM api_keys WHERE last_used > $1
+const getAPIKeysByUserID = `-- name: GetAPIKeysByUserID :many
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope FROM api_keys WHERE login_type = $1 AND user_id = $2
 `
 
-func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error) {
-	rows, err := q.db.QueryContext(ctx, getAPIKeysLastUsedAfter, lastUsed)
+type GetAPIKeysByUserIDParams struct {
+	LoginType LoginType `db:"login_type" json:"login_type"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAPIKeysByUserID, arg.LoginType, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -288,12 +293,12 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 	return items, nil
 }
 
-const getTokensByUserID = `-- name: GetTokensByUserID :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope FROM api_keys WHERE login_type='token' AND user_id = $1
+const getAPIKeysLastUsedAfter = `-- name: GetAPIKeysLastUsedAfter :many
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope FROM api_keys WHERE last_used > $1
 `
 
-func (q *sqlQuerier) GetTokensByUserID(ctx context.Context, userID uuid.UUID) ([]APIKey, error) {
-	rows, err := q.db.QueryContext(ctx, getTokensByUserID, userID)
+func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAPIKeysLastUsedAfter, lastUsed)
 	if err != nil {
 		return nil, err
 	}

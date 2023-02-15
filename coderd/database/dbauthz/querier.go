@@ -40,8 +40,8 @@ func (q *querier) GetAPIKeysByLoginType(ctx context.Context, loginType database.
 	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysByLoginType)(ctx, loginType)
 }
 
-func (q *querier) GetTokensByUserID(ctx context.Context, userID uuid.UUID) ([]database.APIKey, error) {
-	return fetchWithPostFilter(q.auth, q.db.GetTokensByUserID)(ctx, userID)
+func (q *querier) GetAPIKeysByUserID(ctx context.Context, params database.GetAPIKeysByUserIDParams) ([]database.APIKey, error) {
+	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysByUserID)(ctx, database.GetAPIKeysByUserIDParams{LoginType: params.LoginType, UserID: params.UserID})
 }
 
 func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]database.APIKey, error) {

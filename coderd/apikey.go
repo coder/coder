@@ -178,16 +178,40 @@ func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/{user}/keys/tokens [get]
 func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx = r.Context()
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
 	)
 
-	keys, err := api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching API keys.",
-			Detail:  err.Error(),
-		})
+	var getTokens codersdk.GetTokensRequest
+	if !httpapi.Read(ctx, rw, r, &getTokens) {
 		return
+	}
+
+	var (
+		keys []database.APIKey
+		err  error
+	)
+
+	if !getTokens.All {
+		// get user's tokens only
+		keys, err = api.Database.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, UserID: user.ID})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching API keys.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	} else {
+		// get the tokens for all users
+		keys, err = api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching API keys.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	keys, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, keys)

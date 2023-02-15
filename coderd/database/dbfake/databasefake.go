@@ -483,13 +483,13 @@ func (q *fakeQuerier) GetAPIKeysByLoginType(_ context.Context, t database.LoginT
 	return apiKeys, nil
 }
 
-func (q *fakeQuerier) GetTokensByUserID(_ context.Context, userID uuid.UUID) ([]database.APIKey, error) {
+func (q *fakeQuerier) GetAPIKeysByUserID(_ context.Context, params database.GetAPIKeysByUserIDParams) ([]database.APIKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	apiKeys := make([]database.APIKey, 0)
 	for _, key := range q.apiKeys {
-		if key.UserID == userID {
+		if key.UserID == params.UserID && key.LoginType == params.LoginType {
 			apiKeys = append(apiKeys, key)
 		}
 	}

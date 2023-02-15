@@ -379,6 +379,11 @@ export interface GenerateAPIKeyResponse {
   readonly key: string
 }
 
+// From codersdk/apikey.go
+export interface GetTokensRequest {
+  readonly all: boolean
+}
+
 // From codersdk/users.go
 export interface GetUsersResponse {
   readonly users: User[]
