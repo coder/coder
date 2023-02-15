@@ -181,24 +181,24 @@ type workspaceQuerier interface {
 
 // WorkspaceWithData includes information returned by the api for a workspace.
 type WorkspaceWithData struct {
-	Workspace
+	Workspace `db:""`
 
 	// User related fields.
-	OwnerUserName                  string
-	LatestBuildInitiatorUsername   string
-	LatestBuildTemplateVersionName string
+	OwnerUserName                  string `db:"owner_username"`
+	LatestBuildInitiatorUsername   string `db:"latest_build_initiator_username"`
+	LatestBuildTemplateVersionName string `db:"latest_build_template_version_name"`
 
 	// These template fields are included in the response for a workspace.
 	// This means if you can read a workspace, you can also read these limited
 	// template fields as they are metadata of the workspace.
-	TemplateName                         string
-	TemplateIcon                         string
-	TemplateDisplayName                  string
-	TemplateAllowUserCancelWorkspaceJobs bool
-	TemplateActiveVersionID              uuid.UUID
+	TemplateName                         string    `db:"template_name"`
+	TemplateIcon                         string    `db:"template_icon"`
+	TemplateDisplayName                  string    `db:"template_display_name"`
+	TemplateAllowUserCancelWorkspaceJobs bool      `db:"template_allow_user_cancel"`
+	TemplateActiveVersionID              uuid.UUID `db:"template_active_version_id"`
 
-	LatestBuild    WorkspaceBuild
-	LatestBuildJob ProvisionerJob
+	LatestBuild    WorkspaceBuild `db:"latest_build"`
+	LatestBuildJob ProvisionerJob `db:"latest_build_job"`
 
 	// Count is the total number of workspaces applicable to the query.
 	// This is used for pagination as the total number of returned workspaces
@@ -210,7 +210,7 @@ type WorkspaceWithData struct {
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
 // clause.
 func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]WorkspaceWithData, error) {
-	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL("workspaces."))
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
@@ -224,7 +224,8 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filtered)
-	rows, err := q.db.QueryContext(ctx, query,
+	var items []WorkspaceWithData
+	err = q.db.SelectContext(ctx, &items, query,
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
@@ -238,67 +239,67 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.Offset,
 		arg.Limit,
 	)
+	fmt.Println()
 	if err != nil {
 		return nil, xerrors.Errorf("get authorized workspaces: %w", err)
 	}
-	// TODO: Switch to sqlx for row scan?
-	defer rows.Close()
-	var items []WorkspaceWithData
-	for rows.Next() {
-		var i WorkspaceWithData
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OwnerID,
-			&i.OrganizationID,
-			&i.TemplateID,
-			&i.Deleted,
-			&i.Name,
-			&i.AutostartSchedule,
-			&i.Ttl,
-			&i.LastUsedAt,
-			&i.TemplateName,
-			&i.TemplateIcon,
-			&i.TemplateDisplayName,
-			&i.TemplateAllowUserCancelWorkspaceJobs,
-			&i.TemplateActiveVersionID,
-			&i.LatestBuild.ID,
-			&i.LatestBuild.CreatedAt,
-			&i.LatestBuild.UpdatedAt,
-			&i.LatestBuild.TemplateVersionID,
-			&i.LatestBuild.BuildNumber,
-			&i.LatestBuild.Transition,
-			&i.LatestBuild.JobID,
-			&i.LatestBuild.InitiatorID,
-			&i.LatestBuild.Reason,
-			&i.LatestBuild.DailyCost,
-			&i.LatestBuildJob.ID,
-			&i.LatestBuildJob.CreatedAt,
-			&i.LatestBuildJob.UpdatedAt,
-			&i.LatestBuildJob.StartedAt,
-			&i.LatestBuildJob.CompletedAt,
-			&i.LatestBuildJob.CanceledAt,
-			&i.LatestBuildJob.Error,
-			&i.LatestBuildJob.OrganizationID,
-			&i.LatestBuildJob.Provisioner,
-			&i.LatestBuildJob.StorageMethod,
-			&i.LatestBuildJob.Type,
-			&i.LatestBuildJob.WorkerID,
-			&i.LatestBuildJob.FileID,
-			&i.LatestBuildJob.Tags,
-			&i.Count,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
+	//defer rows.Close()
+	//var items []WorkspaceWithData
+	//for rows.Next() {
+	//	var i WorkspaceWithData
+	//	if err := rows.Scan(
+	//		&i.ID,
+	//		&i.CreatedAt,
+	//		&i.UpdatedAt,
+	//		&i.OwnerID,
+	//		&i.OrganizationID,
+	//		&i.TemplateID,
+	//		&i.Deleted,
+	//		&i.Name,
+	//		&i.AutostartSchedule,
+	//		&i.Ttl,
+	//		&i.LastUsedAt,
+	//		&i.TemplateName,
+	//		&i.TemplateIcon,
+	//		&i.TemplateDisplayName,
+	//		&i.TemplateAllowUserCancelWorkspaceJobs,
+	//		&i.TemplateActiveVersionID,
+	//		&i.LatestBuild.ID,
+	//		&i.LatestBuild.CreatedAt,
+	//		&i.LatestBuild.UpdatedAt,
+	//		&i.LatestBuild.TemplateVersionID,
+	//		&i.LatestBuild.BuildNumber,
+	//		&i.LatestBuild.Transition,
+	//		&i.LatestBuild.JobID,
+	//		&i.LatestBuild.InitiatorID,
+	//		&i.LatestBuild.Reason,
+	//		&i.LatestBuild.DailyCost,
+	//		&i.LatestBuildJob.ID,
+	//		&i.LatestBuildJob.CreatedAt,
+	//		&i.LatestBuildJob.UpdatedAt,
+	//		&i.LatestBuildJob.StartedAt,
+	//		&i.LatestBuildJob.CompletedAt,
+	//		&i.LatestBuildJob.CanceledAt,
+	//		&i.LatestBuildJob.Error,
+	//		&i.LatestBuildJob.OrganizationID,
+	//		&i.LatestBuildJob.Provisioner,
+	//		&i.LatestBuildJob.StorageMethod,
+	//		&i.LatestBuildJob.Type,
+	//		&i.LatestBuildJob.WorkerID,
+	//		&i.LatestBuildJob.FileID,
+	//		&i.LatestBuildJob.Tags,
+	//		&i.Count,
+	//	); err != nil {
+	//		return nil, err
+	//	}
+	//	items = append(items, i)
+	//}
+	//if err := rows.Close(); err != nil {
+	//	return nil, err
+	//}
+	//if err := rows.Err(); err != nil {
+	//	return nil, err
+	//}
 	return items, nil
 }
 
@@ -307,7 +308,7 @@ type userQuerier interface {
 }
 
 func (q *sqlQuerier) GetAuthorizedUserCount(ctx context.Context, arg GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL(""))
 	if err != nil {
 		return -1, xerrors.Errorf("compile authorized filter: %w", err)
 	}

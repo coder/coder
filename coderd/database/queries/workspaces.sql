@@ -88,7 +88,7 @@ SELECT
 	templates.allow_user_cancel_workspace_jobs AS template_allow_user_cancel,
 	templates.active_version_id AS template_active_version_id,
 	-- Workspace build fields
-	latest_build.id AS latest_build_id,
+	latest_build.id AS "latest_build.id",
 	latest_build.created_at AS latest_build_created_at,
 	latest_build.updated_at AS latest_build_updated_at,
 	latest_build.deadline AS latest_build_deadline,

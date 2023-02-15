@@ -1142,17 +1142,14 @@ func (q *querier) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRo
 	return q.db.UpdateUserRoles(ctx, arg)
 }
 
-func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, _ rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
+func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, prep rbac.PreparedAuthorized) ([]database.WorkspaceWithData, error) {
 	// TODO Delete this function, all GetWorkspaces should be authorized. For now just call GetWorkspaces on the authz querier.
-	return q.GetWorkspaces(ctx, arg)
+	return q.db.GetAuthorizedWorkspaces(ctx, arg, prep)
 }
 
-func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
-	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceWorkspace.Type)
-	if err != nil {
-		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
-	}
-	return q.db.GetAuthorizedWorkspaces(ctx, arg, prep)
+func (q *querier) GetWorkspaces(_ context.Context, _ database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
+	// Always call GetAuthorizedWorkspaces.
+	panic("not implemented")
 }
 
 func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
