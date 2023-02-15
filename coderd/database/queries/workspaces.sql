@@ -82,8 +82,6 @@ SELECT
 	latest_build.template_version_name AS latest_build_template_version_name,
 
 	-- Template fields that are readable from a workspace
-	-- These values should never be null. This is required for sqlc to not
-	-- generate nullable golang fields.
 	templates.name AS template_name,
 	templates.icon AS template_icon,
 	templates.display_name AS template_display_name,
