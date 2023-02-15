@@ -1472,9 +1472,9 @@ type TemplateVersionVariable struct {
 	Value string `db:"value" json:"value"`
 	// Variable default value
 	DefaultValue string `db:"default_value" json:"default_value"`
-	// Is variable required?
+	// Required variables needs a default value or a value provided by template admin
 	Required bool `db:"required" json:"required"`
-	// Is variable sensitive?
+	// Sensitive variables have their values redacted in logs or site UI
 	Sensitive bool `db:"sensitive" json:"sensitive"`
 }
 
