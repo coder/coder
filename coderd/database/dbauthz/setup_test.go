@@ -226,8 +226,8 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 		}
 	})
 
-	s.Run("Cancelled", func() {
-		// Pass in a cancelled context
+	s.Run("Canceled", func() {
+		// Pass in a canceled context
 		ctx, cancel := context.WithCancel(ctx)
 		cancel()
 		az.AlwaysReturn = rbac.ForbiddenWithInternal(&topdown.Error{Code: topdown.CancelErr},

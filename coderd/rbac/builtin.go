@@ -77,7 +77,7 @@ var (
 			return Role{
 				Name:        owner,
 				DisplayName: "Owner",
-				Site: permissions(map[string][]Action{
+				Site: Permissions(map[string][]Action{
 					ResourceWildcard.Type: {WildcardSymbol},
 				}),
 				Org:  map[string][]Permission{},
@@ -90,7 +90,7 @@ var (
 			return Role{
 				Name:        member,
 				DisplayName: "",
-				Site: permissions(map[string][]Action{
+				Site: Permissions(map[string][]Action{
 					// All users can read all other users and know they exist.
 					ResourceUser.Type:           {ActionRead},
 					ResourceRoleAssignment.Type: {ActionRead},
@@ -98,7 +98,7 @@ var (
 					ResourceProvisionerDaemon.Type: {ActionRead},
 				}),
 				Org: map[string][]Permission{},
-				User: permissions(map[string][]Action{
+				User: Permissions(map[string][]Action{
 					ResourceWildcard.Type: {WildcardSymbol},
 				}),
 			}
@@ -111,7 +111,7 @@ var (
 			return Role{
 				Name:        auditor,
 				DisplayName: "Auditor",
-				Site: permissions(map[string][]Action{
+				Site: Permissions(map[string][]Action{
 					// Should be able to read all template details, even in orgs they
 					// are not in.
 					ResourceTemplate.Type: {ActionRead},
@@ -126,7 +126,7 @@ var (
 			return Role{
 				Name:        templateAdmin,
 				DisplayName: "Template Admin",
-				Site: permissions(map[string][]Action{
+				Site: Permissions(map[string][]Action{
 					ResourceTemplate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 					// CRUD all files, even those they did not upload.
 					ResourceFile.Type:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
@@ -145,7 +145,7 @@ var (
 			return Role{
 				Name:        userAdmin,
 				DisplayName: "User Admin",
-				Site: permissions(map[string][]Action{
+				Site: Permissions(map[string][]Action{
 					ResourceRoleAssignment.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 					ResourceUser.Type:           {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 					// Full perms to manage org members
@@ -430,9 +430,9 @@ func roleSplit(role string) (name string, orgID string, err error) {
 	return arr[0], "", nil
 }
 
-// permissions is just a helper function to make building roles that list out resources
+// Permissions is just a helper function to make building roles that list out resources
 // and actions a bit easier.
-func permissions(perms map[string][]Action) []Permission {
+func Permissions(perms map[string][]Action) []Permission {
 	list := make([]Permission, 0, len(perms))
 	for k, actions := range perms {
 		for _, act := range actions {

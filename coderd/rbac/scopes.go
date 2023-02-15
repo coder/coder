@@ -79,7 +79,7 @@ var builtinScopes = map[ScopeName]Scope{
 		Role: Role{
 			Name:        fmt.Sprintf("Scope_%s", ScopeAll),
 			DisplayName: "All operations",
-			Site: permissions(map[string][]Action{
+			Site: Permissions(map[string][]Action{
 				ResourceWildcard.Type: {WildcardSymbol},
 			}),
 			Org:  map[string][]Permission{},
@@ -92,7 +92,7 @@ var builtinScopes = map[ScopeName]Scope{
 		Role: Role{
 			Name:        fmt.Sprintf("Scope_%s", ScopeApplicationConnect),
 			DisplayName: "Ability to connect to applications",
-			Site: permissions(map[string][]Action{
+			Site: Permissions(map[string][]Action{
 				ResourceWorkspaceApplicationConnect.Type: {ActionCreate},
 			}),
 			Org:  map[string][]Permission{},

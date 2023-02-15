@@ -28,7 +28,7 @@ func AsAuthzSystem(mws ...func(http.Handler) http.Handler) func(http.Handler) ht
 			}
 
 			// nolint:gocritic // AsAuthzSystem needs to do this.
-			r = r.WithContext(dbauthz.AsSystem(ctx))
+			r = r.WithContext(dbauthz.AsSystemRestricted(ctx))
 			chain.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 				r = r.WithContext(dbauthz.As(r.Context(), before))
 				next.ServeHTTP(rw, r)
