@@ -87,6 +87,13 @@
 2. Add the following content:
 
    ```apache
+    # Redirect HTTP to HTTPS
+    <VirtualHost *:80>
+        ServerName coder.example.com
+        ServerAlias *.coder.example.com
+        Redirect permanent / https://coder.example.com/
+    </VirtualHost>
+
     <VirtualHost *:443>
         ServerName coder.example.com
         ServerAlias *.coder.example.com
