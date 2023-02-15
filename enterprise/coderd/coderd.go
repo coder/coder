@@ -242,15 +242,17 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	api.entitlementsMu.Lock()
 	defer api.entitlementsMu.Unlock()
 
-	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.Keys, map[codersdk.FeatureName]bool{
-		codersdk.FeatureAuditLog:                   api.AuditLogging,
-		codersdk.FeatureBrowserOnly:                api.BrowserOnly,
-		codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
-		codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
-		codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
-		codersdk.FeatureTemplateRBAC:               api.RBAC,
-		codersdk.FeatureExternalProvisionerDaemons: true,
-	})
+	entitlements, err := license.Entitlements(
+		ctx, api.Database,
+		api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.Keys, map[codersdk.FeatureName]bool{
+			codersdk.FeatureAuditLog:                   api.AuditLogging,
+			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
+			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
+			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
+			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
+			codersdk.FeatureTemplateRBAC:               api.RBAC,
+			codersdk.FeatureExternalProvisionerDaemons: true,
+		})
 	if err != nil {
 		return err
 	}
@@ -258,6 +260,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if entitlements.RequireTelemetry && !api.DeploymentConfig.Telemetry.Enable.Value {
 		// We can't fail because then the user couldn't remove the offending
 		// license w/o a restart.
+		//
+		// We don't simply append to entitlement.Errors since we don't want any
+		// enterprise features enabled.
 		api.entitlements.Errors = []string{
 			"License requires telemetry but telemetry is disabled",
 		}
