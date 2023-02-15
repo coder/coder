@@ -252,6 +252,8 @@ export const templateVersionEditorMachine = createMachine(
         traverse(fileTree, (content, _filename, fullPath) => {
           if (typeof content === "string") {
             tar.addFile(fullPath, content)
+          } else {
+            tar.addFolder(fullPath)
           }
         })
         const blob = await tar.write()
