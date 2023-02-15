@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	"database/sql/driver"
 	"embed"
 	"fmt"
 	"strings"
@@ -213,31 +212,19 @@ type WorkspaceWithData struct {
 	Count int64 `db:"count" json:"count"`
 }
 
-type UUIDs []uuid.UUID
-
-func (ids UUIDs) Value() (driver.Value, error) {
-	v := pq.Array(ids)
-	return v.Value()
-}
-
-func (ids *UUIDs) Scan(src interface{}) error {
-	v := pq.Array(ids)
-	return v.Scan(src)
-}
-
 type GetWorkspacesParams struct {
-	Deleted                               bool      `db:"deleted" json:"deleted"`
-	Status                                string    `db:"status" json:"status"`
-	OwnerID                               uuid.UUID `db:"owner_id" json:"owner_id"`
-	OwnerUsername                         string    `db:"owner_username" json:"owner_username"`
-	TemplateName                          string    `db:"template_name" json:"template_name"`
-	TemplateIds                           UUIDs     `db:"template_ids" json:"template_ids"`
-	WorkspaceIds                          UUIDs     `db:"workspace_ids" json:"workspace_ids"`
-	Name                                  string    `db:"name" json:"name"`
-	HasAgent                              string    `db:"has_agent" json:"has_agent"`
-	AgentInactiveDisconnectTimeoutSeconds int64     `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
-	Offset                                int32     `db:"offset_" json:"offset_"`
-	Limit                                 int32     `db:"limit_" json:"limit_"`
+	Deleted                               bool        `db:"deleted" json:"deleted"`
+	Status                                string      `db:"status" json:"status"`
+	OwnerID                               uuid.UUID   `db:"owner_id" json:"owner_id"`
+	OwnerUsername                         string      `db:"owner_username" json:"owner_username"`
+	TemplateName                          string      `db:"template_name" json:"template_name"`
+	TemplateIds                           []uuid.UUID `db:"template_ids" json:"template_ids"`
+	WorkspaceIds                          []uuid.UUID `db:"workspace_ids" json:"workspace_ids"`
+	Name                                  string      `db:"name" json:"name"`
+	HasAgent                              string      `db:"has_agent" json:"has_agent"`
+	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
+	Offset                                int32       `db:"offset_" json:"offset_"`
+	Limit                                 int32       `db:"limit_" json:"limit_"`
 }
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
@@ -249,6 +236,9 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
 
+	// getQuery is just the SQL query from the sqlxqueries/getworkspaces.sql file.
+	// TODO: This syntax kinda sucks, but embedding is nice? Could just be a
+	// string constant.
 	getQuery, err := sqlxQueries.ReadFile("sqlxqueries/getworkspaces.sql")
 	if err != nil {
 		panic("developer error")
@@ -261,20 +251,14 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		return nil, xerrors.Errorf("insert authorized filter: %w", err)
 	}
 
-	// SQLx expects :arg-named arguments, but we use @arg-named arguments. So
-	// switch them. Also any ':' in comments breaks this...
-	filtered = strings.ReplaceAll(filtered, "@", ":")
-	query, args, err := q.sdb.BindNamed(filtered, arg)
+	query, args, err := bindNamed(filtered, arg)
 	if err != nil {
 		return nil, xerrors.Errorf("bind named: %w", err)
 	}
-	// So SQLx treats '::' as escaping a ":". So we need to unescape it??
-	query = strings.ReplaceAll(query, ":", "::")
 
-	// The name comment is for metric tracking
-	// Must add after sqlx or else it breaks 'BindNamed'
-	query = fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", query)
 	var items []WorkspaceWithData
+	// SelectContext maps the results of the query to the items slice by struct
+	// db tags.
 	err = q.sdb.SelectContext(ctx, &items, query, args...)
 	if err != nil {
 		return nil, xerrors.Errorf("get authorized workspaces: %w", err)

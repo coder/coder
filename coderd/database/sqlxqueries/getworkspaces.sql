@@ -1,3 +1,4 @@
+-- name: GetAuthorizedWorkspaces :many
 SELECT
 	workspaces.*,
 	-- Owner fields. Required for UI.
