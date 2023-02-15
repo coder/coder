@@ -31,6 +31,13 @@ func mockAuditor() *atomic.Pointer[audit.Auditor] {
 	return ptr
 }
 
+func testTemplateScheduleStore() *atomic.Pointer[provisionerdserver.TemplateScheduleStore] {
+	ptr := &atomic.Pointer[provisionerdserver.TemplateScheduleStore]{}
+	store := provisionerdserver.NewAGPLTemplateScheduleStore()
+	ptr.Store(&store)
+	return ptr
+}
+
 func TestAcquireJob(t *testing.T) {
 	t.Parallel()
 	t.Run("Debounce", func(t *testing.T) {
@@ -38,15 +45,16 @@ func TestAcquireJob(t *testing.T) {
 		db := dbfake.New()
 		pubsub := database.NewPubsubInMemory()
 		srv := &provisionerdserver.Server{
-			ID:                 uuid.New(),
-			Logger:             slogtest.Make(t, nil),
-			AccessURL:          &url.URL{},
-			Provisioners:       []database.ProvisionerType{database.ProvisionerTypeEcho},
-			Database:           db,
-			Pubsub:             pubsub,
-			Telemetry:          telemetry.NewNoop(),
-			AcquireJobDebounce: time.Hour,
-			Auditor:            mockAuditor(),
+			ID:                    uuid.New(),
+			Logger:                slogtest.Make(t, nil),
+			AccessURL:             &url.URL{},
+			Provisioners:          []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Database:              db,
+			Pubsub:                pubsub,
+			Telemetry:             telemetry.NewNoop(),
+			AcquireJobDebounce:    time.Hour,
+			Auditor:               mockAuditor(),
+			TemplateScheduleStore: testTemplateScheduleStore(),
 		}
 		job, err := srv.AcquireJob(context.Background(), nil)
 		require.NoError(t, err)
@@ -602,27 +610,42 @@ func TestCompleteJob(t *testing.T) {
 	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
+
+		user := dbgen.User(t, srv.Database, database.User{})
+		template := dbgen.Template(t, srv.Database, database.Template{
+			Name:        "template",
+			Provisioner: database.ProvisionerTypeEcho,
+		})
+		file := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
 		workspace, err := srv.Database.InsertWorkspace(ctx, database.InsertWorkspaceParams{
-			ID: uuid.New(),
+			ID:         uuid.New(),
+			TemplateID: template.ID,
+		})
+		version := dbgen.TemplateVersion(t, srv.Database, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
+				Valid: true,
+			},
+			JobID: uuid.New(),
 		})
 		require.NoError(t, err)
 		build, err := srv.Database.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
-			ID:          uuid.New(),
-			WorkspaceID: workspace.ID,
-			Transition:  database.WorkspaceTransitionDelete,
-			Reason:      database.BuildReasonInitiator,
-		})
-		require.NoError(t, err)
-		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-			WorkspaceBuildID: build.ID,
+			ID:                uuid.New(),
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: version.ID,
+			Transition:        database.WorkspaceTransitionDelete,
+			Reason:            database.BuildReasonInitiator,
 		})
 		require.NoError(t, err)
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:            uuid.New(),
+			FileID:        file.ID,
 			Provisioner:   database.ProvisionerTypeEcho,
-			Input:         input,
 			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 			StorageMethod: database.ProvisionerStorageMethodFile,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID: build.ID,
+			})),
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -802,14 +825,15 @@ func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 	pubsub := database.NewPubsubInMemory()
 
 	return &provisionerdserver.Server{
-		ID:           uuid.New(),
-		Logger:       slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
-		AccessURL:    &url.URL{},
-		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
-		Database:     db,
-		Pubsub:       pubsub,
-		Telemetry:    telemetry.NewNoop(),
-		Auditor:      mockAuditor(),
+		ID:                    uuid.New(),
+		Logger:                slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
+		AccessURL:             &url.URL{},
+		Provisioners:          []database.ProvisionerType{database.ProvisionerTypeEcho},
+		Database:              db,
+		Pubsub:                pubsub,
+		Telemetry:             telemetry.NewNoop(),
+		Auditor:               mockAuditor(),
+		TemplateScheduleStore: testTemplateScheduleStore(),
 	}
 }
 

@@ -2401,7 +2401,7 @@ WHERE
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY($3 :: provisioner_type [ ])
 			-- Ensure the caller satisfies all job tags.
-			AND nested.tags <@ $4 :: jsonb 
+			AND nested.tags <@ $4 :: jsonb
 		ORDER BY
 			nested.created_at
 		FOR UPDATE
@@ -3117,7 +3117,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.GroupACL,
 		&i.DisplayName,
 		&i.AllowUserCancelWorkspaceJobs,
-		&i.MaxTtl,
+		&i.MaxTTL,
 	)
 	return i, err
 }
@@ -3161,7 +3161,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.GroupACL,
 		&i.DisplayName,
 		&i.AllowUserCancelWorkspaceJobs,
-		&i.MaxTtl,
+		&i.MaxTTL,
 	)
 	return i, err
 }
@@ -3197,7 +3197,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.GroupACL,
 			&i.DisplayName,
 			&i.AllowUserCancelWorkspaceJobs,
-			&i.MaxTtl,
+			&i.MaxTTL,
 		); err != nil {
 			return nil, err
 		}
@@ -3281,7 +3281,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.GroupACL,
 			&i.DisplayName,
 			&i.AllowUserCancelWorkspaceJobs,
-			&i.MaxTtl,
+			&i.MaxTTL,
 		); err != nil {
 			return nil, err
 		}
@@ -3373,7 +3373,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		&i.GroupACL,
 		&i.DisplayName,
 		&i.AllowUserCancelWorkspaceJobs,
-		&i.MaxTtl,
+		&i.MaxTTL,
 	)
 	return i, err
 }
@@ -3416,7 +3416,7 @@ func (q *sqlQuerier) UpdateTemplateACLByID(ctx context.Context, arg UpdateTempla
 		&i.GroupACL,
 		&i.DisplayName,
 		&i.AllowUserCancelWorkspaceJobs,
-		&i.MaxTtl,
+		&i.MaxTTL,
 	)
 	return i, err
 }
@@ -3520,7 +3520,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		&i.GroupACL,
 		&i.DisplayName,
 		&i.AllowUserCancelWorkspaceJobs,
-		&i.MaxTtl,
+		&i.MaxTTL,
 	)
 	return i, err
 }

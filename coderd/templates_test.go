@@ -87,7 +87,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
-	t.Run("MaxTTLTooLow", func(t *testing.T) {
+	t.Run("DefaultTTLTooLow", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
@@ -107,7 +107,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		require.Contains(t, err.Error(), "default_ttl_ms: Must be a positive integer")
 	})
 
-	t.Run("NoMaxTTL", func(t *testing.T) {
+	t.Run("NoDefaultTTL", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
@@ -290,7 +290,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[4].Action)
 	})
 
-	t.Run("NoMaxTTL", func(t *testing.T) {
+	t.Run("NoDefaultTTL", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
@@ -319,7 +319,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
 	})
 
-	t.Run("MaxTTLTooLow", func(t *testing.T) {
+	t.Run("DefaultTTLTooLow", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)

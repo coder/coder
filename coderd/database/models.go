@@ -1418,7 +1418,7 @@ type Template struct {
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Allow users to cancel in-progress workspace jobs.
 	AllowUserCancelWorkspaceJobs bool  `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
-	MaxTtl                       int64 `db:"max_ttl" json:"max_ttl"`
+	MaxTTL                       int64 `db:"max_ttl" json:"max_ttl"`
 }
 
 type TemplateVersion struct {

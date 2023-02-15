@@ -47,6 +47,7 @@ func TestEntitlements(t *testing.T) {
 				codersdk.FeatureAuditLog:                   1,
 				codersdk.FeatureTemplateRBAC:               1,
 				codersdk.FeatureExternalProvisionerDaemons: 1,
+				codersdk.FeatureAdvancedTemplateScheduling: 1,
 			},
 		})
 		res, err := client.Entitlements(context.Background())

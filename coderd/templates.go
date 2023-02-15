@@ -475,7 +475,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		displayName := req.DisplayName
 		desc := req.Description
 		icon := req.Icon
-		maxTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
+		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
 		allowUserCancelWorkspaceJobs := req.AllowUserCancelWorkspaceJobs
 
 		if name == "" {
@@ -493,7 +493,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			DisplayName:                  displayName,
 			Description:                  desc,
 			Icon:                         icon,
-			DefaultTTL:                   int64(maxTTL),
+			DefaultTTL:                   int64(defaultTTL),
 			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 		})
 		if err != nil {

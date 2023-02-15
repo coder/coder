@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
@@ -210,15 +212,16 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	}
 	mux := drpcmux.New()
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
-		AccessURL:    api.AccessURL,
-		ID:           daemon.ID,
-		Database:     api.Database,
-		Pubsub:       api.Pubsub,
-		Provisioners: daemon.Provisioners,
-		Telemetry:    api.Telemetry,
-		Auditor:      &api.AGPL.Auditor,
-		Logger:       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
-		Tags:         rawTags,
+		AccessURL:             api.AccessURL,
+		ID:                    daemon.ID,
+		Database:              api.Database,
+		Pubsub:                api.Pubsub,
+		Provisioners:          daemon.Provisioners,
+		Telemetry:             api.Telemetry,
+		Auditor:               &api.AGPL.Auditor,
+		TemplateScheduleStore: &api.AGPL.TemplateScheduleStore,
+		Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		Tags:                  rawTags,
 	})
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))
@@ -253,4 +256,22 @@ func convertProvisionerDaemon(daemon database.ProvisionerDaemon) codersdk.Provis
 		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))
 	}
 	return result
+}
+
+type enterpriseTemplateScheduleStore struct{}
+
+var _ provisionerdserver.TemplateScheduleStore = &enterpriseTemplateScheduleStore{}
+
+func (s *enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error) {
+	tpl, err := db.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return provisionerdserver.TemplateScheduleOptions{}, err
+	}
+
+	return provisionerdserver.TemplateScheduleOptions{
+		// TODO: make configurable at template level
+		UserSchedulingEnabled: true,
+		DefaultTTL:            time.Duration(tpl.DefaultTTL),
+		MaxTTL:                time.Duration(tpl.MaxTTL),
+	}, nil
 }

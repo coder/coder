@@ -42,6 +42,7 @@ overrides:
       group_acl: GroupACL
       troubleshooting_url: TroubleshootingURL
       default_ttl: DefaultTTL
+      max_ttl: MaxTTL
       motd_file: MOTDFile
 
 sql:

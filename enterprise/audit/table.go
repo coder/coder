@@ -71,6 +71,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"group_acl":                        ActionTrack,
 		"user_acl":                         ActionTrack,
 		"allow_user_cancel_workspace_jobs": ActionTrack,
+		"max_ttl":                          ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":              ActionTrack,

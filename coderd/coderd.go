@@ -110,12 +110,13 @@ type Options struct {
 	RealIPConfig                   *httpmw.RealIPConfig
 	TrialGenerator                 func(ctx context.Context, email string) error
 	// TLSCertificates is used to mesh DERP servers securely.
-	TLSCertificates    []tls.Certificate
-	TailnetCoordinator tailnet.Coordinator
-	DERPServer         *derp.Server
-	DERPMap            *tailcfg.DERPMap
-	SwaggerEndpoint    bool
-	SetUserGroups      func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
+	TLSCertificates       []tls.Certificate
+	TailnetCoordinator    tailnet.Coordinator
+	DERPServer            *derp.Server
+	DERPMap               *tailcfg.DERPMap
+	SwaggerEndpoint       bool
+	SetUserGroups         func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
+	TemplateScheduleStore provisionerdserver.TemplateScheduleStore
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
@@ -206,6 +207,9 @@ func New(options *Options) *API {
 	if options.SetUserGroups == nil {
 		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
 	}
+	if options.TemplateScheduleStore == nil {
+		options.TemplateScheduleStore = provisionerdserver.NewAGPLTemplateScheduleStore()
+	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -232,9 +236,10 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		metricsCache: metricsCache,
-		Auditor:      atomic.Pointer[audit.Auditor]{},
-		Experiments:  experiments,
+		metricsCache:          metricsCache,
+		Auditor:               atomic.Pointer[audit.Auditor]{},
+		TemplateScheduleStore: atomic.Pointer[provisionerdserver.TemplateScheduleStore]{},
+		Experiments:           experiments,
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -244,6 +249,7 @@ func New(options *Options) *API {
 		)
 	}
 	api.Auditor.Store(&options.Auditor)
+	api.TemplateScheduleStore.Store(&options.TemplateScheduleStore)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 	oauthConfigs := &httpmw.OAuth2Configs{
@@ -679,6 +685,7 @@ type API struct {
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
+	TemplateScheduleStore             atomic.Pointer[provisionerdserver.TemplateScheduleStore]
 
 	HTTPAuth *HTTPAuthorizer
 
@@ -770,17 +777,18 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 
 	mux := drpcmux.New()
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
-		AccessURL:          api.AccessURL,
-		ID:                 daemon.ID,
-		Database:           api.Database,
-		Pubsub:             api.Pubsub,
-		Provisioners:       daemon.Provisioners,
-		Telemetry:          api.Telemetry,
-		Tags:               tags,
-		QuotaCommitter:     &api.QuotaCommitter,
-		Auditor:            &api.Auditor,
-		AcquireJobDebounce: debounce,
-		Logger:             api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		AccessURL:             api.AccessURL,
+		ID:                    daemon.ID,
+		Database:              api.Database,
+		Pubsub:                api.Pubsub,
+		Provisioners:          daemon.Provisioners,
+		Telemetry:             api.Telemetry,
+		Tags:                  tags,
+		QuotaCommitter:        &api.QuotaCommitter,
+		Auditor:               &api.Auditor,
+		TemplateScheduleStore: &api.TemplateScheduleStore,
+		AcquireJobDebounce:    debounce,
+		Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 	})
 	if err != nil {
 		return nil, err

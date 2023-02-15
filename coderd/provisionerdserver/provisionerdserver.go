@@ -40,16 +40,17 @@ var (
 )
 
 type Server struct {
-	AccessURL      *url.URL
-	ID             uuid.UUID
-	Logger         slog.Logger
-	Provisioners   []database.ProvisionerType
-	Tags           json.RawMessage
-	Database       database.Store
-	Pubsub         database.Pubsub
-	Telemetry      telemetry.Reporter
-	QuotaCommitter *atomic.Pointer[proto.QuotaCommitter]
-	Auditor        *atomic.Pointer[audit.Auditor]
+	AccessURL             *url.URL
+	ID                    uuid.UUID
+	Logger                slog.Logger
+	Provisioners          []database.ProvisionerType
+	Tags                  json.RawMessage
+	Database              database.Store
+	Pubsub                database.Pubsub
+	Telemetry             telemetry.Reporter
+	QuotaCommitter        *atomic.Pointer[proto.QuotaCommitter]
+	Auditor               *atomic.Pointer[audit.Auditor]
+	TemplateScheduleStore *atomic.Pointer[TemplateScheduleStore]
 
 	AcquireJobDebounce time.Duration
 }
@@ -520,12 +521,12 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 
 		var build database.WorkspaceBuild
 		err := server.Database.InTx(func(db database.Store) error {
-			workspaceBuild, err := server.Database.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
+			workspaceBuild, err := db.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
 			if err != nil {
 				return xerrors.Errorf("get workspace build: %w", err)
 			}
 
-			build, err = server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+			build, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               input.WorkspaceBuildID,
 				UpdatedAt:        database.Now(),
 				ProvisionerState: jobType.WorkspaceBuild.State,
@@ -611,6 +612,8 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 }
 
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
+//
+//nolint:gocyclo
 func (server *Server) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
 	jobID, err := uuid.Parse(completed.JobId)
 	if err != nil {
@@ -715,39 +718,49 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		var getWorkspaceError error
 
 		err = server.Database.InTx(func(db database.Store) error {
-			now := database.Now()
-			var workspaceDeadline time.Time
+			var (
+				now = database.Now()
+				// deadline is the time when the workspace will be stopped. The
+				// value can be bumped by user activity or manually by the user
+				// via the UI.
+				deadline time.Time
+				// maxDeadline is the maximum value for deadline.
+				maxDeadline time.Time
+			)
+
 			workspace, getWorkspaceError = db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
-			if getWorkspaceError == nil {
-				if workspace.Ttl.Valid {
-					workspaceDeadline = now.Add(time.Duration(workspace.Ttl.Int64))
-				}
-			} else {
-				// Huh? Did the workspace get deleted?
-				// In any case, since this is just for the TTL, try and continue anyway.
+			if getWorkspaceError != nil {
 				server.Logger.Error(ctx,
 					"fetch workspace for build",
 					slog.F("workspace_build_id", workspaceBuild.ID),
 					slog.F("workspace_id", workspaceBuild.WorkspaceID),
 				)
+				return getWorkspaceError
+			}
+			if workspace.Ttl.Valid {
+				deadline = now.Add(time.Duration(workspace.Ttl.Int64))
 			}
 
-			var workspaceMaxDeadline time.Time
-			template, err := db.GetTemplateByID(ctx, workspace.TemplateID)
-			if err == nil {
-				if template.MaxTtl > 0 {
-					workspaceMaxDeadline = now.Add(time.Duration(template.MaxTtl))
-					if !workspaceDeadline.IsZero() && workspaceMaxDeadline.Before(workspaceDeadline) {
-						workspaceDeadline = workspaceMaxDeadline
-					}
+			templateSchedule, err := (*server.TemplateScheduleStore.Load()).GetTemplateScheduleOptions(ctx, db, workspace.TemplateID)
+			if err != nil {
+				return xerrors.Errorf("get template schedule options: %w", err)
+			}
+			if !templateSchedule.UserSchedulingEnabled {
+				// The user is not permitted to set their own TTL.
+				deadline = time.Time{}
+			}
+			if deadline.IsZero() && templateSchedule.DefaultTTL > 0 {
+				deadline = now.Add(templateSchedule.DefaultTTL)
+			}
+			if templateSchedule.MaxTTL > 0 {
+				maxDeadline = now.Add(templateSchedule.MaxTTL)
+
+				if deadline.IsZero() || maxDeadline.Before(deadline) {
+					// If the workspace doesn't have a deadline or the max
+					// deadline is sooner than the workspace deadline, use the
+					// max deadline as the actual deadline.
+					deadline = maxDeadline
 				}
-			} else {
-				server.Logger.Error(ctx,
-					"fetch template for build",
-					slog.F("workspace_build_id", workspaceBuild.ID),
-					slog.F("workspace_id", workspaceBuild.WorkspaceID),
-					slog.F("template_id", workspace.TemplateID),
-				)
 			}
 
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
@@ -763,8 +776,8 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			}
 			_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               workspaceBuild.ID,
-				Deadline:         workspaceDeadline,
-				MaxDeadline:      workspaceMaxDeadline,
+				Deadline:         deadline,
+				MaxDeadline:      maxDeadline,
 				ProvisionerState: jobType.WorkspaceBuild.State,
 				UpdatedAt:        now,
 			})
