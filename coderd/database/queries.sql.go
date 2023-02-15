@@ -2425,7 +2425,7 @@ WHERE
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY($3 :: provisioner_type [ ])
 			-- Ensure the caller satisfies all job tags.
-			AND nested.tags <@ $4 :: jsonb 
+			AND nested.tags <@ $4 :: jsonb
 		ORDER BY
 			nested.created_at
 		FOR UPDATE
@@ -6819,21 +6819,6 @@ LIMIT
 OFFSET
 	$11
 `
-
-type GetWorkspacesParams struct {
-	Deleted                               bool        `db:"deleted" json:"deleted"`
-	Status                                string      `db:"status" json:"status"`
-	OwnerID                               uuid.UUID   `db:"owner_id" json:"owner_id"`
-	OwnerUsername                         string      `db:"owner_username" json:"owner_username"`
-	TemplateName                          string      `db:"template_name" json:"template_name"`
-	TemplateIds                           []uuid.UUID `db:"template_ids" json:"template_ids"`
-	WorkspaceIds                          []uuid.UUID `db:"workspace_ids" json:"workspace_ids"`
-	Name                                  string      `db:"name" json:"name"`
-	HasAgent                              string      `db:"has_agent" json:"has_agent"`
-	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
-	Offset                                int32       `db:"offset_" json:"offset_"`
-	Limit                                 int32       `db:"limit_" json:"limit_"`
-}
 
 type GetWorkspacesRow struct {
 	ID                             uuid.UUID                `db:"id" json:"id"`

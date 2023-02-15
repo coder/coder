@@ -2,8 +2,12 @@ package database
 
 import (
 	"context"
+	"database/sql/driver"
+	"embed"
 	"fmt"
 	"strings"
+
+	_ "embed"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -12,6 +16,9 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/rbac/regosql"
 )
+
+//go:embed sqlxqueries/*.sql
+var sqlxQueries embed.FS
 
 const (
 	authorizedQueryPlaceholder = "-- @authorize_filter"
@@ -206,6 +213,33 @@ type WorkspaceWithData struct {
 	Count int64 `db:"count" json:"count"`
 }
 
+type UUIDs []uuid.UUID
+
+func (ids UUIDs) Value() (driver.Value, error) {
+	v := pq.Array(ids)
+	return v.Value()
+}
+
+func (ids *UUIDs) Scan(src interface{}) error {
+	v := pq.Array(ids)
+	return v.Scan(src)
+}
+
+type GetWorkspacesParams struct {
+	Deleted                               bool      `db:"deleted" json:"deleted"`
+	Status                                string    `db:"status" json:"status"`
+	OwnerID                               uuid.UUID `db:"owner_id" json:"owner_id"`
+	OwnerUsername                         string    `db:"owner_username" json:"owner_username"`
+	TemplateName                          string    `db:"template_name" json:"template_name"`
+	TemplateIds                           UUIDs     `db:"template_ids" json:"template_ids"`
+	WorkspaceIds                          UUIDs     `db:"workspace_ids" json:"workspace_ids"`
+	Name                                  string    `db:"name" json:"name"`
+	HasAgent                              string    `db:"has_agent" json:"has_agent"`
+	AgentInactiveDisconnectTimeoutSeconds int64     `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
+	Offset                                int32     `db:"offset_" json:"offset_"`
+	Limit                                 int32     `db:"limit_" json:"limit_"`
+}
+
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
 // clause.
@@ -215,91 +249,33 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
 
+	getQuery, err := sqlxQueries.ReadFile("sqlxqueries/getworkspaces.sql")
+	if err != nil {
+		panic("developer error")
+	}
+
 	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
 	// authorizedFilter between the end of the where clause and those statements.
-	filtered, err := insertAuthorizedFilter(getWorkspaces, fmt.Sprintf(" AND %s", authorizedFilter))
+	filtered, err := insertAuthorizedFilter(string(getQuery), fmt.Sprintf(" AND %s", authorizedFilter))
 	if err != nil {
 		return nil, xerrors.Errorf("insert authorized filter: %w", err)
 	}
 
+	filtered = strings.ReplaceAll(filtered, "@", ":")
+	query, args, err := q.sdb.BindNamed(filtered, arg)
+	if err != nil {
+		return nil, xerrors.Errorf("bind named: %w", err)
+	}
+	query = strings.ReplaceAll(query, ":", "::")
+
 	// The name comment is for metric tracking
-	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filtered)
+	//query = fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", query)
 	var items []WorkspaceWithData
-	err = q.db.SelectContext(ctx, &items, query,
-		arg.Deleted,
-		arg.Status,
-		arg.OwnerID,
-		arg.OwnerUsername,
-		arg.TemplateName,
-		pq.Array(arg.TemplateIds),
-		pq.Array(arg.WorkspaceIds),
-		arg.Name,
-		arg.HasAgent,
-		arg.AgentInactiveDisconnectTimeoutSeconds,
-		arg.Offset,
-		arg.Limit,
-	)
-	fmt.Println()
+	err = q.sdb.SelectContext(ctx, &items, query, args...)
 	if err != nil {
 		return nil, xerrors.Errorf("get authorized workspaces: %w", err)
 	}
-	//defer rows.Close()
-	//var items []WorkspaceWithData
-	//for rows.Next() {
-	//	var i WorkspaceWithData
-	//	if err := rows.Scan(
-	//		&i.ID,
-	//		&i.CreatedAt,
-	//		&i.UpdatedAt,
-	//		&i.OwnerID,
-	//		&i.OrganizationID,
-	//		&i.TemplateID,
-	//		&i.Deleted,
-	//		&i.Name,
-	//		&i.AutostartSchedule,
-	//		&i.Ttl,
-	//		&i.LastUsedAt,
-	//		&i.TemplateName,
-	//		&i.TemplateIcon,
-	//		&i.TemplateDisplayName,
-	//		&i.TemplateAllowUserCancelWorkspaceJobs,
-	//		&i.TemplateActiveVersionID,
-	//		&i.LatestBuild.ID,
-	//		&i.LatestBuild.CreatedAt,
-	//		&i.LatestBuild.UpdatedAt,
-	//		&i.LatestBuild.TemplateVersionID,
-	//		&i.LatestBuild.BuildNumber,
-	//		&i.LatestBuild.Transition,
-	//		&i.LatestBuild.JobID,
-	//		&i.LatestBuild.InitiatorID,
-	//		&i.LatestBuild.Reason,
-	//		&i.LatestBuild.DailyCost,
-	//		&i.LatestBuildJob.ID,
-	//		&i.LatestBuildJob.CreatedAt,
-	//		&i.LatestBuildJob.UpdatedAt,
-	//		&i.LatestBuildJob.StartedAt,
-	//		&i.LatestBuildJob.CompletedAt,
-	//		&i.LatestBuildJob.CanceledAt,
-	//		&i.LatestBuildJob.Error,
-	//		&i.LatestBuildJob.OrganizationID,
-	//		&i.LatestBuildJob.Provisioner,
-	//		&i.LatestBuildJob.StorageMethod,
-	//		&i.LatestBuildJob.Type,
-	//		&i.LatestBuildJob.WorkerID,
-	//		&i.LatestBuildJob.FileID,
-	//		&i.LatestBuildJob.Tags,
-	//		&i.Count,
-	//	); err != nil {
-	//		return nil, err
-	//	}
-	//	items = append(items, i)
-	//}
-	//if err := rows.Close(); err != nil {
-	//	return nil, err
-	//}
-	//if err := rows.Err(); err != nil {
-	//	return nil, err
-	//}
+
 	return items, nil
 }
 
