@@ -4,7 +4,7 @@ of the options, run `coder server --help` on the host.
 ## Access URL
 
 `CODER_ACCESS_URL` is required if you are not using the tunnel. Set this to the external URL
-that users and workspaces use to connect to Coder (e.g. https://coder.example.com). This
+that users and workspaces use to connect to Coder (e.g. <https://coder.example.com>). This
 should not be localhost.
 
 > Access URL should be a external IP address or domain with DNS records pointing to Coder.
@@ -46,13 +46,14 @@ subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 
 The Coder server can directly use TLS certificates with `CODER_TLS_ENABLE` and accompanying configuration flags. However, Coder can also run behind a reverse-proxy to terminate TLS certificates from LetsEncrypt, for example.
 
-- Example: [Run Coder with Caddy and LetsEncrypt](https://github.com/coder/coder/tree/main/examples/web-server/caddy)
+- Caddy: [Run Coder with Caddy and LetsEncrypt](https://github.com/coder/coder/tree/main/examples/web-server/caddy)
+- NGINX: [Run Coder with Nginx and LetsEncrypt](https://github.com/coder/coder/tree/main/examples/web-server/nginx)
 
 ## PostgreSQL Database
 
 Coder uses a PostgreSQL database to store users, workspace metadata, and other deployment information.
 Use `CODER_PG_CONNECTION_URL` to set the database that Coder connects to. If unset, PostgreSQL binaries will be
-downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root.
+downloaded from Maven (<https://repo1.maven.org/maven2>) and store all data in the config root.
 
 > Postgres 13 is the minimum supported version.
 
@@ -60,8 +61,8 @@ If you are using the built-in PostgreSQL deployment and need to use `psql` (aka
 the PostgreSQL interactive terminal), output the connection URL with the following command:
 
 ```console
-$ coder server postgres-builtin-url
-$ psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
+coder server postgres-builtin-url
+psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
 ```
 
 ## System packages
