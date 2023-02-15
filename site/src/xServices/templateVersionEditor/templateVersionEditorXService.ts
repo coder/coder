@@ -7,11 +7,11 @@ import {
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 import * as API from "api/api"
-import Tar from "tar-js"
 import { File as UntarFile } from "js-untar"
 import { FileTree, traverse } from "util/filetree"
 import { isAllowedFile } from "util/templateVersion"
 import { saveAs } from "file-saver"
+import { TarWriter } from "util/tar"
 
 export interface CreateVersionData {
   file: File
@@ -226,30 +226,38 @@ export const templateVersionEditorMachine = createMachine(
         if (!untarFiles) {
           throw new Error("untar files must to be set")
         }
-        const tar = new Tar()
+        const tar = new TarWriter()
+
         // Add previous non editable files
         for (const untarFile of untarFiles) {
-          if (!isAllowedFile(untarFile.name) && untarFile.type === "0") {
-            // TODO: Maybe there is a way to use blob directly to append in tar
-            // or a way where converting to text is necessary. I tried to find
-            // it but I didn't have success tho.
-            const content = await untarFile.blob.text()
-            tar.append(untarFile.name, content, {
-              mode: Number(untarFile.mode),
-              gid: untarFile.gid,
-              uid: untarFile.uid,
-              mtime: untarFile.mtime,
-            })
+          if (!isAllowedFile(untarFile.name)) {
+            if (untarFile.type === "5") {
+              tar.addFolder(untarFile.name, {
+                mode: parseInt(untarFile.mode, 8) & 0xfff, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
+                mtime: untarFile.mtime,
+                user: untarFile.uname,
+                group: untarFile.gname,
+              })
+            } else {
+              const buffer = await untarFile.blob.arrayBuffer()
+              tar.addFile(untarFile.name, new Uint8Array(buffer), {
+                mode: parseInt(untarFile.mode, 8) & 0xfff, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
+                mtime: untarFile.mtime,
+                user: untarFile.uname,
+                group: untarFile.gname,
+              })
+            }
           }
         }
         // Add the editable files
         traverse(fileTree, (content, _filename, fullPath) => {
           if (typeof content === "string") {
-            tar.append(fullPath, content)
+            tar.addFile(fullPath, content)
           }
         })
-        saveAs(new Blob([tar.out]), "template.tar")
-        return API.uploadTemplateFile(new File([tar.out], "template.tar"))
+        const blob = await tar.write()
+        saveAs(blob, "template.tar")
+        return API.uploadTemplateFile(new File([blob], "template.tar"))
       },
       createBuild: (ctx) => {
         if (!ctx.uploadResponse) {

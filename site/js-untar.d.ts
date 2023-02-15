@@ -6,6 +6,8 @@ declare module "js-untar" {
     gid: number
     uid: number
     mtime: number
+    gname: string
+    uname: string
     type: "0" | "1" | "2" | "3" | "4" | "5" //https://en.wikipedia.org/wiki/Tar_(computing) on Type flag field
   }
 
