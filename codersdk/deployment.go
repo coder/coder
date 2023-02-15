@@ -81,11 +81,12 @@ type Feature struct {
 }
 
 type Entitlements struct {
-	Features   map[FeatureName]Feature `json:"features"`
-	Warnings   []string                `json:"warnings"`
-	Errors     []string                `json:"errors"`
-	HasLicense bool                    `json:"has_license"`
-	Trial      bool                    `json:"trial"`
+	Features         map[FeatureName]Feature `json:"features"`
+	Warnings         []string                `json:"warnings"`
+	Errors           []string                `json:"errors"`
+	HasLicense       bool                    `json:"has_license"`
+	Trial            bool                    `json:"trial"`
+	RequireTelemetry bool                    `json:"require_telemetry"`
 
 	// DEPRECATED: use Experiments instead.
 	Experimental bool `json:"experimental"`

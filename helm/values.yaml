@@ -58,16 +58,15 @@ coder:
     # runs as an unprivileged user. If setting runAsUser to 0 (root), this
     # will need to be set to false.
     runAsNonRoot: true
-    # coder.securityContext.runAsUser -- Sets the user id of the pod.
+    # coder.securityContext.runAsUser -- Sets the user id of the container.
     # For security reasons, we recommend using a non-root user.
     runAsUser: 1000
-    # coder.securityContext.runAsGroup -- Sets the group id of the pod.
+    # coder.securityContext.runAsGroup -- Sets the group id of the container.
     # For security reasons, we recommend using a non-root group.
     runAsGroup: 1000
     # coder.securityContext.readOnlyRootFilesystem -- Mounts the container's
-    # root filesystem as read-only. It is recommended to leave this setting
-    # enabled in production. This will override the same setting in the pod
-    readOnlyRootFilesystem: true
+    # root filesystem as read-only.
+    readOnlyRootFilesystem: null
     # coder.securityContext.seccompProfile -- Sets the seccomp profile for
     # the coder container.
     seccompProfile:

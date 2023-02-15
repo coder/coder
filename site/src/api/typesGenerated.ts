@@ -361,6 +361,7 @@ export interface Entitlements {
   readonly errors: string[]
   readonly has_license: boolean
   readonly trial: boolean
+  readonly require_telemetry: boolean
   readonly experimental: boolean
 }
 
@@ -1201,6 +1202,7 @@ export type ResourceType =
   | "api_key"
   | "git_ssh_key"
   | "group"
+  | "license"
   | "template"
   | "template_version"
   | "user"
@@ -1210,6 +1212,7 @@ export const ResourceTypes: ResourceType[] = [
   "api_key",
   "git_ssh_key",
   "group",
+  "license",
   "template",
   "template_version",
   "user",

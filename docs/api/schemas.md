@@ -2813,6 +2813,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     }
   },
   "has_license": true,
+  "require_telemetry": true,
   "trial": true,
   "warnings": ["string"]
 }
@@ -2820,15 +2821,16 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name               | Type                                 | Required | Restrictions | Description                           |
-| ------------------ | ------------------------------------ | -------- | ------------ | ------------------------------------- |
-| `errors`           | array of string                      | false    |              |                                       |
-| `experimental`     | boolean                              | false    |              | Experimental use Experiments instead. |
-| `features`         | object                               | false    |              |                                       |
-| » `[any property]` | [codersdk.Feature](#codersdkfeature) | false    |              |                                       |
-| `has_license`      | boolean                              | false    |              |                                       |
-| `trial`            | boolean                              | false    |              |                                       |
-| `warnings`         | array of string                      | false    |              |                                       |
+| Name                | Type                                 | Required | Restrictions | Description                           |
+| ------------------- | ------------------------------------ | -------- | ------------ | ------------------------------------- |
+| `errors`            | array of string                      | false    |              |                                       |
+| `experimental`      | boolean                              | false    |              | Experimental use Experiments instead. |
+| `features`          | object                               | false    |              |                                       |
+| » `[any property]`  | [codersdk.Feature](#codersdkfeature) | false    |              |                                       |
+| `has_license`       | boolean                              | false    |              |                                       |
+| `require_telemetry` | boolean                              | false    |              |                                       |
+| `trial`             | boolean                              | false    |              |                                       |
+| `warnings`          | array of string                      | false    |              |                                       |
 
 ## codersdk.Experiment
 
@@ -4059,6 +4061,7 @@ Parameter represents a set value for the scope.
 | `git_ssh_key`      |
 | `api_key`          |
 | `group`            |
+| `license`          |
 
 ## codersdk.Response
 

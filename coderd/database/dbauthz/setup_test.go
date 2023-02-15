@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/xerrors"
-
 	"github.com/google/uuid"
+	"github.com/open-policy-agent/opa/topdown"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -223,6 +223,26 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 			s.Errorf(err, "method should an error with disallow authz")
 			s.ErrorIsf(err, sql.ErrNoRows, "error should match sql.ErrNoRows")
 			s.ErrorAs(err, &dbauthz.NotAuthorizedError{}, "error should be NotAuthorizedError")
+		}
+	})
+
+	s.Run("Cancelled", func() {
+		// Pass in a cancelled context
+		ctx, cancel := context.WithCancel(ctx)
+		cancel()
+		az.AlwaysReturn = rbac.ForbiddenWithInternal(&topdown.Error{Code: topdown.CancelErr},
+			rbac.Subject{}, "", rbac.Object{}, nil)
+
+		// If we have assertions, that means the method should FAIL
+		// if RBAC will disallow the request. The returned error should
+		// be expected to be a NotAuthorizedError.
+		resp, err := callMethod(ctx)
+
+		// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
+		// any case where the error is nil and the response is an empty slice.
+		if err != nil || !hasEmptySliceResponse(resp) {
+			s.Errorf(err, "method should an error with cancellation")
+			s.ErrorIsf(err, context.Canceled, "error should match context.Cancelled")
 		}
 	})
 }
