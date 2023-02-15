@@ -1,6 +1,6 @@
 import * as API from "api/api"
 import { TemplateVersion } from "api/typesGenerated"
-import untar from "js-untar"
+import untar, { File as UntarFile } from "js-untar"
 import { FileTree, setFile } from "./filetree"
 
 /**
@@ -41,21 +41,22 @@ export const getTemplateVersionFiles = async (
 
 const allowedExtensions = ["tf", "md", "Dockerfile"]
 
+export const isAllowedFile = (name: string) => {
+  return allowedExtensions.some((ext) => name.endsWith(ext))
+}
+
 export const createTemplateVersionFileTree = async (
-  version: TemplateVersion,
+  untarFiles: UntarFile[],
 ): Promise<FileTree> => {
   let fileTree: FileTree = {}
-  const tarFile = await API.getFile(version.job.file_id)
   const blobs: Record<string, Blob> = {}
 
-  await untar(tarFile).then(undefined, undefined, async (file) => {
-    if (allowedExtensions.some((ext) => file.name.endsWith(ext))) {
-      blobs[file.name] = file.blob
+  for (const untarFile of untarFiles) {
+    if (isAllowedFile(untarFile.name)) {
+      blobs[untarFile.name] = untarFile.blob
     }
-  })
+  }
 
-  // We don't want to get the blob text during untar to not block the main thread.
-  // Also, by doing it here, we can make all the loading in parallel.
   await Promise.all(
     Object.entries(blobs).map(async ([fullPath, blob]) => {
       const content = await blob.text()
