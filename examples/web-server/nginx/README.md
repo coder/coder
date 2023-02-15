@@ -38,7 +38,7 @@
 
 ## Install and configure LetsEncrypt Certbot
 
-1. Install LetsEncrypt Certbot: Refer to the [CertBot documentation](https://certbot.eff.org/instructions?ws=other&os=pip&tab=wildcard)
+1. Install LetsEncrypt Certbot: Refer to the [CertBot documentation](https://certbot.eff.org/instructions?ws=apache&os=ubuntufocal&tab=wildcard). Be sure to pick the wildcard tab and select your DNS provider for instructions to install the necessary DNS plugin.
 
 ## Create DNS provider credentials
 
