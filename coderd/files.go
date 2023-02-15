@@ -76,7 +76,14 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 			ID: file.ID,
 		})
 		return
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error getting file.",
+			Detail:  err.Error(),
+		})
+		return
 	}
+
 	id := uuid.New()
 	file, err = api.Database.InsertFile(ctx, database.InsertFileParams{
 		ID:        id,

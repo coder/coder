@@ -26,6 +26,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -446,6 +447,8 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 		Logger:    api.Logger.Named("tailnet"),
 	})
 	if err != nil {
+		_ = clientConn.Close()
+		_ = serverConn.Close()
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
 
@@ -625,14 +628,29 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		// inactive disconnect timeout we ensure that we don't block but
 		// also guarantee that the agent will be considered disconnected
 		// by normal status check.
-		ctx, cancel := context.WithTimeout(api.ctx, api.AgentInactiveDisconnectTimeout)
+		//
+		// Use a system context as the agent has disconnected and that token
+		// may no longer be valid.
+		//nolint:gocritic
+		ctx, cancel := context.WithTimeout(dbauthz.AsSystem(api.ctx), api.AgentInactiveDisconnectTimeout)
 		defer cancel()
 
 		disconnectedAt = sql.NullTime{
 			Time:  database.Now(),
 			Valid: true,
 		}
-		_ = updateConnectionTimes(ctx)
+		err := updateConnectionTimes(ctx)
+		if err != nil {
+			// This is a bug with unit tests that cancel the app context and
+			// cause this error log to be generated. We should fix the unit tests
+			// as this is a valid log.
+			if !xerrors.Is(err, context.Canceled) {
+				api.Logger.Error(ctx, "failed to update agent disconnect time",
+					slog.Error(err),
+					slog.F("workspace", build.WorkspaceID),
+				)
+			}
+		}
 		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 	}()
 
@@ -732,10 +750,13 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		})
 		return
 	}
+	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+	defer wsNetConn.Close()
+
 	go httpapi.Heartbeat(ctx, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	err = (*api.TailnetCoordinator.Load()).ServeClient(websocket.NetConn(ctx, conn, websocket.MessageBinary), uuid.New(), workspaceAgent.ID)
+	err = (*api.TailnetCoordinator.Load()).ServeClient(wsNetConn, uuid.New(), workspaceAgent.ID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
@@ -907,7 +928,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		slog.F("payload", req),
 	)
 
-	activityBumpWorkspace(api.Logger.Named("activity_bump"), api.Database, workspace.ID)
+	activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID)
 
 	payload, err := json.Marshal(req)
 	if err != nil {

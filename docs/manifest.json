@@ -454,6 +454,10 @@
           "path": "./cli/coder_logout.md"
         },
         {
+          "title": "ping",
+          "path": "./cli/coder_ping.md"
+        },
+        {
           "title": "port-forward",
           "path": "./cli/coder_port-forward.md"
         },

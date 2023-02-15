@@ -883,6 +883,7 @@ const (
 	ResourceTypeApiKey          ResourceType = "api_key"
 	ResourceTypeGroup           ResourceType = "group"
 	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
+	ResourceTypeLicense         ResourceType = "license"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -930,7 +931,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeGitSshKey,
 		ResourceTypeApiKey,
 		ResourceTypeGroup,
-		ResourceTypeWorkspaceBuild:
+		ResourceTypeWorkspaceBuild,
+		ResourceTypeLicense:
 		return true
 	}
 	return false
@@ -947,6 +949,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeApiKey,
 		ResourceTypeGroup,
 		ResourceTypeWorkspaceBuild,
+		ResourceTypeLicense,
 	}
 }
 
@@ -1288,8 +1291,8 @@ type License struct {
 	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
 	JWT        string    `db:"jwt" json:"jwt"`
 	// exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.
-	Exp  time.Time     `db:"exp" json:"exp"`
-	Uuid uuid.NullUUID `db:"uuid" json:"uuid"`
+	Exp  time.Time `db:"exp" json:"exp"`
+	UUID uuid.UUID `db:"uuid" json:"uuid"`
 }
 
 type Organization struct {

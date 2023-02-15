@@ -110,15 +110,18 @@ func (m *memDRPC) NewStream(ctx context.Context, rpc string, enc drpc.Encoding) 
 	}
 	dConn := drpcconn.New(conn)
 	stream, err := dConn.NewStream(ctx, rpc, enc)
-	if err == nil {
-		go func() {
-			select {
-			case <-stream.Context().Done():
-			case <-m.closed:
-			}
-			_ = dConn.Close()
-			_ = conn.Close()
-		}()
+	if err != nil {
+		_ = dConn.Close()
+		_ = conn.Close()
+		return nil, err
 	}
-	return stream, err
+	go func() {
+		select {
+		case <-stream.Context().Done():
+		case <-m.closed:
+		}
+		_ = dConn.Close()
+		_ = conn.Close()
+	}()
+	return stream, nil
 }

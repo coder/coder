@@ -43,6 +43,7 @@ overrides:
       troubleshooting_url: TroubleshootingURL
       default_ttl: DefaultTTL
       motd_file: MOTDFile
+      uuid: UUID
 
 sql:
   - schema: "./dump.sql"

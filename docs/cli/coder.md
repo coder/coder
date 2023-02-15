@@ -49,6 +49,7 @@ coder [flags]
 - [coder list](coder_list.md) - List workspaces
 - [coder login](coder_login.md) - Authenticate with Coder deployment
 - [coder logout](coder_logout.md) - Unauthenticate your local session
+- [coder ping](coder_ping.md) - Ping a workspace
 - [coder port-forward](coder_port-forward.md) - Forward ports from machine to a workspace
 - [coder publickey](coder_publickey.md) - Output your Coder public key used for Git operations
 - [coder rename](coder_rename.md) - Rename a workspace

@@ -55,20 +55,20 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 
 	// Assigning a role requires the create permission.
 	if len(added) > 0 && !api.Authorize(r, rbac.ActionCreate, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
 	// Removing a role requires the delete permission.
 	if len(removed) > 0 && !api.Authorize(r, rbac.ActionDelete, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
 	// Just treat adding & removing as "assigning" for now.
 	for _, roleName := range append(added, removed...) {
 		if !rbac.CanAssignRole(actorRoles.Actor.Roles, roleName) {
-			httpapi.Forbidden(rw)
+			httpapi.ResourceNotFound(rw)
 			return
 		}
 	}

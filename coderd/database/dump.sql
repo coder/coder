@@ -93,7 +93,8 @@ CREATE TYPE resource_type AS ENUM (
     'git_ssh_key',
     'api_key',
     'group',
-    'workspace_build'
+    'workspace_build',
+    'license'
 );
 
 CREATE TYPE user_status AS ENUM (
@@ -211,7 +212,7 @@ CREATE TABLE licenses (
     uploaded_at timestamp with time zone NOT NULL,
     jwt text NOT NULL,
     exp timestamp with time zone NOT NULL,
-    uuid uuid
+    uuid uuid NOT NULL
 );
 
 COMMENT ON COLUMN licenses.exp IS 'exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.';

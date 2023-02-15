@@ -35,6 +35,7 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
@@ -58,6 +59,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -179,12 +181,13 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
 	}
 	// TODO: remove this once we're ready to enable authz querier by default.
-	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), "authz_querier") {
-		panic("Coming soon!")
-		// if options.Authorizer != nil {
-		// 	options.Authorizer = &RecordingAuthorizer{}
-		// }
-		// options.Database = authzquery.NewAuthzQuerier(options.Database, options.Authorizer)
+	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), string(codersdk.ExperimentAuthzQuerier)) {
+		if options.Authorizer == nil {
+			options.Authorizer = &RecordingAuthorizer{
+				Wrapped: rbac.NewAuthorizer(prometheus.NewRegistry()),
+			}
+		}
+		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	}
 	if options.DeploymentConfig == nil {
 		options.DeploymentConfig = DeploymentConfig(t)
@@ -393,13 +396,16 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
 	echoClient, echoServer := provisionersdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	serveDone := make(chan struct{})
 	t.Cleanup(func() {
 		_ = echoClient.Close()
 		_ = echoServer.Close()
 		cancelFunc()
+		<-serveDone
 	})
 	fs := afero.NewMemMapFs()
 	go func() {
+		defer close(serveDone)
 		err := echo.Serve(ctx, fs, &provisionersdk.ServeOptions{
 			Listener: echoServer,
 		})
