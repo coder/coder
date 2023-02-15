@@ -4,7 +4,7 @@
 
 1. Start a Coder deployment with a wildcard subdomain. See [this guide](https://coder.com/docs/v2/latest/admin/configure#wildcard-access-url) for more information.
 
-2. Configure your DNS provider to point your YOUR_SUBDOMAIN and \*.YOUR_SUBDOMAIN to your server's public ip.
+2. Configure your DNS provider to point your YOUR_SUBDOMAIN and \*.YOUR_SUBDOMAIN to your server's public IP address.
 
    > For example, to use `coder.example.com` as your subdomain, configure `coder.example.com` and `*.coder.example.com` to point to your server's public ip. This can be done by adding A records in your DNS provider's dashboard.
 
