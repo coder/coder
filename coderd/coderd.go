@@ -46,6 +46,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/health"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/metricscache"
@@ -101,6 +102,7 @@ type Options struct {
 	AzureCertificates              x509.VerifyOptions
 	GoogleTokenValidator           *idtoken.Validator
 	GithubOAuth2Config             *GithubOAuth2Config
+	Healthchecker                  health.Checker
 	OIDCConfig                     *OIDCConfig
 	PrometheusRegistry             *prometheus.Registry
 	SecureAuthCookie               bool
@@ -700,6 +702,20 @@ func New(options *Options) *API {
 		r.Get("/swagger/*", globalHTTPSwaggerHandler)
 	}
 
+	r.Get("/healthchecks", func(w http.ResponseWriter, r *http.Request) {
+		res := api.healthChecker.Results()
+		if res == nil {
+			httpapi.InternalServerError(w, xerrors.New("health checks not initialized, check back later"))
+			return
+		}
+		b, err := json.Marshal(api.healthChecker.Results())
+		if err != nil {
+			httpapi.InternalServerError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(b)
+	})
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
 	return api
 }
@@ -741,6 +757,8 @@ type API struct {
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
+
+	healthChecker health.Checker
 }
 
 // Close waits for all WebSocket connections to drain before returning.

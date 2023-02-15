@@ -66,6 +66,7 @@ import (
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/health"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/prometheusmetrics"
@@ -673,6 +674,14 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			if cfg.Swagger.Enable.Value {
 				options.SwaggerEndpoint = cfg.Swagger.Enable.Value
 			}
+
+			// TODO(cian): make this configurable.
+			healthPoller := time.NewTicker(10 * time.Second)
+			defer healthPoller.Stop()
+			healthChecker := health.NewChecker(healthPoller.C)
+			defer healthChecker.Stop()
+			healthChecker.Add("access-url", health.AccessURLAccessible(cfg.AccessURL.Value, time.Second))
+			options.Healthchecker = healthChecker
 
 			// We use a separate coderAPICloser so the Enterprise API
 			// can have it's own close functions. This is cleaner
