@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
@@ -71,6 +72,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.APIKey:
 		// this isn't used
 		return ""
+	case database.License:
+		return strconv.Itoa(int(typed.ID))
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -94,6 +97,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.Group.ID
 	case database.APIKey:
 		return typed.UserID
+	case database.License:
+		return typed.UUID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -117,6 +122,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeGroup
 	case database.APIKey:
 		return database.ResourceTypeApiKey
+	case database.License:
+		return database.ResourceTypeLicense
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
