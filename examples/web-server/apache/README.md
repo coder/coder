@@ -2,9 +2,17 @@
 
 ## Requirements
 
-1. Start a Coder deployment with a wildcard subdomain. See [this guide](https://coder.com/docs/v2/latest/admin/configure#wildcard-access-url) for more information.
+1. Start a Coder deployment and be sure to set the following [configuration values](https://coder.com/docs/v2/latest/admin/configure):
 
-2. Configure your DNS provider to point your YOUR_SUBDOMAIN and \*.YOUR_SUBDOMAIN to your server's public ip.
+   ```console
+   CODER_HTTP_ADDRESS=127.0.0.1:3000
+   CODER_ACCESS_URL=https://coder.example.com
+   CODER_WILDCARD_ACCESS_URL=*coder.example.com
+   ```
+
+   Throughout the guide, be sure to replace `coder.example.com` with the domain you intend to use with Coder.
+
+2. Configure your DNS provider to point your coder.example.com and \*.coder.example.com to your server's public IP address.
 
    > For example, to use `coder.example.com` as your subdomain, configure `coder.example.com` and `*.coder.example.com` to point to your server's public ip. This can be done by adding A records in your DNS provider's dashboard.
 
@@ -32,7 +40,7 @@
 
 ## Install and configure LetsEncrypt Certbot
 
-1. Install LetsEncrypt Certbot: Refer to the [CertBot documentation](https://certbot.eff.org/instructions?ws=other&os=pip&tab=wildcard)
+1. Install LetsEncrypt Certbot: Refer to the [CertBot documentation](https://certbot.eff.org/instructions?ws=apache&os=ubuntufocal&tab=wildcard). Be sure to pick the wildcard tab and select your DNS provider for instructions to install the necessary DNS plugin.
 
 ## Create DNS provider credentials
 
@@ -44,6 +52,12 @@
 
    ```ini
    dns_cloudflare_api_token = YOUR_API_TOKEN
+   ```
+
+   ```console
+   mkdir -p ~/.secrets/certbot
+   touch ~/.secrets/certbot/cloudflare.ini
+   nano ~/.secrets/certbot/cloudflare.ini
    ```
 
 3. Set the correct permissions:
@@ -62,7 +76,7 @@
 
 ## Configure Apache
 
-> This example assumes Coder is running locally on `127.0.0.1:3000` for the subdomain `YOUR_SUBDOMAIN` e.g. `coder.example.com`.
+> This example assumes Coder is running locally on `127.0.0.1:3000` and that you're using `coder.example.com` as your subdomain.
 
 1. Create Apache configuration for Coder:
 
@@ -74,8 +88,8 @@
 
    ```apache
     <VirtualHost *:443>
-        ServerName dev.dietstyler.com
-        ServerAlias *.dev.dietstyler.com
+        ServerName coder.example.com
+        ServerAlias *.coder.example.com
         ErrorLog ${APACHE_LOG_DIR}/error.log
         CustomLog ${APACHE_LOG_DIR}/access.log combined
 
@@ -89,13 +103,12 @@
         RewriteCond %{HTTP:Upgrade} websocket [NC]
         RewriteRule /(.*) ws://127.0.0.1:3000/$1 [P,L]
 
-        SSLCertificateFile /etc/letsencrypt/live/dev.dietstyler.com/fullchain.pem
-        SSLCertificateKeyFile /etc/letsencrypt/live/dev.dietstyler.com/privkey.pem
+        SSLCertificateFile /etc/letsencrypt/live/coder.example.com/fullchain.pem
+        SSLCertificateKeyFile /etc/letsencrypt/live/coder.example.com/privkey.pem
     </VirtualHost>
    ```
 
-   > Don't forget to change:
-   > `YOUR_SUBDOMAIN` by your (sub)domain e.g. `coder.example.com`
+   > Don't forget to change: `coder.example.com` by your (sub)domain
 
 3. Enable the site:
 
@@ -130,4 +143,4 @@
    sudo certbot renew -q
    ```
 
-And that's it, you should now be able to access Coder at `https://YOUR_SUBDOMAIN`!
+And that's it, you should now be able to access Coder at your sub(domain) e.g. `https://coder.example.com`.
