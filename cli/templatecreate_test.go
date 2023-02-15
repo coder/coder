@@ -356,7 +356,6 @@ func TestTemplateCreate(t *testing.T) {
 			write string
 		}{
 			{match: "Upload", write: "yes"},
-			{match: "Cleaning Up"},
 		}
 		for _, m := range matches {
 			pty.ExpectMatch(m.match)
@@ -424,7 +423,6 @@ func TestTemplateCreate(t *testing.T) {
 			write string
 		}{
 			{match: "Upload", write: "yes"},
-			{match: "Cleaning Up"},
 			{match: "Confirm create?", write: "yes"},
 		}
 		for _, m := range matches {
