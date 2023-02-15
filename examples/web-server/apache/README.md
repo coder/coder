@@ -44,7 +44,9 @@
 
 ## Create DNS provider credentials
 
-1. Create an API token for the DNS provider you're using: e.g [CloudFlare](https://dash.cloudflare.com/profile/api-tokens) with the following permissions:
+> This example assumes you're using CloudFlare as your DNS provider. For other providers, refer to the [CertBot documentation](https://eff-certbot.readthedocs.io/en/stable/using.html#dns-plugins).
+
+1. Create an API token for the DNS provider you're using: e.g. [CloudFlare](https://dash.cloudflare.com/profile/api-tokens) with the following permissions:
 
    - Zone - DNS - Edit
 
