@@ -1,4 +1,4 @@
-import { TarReader, TarWriter, ITarFileInfo } from "./tar"
+import { TarReader, TarWriter, ITarFileInfo, TarFileType } from "./tar"
 
 const mtime = 1666666666666
 
@@ -8,6 +8,8 @@ test("tar", async () => {
   writer.addFile("a.txt", "hello", { mtime })
   writer.addFile("b.txt", new Blob(["world"]), { mtime })
   writer.addFile("c.txt", "", { mtime })
+  writer.addFolder("etc", { mtime })
+  writer.addFile("etc/d.txt", "", { mtime })
   const blob = await writer.write()
 
   // Read
@@ -25,6 +27,13 @@ test("tar", async () => {
     name: "c.txt",
     content: "",
   })
+  verifyFolder(fileInfos[3], {
+    name: "etc",
+  })
+  verifyFile(fileInfos[4], reader.getTextFile(fileInfos[4].name) as string, {
+    name: "etc/d.txt",
+    content: "",
+  })
 })
 
 function verifyFile(
@@ -35,4 +44,9 @@ function verifyFile(
   expect(info.name).toEqual(expected.name)
   expect(info.size).toEqual(expected.content.length)
   expect(content).toEqual(expected.content)
+}
+
+function verifyFolder(info: ITarFileInfo, expected: { name: string }) {
+  expect(info.name).toEqual(expected.name)
+  expect(info.type).toEqual(TarFileType.Dir)
 }
