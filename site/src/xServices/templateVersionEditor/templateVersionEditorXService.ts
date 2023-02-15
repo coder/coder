@@ -10,7 +10,6 @@ import * as API from "api/api"
 import { File as UntarFile } from "js-untar"
 import { FileTree, traverse } from "util/filetree"
 import { isAllowedFile } from "util/templateVersion"
-import { saveAs } from "file-saver"
 import { TarWriter } from "util/tar"
 
 export interface CreateVersionData {
@@ -256,7 +255,6 @@ export const templateVersionEditorMachine = createMachine(
           }
         })
         const blob = await tar.write()
-        saveAs(blob, "template.tar")
         return API.uploadTemplateFile(new File([blob], "template.tar"))
       },
       createBuild: (ctx) => {
