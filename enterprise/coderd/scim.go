@@ -157,7 +157,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic // needed for SCIM
-	user, _, err := api.AGPL.CreateUser(dbauthz.AsSystem(ctx), api.Database, agpl.CreateUserRequest{
+	user, _, err := api.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, agpl.CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Username: sUser.UserName,
 			Email:    email,
@@ -210,7 +210,7 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic // needed for SCIM
-	dbUser, err := api.Database.GetUserByID(dbauthz.AsSystem(ctx), uid)
+	dbUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), uid)
 	if err != nil {
 		_ = handlerutil.WriteError(rw, err)
 		return
@@ -224,7 +224,7 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic // needed for SCIM
-	_, err = api.Database.UpdateUserStatus(dbauthz.AsSystem(r.Context()), database.UpdateUserStatusParams{
+	_, err = api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
 		ID:        dbUser.ID,
 		Status:    status,
 		UpdatedAt: database.Now(),
