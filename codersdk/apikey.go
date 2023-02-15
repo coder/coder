@@ -13,7 +13,7 @@ import (
 // APIKey: do not ever return the HashedSecret
 type APIKey struct {
 	ID              string      `json:"id" table:"id,default_sort" validate:"required"`
-	UserID          uuid.UUID   `json:"user_id" validate:"required" format:"uuid"`
+	UserID          uuid.UUID   `json:"user_id" table:"owner" validate:"required" format:"uuid"`
 	LastUsed        time.Time   `json:"last_used" table:"last used" validate:"required" format:"date-time"`
 	ExpiresAt       time.Time   `json:"expires_at" table:"expires at" validate:"required" format:"date-time"`
 	CreatedAt       time.Time   `json:"created_at" table:"created at" validate:"required" format:"date-time"`

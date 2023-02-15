@@ -183,9 +183,6 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	)
 
 	var getTokens codersdk.GetTokensRequest
-	if !httpapi.Read(ctx, rw, r, &getTokens) {
-		return
-	}
 
 	var (
 		keys []database.APIKey
