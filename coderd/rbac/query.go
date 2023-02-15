@@ -20,15 +20,15 @@ type authorizedSQLFilter struct {
 	auth      *PartialAuthorizer
 }
 
-func ConfigWithACL() regosql.ConvertConfig {
+func ConfigWithACL(prefix string) regosql.ConvertConfig {
 	return regosql.ConvertConfig{
-		VariableConverter: regosql.DefaultVariableConverter(),
+		VariableConverter: regosql.DefaultVariableConverter(prefix),
 	}
 }
 
-func ConfigWithoutACL() regosql.ConvertConfig {
+func ConfigWithoutACL(prefix string) regosql.ConvertConfig {
 	return regosql.ConvertConfig{
-		VariableConverter: regosql.NoACLConverter(),
+		VariableConverter: regosql.NoACLConverter(prefix),
 	}
 }
 

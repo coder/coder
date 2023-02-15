@@ -1012,7 +1012,7 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 
 					// Ensure the partial can compile to a SQL clause.
 					// This does not guarantee that the clause is valid SQL.
-					_, err = Compile(ConfigWithACL(), partialAuthz)
+					_, err = Compile(ConfigWithACL(""), partialAuthz)
 					require.NoError(t, err, "compile prepared authorizer")
 
 					// Also check the rego policy can form a valid partial query result.

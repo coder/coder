@@ -261,15 +261,19 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		return nil, xerrors.Errorf("insert authorized filter: %w", err)
 	}
 
+	// SQLx expects :arg-named arguments, but we use @arg-named arguments. So
+	// switch them. Also any ':' in comments breaks this...
 	filtered = strings.ReplaceAll(filtered, "@", ":")
 	query, args, err := q.sdb.BindNamed(filtered, arg)
 	if err != nil {
 		return nil, xerrors.Errorf("bind named: %w", err)
 	}
+	// So SQLx treats '::' as escaping a ":". So we need to unescape it??
 	query = strings.ReplaceAll(query, ":", "::")
 
 	// The name comment is for metric tracking
-	//query = fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", query)
+	// Must add after sqlx or else it breaks 'BindNamed'
+	query = fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", query)
 	var items []WorkspaceWithData
 	err = q.sdb.SelectContext(ctx, &items, query, args...)
 	if err != nil {

@@ -79,13 +79,13 @@ func TestRegoQueries(t *testing.T) {
 				`"read" in input.object.acl_group_list.allUsers`,
 			},
 			ExpectedSQL:       "(group_acl->'allUsers' ? 'read')",
-			VariableConverter: regosql.DefaultVariableConverter(),
+			VariableConverter: regosql.DefaultVariableConverter(""),
 		},
 		{
 			Name:              "GroupWildcard",
 			Queries:           []string{`"*" in input.object.acl_group_list.allUsers`},
 			ExpectedSQL:       "(group_acl->'allUsers' ? '*')",
-			VariableConverter: regosql.DefaultVariableConverter(),
+			VariableConverter: regosql.DefaultVariableConverter(""),
 		},
 		{
 			// Always return a constant string for all variables.
@@ -94,7 +94,7 @@ func TestRegoQueries(t *testing.T) {
 				`"read" in input.object.acl_group_list[input.object.org_owner]`,
 			},
 			ExpectedSQL:       "(group_acl->organization_id :: text ? 'read')",
-			VariableConverter: regosql.DefaultVariableConverter(),
+			VariableConverter: regosql.DefaultVariableConverter(""),
 		},
 		{
 			Name: "VarInArray",
@@ -102,19 +102,19 @@ func TestRegoQueries(t *testing.T) {
 				`input.object.org_owner in {"a", "b", "c"}`,
 			},
 			ExpectedSQL:       p("organization_id :: text = ANY(ARRAY ['a','b','c'])"),
-			VariableConverter: regosql.DefaultVariableConverter(),
+			VariableConverter: regosql.DefaultVariableConverter(""),
 		},
 		{
 			Name:              "SetDereference",
 			Queries:           []string{`"*" in input.object.acl_group_list[input.object.org_owner]`},
 			ExpectedSQL:       p("group_acl->organization_id :: text ? '*'"),
-			VariableConverter: regosql.DefaultVariableConverter(),
+			VariableConverter: regosql.DefaultVariableConverter(""),
 		},
 		{
 			Name:              "JsonbLiteralDereference",
 			Queries:           []string{`"*" in input.object.acl_group_list["4d30d4a8-b87d-45ac-b0d4-51b2e68e7e75"]`},
 			ExpectedSQL:       p("group_acl->'4d30d4a8-b87d-45ac-b0d4-51b2e68e7e75' ? '*'"),
-			VariableConverter: regosql.DefaultVariableConverter(),
+			VariableConverter: regosql.DefaultVariableConverter(""),
 		},
 		{
 			Name: "Complex",
@@ -130,7 +130,7 @@ func TestRegoQueries(t *testing.T) {
 				`(organization_id :: text != '') OR ` +
 				`(group_acl->'allUsers' ? 'read') OR ` +
 				`(user_acl->'me' ? 'read'))`,
-			VariableConverter: regosql.DefaultVariableConverter(),
+			VariableConverter: regosql.DefaultVariableConverter(""),
 		},
 		{
 			Name: "NoACLs",
@@ -140,7 +140,7 @@ func TestRegoQueries(t *testing.T) {
 			},
 			// Special case where the bool is wrapped
 			ExpectedSQL:       p("(false) OR (false)"),
-			VariableConverter: regosql.NoACLConverter(),
+			VariableConverter: regosql.NoACLConverter(""),
 		},
 		{
 			Name: "AllowList",
@@ -151,7 +151,7 @@ func TestRegoQueries(t *testing.T) {
 			// Special case where the bool is wrapped
 			ExpectedSQL: p(`(id :: text != '') OR ` +
 				`(id :: text = ANY(ARRAY ['9046b041-58ed-47a3-9c3a-de302577875a']))`),
-			VariableConverter: regosql.NoACLConverter(),
+			VariableConverter: regosql.NoACLConverter(""),
 		},
 		{
 			Name: "TwoExpressions",
@@ -159,7 +159,7 @@ func TestRegoQueries(t *testing.T) {
 				`true; true`,
 			},
 			ExpectedSQL:       p("true AND true"),
-			VariableConverter: regosql.DefaultVariableConverter(),
+			VariableConverter: regosql.DefaultVariableConverter(""),
 		},
 
 		// Actual vectors from production
@@ -171,7 +171,7 @@ func TestRegoQueries(t *testing.T) {
 				`"read" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
 			},
 			ExpectedSQL:       "true",
-			VariableConverter: regosql.NoACLConverter(),
+			VariableConverter: regosql.NoACLConverter(""),
 		},
 		{
 			Name: "OrgAdmin",
@@ -185,7 +185,7 @@ func TestRegoQueries(t *testing.T) {
 				"(organization_id :: text = ANY(ARRAY ['05f58202-4bfc-43ce-9ba4-5ff6e0174a71'])) AND " +
 				"(owner_id :: text != '') AND " +
 				"('d5389ccc-57a4-4b13-8c3f-31747bcdc9f1' = owner_id :: text))",
-			VariableConverter: regosql.DefaultVariableConverter(),
+			VariableConverter: regosql.DefaultVariableConverter(""),
 		},
 		{
 			Name: "UserACLAllow",
@@ -195,7 +195,7 @@ func TestRegoQueries(t *testing.T) {
 			},
 			ExpectedSQL: "((user_acl->'d5389ccc-57a4-4b13-8c3f-31747bcdc9f1' ? 'read') OR " +
 				"(user_acl->'d5389ccc-57a4-4b13-8c3f-31747bcdc9f1' ? '*'))",
-			VariableConverter: regosql.DefaultVariableConverter(),
+			VariableConverter: regosql.DefaultVariableConverter(""),
 		},
 		{
 			Name: "NoACLConfig",
@@ -205,7 +205,7 @@ func TestRegoQueries(t *testing.T) {
                 "read" in input.object.acl_group_list[input.object.org_owner]`,
 			},
 			ExpectedSQL:       "((organization_id :: text != '') AND (organization_id :: text = ANY(ARRAY ['05f58202-4bfc-43ce-9ba4-5ff6e0174a71'])) AND (false))",
-			VariableConverter: regosql.NoACLConverter(),
+			VariableConverter: regosql.NoACLConverter(""),
 		},
 		{
 			Name: "EmptyACLListNoACLs",
@@ -226,7 +226,7 @@ func TestRegoQueries(t *testing.T) {
 				p("(organization_id :: text != '') AND (false) AND (group_acl->organization_id :: text ? '*')") + " OR " +
 				p("user_acl->'me' ? 'create'") + " OR " +
 				p("user_acl->'me' ? '*'")),
-			VariableConverter: regosql.DefaultVariableConverter(),
+			VariableConverter: regosql.DefaultVariableConverter(""),
 		},
 		{
 			Name: "TemplateOwner",
