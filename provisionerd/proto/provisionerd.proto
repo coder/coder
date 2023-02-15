@@ -16,16 +16,19 @@ message AcquiredJob {
         string workspace_name = 2;
         repeated provisioner.ParameterValue parameter_values = 3;
         repeated provisioner.RichParameterValue rich_parameter_values = 4;
-        provisioner.Provision.Metadata metadata = 5;
-        bytes state = 6;
+		repeated provisioner.VariableValue variable_values = 5;
+        provisioner.Provision.Metadata metadata = 6;
+        bytes state = 7;
     }
     message TemplateImport {
         provisioner.Provision.Metadata metadata = 1;
+		repeated provisioner.VariableValue user_variable_values = 2;
     }
     message TemplateDryRun {
         repeated provisioner.ParameterValue parameter_values = 1;
         repeated provisioner.RichParameterValue rich_parameter_values = 2;
-        provisioner.Provision.Metadata metadata = 3;
+		repeated provisioner.VariableValue variable_values = 3;
+        provisioner.Provision.Metadata metadata = 4;
     }
 
     string job_id = 1;
@@ -99,7 +102,9 @@ message UpdateJobRequest {
     string job_id = 1;
     repeated Log logs = 2;
     repeated provisioner.ParameterSchema parameter_schemas = 3;
-    bytes readme = 4;
+    repeated provisioner.TemplateVariable template_variables = 4;
+	repeated provisioner.VariableValue user_variable_values = 5;
+    bytes readme = 6;
 }
 
 message UpdateJobResponse {
@@ -107,6 +112,7 @@ message UpdateJobResponse {
     // If parameter schemas are sent, the job will respond
     // with resolved parameter values.
     repeated provisioner.ParameterValue parameter_values = 2;
+	repeated provisioner.VariableValue variable_values = 3;
 }
 
 message CommitQuotaRequest {

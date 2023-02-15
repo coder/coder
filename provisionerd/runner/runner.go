@@ -416,7 +416,9 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 	}
 	switch jobType := r.job.Type.(type) {
 	case *proto.AcquiredJob_TemplateImport_:
-		r.logger.Debug(context.Background(), "acquired job is template import")
+		r.logger.Debug(context.Background(), "acquired job is template import",
+			slog.F("user_variable_values", redactVariableValues(jobType.TemplateImport.UserVariableValues)),
+		)
 
 		failedJob := r.runReadmeParse(ctx)
 		if failedJob != nil {
@@ -428,6 +430,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 			slog.F("workspace_name", jobType.TemplateDryRun.Metadata.WorkspaceName),
 			slog.F("parameters", jobType.TemplateDryRun.ParameterValues),
 			slog.F("rich_parameter_values", jobType.TemplateDryRun.RichParameterValues),
+			slog.F("variable_values", redactVariableValues(jobType.TemplateDryRun.VariableValues)),
 		)
 		return r.runTemplateDryRun(ctx)
 	case *proto.AcquiredJob_WorkspaceBuild_:
@@ -436,6 +439,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 			slog.F("state_length", len(jobType.WorkspaceBuild.State)),
 			slog.F("parameters", jobType.WorkspaceBuild.ParameterValues),
 			slog.F("rich_parameter_values", jobType.WorkspaceBuild.RichParameterValues),
+			slog.F("variable_values", redactVariableValues(jobType.WorkspaceBuild.VariableValues)),
 		)
 		return r.runWorkspaceBuild(ctx)
 	default:
@@ -538,13 +542,18 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		Stage:     "Parsing template parameters",
 		CreatedAt: time.Now().UnixMilli(),
 	})
-	parameterSchemas, err := r.runTemplateImportParse(ctx)
+	parameterSchemas, templateVariables, err := r.runTemplateImportParse(ctx)
 	if err != nil {
 		return nil, r.failedJobf("run parse: %s", err)
 	}
+
+	// Once Terraform template variables are parsed, the runner can pass variables
+	// to store in database and filter valid ones.
 	updateResponse, err := r.update(ctx, &proto.UpdateJobRequest{
-		JobId:            r.job.JobId,
-		ParameterSchemas: parameterSchemas,
+		JobId:              r.job.JobId,
+		ParameterSchemas:   parameterSchemas,
+		TemplateVariables:  templateVariables,
+		UserVariableValues: r.job.GetTemplateImport().GetUserVariableValues(),
 	})
 	if err != nil {
 		return nil, r.failedJobf("update job: %s", err)
@@ -568,7 +577,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		Stage:     "Detecting persistent resources",
 		CreatedAt: time.Now().UnixMilli(),
 	})
-	startResources, parameters, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
+	startResources, parameters, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, updateResponse.VariableValues, &sdkproto.Provision_Metadata{
 		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_START,
 	})
@@ -583,7 +592,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		Stage:     "Detecting ephemeral resources",
 		CreatedAt: time.Now().UnixMilli(),
 	})
-	stopResources, _, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, &sdkproto.Provision_Metadata{
+	stopResources, _, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, updateResponse.VariableValues, &sdkproto.Provision_Metadata{
 		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
 	})
@@ -603,8 +612,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	}, nil
 }
 
-// Parses parameter schemas from source.
-func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.ParameterSchema, error) {
+// Parses template variables and parameter schemas from source.
+func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.ParameterSchema, []*sdkproto.TemplateVariable, error) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -612,13 +621,13 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Parame
 		Directory: r.workDirectory,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("parse source: %w", err)
+		return nil, nil, xerrors.Errorf("parse source: %w", err)
 	}
 	defer stream.Close()
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			return nil, xerrors.Errorf("recv parse source: %w", err)
+			return nil, nil, xerrors.Errorf("recv parse source: %w", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Parse_Response_Log:
@@ -636,11 +645,13 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Parame
 			})
 		case *sdkproto.Parse_Response_Complete:
 			r.logger.Info(context.Background(), "parse complete",
-				slog.F("parameter_schemas", msgType.Complete.ParameterSchemas))
+				slog.F("parameter_schemas", msgType.Complete.ParameterSchemas),
+				slog.F("template_variables", msgType.Complete.TemplateVariables),
+			)
 
-			return msgType.Complete.ParameterSchemas, nil
+			return msgType.Complete.ParameterSchemas, msgType.Complete.TemplateVariables, nil
 		default:
-			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
+			return nil, nil, xerrors.Errorf("invalid message type %q received from provisioner",
 				reflect.TypeOf(msg.Type).String())
 		}
 	}
@@ -649,13 +660,13 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Parame
 // Performs a dry-run provision when importing a template.
 // This is used to detect resources that would be provisioned for a workspace in various states.
 // It doesn't define values for rich parameters as they're unknown during template import.
-func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkproto.ParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, []*sdkproto.RichParameter, error) {
-	return r.runTemplateImportProvisionWithRichParameters(ctx, values, nil, metadata)
+func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkproto.ParameterValue, variableValues []*sdkproto.VariableValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, []*sdkproto.RichParameter, error) {
+	return r.runTemplateImportProvisionWithRichParameters(ctx, values, variableValues, nil, metadata)
 }
 
 // Performs a dry-run provision with provided rich parameters.
 // This is used to detect resources that would be provisioned for a workspace in various states.
-func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Context, values []*sdkproto.ParameterValue, richParameterValues []*sdkproto.RichParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, []*sdkproto.RichParameter, error) {
+func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Context, values []*sdkproto.ParameterValue, variableValues []*sdkproto.VariableValue, richParameterValues []*sdkproto.RichParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, []*sdkproto.RichParameter, error) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -694,6 +705,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 				},
 				ParameterValues:     values,
 				RichParameterValues: richParameterValues,
+				VariableValues:      variableValues,
 			},
 		},
 	})
@@ -782,6 +794,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	// Run the template import provision task since it's already a dry run.
 	resources, _, err := r.runTemplateImportProvisionWithRichParameters(ctx,
 		r.job.GetTemplateDryRun().GetParameterValues(),
+		r.job.GetTemplateDryRun().GetVariableValues(),
 		r.job.GetTemplateDryRun().GetRichParameterValues(),
 		metadata,
 	)
@@ -958,6 +971,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				Config:              config,
 				ParameterValues:     r.job.GetWorkspaceBuild().ParameterValues,
 				RichParameterValues: r.job.GetWorkspaceBuild().RichParameterValues,
+				VariableValues:      r.job.GetWorkspaceBuild().VariableValues,
 			},
 		},
 	})
@@ -1057,4 +1071,20 @@ func (r *Runner) flushQueuedLogs(ctx context.Context) {
 		}
 		r.logger.Error(ctx, "flush queued logs", slog.Error(err))
 	}
+}
+
+func redactVariableValues(variableValues []*sdkproto.VariableValue) []*sdkproto.VariableValue {
+	var redacted []*sdkproto.VariableValue
+	for _, v := range variableValues {
+		if v.Sensitive {
+			redacted = append(redacted, &sdkproto.VariableValue{
+				Name:      v.Name,
+				Value:     "*redacted*",
+				Sensitive: true,
+			})
+			continue
+		}
+		redacted = append(redacted, v)
+	}
+	return redacted
 }

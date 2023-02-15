@@ -56,6 +56,17 @@ type TemplateVersionParameterOption struct {
 	Icon        string `json:"icon"`
 }
 
+// TemplateVersionVariable represents a managed template variable.
+type TemplateVersionVariable struct {
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	Type         string `json:"type" enums:"string,number,bool"`
+	Value        string `json:"value"`
+	DefaultValue string `json:"default_value"`
+	Required     bool   `json:"required"`
+	Sensitive    bool   `json:"sensitive"`
+}
+
 // TemplateVersion returns a template version by ID.
 func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVersion, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s", id), nil)
@@ -139,6 +150,20 @@ func (c *Client) TemplateVersionResources(ctx context.Context, version uuid.UUID
 	return resources, json.NewDecoder(res.Body).Decode(&resources)
 }
 
+// TemplateVersionVariables returns resources a template version variables.
+func (c *Client) TemplateVersionVariables(ctx context.Context, version uuid.UUID) ([]TemplateVersionVariable, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/variables", version), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var variables []TemplateVersionVariable
+	return variables, json.NewDecoder(res.Body).Decode(&variables)
+}
+
 // TemplateVersionLogsBefore returns logs that occurred before a specific log ID.
 func (c *Client) TemplateVersionLogsBefore(ctx context.Context, version uuid.UUID, before int64) ([]ProvisionerJobLog, error) {
 	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/templateversions/%s/logs", version), before)
@@ -155,6 +180,7 @@ type CreateTemplateVersionDryRunRequest struct {
 	WorkspaceName       string                    `json:"workspace_name"`
 	ParameterValues     []CreateParameterRequest  `json:"parameter_values"`
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values"`
+	UserVariableValues  []VariableValue           `json:"user_variable_values,omitempty"`
 }
 
 // CreateTemplateVersionDryRun begins a dry-run provisioner job against the

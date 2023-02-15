@@ -114,6 +114,7 @@ type data struct {
 	replicas                  []database.Replica
 	templateVersions          []database.TemplateVersion
 	templateVersionParameters []database.TemplateVersionParameter
+	templateVersionVariables  []database.TemplateVersionVariable
 	templates                 []database.Template
 	workspaceAgents           []database.WorkspaceAgent
 	workspaceApps             []database.WorkspaceApp
@@ -1841,6 +1842,20 @@ func (q *fakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 	return parameters, nil
 }
 
+func (q *fakeQuerier) GetTemplateVersionVariables(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	variables := make([]database.TemplateVersionVariable, 0)
+	for _, variable := range q.templateVersionVariables {
+		if variable.TemplateVersionID != templateVersionID {
+			continue
+		}
+		variables = append(variables, variable)
+	}
+	return variables, nil
+}
+
 func (q *fakeQuerier) GetTemplateVersionByID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2641,6 +2656,29 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 	}
 	q.templateVersionParameters = append(q.templateVersionParameters, param)
 	return param, nil
+}
+
+func (q *fakeQuerier) InsertTemplateVersionVariable(_ context.Context, arg database.InsertTemplateVersionVariableParams) (database.TemplateVersionVariable, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.TemplateVersionVariable{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	//nolint:gosimple
+	variable := database.TemplateVersionVariable{
+		TemplateVersionID: arg.TemplateVersionID,
+		Name:              arg.Name,
+		Description:       arg.Description,
+		Type:              arg.Type,
+		Value:             arg.Value,
+		DefaultValue:      arg.DefaultValue,
+		Required:          arg.Required,
+		Sensitive:         arg.Sensitive,
+	}
+	q.templateVersionVariables = append(q.templateVersionVariables, variable)
+	return variable, nil
 }
 
 func (q *fakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {

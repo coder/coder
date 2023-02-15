@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux || darwin
 
 package terraform_test
 
@@ -155,6 +155,97 @@ func TestParse(t *testing.T) {
 								DefaultDestination: &proto.ParameterDestination{
 									Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
 								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "enable-managed-variables-with-default-bool",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
+				description = "Testing!"
+				type = 	bool
+				default = true
+				sensitive = true
+			}
+
+			provider "coder" {
+				feature_use_managed_variables = true
+			}`,
+			},
+			Response: &proto.Parse_Response{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						TemplateVariables: []*proto.TemplateVariable{
+							{
+								Name:         "A",
+								Description:  "Testing!",
+								Type:         "bool",
+								DefaultValue: "true",
+								Required:     false,
+								Sensitive:    true,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "enable-managed-variables-with-default-string",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
+				description = "Testing!"
+				type = 	string
+				default = "abc"
+				sensitive = true
+			}
+
+			provider "coder" {
+				feature_use_managed_variables = true
+			}`,
+			},
+			Response: &proto.Parse_Response{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						TemplateVariables: []*proto.TemplateVariable{
+							{
+								Name:         "A",
+								Description:  "Testing!",
+								Type:         "string",
+								DefaultValue: "abc",
+								Required:     false,
+								Sensitive:    true,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: "enable-managed-variables-without-default",
+			Files: map[string]string{
+				"main2.tf": `variable "A" {
+				description = "Testing!"
+				type = string
+				sensitive = true
+			}
+
+			provider "coder" {
+				feature_use_managed_variables = true
+			}`,
+			},
+			Response: &proto.Parse_Response{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						TemplateVariables: []*proto.TemplateVariable{
+							{
+								Name:        "A",
+								Description: "Testing!",
+								Type:        "string",
+								Required:    true,
+								Sensitive:   true,
 							},
 						},
 					},

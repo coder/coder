@@ -138,7 +138,6 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		return xerrors.Errorf("initialize terraform: %w", err)
 	}
 	s.logger.Debug(ctx, "ran initialization")
-
 	env, err := provisionEnv(config, request.GetPlan().GetParameterValues(), request.GetPlan().GetRichParameterValues())
 	if err != nil {
 		return err
@@ -201,6 +200,9 @@ func planVars(plan *proto.Provision_Plan) ([]string, error) {
 		default:
 			return nil, xerrors.Errorf("unsupported parameter type %q for %q", param.DestinationScheme, param.Name)
 		}
+	}
+	for _, variable := range plan.VariableValues {
+		vars = append(vars, fmt.Sprintf("%s=%s", variable.Name, variable.Value))
 	}
 	return vars, nil
 }
