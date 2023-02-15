@@ -32,18 +32,19 @@ func loadVariableValues(variablesFile string) ([]codersdk.VariableValue, error) 
 // Reads a YAML file and populates a string -> string map.
 // Throws an error if the file name is empty.
 func createVariablesMapFromFile(variablesFile string) (map[string]string, error) {
-	if variablesFile != "" {
-		variablesMap := make(map[string]string)
-		variablesFileContents, err := os.ReadFile(variablesFile)
-		if err != nil {
-			return nil, err
-		}
-
-		err = yaml.Unmarshal(variablesFileContents, &variablesMap)
-		if err != nil {
-			return nil, err
-		}
-		return variablesMap, nil
+	if variablesFile == "" {
+		return nil, xerrors.Errorf("variable file name is not specified")
 	}
-	return nil, xerrors.Errorf("variable file name is not specified")
+
+	variablesMap := make(map[string]string)
+	variablesFileContents, err := os.ReadFile(variablesFile)
+	if err != nil {
+		return nil, err
+	}
+
+	err = yaml.Unmarshal(variablesFileContents, &variablesMap)
+	if err != nil {
+		return nil, err
+	}
+	return variablesMap, nil
 }

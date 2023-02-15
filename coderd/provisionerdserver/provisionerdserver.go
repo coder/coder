@@ -408,13 +408,14 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 	if len(request.TemplateVariables) > 0 {
 		templateVersion, err := server.Database.GetTemplateVersionByJobID(ctx, job.ID)
 		if err != nil {
+			server.Logger.Error(ctx, "failed to get the template version", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("get template version by job id: %w", err)
 		}
 
 		var variableValues []*sdkproto.VariableValue
 		var variablesWithMissingValues []string
 		for _, templateVariable := range request.TemplateVariables {
-			server.Logger.Debug(ctx, "insert template variable", slog.F("template_version_id", templateVersion.ID), slog.F("template_variable", templateVariable))
+			server.Logger.Debug(ctx, "insert template variable", slog.F("template_version_id", templateVersion.ID), slog.F("template_variable", redactTemplateVariable(templateVariable)))
 
 			var value = templateVariable.DefaultValue
 			for _, v := range request.UserVariableValues {
@@ -1334,4 +1335,22 @@ func asVariableValues(templateVariables []database.TemplateVersionVariable) []*s
 		}
 	}
 	return apiVariableValues
+}
+
+func redactTemplateVariable(templateVariable *sdkproto.TemplateVariable) *sdkproto.TemplateVariable {
+	if templateVariable == nil {
+		return nil
+	}
+	maybeRedacted := &sdkproto.TemplateVariable{
+		Name:         templateVariable.Name,
+		Description:  templateVariable.Description,
+		Type:         templateVariable.Type,
+		DefaultValue: templateVariable.DefaultValue,
+		Required:     templateVariable.Required,
+		Sensitive:    templateVariable.Sensitive,
+	}
+	if maybeRedacted.Sensitive {
+		maybeRedacted.DefaultValue = "*redacted*"
+	}
+	return maybeRedacted
 }

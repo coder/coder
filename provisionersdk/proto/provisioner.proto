@@ -192,8 +192,8 @@ message Parse {
         string directory = 1;
     }
     message Complete {
-        repeated ParameterSchema parameter_schemas = 1;
-		repeated TemplateVariable template_variables = 2;
+		repeated TemplateVariable template_variables = 1;
+        repeated ParameterSchema parameter_schemas = 2;
     }
     message Response {
         oneof type {

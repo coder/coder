@@ -15,5 +15,5 @@ COMMENT ON COLUMN template_version_variables.description IS 'Variable descriptio
 COMMENT ON COLUMN template_version_variables.type IS 'Variable type';
 COMMENT ON COLUMN template_version_variables.value IS 'Variable value';
 COMMENT ON COLUMN template_version_variables.default_value IS 'Variable default value';
-COMMENT ON COLUMN template_version_variables.required IS 'Is variable required?';
-COMMENT ON COLUMN template_version_variables.sensitive IS 'Is variable sensitive?';
+COMMENT ON COLUMN template_version_variables.required IS 'Required variables needs a default value or a value provided by template admin';
+COMMENT ON COLUMN template_version_variables.sensitive IS 'Sensitive variables have their values redacted in logs or site UI';

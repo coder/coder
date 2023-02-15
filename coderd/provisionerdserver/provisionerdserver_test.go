@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func mockAuditor() *atomic.Pointer[audit.Auditor] {
@@ -285,7 +286,6 @@ func TestAcquireJob(t *testing.T) {
 	t.Run("TemplateVersionImportWithUserVariable", func(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
-		ctx := context.Background()
 
 		user := dbgen.User(t, srv.Database, database.User{})
 		version := dbgen.TemplateVersion(t, srv.Database, database.TemplateVersion{})
@@ -303,6 +303,9 @@ func TestAcquireJob(t *testing.T) {
 				},
 			})),
 		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
 
 		job, err := srv.AcquireJob(ctx, nil)
 		require.NoError(t, err)
@@ -459,6 +462,9 @@ func TestUpdateJob(t *testing.T) {
 		t.Parallel()
 
 		t.Run("Valid", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
 			srv := setup(t, false)
 			job := setupJob(t, srv)
 			version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
@@ -502,6 +508,9 @@ func TestUpdateJob(t *testing.T) {
 		})
 
 		t.Run("Missing required value", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
 			srv := setup(t, false)
 			job := setupJob(t, srv)
 			version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
