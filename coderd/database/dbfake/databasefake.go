@@ -483,6 +483,19 @@ func (q *fakeQuerier) GetAPIKeysByLoginType(_ context.Context, t database.LoginT
 	return apiKeys, nil
 }
 
+func (q *fakeQuerier) GetTokensByUserID(_ context.Context, userID uuid.UUID) ([]database.APIKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	apiKeys := make([]database.APIKey, 0)
+	for _, key := range q.apiKeys {
+		if key.UserID == userID {
+			apiKeys = append(apiKeys, key)
+		}
+	}
+	return apiKeys, nil
+}
+
 func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
