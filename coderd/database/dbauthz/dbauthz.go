@@ -163,29 +163,8 @@ func AsAutostart(ctx context.Context) context.Context {
 	)
 }
 
-// AsMetricsCache returns a context with an actor that has permissions required
-// for the metrics cache to function.
-func AsMetricsCache(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, rbac.Subject{
-		ID: uuid.Nil.String(),
-		Roles: rbac.Roles([]rbac.Role{
-			{
-				Name:        "metrics-cache",
-				DisplayName: "Metrics Cache",
-				Site: rbac.Permissions(map[string][]rbac.Action{
-					rbac.ResourceTemplate.Type: {rbac.ActionRead},
-				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
-			},
-		}),
-		Scope: rbac.ScopeAll,
-	},
-	)
-}
-
 // AsSystemRestricted returns a context with an actor that has permissions
-// required for various system operations e.g. login, logout.
+// required for various system operations (login, logout, metrics cache).
 func AsSystemRestricted(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, rbac.Subject{
 		ID: uuid.Nil.String(),
