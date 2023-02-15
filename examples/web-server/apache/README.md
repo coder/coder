@@ -106,6 +106,7 @@
         ProxyPreserveHost On
 
         RewriteEngine On
+        # Websockets are required for workspace connectivity
         RewriteCond %{HTTP:Connection} Upgrade [NC]
         RewriteCond %{HTTP:Upgrade} websocket [NC]
         RewriteRule /(.*) ws://127.0.0.1:3000/$1 [P,L]
