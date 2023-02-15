@@ -299,6 +299,143 @@ func TestTemplateCreate(t *testing.T) {
 
 		require.EqualError(t, <-execDone, "Template name must be less than 32 characters")
 	})
+
+	t.Run("WithVariablesFileWithoutRequiredValue", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		coderdtest.CreateFirstUser(t, client)
+
+		templateVariables := []*proto.TemplateVariable{
+			{
+				Name:        "first_variable",
+				Description: "This is the first variable",
+				Type:        "string",
+				Required:    true,
+				Sensitive:   true,
+			},
+			{
+				Name:         "second_variable",
+				Description:  "This is the first variable",
+				Type:         "string",
+				DefaultValue: "abc",
+				Required:     false,
+				Sensitive:    true,
+			},
+		}
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse: []*proto.Parse_Response{
+				{
+					Type: &proto.Parse_Response_Complete{
+						Complete: &proto.Parse_Complete{
+							TemplateVariables: templateVariables,
+						},
+					},
+				},
+			},
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionComplete,
+		})
+		tempDir := t.TempDir()
+		removeTmpDirUntilSuccessAfterTest(t, tempDir)
+		variablesFile, _ := os.CreateTemp(tempDir, "variables*.yaml")
+		_, _ = variablesFile.WriteString(`second_variable: foobar`)
+		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variables-file", variablesFile.Name())
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+
+		execDone := make(chan error)
+		go func() {
+			execDone <- cmd.Execute()
+		}()
+
+		matches := []struct {
+			match string
+			write string
+		}{
+			{match: "Upload", write: "yes"},
+			{match: "Cleaning Up"},
+		}
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			if len(m.write) > 0 {
+				pty.WriteLine(m.write)
+			}
+		}
+
+		require.Error(t, <-execDone)
+	})
+
+	t.Run("WithVariablesFileWithTheRequiredValue", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		coderdtest.CreateFirstUser(t, client)
+
+		templateVariables := []*proto.TemplateVariable{
+			{
+				Name:        "first_variable",
+				Description: "This is the first variable",
+				Type:        "string",
+				Required:    true,
+				Sensitive:   true,
+			},
+			{
+				Name:         "second_variable",
+				Description:  "This is the first variable",
+				Type:         "string",
+				DefaultValue: "abc",
+				Required:     false,
+				Sensitive:    true,
+			},
+		}
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse: []*proto.Parse_Response{
+				{
+					Type: &proto.Parse_Response_Complete{
+						Complete: &proto.Parse_Complete{
+							TemplateVariables: templateVariables,
+						},
+					},
+				},
+			},
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionComplete,
+		})
+		tempDir := t.TempDir()
+		removeTmpDirUntilSuccessAfterTest(t, tempDir)
+		variablesFile, _ := os.CreateTemp(tempDir, "variables*.yaml")
+		_, _ = variablesFile.WriteString(`first_variable: foobar`)
+		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variables-file", variablesFile.Name())
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+
+		execDone := make(chan error)
+		go func() {
+			execDone <- cmd.Execute()
+		}()
+
+		matches := []struct {
+			match string
+			write string
+		}{
+			{match: "Upload", write: "yes"},
+			{match: "Cleaning Up"},
+			{match: "Confirm create?", write: "yes"},
+		}
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			if len(m.write) > 0 {
+				pty.WriteLine(m.write)
+			}
+		}
+
+		require.NoError(t, <-execDone)
+	})
 }
 
 func createTestParseResponse() []*proto.Parse_Response {
