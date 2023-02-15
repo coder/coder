@@ -48,9 +48,12 @@ main() {
 	breaking_title="^[a-z]+(\([a-z]*\))?!:"
 	breaking_label=release/breaking
 	breaking_category=breaking
+	experimental_label=release/experimental
+	experimental_category=experimental
 
 	# Security related changes are labeled `security`.
 	security_label=security
+	security_category=security
 
 	# Get abbreviated and full commit hashes and titles for each commit.
 	git_log_out="$(git log --no-merges --pretty=format:"%h %H %s" "$range")"
@@ -120,7 +123,10 @@ main() {
 			COMMIT_METADATA_BREAKING=1
 			continue
 		elif [[ ${labels[$commit_sha_long]:-} = *"label:$security_label"* ]]; then
-			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$security_label
+			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$security_category
+			continue
+		elif [[ ${labels[$commit_sha_long]:-} = *"label:$experimental_label"* ]]; then
+			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$experimental_category
 			continue
 		fi
 

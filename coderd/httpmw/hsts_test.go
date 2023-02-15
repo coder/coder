@@ -96,7 +96,7 @@ func TestHSTS(t *testing.T) {
 			req := httptest.NewRequest("GET", "/", nil)
 			res := httptest.NewRecorder()
 			got.ServeHTTP(res, req)
-			
+
 			require.Equal(t, tt.expectHeader, res.Header().Get("Strict-Transport-Security"), "expected header value")
 		})
 	}

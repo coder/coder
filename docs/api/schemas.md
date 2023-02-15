@@ -1000,6 +1000,12 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "value": "string"
     }
   ],
+  "user_variable_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "workspace_name": "string"
 }
 ```
@@ -1010,6 +1016,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------- |
 | `parameter_values`      | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest)   | false    |              | Parameter values is a structure used to create a new parameter value for a scope.] |
 | `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |                                                                                    |
+| `user_variable_values`  | array of [codersdk.VariableValue](#codersdkvariablevalue)                     | false    |              |                                                                                    |
 | `workspace_name`        | string                                                                        | false    |              |                                                                                    |
 
 ## codersdk.CreateTestAuditLogRequest
@@ -4638,6 +4645,40 @@ Parameter represents a set value for the scope.
 | `name`        | string | false    |              |             |
 | `value`       | string | false    |              |             |
 
+## codersdk.TemplateVersionVariable
+
+```json
+{
+  "default_value": "string",
+  "description": "string",
+  "name": "string",
+  "required": true,
+  "sensitive": true,
+  "type": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name            | Type    | Required | Restrictions | Description |
+| --------------- | ------- | -------- | ------------ | ----------- |
+| `default_value` | string  | false    |              |             |
+| `description`   | string  | false    |              |             |
+| `name`          | string  | false    |              |             |
+| `required`      | boolean | false    |              |             |
+| `sensitive`     | boolean | false    |              |             |
+| `type`          | string  | false    |              |             |
+| `value`         | string  | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value    |
+| -------- | -------- |
+| `type`   | `string` |
+| `type`   | `number` |
+| `type`   | `bool`   |
+
 ## codersdk.TraceConfig
 
 ```json
@@ -4945,6 +4986,22 @@ Parameter represents a set value for the scope.
 | ------------ |
 | `increasing` |
 | `decreasing` |
+
+## codersdk.VariableValue
+
+```json
+{
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+| ------- | ------ | -------- | ------------ | ----------- |
+| `name`  | string | false    |              |             |
+| `value` | string | false    |              |             |
 
 ## codersdk.Workspace
 

@@ -632,7 +632,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		// Use a system context as the agent has disconnected and that token
 		// may no longer be valid.
 		//nolint:gocritic
-		ctx, cancel := context.WithTimeout(dbauthz.AsSystem(api.ctx), api.AgentInactiveDisconnectTimeout)
+		ctx, cancel := context.WithTimeout(dbauthz.AsSystemRestricted(api.ctx), api.AgentInactiveDisconnectTimeout)
 		defer cancel()
 
 		disconnectedAt = sql.NullTime{

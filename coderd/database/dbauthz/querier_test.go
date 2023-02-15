@@ -540,12 +540,6 @@ func (s *MethodTestSuite) TestTemplate() {
 			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
 		}).Asserts(t1, rbac.ActionRead).Returns(b)
 	}))
-	s.Run("GetTemplateAverageBuildTime", s.Subtest(func(db database.Store, check *expects) {
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(database.GetTemplateAverageBuildTimeParams{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		}).Asserts(t1, rbac.ActionRead)
-	}))
 	s.Run("GetTemplateByID", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(t1.ID).Asserts(t1, rbac.ActionRead).Returns(t1)
@@ -559,10 +553,6 @@ func (s *MethodTestSuite) TestTemplate() {
 			Name:           t1.Name,
 			OrganizationID: o1.ID,
 		}).Asserts(t1, rbac.ActionRead).Returns(t1)
-	}))
-	s.Run("GetTemplateDAUs", s.Subtest(func(db database.Store, check *expects) {
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(t1.ID).Asserts(t1, rbac.ActionRead)
 	}))
 	s.Run("GetTemplateVersionByJobID", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{})
@@ -1219,8 +1209,5 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		})
 		s.NoError(err, "insert provisioner daemon")
 		check.Args().Asserts(d, rbac.ActionRead)
-	}))
-	s.Run("GetDeploymentDAUs", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceUser.All(), rbac.ActionRead)
 	}))
 }

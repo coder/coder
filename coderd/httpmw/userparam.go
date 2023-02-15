@@ -70,7 +70,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 					return
 				}
 				//nolint:gocritic // System needs to be able to get user from param.
-				user, err = db.GetUserByID(dbauthz.AsSystem(ctx), apiKey.UserID)
+				user, err = db.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 				if xerrors.Is(err, sql.ErrNoRows) {
 					httpapi.ResourceNotFound(rw)
 					return
@@ -84,7 +84,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 				}
 			} else if userID, err := uuid.Parse(userQuery); err == nil {
 				//nolint:gocritic // If the userQuery is a valid uuid
-				user, err = db.GetUserByID(dbauthz.AsSystem(ctx), userID)
+				user, err = db.GetUserByID(dbauthz.AsSystemRestricted(ctx), userID)
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 						Message: userErrorMessage,
@@ -93,7 +93,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 				}
 			} else {
 				// nolint:gocritic // Try as a username last
-				user, err = db.GetUserByEmailOrUsername(dbauthz.AsSystem(ctx), database.GetUserByEmailOrUsernameParams{
+				user, err = db.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 					Username: userQuery,
 				})
 				if err != nil {
