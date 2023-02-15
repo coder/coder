@@ -47,7 +47,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.Options.Authorizer == nil {
-		options.Options.Authorizer = rbac.NewAuthorizer(options.PrometheusRegistry)
+		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
