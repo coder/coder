@@ -327,13 +327,6 @@ func (q *querier) GetProvisionerDaemons(ctx context.Context) ([]database.Provisi
 	return fetchWithPostFilter(q.auth, fetch)(ctx, nil)
 }
 
-func (q *querier) GetDeploymentDAUs(ctx context.Context) ([]database.GetDeploymentDAUsRow, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.All()); err != nil {
-		return nil, err
-	}
-	return q.db.GetDeploymentDAUs(ctx)
-}
-
 func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
 }
@@ -622,31 +615,12 @@ func (q *querier) GetPreviousTemplateVersion(ctx context.Context, arg database.G
 	return q.db.GetPreviousTemplateVersion(ctx, arg)
 }
 
-func (q *querier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
-	// An actor can read the average build time if they can read the related template.
-	// It doesn't make any sense to get the average build time for a template that doesn't
-	// exist, so omitting this check here.
-	if _, err := q.GetTemplateByID(ctx, arg.TemplateID.UUID); err != nil {
-		return database.GetTemplateAverageBuildTimeRow{}, err
-	}
-	return q.db.GetTemplateAverageBuildTime(ctx, arg)
-}
-
 func (q *querier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
 	return fetch(q.log, q.auth, q.db.GetTemplateByID)(ctx, id)
 }
 
 func (q *querier) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
 	return fetch(q.log, q.auth, q.db.GetTemplateByOrganizationAndName)(ctx, arg)
-}
-
-func (q *querier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
-	// An actor can read the DAUs if they can read the related template.
-	// Again, it doesn't make sense to get DAUs for a template that doesn't exist.
-	if _, err := q.GetTemplateByID(ctx, templateID); err != nil {
-		return nil, err
-	}
-	return q.db.GetTemplateDAUs(ctx, templateID)
 }
 
 func (q *querier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUID) (database.TemplateVersion, error) {

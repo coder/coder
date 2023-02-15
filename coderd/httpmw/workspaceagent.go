@@ -48,7 +48,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 			//nolint:gocritic // System needs to be able to get workspace agents.
-			agent, err := db.GetWorkspaceAgentByAuthToken(dbauthz.AsSystem(ctx), token)
+			agent, err := db.GetWorkspaceAgentByAuthToken(dbauthz.AsSystemRestricted(ctx), token)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
@@ -66,7 +66,7 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			//nolint:gocritic // System needs to be able to get workspace agents.
-			subject, err := getAgentSubject(dbauthz.AsSystem(ctx), db, agent)
+			subject, err := getAgentSubject(dbauthz.AsSystemRestricted(ctx), db, agent)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error fetching workspace agent.",

@@ -96,6 +96,21 @@ func (q *querier) GetTemplates(ctx context.Context) ([]database.Template, error)
 	return q.db.GetTemplates(ctx)
 }
 
+// Only used by metrics cache.
+func (q *querier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
+	return q.db.GetTemplateAverageBuildTime(ctx, arg)
+}
+
+// Only used by metrics cache.
+func (q *querier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
+	return q.db.GetTemplateDAUs(ctx, templateID)
+}
+
+// Only used by metrics cache.
+func (q *querier) GetDeploymentDAUs(ctx context.Context) ([]database.GetDeploymentDAUsRow, error) {
+	return q.db.GetDeploymentDAUs(ctx)
+}
+
 // UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.
 func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
 	return q.db.UpdateWorkspaceBuildCostByID(ctx, arg)
