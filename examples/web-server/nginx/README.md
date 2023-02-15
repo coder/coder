@@ -2,9 +2,9 @@
 
 ## Requirements
 
-1. Start a Coder deployment with a wildcard subdomain. See [this guide](https://coder.com/docs/v2/latest/admin/configure#wildcard-access-url) for more information.
+1. Start a Coder deployment and be sure to set the following [configuration values](https://coder.com/docs/v2/latest/admin/configure):.
 
-2. Configure your DNS provider to point your YOUR_SUBDOMAIN and \*.YOUR_SUBDOMAIN to your server's public IP address.
+2. Configure your DNS provider to point your CODER_SUBDOMAIN and \*.CODER_SUBDOMAIN to your server's public IP address.
 
    > For example, to use `coder.example.com` as your subdomain, configure `coder.example.com` and `*.coder.example.com` to point to your server's public ip. This can be done by adding A records in your DNS provider's dashboard.
 
@@ -22,18 +22,18 @@
 
 ## Adding Coder deployment subdomain
 
-> This example assumes Coder is running locally on `127.0.0.1:3000` for the subdomain `YOUR_SUBDOMAIN` e.g. `coder.example.com`.
+> This example assumes Coder is running locally on `127.0.0.1:3000` for the subdomain `CODER_SUBDOMAIN` e.g. `coder.example.com`.
 
 1. Create NGINX configuration for this app:
 
    ```console
-   sudo touch /etc/nginx/sites-available/YOUR_SUBDOMAIN
+   sudo touch /etc/nginx/sites-available/CODER_SUBDOMAIN
    ```
 
 2. Activate this file:
 
    ```console
-   sudo ln -s /etc/nginx/sites-available/YOUR_SUBDOMAIN /etc/nginx/sites-enabled/YOUR_SUBDOMAIN
+   sudo ln -s /etc/nginx/sites-available/CODER_SUBDOMAIN /etc/nginx/sites-enabled/CODER_SUBDOMAIN
    ```
 
 ## Install and configure LetsEncrypt Certbot
@@ -50,6 +50,12 @@
 
    ```ini
    dns_cloudflare_api_token = YOUR_API_TOKEN
+   ```
+
+   ```console
+   mkdir -p ~/.secrets/certbot
+   touch ~/.secrets/certbot/cloudflare.ini
+   vi ~/.secrets/certbot/cloudflare.ini
    ```
 
 3. Set the correct permissions:
@@ -71,14 +77,14 @@
 1. Edit the file with:
 
    ```console
-   sudo nano /etc/nginx/sites-available/YOUR_SUBDOMAIN
+   sudo nano /etc/nginx/sites-available/CODER_SUBDOMAIN
    ```
 
 2. Add the following content:
 
    ```nginx
    server {
-       server_name YOUR_SUBDOMAIN *.YOUR_SUBDOMAIN;
+       server_name CODER_SUBDOMAIN *.CODER_SUBDOMAIN;
 
        # HTTP configuration
        listen 80;
@@ -92,8 +98,8 @@
        # HTTPS configuration
        listen [::]:443 ssl ipv6only=on;
        listen 443 ssl;
-       ssl_certificate /etc/letsencrypt/live/YOUR_SUBDOMAIN/fullchain.pem;
-       ssl_certificate_key /etc/letsencrypt/live/YOUR_SUBDOMAIN/privkey.pem;
+       ssl_certificate /etc/letsencrypt/live/CODER_SUBDOMAIN/fullchain.pem;
+       ssl_certificate_key /etc/letsencrypt/live/CODER_SUBDOMAIN/privkey.pem;
 
        location / {
            proxy_pass  http://127.0.0.1:3000; # Change this to your coder deployment port default is 3000
@@ -110,7 +116,7 @@
    ```
 
    > Don't forget to change:
-   > `YOUR_SUBDOMAIN` by your (sub)domain e.g. `coder.example.com`
+   > `CODER_SUBDOMAIN` by your (sub)domain e.g. `coder.example.com`
 
 3. Test the configuration:
 
@@ -145,4 +151,4 @@
 sudo systemctl restart nginx
 ```
 
-And that's it, you should now be able to access Coder at `https://YOUR_SUBDOMAIN`!
+And that's it, you should now be able to access Coder at `https://CODER_SUBDOMAIN` e.g. `https://coder.example.com`.
