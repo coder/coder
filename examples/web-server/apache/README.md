@@ -14,7 +14,16 @@
    sudo apt install apache2
    ```
 
-4. Stop Apache service and disable default site:
+4. Enable the following Apache modules:
+
+   ```console
+   sudo a2enmod proxy
+   sudo a2enmod proxy_http
+   sudo a2enmod ssl
+   sudo a2enmod rewrite
+   ```
+
+5. Stop Apache service and disable default site:
 
    ```console
    sudo a2dissite 000-default.conf
@@ -65,19 +74,23 @@
 
    ```apache
     <VirtualHost *:443>
-      ServerName YOUR_SUBDOMAIN
-      ServerAlias *.YOUR_SUBDOMAIN
-      ErrorLog ${APACHE_LOG_DIR}/error.log
-      CustomLog ${APACHE_LOG_DIR}/access.log combined
+        ServerName dev.dietstyler.com
+        ServerAlias *.dev.dietstyler.com
+        ErrorLog ${APACHE_LOG_DIR}/error.log
+        CustomLog ${APACHE_LOG_DIR}/access.log combined
 
-      ProxyPass / http://127.0.0.1:3000/
-      ProxyPassReverse / http://127.0.0.1:3000/
-      ProxyRequests Off
-      ProxyPreserveHost On
+        ProxyPass / http://127.0.0.1:3000/
+        ProxyPassReverse / http://127.0.0.1:3000/
+        ProxyRequests Off
+        ProxyPreserveHost On
 
-      # SSL configuration
-      SSLCertificateFile /etc/letsencrypt/live/YOUR_SUBDOMAIN/fullchain.pem
-      SSLCertificateKeyFile /etc/letsencrypt/live/YOUR_SUBDOMAIN/privkey.pem
+        RewriteEngine On
+        RewriteCond %{HTTP:Connection} Upgrade [NC]
+        RewriteCond %{HTTP:Upgrade} websocket [NC]
+        RewriteRule /(.*) ws://127.0.0.1:3000/$1 [P,L]
+
+        SSLCertificateFile /etc/letsencrypt/live/dev.dietstyler.com/fullchain.pem
+        SSLCertificateKeyFile /etc/letsencrypt/live/dev.dietstyler.com/privkey.pem
     </VirtualHost>
    ```
 
