@@ -50,9 +50,6 @@ export const FileTreeView: FC<{
     if (filename.endsWith(".md")) {
       icon = <FileTypeMarkdown />
     }
-    if (filename.endsWith("Dockerfile")) {
-      icon = <FileTypeDockerfile />
-    }
 
     return (
       <TreeItem

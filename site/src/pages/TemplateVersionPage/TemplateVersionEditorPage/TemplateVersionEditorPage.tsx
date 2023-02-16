@@ -27,7 +27,7 @@ export const TemplateVersionEditorPage: FC = () => {
     },
     {
       onSuccess(data) {
-        sendEvent({ type: "INITIALIZE", untarFiles: data.untarFiles })
+        sendEvent({ type: "INITIALIZE", tarReader: data.tarReader })
       },
     },
   )

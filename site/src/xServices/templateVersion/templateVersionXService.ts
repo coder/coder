@@ -162,23 +162,9 @@ export const templateVersionMachine = createMachine(
         }
         const loadFilesPromises: ReturnType<typeof getTemplateVersionFiles>[] =
           []
-        const allowedExtensions = ["tf", "md"]
-        const allowedFiles = ["Dockerfile"]
-        loadFilesPromises.push(
-          getTemplateVersionFiles(
-            currentVersion,
-            allowedExtensions,
-            allowedFiles,
-          ),
-        )
+        loadFilesPromises.push(getTemplateVersionFiles(currentVersion))
         if (previousVersion) {
-          loadFilesPromises.push(
-            getTemplateVersionFiles(
-              previousVersion,
-              allowedExtensions,
-              allowedFiles,
-            ),
-          )
+          loadFilesPromises.push(getTemplateVersionFiles(previousVersion))
         }
         const [currentFiles, previousFiles] = await Promise.all(
           loadFilesPromises,
