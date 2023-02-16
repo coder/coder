@@ -283,7 +283,6 @@ func TestTemplatePush(t *testing.T) {
 					Description: "This is the second variable",
 					Type:        "string",
 					Required:    true,
-					Sensitive:   true,
 				},
 			)
 			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
@@ -347,7 +346,6 @@ func TestTemplatePush(t *testing.T) {
 					Description: "This is the second variable",
 					Type:        "string",
 					Required:    true,
-					Sensitive:   true,
 				},
 			)
 			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
@@ -395,7 +393,6 @@ func TestTemplatePush(t *testing.T) {
 					Type:         "string",
 					DefaultValue: "abc",
 					Required:     true,
-					Sensitive:    true,
 				},
 			)
 			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
