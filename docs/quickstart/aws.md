@@ -16,7 +16,7 @@ Be sure to keep the default firewall (SecurityGroup) options checked so you can 
 
 ![AWS Security Groups](../images/quickstart/aws/security-groups.png)
 
-We recommend at least 4 cores and 16 GB memory if you plan on provisioning Docker containers as workspaces on this EC2 instance. Keep in mind this quickstart is intended for proof-of-concept deployments and you should adjust your infrastructure when preparing for production use.
+We recommend keeping the default instance type (`t2.xlarge`, 4 cores and 16 GB memory) if you plan on provisioning Docker containers as workspaces on this EC2 instance. Keep in mind this quickstart is intended for proof-of-concept deployments and you should adjust your infrastructure when preparing for production use. See: [Scaling Coder](../admin/scale.md)
 
 Be sure to add a keypair so that you can connect over SSH to further [configure Coder](../admin/configure.md).
 
