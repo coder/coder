@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
@@ -85,15 +86,41 @@ func createToken() *cobra.Command {
 	return cmd
 }
 
+// tokenListRow is the type provided to the OutputFormatter.
+type tokenListRow struct {
+	// For JSON format:
+	codersdk.APIKey `table:"-"`
+
+	// For table format:
+	ID        string    `json:"-" table:"id,default_sort"`
+	LastUsed  time.Time `json:"-" table:"last used"`
+	ExpiresAt time.Time `json:"-" table:"expires at"`
+	CreatedAt time.Time `json:"-" table:"created at"`
+	Owner     string    `json:"-" table:"owner"`
+}
+
+func tokenListRowFromToken(token codersdk.APIKey, usersByID map[uuid.UUID]codersdk.User) tokenListRow {
+	user := usersByID[token.UserID]
+
+	return tokenListRow{
+		APIKey:    token,
+		ID:        token.ID,
+		LastUsed:  token.LastUsed,
+		ExpiresAt: token.ExpiresAt,
+		CreatedAt: token.CreatedAt,
+		Owner:     user.Username,
+	}
+}
+
 func listTokens() *cobra.Command {
 	var (
-		all       bool
-		formatter = cliui.NewOutputFormatter(
-			cliui.TableFormat([]codersdk.APIKey{}, nil),
+		all           bool
+		displayTokens []tokenListRow
+		formatter     = cliui.NewOutputFormatter(
+			cliui.TableFormat([]tokenListRow{}, nil),
 			cliui.JSONFormat(),
 		)
 	)
-
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
@@ -104,20 +131,36 @@ func listTokens() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			keys, err := client.Tokens(cmd.Context(), codersdk.Me, codersdk.TokensFilter{
+			tokens, err := client.Tokens(cmd.Context(), codersdk.Me, codersdk.TokensFilter{
 				IncludeAll: all,
 			})
 			if err != nil {
 				return xerrors.Errorf("list tokens: %w", err)
 			}
 
-			if len(keys) == 0 {
+			if len(tokens) == 0 {
 				cmd.Println(cliui.Styles.Wrap.Render(
 					"No tokens found.",
 				))
 			}
 
-			out, err := formatter.Format(cmd.Context(), keys)
+			userRes, err := client.Users(cmd.Context(), codersdk.UsersRequest{})
+			if err != nil {
+				return err
+			}
+
+			usersByID := map[uuid.UUID]codersdk.User{}
+			for _, user := range userRes.Users {
+				usersByID[user.ID] = user
+			}
+
+			displayTokens = make([]tokenListRow, len(tokens))
+
+			for i, token := range tokens {
+				displayTokens[i] = tokenListRowFromToken(token, usersByID)
+			}
+
+			out, err := formatter.Format(cmd.Context(), displayTokens)
 			if err != nil {
 				return err
 			}

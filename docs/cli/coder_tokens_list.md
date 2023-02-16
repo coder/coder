@@ -10,7 +10,7 @@ coder tokens list [flags]
 
 ```
   -a, --all              Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).
-  -c, --column strings   Columns to display in table output. Available columns: id, owner, last used, expires at, created at (default [id,owner,last used,expires at,created at])
+  -c, --column strings   Columns to display in table output. Available columns: id, last used, expires at, created at, owner (default [id,last used,expires at,created at,owner])
   -h, --help             help for list
   -o, --output string    Output format. Available formats: table, json (default "table")
 ```
