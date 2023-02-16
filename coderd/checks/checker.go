@@ -1,8 +1,11 @@
-package health
+package checks
 
 import (
+	"context"
 	"sync"
 	"time"
+
+	"cdr.dev/slog"
 )
 
 // CheckFunc is a function that returns an error.
@@ -16,9 +19,9 @@ type CheckFunc func() error
 
 // CheckResult is the result of a single check.
 type CheckResult struct {
-	Error     error         `json:"error"`
-	CheckedAt time.Time     `json:"checked_at"`
-	Duration  time.Duration `json:"duration"`
+	Error      string    `json:"error"`
+	CheckedAt  time.Time `json:"checked_at"`
+	DurationMs int64     `json:"duration_ms"`
 }
 
 type Checker interface {
@@ -33,15 +36,17 @@ type checker struct {
 	checks  map[string]CheckFunc
 	results map[string]*CheckResult
 	stop    chan struct{}
+	log     slog.Logger
 }
 
-func NewChecker(tick <-chan time.Time) Checker {
+func New(tick <-chan time.Time, log slog.Logger) Checker {
 	stop := make(chan struct{})
 	c := &checker{
 		tick:    tick,
 		checks:  make(map[string]CheckFunc),
 		results: make(map[string]*CheckResult),
 		stop:    stop,
+		log:     log,
 	}
 	go c.run()
 	return c
@@ -65,6 +70,7 @@ func (c *checker) Add(name string, check CheckFunc) {
 	c.Lock()
 	defer c.Unlock()
 	c.checks[name] = check
+	c.results[name] = nil
 }
 
 func (c *checker) Stop() {
@@ -86,18 +92,37 @@ func (c *checker) run() {
 
 func (c *checker) runOneCheck(name string) {
 	start := time.Now()
+	var prevErr string
 	c.RLock()
 	checkFunc, ok := c.checks[name]
+	if c.results[name] != nil {
+		prevErr = c.results[name].Error
+	}
 	c.RUnlock()
 	if !ok { // check was removed?
 		return
 	}
 	err := checkFunc()
+	changed := (prevErr == "" && err != nil) || (prevErr != "" && err == nil)
+	if changed {
+		fromStr := "ok"
+		toStr := "ok"
+		if err != nil {
+			toStr = err.Error()
+		}
+		c.log.Warn(context.Background(), "check status changed",
+			slog.F("from", fromStr),
+			slog.F("to", toStr),
+			slog.F("check", name),
+		)
+	}
 	elapsed := time.Since(start)
 	result := &CheckResult{
-		Error:     err,
-		CheckedAt: start,
-		Duration:  elapsed,
+		CheckedAt:  start,
+		DurationMs: elapsed.Milliseconds(),
+	}
+	if err != nil {
+		result.Error = err.Error()
 	}
 	c.Lock()
 	c.results[name] = result

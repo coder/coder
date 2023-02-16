@@ -41,12 +41,12 @@ import (
 	_ "github.com/coder/coder/coderd/apidoc"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
+	"github.com/coder/coder/coderd/checks"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
-	"github.com/coder/coder/coderd/health"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/metricscache"
@@ -102,7 +102,6 @@ type Options struct {
 	AzureCertificates              x509.VerifyOptions
 	GoogleTokenValidator           *idtoken.Validator
 	GithubOAuth2Config             *GithubOAuth2Config
-	Healthchecker                  health.Checker
 	OIDCConfig                     *OIDCConfig
 	PrometheusRegistry             *prometheus.Registry
 	SecureAuthCookie               bool
@@ -160,6 +159,7 @@ func New(options *Options) *API {
 		options = &Options{}
 	}
 	experiments := initExperiments(options.Logger, options.DeploymentConfig.Experiments.Value, options.DeploymentConfig.Experimental.Value)
+	checker := initChecker(options.Logger, options.AccessURL)
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
@@ -250,6 +250,7 @@ func New(options *Options) *API {
 		metricsCache: metricsCache,
 		Auditor:      atomic.Pointer[audit.Auditor]{},
 		Experiments:  experiments,
+		Checker:      checker,
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -702,20 +703,12 @@ func New(options *Options) *API {
 		r.Get("/swagger/*", globalHTTPSwaggerHandler)
 	}
 
-	r.Get("/healthchecks", func(w http.ResponseWriter, r *http.Request) {
-		res := api.healthChecker.Results()
-		if res == nil {
-			httpapi.InternalServerError(w, xerrors.New("health checks not initialized, check back later"))
-			return
-		}
-		b, err := json.Marshal(api.healthChecker.Results())
-		if err != nil {
-			httpapi.InternalServerError(w, err)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(b)
+	// This route is for self-checks
+	r.Route("/checks", func(r chi.Router) {
+		r.Get("/", api.handleGetChecks)
+		r.Get("/websocket", api.handleCheckWebsocket)
 	})
+
 	r.NotFound(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP)).ServeHTTP)
 	return api
 }
@@ -758,7 +751,7 @@ type API struct {
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
 
-	healthChecker health.Checker
+	Checker checks.Checker
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -897,4 +890,13 @@ func initExperiments(log slog.Logger, raw []string, legacyAll bool) codersdk.Exp
 		exps = append(exps, codersdk.ExperimentsAll...)
 	}
 	return exps
+}
+
+func initChecker(log slog.Logger, accessURL *url.URL) checks.Checker {
+	// TODO(cian): make this configurable.
+	checkPoller := time.NewTicker(10 * time.Second)
+	checker := checks.New(checkPoller.C, log)
+	checker.Add("access-url", checks.AccessURLAccessible(accessURL, 5*time.Second))
+	checker.Add("dial-websocket", checks.CanDialWebsocket(accessURL, 5*time.Second))
+	return checker
 }

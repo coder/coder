@@ -1,4 +1,4 @@
-package health_test
+package checks_test
 
 import (
 	"testing"
@@ -6,7 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/coder/coder/coderd/health"
+	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/coderd/checks"
 	"github.com/coder/coder/testutil"
 )
 
@@ -14,7 +15,7 @@ func Test_Checker(t *testing.T) {
 	t.Parallel()
 	var (
 		tick    = make(chan time.Time)
-		c       = health.NewChecker(tick)
+		c       = checks.New(tick, slogtest.Make(t, nil))
 		done    = make(chan struct{})
 		testErr = assert.AnError
 	)
@@ -43,11 +44,11 @@ func Test_Checker(t *testing.T) {
 	<-done // second check
 	results := c.Results()
 	assert.Len(t, results, 2)
-	assert.NoError(t, results["good-test"].Error)
-	assert.EqualError(t, results["bad-test"].Error, testErr.Error())
+	assert.Empty(t, results["good-test"].Error)
+	assert.Equal(t, results["bad-test"].Error, testErr.Error())
 	assert.Nil(t, results["slow-test"])
 	<-done // third check
 	results = c.Results()
 	assert.Len(t, results, 3)
-	assert.NoError(t, results["slow-test"].Error)
+	assert.Empty(t, results["slow-test"].Error)
 }
