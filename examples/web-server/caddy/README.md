@@ -128,7 +128,7 @@ For production deployments, we recommend configuring Caddy to generate a wildcar
 
    > Configuration reference from [caddy-dns/route53](https://github.com/caddy-dns/route53).
 
-   And for cloudflare:
+   And for CloudFlare:
 
    Generate a [token](https://dash.cloudflare.com/profile/api-tokens) with the following permissions:
 
