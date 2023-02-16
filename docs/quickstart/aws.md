@@ -23,7 +23,7 @@ Be sure to add a keypair so that you can connect over SSH to further [configure 
 After launching the instance, wait 30 seconds and navigate to the public IPv4 address. You should be redirected to a public tunnel URL.
 
 <video playsinline loop>
-  <source src="https://github.com/coder/coder/blob/main/docs/images/quickstart/aws/launch.mp4" type="video/mp4">
+  <source src="https://github.com/coder/coder/blob/main/docs/images/quickstart/aws/launch.mp4?raw=true" type="video/mp4">
 Your browser does not support the video tag.
 </video>
 
@@ -37,6 +37,8 @@ Coder is primarily configured by server-side flags and environment variables. Gi
 
 ```sh
 ssh ubuntu@<ec2-public-IPv4>
+sudo vim /etc/coder.d/coder.env # edit config
+sudo service coder restart # restart Coder
 ```
 
 ## Give developers EC2 workspaces (optional)
