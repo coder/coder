@@ -110,7 +110,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   const permissions = usePermissions()
   const hasIcon = template && template.icon && template.icon !== ""
 
-  if (!template) {
+  if (!template || !templatePermissions) {
     return <Loader />
   }
 
