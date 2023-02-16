@@ -323,19 +323,8 @@ func TestTemplateCreate(t *testing.T) {
 				Sensitive:    true,
 			},
 		}
-		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse: []*proto.Parse_Response{
-				{
-					Type: &proto.Parse_Response_Complete{
-						Complete: &proto.Parse_Complete{
-							TemplateVariables: templateVariables,
-						},
-					},
-				},
-			},
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionComplete,
-		})
+		source := clitest.CreateTemplateVersionSource(t,
+			createEchoResponsesWithTemplateVariables(templateVariables))
 		tempDir := t.TempDir()
 		removeTmpDirUntilSuccessAfterTest(t, tempDir)
 		variablesFile, _ := os.CreateTemp(tempDir, "variables*.yaml")
@@ -383,26 +372,15 @@ func TestTemplateCreate(t *testing.T) {
 			},
 			{
 				Name:         "second_variable",
-				Description:  "This is the first variable",
+				Description:  "This is the second variable",
 				Type:         "string",
 				DefaultValue: "abc",
 				Required:     false,
 				Sensitive:    true,
 			},
 		}
-		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse: []*proto.Parse_Response{
-				{
-					Type: &proto.Parse_Response_Complete{
-						Complete: &proto.Parse_Complete{
-							TemplateVariables: templateVariables,
-						},
-					},
-				},
-			},
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionComplete,
-		})
+		source := clitest.CreateTemplateVersionSource(t,
+			createEchoResponsesWithTemplateVariables(templateVariables))
 		tempDir := t.TempDir()
 		removeTmpDirUntilSuccessAfterTest(t, tempDir)
 		variablesFile, _ := os.CreateTemp(tempDir, "variables*.yaml")
