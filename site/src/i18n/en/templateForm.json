@@ -16,8 +16,8 @@
     "description": "Regulate actions allowed on workspaces created from this template."
   },
   "parameters": {
-    "title": "Template params",
-    "description": "These params are provided by your template's Terraform configuration."
+    "title": "Template variables",
+    "description": "These variables are provided by your template's Terraform configuration."
   },
   "fields": {
     "name": "Name",
