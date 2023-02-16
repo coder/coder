@@ -1,7 +1,7 @@
 {
   "generalInfo": {
     "title": "General info",
-    "description": "The name is used to identify the template in URLs and the API. It must be unique within your organization."
+    "description": "The name is used to identify the template in URLs and the API. It must be unique."
   },
   "displayInfo": {
     "title": "Display info",
