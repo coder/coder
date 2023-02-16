@@ -1,6 +1,5 @@
-import Button from "@material-ui/core/Button/Button"
-import Link from "@material-ui/core/Link/Link"
-import RemoveOutlined from "@material-ui/icons/RemoveOutlined"
+import Button from "@material-ui/core/Button"
+import DeleteOutlined from "@material-ui/icons/DeleteOutlined"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
 import { AuthorizationResponse, Template } from "api/typesGenerated"
@@ -16,39 +15,43 @@ import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { useDeleteTemplate } from "./delete"
+import { Margins } from "components/Margins/Margins"
+
+const Language = {
+  editButton: "Edit",
+  settingsButton: "Settings",
+  createButton: "Create workspace",
+  deleteButton: "Delete",
+}
 
 const TemplateSettingsButton: FC<{ templateName: string }> = ({
   templateName,
 }) => (
-  <Link
-    underline="none"
+  <Button
     component={RouterLink}
     to={`/templates/${templateName}/settings`}
+    startIcon={<SettingsOutlined />}
   >
-    <Button variant="outlined" startIcon={<SettingsOutlined />}>
-      Settings
-    </Button>
-  </Link>
+    {Language.settingsButton}
+  </Button>
 )
 
 const CreateWorkspaceButton: FC<{
   templateName: string
   className?: string
-}> = ({ templateName, className }) => (
-  <Link
-    underline="none"
+}> = ({ templateName }) => (
+  <Button
+    startIcon={<AddCircleOutline />}
     component={RouterLink}
     to={`/templates/${templateName}/workspace`}
   >
-    <Button className={className ?? ""} startIcon={<AddCircleOutline />}>
-      Create workspace
-    </Button>
-  </Link>
+    {Language.createButton}
+  </Button>
 )
 
 const DeleteTemplateButton: FC<{ onClick: () => void }> = ({ onClick }) => (
-  <Button startIcon={<RemoveOutlined />} onClick={onClick}>
-    Delete
+  <Button startIcon={<DeleteOutlined />} onClick={onClick}>
+    {Language.deleteButton}
   </Button>
 )
 
@@ -60,7 +63,7 @@ export const TemplatePageHeader: FC<{
   const deleteTemplate = useDeleteTemplate(template)
 
   return (
-    <>
+    <Margins>
       <PageHeader
         actions={
           <>
@@ -87,11 +90,11 @@ export const TemplatePageHeader: FC<{
                 ? template.display_name
                 : template.name}
             </PageHeaderTitle>
-            <PageHeaderSubtitle condensed>
-              {template.description === ""
-                ? "No description"
-                : template.description}
-            </PageHeaderSubtitle>
+            {template.description !== "" && (
+              <PageHeaderSubtitle condensed>
+                {template.description}
+              </PageHeaderSubtitle>
+            )}
           </div>
         </Stack>
       </PageHeader>
@@ -104,6 +107,6 @@ export const TemplatePageHeader: FC<{
         entity="template"
         name={template.name}
       />
-    </>
+    </Margins>
   )
 }
