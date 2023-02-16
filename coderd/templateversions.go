@@ -1531,8 +1531,10 @@ func convertTemplateVersionVariables(dbVariables []database.TemplateVersionVaria
 	return variables
 }
 
+const redacted = "*redacted*"
+
 func convertTemplateVersionVariable(variable database.TemplateVersionVariable) codersdk.TemplateVersionVariable {
-	return codersdk.TemplateVersionVariable{
+	templateVariable := codersdk.TemplateVersionVariable{
 		Name:         variable.Name,
 		Description:  variable.Description,
 		Type:         variable.Type,
@@ -1541,6 +1543,11 @@ func convertTemplateVersionVariable(variable database.TemplateVersionVariable) c
 		Required:     variable.Required,
 		Sensitive:    variable.Sensitive,
 	}
+	if templateVariable.Sensitive {
+		templateVariable.Value = redacted
+		templateVariable.DefaultValue = redacted
+	}
+	return templateVariable
 }
 
 func watchTemplateChannel(id uuid.UUID) string {
