@@ -115,7 +115,7 @@ func templateCreate() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
-	cmd.Flags().StringVarP(&variablesFile, "variables-file", "", "", "Specify a file path with values for managed variables.")
+	cmd.Flags().StringVarP(&variablesFile, "variables-file", "", "", "Specify a file path with values for Terraform-managed variables.")
 	cmd.Flags().StringArrayVarP(&provisionerTags, "provisioner-tag", "", []string{}, "Specify a set of tags to target provisioner daemons.")
 	cmd.Flags().DurationVarP(&defaultTTL, "default-ttl", "", 24*time.Hour, "Specify a default TTL for workspaces created from this template.")
 	uploadFlags.register(cmd.Flags())
