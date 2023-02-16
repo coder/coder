@@ -1,10 +1,5 @@
-import Box from "@material-ui/core/Box"
-import Checkbox from "@material-ui/core/Checkbox"
-import Typography from "@material-ui/core/Typography"
 import TextField from "@material-ui/core/TextField"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
-import { FormFooter } from "components/FormFooter/FormFooter"
-import { Stack } from "components/Stack/Stack"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import {
@@ -18,6 +13,12 @@ import i18next from "i18next"
 import { useTranslation } from "react-i18next"
 import { Maybe } from "components/Conditionals/Maybe"
 import { LazyIconField } from "components/IconField/LazyIconField"
+import {
+  FormFields,
+  FormSection,
+  HorizontalForm,
+  FormFooter,
+} from "components/HorizontalForm/HorizontalForm"
 
 const TTLHelperText = ({ ttl }: { ttl?: number }) => {
   const { t } = useTranslation("templateSettingsPage")
@@ -103,46 +104,66 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   const { t } = useTranslation("templateSettingsPage")
 
   return (
-    <form onSubmit={form.handleSubmit} aria-label={t("formAriaLabel")}>
-      <Stack>
-        <TextField
-          {...getFieldHelpers("name")}
-          disabled={isSubmitting}
-          onChange={onChangeTrimmed(form)}
-          autoFocus
-          fullWidth
-          label={t("nameLabel")}
-          variant="outlined"
-        />
+    <HorizontalForm
+      onSubmit={form.handleSubmit}
+      aria-label={t("formAriaLabel")}
+    >
+      <FormSection
+        title={t("generalInfo.title")}
+        description={t("generalInfo.description")}
+      >
+        <FormFields>
+          <TextField
+            {...getFieldHelpers("name")}
+            disabled={isSubmitting}
+            onChange={onChangeTrimmed(form)}
+            autoFocus
+            fullWidth
+            label={t("nameLabel")}
+            variant="outlined"
+          />
+        </FormFields>
+      </FormSection>
 
-        <TextField
-          {...getFieldHelpers("display_name")}
-          disabled={isSubmitting}
-          fullWidth
-          label={t("displayNameLabel")}
-          variant="outlined"
-        />
+      <FormSection
+        title={t("displayInfo.title")}
+        description={t("displayInfo.description")}
+      >
+        <FormFields>
+          <TextField
+            {...getFieldHelpers("display_name")}
+            disabled={isSubmitting}
+            fullWidth
+            label={t("displayNameLabel")}
+            variant="outlined"
+          />
 
-        <TextField
-          {...getFieldHelpers("description")}
-          multiline
-          disabled={isSubmitting}
-          fullWidth
-          label={t("descriptionLabel")}
-          variant="outlined"
-          rows={2}
-        />
+          <TextField
+            {...getFieldHelpers("description")}
+            multiline
+            disabled={isSubmitting}
+            fullWidth
+            label={t("descriptionLabel")}
+            variant="outlined"
+            rows={2}
+          />
 
-        <LazyIconField
-          {...getFieldHelpers("icon")}
-          disabled={isSubmitting}
-          onChange={onChangeTrimmed(form)}
-          fullWidth
-          label={t("form.fields.icon")}
-          variant="outlined"
-          onPickEmoji={(value) => form.setFieldValue("icon", value)}
-        />
+          <LazyIconField
+            {...getFieldHelpers("icon")}
+            disabled={isSubmitting}
+            onChange={onChangeTrimmed(form)}
+            fullWidth
+            label={t("form.fields.icon")}
+            variant="outlined"
+            onPickEmoji={(value) => form.setFieldValue("icon", value)}
+          />
+        </FormFields>
+      </FormSection>
 
+      <FormSection
+        title={t("schedule.title")}
+        description={t("schedule.description")}
+      >
         <TextField
           {...getFieldHelpers(
             "default_ttl_ms",
@@ -155,30 +176,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           variant="outlined"
           type="number"
         />
-
-        <Box display="flex">
-          <div>
-            {/*"getFieldHelpers" can't be used as it requires "helperText" property to be present.*/}
-            <Checkbox
-              id="allow_user_cancel_workspace_jobs"
-              name="allow_user_cancel_workspace_jobs"
-              disabled={isSubmitting}
-              checked={form.values.allow_user_cancel_workspace_jobs}
-              onChange={form.handleChange}
-            />
-          </div>
-          <Box>
-            <Typography variant="h6" style={{ fontSize: 14 }}>
-              {t("allowUserCancelWorkspaceJobsLabel")}
-            </Typography>
-            <Typography variant="caption" color="textSecondary">
-              {t("allowUserCancelWorkspaceJobsNotice")}
-            </Typography>
-          </Box>
-        </Box>
-      </Stack>
+      </FormSection>
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
-    </form>
+    </HorizontalForm>
   )
 }
