@@ -264,9 +264,54 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
 		}
 
+		var userVariableValues []codersdk.VariableValue
+		for _, uvv := range input.UserVariableValues {
+			userVariableValues = append(userVariableValues, uvv)
+		}
+
+		if input.TemplateVersionID != uuid.Nil {
+			templateVersion, err := server.Database.GetTemplateVersionByID(ctx, input.TemplateVersionID)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("get template version: %s", err))
+			}
+
+			if templateVersion.TemplateID.UUID != uuid.Nil {
+				template, err := server.Database.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
+				if err != nil {
+					return nil, failJob(fmt.Sprintf("get template: %s", err))
+				}
+
+				if template.ActiveVersionID != uuid.Nil {
+					templateVariables, err := server.Database.GetTemplateVersionVariables(ctx, template.ActiveVersionID)
+					if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+						return nil, failJob(fmt.Sprintf("get template version variables: %s", err))
+					}
+
+					for _, templateVariable := range templateVariables {
+						var alreadyAdded bool
+						for _, uvv := range input.UserVariableValues {
+							if uvv.Name == templateVariable.Name {
+								alreadyAdded = true
+								break
+							}
+						}
+
+						if alreadyAdded {
+							continue
+						}
+
+						userVariableValues = append(userVariableValues, codersdk.VariableValue{
+							Name:  templateVariable.Name,
+							Value: templateVariable.Value,
+						})
+					}
+				}
+			}
+		}
+
 		protoJob.Type = &proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
-				UserVariableValues: convertVariableValues(input.UserVariableValues),
+				UserVariableValues: convertVariableValues(userVariableValues),
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl: server.AccessURL.String(),
 				},
@@ -1222,8 +1267,9 @@ func convertVariableValues(variableValues []codersdk.VariableValue) []*sdkproto.
 	protoVariableValues := make([]*sdkproto.VariableValue, len(variableValues))
 	for i, variableValue := range variableValues {
 		protoVariableValues[i] = &sdkproto.VariableValue{
-			Name:  variableValue.Name,
-			Value: variableValue.Value,
+			Name:      variableValue.Name,
+			Value:     variableValue.Value,
+			Sensitive: true, // Without the template variable schema we have to assume that every variable may be sensitive.
 		}
 	}
 	return protoVariableValues

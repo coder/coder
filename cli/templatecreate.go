@@ -154,20 +154,6 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		return nil, nil, err
 	}
 
-	if args.Template != nil && len(variableValues) == 0 {
-		lastVariables, err := client.TemplateVersionVariables(cmd.Context(), args.Template.ActiveVersionID)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		for _, lastVariable := range lastVariables {
-			variableValues = append(variableValues, codersdk.VariableValue{
-				Name:  lastVariable.Name,
-				Value: lastVariable.Value,
-			})
-		}
-	}
-
 	req := codersdk.CreateTemplateVersionRequest{
 		Name:               args.Name,
 		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
