@@ -1,3 +1,4 @@
+import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
 import { MockUser } from "../../../testHelpers/renderHelpers"
 import {
@@ -9,8 +10,8 @@ export default {
   title: "components/Dialogs/ResetPasswordDialog",
   component: ResetPasswordDialog,
   argTypes: {
-    onClose: { action: "onClose" },
-    onConfirm: { action: "onConfirm" },
+    onClose: { action: "onClose", defaultValue: action("onClose") },
+    onConfirm: { action: "onConfirm", defaultValue: action("onConfirm") },
   },
 }
 
