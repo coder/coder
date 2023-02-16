@@ -379,11 +379,6 @@ export interface GenerateAPIKeyResponse {
   readonly key: string
 }
 
-// From codersdk/apikey.go
-export interface GetTokensRequest {
-  readonly all: boolean
-}
-
 // From codersdk/users.go
 export interface GetUsersResponse {
   readonly users: User[]
@@ -785,6 +780,11 @@ export interface TemplateVersionParameterOption {
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
+}
+
+// From codersdk/apikey.go
+export interface TokensFilter {
+  readonly include_all: boolean
 }
 
 // From codersdk/deployment.go

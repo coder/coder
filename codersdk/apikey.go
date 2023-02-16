@@ -86,13 +86,23 @@ func (c *Client) CreateAPIKey(ctx context.Context, user string) (GenerateAPIKeyR
 	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
 }
 
-type GetTokensRequest struct {
-	All bool `json:"all"`
+type TokensFilter struct {
+	IncludeAll bool `json:"include_all"`
+}
+
+// asRequestOption returns a function that can be used in (*Client).Request.
+// It modifies the request query parameters.
+func (f TokensFilter) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		q.Set("include_all", fmt.Sprintf("%t", f.IncludeAll))
+		r.URL.RawQuery = q.Encode()
+	}
 }
 
 // Tokens list machine API keys.
-func (c *Client) Tokens(ctx context.Context, userID string, req GetTokensRequest) ([]APIKey, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), req)
+func (c *Client) Tokens(ctx context.Context, userID string, filter TokensFilter) ([]APIKey, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), nil, filter.asRequestOption())
 	if err != nil {
 		return nil, err
 	}

@@ -347,8 +347,8 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 	})
 	require.NoError(t, err, "create token")
 
-	apiKeys, err := client.Tokens(ctx, admin.UserID.String(), codersdk.GetTokensRequest{
-		All: true,
+	apiKeys, err := client.Tokens(ctx, admin.UserID.String(), codersdk.TokensFilter{
+		IncludeAll: true,
 	})
 	require.NoError(t, err, "get tokens")
 	apiKey := apiKeys[0]

@@ -104,8 +104,8 @@ func listTokens() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			keys, err := client.Tokens(cmd.Context(), codersdk.Me, codersdk.GetTokensRequest{
-				All: all,
+			keys, err := client.Tokens(cmd.Context(), codersdk.Me, codersdk.TokensFilter{
+				IncludeAll: all,
 			})
 			if err != nil {
 				return xerrors.Errorf("list tokens: %w", err)
