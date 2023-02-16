@@ -187,7 +187,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.Authorizer == nil {
-		options.Authorizer = rbac.NewAuthorizer(options.PrometheusRegistry)
+		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator()
@@ -289,6 +289,7 @@ func New(options *Options) *API {
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
+		httpmw.AttachAuthzCache,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
@@ -478,6 +479,7 @@ func New(options *Options) *API {
 			r.Get("/schema", api.templateVersionSchema)
 			r.Get("/parameters", api.templateVersionParameters)
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
+			r.Get("/variables", api.templateVersionVariables)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
 			r.Route("/dry-run", func(r chi.Router) {

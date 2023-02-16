@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -57,8 +58,8 @@ type Server struct {
 
 // AcquireJob queries the database to lock a job.
 func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
-	//nolint:gocritic //TODO: make a provisionerd role
-	ctx = dbauthz.AsSystem(ctx)
+	//nolint:gocritic // Provisionerd has specific authz rules.
+	ctx = dbauthz.AsProvisionerd(ctx)
 	// This prevents loads of provisioner daemons from consistently
 	// querying the database when no jobs are available.
 	//
@@ -145,6 +146,10 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get template version: %s", err))
 		}
+		templateVariables, err := server.Database.GetTemplateVersionVariables(ctx, templateVersion.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return nil, failJob(fmt.Sprintf("get template version variables: %s", err))
+		}
 		template, err := server.Database.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get template: %s", err))
@@ -196,6 +201,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 				State:               workspaceBuild.ProvisionerState,
 				ParameterValues:     protoParameters,
 				RichParameterValues: convertRichParameterValues(workspaceBuildParameters),
+				VariableValues:      asVariableValues(templateVariables),
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:            server.AccessURL.String(),
 					WorkspaceTransition: transition,
@@ -217,6 +223,10 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 		templateVersion, err := server.Database.GetTemplateVersionByID(ctx, input.TemplateVersionID)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get template version: %s", err))
+		}
+		templateVariables, err := server.Database.GetTemplateVersionVariables(ctx, templateVersion.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return nil, failJob(fmt.Sprintf("get template version variables: %s", err))
 		}
 
 		// Compute parameters for the dry-run to consume.
@@ -240,6 +250,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
 				ParameterValues:     protoParameters,
 				RichParameterValues: convertRichParameterValues(input.RichParameterValues),
+				VariableValues:      asVariableValues(templateVariables),
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:      server.AccessURL.String(),
 					WorkspaceName: input.WorkspaceName,
@@ -247,8 +258,15 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			},
 		}
 	case database.ProvisionerJobTypeTemplateVersionImport:
+		var input TemplateVersionImportJob
+		err = json.Unmarshal(job.Input, &input)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
+		}
+
 		protoJob.Type = &proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
+				UserVariableValues: convertVariableValues(input.UserVariableValues),
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl: server.AccessURL.String(),
 				},
@@ -273,8 +291,8 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 }
 
 func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
-	//nolint:gocritic //TODO: make a provisionerd role
-	ctx = dbauthz.AsSystem(ctx)
+	//nolint:gocritic // Provisionerd has specific authz rules.
+	ctx = dbauthz.AsProvisionerd(ctx)
 	jobID, err := uuid.Parse(request.JobId)
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
@@ -304,8 +322,8 @@ func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuot
 }
 
 func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
-	//nolint:gocritic //TODO: make a provisionerd role
-	ctx = dbauthz.AsSystem(ctx)
+	//nolint:gocritic // Provisionerd has specific authz rules.
+	ctx = dbauthz.AsProvisionerd(ctx)
 	parsedID, err := uuid.Parse(request.JobId)
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
@@ -352,8 +370,8 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 				slog.F("stage", log.Stage),
 				slog.F("output", log.Output))
 		}
-		//nolint:gocritic //TODO: make a provisionerd role
-		logs, err := server.Database.InsertProvisionerJobLogs(dbauthz.AsSystem(context.Background()), insertParams)
+		//nolint:gocritic // Provisionerd has specific authz rules.
+		logs, err := server.Database.InsertProvisionerJobLogs(dbauthz.AsProvisionerd(context.Background()), insertParams)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("insert job logs: %w", err)
@@ -385,6 +403,61 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		if err != nil {
 			return nil, xerrors.Errorf("update template version description: %w", err)
 		}
+	}
+
+	if len(request.TemplateVariables) > 0 {
+		templateVersion, err := server.Database.GetTemplateVersionByJobID(ctx, job.ID)
+		if err != nil {
+			server.Logger.Error(ctx, "failed to get the template version", slog.F("job_id", parsedID), slog.Error(err))
+			return nil, xerrors.Errorf("get template version by job id: %w", err)
+		}
+
+		var variableValues []*sdkproto.VariableValue
+		var variablesWithMissingValues []string
+		for _, templateVariable := range request.TemplateVariables {
+			server.Logger.Debug(ctx, "insert template variable", slog.F("template_version_id", templateVersion.ID), slog.F("template_variable", redactTemplateVariable(templateVariable)))
+
+			var value = templateVariable.DefaultValue
+			for _, v := range request.UserVariableValues {
+				if v.Name == templateVariable.Name {
+					value = v.Value
+					break
+				}
+			}
+
+			if templateVariable.Required && value == "" {
+				variablesWithMissingValues = append(variablesWithMissingValues, templateVariable.Name)
+			}
+
+			variableValues = append(variableValues, &sdkproto.VariableValue{
+				Name:      templateVariable.Name,
+				Value:     value,
+				Sensitive: templateVariable.Sensitive,
+			})
+
+			_, err = server.Database.InsertTemplateVersionVariable(ctx, database.InsertTemplateVersionVariableParams{
+				TemplateVersionID: templateVersion.ID,
+				Name:              templateVariable.Name,
+				Description:       templateVariable.Description,
+				Type:              templateVariable.Type,
+				DefaultValue:      templateVariable.DefaultValue,
+				Required:          templateVariable.Required,
+				Sensitive:         templateVariable.Sensitive,
+				Value:             value,
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("insert parameter schema: %w", err)
+			}
+		}
+
+		if len(variablesWithMissingValues) > 0 {
+			return nil, xerrors.Errorf("required template variables need values: %s", strings.Join(variablesWithMissingValues, ", "))
+		}
+
+		return &proto.UpdateJobResponse{
+			Canceled:       job.CanceledAt.Valid,
+			VariableValues: variableValues,
+		}, nil
 	}
 
 	if len(request.ParameterSchemas) > 0 {
@@ -478,8 +551,8 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 }
 
 func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.Empty, error) {
-	//nolint:gocritic // TODO: make a provisionerd role
-	ctx = dbauthz.AsSystem(ctx)
+	//nolint:gocritic // Provisionerd has specific authz rules.
+	ctx = dbauthz.AsProvisionerd(ctx)
 	jobID, err := uuid.Parse(failJob.JobId)
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
@@ -606,8 +679,8 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
 func (server *Server) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
-	//nolint:gocritic // TODO: make a provisionerd role
-	ctx = dbauthz.AsSystem(ctx)
+	//nolint:gocritic // Provisionerd has specific authz rules.
+	ctx = dbauthz.AsProvisionerd(ctx)
 	jobID, err := uuid.Parse(completed.JobId)
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
@@ -1145,6 +1218,17 @@ func convertRichParameterValues(workspaceBuildParameters []database.WorkspaceBui
 	return protoParameters
 }
 
+func convertVariableValues(variableValues []codersdk.VariableValue) []*sdkproto.VariableValue {
+	protoVariableValues := make([]*sdkproto.VariableValue, len(variableValues))
+	for i, variableValue := range variableValues {
+		protoVariableValues[i] = &sdkproto.VariableValue{
+			Name:  variableValue.Name,
+			Value: variableValue.Value,
+		}
+	}
+	return protoVariableValues
+}
+
 func convertComputedParameterValues(parameters []parameter.ComputedValue) ([]*sdkproto.ParameterValue, error) {
 	protoParameters := make([]*sdkproto.ParameterValue, len(parameters))
 	for i, computedParameter := range parameters {
@@ -1203,7 +1287,8 @@ func auditActionFromTransition(transition database.WorkspaceTransition) database
 }
 
 type TemplateVersionImportJob struct {
-	TemplateVersionID uuid.UUID `json:"template_version_id"`
+	TemplateVersionID  uuid.UUID                `json:"template_version_id"`
+	UserVariableValues []codersdk.VariableValue `json:"user_variable_values"`
 }
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.
@@ -1231,4 +1316,41 @@ type ProvisionerJobLogsNotifyMessage struct {
 // to publish updates to job logs on.
 func ProvisionerJobLogsNotifyChannel(jobID uuid.UUID) string {
 	return fmt.Sprintf("provisioner-log-logs:%s", jobID)
+}
+
+func asVariableValues(templateVariables []database.TemplateVersionVariable) []*sdkproto.VariableValue {
+	var apiVariableValues []*sdkproto.VariableValue
+	for _, v := range templateVariables {
+		var value = v.Value
+		if value == "" && v.DefaultValue != "" {
+			value = v.DefaultValue
+		}
+
+		if value != "" || v.Required {
+			apiVariableValues = append(apiVariableValues, &sdkproto.VariableValue{
+				Name:      v.Name,
+				Value:     v.Value,
+				Sensitive: v.Sensitive,
+			})
+		}
+	}
+	return apiVariableValues
+}
+
+func redactTemplateVariable(templateVariable *sdkproto.TemplateVariable) *sdkproto.TemplateVariable {
+	if templateVariable == nil {
+		return nil
+	}
+	maybeRedacted := &sdkproto.TemplateVariable{
+		Name:         templateVariable.Name,
+		Description:  templateVariable.Description,
+		Type:         templateVariable.Type,
+		DefaultValue: templateVariable.DefaultValue,
+		Required:     templateVariable.Required,
+		Sensitive:    templateVariable.Sensitive,
+	}
+	if maybeRedacted.Sensitive {
+		maybeRedacted.DefaultValue = "*redacted*"
+	}
+	return maybeRedacted
 }

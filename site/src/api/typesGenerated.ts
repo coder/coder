@@ -187,6 +187,7 @@ export interface CreateTemplateVersionDryRunRequest {
   readonly workspace_name: string
   readonly parameter_values: CreateParameterRequest[]
   readonly rich_parameter_values: WorkspaceBuildParameter[]
+  readonly user_variable_values?: VariableValue[]
 }
 
 // From codersdk/organizations.go
@@ -199,6 +200,7 @@ export interface CreateTemplateVersionRequest {
   readonly provisioner: ProvisionerType
   readonly tags: Record<string, string>
   readonly parameter_values?: CreateParameterRequest[]
+  readonly user_variable_values?: VariableValue[]
 }
 
 // From codersdk/audit.go
@@ -777,6 +779,17 @@ export interface TemplateVersionParameterOption {
   readonly icon: string
 }
 
+// From codersdk/templateversions.go
+export interface TemplateVersionVariable {
+  readonly name: string
+  readonly description: string
+  readonly type: string
+  readonly value: string
+  readonly default_value: string
+  readonly required: boolean
+  readonly sensitive: boolean
+}
+
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
@@ -887,6 +900,12 @@ export interface UsersRequest extends Pagination {
 export interface ValidationError {
   readonly field: string
   readonly detail: string
+}
+
+// From codersdk/organizations.go
+export interface VariableValue {
+  readonly name: string
+  readonly value: string
 }
 
 // From codersdk/workspaces.go

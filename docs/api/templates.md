@@ -560,6 +560,12 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
       "value": "string"
     }
   ],
+  "user_variable_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "workspace_name": "string"
 }
 ```
@@ -1294,6 +1300,12 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
     }
   ],
   "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "user_variable_values": [
     {
       "name": "string",
       "value": "string"
@@ -2244,5 +2256,73 @@ Status Code **200**
 | `default_destination_scheme` | `provisioner_variable` |
 | `default_source_scheme`      | `none`                 |
 | `default_source_scheme`      | `data`                 |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get template variables by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/variables \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/variables`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+| ----------------- | ---- | ------------ | -------- | ------------------- |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "default_value": "string",
+    "description": "string",
+    "name": "string",
+    "required": true,
+    "sensitive": true,
+    "type": "string",
+    "value": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                  |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TemplateVersionVariable](schemas.md#codersdktemplateversionvariable) |
+
+<h3 id="get-template-variables-by-template-version-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name              | Type    | Required | Restrictions | Description |
+| ----------------- | ------- | -------- | ------------ | ----------- |
+| `[array item]`    | array   | false    |              |             |
+| `» default_value` | string  | false    |              |             |
+| `» description`   | string  | false    |              |             |
+| `» name`          | string  | false    |              |             |
+| `» required`      | boolean | false    |              |             |
+| `» sensitive`     | boolean | false    |              |             |
+| `» type`          | string  | false    |              |             |
+| `» value`         | string  | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value    |
+| -------- | -------- |
+| `type`   | `string` |
+| `type`   | `number` |
+| `type`   | `bool`   |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

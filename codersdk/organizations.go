@@ -54,6 +54,13 @@ type CreateTemplateVersionRequest struct {
 	// ParameterValues allows for additional parameters to be provided
 	// during the dry-run provision stage.
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
+
+	UserVariableValues []VariableValue `json:"user_variable_values,omitempty"`
+}
+
+type VariableValue struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // CreateTemplateRequest provides options when creating a template.

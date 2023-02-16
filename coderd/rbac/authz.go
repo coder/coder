@@ -158,6 +158,13 @@ var (
 	partialQuery rego.PreparedPartialQuery
 )
 
+// NewCachingAuthorizer returns a new RegoAuthorizer that supports context based
+// caching. To utilize the caching, the context passed to Authorize() must be
+// created with 'WithCacheCtx(ctx)'.
+func NewCachingAuthorizer(registry prometheus.Registerer) Authorizer {
+	return Cacher(NewAuthorizer(registry))
+}
+
 func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 	queryOnce.Do(func() {
 		var err error
