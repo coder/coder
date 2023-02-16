@@ -170,6 +170,30 @@ func TestConvertResources(t *testing.T) {
 				}},
 			}},
 		},
+		"mapped-apps": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Apps: []*proto.App{
+						{
+							Slug:        "app1",
+							DisplayName: "app1",
+						},
+						{
+							Slug:        "app2",
+							DisplayName: "app2",
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					LoginBeforeReady:         true,
+					ConnectionTimeoutSeconds: 120,
+				}},
+			}},
+		},
 		// Tests fetching metadata about workspace resources.
 		"resource-metadata": {
 			resources: []*proto.Resource{{
