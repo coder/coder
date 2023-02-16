@@ -13,6 +13,10 @@ export interface ITarFileInfo {
   name: string
   type: TarFileType
   size: number
+  mode: number
+  mtime: number
+  user: string
+  group: string
   headerOffset: number
 }
 
@@ -34,7 +38,7 @@ export interface ITarWriteOptions {
 }
 
 export class TarReader {
-  private fileInfo: ITarFileInfo[] = []
+  public fileInfo: ITarFileInfo[] = []
   private _buffer: ArrayBuffer | null = null
 
   constructor() {
@@ -64,22 +68,28 @@ export class TarReader {
   private readFileInfo() {
     this.fileInfo = []
     let offset = 0
-    let fileSize = 0
-    let fileName = ""
-    let fileType: TarFileType
+
     while (offset < this.buffer.byteLength - 512) {
-      fileName = this.readFileName(offset)
+      const fileName = this.readFileName(offset)
       if (!fileName) {
         break
       }
-      fileType = this.readFileType(offset)
-      fileSize = this.readFileSize(offset)
+      const fileType = this.readFileType(offset)
+      const fileSize = this.readFileSize(offset)
+      const fileMode = this.readFileMode(offset)
+      const fileMtime = this.readFileMtime(offset)
+      const fileUser = this.readFileUser(offset)
+      const fileGroup = this.readFileGroup(offset)
 
       this.fileInfo.push({
         name: fileName,
         type: fileType,
         size: fileSize,
         headerOffset: offset,
+        mode: fileMode,
+        mtime: fileMtime,
+        user: fileUser,
+        group: fileGroup,
       })
 
       offset += 512 + 512 * Math.floor((fileSize + 511) / 512)
@@ -98,6 +108,24 @@ export class TarReader {
 
   private readFileName(offset: number) {
     return this.readString(offset, 100)
+  }
+
+  private readFileMode(offset: number) {
+    const mode = this.readString(offset + 100, 8)
+    return parseInt(mode, 8)
+  }
+
+  private readFileMtime(offset: number) {
+    const mtime = this.readString(offset + 136, 12)
+    return parseInt(mtime, 8)
+  }
+
+  private readFileUser(offset: number) {
+    return this.readString(offset + 265, 32)
+  }
+
+  private readFileGroup(offset: number) {
+    return this.readString(offset + 297, 32)
   }
 
   private readFileType(offset: number) {

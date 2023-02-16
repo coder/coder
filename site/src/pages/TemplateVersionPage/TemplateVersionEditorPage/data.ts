@@ -1,7 +1,7 @@
 import { useQuery, UseQueryOptions } from "@tanstack/react-query"
 import { getFile, getTemplateByName, getTemplateVersionByName } from "api/api"
+import { TarReader } from "util/tar"
 import { createTemplateVersionFileTree } from "util/templateVersion"
-import untar, { File as UntarFile } from "js-untar"
 
 const getTemplateVersionData = async (
   orgId: string,
@@ -13,17 +13,15 @@ const getTemplateVersionData = async (
     getTemplateVersionByName(orgId, templateName, versionName),
   ])
   const tarFile = await getFile(version.job.file_id)
-  let untarFiles: UntarFile[] = []
-  await untar(tarFile).then((files) => {
-    untarFiles = files
-  })
-  const fileTree = await createTemplateVersionFileTree(untarFiles)
+  const tarReader = new TarReader()
+  await tarReader.readFile(tarFile)
+  const fileTree = await createTemplateVersionFileTree(tarReader)
 
   return {
     template,
     version,
     fileTree,
-    untarFiles,
+    tarReader,
   }
 }
 

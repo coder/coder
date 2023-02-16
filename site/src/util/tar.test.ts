@@ -9,7 +9,12 @@ test("tar", async () => {
   writer.addFile("b.txt", new Blob(["world"]), { mtime })
   writer.addFile("c.txt", "", { mtime })
   writer.addFolder("etc", { mtime })
-  writer.addFile("etc/d.txt", "", { mtime })
+  writer.addFile("etc/d.txt", "Some text content", {
+    mtime,
+    user: "coder",
+    group: "codergroup",
+    mode: parseInt("777", 8),
+  })
   const blob = await writer.write()
 
   // Read
@@ -32,8 +37,11 @@ test("tar", async () => {
   })
   verifyFile(fileInfos[4], reader.getTextFile(fileInfos[4].name) as string, {
     name: "etc/d.txt",
-    content: "",
+    content: "Some text content",
   })
+  expect(fileInfos[4].group).toEqual("codergroup")
+  expect(fileInfos[4].user).toEqual("coder")
+  expect(fileInfos[4].mode).toEqual(parseInt("777", 8))
 })
 
 function verifyFile(
