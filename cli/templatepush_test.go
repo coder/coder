@@ -253,7 +253,7 @@ func TestTemplatePush(t *testing.T) {
 		assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
 	})
 
-	t.Run("WithVariables", func(t *testing.T) {
+	t.Run("Variables", func(t *testing.T) {
 		t.Parallel()
 
 		initialTemplateVariables := []*proto.TemplateVariable{
@@ -435,6 +435,65 @@ func TestTemplatePush(t *testing.T) {
 			require.Equal(t, "second_variable", templateVariables[1].Name)
 			require.Equal(t, "abc", templateVariables[1].Value)
 			require.Equal(t, templateVariables[1].DefaultValue, templateVariables[1].Value)
+		})
+
+		t.Run("WithVariableOption", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+
+			templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
+			_ = coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
+
+			// Test the cli command.
+			modifiedTemplateVariables := append(initialTemplateVariables,
+				&proto.TemplateVariable{
+					Name:        "second_variable",
+					Description: "This is the second variable",
+					Type:        "string",
+					Required:    true,
+				},
+			)
+			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
+			cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--variable", "second_variable=foobar")
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t)
+			cmd.SetIn(pty.Input())
+			cmd.SetOut(pty.Output())
+
+			execDone := make(chan error)
+			go func() {
+				execDone <- cmd.Execute()
+			}()
+
+			matches := []struct {
+				match string
+				write string
+			}{
+				{match: "Upload", write: "yes"},
+			}
+			for _, m := range matches {
+				pty.ExpectMatch(m.match)
+				pty.WriteLine(m.write)
+			}
+
+			require.NoError(t, <-execDone)
+
+			// Assert that the template version changed.
+			templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
+				TemplateID: template.ID,
+			})
+			require.NoError(t, err)
+			assert.Len(t, templateVersions, 2)
+			assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
+			require.Equal(t, "example", templateVersions[1].Name)
+
+			templateVariables, err := client.TemplateVersionVariables(context.Background(), templateVersions[1].ID)
+			require.NoError(t, err)
+			assert.Len(t, templateVariables, 2)
+			require.Equal(t, "second_variable", templateVariables[1].Name)
+			require.Equal(t, "foobar", templateVariables[1].Value)
 		})
 	})
 }

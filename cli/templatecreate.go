@@ -26,6 +26,7 @@ func templateCreate() *cobra.Command {
 		provisionerTags []string
 		parameterFile   string
 		variablesFile   string
+		variables       []string
 		defaultTTL      time.Duration
 
 		uploadFlags templateUploadFlags
@@ -78,6 +79,7 @@ func templateCreate() *cobra.Command {
 				ParameterFile:   parameterFile,
 				ProvisionerTags: tags,
 				VariablesFile:   variablesFile,
+				Variables:       variables,
 			})
 			if err != nil {
 				return err
@@ -116,6 +118,7 @@ func templateCreate() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
 	cmd.Flags().StringVarP(&variablesFile, "variables-file", "", "", "Specify a file path with values for Terraform-managed variables.")
+	cmd.Flags().StringArrayVarP(&variables, "variable", "", []string{}, "Specify a set of values for Terraform-managed variables.")
 	cmd.Flags().StringArrayVarP(&provisionerTags, "provisioner-tag", "", []string{}, "Specify a set of tags to target provisioner daemons.")
 	cmd.Flags().DurationVarP(&defaultTTL, "default-ttl", "", 24*time.Hour, "Specify a default TTL for workspaces created from this template.")
 	uploadFlags.register(cmd.Flags())
@@ -136,7 +139,10 @@ type createValidTemplateVersionArgs struct {
 	Provisioner   database.ProvisionerType
 	FileID        uuid.UUID
 	ParameterFile string
+
 	VariablesFile string
+	Variables     []string
+
 	// Template is only required if updating a template's active version.
 	Template *codersdk.Template
 	// ReuseParameters will attempt to reuse params from the Template field
@@ -149,10 +155,16 @@ type createValidTemplateVersionArgs struct {
 func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
 	client := args.Client
 
-	variableValues, err := loadVariableValues(args.VariablesFile)
+	variableValues, err := loadVariableValuesFromFile(args.VariablesFile)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	variableValuesFromKeyValues, err := loadVariableValuesFromKeyValues(args.Variables)
+	if err != nil {
+		return nil, nil, err
+	}
+	variableValues = append(variableValues, variableValuesFromKeyValues...)
 
 	req := codersdk.CreateTemplateVersionRequest{
 		Name:               args.Name,

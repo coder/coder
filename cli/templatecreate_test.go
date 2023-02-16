@@ -412,6 +412,48 @@ func TestTemplateCreate(t *testing.T) {
 
 		require.NoError(t, <-execDone)
 	})
+	t.Run("WithVariableOption", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		coderdtest.CreateFirstUser(t, client)
+
+		templateVariables := []*proto.TemplateVariable{
+			{
+				Name:        "first_variable",
+				Description: "This is the first variable",
+				Type:        "string",
+				Required:    true,
+				Sensitive:   true,
+			},
+		}
+		source := clitest.CreateTemplateVersionSource(t,
+			createEchoResponsesWithTemplateVariables(templateVariables))
+		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variable", "first_variable=foobar")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+
+		execDone := make(chan error)
+		go func() {
+			execDone <- cmd.Execute()
+		}()
+
+		matches := []struct {
+			match string
+			write string
+		}{
+			{match: "Upload", write: "yes"},
+			{match: "Confirm create?", write: "yes"},
+		}
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			pty.WriteLine(m.write)
+		}
+
+		require.NoError(t, <-execDone)
+	})
 }
 
 func createTestParseResponse() []*proto.Parse_Response {
