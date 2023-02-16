@@ -15,6 +15,7 @@
   "ttlHelperText_other": "Workspaces created from this template will default to stopping after {{count}} hours.",
   "allowUserCancelWorkspaceJobsLabel": "Allow users to cancel in-progress workspace jobs.",
   "allowUserCancelWorkspaceJobsNotice": "Depending on your template, canceling builds may leave workspaces in an unhealthy state. This option isn't recommended for most use cases.",
+  "allowUsersCancelHelperText": "If checked, users may be able to corrupt their workspace.",
   "generalInfo": {
     "title": "General info",
     "description": "The name is used to identify the template in URLs and the API. It must be unique within your organization."
@@ -26,5 +27,9 @@
   "schedule": {
     "title": "Schedule",
     "description": "Define when workspaces created from this template automatically stop."
+  },
+  "operations": {
+    "title": "Operations",
+    "description": "Regulate actions allowed on workspaces created from this template."
   }
 }

@@ -19,6 +19,10 @@ import {
   HorizontalForm,
   FormFooter,
 } from "components/HorizontalForm/HorizontalForm"
+import { Stack } from "components/Stack/Stack"
+import Checkbox from "@material-ui/core/Checkbox"
+import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
+import { makeStyles } from "@material-ui/core/styles"
 
 const TTLHelperText = ({ ttl }: { ttl?: number }) => {
   const { t } = useTranslation("templateSettingsPage")
@@ -102,6 +106,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
     })
   const getFieldHelpers = getFormHelpers<UpdateTemplateMeta>(form, error)
   const { t } = useTranslation("templateSettingsPage")
+  const styles = useStyles()
 
   return (
     <HorizontalForm
@@ -153,7 +158,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             disabled={isSubmitting}
             onChange={onChangeTrimmed(form)}
             fullWidth
-            label={t("form.fields.icon")}
+            label={t("iconLabel")}
             variant="outlined"
             onPickEmoji={(value) => form.setFieldValue("icon", value)}
           />
@@ -178,7 +183,75 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         />
       </FormSection>
 
+      <FormSection
+        title={t("schedule.title")}
+        description={t("schedule.description")}
+      >
+        <TextField
+          {...getFieldHelpers(
+            "default_ttl_ms",
+            <TTLHelperText ttl={form.values.default_ttl_ms} />,
+          )}
+          disabled={isSubmitting}
+          fullWidth
+          inputProps={{ min: 0, step: 1 }}
+          label={t("defaultTtlLabel")}
+          variant="outlined"
+          type="number"
+        />
+      </FormSection>
+
+      <FormSection
+        title={t("operations.title")}
+        description={t("operations.description")}
+      >
+        <label htmlFor="allow_user_cancel_workspace_jobs">
+          <Stack direction="row" spacing={1}>
+            <Checkbox
+              color="primary"
+              id="allow_user_cancel_workspace_jobs"
+              name="allow_user_cancel_workspace_jobs"
+              disabled={isSubmitting}
+              checked={form.values.allow_user_cancel_workspace_jobs}
+              onChange={form.handleChange}
+            />
+
+            <Stack direction="column" spacing={0.5}>
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={0.5}
+                className={styles.optionText}
+              >
+                {t("allowUserCancelWorkspaceJobsLabel")}
+
+                <HelpTooltip>
+                  <HelpTooltipText>
+                    {t("allowUserCancelWorkspaceJobsNotice")}
+                  </HelpTooltipText>
+                </HelpTooltip>
+              </Stack>
+              <span className={styles.optionHelperText}>
+                {t("allowUsersCancelHelperText")}
+              </span>
+            </Stack>
+          </Stack>
+        </label>
+      </FormSection>
+
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  optionText: {
+    fontSize: theme.spacing(2),
+    color: theme.palette.text.primary,
+  },
+
+  optionHelperText: {
+    fontSize: theme.spacing(1.5),
+    color: theme.palette.text.secondary,
+  },
+}))
