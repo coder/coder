@@ -1,4 +1,3 @@
-import DialogContentText from "@material-ui/core/DialogContentText"
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
 import * as TypesGen from "../../../api/typesGenerated"
@@ -31,12 +30,8 @@ export const ResetPasswordDialog: FC<
 
   const description = (
     <>
-      <DialogContentText variant="subtitle2">
-        {Language.message(user?.username)}
-      </DialogContentText>
-      <DialogContentText component="div" className={styles.codeBlock}>
-        <CodeExample code={newPassword ?? ""} className={styles.codeExample} />
-      </DialogContentText>
+      <p>{Language.message(user?.username)}</p>
+      <CodeExample code={newPassword ?? ""} className={styles.codeExample} />
     </>
   )
 
@@ -55,13 +50,11 @@ export const ResetPasswordDialog: FC<
   )
 }
 
-const useStyles = makeStyles(() => ({
-  codeBlock: {
-    marginBottom: 0,
-  },
+const useStyles = makeStyles((theme) => ({
   codeExample: {
     minHeight: "auto",
     userSelect: "all",
     width: "100%",
+    marginTop: theme.spacing(3),
   },
 }))
