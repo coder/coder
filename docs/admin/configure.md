@@ -42,10 +42,11 @@ subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 > If you are providing TLS certificates directly to the Coder server, you must use a single certificate for the
 > root and wildcard domains. Multi-certificate support [is planned](https://github.com/coder/coder/pull/4150).
 
-## TLS Certificates
+## TLS & Reverse Proxy
 
 The Coder server can directly use TLS certificates with `CODER_TLS_ENABLE` and accompanying configuration flags. However, Coder can also run behind a reverse-proxy to terminate TLS certificates from LetsEncrypt, for example.
 
+- Apache: [Run Coder with Apache and LetsEncrypt](https://github.com/coder/coder/tree/main/examples/web-server/apache)
 - Caddy: [Run Coder with Caddy and LetsEncrypt](https://github.com/coder/coder/tree/main/examples/web-server/caddy)
 - NGINX: [Run Coder with Nginx and LetsEncrypt](https://github.com/coder/coder/tree/main/examples/web-server/nginx)
 
