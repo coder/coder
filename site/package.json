@@ -76,7 +76,6 @@
     "remark-gfm": "3.0.1",
     "rollup-plugin-visualizer": "5.9.0",
     "sourcemapped-stacktrace": "1.1.11",
-    "tar-js": "^0.3.0",
     "ts-prune": "0.10.3",
     "tzdata": "1.0.30",
     "ua-parser-js": "1.0.33",

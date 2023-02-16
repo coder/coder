@@ -7,8 +7,10 @@ import {
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 import * as API from "api/api"
-import Tar from "tar-js"
+import { File as UntarFile } from "js-untar"
 import { FileTree, traverse } from "util/filetree"
+import { isAllowedFile } from "util/templateVersion"
+import { TarWriter } from "util/tar"
 
 export interface CreateVersionData {
   file: File
@@ -22,6 +24,7 @@ export interface TemplateVersionEditorMachineContext {
   version?: TemplateVersion
   resources?: WorkspaceResource[]
   buildLogs?: ProvisionerJobLog[]
+  untarFiles?: UntarFile[]
 }
 
 export const templateVersionEditorMachine = createMachine(
@@ -31,6 +34,7 @@ export const templateVersionEditorMachine = createMachine(
     schema: {
       context: {} as TemplateVersionEditorMachineContext,
       events: {} as
+        | { type: "INITIALIZE"; untarFiles: UntarFile[] }
         | {
             type: "CREATE_VERSION"
             fileTree: FileTree
@@ -61,8 +65,16 @@ export const templateVersionEditorMachine = createMachine(
       },
     },
     tsTypes: {} as import("./templateVersionEditorXService.typegen").Typegen0,
-    initial: "idle",
+    initial: "initializing",
     states: {
+      initializing: {
+        on: {
+          INITIALIZE: {
+            actions: ["assignUntarFiles"],
+            target: "idle",
+          },
+        },
+      },
       idle: {
         on: {
           CREATE_VERSION: {
@@ -201,20 +213,51 @@ export const templateVersionEditorMachine = createMachine(
           }
         },
       }),
+      assignUntarFiles: assign({
+        untarFiles: (_, { untarFiles }) => untarFiles,
+      }),
     },
     services: {
-      uploadTar: (ctx) => {
-        if (!ctx.fileTree) {
-          throw new Error("files must be set")
+      uploadTar: async ({ fileTree, untarFiles }) => {
+        if (!fileTree) {
+          throw new Error("file tree must to be set")
         }
-        const tar = new Tar()
-        let out: Uint8Array = new Uint8Array()
-        traverse(ctx.fileTree, (content, _filename, fullPath) => {
+        if (!untarFiles) {
+          throw new Error("untar files must to be set")
+        }
+        const tar = new TarWriter()
+
+        // Add previous non editable files
+        for (const untarFile of untarFiles) {
+          if (!isAllowedFile(untarFile.name)) {
+            if (untarFile.type === "5") {
+              tar.addFolder(untarFile.name, {
+                mode: parseInt(untarFile.mode, 8) & 0xfff, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
+                mtime: untarFile.mtime,
+                user: untarFile.uname,
+                group: untarFile.gname,
+              })
+            } else {
+              const buffer = await untarFile.blob.arrayBuffer()
+              tar.addFile(untarFile.name, new Uint8Array(buffer), {
+                mode: parseInt(untarFile.mode, 8) & 0xfff, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
+                mtime: untarFile.mtime,
+                user: untarFile.uname,
+                group: untarFile.gname,
+              })
+            }
+          }
+        }
+        // Add the editable files
+        traverse(fileTree, (content, _filename, fullPath) => {
           if (typeof content === "string") {
-            out = tar.append(fullPath, content)
+            tar.addFile(fullPath, content)
+          } else {
+            tar.addFolder(fullPath)
           }
         })
-        return API.uploadTemplateFile(new File([out], "template.tar"))
+        const blob = await tar.write()
+        return API.uploadTemplateFile(new File([blob], "template.tar"))
       },
       createBuild: (ctx) => {
         if (!ctx.uploadResponse) {
