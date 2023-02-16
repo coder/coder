@@ -160,7 +160,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		return nil, nil, err
 	}
 
-	variableValuesFromKeyValues, err := loadVariableValuesFromKeyValues(args.Variables)
+	variableValuesFromKeyValues, err := loadVariableValuesFromOptions(args.Variables)
 	if err != nil {
 		return nil, nil, err
 	}

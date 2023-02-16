@@ -50,7 +50,7 @@ func createVariablesMapFromFile(variablesFile string) (map[string]string, error)
 	return variablesMap, nil
 }
 
-func loadVariableValuesFromKeyValues(variables []string) ([]codersdk.VariableValue, error) {
+func loadVariableValuesFromOptions(variables []string) ([]codersdk.VariableValue, error) {
 	var values []codersdk.VariableValue
 	for _, keyValue := range variables {
 		split := strings.SplitN(keyValue, "=", 2)
