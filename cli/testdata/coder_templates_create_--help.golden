@@ -5,6 +5,7 @@ Usage:
 
 Provisioning Flags:
       --provisioner-tag stringArray   Specify a set of tags to target provisioner daemons.
+
 Other Flags:
       --default-ttl duration          Specify a default TTL for workspaces created from this
                                       template. (default 24h0m0s)

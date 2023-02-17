@@ -146,6 +146,7 @@ Networking Flags:
                                                           use for workspace applications in
                                                           the form "*.example.com".
                                                           Consumes $CODER_WILDCARD_ACCESS_URL
+
 Auth Flags:
       --disable-password-auth coder server create-admin   Disable password authentication.
                                                           This is recommended for security
@@ -244,6 +245,7 @@ Auth Flags:
                                                           --disable-session-expiry-refresh.
                                                           Consumes $CODER_MAX_SESSION_EXPIRY
                                                           (default 24h0m0s)
+
 Operability Flags:
       --log-human string                                  Output human-readable logs to a
                                                           given file.
@@ -287,6 +289,7 @@ Operability Flags:
                                                           flag was supplied, debug-level logs
                                                           will be included.
                                                           Consumes $CODER_TRACE_CAPTURE_LOGS
+
 Provisioning Flags:
       --provisioner-daemon-poll-interval duration         Time to wait before polling for a
                                                           new job.
@@ -306,6 +309,7 @@ Provisioning Flags:
                                                           tasks that are stuck.
                                                           Consumes
                                                           $CODER_PROVISIONER_FORCE_CANCEL_INTERVAL (default 10m0s)
+
 Other Flags:
       --cache-dir string                                  The directory to cache temporary
                                                           files. If unspecified and

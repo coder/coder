@@ -164,7 +164,11 @@ func categorizeFlags(usageOutput string) string {
 			} else {
 				_, _ = fmt.Fprintf(&out, "%s\n", usageHeader(cat.name+" Flags:"))
 			}
-			_, _ = buf.WriteTo(&out)
+			body := buf.String()
+			_, _ = out.WriteString(body)
+			if !strings.HasSuffix(body, "\n\n") {
+				_, _ = out.WriteString("\n")
+			}
 		}
 	}
 
