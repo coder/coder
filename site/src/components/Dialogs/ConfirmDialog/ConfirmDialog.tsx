@@ -1,6 +1,5 @@
 import DialogActions from "@material-ui/core/DialogActions"
-import { alpha, makeStyles } from "@material-ui/core/styles"
-import Typography from "@material-ui/core/Typography"
+import { makeStyles } from "@material-ui/core/styles"
 import { ReactNode, FC, PropsWithChildren } from "react"
 import {
   Dialog,
@@ -61,25 +60,35 @@ const useStyles = makeStyles((theme) => ({
     "& .MuiPaper-root": {
       background: theme.palette.background.paper,
       border: `1px solid ${theme.palette.divider}`,
+      width: "100%",
+      maxWidth: theme.spacing(55),
     },
     "& .MuiDialogActions-spacing": {
-      padding: `0 ${theme.spacing(3.75)}px ${theme.spacing(3.75)}px`,
+      padding: `0 ${theme.spacing(5)}px ${theme.spacing(5)}px`,
     },
   },
   dialogContent: {
     color: theme.palette.text.secondary,
-    padding: theme.spacing(6),
-    textAlign: "center",
+    padding: theme.spacing(5),
   },
-  titleText: {
-    marginBottom: theme.spacing(3),
+  dialogTitle: {
+    margin: 0,
+    marginBottom: theme.spacing(2),
+    color: theme.palette.text.primary,
+    fontWeight: 400,
+    fontSize: theme.spacing(2.5),
   },
-  description: {
-    color: alpha(theme.palette.text.secondary, 0.75),
+  dialogDescription: {
+    color: theme.palette.text.secondary,
     lineHeight: "160%",
+    fontSize: 16,
 
     "& strong": {
-      color: alpha(theme.palette.text.secondary, 0.95),
+      color: theme.palette.text.primary,
+    },
+
+    "& p": {
+      margin: theme.spacing(1, 0),
     },
   },
 }))
@@ -110,25 +119,11 @@ export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
   }
 
   return (
-    <Dialog
-      className={styles.dialogWrapper}
-      maxWidth="sm"
-      onClose={onClose}
-      open={open}
-    >
+    <Dialog className={styles.dialogWrapper} onClose={onClose} open={open}>
       <div className={styles.dialogContent}>
-        <Typography className={styles.titleText} variant="h3">
-          {title}
-        </Typography>
-
+        <h3 className={styles.dialogTitle}>{title}</h3>
         {description && (
-          <Typography
-            component={typeof description === "string" ? "p" : "div"}
-            className={styles.description}
-            variant="body2"
-          >
-            {description}
-          </Typography>
+          <div className={styles.dialogDescription}>{description}</div>
         )}
       </div>
 

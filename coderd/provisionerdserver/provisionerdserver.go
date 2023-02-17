@@ -264,9 +264,14 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			return nil, failJob(fmt.Sprintf("unmarshal job input %q: %s", job.Input, err))
 		}
 
+		userVariableValues, err := server.includeLastVariableValues(ctx, input.TemplateVersionID, input.UserVariableValues)
+		if err != nil {
+			return nil, failJob(err.Error())
+		}
+
 		protoJob.Type = &proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
-				UserVariableValues: convertVariableValues(input.UserVariableValues),
+				UserVariableValues: convertVariableValues(userVariableValues),
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl: server.AccessURL.String(),
 				},
@@ -288,6 +293,58 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 	}
 
 	return protoJob, err
+}
+
+func (server *Server) includeLastVariableValues(ctx context.Context, templateVersionID uuid.UUID, userVariableValues []codersdk.VariableValue) ([]codersdk.VariableValue, error) {
+	var values []codersdk.VariableValue
+	values = append(values, userVariableValues...)
+
+	if templateVersionID == uuid.Nil {
+		return values, nil
+	}
+
+	templateVersion, err := server.Database.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
+		return nil, fmt.Errorf("get template version: %w", err)
+	}
+
+	if templateVersion.TemplateID.UUID == uuid.Nil {
+		return values, nil
+	}
+
+	template, err := server.Database.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
+	if err != nil {
+		return nil, fmt.Errorf("get template: %w", err)
+	}
+
+	if template.ActiveVersionID == uuid.Nil {
+		return values, nil
+	}
+
+	templateVariables, err := server.Database.GetTemplateVersionVariables(ctx, template.ActiveVersionID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("get template version variables: %w", err)
+	}
+
+	for _, templateVariable := range templateVariables {
+		var alreadyAdded bool
+		for _, uvv := range userVariableValues {
+			if uvv.Name == templateVariable.Name {
+				alreadyAdded = true
+				break
+			}
+		}
+
+		if alreadyAdded {
+			continue
+		}
+
+		values = append(values, codersdk.VariableValue{
+			Name:  templateVariable.Name,
+			Value: templateVariable.Value,
+		})
+	}
+	return values, nil
 }
 
 func (server *Server) CommitQuota(ctx context.Context, request *proto.CommitQuotaRequest) (*proto.CommitQuotaResponse, error) {
@@ -1222,8 +1279,9 @@ func convertVariableValues(variableValues []codersdk.VariableValue) []*sdkproto.
 	protoVariableValues := make([]*sdkproto.VariableValue, len(variableValues))
 	for i, variableValue := range variableValues {
 		protoVariableValues[i] = &sdkproto.VariableValue{
-			Name:  variableValue.Name,
-			Value: variableValue.Value,
+			Name:      variableValue.Name,
+			Value:     variableValue.Value,
+			Sensitive: true, // Without the template variable schema we have to assume that every variable may be sensitive.
 		}
 	}
 	return protoVariableValues

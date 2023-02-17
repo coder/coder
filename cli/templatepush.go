@@ -93,7 +93,8 @@ func templatePush() *cobra.Command {
 		versionName     string
 		provisioner     string
 		parameterFile   string
-		valuesFile      string
+		variablesFile   string
+		variables       []string
 		alwaysPrompt    bool
 		provisionerTags []string
 		uploadFlags     templateUploadFlags
@@ -140,7 +141,8 @@ func templatePush() *cobra.Command {
 				Provisioner:     database.ProvisionerType(provisioner),
 				FileID:          resp.ID,
 				ParameterFile:   parameterFile,
-				ValuesFile:      valuesFile,
+				VariablesFile:   variablesFile,
+				Variables:       variables,
 				Template:        &template,
 				ReuseParameters: !alwaysPrompt,
 				ProvisionerTags: tags,
@@ -167,7 +169,8 @@ func templatePush() *cobra.Command {
 
 	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
 	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
-	cmd.Flags().StringVarP(&valuesFile, "values-file", "", "", "Specify a file path with values for managed variables.")
+	cmd.Flags().StringVarP(&variablesFile, "variables-file", "", "", "Specify a file path with values for Terraform-managed variables.")
+	cmd.Flags().StringArrayVarP(&variables, "variable", "", []string{}, "Specify a set of values for Terraform-managed variables.")
 	cmd.Flags().StringVarP(&versionName, "name", "", "", "Specify a name for the new template version. It will be automatically generated if not provided.")
 	cmd.Flags().StringArrayVarP(&provisionerTags, "provisioner-tag", "", []string{}, "Specify a set of tags to target provisioner daemons.")
 	cmd.Flags().BoolVar(&alwaysPrompt, "always-prompt", false, "Always prompt all parameters. Does not pull parameter values from active template version")

@@ -1,3 +1,4 @@
+import { action } from "@storybook/addon-actions"
 import { ComponentMeta, Story } from "@storybook/react"
 import { DeleteDialog, DeleteDialogProps } from "./DeleteDialog"
 
@@ -7,9 +8,11 @@ export default {
   argTypes: {
     onCancel: {
       action: "onClose",
+      defaultValue: action("onClose"),
     },
     onConfirm: {
       action: "onConfirm",
+      defaultValue: action("onConfirm"),
     },
     open: {
       control: "boolean",

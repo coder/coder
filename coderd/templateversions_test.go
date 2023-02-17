@@ -1132,7 +1132,6 @@ func TestTemplateVersionVariables(t *testing.T) {
 				Description: "This is the first variable",
 				Type:        "string",
 				Required:    true,
-				Sensitive:   true,
 			},
 		}
 		const firstVariableValue = "foobar"
@@ -1180,7 +1179,6 @@ func TestTemplateVersionVariables(t *testing.T) {
 				Description: "This is the first variable",
 				Type:        "string",
 				Required:    true,
-				Sensitive:   true,
 			},
 			{
 				Name:         "second_variable",
@@ -1217,5 +1215,53 @@ func TestTemplateVersionVariables(t *testing.T) {
 
 		require.Equal(t, "", actualVariables[0].Value)
 		require.Equal(t, templateVariables[1].DefaultValue, actualVariables[1].Value)
+	})
+
+	t.Run("Redact sensitive variables", func(t *testing.T) {
+		t.Parallel()
+
+		templateVariables := []*proto.TemplateVariable{
+			{
+				Name:        "first_variable",
+				Description: "This is the first variable",
+				Type:        "string",
+				Required:    true,
+				Sensitive:   true,
+			},
+		}
+		const firstVariableValue = "foobar"
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID,
+			createEchoResponses(templateVariables),
+			func(ctvr *codersdk.CreateTemplateVersionRequest) {
+				ctvr.UserVariableValues = []codersdk.VariableValue{
+					{
+						Name:  templateVariables[0].Name,
+						Value: firstVariableValue,
+					},
+				}
+			},
+		)
+		templateVersion := coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		// As user passed the value for the first parameter, the job will succeed.
+		require.Empty(t, templateVersion.Job.Error)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		actualVariables, err := client.TemplateVersionVariables(ctx, templateVersion.ID)
+		require.NoError(t, err)
+
+		require.Len(t, actualVariables, 1)
+		require.Equal(t, templateVariables[0].Name, actualVariables[0].Name)
+		require.Equal(t, templateVariables[0].Description, actualVariables[0].Description)
+		require.Equal(t, templateVariables[0].Type, actualVariables[0].Type)
+		require.Equal(t, templateVariables[0].Required, actualVariables[0].Required)
+		require.Equal(t, templateVariables[0].Sensitive, actualVariables[0].Sensitive)
+		require.Equal(t, "*redacted*", actualVariables[0].DefaultValue)
+		require.Equal(t, "*redacted*", actualVariables[0].Value)
 	})
 }

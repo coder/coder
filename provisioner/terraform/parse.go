@@ -225,8 +225,9 @@ func convertTerraformVariableToManagedVariable(variable *tfconfig.Variable) (*pr
 		Description:  variable.Description,
 		Type:         variable.Type,
 		DefaultValue: defaultData,
-		Required:     defaultData == "", // variable.Required is always false?
-		Sensitive:    variable.Sensitive,
+		// variable.Required is always false. Empty string is a valid default value, so it doesn't enforce required to be "true".
+		Required:  variable.Default == nil,
+		Sensitive: variable.Sensitive,
 	}, nil
 }
 

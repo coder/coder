@@ -316,7 +316,7 @@ func TestAcquireJob(t *testing.T) {
 		want, err := json.Marshal(&proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
 				UserVariableValues: []*sdkproto.VariableValue{
-					{Name: "first", Value: "first_value"},
+					{Name: "first", Sensitive: true, Value: "first_value"},
 				},
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl: srv.AccessURL.String(),
