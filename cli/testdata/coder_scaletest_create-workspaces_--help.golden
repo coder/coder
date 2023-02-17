@@ -24,7 +24,6 @@ Operability Flags:
                                              server is configured with the exact same tracing
                                              configuration as the client.
                                              Consumes $CODER_LOADTEST_TRACE_PROPAGATE
-
 Other Flags:
       --cleanup-concurrency int              Number of concurrent cleanup jobs to run. 0 means
                                              unlimited.

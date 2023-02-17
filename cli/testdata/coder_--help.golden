@@ -51,7 +51,6 @@ Auth Flags:
       --token string          Specify an authentication token. For security reasons setting
                               CODER_SESSION_TOKEN is preferred.
                               Consumes $CODER_SESSION_TOKEN
-
 Other Flags:
       --global-config coder   Path to the global coder config directory.
                               Consumes $CODER_CONFIG_DIR (default "~/.config/coderv2")
