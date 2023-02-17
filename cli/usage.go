@@ -60,21 +60,22 @@ var flagCategories = []flagCategory{
 	{
 		name: "Networking",
 		matchers: []*regexp.Regexp{
-			regexp.MustCompile("derp"),
-			regexp.MustCompile("access-url"),
-			regexp.MustCompile("http-address"),
-			regexp.MustCompile("proxy"),
-			regexp.MustCompile("auth-cookie"),
-			regexp.MustCompile("strict-transport"),
-			regexp.MustCompile("tls"),
-			regexp.MustCompile("telemetry"),
-			regexp.MustCompile("update-check"),
+			regexp.MustCompile("-derp"),
+			regexp.MustCompile("-access-url"),
+			regexp.MustCompile("-http-address"),
+			regexp.MustCompile("-proxy"),
+			regexp.MustCompile("-auth-cookie"),
+			regexp.MustCompile("-strict-transport"),
+			regexp.MustCompile("-tls"),
+			// NOT open-telemetry
+			regexp.MustCompile("--telemetry"),
+			regexp.MustCompile("-update-check"),
 		},
 	},
 	{
 		name: "Auth",
 		matchers: []*regexp.Regexp{
-			regexp.MustCompile("oauth2"),
+			regexp.MustCompile(`-\w*auth`),
 			regexp.MustCompile("oidc"),
 			regexp.MustCompile(`-\w*token`),
 			regexp.MustCompile("session"),
@@ -126,6 +127,14 @@ func categorizeFlags(usageOutput string) string {
 				if matcher.MatchString(currentFlag.String()) {
 					if _, ok := categories[cat.name]; !ok {
 						categories[cat.name] = &bytes.Buffer{}
+					}
+					if os.Getenv("DEBUG_FLAG_CATEGORIZATION") != "" {
+						_, _ = os.Stderr.WriteString(
+							fmt.Sprintf(
+								"--- \n%s\nwas matched by `%s`\n---\n",
+								currentFlag.String(), matcher.String(),
+							),
+						)
 					}
 					_, _ = categories[cat.name].WriteString(currentFlag.String())
 					currentFlag.Reset()

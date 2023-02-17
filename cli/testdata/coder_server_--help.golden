@@ -138,12 +138,6 @@ Networking Flags:
                                                           "tls11", "tls12" or "tls13"
                                                           Consumes $CODER_TLS_MIN_VERSION
                                                           (default "tls12")
-      --trace                                             Whether application tracing data is
-                                                          collected. It exports to a backend
-                                                          configured by environment variables.
-                                                          See:
-                                                          https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
-                                                          Consumes $CODER_TRACE_ENABLE
       --update-check                                      Periodically check for new releases
                                                           of Coder and inform the owner. The
                                                           check is performed once per day.
@@ -153,6 +147,19 @@ Networking Flags:
                                                           the form "*.example.com".
                                                           Consumes $CODER_WILDCARD_ACCESS_URL
 Auth Flags:
+      --disable-password-auth coder server create-admin   Disable password authentication.
+                                                          This is recommended for security
+                                                          purposes in production deployments
+                                                          that rely on an identity provider.
+                                                          Any user with the owner role will be
+                                                          able to sign in with their password
+                                                          regardless of this setting to avoid
+                                                          potential lock out. If you are
+                                                          locked out of your account, you can
+                                                          use the coder server create-admin
+                                                          command to create a new admin user
+                                                          directly in the database.
+                                                          Consumes $CODER_DISABLE_PASSWORD_AUTH
       --disable-session-expiry-refresh                    Disable automatic session expiry
                                                           bumping due to activity. This forces
                                                           all sessions to become invalid after
@@ -261,6 +268,12 @@ Operability Flags:
                                                           address defined by prometheus
                                                           address.
                                                           Consumes $CODER_PROMETHEUS_ENABLE
+      --trace                                             Whether application tracing data is
+                                                          collected. It exports to a backend
+                                                          configured by environment variables.
+                                                          See:
+                                                          https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
+                                                          Consumes $CODER_TRACE_ENABLE
       --trace-honeycomb-api-key string                    Enables trace exporting to
                                                           Honeycomb.io using the provided API
                                                           Key.
@@ -294,65 +307,12 @@ Provisioning Flags:
                                                           Consumes
                                                           $CODER_PROVISIONER_FORCE_CANCEL_INTERVAL (default 10m0s)
 Other Flags:
-      --api-rate-limit int                                Maximum number of requests per
-                                                          minute allowed to the API per user,
-                                                          or per IP address for
-                                                          unauthenticated users. Negative
-                                                          values mean no rate limit. Some API
-                                                          endpoints have separate strict rate
-                                                          limits regardless of this value to
-                                                          prevent denial-of-service or brute
-                                                          force attacks.
-                                                          Consumes $CODER_API_RATE_LIMIT
-                                                          (default 512)
       --cache-dir string                                  The directory to cache temporary
                                                           files. If unspecified and
                                                           $CACHE_DIRECTORY is set, it will be
                                                           used for compatibility with systemd.
                                                           Consumes $CODER_CACHE_DIRECTORY
                                                           (default "~/.cache/coder")
-      --dangerous-allow-path-app-sharing                  Allow workspace apps that are not
-                                                          served from subdomains to be shared.
-                                                          Path-based app sharing is DISABLED
-                                                          by default for security purposes.
-                                                          Path-based apps can make requests to
-                                                          the Coder API and pose a security
-                                                          risk when the workspace serves
-                                                          malicious JavaScript. Path-based
-                                                          apps can be disabled entirely with
-                                                          --disable-path-apps for further
-                                                          security.
-                                                          Consumes
-                                                          $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING
-      --dangerous-allow-path-app-site-owner-access        Allow site-owners to access
-                                                          workspace apps from workspaces they
-                                                          do not own. Owners cannot access
-                                                          path-based apps they do not own by
-                                                          default. Path-based apps can make
-                                                          requests to the Coder API and pose a
-                                                          security risk when the workspace
-                                                          serves malicious JavaScript.
-                                                          Path-based apps can be disabled
-                                                          entirely with --disable-path-apps
-                                                          for further security.
-                                                          Consumes
-                                                          $CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS
-      --dangerous-disable-rate-limits                     Disables all rate limits. This is
-                                                          not recommended in production.
-                                                          Consumes $CODER_RATE_LIMIT_DISABLE_ALL
-      --disable-password-auth coder server create-admin   Disable password authentication.
-                                                          This is recommended for security
-                                                          purposes in production deployments
-                                                          that rely on an identity provider.
-                                                          Any user with the owner role will be
-                                                          able to sign in with their password
-                                                          regardless of this setting to avoid
-                                                          potential lock out. If you are
-                                                          locked out of your account, you can
-                                                          use the coder server create-admin
-                                                          command to create a new admin user
-                                                          directly in the database.
-                                                          Consumes $CODER_DISABLE_PASSWORD_AUTH
       --disable-path-apps                                 Disable workspace apps that are not
                                                           served from subdomains. Path-based
                                                           apps can make requests to the Coder

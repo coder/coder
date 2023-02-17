@@ -5,10 +5,7 @@ It is recommended that all rate limits are disabled on the server before running
 Usage:
   coder scaletest create-workspaces [flags]
 
-Networking Flags:
-      --connect-mode string                  Mode to use for connecting to the workspace. Can
-                                             be 'derp' or 'direct'.
-                                             Consumes $CODER_LOADTEST_CONNECT_MODE (default "derp")
+Operability Flags:
       --trace                                Whether application tracing data is collected. It
                                              exports to a backend configured by environment
                                              variables. See:
@@ -18,7 +15,6 @@ Networking Flags:
                                              We recommend keeping this disabled unless we
                                              advise you to enable it.
                                              Consumes $CODER_LOADTEST_TRACE_CODER
-Operability Flags:
       --trace-honeycomb-api-key string       Enables trace exporting to Honeycomb.io using the
                                              provided API key.
                                              Consumes $CODER_LOADTEST_TRACE_HONEYCOMB_API_KEY
@@ -50,6 +46,9 @@ Other Flags:
       --connect-interval duration            How long to wait between making requests to the
                                              --connect-url once the connection is established.
                                              Consumes $CODER_LOADTEST_CONNECT_INTERVAL (default 1s)
+      --connect-mode string                  Mode to use for connecting to the workspace. Can
+                                             be 'derp' or 'direct'.
+                                             Consumes $CODER_LOADTEST_CONNECT_MODE (default "derp")
       --connect-timeout duration             Timeout for each request to the --connect-url.
                                              Consumes $CODER_LOADTEST_CONNECT_TIMEOUT (default 5s)
       --connect-url string                   URL to connect to inside the the workspace over

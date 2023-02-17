@@ -467,6 +467,7 @@ func newConfig() *codersdk.DeploymentConfig {
 				Usage:   "Disables all rate limits. This is not recommended in production.",
 				Flag:    "dangerous-disable-rate-limits",
 				Default: false,
+				Hidden:  true,
 			},
 			API: &codersdk.DeploymentConfigField[int]{
 				Name:  "API Rate Limit",
@@ -476,6 +477,7 @@ func newConfig() *codersdk.DeploymentConfig {
 				EnvOverride: "CODER_API_RATE_LIMIT",
 				Flag:        "api-rate-limit",
 				Default:     512,
+				Hidden:      true,
 			},
 		},
 		// DEPRECATED: use Experiments instead.
@@ -538,12 +540,14 @@ func newConfig() *codersdk.DeploymentConfig {
 				Usage:   "Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
 				Flag:    "dangerous-allow-path-app-sharing",
 				Default: false,
+				Hidden:  true,
 			},
 			AllowPathAppSiteOwnerAccess: &codersdk.DeploymentConfigField[bool]{
 				Name:    "DANGEROUS: Allow Site Owners to Access Path Apps",
 				Usage:   "Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
 				Flag:    "dangerous-allow-path-app-site-owner-access",
 				Default: false,
+				Hidden:  true,
 			},
 		},
 		DisablePathApps: &codersdk.DeploymentConfigField[bool]{

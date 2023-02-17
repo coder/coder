@@ -1,14 +1,15 @@
 Usage:
   coder agent [flags]
 
+Auth Flags:
+      --auth string            Specify the authentication type to use for the agent.
+                               Consumes $CODER_AGENT_AUTH (default "token")
 Operability Flags:
       --log-dir string         Specify the location for the agent log files.
                                Consumes $CODER_AGENT_LOG_DIR (default "/tmp")
       --pprof-address string   The address to serve pprof.
                                Consumes $CODER_AGENT_PPROF_ADDRESS (default "127.0.0.1:6060")
 Other Flags:
-      --auth string            Specify the authentication type to use for the agent.
-                               Consumes $CODER_AGENT_AUTH (default "token")
   -h, --help                   help for agent
       --no-reap                Do not start a process reaper.
 
