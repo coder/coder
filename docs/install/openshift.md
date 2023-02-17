@@ -42,6 +42,9 @@ coder:
     seccompProfile:
       type: RuntimeDefault
     allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
 ```
 
 The above values are the Coder defaults. You will need to change these values in
