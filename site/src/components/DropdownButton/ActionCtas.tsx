@@ -182,8 +182,13 @@ const useStyles = makeStyles((theme) => ({
     // Set fixed width for the action buttons so they will not change the size
     // during the transitions
     width: theme.spacing(20),
-    border: "none",
     borderRadius: `${theme.shape.borderRadius}px 0px 0px ${theme.shape.borderRadius}px`,
+    // This is used to show the hover effect
+    marginRight: -1,
+    position: "relative",
+    "&:hover": {
+      zIndex: 1,
+    },
   },
   cancelButton: {
     "&.MuiButton-root": {

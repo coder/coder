@@ -87,13 +87,9 @@ export const DropdownButton: FC<DropdownButtonProps> = ({
 
 const useStyles = makeStyles((theme) => ({
   buttonContainer: {
-    border: `1px solid ${theme.palette.divider}`,
-    borderRadius: `${theme.shape.borderRadius}px`,
     display: "inline-flex",
   },
   dropdownButton: {
-    border: "none",
-    borderLeft: `1px solid ${theme.palette.divider}`,
     borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
     minWidth: "unset",
     width: "64px", // matching cancel button so button grouping doesn't grow in size
@@ -118,6 +114,11 @@ const useStyles = makeStyles((theme) => ({
       padding: theme.spacing(1, 2),
       borderRadius: 0,
       width: "100%",
+      border: 0,
+
+      "&:hover": {
+        background: theme.palette.action.hover,
+      },
     },
   },
 }))
