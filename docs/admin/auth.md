@@ -178,7 +178,7 @@ CODER_OIDC_SCOPES=openid,profile,email,groups
 --oidc-scopes openid,profile,email,groups
 ```
 
-On login, users will automatically be assigned to groups that have matching
+Groups are only updated on login. On login, users will automatically be assigned to groups that have matching
 names in Coder and removed from groups that the user no longer belongs to.
 
-> **Note:** Groups are only updated on login.
+> **Note:** There is a [known issue](https://github.com/coder/coder/issues/6178) with group sync that prevents sync of groups names that contain spaces.
