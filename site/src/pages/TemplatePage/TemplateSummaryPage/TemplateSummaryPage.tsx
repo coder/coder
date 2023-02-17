@@ -12,10 +12,16 @@ export const TemplateSummaryPage: FC = () => {
     activeTemplateVersion,
     templateResources,
     templateVersions,
+    templateVersionVariables,
     templateDAUs,
   } = context
 
-  if (!template || !activeTemplateVersion || !templateResources) {
+  if (
+    !template ||
+    !activeTemplateVersion ||
+    !templateResources ||
+    !templateVersionVariables
+  ) {
     return <Loader />
   }
 

@@ -6,12 +6,14 @@ import {
   getTemplateVersion,
   getTemplateVersionResources,
   getTemplateVersions,
+  getTemplateVersionVariables,
 } from "api/api"
 import {
   AuthorizationResponse,
   Template,
   TemplateDAUsResponse,
   TemplateVersion,
+  TemplateVersionVariable,
   WorkspaceResource,
 } from "api/typesGenerated"
 
@@ -21,6 +23,7 @@ export interface TemplateContext {
   template?: Template
   activeTemplateVersion?: TemplateVersion
   templateResources?: WorkspaceResource[]
+  templateVersionVariables?: TemplateVersionVariable[]
   templateVersions?: TemplateVersion[]
   templateDAUs?: TemplateDAUsResponse
   permissions?: AuthorizationResponse
@@ -52,6 +55,9 @@ export const templateMachine =
           }
           getActiveTemplateVersion: {
             data: TemplateVersion
+          }
+          getTemplateVersionVariables: {
+            data: TemplateVersionVariable[]
           }
           getTemplateResources: {
             data: WorkspaceResource[]
@@ -117,6 +123,25 @@ export const templateMachine =
                     onDone: [
                       {
                         actions: "assignTemplateResources",
+                        target: "success",
+                      },
+                    ],
+                  },
+                },
+                success: {
+                  type: "final",
+                },
+              },
+            },
+            templateVersionVariables: {
+              initial: "gettingTemplateVersionVariables",
+              states: {
+                gettingTemplateVersionVariables: {
+                  invoke: {
+                    src: "getTemplateVersionVariables",
+                    onDone: [
+                      {
+                        actions: "assignTemplateVersionVariables",
                         target: "success",
                       },
                     ],
@@ -220,6 +245,13 @@ export const templateMachine =
 
           return getTemplateVersion(ctx.template.active_version_id)
         },
+        getTemplateVersionVariables: (ctx) => {
+          if (!ctx.template) {
+            throw new Error("Active template version not loaded")
+          }
+
+          return getTemplateVersionVariables(ctx.template.active_version_id)
+        },
         getTemplateResources: (ctx) => {
           if (!ctx.template) {
             throw new Error("Template not loaded")
@@ -264,6 +296,9 @@ export const templateMachine =
         }),
         assignTemplateVersions: assign({
           templateVersions: (_, event) => event.data,
+        }),
+        assignTemplateVersionVariables: assign({
+          templateVersionVariables: (_, event) => event.data,
         }),
         assignTemplateDAUs: assign({
           templateDAUs: (_, event) => event.data,

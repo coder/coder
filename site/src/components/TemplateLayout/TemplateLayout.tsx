@@ -2,6 +2,7 @@ import Button from "@material-ui/core/Button"
 import Link from "@material-ui/core/Link"
 import { makeStyles } from "@material-ui/core/styles"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
+import CodeOutlined from "@material-ui/icons/CodeOutlined"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
 import { useMachine } from "@xstate/react"
 import {
@@ -31,7 +32,7 @@ import { Avatar } from "components/Avatar/Avatar"
 
 const Language = {
   settingsButton: "Settings",
-  editButton: "Edit",
+  variablesButton: "Variables",
   createButton: "Create workspace",
   noDescription: "",
 }
@@ -79,6 +80,20 @@ const TemplateSettingsButton: FC<{ templateName: string }> = ({
   </Link>
 )
 
+const TemplateVariablesButton: FC<{ templateName: string }> = ({
+  templateName,
+}) => (
+  <Link
+    underline="none"
+    component={RouterLink}
+    to={`/templates/${templateName}/variables`}
+  >
+    <Button variant="outlined" startIcon={<CodeOutlined />}>
+      {Language.variablesButton}
+    </Button>
+  </Link>
+)
+
 const CreateWorkspaceButton: FC<{
   templateName: string
   className?: string
@@ -106,7 +121,11 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
       organizationId,
     },
   })
-  const { template, permissions: templatePermissions } = templateState.context
+  const {
+    template,
+    permissions: templatePermissions,
+    templateVersionVariables,
+  } = templateState.context
   const permissions = usePermissions()
   const hasIcon = template && template.icon && template.icon !== ""
 
@@ -119,6 +138,14 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
 
     if (templatePermissions?.canUpdateTemplate) {
       pageActions.push(<TemplateSettingsButton templateName={template.name} />)
+    }
+
+    if (
+      templatePermissions?.canUpdateTemplate &&
+      templateVersionVariables &&
+      templateVersionVariables.length > 0
+    ) {
+      pageActions.push(<TemplateVariablesButton templateName={template.name} />)
     }
 
     pageActions.push(<CreateWorkspaceButton templateName={template.name} />)
