@@ -1,0 +1,10 @@
+{
+  "emptyState": "No tokens found",
+  "deleteToken": "Delete Token",
+  "table": {
+    "id": "ID",
+    "createdAt": "Created At",
+    "lastUsed": "Last Used",
+    "expiresAt": "Expires At"
+  }
+}
