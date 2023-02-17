@@ -41,6 +41,7 @@ export const DropdownButton: FC<DropdownButtonProps> = ({
         <>
           {/* popover toggle button */}
           <Button
+            variant="outlined"
             data-testid="workspace-actions-button"
             aria-controls="workspace-actions-menu"
             aria-haspopup="true"
@@ -110,8 +111,13 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   popoverPaper: {
-    padding: `${theme.spacing(1)}px ${theme.spacing(2)}px ${theme.spacing(
-      1,
-    )}px`,
+    padding: 0,
+    width: theme.spacing(28),
+
+    "& .MuiButton-root": {
+      padding: theme.spacing(1, 2),
+      borderRadius: 0,
+      width: "100%",
+    },
   },
 }))

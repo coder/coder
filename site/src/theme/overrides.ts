@@ -54,19 +54,21 @@ export const getOverrides = ({
           outline: `2px solid ${palette.primary.dark}`,
         },
       },
+
       contained: {
         boxShadow: "none",
         color: palette.text.primary,
-        backgroundColor: colors.gray[11],
-        borderColor: colors.gray[10],
+        backgroundColor: colors.gray[13],
+        borderColor: colors.gray[12],
 
-        "&:hover:not(:disabled)": {
+        "&:hover:not(:disabled):not(.MuiButton-containedPrimary)": {
           boxShadow: "none",
           backgroundColor: colors.gray[12],
-          borderColor: colors.gray[12],
+          borderColor: colors.gray[11],
         },
 
-        "&.Mui-disabled": {
+        // the second rule was the only way I found to override the hover on disable
+        "&.Mui-disabled, &:hover.Mui-disabled:hover": {
           color: colors.gray[9],
           backgroundColor: colors.gray[14],
           pointerEvents: "auto",
@@ -95,7 +97,8 @@ export const getOverrides = ({
         border: `1px solid ${colors.gray[11]}`,
 
         "&:hover:not(:disabled)": {
-          backgroundColor: colors.gray[14],
+          borderColor: colors.gray[1],
+          background: "none",
         },
 
         "&.Mui-disabled": {

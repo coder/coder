@@ -26,6 +26,7 @@ export const UpdateButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
 
   return (
     <Button
+      variant="outlined"
       className={styles.actionButton}
       startIcon={<CloudQueueIcon />}
       onClick={handleAction}
@@ -43,6 +44,7 @@ export const ChangeVersionButton: FC<
 
   return (
     <Button
+      variant="outlined"
       className={styles.actionButton}
       startIcon={<UpdateOutlined />}
       onClick={handleAction}
@@ -60,6 +62,7 @@ export const BuildParametersButton: FC<
 
   return (
     <Button
+      variant="outlined"
       className={styles.actionButton}
       startIcon={<SettingsOutlined />}
       onClick={handleAction}
@@ -150,7 +153,7 @@ export const DisabledButton: FC<React.PropsWithChildren<DisabledProps>> = ({
   const styles = useStyles()
 
   return (
-    <Button disabled className={styles.actionButton}>
+    <Button variant="outlined" disabled className={styles.actionButton}>
       {label}
     </Button>
   )
@@ -167,6 +170,7 @@ export const ActionLoadingButton: FC<React.PropsWithChildren<LoadingProps>> = ({
   return (
     <LoadingButton
       loading
+      variant="outlined"
       loadingLabel={label}
       className={combineClasses([styles.loadingButton, styles.actionButton])}
     />

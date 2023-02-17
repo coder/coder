@@ -154,6 +154,7 @@ export const WorkspaceScheduleButton: React.FC<
       </Maybe>
       <>
         <Button
+          variant="outlined"
           ref={anchorRef}
           startIcon={<ScheduleIcon />}
           onClick={() => {
