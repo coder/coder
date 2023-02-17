@@ -26,7 +26,6 @@ export const TemplateSettingsPage: FC = () => {
     templateSettings: template,
     saveTemplateSettingsError,
     getTemplateError,
-    deleteTemplateError,
   } = state.context
 
   return (
@@ -40,7 +39,6 @@ export const TemplateSettingsPage: FC = () => {
         errors={{
           getTemplateError,
           saveTemplateSettingsError,
-          deleteTemplateError,
         }}
         onCancel={() => {
           navigate(`/templates/${templateName}`)
@@ -48,14 +46,6 @@ export const TemplateSettingsPage: FC = () => {
         onSubmit={(templateSettings) => {
           send({ type: "SAVE", templateSettings })
         }}
-        onDelete={() => {
-          send("DELETE")
-        }}
-        onConfirmDelete={() => send("CONFIRM_DELETE")}
-        onCancelDelete={() => send("CANCEL_DELETE")}
-        isConfirmingDelete={state.matches("confirmingDelete")}
-        isDeleting={state.matches("deleting")}
-        isDeleted={state.matches("deleted")}
       />
     </>
   )

@@ -656,7 +656,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 
 	err = updateConnectionTimes(ctx)
 	if err != nil {
-		_ = conn.Close(websocket.StatusGoingAway, err.Error())
+		_ = conn.Close(websocket.StatusGoingAway, httpapi.WebsocketCloseSprintf(err.Error()))
 		return
 	}
 	api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
@@ -678,7 +678,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		)
 		if err != nil {
 			api.Logger.Warn(ctx, "tailnet coordinator agent error", slog.Error(err))
-			_ = conn.Close(websocket.StatusInternalError, err.Error())
+			_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf(err.Error()))
 			return
 		}
 	}()
@@ -758,7 +758,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	defer conn.Close(websocket.StatusNormalClosure, "")
 	err = (*api.TailnetCoordinator.Load()).ServeClient(wsNetConn, uuid.New(), workspaceAgent.ID)
 	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, err.Error())
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf(err.Error()))
 		return
 	}
 }
