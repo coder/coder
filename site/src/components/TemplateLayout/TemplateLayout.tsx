@@ -2,7 +2,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { createContext, FC, Suspense, useContext } from "react"
-import { NavLink, Outlet, useParams } from "react-router-dom"
+import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import {
   TemplateContext,
@@ -47,6 +47,7 @@ export const useTemplateLayoutContext = (): TemplateLayoutContextValue => {
 export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   children = <Outlet />,
 }) => {
+  const navigate = useNavigate()
   const styles = useStyles()
   const organizationId = useOrganizationId()
   const templateName = useTemplateName()
@@ -68,6 +69,9 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
       <TemplatePageHeader
         template={template}
         permissions={templatePermissions}
+        onDeleteTemplate={() => {
+          navigate("/templates")
+        }}
       />
 
       <div className={styles.tabs}>

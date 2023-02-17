@@ -14,7 +14,7 @@ import {
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import { Link as RouterLink } from "react-router-dom"
-import { useDeleteTemplate } from "./delete"
+import { useDeleteTemplate } from "./deleteTemplate"
 import { Margins } from "components/Margins/Margins"
 
 const Language = {
@@ -55,12 +55,19 @@ const DeleteTemplateButton: FC<{ onClick: () => void }> = ({ onClick }) => (
   </Button>
 )
 
-export const TemplatePageHeader: FC<{
+export type TemplatePageHeaderProps = {
   template: Template
   permissions: AuthorizationResponse
-}> = ({ template, permissions }) => {
+  onDeleteTemplate: () => void
+}
+
+export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
+  template,
+  permissions,
+  onDeleteTemplate,
+}) => {
   const hasIcon = template.icon && template.icon !== ""
-  const deleteTemplate = useDeleteTemplate(template)
+  const deleteTemplate = useDeleteTemplate(template, onDeleteTemplate)
 
   return (
     <Margins>
