@@ -76,7 +76,7 @@ var flagCategories = []flagCategory{
 		matchers: []*regexp.Regexp{
 			regexp.MustCompile("oauth2"),
 			regexp.MustCompile("oidc"),
-			regexp.MustCompile("token"),
+			regexp.MustCompile(`-\w*token`),
 			regexp.MustCompile("session"),
 		},
 	},
