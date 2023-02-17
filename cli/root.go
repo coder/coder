@@ -20,6 +20,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/creack/pty"
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -445,6 +446,7 @@ func isTTYWriter(cmd *cobra.Command, writer func() io.Writer) bool {
 var templateFunctions = template.FuncMap{
 	"usageHeader":        usageHeader,
 	"isWorkspaceCommand": isWorkspaceCommand,
+	"ttyWidth":           ttyWidth,
 }
 
 func usageHeader(s string) string {
@@ -464,6 +466,15 @@ func isWorkspaceCommand(cmd *cobra.Command) bool {
 		}
 	})
 	return ws
+}
+
+func ttyWidth() int {
+	_, cols, err := pty.Getsize(os.Stderr)
+	if err != nil {
+		// Default width
+		return 100
+	}
+	return cols
 }
 
 func usageTemplate() string {
@@ -508,12 +519,12 @@ func usageTemplate() string {
 
 {{- if .HasAvailableLocalFlags}}
 {{usageHeader "Flags:"}}
-{{.LocalFlags.FlagUsagesWrapped 100 | trimTrailingWhitespaces}}
+{{.LocalFlags.FlagUsagesWrapped ttyWidth | trimTrailingWhitespaces}}
 {{end}}
 
 {{- if .HasAvailableInheritedFlags}}
 {{usageHeader "Global Flags:"}}
-{{.InheritedFlags.FlagUsagesWrapped 100 | trimTrailingWhitespaces}}
+{{.InheritedFlags.FlagUsagesWrapped ttyWidth | trimTrailingWhitespaces}}
 {{end}}
 
 {{- if .HasHelpSubCommands}}
