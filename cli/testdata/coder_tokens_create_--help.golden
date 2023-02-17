@@ -3,10 +3,11 @@ Create a tokens
 Usage:
   coder tokens create [flags]
 
-Flags:
-  -h, --help                help for create
+Auth Flags:
       --lifetime duration   Specify a duration for the lifetime of the token.
                             Consumes $CODER_TOKEN_LIFETIME (default 720h0m0s)
+Other Flags:
+  -h, --help                help for create
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

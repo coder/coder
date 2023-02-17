@@ -149,7 +149,7 @@ func categorizeFlags(usageOutput string) string {
 
 	for _, cat := range flagCategories {
 		if buf, ok := categories[cat.name]; ok {
-			if len(flagCategories) == 1 {
+			if len(categories) == 1 {
 				// Don't bother qualifying list if there's only one category.
 				_, _ = fmt.Fprintf(&out, "%s\n", usageHeader("Flags:"))
 			} else {

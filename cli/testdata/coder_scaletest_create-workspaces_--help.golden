@@ -5,7 +5,30 @@ It is recommended that all rate limits are disabled on the server before running
 Usage:
   coder scaletest create-workspaces [flags]
 
-Flags:
+Networking Flags:
+      --connect-mode string                  Mode to use for connecting to the workspace. Can
+                                             be 'derp' or 'direct'.
+                                             Consumes $CODER_LOADTEST_CONNECT_MODE (default "derp")
+      --trace                                Whether application tracing data is collected. It
+                                             exports to a backend configured by environment
+                                             variables. See:
+                                             https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
+                                             Consumes $CODER_LOADTEST_TRACE
+      --trace-coder                          Whether opentelemetry traces are sent to Coder.
+                                             We recommend keeping this disabled unless we
+                                             advise you to enable it.
+                                             Consumes $CODER_LOADTEST_TRACE_CODER
+Operability Flags:
+      --trace-honeycomb-api-key string       Enables trace exporting to Honeycomb.io using the
+                                             provided API key.
+                                             Consumes $CODER_LOADTEST_TRACE_HONEYCOMB_API_KEY
+      --trace-propagate                      Enables trace propagation to the Coder backend,
+                                             which will be used to correlate server-side spans
+                                             with client-side spans. Only enable this if the
+                                             server is configured with the exact same tracing
+                                             configuration as the client.
+                                             Consumes $CODER_LOADTEST_TRACE_PROPAGATE
+Other Flags:
       --cleanup-concurrency int              Number of concurrent cleanup jobs to run. 0 means
                                              unlimited.
                                              Consumes $CODER_LOADTEST_CLEANUP_CONCURRENCY
@@ -27,9 +50,6 @@ Flags:
       --connect-interval duration            How long to wait between making requests to the
                                              --connect-url once the connection is established.
                                              Consumes $CODER_LOADTEST_CONNECT_INTERVAL (default 1s)
-      --connect-mode string                  Mode to use for connecting to the workspace. Can
-                                             be 'derp' or 'direct'.
-                                             Consumes $CODER_LOADTEST_CONNECT_MODE (default "derp")
       --connect-timeout duration             Timeout for each request to the --connect-url.
                                              Consumes $CODER_LOADTEST_CONNECT_TIMEOUT (default 5s)
       --connect-url string                   URL to connect to inside the the workspace over
@@ -94,24 +114,6 @@ Flags:
       --timeout duration                     Timeout for the entire test run. 0 means
                                              unlimited.
                                              Consumes $CODER_LOADTEST_TIMEOUT (default 30m0s)
-      --trace                                Whether application tracing data is collected. It
-                                             exports to a backend configured by environment
-                                             variables. See:
-                                             https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
-                                             Consumes $CODER_LOADTEST_TRACE
-      --trace-coder                          Whether opentelemetry traces are sent to Coder.
-                                             We recommend keeping this disabled unless we
-                                             advise you to enable it.
-                                             Consumes $CODER_LOADTEST_TRACE_CODER
-      --trace-honeycomb-api-key string       Enables trace exporting to Honeycomb.io using the
-                                             provided API key.
-                                             Consumes $CODER_LOADTEST_TRACE_HONEYCOMB_API_KEY
-      --trace-propagate                      Enables trace propagation to the Coder backend,
-                                             which will be used to correlate server-side spans
-                                             with client-side spans. Only enable this if the
-                                             server is configured with the exact same tracing
-                                             configuration as the client.
-                                             Consumes $CODER_LOADTEST_TRACE_PROPAGATE
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.
