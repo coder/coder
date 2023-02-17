@@ -14,13 +14,11 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
-	"text/template"
 	"time"
 
 	"golang.org/x/xerrors"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/creack/pty"
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -441,132 +439,6 @@ func isTTYWriter(cmd *cobra.Command, writer func() io.Writer) bool {
 		return false
 	}
 	return isatty.IsTerminal(file.Fd())
-}
-
-var templateFunctions = template.FuncMap{
-	"usageHeader":        usageHeader,
-	"isWorkspaceCommand": isWorkspaceCommand,
-	"ttyWidth":           ttyWidth,
-}
-
-func usageHeader(s string) string {
-	// Customizes the color of headings to make subcommands more visually
-	// appealing.
-	return cliui.Styles.Placeholder.Render(s)
-}
-
-func isWorkspaceCommand(cmd *cobra.Command) bool {
-	if _, ok := cmd.Annotations["workspaces"]; ok {
-		return true
-	}
-	var ws bool
-	cmd.VisitParents(func(cmd *cobra.Command) {
-		if _, ok := cmd.Annotations["workspaces"]; ok {
-			ws = true
-		}
-	})
-	return ws
-}
-
-func ttyWidth() int {
-	_, cols, err := pty.Getsize(os.Stderr)
-	if err != nil {
-		// Default width
-		return 100
-	}
-	return cols
-}
-
-func usageTemplate() string {
-	// usageHeader is defined in init().
-	return `{{usageHeader "Usage:"}}
-{{- if .Runnable}}
-  {{.UseLine}}
-{{end}}
-{{- if .HasAvailableSubCommands}}
-  {{.CommandPath}} [command]
-{{end}}
-
-{{- if gt (len .Aliases) 0}}
-{{usageHeader "Aliases:"}}
-  {{.NameAndAliases}}
-{{end}}
-
-{{- if .HasExample}}
-{{usageHeader "Get Started:"}}
-{{.Example}}
-{{end}}
-
-{{- $isRootHelp := (not .HasParent)}}
-{{- if .HasAvailableSubCommands}}
-{{usageHeader "Commands:"}}
-  {{- range .Commands}}
-    {{- $isRootWorkspaceCommand := (and $isRootHelp (isWorkspaceCommand .))}}
-    {{- if (or (and .IsAvailableCommand (not $isRootWorkspaceCommand)) (eq .Name "help"))}}
-  {{rpad .Name .NamePadding }} {{.Short}}
-    {{- end}}
-  {{- end}}
-{{end}}
-
-{{- if (and $isRootHelp .HasAvailableSubCommands)}}
-{{usageHeader "Workspace Commands:"}}
-  {{- range .Commands}}
-    {{- if (and .IsAvailableCommand (isWorkspaceCommand .))}}
-  {{rpad .Name .NamePadding }} {{.Short}}
-    {{- end}}
-  {{- end}}
-{{end}}
-
-{{- if .HasAvailableLocalFlags}}
-{{usageHeader "Flags:"}}
-{{.LocalFlags.FlagUsagesWrapped ttyWidth | trimTrailingWhitespaces}}
-{{end}}
-
-{{- if .HasAvailableInheritedFlags}}
-{{usageHeader "Global Flags:"}}
-{{.InheritedFlags.FlagUsagesWrapped ttyWidth | trimTrailingWhitespaces}}
-{{end}}
-
-{{- if .HasHelpSubCommands}}
-{{usageHeader "Additional help topics:"}}
-  {{- range .Commands}}
-    {{- if .IsAdditionalHelpTopicCommand}}
-  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}
-    {{- end}}
-  {{- end}}
-{{end}}
-
-{{- if .HasAvailableSubCommands}}
-Use "{{.CommandPath}} [command] --help" for more information about a command.
-{{end}}`
-}
-
-// example represents a standard example for command usage, to be used
-// with formatExamples.
-type example struct {
-	Description string
-	Command     string
-}
-
-// formatExamples formats the examples as width wrapped bulletpoint
-// descriptions with the command underneath.
-func formatExamples(examples ...example) string {
-	wrap := cliui.Styles.Wrap.Copy()
-	wrap.PaddingLeft(4)
-	var sb strings.Builder
-	for i, e := range examples {
-		if len(e.Description) > 0 {
-			_, _ = sb.WriteString("  - " + wrap.Render(e.Description + ":")[4:] + "\n\n    ")
-		}
-		// We add 1 space here because `cliui.Styles.Code` adds an extra
-		// space. This makes the code block align at an even 2 or 6
-		// spaces for symmetry.
-		_, _ = sb.WriteString(" " + cliui.Styles.Code.Render(fmt.Sprintf("$ %s", e.Command)))
-		if i < len(examples)-1 {
-			_, _ = sb.WriteString("\n\n")
-		}
-	}
-	return sb.String()
 }
 
 // FormatCobraError colorizes and adds "--help" docs to cobra commands.
