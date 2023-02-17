@@ -184,24 +184,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
       </FormSection>
 
       <FormSection
-        title={t("schedule.title")}
-        description={t("schedule.description")}
-      >
-        <TextField
-          {...getFieldHelpers(
-            "default_ttl_ms",
-            <TTLHelperText ttl={form.values.default_ttl_ms} />,
-          )}
-          disabled={isSubmitting}
-          fullWidth
-          inputProps={{ min: 0, step: 1 }}
-          label={t("defaultTtlLabel")}
-          variant="outlined"
-          type="number"
-        />
-      </FormSection>
-
-      <FormSection
         title={t("operations.title")}
         description={t("operations.description")}
       >
