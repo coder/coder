@@ -443,7 +443,7 @@ const useStyles = makeStyles<
     display: "grid",
     width: "100%",
     gridTemplateColumns: (props) =>
-      props.showBuildLogs ? "0.6fr 0.4fr" : "1fr 0fr",
+      props.showBuildLogs ? "1fr 1fr" : "1fr 0fr",
     height: `calc(100vh - ${navHeight + topbarHeight}px)`,
     overflow: "hidden",
   },
@@ -458,6 +458,8 @@ const useStyles = makeStyles<
     overflowY: "auto",
   },
   panel: {
+    padding: theme.spacing(1),
+
     "&.hidden": {
       display: "none",
     },
@@ -476,26 +478,42 @@ const useStyles = makeStyles<
   },
   tab: {
     cursor: "pointer",
-    padding: "8px 12px",
-    fontSize: 14,
+    padding: theme.spacing(1.5),
+    fontSize: 10,
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    fontWeight: 600,
     background: "transparent",
     fontFamily: "inherit",
     border: 0,
-    color: theme.palette.text.hint,
+    color: theme.palette.text.secondary,
     transition: "150ms ease all",
     display: "flex",
     gap: 8,
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
 
     "& svg": {
-      maxWidth: 16,
-      maxHeight: 16,
+      maxWidth: 12,
+      maxHeight: 12,
     },
 
     "&.active": {
-      color: "white",
-      background: theme.palette.background.paperLight,
+      color: theme.palette.text.primary,
+      "&:after": {
+        content: '""',
+        display: "block",
+        width: "100%",
+        height: 1,
+        backgroundColor: theme.palette.text.primary,
+        bottom: -1,
+        position: "absolute",
+      },
+    },
+
+    "&:hover": {
+      color: theme.palette.text.primary,
     },
   },
   tabBar: {
