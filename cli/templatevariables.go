@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"strings"
 
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
@@ -9,7 +10,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func loadVariableValues(variablesFile string) ([]codersdk.VariableValue, error) {
+func loadVariableValuesFromFile(variablesFile string) ([]codersdk.VariableValue, error) {
 	var values []codersdk.VariableValue
 	if variablesFile == "" {
 		return values, nil
@@ -47,4 +48,20 @@ func createVariablesMapFromFile(variablesFile string) (map[string]string, error)
 		return nil, err
 	}
 	return variablesMap, nil
+}
+
+func loadVariableValuesFromOptions(variables []string) ([]codersdk.VariableValue, error) {
+	var values []codersdk.VariableValue
+	for _, keyValue := range variables {
+		split := strings.SplitN(keyValue, "=", 2)
+		if len(split) < 2 {
+			return nil, xerrors.Errorf("format key=value expected, but got %s", keyValue)
+		}
+
+		values = append(values, codersdk.VariableValue{
+			Name:  split[0],
+			Value: split[1],
+		})
+	}
+	return values, nil
 }

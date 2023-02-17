@@ -224,6 +224,37 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
+			Name: "enable-managed-variables-with-default-empty-string",
+			Files: map[string]string{
+				"main.tf": `variable "A" {
+				description = "Testing!"
+				type = 	string
+				default = ""
+				sensitive = true
+			}
+
+			provider "coder" {
+				feature_use_managed_variables = true
+			}`,
+			},
+			Response: &proto.Parse_Response{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						TemplateVariables: []*proto.TemplateVariable{
+							{
+								Name:         "A",
+								Description:  "Testing!",
+								Type:         "string",
+								DefaultValue: "",
+								Required:     false,
+								Sensitive:    true,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			Name: "enable-managed-variables-without-default",
 			Files: map[string]string{
 				"main2.tf": `variable "A" {
@@ -241,11 +272,12 @@ func TestParse(t *testing.T) {
 					Complete: &proto.Parse_Complete{
 						TemplateVariables: []*proto.TemplateVariable{
 							{
-								Name:        "A",
-								Description: "Testing!",
-								Type:        "string",
-								Required:    true,
-								Sensitive:   true,
+								Name:         "A",
+								Description:  "Testing!",
+								Type:         "string",
+								DefaultValue: "",
+								Required:     true,
+								Sensitive:    true,
 							},
 						},
 					},
