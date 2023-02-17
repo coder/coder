@@ -88,6 +88,10 @@ const useStyles = makeStyles((theme) => ({
     },
 
     "& p": {
+      margin: 0,
+    },
+
+    "& > p": {
       margin: theme.spacing(1, 0),
     },
   },

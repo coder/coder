@@ -42,10 +42,10 @@ export const CreateFileDialog: FC<{
       confirmText="Create"
       title="Create File"
       description={
-        <Stack spacing={1}>
+        <Stack>
           <Typography>
             Specify the path to a file to be created. This path can contain
-            slashes too!
+            slashes too.
           </Typography>
           <TextField
             autoFocus
@@ -58,10 +58,13 @@ export const CreateFileDialog: FC<{
             name="file-path"
             autoComplete="off"
             id="file-path"
-            placeholder="main.tf"
+            placeholder="example.tf"
             value={pathValue}
             onChange={handleChange}
             label="File Path"
+            InputLabelProps={{
+              shrink: true,
+            }}
           />
         </Stack>
       }
@@ -82,7 +85,12 @@ export const DeleteFileDialog: FC<{
       open={open}
       onConfirm={onConfirm}
       title="Delete File"
-      description={`Are you sure you want to delete "${filename}"?`}
+      description={
+        <>
+          Are you sure you want to delete <strong>{filename}</strong>? It will
+          be deleted permanently.
+        </>
+      }
     />
   )
 }
@@ -123,14 +131,14 @@ export const RenameFileDialog: FC<{
       hideCancel={false}
       type="success"
       cancelText="Cancel"
-      confirmText="Create"
+      confirmText="Rename"
       title="Rename File"
       description={
-        <Stack spacing={1}>
-          <Typography>
-            Rename {`"${filename}"`} to something else. This path can contain
-            slashes too!
-          </Typography>
+        <Stack>
+          <p>
+            Rename <strong>{filename}</strong> to something else. This path can
+            contain slashes too!
+          </p>
           <TextField
             autoFocus
             onKeyDown={(event) => {
@@ -142,8 +150,7 @@ export const RenameFileDialog: FC<{
             name="file-path"
             autoComplete="off"
             id="file-path"
-            placeholder="main.tf"
-            defaultValue={filename}
+            placeholder={filename}
             value={pathValue}
             onChange={handleChange}
             label="File Path"

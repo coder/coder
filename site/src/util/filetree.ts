@@ -1,6 +1,6 @@
 import set from "lodash/set"
 import has from "lodash/has"
-import omit from "lodash/omit"
+import unset from "lodash/unset"
 import get from "lodash/get"
 
 export type FileTree = {
@@ -9,7 +9,7 @@ export type FileTree = {
 
 export const setFile = (
   path: string,
-  content: string,
+  content: FileTree | string,
   fileTree: FileTree,
 ): FileTree => {
   return set(fileTree, path.split("/"), content)
@@ -20,7 +20,20 @@ export const existsFile = (path: string, fileTree: FileTree) => {
 }
 
 export const removeFile = (path: string, fileTree: FileTree) => {
-  return omit(fileTree, path.split("/"))
+  const updatedFileTree = { ...fileTree }
+  unset(fileTree, path.split("/"))
+  return updatedFileTree
+}
+
+export const moveFile = (
+  currentPath: string,
+  newPath: string,
+  fileTree: FileTree,
+) => {
+  const content = getFileContent(currentPath, fileTree)
+  fileTree = removeFile(currentPath, fileTree)
+  fileTree = setFile(newPath, content, fileTree)
+  return fileTree
 }
 
 export const getFileContent = (path: string, fileTree: FileTree) => {

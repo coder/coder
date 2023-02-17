@@ -3,6 +3,7 @@ import {
   FileTree,
   getFileContent,
   isFolder,
+  moveFile,
   removeFile,
   setFile,
   traverse,
@@ -32,10 +33,44 @@ test("getFileContent() return the file content from the file tree", () => {
 test("removeFile() removes a file from the file tree", () => {
   let fileTree: FileTree = {
     "main.tf": "terraform content",
-    images: { "java.Dockerfile": "java dockerfile" },
+    images: {
+      "java.Dockerfile": "java dockerfile",
+      "python.Dockerfile": "python Dockerfile",
+    },
   }
-  fileTree = removeFile("images", fileTree)
-  expect(fileTree.images).toBeUndefined()
+  fileTree = removeFile("images/python.Dockerfile", fileTree)
+  const expectedFileTree = {
+    "main.tf": "terraform content",
+    images: {
+      "java.Dockerfile": "java dockerfile",
+    },
+  }
+  expect(expectedFileTree).toEqual(fileTree)
+})
+
+test("moveFile() moves a file from in file tree", () => {
+  let fileTree: FileTree = {
+    "main.tf": "terraform content",
+    images: {
+      "java.Dockerfile": "java dockerfile",
+      "python.Dockerfile": "python Dockerfile",
+    },
+  }
+  fileTree = moveFile(
+    "images/java.Dockerfile",
+    "other/java.Dockerfile",
+    fileTree,
+  )
+  const expectedFileTree = {
+    "main.tf": "terraform content",
+    images: {
+      "python.Dockerfile": "python Dockerfile",
+    },
+    other: {
+      "java.Dockerfile": "java dockerfile",
+    },
+  }
+  expect(fileTree).toEqual(expectedFileTree)
 })
 
 test("existsFile() returns if there is or not a file", () => {

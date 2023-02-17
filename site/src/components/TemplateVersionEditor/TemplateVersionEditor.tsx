@@ -22,6 +22,7 @@ import {
   FileTree,
   getFileContent,
   isFolder,
+  moveFile,
   removeFile,
   setFile,
   traverse,
@@ -266,15 +267,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 if (!renameFileOpen) {
                   return
                 }
-                setFileTree((fileTree) => {
-                  fileTree = setFile(
-                    newPath,
-                    getFileContent(renameFileOpen, fileTree) as string,
-                    fileTree,
-                  )
-                  fileTree = removeFile(renameFileOpen, fileTree)
-                  return fileTree
-                })
+                setFileTree((fileTree) =>
+                  moveFile(renameFileOpen, newPath, fileTree),
+                )
                 setActivePath(newPath)
                 setRenameFileOpen(undefined)
                 setDirty(true)
