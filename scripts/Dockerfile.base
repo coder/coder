@@ -9,7 +9,8 @@ RUN apk add --no-cache \
 		wget \
 		bash \
 		git \
-		openssh-client && \
+		openssh-client \
+		terraform && \
 	addgroup \
 		-g 1000 \
 		coder && \
