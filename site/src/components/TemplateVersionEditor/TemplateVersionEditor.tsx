@@ -2,7 +2,7 @@ import Button from "@material-ui/core/Button"
 import IconButton from "@material-ui/core/IconButton"
 import { makeStyles, Theme } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
-import CreateIcon from "@material-ui/icons/AddBoxOutlined"
+import CreateIcon from "@material-ui/icons/AddOutlined"
 import BuildIcon from "@material-ui/icons/BuildOutlined"
 import PreviewIcon from "@material-ui/icons/VisibilityOutlined"
 import {
@@ -200,7 +200,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       <div className={styles.sidebarAndEditor}>
         <div className={styles.sidebar}>
           <div className={styles.sidebarTitle}>
-            Template Editor
+            Template files
             <div className={styles.sidebarActions}>
               <Tooltip title="Create File" placement="top">
                 <IconButton
@@ -420,19 +420,23 @@ const useStyles = makeStyles<
   },
   sidebar: {
     minWidth: 256,
+    backgroundColor: theme.palette.background.paper,
+    borderRight: `1px solid ${theme.palette.divider}`,
   },
   sidebarTitle: {
-    fontSize: 12,
+    fontSize: 10,
     textTransform: "uppercase",
-    padding: "8px 16px",
-    color: theme.palette.text.hint,
+    padding: theme.spacing(1, 2),
+    color: theme.palette.text.primary,
+    fontWeight: 500,
+    letterSpacing: "0.5px",
     display: "flex",
     alignItems: "center",
   },
   sidebarActions: {
     marginLeft: "auto",
     "& svg": {
-      fill: theme.palette.text.hint,
+      fill: theme.palette.text.primary,
     },
   },
   editorPane: {
