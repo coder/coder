@@ -36,9 +36,9 @@ the following `securityContext` values in the Coder Helm chart:
 coder:
   securityContext:
     runAsNonRoot: true
-    runAsUser: 1000
-    runAsGroup: 1000
-    readOnlyRootFilesystem: true
+    runAsUser: <project-specific UID>
+    runAsGroup: <project-specific GID>
+    readOnlyRootFilesystem: false
     seccompProfile:
       type: RuntimeDefault
     allowPrivilegeEscalation: false
