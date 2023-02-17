@@ -146,3 +146,115 @@ helm install coder coder-v2/coder \
   --namespace coder \
   --values values.yaml
 ```
+
+### 7. Create an OpenShift-compatible image
+
+While the deployment is spinning up, we will need to create some images that
+are compatible with OpenShift. These images can then be run without modifying
+the Security Context Constraints (SCCs) in OpenShift.
+
+1. Determine the UID range for the project:
+
+    ```console
+    oc get project coder -o json | jq -r '.metadata.annotations'
+    {
+      "openshift.io/description": "",
+      "openshift.io/display-name": "coder",
+      "openshift.io/requester": "kube:admin",
+      "openshift.io/sa.scc.mcs": "s0:c26,c15",
+      "openshift.io/sa.scc.supplemental-groups": "1000680000/10000",
+      "openshift.io/sa.scc.uid-range": "1000680000/10000"
+    }
+    ```
+
+    Note the `uid-range` and `supplemental-groups`. In this case, the project `coder`
+    has been allocated 10,000 UIDs starting at 1000680000, and 10,000 GIDs starting
+    at 1000680000. In this example, we will pick UID and GID 1000680000.
+
+1. Create a `BuildConfig` referencing the source image you want to customize.
+  This will automatically kick off a `Build` that will remain pending until step 3.
+
+    > For more information, please consult the [OpenShift Documentation](https://docs.openshift.com/container-platform/4.12/cicd/builds/understanding-buildconfigs.html).
+
+    ```console
+    oc create -f - <<EOF
+    kind: BuildConfig
+    apiVersion: build.openshift.io/v1
+    metadata:
+      name: enterprise-base
+      namespace: coder
+    spec:
+      output:
+        to:
+          kind: ImageStreamTag
+          name: 'enterprise-base:latest'
+      strategy:
+        type: Docker
+        dockerStrategy:
+          imageOptimizationPolicy: SkipLayers
+      source:
+        type: Dockerfile
+        dockerfile: |
+          # Specify the source image.
+          FROM docker.io/codercom/enterprise-base:ubuntu
+
+          # Switch to root
+          USER root
+
+          # As root:
+          # 1) Remove the original coder user with UID 1000
+          # 2) Add a coder group with an allowed UID
+          # 3) Add a coder user as a member of the above group
+          # 4) Fix ownership on the user's home directory
+          RUN userdel coder && \
+              groupadd coder -g 1000680000 && \
+              useradd -l -u 1000680000 coder -g 1000680000 && \
+              chown -R coder:coder /home/coder
+
+          # Go back to the user 'coder'
+          USER coder
+      triggers:
+        - type: ConfigChange
+      runPolicy: Serial
+    EOF
+    ```
+
+
+1. Create an `ImageStream` as a target for the previous step:
+
+    ```console
+    oc create imagestream enterprise-base
+    ```
+
+    The `Build` created in the previous step should now begin.
+    Once completed, you should see output similar to the following:
+
+    ```console
+    oc get imagestreamtag
+    NAME                     IMAGE REFERENCE                                                                                                                                    UPDATED
+    enterprise-base:latest   image-registry.openshift-image-registry.svc:5000/coder/enterprise-base@sha256:1dbbe4ee11be9218e1e4741264135a4f57501fe592d94d20db6bfe11692accd1   55 minutes ago
+    ```
+
+### 8. Create an OpenShift-compatible template
+
+Start from the default "Kubernetes" template:
+
+```console
+echo kubernetes | coderv2 templates init ./openshift-k8s
+cd ./openshift-k8s
+```
+
+Edit `main.tf` and update the following fields of the Kubernetes pod resource:
+
+- `spec.security_context`: remove this field.
+- `spec.container.image`: update this field to the newly built image hosted
+   on the OpenShift image registry from the previous step.
+- `spec.container.security_context`: remove this field.
+
+Finally, create the template:
+
+```console
+coder template create kubernetes -d .
+```
+
+This template should be ready to use straight away.
