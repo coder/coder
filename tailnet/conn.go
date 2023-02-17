@@ -158,18 +158,27 @@ func NewConn(options *Options) (*Conn, error) {
 	netMap.SelfNode.DiscoKey = magicConn.DiscoPublicKey()
 
 	netStack, err := netstack.Create(
-		Logger(options.Logger.Named("netstack")), tunDevice, wireguardEngine, magicConn, dialer, dnsManager)
+		Logger(options.Logger.Named("netstack")),
+		tunDevice,
+		wireguardEngine,
+		magicConn,
+		dialer,
+		dnsManager,
+	)
 	if err != nil {
 		return nil, xerrors.Errorf("create netstack: %w", err)
 	}
+
 	dialer.NetstackDialTCP = func(ctx context.Context, dst netip.AddrPort) (net.Conn, error) {
 		return netStack.DialContextTCP(ctx, dst)
 	}
 	netStack.ProcessLocalIPs = true
+
 	err = netStack.Start(nil)
 	if err != nil {
 		return nil, xerrors.Errorf("start netstack: %w", err)
 	}
+
 	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
 	wireguardEngine.SetDERPMap(options.DERPMap)
 	netMapCopy := *netMap
@@ -182,7 +191,14 @@ func NewConn(options *Options) (*Conn, error) {
 	localIPs, _ := localIPSet.IPSet()
 	logIPSet := netipx.IPSetBuilder{}
 	logIPs, _ := logIPSet.IPSet()
-	wireguardEngine.SetFilter(filter.New(netMap.PacketFilter, localIPs, logIPs, nil, Logger(options.Logger.Named("packet-filter"))))
+	wireguardEngine.SetFilter(filter.New(
+		netMap.PacketFilter,
+		localIPs,
+		logIPs,
+		nil,
+		Logger(options.Logger.Named("packet-filter")),
+	))
+
 	dialContext, dialCancel := context.WithCancel(context.Background())
 	server := &Conn{
 		blockEndpoints:   options.BlockEndpoints,
@@ -203,6 +219,7 @@ func NewConn(options *Options) (*Conn, error) {
 		},
 		wireguardEngine: wireguardEngine,
 	}
+
 	wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
 		server.logger.Debug(context.Background(), "wireguard status", slog.F("status", s), slog.F("err", err))
 		if err != nil {
@@ -224,6 +241,7 @@ func NewConn(options *Options) (*Conn, error) {
 		server.lastMutex.Unlock()
 		server.sendNode()
 	})
+
 	wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
 		server.logger.Debug(context.Background(), "netinfo callback", slog.F("netinfo", ni))
 		server.lastMutex.Lock()
@@ -235,7 +253,9 @@ func NewConn(options *Options) (*Conn, error) {
 		server.lastMutex.Unlock()
 		server.sendNode()
 	})
+
 	netStack.ForwardTCPIn = server.forwardTCP
+
 	return server, nil
 }
 
@@ -289,15 +309,10 @@ type Conn struct {
 	trafficStats *connstats.Statistics
 }
 
-// SetForwardTCPCallback is called every time a TCP connection is initiated inbound.
-// listenerExists is true if a listener is registered for the target port. If there
-// isn't one, traffic is forwarded to the local listening port.
-//
-// This allows wrapping a Conn to track reads and writes.
-func (c *Conn) SetForwardTCPCallback(callback func(conn net.Conn, listenerExists bool) net.Conn) {
+func (c *Conn) Addresses() []netip.Prefix {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	c.forwardTCPCallback = callback
+	return c.netMap.Addresses
 }
 
 func (c *Conn) SetNodeCallback(callback func(node *Node)) {
@@ -342,12 +357,15 @@ func (c *Conn) RemoveAllPeers() error {
 	return nil
 }
 
-// UpdateNodes connects with a set of peers. This can be constantly updated,
-// and peers will continually be reconnected as necessary.
+// UpdateNodes updates a set of peers or connects to them if necessary. This can
+// be constantly updated, and peers will continually be reconnected as
+// necessary.
 func (c *Conn) UpdateNodes(nodes []*Node) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	status := c.Status()
+
+	// Remove any peers we haven't seen in 5 minutes.
 	for _, peer := range c.netMap.Peers {
 		peerStatus, ok := status.Peer[peer.Key]
 		if !ok {
@@ -366,6 +384,7 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 		}
 		delete(c.peerMap, peer.ID)
 	}
+
 	for _, node := range nodes {
 		c.logger.Debug(context.Background(), "adding node", slog.F("node", node))
 
@@ -394,16 +413,19 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 		}
 		c.peerMap[node.ID] = peerNode
 	}
+
 	c.netMap.Peers = make([]*tailcfg.Node, 0, len(c.peerMap))
 	for _, peer := range c.peerMap {
 		c.netMap.Peers = append(c.netMap.Peers, peer.Clone())
 	}
+
 	netMapCopy := *c.netMap
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
 		return xerrors.Errorf("update wireguard config: %w", err)
 	}
+
 	err = c.wireguardEngine.Reconfig(cfg, c.wireguardRouter, &dns.Config{}, &tailcfg.Debug{})
 	if err != nil {
 		if c.isClosed() {
@@ -414,6 +436,69 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 		}
 		return xerrors.Errorf("reconfig: %w", err)
 	}
+
+	return nil
+}
+
+// SetNodes makes sure only the provided nodes are connected to.
+func (c *Conn) SetNodes(nodes []*Node) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	status := c.Status()
+
+	c.peerMap = map[tailcfg.NodeID]*tailcfg.Node{}
+	for _, node := range nodes {
+		c.logger.Debug(context.Background(), "adding node", slog.F("node", node))
+
+		peerStatus, ok := status.Peer[node.Key]
+		peerNode := &tailcfg.Node{
+			ID:         node.ID,
+			Created:    time.Now(),
+			Key:        node.Key,
+			DiscoKey:   node.DiscoKey,
+			Addresses:  node.Addresses,
+			AllowedIPs: node.AllowedIPs,
+			Endpoints:  node.Endpoints,
+			DERP:       fmt.Sprintf("%s:%d", tailcfg.DerpMagicIP, node.PreferredDERP),
+			Hostinfo:   hostinfo.New().View(),
+			// Starting KeepAlive messages at the initialization
+			// of a connection cause it to hang for an unknown
+			// reason. TODO: @kylecarbs debug this!
+			KeepAlive: ok && peerStatus.Active,
+		}
+		// If no preferred DERP is provided, don't set an IP!
+		if node.PreferredDERP == 0 {
+			peerNode.DERP = ""
+		}
+		if c.blockEndpoints {
+			peerNode.Endpoints = nil
+		}
+		c.peerMap[node.ID] = peerNode
+	}
+
+	c.netMap.Peers = make([]*tailcfg.Node, 0, len(c.peerMap))
+	for _, peer := range c.peerMap {
+		c.netMap.Peers = append(c.netMap.Peers, peer.Clone())
+	}
+
+	netMapCopy := *c.netMap
+	c.wireguardEngine.SetNetworkMap(&netMapCopy)
+	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
+	if err != nil {
+		return xerrors.Errorf("update wireguard config: %w", err)
+	}
+
+	err = c.wireguardEngine.Reconfig(cfg, c.wireguardRouter, &dns.Config{}, &tailcfg.Debug{})
+	if err != nil {
+		if c.isClosed() {
+			return nil
+		}
+		if errors.Is(err, wgengine.ErrNoChanges) {
+			return nil
+		}
+		return xerrors.Errorf("reconfig: %w", err)
+	}
+
 	return nil
 }
 

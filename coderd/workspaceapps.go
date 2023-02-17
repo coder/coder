@@ -894,6 +894,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 	appURL.RawQuery = ""
 
 	proxy := httputil.NewSingleHostReverseProxy(appURL)
+	proxy.Director = api.tailnet.Director(proxyApp.Agent.ID, proxy.Director)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusBadGateway,

@@ -257,8 +257,11 @@ func New(options *Options) *API {
 		)
 	}
 	api.Auditor.Store(&options.Auditor)
+
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
+	api.tailnet = newServerTailnet(options.Logger, options.DERPMap, &api.TailnetCoordinator, api.workspaceAgentCache)
+
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
@@ -719,6 +722,7 @@ type API struct {
 	metricsCache        *metricscache.Cache
 	workspaceAgentCache *wsconncache.Cache
 	updateChecker       *updatecheck.Checker
+	tailnet             *serverTailnet
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.

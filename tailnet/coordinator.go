@@ -39,6 +39,8 @@ type Coordinator interface {
 	// incoming connections and publishes node updates.
 	// Name is just used for debug information. It can be left blank.
 	ServeAgent(conn net.Conn, id uuid.UUID, name string) error
+	SubscribeAgent(agentID uuid.UUID, cb func(agentID uuid.UUID, node *Node)) func()
+	BroadcastToAgents(agents []uuid.UUID, node *Node) error
 	// Close closes the coordinator.
 	Close() error
 }
@@ -51,17 +53,18 @@ type Node struct {
 	AsOf time.Time `json:"as_of"`
 	// Key is the Wireguard public key of the node.
 	Key key.NodePublic `json:"key"`
-	// DiscoKey is used for discovery messages over DERP to establish peer-to-peer connections.
+	// DiscoKey is used for discovery messages over DERP to establish
+	// peer-to-peer connections.
 	DiscoKey key.DiscoPublic `json:"disco"`
-	// PreferredDERP is the DERP server that peered connections
-	// should meet at to establish.
+	// PreferredDERP is the DERP server that peered connections should meet at
+	// to establish.
 	PreferredDERP int `json:"preferred_derp"`
 	// DERPLatency is the latency in seconds to each DERP server.
 	DERPLatency map[string]float64 `json:"derp_latency"`
 	// Addresses are the IP address ranges this connection exposes.
 	Addresses []netip.Prefix `json:"addresses"`
-	// AllowedIPs specify what addresses can dial the connection.
-	// We allow all by default.
+	// AllowedIPs specify what addresses can dial the connection. We allow all
+	// by default.
 	AllowedIPs []netip.Prefix `json:"allowed_ips"`
 	// Endpoints are ip:port combinations that can be used to establish
 	// peer-to-peer connections.
@@ -129,8 +132,8 @@ func NewCoordinator() Coordinator {
 // ┌──────────────────┐   ┌────────────────────┐   ┌───────────────────┐   ┌──────────────────┐
 // │tailnet.Coordinate├──►│tailnet.AcceptClient│◄─►│tailnet.AcceptAgent│◄──┤tailnet.Coordinate│
 // └──────────────────┘   └────────────────────┘   └───────────────────┘   └──────────────────┘
-// This coordinator is incompatible with multiple Coder
-// replicas as all node data is in-memory.
+// This coordinator is incompatible with multiple Coder replicas as all node
+// data is in-memory.
 type coordinator struct {
 	mutex  sync.RWMutex
 	closed bool
@@ -146,6 +149,8 @@ type coordinator struct {
 	// agentNameCache holds a cache of agent names. If one of them disappears,
 	// it's helpful to have a name cached for debugging.
 	agentNameCache *lru.Cache[uuid.UUID, string]
+
+	agentCallbacks map[uuid.UUID]map[uuid.UUID]func(uuid.UUID, *Node)
 }
 
 type TrackedConn struct {
@@ -407,6 +412,16 @@ func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder
 		}()
 	}
 
+	cbs := c.agentCallbacks[id]
+	wg.Add(len(cbs))
+	for _, cb := range cbs {
+		cb := cb
+		go func() {
+			cb(id, &node)
+			wg.Done()
+		}()
+	}
+
 	c.mutex.Unlock()
 	wg.Wait()
 	return nil
@@ -580,4 +595,51 @@ func CoordinatorHTTPDebug(
 			_, _ = fmt.Fprintln(w, "</ul>")
 		}
 	}
+}
+
+func (c *coordinator) SubscribeAgent(agentID uuid.UUID, cb func(agentID uuid.UUID, node *Node)) func() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	id := uuid.New()
+	cbMap, ok := c.agentCallbacks[agentID]
+	if !ok {
+		cbMap = map[uuid.UUID]func(uuid.UUID, *Node){}
+		c.agentCallbacks[agentID] = cbMap
+	}
+
+	cbMap[id] = cb
+
+	return func() {
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
+		delete(cbMap, id)
+	}
+}
+
+func (c *coordinator) BroadcastToAgents(agents []uuid.UUID, node *Node) error {
+	for _, id := range agents {
+		c.mutex.Lock()
+		agentSocket, ok := c.agentSockets[id]
+		c.mutex.Unlock()
+		if !ok {
+			continue
+		}
+
+		// Write the new node from this client to the actively connected agent.
+		data, err := json.Marshal([]*Node{node})
+		if err != nil {
+			return xerrors.Errorf("marshal nodes: %w", err)
+		}
+
+		_, err = agentSocket.Write(data)
+		if err != nil {
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
+				return nil
+			}
+			return xerrors.Errorf("write json: %w", err)
+		}
+	}
+
+	return nil
 }
