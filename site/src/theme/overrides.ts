@@ -1,4 +1,4 @@
-import { lighten, Theme, StyleRules } from "@material-ui/core/styles"
+import { Theme, StyleRules } from "@material-ui/core/styles"
 import { Overrides } from "@material-ui/core/styles/overrides"
 import { SkeletonClassKey } from "@material-ui/lab"
 import { colors } from "./colors"
@@ -57,17 +57,20 @@ export const getOverrides = ({
       contained: {
         boxShadow: "none",
         color: palette.text.primary,
-        backgroundColor: colors.gray[17],
+        backgroundColor: colors.gray[11],
+        borderColor: colors.gray[10],
 
-        "&:hover": {
+        "&:hover:not(:disabled)": {
           boxShadow: "none",
-          backgroundColor: colors.gray[17],
-          borderColor: lighten(palette.divider, 0.2),
+          backgroundColor: colors.gray[12],
+          borderColor: colors.gray[12],
         },
 
         "&.Mui-disabled": {
-          backgroundColor: palette.background.paper,
-          color: palette.secondary.main,
+          color: colors.gray[9],
+          backgroundColor: colors.gray[14],
+          pointerEvents: "auto",
+          cursor: "not-allowed",
         },
       },
       sizeSmall: {
@@ -89,10 +92,17 @@ export const getOverrides = ({
         },
       },
       outlined: {
-        border: `1px solid ${palette.divider}`,
+        border: `1px solid ${colors.gray[11]}`,
 
-        "&:hover": {
-          backgroundColor: palette.action.hover,
+        "&:hover:not(:disabled)": {
+          backgroundColor: colors.gray[14],
+        },
+
+        "&.Mui-disabled": {
+          color: colors.gray[9],
+          border: `1px solid ${colors.gray[12]}`,
+          pointerEvents: "auto",
+          cursor: "not-allowed",
         },
       },
     },

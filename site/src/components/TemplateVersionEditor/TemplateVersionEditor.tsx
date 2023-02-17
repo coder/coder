@@ -2,9 +2,9 @@ import Button from "@material-ui/core/Button"
 import IconButton from "@material-ui/core/IconButton"
 import { makeStyles, Theme } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
-import CreateIcon from "@material-ui/icons/AddBox"
+import CreateIcon from "@material-ui/icons/AddBoxOutlined"
 import BuildIcon from "@material-ui/icons/BuildOutlined"
-import PreviewIcon from "@material-ui/icons/Visibility"
+import PreviewIcon from "@material-ui/icons/VisibilityOutlined"
 import {
   ProvisionerJobLog,
   Template,
@@ -50,7 +50,7 @@ export interface TemplateVersionEditorProps {
   onUpdate: () => void
 }
 
-const topbarHeight = navHeight
+const topbarHeight = 80
 
 const findInitialFile = (fileTree: FileTree): string | undefined => {
   let initialFile: string | undefined
@@ -161,28 +161,26 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               )
             }
           />
-          <div>Used By: {template.active_user_count} developers</div>
         </div>
 
         <div className={styles.topbarSides}>
           <div className={styles.buildStatus}>
-            Build Status:
             <TemplateVersionStatusBadge version={templateVersion} />
           </div>
 
           <Button
+            title="Build template (Ctrl + Enter)"
             size="small"
             variant="outlined"
-            color="primary"
             disabled={disablePreview}
             onClick={() => {
               triggerPreview()
             }}
           >
-            Build (Ctrl + Enter)
+            Build template
           </Button>
 
-          <Tooltip
+          <Button
             title={
               dirty
                 ? "You have edited files! Run another build before updating."
@@ -190,21 +188,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 ? "Something"
                 : ""
             }
+            size="small"
+            disabled={dirty || disableUpdate}
+            onClick={onUpdate}
           >
-            <span>
-              <Button
-                size="small"
-                variant="contained"
-                color="primary"
-                disabled={dirty || disableUpdate}
-                onClick={() => {
-                  onUpdate()
-                }}
-              >
-                Publish New Version
-              </Button>
-            </span>
-          </Tooltip>
+            Publish version
+          </Button>
         </div>
       </div>
 
@@ -413,11 +402,12 @@ const useStyles = makeStyles<
     alignItems: "center",
     justifyContent: "space-between",
     height: topbarHeight,
+    background: theme.palette.background.paper,
   },
   topbarSides: {
     display: "flex",
     alignItems: "center",
-    gap: 16,
+    gap: theme.spacing(2),
   },
   buildStatus: {
     display: "flex",
