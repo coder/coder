@@ -28,4 +28,8 @@ export const CanUpdate = Template.bind({})
 CanUpdate.args = {}
 
 export const CanNotUpdate = Template.bind({})
-CanNotUpdate.args = {}
+CanNotUpdate.args = {
+  permissions: {
+    canUpdateTemplate: false,
+  },
+}
