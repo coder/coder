@@ -100,9 +100,10 @@ export const tokensMachine = createMachine(
   },
   {
     services: {
-      getTokens: () => getTokens({
-        include_all: false,
-      }),
+      getTokens: () =>
+        getTokens({
+          include_all: false,
+        }),
       deleteToken: (context) => {
         if (context.deleteTokenId === undefined) {
           return Promise.reject("No token id to delete")
