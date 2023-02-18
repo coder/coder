@@ -164,30 +164,34 @@ func categorizeFlags(usageOutput string) string {
 	var prevBody string
 
 	for _, cat := range flagCategories {
-		if buf, ok := categories[cat.name]; ok {
-			// If the last line of the previous category is a single-line flag,
-			// then it isn't indented, and an additional newline is necessary to
-			// make the output readable.
-			if prevBody != "" {
-				prevBodyLines := strings.Split(strings.TrimSpace(prevBody), "\n")
-				if len(prevBodyLines) > 0 {
-					lastLine := prevBodyLines[len(prevBodyLines)-1]
-					if strings.HasPrefix(strings.TrimSpace(lastLine), "-") {
-						_, _ = out.WriteString("\n")
-					}
+		buf, ok := categories[cat.name]
+		if !ok {
+			continue
+		}
+
+		// If the last line of the previous category is a single-line flag,
+		// then it isn't indented, and an additional newline is necessary to
+		// make the output readable.
+		if prevBody != "" {
+			prevBodyLines := strings.Split(strings.TrimSpace(prevBody), "\n")
+			if len(prevBodyLines) > 0 {
+				lastLine := prevBodyLines[len(prevBodyLines)-1]
+				if strings.HasPrefix(strings.TrimSpace(lastLine), "-") {
+					_, _ = out.WriteString("\n")
 				}
 			}
-
-			if len(categories) == 1 {
-				// Don't bother qualifying list if there's only one category.
-				_, _ = fmt.Fprintf(&out, "%s\n", usageHeader("Flags:"))
-			} else {
-				_, _ = fmt.Fprintf(&out, "%s\n", usageHeader(cat.name+" Flags:"))
-			}
-			body := buf.String()
-			_, _ = out.WriteString(body)
-			prevBody = body
 		}
+
+		if len(categories) == 1 {
+			// Don't bother qualifying list name if there's only one category.
+			_, _ = fmt.Fprintf(&out, "%s\n", usageHeader("Flags:"))
+		} else {
+			_, _ = fmt.Fprintf(&out, "%s\n", usageHeader(cat.name+" Flags:"))
+		}
+
+		body := buf.String()
+		_, _ = out.WriteString(body)
+		prevBody = body
 	}
 
 	return out.String()
