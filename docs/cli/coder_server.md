@@ -11,16 +11,8 @@ coder server [flags]
 ```
       --access-url string                                 External URL to access your deployment. This must be accessible by all provisioned workspaces.
                                                           Consumes $CODER_ACCESS_URL
-      --api-rate-limit int                                Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints have separate strict rate limits regardless of this value to prevent denial-of-service or brute force attacks.
-                                                          Consumes $CODER_API_RATE_LIMIT (default 512)
       --cache-dir string                                  The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.
                                                           Consumes $CODER_CACHE_DIRECTORY (default "~/.cache/coder")
-      --dangerous-allow-path-app-sharing                  Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
-                                                          Consumes $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING
-      --dangerous-allow-path-app-site-owner-access        Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
-                                                          Consumes $CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS
-      --dangerous-disable-rate-limits                     Disables all rate limits. This is not recommended in production.
-                                                          Consumes $CODER_RATE_LIMIT_DISABLE_ALL
       --derp-config-path string                           Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/
                                                           Consumes $CODER_DERP_CONFIG_PATH
       --derp-config-url string                            URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/
