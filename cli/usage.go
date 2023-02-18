@@ -54,8 +54,8 @@ type flagCategory struct {
 	matchers []*regexp.Regexp
 }
 
-// flagCategories are evaluated by categorizeFlags in order. The first matched
-// category is used for each flag declaration.
+// flagCategories are evaluated by categorizeFlags in order. Evaluation ends
+// once the first category is matched.
 var flagCategories = []flagCategory{
 	{
 		name: "Networking",
@@ -124,22 +124,27 @@ func categorizeFlags(usageOutput string) string {
 
 		for _, cat := range flagCategories {
 			for _, matcher := range cat.matchers {
-				if matcher.MatchString(currentFlag.String()) {
-					if _, ok := categories[cat.name]; !ok {
-						categories[cat.name] = &bytes.Buffer{}
-					}
-					if os.Getenv("DEBUG_FLAG_CATEGORIZATION") != "" {
-						_, _ = os.Stderr.WriteString(
-							fmt.Sprintf(
-								"--- \n%s\nwas matched by `%s`\n---\n",
-								currentFlag.String(), matcher.String(),
-							),
-						)
-					}
-					_, _ = categories[cat.name].WriteString(currentFlag.String())
-					currentFlag.Reset()
-					return
+				if !matcher.MatchString(currentFlag.String()) {
+					continue
 				}
+
+				catBuf, ok := categories[cat.name]
+				if !ok {
+					catBuf = &bytes.Buffer{}
+					categories[cat.name] = catBuf
+				}
+
+				if os.Getenv("DEBUG_FLAG_CATEGORIZATION") != "" {
+					_, _ = os.Stderr.WriteString(
+						fmt.Sprintf(
+							"--- \n%s\nwas matched by `%s`\n---\n",
+							currentFlag.String(), matcher.String(),
+						),
+					)
+				}
+
+				_, _ = currentFlag.WriteTo(catBuf)
+				return
 			}
 		}
 
