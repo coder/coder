@@ -143,7 +143,7 @@ func updatePrometheusDoc(doc []byte, metricFamilies []dto.MetricFamily) ([]byte,
 func writePrometheusDoc(doc []byte) error {
 	// G306: Expect WriteFile permissions to be 0600 or less
 	/* #nosec G306 */
-	err := os.WriteFile(prometheusDocFile, doc, 0644)
+	err := os.WriteFile(prometheusDocFile, doc, 0o644)
 	if err != nil {
 		return err
 	}

@@ -64,9 +64,7 @@ const (
 	envURL              = "CODER_URL"
 )
 
-var (
-	errUnauthenticated = xerrors.New(notLoggedInMessage)
-)
+var errUnauthenticated = xerrors.New(notLoggedInMessage)
 
 func init() {
 	// Set cobra template functions in init to avoid conflicts in tests.

@@ -67,7 +67,7 @@ func templateInit() *cobra.Command {
 				relPath = "./" + relPath
 			}
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Extracting %s to %s...\n", cliui.Styles.Field.Render(selectedTemplate.ID), relPath)
-			err = os.MkdirAll(directory, 0700)
+			err = os.MkdirAll(directory, 0o700)
 			if err != nil {
 				return err
 			}

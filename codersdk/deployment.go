@@ -432,13 +432,11 @@ const (
 	// ExperimentExample Experiment = "example"
 )
 
-var (
-	// ExperimentsAll should include all experiments that are safe for
-	// users to opt-in to via --experimental='*'.
-	// Experiments that are not ready for consumption by all users should
-	// not be included here and will be essentially hidden.
-	ExperimentsAll = Experiments{ExperimentTemplateEditor}
-)
+// ExperimentsAll should include all experiments that are safe for
+// users to opt-in to via --experimental='*'.
+// Experiments that are not ready for consumption by all users should
+// not be included here and will be essentially hidden.
+var ExperimentsAll = Experiments{ExperimentTemplateEditor}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.

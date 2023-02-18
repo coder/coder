@@ -111,8 +111,10 @@ func (s Schedule) Next(t time.Time) time.Time {
 	return s.sched.Next(t)
 }
 
-var t0 = time.Date(1970, 1, 1, 1, 1, 1, 0, time.UTC)
-var tMax = t0.Add(168 * time.Hour)
+var (
+	t0   = time.Date(1970, 1, 1, 1, 1, 1, 0, time.UTC)
+	tMax = t0.Add(168 * time.Hour)
+)
 
 // Min returns the minimum duration of the schedule.
 // This is calculated as follows:

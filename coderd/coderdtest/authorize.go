@@ -693,6 +693,7 @@ func (s *PreparedRecorder) Authorize(ctx context.Context, object rbac.Object) er
 	}
 	return s.prepped.Authorize(ctx, object)
 }
+
 func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
 	s.rw.Lock()
 	defer s.rw.Unlock()

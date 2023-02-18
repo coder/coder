@@ -187,7 +187,6 @@ func (c *Cache) refresh(ctx context.Context) error {
 				Valid: true,
 			},
 		})
-
 		if err != nil {
 			return err
 		}

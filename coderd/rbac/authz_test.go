@@ -118,7 +118,7 @@ func BenchmarkRBACAuthorize(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				allowed := authorizer.Authorize(context.Background(), c.Actor, rbac.ActionRead, objects[b.N%len(objects)])
-				var _ = allowed
+				_ = allowed
 			}
 		})
 	}
@@ -170,7 +170,7 @@ func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				allowed := authorizer.Authorize(context.Background(), c.Actor, neverMatchAction, objects[b.N%len(objects)])
-				var _ = allowed
+				_ = allowed
 			}
 		})
 	}
@@ -206,7 +206,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 			b.ResetTimer()
 			allowed, err := rbac.Filter(context.Background(), authorizer, c.Actor, rbac.ActionRead, objects)
 			require.NoError(b, err)
-			var _ = allowed
+			_ = allowed
 		})
 	}
 }
