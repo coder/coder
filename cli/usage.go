@@ -40,6 +40,7 @@ func isWorkspaceCommand(cmd *cobra.Command) bool {
 	})
 	return ws
 }
+
 func ttyWidth() int {
 	_, cols, err := pty.Getsize(os.Stderr)
 	if err != nil {
