@@ -375,6 +375,7 @@ fmt/go:
 	# VS Code users should check out
 	# https://github.com/mvdan/gofumpt#visual-studio-code
 	go run mvdan.cc/gofumpt@v0.4.0 -w -l .
+.PHONY: fmt/go
 
 fmt/prettier:
 	echo "--- prettier"
