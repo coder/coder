@@ -4,7 +4,6 @@ Usage:
   coder ping <workspace> [flags]
 
 Flags:
-  -h, --help               help for ping
   -n, --num int            Specifies the number of pings to perform. (default 10)
   -t, --timeout duration   Specifies how long to wait for a ping to complete. (default 5s)
   -v, --verbose            Enables verbose logging.

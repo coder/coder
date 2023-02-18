@@ -32,8 +32,7 @@ Commands:
   push        Push a new template version from the current directory or as specified by flag
   versions    Manage different versions of the specified template
 
-Flags:
-  -h, --help   help for templates
+
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

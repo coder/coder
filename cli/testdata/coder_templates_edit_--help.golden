@@ -10,7 +10,6 @@ Flags:
                                            workspaces created from this template to this value.
       --description string                 Edit the template description
       --display-name string                Edit the template display name
-  -h, --help                               help for edit
       --icon string                        Edit the template icon path
       --name string                        Edit the template name
   -y, --yes                                Bypass prompts

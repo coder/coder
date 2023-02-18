@@ -11,7 +11,6 @@ Other Flags:
                                       template. (default 24h0m0s)
   -d, --directory string              Specify the directory to create from, use '-' to read
                                       tar from stdin (default "[current directory]")
-  -h, --help                          help for create
       --parameter-file string         Specify a file path with parameter values.
       --variable stringArray          Specify a set of values for Terraform-managed variables.
       --variables-file string         Specify a file path with values for Terraform-managed

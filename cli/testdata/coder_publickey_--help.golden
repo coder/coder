@@ -7,7 +7,6 @@ Aliases:
   publickey, pubkey
 
 Flags:
-  -h, --help    help for publickey
       --reset   Regenerate your public key. This will require updating the key on any services
                 it's registered with.
   -y, --yes     Bypass prompts

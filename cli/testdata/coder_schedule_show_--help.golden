@@ -7,8 +7,7 @@ Shows the following information for the given workspace:
 Usage:
   coder schedule show <workspace-name> [flags]
 
-Flags:
-  -h, --help   help for show
+
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

@@ -16,7 +16,6 @@ Get Started:
 Flags:
   -n, --dry-run                  Perform a trial run with no changes made, showing a diff at
                                  the end.
-  -h, --help                     help for config-ssh
       --ssh-config-file string   Specifies the path to an SSH config.
                                  Consumes $CODER_SSH_CONFIG_FILE (default "~/.ssh/config")
   -o, --ssh-option stringArray   Specifies additional SSH options to embed in each host stanza.

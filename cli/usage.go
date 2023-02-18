@@ -119,7 +119,14 @@ func categorizeFlags(usageOutput string) string {
 		categories  = make(map[string]*bytes.Buffer)
 	)
 	flushCurrentFlag := func() {
+		defer currentFlag.Reset()
+
 		if currentFlag.Len() == 0 {
+			return
+		}
+
+		// Help is a bit redundant.
+		if strings.Contains(currentFlag.String(), "-h, --help") {
 			return
 		}
 

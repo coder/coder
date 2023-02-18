@@ -4,7 +4,6 @@ Usage:
   coder stop <workspace> [flags]
 
 Flags:
-  -h, --help   help for stop
   -y, --yes    Bypass prompts
 
 Global Flags:

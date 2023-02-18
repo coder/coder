@@ -4,7 +4,6 @@ Usage:
   coder templates delete [name...] [flags]
 
 Flags:
-  -h, --help   help for delete
   -y, --yes    Bypass prompts
 
 Global Flags:

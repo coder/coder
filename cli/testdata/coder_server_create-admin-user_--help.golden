@@ -6,7 +6,6 @@ Usage:
 Flags:
       --email string                  The email of the new user. If not specified, you will be
                                       prompted via stdin. Consumes $CODER_EMAIL.
-  -h, --help                          help for create-admin-user
       --password string               The password of the new user. If not specified, you will
                                       be prompted via stdin. Consumes $CODER_PASSWORD.
       --postgres-url string           URL of a PostgreSQL database. If empty, the built-in

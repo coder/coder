@@ -11,8 +11,7 @@ Commands:
   start         Edit workspace start schedule
   stop          Edit workspace stop schedule
 
-Flags:
-  -h, --help   help for schedule
+
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

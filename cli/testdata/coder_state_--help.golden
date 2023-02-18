@@ -9,8 +9,7 @@ Commands:
   pull        
   push        
 
-Flags:
-  -h, --help   help for state
+
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

@@ -3,8 +3,7 @@ Plan a template push from the current directory
 Usage:
   coder templates plan <directory> [flags]
 
-Flags:
-  -h, --help   help for plan
+
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

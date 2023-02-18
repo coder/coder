@@ -3,8 +3,7 @@ Display details of a workspace's resources and agents
 Usage:
   coder show <workspace> [flags]
 
-Flags:
-  -h, --help   help for show
+
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

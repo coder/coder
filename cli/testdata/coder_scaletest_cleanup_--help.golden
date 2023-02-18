@@ -12,7 +12,6 @@ Flags:
                                        Consumes $CODER_LOADTEST_CLEANUP_JOB_TIMEOUT (default 5m0s)
       --cleanup-timeout duration       Timeout for the entire cleanup run. 0 means unlimited.
                                        Consumes $CODER_LOADTEST_CLEANUP_TIMEOUT (default 30m0s)
-  -h, --help                           help for cleanup
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

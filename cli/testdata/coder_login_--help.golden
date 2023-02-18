@@ -16,7 +16,6 @@ Flags:
       --first-user-username string   Specifies a username to use if creating the first user
                                      for the deployment.
                                      Consumes $CODER_FIRST_USER_USERNAME
-  -h, --help                         help for login
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

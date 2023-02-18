@@ -4,7 +4,6 @@ Usage:
   coder rename <workspace> <new name> [flags]
 
 Flags:
-  -h, --help   help for rename
   -y, --yes    Bypass prompts
 
 Global Flags:

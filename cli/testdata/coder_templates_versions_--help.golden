@@ -16,8 +16,7 @@ Get Started:
 Commands:
   list        List all the versions of the specified template
 
-Flags:
-  -h, --help   help for versions
+
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

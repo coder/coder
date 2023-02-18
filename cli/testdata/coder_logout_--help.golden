@@ -4,7 +4,6 @@ Usage:
   coder logout [flags]
 
 Flags:
-  -h, --help   help for logout
   -y, --yes    Bypass prompts
 
 Global Flags:

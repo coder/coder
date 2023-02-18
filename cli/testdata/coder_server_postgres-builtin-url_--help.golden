@@ -4,7 +4,6 @@ Usage:
   coder server postgres-builtin-url [flags]
 
 Flags:
-  -h, --help      help for postgres-builtin-url
       --raw-url   Output the raw connection URL instead of a psql command.
 
 Global Flags:

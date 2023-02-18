@@ -9,8 +9,7 @@ Usage:
 Get Started:
   [;m$ coder schedule override-stop my-workspace 90m[0m 
 
-Flags:
-  -h, --help   help for override-stop
+
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

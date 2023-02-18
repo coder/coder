@@ -26,8 +26,7 @@ Commands:
   list        List tokens
   remove      Delete a token
 
-Flags:
-  -h, --help   help for tokens
+
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

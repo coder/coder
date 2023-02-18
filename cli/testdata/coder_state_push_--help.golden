@@ -3,7 +3,6 @@ Usage:
 
 Flags:
   -b, --build int   Specify a workspace build to target by name.
-  -h, --help        help for push
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

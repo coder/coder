@@ -5,7 +5,6 @@ Usage:
 
 Flags:
   -d, --direct          Specifies whether to wait for a direct connection before testing speed.
-  -h, --help            help for speedtest
   -r, --reverse         Specifies whether to run in reverse mode where the client receives and
                         the server sends.
   -t, --time duration   Specifies the duration to monitor traffic. (default 5s)

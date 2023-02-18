@@ -12,7 +12,6 @@ Flags:
                          template, status, last built, outdated, starts at, stops after
                          (default [workspace,template,status,last built,outdated,starts
                          at,stops after])
-  -h, --help             help for list
   -o, --output string    Output format. Available formats: table, json (default "table")
       --search string    Search for a workspace with a query. (default "owner:me")
 

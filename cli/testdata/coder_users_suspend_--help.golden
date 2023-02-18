@@ -12,7 +12,6 @@ Get Started:
 Flags:
   -c, --column stringArray   Specify a column to filter in the table. (default
                              [username,email,created_at,status])
-  -h, --help                 help for suspend
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

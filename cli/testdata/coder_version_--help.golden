@@ -3,8 +3,7 @@ Show coder version
 Usage:
   coder version [flags]
 
-Flags:
-  -h, --help   help for version
+
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

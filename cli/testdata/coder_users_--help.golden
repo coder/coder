@@ -15,8 +15,7 @@ Commands:
   show        Show a single user. Use 'me' to indicate the currently authenticated user.
   suspend     Update a user's status to 'suspended'. A suspended user cannot log into the platform
 
-Flags:
-  -h, --help   help for users
+
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

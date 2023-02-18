@@ -10,7 +10,6 @@ Operability Flags:
       --pprof-address string   The address to serve pprof.
                                Consumes $CODER_AGENT_PPROF_ADDRESS (default "127.0.0.1:6060")
 Other Flags:
-  -h, --help                   help for agent
       --no-reap                Do not start a process reaper.
 
 Global Flags:

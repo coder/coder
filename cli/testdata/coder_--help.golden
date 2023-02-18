@@ -56,7 +56,6 @@ Other Flags:
                               Consumes $CODER_CONFIG_DIR (default "~/.config/coderv2")
       --header stringArray    HTTP headers added to all requests. Provide as "Key=Value".
                               Consumes $CODER_HEADER
-  -h, --help                  help for coder
       --no-feature-warning    Suppress warnings about unlicensed features.
                               Consumes $CODER_NO_FEATURE_WARNING
       --no-version-warning    Suppress warning when client and server versions do not match.

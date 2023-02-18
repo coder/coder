@@ -3,7 +3,6 @@ Usage:
 
 Flags:
   -e, --email string      Specifies an email address for the new user.
-  -h, --help              help for create
   -p, --password string   Specifies a password for the new user.
   -u, --username string   Specifies a username for the new user.
 

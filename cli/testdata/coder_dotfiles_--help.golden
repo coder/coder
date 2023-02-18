@@ -9,7 +9,6 @@ Get Started:
       [;m$ coder dotfiles --yes git@github.com:example/dotfiles.git[0m 
 
 Flags:
-  -h, --help                 help for dotfiles
       --symlink-dir string   Specifies the directory for the dotfiles symlink destinations. If
                              empty will use $HOME.
                              Consumes $CODER_SYMLINK_DIR

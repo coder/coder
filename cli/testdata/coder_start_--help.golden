@@ -4,7 +4,6 @@ Usage:
   coder start <workspace> [flags]
 
 Flags:
-  -h, --help   help for start
   -y, --yes    Bypass prompts
 
 Global Flags:

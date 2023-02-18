@@ -9,8 +9,7 @@ Commands:
   cleanup           Cleanup any orphaned scaletest resources
   create-workspaces Creates many workspaces and waits for them to be ready
 
-Flags:
-  -h, --help   help for scaletest
+
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

@@ -6,8 +6,7 @@ Usage:
 Aliases:
   remove, rm
 
-Flags:
-  -h, --help   help for remove
+
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

@@ -3,8 +3,7 @@ Get started with a templated template.
 Usage:
   coder templates init [directory] [flags]
 
-Flags:
-  -h, --help   help for init
+
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

@@ -326,7 +326,6 @@ Other Flags:
                                                           commas, or enter '*' to opt-in to
                                                           all available experiments.
                                                           Consumes $CODER_EXPERIMENTS
-  -h, --help                                              help for server
       --postgres-url string                               URL of a PostgreSQL database. If
                                                           empty, PostgreSQL binaries will be
                                                           downloaded from Maven

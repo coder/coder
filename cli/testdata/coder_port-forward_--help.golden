@@ -26,7 +26,6 @@ Get Started:
       [;m$ coder port-forward <workspace> --tcp 8080,9000:3000,9090-9092,10000-10002:10010-10012[0m 
 
 Flags:
-  -h, --help              help for port-forward
   -p, --tcp stringArray   Forward TCP port(s) from the workspace to the local machine.
                           Consumes $CODER_PORT_FORWARD_TCP
       --udp stringArray   Forward UDP port(s) from the workspace to the local machine. The UDP

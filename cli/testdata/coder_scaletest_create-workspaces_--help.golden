@@ -57,7 +57,6 @@ Other Flags:
                                              Consumes $CODER_LOADTEST_CONNECT_URL
   -c, --count int                            Required: Number of workspaces to create.
                                              Consumes $CODER_LOADTEST_COUNT (default 1)
-  -h, --help                                 help for create-workspaces
       --job-timeout duration                 Timeout per job. Jobs may take longer to complete
                                              under higher concurrency limits.
                                              Consumes $CODER_LOADTEST_JOB_TIMEOUT (default 5m0s)

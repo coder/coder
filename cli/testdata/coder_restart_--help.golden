@@ -4,7 +4,6 @@ Usage:
   coder restart <workspace> [flags]
 
 Flags:
-  -h, --help   help for restart
   -y, --yes    Bypass prompts
 
 Global Flags:

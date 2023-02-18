@@ -15,7 +15,6 @@ Flags:
                                            a GPG agent is already running in the workspace, it
                                            will be attempted to be killed.
                                            Consumes $CODER_SSH_FORWARD_GPG
-  -h, --help                               help for ssh
       --identity-agent string              Specifies which identity agent to use (overrides
                                            $SSH_AUTH_SOCK), forward agent must also be
                                            enabled.

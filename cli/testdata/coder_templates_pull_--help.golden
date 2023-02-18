@@ -4,7 +4,6 @@ Usage:
   coder templates pull <name> [destination] [flags]
 
 Flags:
-  -h, --help   help for pull
   -y, --yes    Bypass prompts
 
 Global Flags:
