@@ -165,7 +165,6 @@ func (c *Client) TemplateVersionByOrganizationAndName(ctx context.Context, organ
 		fmt.Sprintf("/api/v2/organizations/%s/templates/%s/versions/%s", organizationID.String(), templateName, versionName),
 		nil,
 	)
-
 	if err != nil {
 		return TemplateVersion{}, xerrors.Errorf("execute request: %w", err)
 	}

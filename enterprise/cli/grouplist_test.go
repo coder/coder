@@ -67,7 +67,8 @@ func TestGroupList(t *testing.T) {
 		err = cmd.Execute()
 		require.NoError(t, err)
 
-		matches := []string{"NAME", "ORGANIZATION ID", "MEMBERS", " AVATAR URL",
+		matches := []string{
+			"NAME", "ORGANIZATION ID", "MEMBERS", " AVATAR URL",
 			group2.Name, group2.OrganizationID.String(), user2.Email, group2.AvatarURL,
 			group1.Name, group1.OrganizationID.String(), user1.Email, group1.AvatarURL,
 		}

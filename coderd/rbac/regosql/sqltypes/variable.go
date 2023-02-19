@@ -68,8 +68,10 @@ func RegoVarPath(path []string, terms []*ast.Term) ([]*ast.Term, error) {
 	return terms[len(path):], nil
 }
 
-var _ VariableMatcher = astStringVar{}
-var _ Node = astStringVar{}
+var (
+	_ VariableMatcher = astStringVar{}
+	_ Node            = astStringVar{}
+)
 
 // astStringVar is any variable that represents a string.
 type astStringVar struct {

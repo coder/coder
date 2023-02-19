@@ -33,9 +33,7 @@ const (
 	MissingParameterErrorText = "missing parameter"
 )
 
-var (
-	errUpdateSkipped = xerrors.New("update skipped; job complete or failed")
-)
+var errUpdateSkipped = xerrors.New("update skipped; job complete or failed")
 
 type Runner struct {
 	tracer              trace.Tracer
@@ -345,7 +343,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
-	err := r.filesystem.MkdirAll(r.workDirectory, 0700)
+	err := r.filesystem.MkdirAll(r.workDirectory, 0o700)
 	if err != nil {
 		return nil, r.failedJobf("create work directory %q: %s", r.workDirectory, err)
 	}
@@ -380,7 +378,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 		}
 		mode := header.FileInfo().Mode()
 		if mode == 0 {
-			mode = 0600
+			mode = 0o600
 		}
 		switch header.Typeflag {
 		case tar.TypeDir:

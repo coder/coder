@@ -15,9 +15,11 @@ type SupportsEquality interface {
 	EqualsSQLString(cfg *SQLGenerator, not bool, other Node) (string, error)
 }
 
-var _ BooleanNode = equality{}
-var _ Node = equality{}
-var _ SupportsEquality = equality{}
+var (
+	_ BooleanNode      = equality{}
+	_ Node             = equality{}
+	_ SupportsEquality = equality{}
+)
 
 type equality struct {
 	Left  Node
