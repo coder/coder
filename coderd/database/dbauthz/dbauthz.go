@@ -17,11 +17,9 @@ import (
 
 var _ database.Store = (*querier)(nil)
 
-var (
-	// NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
-	// response when the user is not authorized.
-	NoActorError = xerrors.Errorf("no authorization actor in context: %w", sql.ErrNoRows)
-)
+// NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
+// response when the user is not authorized.
+var NoActorError = xerrors.Errorf("no authorization actor in context: %w", sql.ErrNoRows)
 
 // NotAuthorizedError is a sentinel error that unwraps to sql.ErrNoRows.
 // This allows the internal error to be read by the caller if needed. Otherwise

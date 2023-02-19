@@ -127,7 +127,7 @@ func TestWorkspace(t *testing.T) {
 
 		const templateIcon = "/img/icon.svg"
 		const templateDisplayName = "This is template"
-		var templateAllowUserCancelWorkspaceJobs = false
+		templateAllowUserCancelWorkspaceJobs := false
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.Icon = templateIcon
 			ctr.DisplayName = templateDisplayName
@@ -1835,7 +1835,8 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 						},
 					},
 				},
-			}},
+			},
+		},
 		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{},

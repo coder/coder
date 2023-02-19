@@ -58,7 +58,7 @@ func statePull() *cobra.Command {
 				return nil
 			}
 
-			return os.WriteFile(args[1], state, 0600)
+			return os.WriteFile(args[1], state, 0o600)
 		},
 	}
 	cmd.Flags().IntVarP(&buildNumber, "build", "b", 0, "Specify a workspace build to target by name.")

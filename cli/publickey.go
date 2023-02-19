@@ -11,9 +11,7 @@ import (
 )
 
 func publickey() *cobra.Command {
-	var (
-		reset bool
-	)
+	var reset bool
 
 	cmd := &cobra.Command{
 		Use:     "publickey",

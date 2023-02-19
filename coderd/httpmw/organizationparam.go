@@ -11,8 +11,10 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-type organizationParamContextKey struct{}
-type organizationMemberParamContextKey struct{}
+type (
+	organizationParamContextKey       struct{}
+	organizationMemberParamContextKey struct{}
+)
 
 // OrganizationParam returns the organization from the ExtractOrganizationParam handler.
 func OrganizationParam(r *http.Request) database.Organization {

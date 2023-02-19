@@ -439,11 +439,13 @@ func (s *MethodTestSuite) TestParameters() {
 	s.Run("TemplateVersionTemplate/InsertParameterValue", s.Subtest(func(db database.Store, check *expects) {
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{})
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{JobID: j.ID,
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			JobID: j.ID,
 			TemplateID: uuid.NullUUID{
 				UUID:  tpl.ID,
 				Valid: true,
-			}},
+			},
+		},
 		)
 		check.Args(database.InsertParameterValueParams{
 			ScopeID:           j.ID,
@@ -528,12 +530,14 @@ func (s *MethodTestSuite) TestTemplate() {
 			ID:             tvid,
 			Name:           t1.Name,
 			OrganizationID: o1.ID,
-			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true}})
+			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
+		})
 		b := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			CreatedAt:      now.Add(-2 * time.Hour),
 			Name:           t1.Name,
 			OrganizationID: o1.ID,
-			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true}})
+			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
+		})
 		check.Args(database.GetPreviousTemplateVersionParams{
 			Name:           t1.Name,
 			OrganizationID: o1.ID,

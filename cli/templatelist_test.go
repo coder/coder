@@ -46,7 +46,7 @@ func TestTemplateList(t *testing.T) {
 		}()
 
 		// expect that templates are listed alphabetically
-		var templatesList = []string{firstTemplate.Name, secondTemplate.Name}
+		templatesList := []string{firstTemplate.Name, secondTemplate.Name}
 		sort.Strings(templatesList)
 
 		require.NoError(t, <-errC)

@@ -351,7 +351,8 @@ func TestCreateWithRichParameters(t *testing.T) {
 						},
 					},
 				},
-			}},
+			},
+		},
 		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{},
@@ -475,7 +476,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 							Parameters: richParameters,
 						},
 					},
-				}},
+				},
+			},
 			ProvisionApply: []*proto.Provision_Response{
 				{
 					Type: &proto.Provision_Response_Complete{

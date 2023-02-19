@@ -1,7 +1,9 @@
 package enums
 
-type Enum string
-type Enums []Enum
+type (
+	Enum  string
+	Enums []Enum
+)
 
 const (
 	EnumFoo Enum = "foo"

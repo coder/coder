@@ -74,7 +74,7 @@ func vscodeSSH() *cobra.Command {
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
 
-			err = fs.MkdirAll(networkInfoDir, 0700)
+			err = fs.MkdirAll(networkInfoDir, 0o700)
 			if err != nil {
 				return xerrors.Errorf("mkdir: %w", err)
 			}
@@ -168,7 +168,7 @@ func vscodeSSH() *cobra.Command {
 					sendErr(err)
 					return
 				}
-				err = afero.WriteFile(fs, networkInfoFilePath, rawStats, 0600)
+				err = afero.WriteFile(fs, networkInfoFilePath, rawStats, 0o600)
 				if err != nil {
 					sendErr(err)
 					return

@@ -780,8 +780,10 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		// only handle the empty interface for now
 		intf := ty
 		if intf.Empty() {
-			return TypescriptType{ValueType: "any",
-				AboveTypeLine: indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed")}, nil
+			return TypescriptType{
+				ValueType:     "any",
+				AboveTypeLine: indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed"),
+			}, nil
 		}
 		return TypescriptType{}, xerrors.New("only empty interface types are supported")
 	case *types.TypeParam:
