@@ -41,9 +41,9 @@ func TestVSCodeSSH(t *testing.T) {
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	fs := afero.NewMemMapFs()
-	err = afero.WriteFile(fs, "/url", []byte(client.URL.String()), 0600)
+	err = afero.WriteFile(fs, "/url", []byte(client.URL.String()), 0o600)
 	require.NoError(t, err)
-	err = afero.WriteFile(fs, "/token", []byte(client.SessionToken()), 0600)
+	err = afero.WriteFile(fs, "/token", []byte(client.SessionToken()), 0o600)
 	require.NoError(t, err)
 
 	cmd, _ := clitest.New(t,

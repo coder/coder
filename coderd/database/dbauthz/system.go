@@ -154,6 +154,7 @@ func (q *querier) DeleteOldAgentStats(ctx context.Context) error {
 func (q *querier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ParameterSchema, error) {
 	return q.db.GetParameterSchemasCreatedAfter(ctx, createdAt)
 }
+
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
 	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
 }

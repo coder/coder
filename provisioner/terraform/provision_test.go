@@ -228,7 +228,8 @@ func TestProvision(t *testing.T) {
 			Name: "missing-variable",
 			Files: map[string]string{
 				"main.tf": `variable "A" {
-			}`},
+			}`,
+			},
 			ErrorContains:     "terraform plan:",
 			ExpectLogContains: "No value for required variable",
 		},
@@ -401,9 +402,7 @@ func TestProvision(t *testing.T) {
 				planRequest.GetPlan().Config.Metadata = &proto.Provision_Metadata{}
 			}
 
-			var (
-				gotExpectedLog = testCase.ExpectLogContains == ""
-			)
+			gotExpectedLog := testCase.ExpectLogContains == ""
 
 			provision := func(req *proto.Provision_Request) *proto.Provision_Complete {
 				response, err := api.Provision(ctx)

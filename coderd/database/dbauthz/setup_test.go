@@ -25,12 +25,10 @@ import (
 	"github.com/coder/coder/coderd/util/slice"
 )
 
-var (
-	skipMethods = map[string]string{
-		"InTx": "Not relevant",
-		"Ping": "Not relevant",
-	}
-)
+var skipMethods = map[string]string{
+	"InTx": "Not relevant",
+	"Ping": "Not relevant",
+}
 
 // TestMethodTestSuite runs MethodTestSuite.
 // In order for 'go test' to run this suite, we need to create

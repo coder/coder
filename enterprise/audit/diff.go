@@ -47,9 +47,7 @@ func diffValues(left, right any, table Table) audit.Map {
 			rightI = rightF.Interface()
 		)
 
-		var (
-			diffName = field.FieldType.Tag.Get("json")
-		)
+		diffName := field.FieldType.Tag.Get("json")
 
 		atype, ok := diffKey[diffName]
 		if !ok {

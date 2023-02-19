@@ -30,8 +30,10 @@ type Runner struct {
 	workspacebuildRunner *workspacebuild.Runner
 }
 
-var _ harness.Runnable = &Runner{}
-var _ harness.Cleanable = &Runner{}
+var (
+	_ harness.Runnable  = &Runner{}
+	_ harness.Cleanable = &Runner{}
+)
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{

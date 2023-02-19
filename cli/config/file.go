@@ -60,7 +60,7 @@ func (f File) Delete() error {
 
 // Write writes the string to the file.
 func (f File) Write(s string) error {
-	return write(string(f), 0600, []byte(s))
+	return write(string(f), 0o600, []byte(s))
 }
 
 // Read reads the file to a string.
@@ -72,7 +72,7 @@ func (f File) Read() (string, error) {
 // open opens a file in the configuration directory,
 // creating all intermediate directories.
 func open(path string, flag int, mode os.FileMode) (*os.File, error) {
-	err := os.MkdirAll(filepath.Dir(path), 0750)
+	err := os.MkdirAll(filepath.Dir(path), 0o750)
 	if err != nil {
 		return nil, err
 	}

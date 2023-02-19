@@ -21,8 +21,10 @@ type fakeTracer struct {
 	startCalled int64
 }
 
-var _ trace.TracerProvider = &fakeTracer{}
-var _ trace.Tracer = &fakeTracer{}
+var (
+	_ trace.TracerProvider = &fakeTracer{}
+	_ trace.Tracer         = &fakeTracer{}
+)
 
 // Tracer implements trace.TracerProvider.
 func (f *fakeTracer) Tracer(_ string, _ ...trace.TracerOption) trace.Tracer {

@@ -607,14 +607,12 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			res, err := client.WorkspaceAgentListeningPorts(ctx, agentID)
 			require.NoError(t, err)
 
-			var (
-				expected = map[uint16]bool{
-					// expect the listener we made
-					lPort: false,
-					// expect the coderdtest server
-					coderdPort: false,
-				}
-			)
+			expected := map[uint16]bool{
+				// expect the listener we made
+				lPort: false,
+				// expect the coderdtest server
+				coderdPort: false,
+			}
 			for _, port := range res.Ports {
 				if port.Network == "tcp" {
 					if val, ok := expected[port.Port]; ok {
