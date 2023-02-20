@@ -4349,6 +4349,7 @@ Parameter represents a set value for the scope.
   "display_name": "string",
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
@@ -4358,24 +4359,25 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                               | Type                                                               | Required | Restrictions | Description                                  |
-| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | -------------------------------------------- |
-| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading. |
-| `active_version_id`                | string                                                             | false    |              |                                              |
-| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                              |
-| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                              |
-| `created_at`                       | string                                                             | false    |              |                                              |
-| `created_by_id`                    | string                                                             | false    |              |                                              |
-| `created_by_name`                  | string                                                             | false    |              |                                              |
-| `default_ttl_ms`                   | integer                                                            | false    |              |                                              |
-| `description`                      | string                                                             | false    |              |                                              |
-| `display_name`                     | string                                                             | false    |              |                                              |
-| `icon`                             | string                                                             | false    |              |                                              |
-| `id`                               | string                                                             | false    |              |                                              |
-| `name`                             | string                                                             | false    |              |                                              |
-| `organization_id`                  | string                                                             | false    |              |                                              |
-| `provisioner`                      | string                                                             | false    |              |                                              |
-| `updated_at`                       | string                                                             | false    |              |                                              |
+| Name                               | Type                                                               | Required | Restrictions | Description                                                                                                                               |
+| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading.                                                                                              |
+| `active_version_id`                | string                                                             | false    |              |                                                                                                                                           |
+| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                                                                                                                           |
+| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                           |
+| `created_at`                       | string                                                             | false    |              |                                                                                                                                           |
+| `created_by_id`                    | string                                                             | false    |              |                                                                                                                                           |
+| `created_by_name`                  | string                                                             | false    |              |                                                                                                                                           |
+| `default_ttl_ms`                   | integer                                                            | false    |              |                                                                                                                                           |
+| `description`                      | string                                                             | false    |              |                                                                                                                                           |
+| `display_name`                     | string                                                             | false    |              |                                                                                                                                           |
+| `icon`                             | string                                                             | false    |              |                                                                                                                                           |
+| `id`                               | string                                                             | false    |              |                                                                                                                                           |
+| `max_ttl_ms`                       | integer                                                            | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature. |
+| `name`                             | string                                                             | false    |              |                                                                                                                                           |
+| `organization_id`                  | string                                                             | false    |              |                                                                                                                                           |
+| `provisioner`                      | string                                                             | false    |              |                                                                                                                                           |
+| `updated_at`                       | string                                                             | false    |              |                                                                                                                                           |
 
 #### Enumerated Values
 

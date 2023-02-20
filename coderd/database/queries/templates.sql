@@ -102,11 +102,22 @@ UPDATE
 SET
 	updated_at = $2,
 	description = $3,
-	default_ttl = $4,
-	name = $5,
-	icon = $6,
-	display_name = $7,
-	allow_user_cancel_workspace_jobs = $8
+	name = $4,
+	icon = $5,
+	display_name = $6,
+	allow_user_cancel_workspace_jobs = $7
+WHERE
+	id = $1
+RETURNING
+	*;
+
+-- name: UpdateTemplateScheduleByID :one
+UPDATE
+	templates
+SET
+	updated_at = $2,
+	default_ttl = $3,
+	max_ttl = $4
 WHERE
 	id = $1
 RETURNING

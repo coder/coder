@@ -430,6 +430,30 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, updated.Icon, "")
 	})
+
+	t.Run("MaxTTLEnterpriseOnly", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.EqualValues(t, 0, template.MaxTTLMillis)
+		req := codersdk.UpdateTemplateMeta{
+			MaxTTLMillis: time.Hour.Milliseconds(),
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		require.EqualValues(t, 0, updated.MaxTTLMillis)
+
+		template, err = client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, 0, template.MaxTTLMillis)
+	})
 }
 
 func TestDeleteTemplate(t *testing.T) {

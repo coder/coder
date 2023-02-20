@@ -23,6 +23,7 @@ type TemplateScheduleOptions struct {
 // scheduling options set by the template/site admin.
 type TemplateScheduleStore interface {
 	GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error)
+	SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, opts TemplateScheduleOptions) (database.Template, error)
 }
 
 type agplTemplateScheduleStore struct{}
@@ -33,7 +34,7 @@ func NewAGPLTemplateScheduleStore() TemplateScheduleStore {
 	return &agplTemplateScheduleStore{}
 }
 
-func (s *agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error) {
+func (*agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error) {
 	tpl, err := db.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return TemplateScheduleOptions{}, err
@@ -42,6 +43,19 @@ func (s *agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Conte
 	return TemplateScheduleOptions{
 		UserSchedulingEnabled: true,
 		DefaultTTL:            time.Duration(tpl.DefaultTTL),
-		MaxTTL:                0,
+		// Disregard the value in the database, since MaxTTL is an enterprise
+		// feature.
+		MaxTTL: 0,
 	}, nil
+}
+
+func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts TemplateScheduleOptions) (database.Template, error) {
+	return db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+		ID:         tpl.ID,
+		UpdatedAt:  database.Now(),
+		DefaultTTL: int64(opts.DefaultTTL),
+		// Don't allow changing it, but keep the value in the DB (to avoid
+		// clearing settings if the license has an issue).
+		MaxTTL: tpl.MaxTTL,
+	})
 }

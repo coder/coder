@@ -852,6 +852,13 @@ func (q *querier) UpdateTemplateMetaByID(ctx context.Context, arg database.Updat
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateTemplateMetaByID)(ctx, arg)
 }
 
+func (q *querier) UpdateTemplateScheduleByID(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
+	fetch := func(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
+		return q.db.GetTemplateByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateTemplateScheduleByID)(ctx, arg)
+}
+
 func (q *querier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID.UUID)
 	if err != nil {

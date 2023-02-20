@@ -3493,11 +3493,10 @@ UPDATE
 SET
 	updated_at = $2,
 	description = $3,
-	default_ttl = $4,
-	name = $5,
-	icon = $6,
-	display_name = $7,
-	allow_user_cancel_workspace_jobs = $8
+	name = $4,
+	icon = $5,
+	display_name = $6,
+	allow_user_cancel_workspace_jobs = $7
 WHERE
 	id = $1
 RETURNING
@@ -3508,7 +3507,6 @@ type UpdateTemplateMetaByIDParams struct {
 	ID                           uuid.UUID `db:"id" json:"id"`
 	UpdatedAt                    time.Time `db:"updated_at" json:"updated_at"`
 	Description                  string    `db:"description" json:"description"`
-	DefaultTTL                   int64     `db:"default_ttl" json:"default_ttl"`
 	Name                         string    `db:"name" json:"name"`
 	Icon                         string    `db:"icon" json:"icon"`
 	DisplayName                  string    `db:"display_name" json:"display_name"`
@@ -3520,11 +3518,60 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.ID,
 		arg.UpdatedAt,
 		arg.Description,
-		arg.DefaultTTL,
 		arg.Name,
 		arg.Icon,
 		arg.DisplayName,
 		arg.AllowUserCancelWorkspaceJobs,
+	)
+	var i Template
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.Deleted,
+		&i.Name,
+		&i.Provisioner,
+		&i.ActiveVersionID,
+		&i.Description,
+		&i.DefaultTTL,
+		&i.CreatedBy,
+		&i.Icon,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.DisplayName,
+		&i.AllowUserCancelWorkspaceJobs,
+		&i.MaxTTL,
+	)
+	return i, err
+}
+
+const updateTemplateScheduleByID = `-- name: UpdateTemplateScheduleByID :one
+UPDATE
+	templates
+SET
+	updated_at = $2,
+	default_ttl = $3,
+	max_ttl = $4
+WHERE
+	id = $1
+RETURNING
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl
+`
+
+type UpdateTemplateScheduleByIDParams struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	DefaultTTL int64     `db:"default_ttl" json:"default_ttl"`
+	MaxTTL     int64     `db:"max_ttl" json:"max_ttl"`
+}
+
+func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) (Template, error) {
+	row := q.db.QueryRowContext(ctx, updateTemplateScheduleByID,
+		arg.ID,
+		arg.UpdatedAt,
+		arg.DefaultTTL,
+		arg.MaxTTL,
 	)
 	var i Template
 	err := row.Scan(

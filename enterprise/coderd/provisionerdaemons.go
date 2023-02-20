@@ -308,7 +308,7 @@ type enterpriseTemplateScheduleStore struct{}
 
 var _ provisionerdserver.TemplateScheduleStore = &enterpriseTemplateScheduleStore{}
 
-func (s *enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error) {
+func (*enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error) {
 	tpl, err := db.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return provisionerdserver.TemplateScheduleOptions{}, err
@@ -320,4 +320,13 @@ func (s *enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context
 		DefaultTTL:            time.Duration(tpl.DefaultTTL),
 		MaxTTL:                time.Duration(tpl.MaxTTL),
 	}, nil
+}
+
+func (*enterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts provisionerdserver.TemplateScheduleOptions) (database.Template, error) {
+	return db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+		ID:         tpl.ID,
+		UpdatedAt:  database.Now(),
+		DefaultTTL: int64(opts.DefaultTTL),
+		MaxTTL:     int64(opts.MaxTTL),
+	})
 }

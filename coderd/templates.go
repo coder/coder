@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
@@ -479,7 +480,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		displayName := req.DisplayName
 		desc := req.Description
 		icon := req.Icon
-		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
 		allowUserCancelWorkspaceJobs := req.AllowUserCancelWorkspaceJobs
 
 		if name == "" {
@@ -497,11 +497,23 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			DisplayName:                  displayName,
 			Description:                  desc,
 			Icon:                         icon,
-			DefaultTTL:                   int64(defaultTTL),
 			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 		})
 		if err != nil {
-			return err
+			return xerrors.Errorf("update template metadata: %w", err)
+		}
+
+		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
+		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
+		if defaultTTL != time.Duration(template.DefaultTTL) || maxTTL != time.Duration(template.MaxTTL) {
+			updated, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, updated, provisionerdserver.TemplateScheduleOptions{
+				UserSchedulingEnabled: true,
+				DefaultTTL:            defaultTTL,
+				MaxTTL:                maxTTL,
+			})
+			if err != nil {
+				return xerrors.Errorf("set template schedule options: %w", err)
+			}
 		}
 
 		return nil

@@ -7463,6 +7463,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "max_ttl_ms": {
+                    "description": "MaxTTLMillis is an enterprise feature. It's value is only used if your\nlicense is entitled to use the advanced template scheduling feature.",
+                    "type": "integer"
+                },
                 "name": {
                     "type": "string"
                 },

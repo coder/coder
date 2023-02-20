@@ -1644,8 +1644,8 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		return database.Template{}, err
 	}
 
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	for idx, tpl := range q.templates {
 		if tpl.ID != arg.ID {
@@ -1656,7 +1656,28 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.DisplayName = arg.DisplayName
 		tpl.Description = arg.Description
 		tpl.Icon = arg.Icon
+		q.templates[idx] = tpl
+		return tpl, nil
+	}
+
+	return database.Template{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.Template{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for idx, tpl := range q.templates {
+		if tpl.ID != arg.ID {
+			continue
+		}
+		tpl.UpdatedAt = database.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
+		tpl.MaxTTL = arg.MaxTTL
 		q.templates[idx] = tpl
 		return tpl, nil
 	}
