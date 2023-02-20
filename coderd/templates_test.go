@@ -551,7 +551,6 @@ func TestTemplateMetrics(t *testing.T) {
 	wantDAUs := &codersdk.TemplateDAUsResponse{
 		Entries: []codersdk.DAUEntry{
 			{
-
 				Date:   time.Now().UTC().Truncate(time.Hour * 24),
 				Amount: 1,
 			},

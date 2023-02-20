@@ -319,6 +319,11 @@
           "path": "./contributing/CODE_OF_CONDUCT.md"
         },
         {
+          "title": "Feature stages",
+          "description": "Policies for Alpha and Experimental features.",
+          "path": "./contributing/feature-stages.md"
+        },
+        {
           "title": "Documentation",
           "description": "Our style guide for use when authoring documentation",
           "path": "./contributing/documentation.md"
@@ -452,6 +457,10 @@
         {
           "title": "logout",
           "path": "./cli/coder_logout.md"
+        },
+        {
+          "title": "ping",
+          "path": "./cli/coder_ping.md"
         },
         {
           "title": "port-forward",

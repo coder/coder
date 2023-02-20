@@ -108,7 +108,7 @@ func templatePull() *cobra.Command {
 				}
 			}
 
-			err = os.WriteFile(dest, raw, 0600)
+			err = os.WriteFile(dest, raw, 0o600)
 			if err != nil {
 				return xerrors.Errorf("write to path: %w", err)
 			}

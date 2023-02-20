@@ -83,11 +83,12 @@ type Feature struct {
 }
 
 type Entitlements struct {
-	Features   map[FeatureName]Feature `json:"features"`
-	Warnings   []string                `json:"warnings"`
-	Errors     []string                `json:"errors"`
-	HasLicense bool                    `json:"has_license"`
-	Trial      bool                    `json:"trial"`
+	Features         map[FeatureName]Feature `json:"features"`
+	Warnings         []string                `json:"warnings"`
+	Errors           []string                `json:"errors"`
+	HasLicense       bool                    `json:"has_license"`
+	Trial            bool                    `json:"trial"`
+	RequireTelemetry bool                    `json:"require_telemetry"`
 
 	// DEPRECATED: use Experiments instead.
 	Experimental bool `json:"experimental"`
@@ -128,6 +129,8 @@ type DeploymentConfig struct {
 	TLS                             *TLSConfig                              `json:"tls" typescript:",notnull"`
 	Trace                           *TraceConfig                            `json:"trace" typescript:",notnull"`
 	SecureAuthCookie                *DeploymentConfigField[bool]            `json:"secure_auth_cookie" typescript:",notnull"`
+	StrictTransportSecurity         *DeploymentConfigField[int]             `json:"strict_transport_security" typescript:",notnull"`
+	StrictTransportSecurityOptions  *DeploymentConfigField[[]string]        `json:"strict_transport_security_options" typescript:",notnull"`
 	SSHKeygenAlgorithm              *DeploymentConfigField[string]          `json:"ssh_keygen_algorithm" typescript:",notnull"`
 	MetricsCacheRefreshInterval     *DeploymentConfigField[time.Duration]   `json:"metrics_cache_refresh_interval" typescript:",notnull"`
 	AgentStatRefreshInterval        *DeploymentConfigField[time.Duration]   `json:"agent_stat_refresh_interval" typescript:",notnull"`
@@ -431,13 +434,11 @@ const (
 	// ExperimentExample Experiment = "example"
 )
 
-var (
-	// ExperimentsAll should include all experiments that are safe for
-	// users to opt-in to via --experimental='*'.
-	// Experiments that are not ready for consumption by all users should
-	// not be included here and will be essentially hidden.
-	ExperimentsAll = Experiments{ExperimentTemplateEditor}
-)
+// ExperimentsAll should include all experiments that are safe for
+// users to opt-in to via --experimental='*'.
+// Experiments that are not ready for consumption by all users should
+// not be included here and will be essentially hidden.
+var ExperimentsAll = Experiments{ExperimentTemplateEditor}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.

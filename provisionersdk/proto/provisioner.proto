@@ -52,6 +52,16 @@ message ParameterSchema {
     string validation_condition = 11;
 }
 
+// TemplateVariable represents a Terraform variable.
+message TemplateVariable {
+    string name = 1;
+    string description = 2;
+    string type = 3;
+    string default_value = 4;
+    bool required = 5;
+    bool sensitive = 6;
+}
+
 // RichParameterOption represents a singular option that a parameter may expose.
 message RichParameterOption {
     string name = 1;
@@ -80,6 +90,13 @@ message RichParameter {
 message RichParameterValue {
     string name = 1;
     string value = 2;
+}
+
+// VariableValue holds the key/value mapping of a Terraform variable.
+message VariableValue {
+    string name = 1;
+    string value = 2;
+	bool sensitive = 3;
 }
 
 // LogLevel represents severity of the log.
@@ -175,6 +192,7 @@ message Parse {
         string directory = 1;
     }
     message Complete {
+        repeated TemplateVariable template_variables = 1;
         repeated ParameterSchema parameter_schemas = 2;
     }
     message Response {
@@ -216,6 +234,7 @@ message Provision {
         Config config = 1;
         repeated ParameterValue parameter_values = 2;
 		repeated RichParameterValue rich_parameter_values = 3;
+		repeated VariableValue variable_values = 4;
     }
 
     message Apply {

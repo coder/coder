@@ -72,7 +72,7 @@ func Test_absoluteBinaryPath(t *testing.T) {
 			err := os.WriteFile(
 				filepath.Join(tempDir, "terraform"),
 				[]byte(terraformBinaryOutput),
-				0770,
+				0o770,
 			)
 			require.NoError(t, err)
 

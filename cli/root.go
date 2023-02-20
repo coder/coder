@@ -64,9 +64,7 @@ const (
 	envURL              = "CODER_URL"
 )
 
-var (
-	errUnauthenticated = xerrors.New(notLoggedInMessage)
-)
+var errUnauthenticated = xerrors.New(notLoggedInMessage)
 
 func init() {
 	// Set cobra template functions in init to avoid conflicts in tests.
@@ -85,10 +83,12 @@ func Core() []*cobra.Command {
 		login(),
 		logout(),
 		parameters(),
+		ping(),
 		portForward(),
 		publickey(),
 		rename(),
 		resetPassword(),
+		restart(),
 		scaletest(),
 		schedules(),
 		show(),
@@ -97,7 +97,6 @@ func Core() []*cobra.Command {
 		start(),
 		state(),
 		stop(),
-		restart(),
 		templates(),
 		tokens(),
 		update(),

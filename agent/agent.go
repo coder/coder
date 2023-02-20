@@ -72,7 +72,7 @@ type Options struct {
 type Client interface {
 	Metadata(ctx context.Context) (agentsdk.Metadata, error)
 	Listen(ctx context.Context) (net.Conn, error)
-	ReportStats(ctx context.Context, log slog.Logger, stats func() *agentsdk.Stats) (io.Closer, error)
+	ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
@@ -112,6 +112,7 @@ func New(options Options) io.Closer {
 		logDir:                 options.LogDir,
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
+		connStatsChan:          make(chan *agentsdk.Stats, 1),
 	}
 	a.init(ctx)
 	return a
@@ -143,7 +144,8 @@ type agent struct {
 	lifecycleMu     sync.Mutex // Protects following.
 	lifecycleState  codersdk.WorkspaceAgentLifecycle
 
-	network *tailnet.Conn
+	network       *tailnet.Conn
+	connStatsChan chan *agentsdk.Stats
 }
 
 // runLoop attempts to start the agent in a retry loop.
@@ -351,11 +353,20 @@ func (a *agent) run(ctx context.Context) error {
 			return xerrors.New("agent is closed")
 		}
 
+		setStatInterval := func(d time.Duration) {
+			network.SetConnStatsCallback(d, 2048,
+				func(_, _ time.Time, virtual, _ map[netlogtype.Connection]netlogtype.Counts) {
+					select {
+					case a.connStatsChan <- convertAgentStats(virtual):
+					default:
+						a.logger.Warn(ctx, "network stat dropped")
+					}
+				},
+			)
+		}
+
 		// Report statistics from the created network.
-		cl, err := a.client.ReportStats(ctx, a.logger, func() *agentsdk.Stats {
-			stats := network.ExtractTrafficStats()
-			return convertAgentStats(stats)
-		})
+		cl, err := a.client.ReportStats(ctx, a.logger, a.connStatsChan, setStatInterval)
 		if err != nil {
 			a.logger.Error(ctx, "report stats", slog.Error(err))
 		} else {
@@ -399,10 +410,9 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 
 func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:          []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
-		DERPMap:            derpMap,
-		Logger:             a.logger.Named("tailnet"),
-		EnableTrafficStats: true,
+		Addresses: []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
+		DERPMap:   derpMap,
+		Logger:    a.logger.Named("tailnet"),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

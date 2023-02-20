@@ -70,7 +70,7 @@ func (h *forwardedUnixHandler) HandleSSHRequest(ctx ssh.Context, _ *ssh.Server, 
 
 		// Create socket parent dir if not exists.
 		parentDir := filepath.Dir(addr)
-		err = os.MkdirAll(parentDir, 0700)
+		err = os.MkdirAll(parentDir, 0o700)
 		if err != nil {
 			h.log.Warn(ctx, "create parent dir for SSH unix forward request",
 				slog.F("parent_dir", parentDir),

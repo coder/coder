@@ -40,23 +40,23 @@ This is an example configuration of how to use Coder with [caddy](https://caddys
 
 1. If you haven't already, [install Coder](https://coder.com/docs/coder-oss/latest/install)
 
-1. Install [Caddy Server](https://caddyserver.com/docs/install)
+2. Install [Caddy Server](https://caddyserver.com/docs/install)
 
-1. Copy our sample [Caddyfile](./Caddyfile) and change the following values:
+3. Copy our sample [Caddyfile](./Caddyfile) and change the following values:
 
    > If you're installed Caddy as a system package, update the default Caddyfile with `vim /etc/caddy/Caddyfile`
 
    - `email@example.com`: Email to request certificates from LetsEncrypt/ZeroSSL (does not have to be Coder admin email)
    - `coder.example.com`: Domain name you're using for Coder.
    - `*.coder.example.com`: Domain name for wildcard apps, commonly used for [dashboard port forwarding](https://coder.com/docs/coder-oss/latest/networking/port-forwarding#dashboard). This is optional and can be removed.
-   - `localhost:3000`: Address Coder is running on. Modify this if you changed `CODER_ADDRESS` in the Coder configuration.
+   - `localhost:3000`: Address Coder is running on. Modify this if you changed `CODER_HTTP_ADDRESS` in the Coder configuration.
 
-1. [Configure Coder](https://coder.com/docs/coder-oss/latest/admin/configure) and change the following values:
+4. [Configure Coder](https://coder.com/docs/coder-oss/latest/admin/configure) and change the following values:
 
    - `CODER_ACCESS_URL`: root domain (e.g. `https://coder.example.com`)
    - `CODER_WILDCARD_ACCESS_URL`: wildcard domain (e.g. `*.example.com`).
 
-1. Start the Caddy server:
+5. Start the Caddy server:
 
    If you're [keeping Caddy running](https://caddyserver.com/docs/running) via a system service:
 
@@ -70,7 +70,7 @@ This is an example configuration of how to use Coder with [caddy](https://caddys
    caddy run
    ```
 
-1. Optionally, use [ufw](https://wiki.ubuntu.com/UncomplicatedFirewall) or another firewall to disable external traffic outside of Caddy.
+6. Optionally, use [ufw](https://wiki.ubuntu.com/UncomplicatedFirewall) or another firewall to disable external traffic outside of Caddy.
 
    ```console
    # Check status of UncomplicatedFirewall
@@ -90,7 +90,7 @@ This is an example configuration of how to use Coder with [caddy](https://caddys
    sudo ufw enable
    ```
 
-1. Navigate to your Coder URL! A TLS certificate should be auto-generated on your first visit.
+7. Navigate to your Coder URL! A TLS certificate should be auto-generated on your first visit.
 
 ## Generating wildcard certificates
 
@@ -104,7 +104,9 @@ For production deployments, we recommend configuring Caddy to generate a wildcar
 
    - Standalone: [Download a custom Caddy build](https://caddyserver.com/download) with the module for your DNS provider. If you're using Debian/Ubuntu, you [can configure the Caddy package](https://caddyserver.com/docs/build#package-support-files-for-custom-builds-for-debianubunturaspbian) to use the new build.
 
-1. Edit your `Caddyfile` and add the necessary credentials/API tokens to solve the DNS challenge for wildcard certificates.
+2. Edit your `Caddyfile` and add the necessary credentials/API tokens to solve the DNS challenge for wildcard certificates.
+
+   For example, for AWS Route53:
 
    ```diff
    tls {
@@ -125,3 +127,22 @@ For production deployments, we recommend configuring Caddy to generate a wildcar
    ```
 
    > Configuration reference from [caddy-dns/route53](https://github.com/caddy-dns/route53).
+
+   And for CloudFlare:
+
+   Generate a [token](https://dash.cloudflare.com/profile/api-tokens) with the following permissions:
+
+   - Zone:Zone:Edit
+
+   ```diff
+   tls {
+   -  on_demand
+     issuer acme {
+         email email@example.com
+     }
+
+   +  dns cloudflare CLOUDFLARE_API_TOKEN
+   }
+   ```
+
+   > Configuration reference from [caddy-dns/cloudflare](https://github.com/caddy-dns/cloudflare).

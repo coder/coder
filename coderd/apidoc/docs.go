@@ -1066,6 +1066,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1089,6 +1092,15 @@ const docTemplate = `{
                         "name": "user",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Create workspace request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateWorkspaceRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -2675,6 +2687,44 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/codersdk.ParameterSchema"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/templateversions/{templateversion}/variables": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template variables by template version",
+                "operationId": "get-template-variables-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.TemplateVersionVariable"
                             }
                         }
                     }
@@ -5741,6 +5791,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
                     }
                 },
+                "user_variable_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.VariableValue"
+                    }
+                },
                 "workspace_name": {
                     "type": "string"
                 }
@@ -5899,6 +5955,41 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceTransition"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.CreateWorkspaceRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "template_id"
+            ],
+            "properties": {
+                "autostart_schedule": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameter_values": {
+                    "description": "ParameterValues allows for additional parameters to be provided\nduring the initial provision.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
+                    }
+                },
+                "rich_parameter_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
+                    }
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "ttl_ms": {
+                    "type": "integer"
                 }
             }
         },
@@ -6098,6 +6189,12 @@ const docTemplate = `{
                 },
                 "ssh_keygen_algorithm": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                },
+                "strict_transport_security": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
+                },
+                "strict_transport_security_options": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
                 },
                 "swagger": {
                     "$ref": "#/definitions/codersdk.SwaggerConfig"
@@ -6367,6 +6464,9 @@ const docTemplate = `{
                     }
                 },
                 "has_license": {
+                    "type": "boolean"
+                },
+                "require_telemetry": {
                     "type": "boolean"
                 },
                 "trial": {
@@ -7202,7 +7302,8 @@ const docTemplate = `{
                 "workspace_build",
                 "git_ssh_key",
                 "api_key",
-                "group"
+                "group",
+                "license"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -7212,7 +7313,8 @@ const docTemplate = `{
                 "ResourceTypeWorkspaceBuild",
                 "ResourceTypeGitSSHKey",
                 "ResourceTypeAPIKey",
-                "ResourceTypeGroup"
+                "ResourceTypeGroup",
+                "ResourceTypeLicense"
             ]
         },
         "codersdk.Response": {
@@ -7623,6 +7725,37 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateVersionVariable": {
+            "type": "object",
+            "properties": {
+                "default_value": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "sensitive": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "string",
+                        "number",
+                        "bool"
+                    ]
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TraceConfig": {
             "type": "object",
             "properties": {
@@ -7859,6 +7992,17 @@ const docTemplate = `{
                 "MonotonicOrderIncreasing",
                 "MonotonicOrderDecreasing"
             ]
+        },
+        "codersdk.VariableValue": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.Workspace": {
             "type": "object",

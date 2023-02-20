@@ -1099,3 +1099,169 @@ func TestTemplateExamples(t *testing.T) {
 		require.EqualValues(t, ls, ex)
 	})
 }
+
+func TestTemplateVersionVariables(t *testing.T) {
+	t.Parallel()
+
+	createEchoResponses := func(templateVariables []*proto.TemplateVariable) *echo.Responses {
+		return &echo.Responses{
+			Parse: []*proto.Parse_Response{
+				{
+					Type: &proto.Parse_Response_Complete{
+						Complete: &proto.Parse_Complete{
+							TemplateVariables: templateVariables,
+						},
+					},
+				},
+			},
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			}},
+		}
+	}
+
+	t.Run("Pass value for required variable", func(t *testing.T) {
+		t.Parallel()
+
+		templateVariables := []*proto.TemplateVariable{
+			{
+				Name:        "first_variable",
+				Description: "This is the first variable",
+				Type:        "string",
+				Required:    true,
+			},
+		}
+		const firstVariableValue = "foobar"
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID,
+			createEchoResponses(templateVariables),
+			func(ctvr *codersdk.CreateTemplateVersionRequest) {
+				ctvr.UserVariableValues = []codersdk.VariableValue{
+					{
+						Name:  templateVariables[0].Name,
+						Value: firstVariableValue,
+					},
+				}
+			},
+		)
+		templateVersion := coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		// As user passed the value for the first parameter, the job will succeed.
+		require.Empty(t, templateVersion.Job.Error)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		actualVariables, err := client.TemplateVersionVariables(ctx, templateVersion.ID)
+		require.NoError(t, err)
+
+		require.Len(t, actualVariables, 1)
+		require.Equal(t, templateVariables[0].Name, actualVariables[0].Name)
+		require.Equal(t, templateVariables[0].Description, actualVariables[0].Description)
+		require.Equal(t, templateVariables[0].Type, actualVariables[0].Type)
+		require.Equal(t, templateVariables[0].DefaultValue, actualVariables[0].DefaultValue)
+		require.Equal(t, templateVariables[0].Required, actualVariables[0].Required)
+		require.Equal(t, templateVariables[0].Sensitive, actualVariables[0].Sensitive)
+		require.Equal(t, firstVariableValue, actualVariables[0].Value)
+	})
+
+	t.Run("Missing value for required variable", func(t *testing.T) {
+		t.Parallel()
+
+		templateVariables := []*proto.TemplateVariable{
+			{
+				Name:        "first_variable",
+				Description: "This is the first variable",
+				Type:        "string",
+				Required:    true,
+			},
+			{
+				Name:         "second_variable",
+				Description:  "This is the second variable",
+				DefaultValue: "123",
+				Type:         "number",
+			},
+		}
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponses(templateVariables))
+		templateVersion := coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		// As the first variable is marked as required and misses the default value,
+		// the job will fail, but will populate the template_version_variables table with existing variables.
+		require.Contains(t, templateVersion.Job.Error, "required template variables need values")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		actualVariables, err := client.TemplateVersionVariables(ctx, templateVersion.ID)
+		require.NoError(t, err)
+
+		require.Len(t, actualVariables, 2)
+		for i := range templateVariables {
+			require.Equal(t, templateVariables[i].Name, actualVariables[i].Name)
+			require.Equal(t, templateVariables[i].Description, actualVariables[i].Description)
+			require.Equal(t, templateVariables[i].Type, actualVariables[i].Type)
+			require.Equal(t, templateVariables[i].DefaultValue, actualVariables[i].DefaultValue)
+			require.Equal(t, templateVariables[i].Required, actualVariables[i].Required)
+			require.Equal(t, templateVariables[i].Sensitive, actualVariables[i].Sensitive)
+		}
+
+		require.Equal(t, "", actualVariables[0].Value)
+		require.Equal(t, templateVariables[1].DefaultValue, actualVariables[1].Value)
+	})
+
+	t.Run("Redact sensitive variables", func(t *testing.T) {
+		t.Parallel()
+
+		templateVariables := []*proto.TemplateVariable{
+			{
+				Name:        "first_variable",
+				Description: "This is the first variable",
+				Type:        "string",
+				Required:    true,
+				Sensitive:   true,
+			},
+		}
+		const firstVariableValue = "foobar"
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID,
+			createEchoResponses(templateVariables),
+			func(ctvr *codersdk.CreateTemplateVersionRequest) {
+				ctvr.UserVariableValues = []codersdk.VariableValue{
+					{
+						Name:  templateVariables[0].Name,
+						Value: firstVariableValue,
+					},
+				}
+			},
+		)
+		templateVersion := coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		// As user passed the value for the first parameter, the job will succeed.
+		require.Empty(t, templateVersion.Job.Error)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		actualVariables, err := client.TemplateVersionVariables(ctx, templateVersion.ID)
+		require.NoError(t, err)
+
+		require.Len(t, actualVariables, 1)
+		require.Equal(t, templateVariables[0].Name, actualVariables[0].Name)
+		require.Equal(t, templateVariables[0].Description, actualVariables[0].Description)
+		require.Equal(t, templateVariables[0].Type, actualVariables[0].Type)
+		require.Equal(t, templateVariables[0].Required, actualVariables[0].Required)
+		require.Equal(t, templateVariables[0].Sensitive, actualVariables[0].Sensitive)
+		require.Equal(t, "*redacted*", actualVariables[0].DefaultValue)
+		require.Equal(t, "*redacted*", actualVariables[0].Value)
+	})
+}

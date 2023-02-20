@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/azureidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/codersdk"
@@ -126,7 +127,8 @@ func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 
 func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, instanceID string) {
 	ctx := r.Context()
-	agent, err := api.Database.GetWorkspaceAgentByInstanceID(ctx, instanceID)
+	//nolint:gocritic // needed for auth instance id
+	agent, err := api.Database.GetWorkspaceAgentByInstanceID(dbauthz.AsSystemRestricted(ctx), instanceID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Instance with id %q not found.", instanceID),
@@ -140,7 +142,8 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
-	resource, err := api.Database.GetWorkspaceResourceByID(ctx, agent.ResourceID)
+	//nolint:gocritic // needed for auth instance id
+	resource, err := api.Database.GetWorkspaceResourceByID(dbauthz.AsSystemRestricted(ctx), agent.ResourceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job resource.",
@@ -148,7 +151,8 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
-	job, err := api.Database.GetProvisionerJobByID(ctx, resource.JobID)
+	//nolint:gocritic // needed for auth instance id
+	job, err := api.Database.GetProvisionerJobByID(dbauthz.AsSystemRestricted(ctx), resource.JobID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
@@ -171,7 +175,8 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
-	resourceHistory, err := api.Database.GetWorkspaceBuildByID(ctx, jobData.WorkspaceBuildID)
+	//nolint:gocritic // needed for auth instance id
+	resourceHistory, err := api.Database.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), jobData.WorkspaceBuildID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace build.",
@@ -182,7 +187,8 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	// This token should only be exchanged if the instance ID is valid
 	// for the latest history. If an instance ID is recycled by a cloud,
 	// we'd hate to leak access to a user's workspace.
-	latestHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, resourceHistory.WorkspaceID)
+	//nolint:gocritic // needed for auth instance id
+	latestHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(dbauthz.AsSystemRestricted(ctx), resourceHistory.WorkspaceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching the latest workspace build.",

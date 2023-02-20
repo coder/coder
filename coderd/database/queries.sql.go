@@ -1343,6 +1343,30 @@ func (q *sqlQuerier) DeleteLicense(ctx context.Context, id int32) (int32, error)
 	return id, err
 }
 
+const getLicenseByID = `-- name: GetLicenseByID :one
+SELECT
+	id, uploaded_at, jwt, exp, uuid
+FROM
+	licenses
+WHERE
+	id = $1
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetLicenseByID(ctx context.Context, id int32) (License, error) {
+	row := q.db.QueryRowContext(ctx, getLicenseByID, id)
+	var i License
+	err := row.Scan(
+		&i.ID,
+		&i.UploadedAt,
+		&i.JWT,
+		&i.Exp,
+		&i.UUID,
+	)
+	return i, err
+}
+
 const getLicenses = `-- name: GetLicenses :many
 SELECT id, uploaded_at, jwt, exp, uuid
 FROM licenses
@@ -1363,7 +1387,7 @@ func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
 			&i.UploadedAt,
 			&i.JWT,
 			&i.Exp,
-			&i.Uuid,
+			&i.UUID,
 		); err != nil {
 			return nil, err
 		}
@@ -1399,7 +1423,7 @@ func (q *sqlQuerier) GetUnexpiredLicenses(ctx context.Context) ([]License, error
 			&i.UploadedAt,
 			&i.JWT,
 			&i.Exp,
-			&i.Uuid,
+			&i.UUID,
 		); err != nil {
 			return nil, err
 		}
@@ -1427,10 +1451,10 @@ VALUES
 `
 
 type InsertLicenseParams struct {
-	UploadedAt time.Time     `db:"uploaded_at" json:"uploaded_at"`
-	JWT        string        `db:"jwt" json:"jwt"`
-	Exp        time.Time     `db:"exp" json:"exp"`
-	Uuid       uuid.NullUUID `db:"uuid" json:"uuid"`
+	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
+	JWT        string    `db:"jwt" json:"jwt"`
+	Exp        time.Time `db:"exp" json:"exp"`
+	UUID       uuid.UUID `db:"uuid" json:"uuid"`
 }
 
 func (q *sqlQuerier) InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error) {
@@ -1438,7 +1462,7 @@ func (q *sqlQuerier) InsertLicense(ctx context.Context, arg InsertLicenseParams)
 		arg.UploadedAt,
 		arg.JWT,
 		arg.Exp,
-		arg.Uuid,
+		arg.UUID,
 	)
 	var i License
 	err := row.Scan(
@@ -1446,7 +1470,7 @@ func (q *sqlQuerier) InsertLicense(ctx context.Context, arg InsertLicenseParams)
 		&i.UploadedAt,
 		&i.JWT,
 		&i.Exp,
-		&i.Uuid,
+		&i.UUID,
 	)
 	return i, err
 }
@@ -4033,6 +4057,103 @@ func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context
 	return err
 }
 
+const getTemplateVersionVariables = `-- name: GetTemplateVersionVariables :many
+SELECT template_version_id, name, description, type, value, default_value, required, sensitive FROM template_version_variables WHERE template_version_id = $1
+`
+
+func (q *sqlQuerier) GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionVariable, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateVersionVariables, templateVersionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TemplateVersionVariable
+	for rows.Next() {
+		var i TemplateVersionVariable
+		if err := rows.Scan(
+			&i.TemplateVersionID,
+			&i.Name,
+			&i.Description,
+			&i.Type,
+			&i.Value,
+			&i.DefaultValue,
+			&i.Required,
+			&i.Sensitive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertTemplateVersionVariable = `-- name: InsertTemplateVersionVariable :one
+INSERT INTO
+    template_version_variables (
+        template_version_id,
+        name,
+        description,
+        type,
+        value,
+        default_value,
+        required,
+        sensitive
+    )
+VALUES
+    (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8
+    ) RETURNING template_version_id, name, description, type, value, default_value, required, sensitive
+`
+
+type InsertTemplateVersionVariableParams struct {
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	Name              string    `db:"name" json:"name"`
+	Description       string    `db:"description" json:"description"`
+	Type              string    `db:"type" json:"type"`
+	Value             string    `db:"value" json:"value"`
+	DefaultValue      string    `db:"default_value" json:"default_value"`
+	Required          bool      `db:"required" json:"required"`
+	Sensitive         bool      `db:"sensitive" json:"sensitive"`
+}
+
+func (q *sqlQuerier) InsertTemplateVersionVariable(ctx context.Context, arg InsertTemplateVersionVariableParams) (TemplateVersionVariable, error) {
+	row := q.db.QueryRowContext(ctx, insertTemplateVersionVariable,
+		arg.TemplateVersionID,
+		arg.Name,
+		arg.Description,
+		arg.Type,
+		arg.Value,
+		arg.DefaultValue,
+		arg.Required,
+		arg.Sensitive,
+	)
+	var i TemplateVersionVariable
+	err := row.Scan(
+		&i.TemplateVersionID,
+		&i.Name,
+		&i.Description,
+		&i.Type,
+		&i.Value,
+		&i.DefaultValue,
+		&i.Required,
+		&i.Sensitive,
+	)
+	return i, err
+}
+
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
 SELECT
 	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
@@ -6520,6 +6641,62 @@ type GetWorkspaceByOwnerIDAndNameParams struct {
 
 func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceByOwnerIDAndName, arg.OwnerID, arg.Deleted, arg.Name)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.TemplateID,
+		&i.Deleted,
+		&i.Name,
+		&i.AutostartSchedule,
+		&i.Ttl,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const getWorkspaceByWorkspaceAppID = `-- name: GetWorkspaceByWorkspaceAppID :one
+SELECT
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
+FROM
+	workspaces
+WHERE
+		workspaces.id = (
+		SELECT
+			workspace_id
+		FROM
+			workspace_builds
+		WHERE
+				workspace_builds.job_id = (
+				SELECT
+					job_id
+				FROM
+					workspace_resources
+				WHERE
+						workspace_resources.id = (
+						SELECT
+							resource_id
+						FROM
+							workspace_agents
+						WHERE
+								workspace_agents.id = (
+								SELECT
+									agent_id
+								FROM
+									workspace_apps
+								WHERE
+									workspace_apps.id = $1
+								)
+					)
+			)
+	)
+`
+
+func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceByWorkspaceAppID, workspaceAppID)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,

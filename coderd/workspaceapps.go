@@ -24,6 +24,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -330,7 +331,8 @@ func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request
 			// different auth formats, and tricks this endpoint into deleting an
 			// unchecked API key, we validate that the secret matches the secret
 			// we store in the database.
-			apiKey, err := api.Database.GetAPIKeyByID(ctx, id)
+			//nolint:gocritic // needed for workspace app logout
+			apiKey, err := api.Database.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), id)
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Failed to lookup API key.",
@@ -349,7 +351,8 @@ func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request
 					})
 					return
 				}
-				err = api.Database.DeleteAPIKeyByID(ctx, id)
+				//nolint:gocritic // needed for workspace app logout
+				err = api.Database.DeleteAPIKeyByID(dbauthz.AsSystemRestricted(ctx), id)
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 						Message: "Failed to delete API key.",
@@ -409,7 +412,10 @@ func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request
 // error while looking it up, an HTML error page is returned and false is
 // returned so the caller can return early.
 func (api *API) lookupWorkspaceApp(rw http.ResponseWriter, r *http.Request, agentID uuid.UUID, appSlug string) (database.WorkspaceApp, bool) {
-	app, err := api.Database.GetWorkspaceAppByAgentIDAndSlug(r.Context(), database.GetWorkspaceAppByAgentIDAndSlugParams{
+	// dbauthz.AsSystemRestricted is allowed here as the app authz is checked later.
+	// The app authz is determined by the sharing level.
+	//nolint:gocritic
+	app, err := api.Database.GetWorkspaceAppByAgentIDAndSlug(dbauthz.AsSystemRestricted(r.Context()), database.GetWorkspaceAppByAgentIDAndSlugParams{
 		AgentID: agentID,
 		Slug:    appSlug,
 	})
@@ -1019,7 +1025,8 @@ func decryptAPIKey(ctx context.Context, db database.Store, encryptedAPIKey strin
 
 	// Lookup the API key so we can decrypt it.
 	keyID := object.Header.KeyID
-	key, err := db.GetAPIKeyByID(ctx, keyID)
+	//nolint:gocritic // needed to check API key
+	key, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), keyID)
 	if err != nil {
 		return database.APIKey{}, "", xerrors.Errorf("get API key by key ID: %w", err)
 	}

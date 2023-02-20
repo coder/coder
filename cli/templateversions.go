@@ -99,7 +99,7 @@ type templateVersionRow struct {
 func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...codersdk.TemplateVersion) []templateVersionRow {
 	rows := make([]templateVersionRow, len(templateVersions))
 	for i, templateVersion := range templateVersions {
-		var activeStatus = ""
+		activeStatus := ""
 		if templateVersion.ID == activeVersionID {
 			activeStatus = cliui.Styles.Code.Render(cliui.Styles.Keyword.Render("Active"))
 		}

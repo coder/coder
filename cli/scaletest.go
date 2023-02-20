@@ -309,9 +309,7 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 }
 
 func scaletestCleanup() *cobra.Command {
-	var (
-		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
-	)
+	cleanupStrategy := &scaletestStrategyFlags{cleanup: true}
 
 	cmd := &cobra.Command{
 		Use:   "cleanup",
@@ -810,8 +808,10 @@ type runnableTraceWrapper struct {
 	span trace.Span
 }
 
-var _ harness.Runnable = &runnableTraceWrapper{}
-var _ harness.Cleanable = &runnableTraceWrapper{}
+var (
+	_ harness.Runnable  = &runnableTraceWrapper{}
+	_ harness.Cleanable = &runnableTraceWrapper{}
+)
 
 func (r *runnableTraceWrapper) Run(ctx context.Context, id string, logs io.Writer) error {
 	ctx, span := r.tracer.Start(ctx, r.spanName, trace.WithNewRoot())

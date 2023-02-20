@@ -374,6 +374,20 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:  "secure-auth-cookie",
 		},
+		StrictTransportSecurity: &codersdk.DeploymentConfigField[int]{
+			Name: "Strict-Transport-Security",
+			Usage: "Controls if the 'Strict-Transport-Security' header is set on all static file responses. " +
+				"This header should only be set if the server is accessed via HTTPS. This value is the MaxAge in seconds of " +
+				"the header.",
+			Default: 0,
+			Flag:    "strict-transport-security",
+		},
+		StrictTransportSecurityOptions: &codersdk.DeploymentConfigField[[]string]{
+			Name: "Strict-Transport-Security Options",
+			Usage: "Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. " +
+				"The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.",
+			Flag: "strict-transport-security-options",
+		},
 		SSHKeygenAlgorithm: &codersdk.DeploymentConfigField[string]{
 			Name:    "SSH Keygen Algorithm",
 			Usage:   "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",

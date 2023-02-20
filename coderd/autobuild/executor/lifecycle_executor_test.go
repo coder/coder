@@ -628,7 +628,8 @@ func mustProvisionWorkspaceWithParameters(t *testing.T, client *codersdk.Client,
 						Parameters: richParameters,
 					},
 				},
-			}},
+			},
+		},
 		ProvisionApply: []*proto.Provision_Response{
 			{
 				Type: &proto.Provision_Response_Complete{

@@ -177,7 +177,17 @@ func (p *Server) connect(ctx context.Context) {
 			p.opts.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
+		// Ensure connection is not left hanging during a race between
+		// close and dial succeeding.
+		p.mutex.Lock()
+		if p.isClosed() {
+			client.DRPCConn().Close()
+			p.mutex.Unlock()
+			break
+		}
 		p.clientValue.Store(client)
+		p.mutex.Unlock()
+
 		p.opts.Logger.Debug(context.Background(), "connected")
 		break
 	}
@@ -390,7 +400,8 @@ func retryable(err error) bool {
 // is not retryable() or the context expires.
 func (p *Server) clientDoWithRetries(
 	ctx context.Context, f func(context.Context, proto.DRPCProvisionerDaemonClient) (any, error)) (
-	any, error) {
+	any, error,
+) {
 	for retrier := retry.New(25*time.Millisecond, 5*time.Second); retrier.Wait(ctx); {
 		client, ok := p.client()
 		if !ok {
@@ -519,6 +530,10 @@ func (p *Server) closeWithError(err error) error {
 	p.closeCancel()
 
 	p.opts.Logger.Debug(context.Background(), "closing server with error", slog.Error(err))
+
+	if c, ok := p.clientValue.Load().(proto.DRPCProvisionerDaemonClient); ok {
+		_ = c.DRPCConn().Close()
+	}
 
 	return err
 }

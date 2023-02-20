@@ -19,6 +19,7 @@ import (
 
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -152,16 +153,19 @@ func login() *cobra.Command {
 
 					for !matching {
 						password, err = cliui.Prompt(cmd, cliui.PromptOptions{
-							Text:     "Enter a " + cliui.Styles.Field.Render("password") + ":",
-							Secret:   true,
-							Validate: cliui.ValidateNotEmpty,
+							Text:   "Enter a " + cliui.Styles.Field.Render("password") + ":",
+							Secret: true,
+							Validate: func(s string) error {
+								return userpassword.Validate(s)
+							},
 						})
 						if err != nil {
 							return xerrors.Errorf("specify password prompt: %w", err)
 						}
 						confirm, err := cliui.Prompt(cmd, cliui.PromptOptions{
-							Text:   "Confirm " + cliui.Styles.Field.Render("password") + ":",
-							Secret: true,
+							Text:     "Confirm " + cliui.Styles.Field.Render("password") + ":",
+							Secret:   true,
+							Validate: cliui.ValidateNotEmpty,
 						})
 						if err != nil {
 							return xerrors.Errorf("confirm password prompt: %w", err)

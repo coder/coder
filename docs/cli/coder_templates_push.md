@@ -15,6 +15,8 @@ coder templates push [template] [flags]
       --name string                   Specify a name for the new template version. It will be automatically generated if not provided.
       --parameter-file string         Specify a file path with parameter values.
       --provisioner-tag stringArray   Specify a set of tags to target provisioner daemons.
+      --variable stringArray          Specify a set of values for Terraform-managed variables.
+      --variables-file string         Specify a file path with values for Terraform-managed variables.
   -y, --yes                           Bypass prompts
 ```
 

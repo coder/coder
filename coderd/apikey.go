@@ -142,9 +142,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.APIKey
 // @Router /users/{user}/keys/{keyid} [get]
 func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
-	)
+	ctx := r.Context()
 
 	keyID := chi.URLParam(r, "keyid")
 	key, err := api.Database.GetAPIKeyByID(ctx, keyID)
@@ -177,9 +175,7 @@ func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {array} codersdk.APIKey
 // @Router /users/{user}/keys/tokens [get]
 func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
-	)
+	ctx := r.Context()
 
 	keys, err := api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
 	if err != nil {

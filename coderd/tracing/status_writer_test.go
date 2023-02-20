@@ -108,9 +108,7 @@ func TestStatusWriter(t *testing.T) {
 
 	t.Run("Hijack", func(t *testing.T) {
 		t.Parallel()
-		var (
-			rec = httptest.NewRecorder()
-		)
+		rec := httptest.NewRecorder()
 
 		w := &tracing.StatusWriter{ResponseWriter: hijacker{rec}}
 

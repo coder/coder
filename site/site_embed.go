@@ -8,8 +8,8 @@ import (
 	"io/fs"
 )
 
-//go:embed out
-//go:embed out/bin/*
+//go:embed all:out
+//go:embed all:out/bin/*
 var site embed.FS
 
 func FS() fs.FS {

@@ -5,104 +5,73 @@ import TreeView from "@material-ui/lab/TreeView"
 import TreeItem from "@material-ui/lab/TreeItem"
 import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
-import { FC, useMemo, useState } from "react"
-import { TemplateVersionFiles } from "util/templateVersion"
+import { FC, useState } from "react"
+import { FileTree } from "util/filetree"
 import { DockerIcon } from "components/Icons/DockerIcon"
 
-export interface File {
-  path: string
-  content?: string
-  children: Record<string, File>
+const sortFileTree = (fileTree: FileTree) => (a: string, b: string) => {
+  const contentA = fileTree[a]
+  const contentB = fileTree[b]
+  if (typeof contentA === "object") {
+    return -1
+  }
+  if (typeof contentB === "object") {
+    return 1
+  }
+  return a.localeCompare(b)
 }
 
-export const FileTree: FC<{
-  onSelect: (file: File) => void
-  onDelete: (file: File) => void
-  onRename: (file: File) => void
-  files: TemplateVersionFiles
-  activeFile?: File
-}> = ({ activeFile, files, onDelete, onRename, onSelect }) => {
-  const styles = useStyles()
-  const fileTree = useMemo<Record<string, File>>(() => {
-    const paths = Object.keys(files)
-    const roots: Record<string, File> = {}
-    paths.forEach((path) => {
-      const pathParts = path.split("/")
-      const firstPart = pathParts.shift()
-      if (!firstPart) {
-        // Not possible!
-        return
-      }
-      let activeFile = roots[firstPart]
-      if (!activeFile) {
-        activeFile = {
-          path: firstPart,
-          children: {},
-        }
-        roots[firstPart] = activeFile
-      }
-      while (pathParts.length > 0) {
-        const pathPart = pathParts.shift()
-        if (!pathPart) {
-          continue
-        }
-        if (!activeFile.children[pathPart]) {
-          activeFile.children[pathPart] = {
-            path: activeFile.path + "/" + pathPart,
-            children: {},
-          }
-        }
-        activeFile = activeFile.children[pathPart]
-      }
-      activeFile.content = files[path]
-      activeFile.path = path
-    })
-    return roots
-  }, [files])
-  const [contextMenu, setContextMenu] = useState<
-    | {
-        file: File
-        clientX: number
-        clientY: number
-      }
-    | undefined
-  >()
+type ContextMenu = {
+  path: string
+  clientX: number
+  clientY: number
+}
 
-  const buildTreeItems = (name: string, file: File): JSX.Element => {
+export const FileTreeView: FC<{
+  onSelect: (path: string) => void
+  onDelete: (path: string) => void
+  onRename: (path: string) => void
+  fileTree: FileTree
+  activePath?: string
+}> = ({ fileTree, activePath, onDelete, onRename, onSelect }) => {
+  const styles = useStyles()
+  const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>()
+
+  const buildTreeItems = (
+    filename: string,
+    content?: FileTree | string,
+    parentPath?: string,
+  ): JSX.Element => {
+    const currentPath = parentPath ? `${parentPath}/${filename}` : filename
     let icon: JSX.Element | null = null
-    if (file.path.endsWith(".tf")) {
+    if (filename.endsWith(".tf")) {
       icon = <FileTypeTerraform />
     }
-    if (file.path.endsWith(".md")) {
+    if (filename.endsWith(".md")) {
       icon = <FileTypeMarkdown />
     }
-    if (file.path.endsWith("Dockerfile")) {
+    if (filename.endsWith("Dockerfile")) {
       icon = <FileTypeDockerfile />
     }
 
     return (
       <TreeItem
-        nodeId={file.path}
-        key={file.path}
-        label={name}
+        nodeId={currentPath}
+        key={currentPath}
+        label={filename}
         className={`${styles.fileTreeItem} ${
-          file.path === activeFile?.path ? "active" : ""
+          currentPath === activePath ? "active" : ""
         }`}
         onClick={() => {
-          if (file.content) {
-            onSelect(file)
-          }
+          onSelect(currentPath)
         }}
         onContextMenu={(event) => {
           event.preventDefault()
-          if (!file.content) {
-            return
-          }
           setContextMenu(
             contextMenu
               ? undefined
               : {
-                  file: file,
+                  path: currentPath,
                   clientY: event.clientY,
                   clientX: event.clientX,
                 },
@@ -110,9 +79,16 @@ export const FileTree: FC<{
         }}
         icon={icon}
       >
-        {Object.entries(file.children || {}).map(([name, file]) => {
-          return buildTreeItems(name, file)
-        })}
+        {typeof content === "object" ? (
+          Object.keys(content)
+            .sort(sortFileTree(content))
+            .map((filename) => {
+              const child = content[filename]
+              return buildTreeItems(filename, child, currentPath)
+            })
+        ) : (
+          <></>
+        )}
       </TreeItem>
     )
   }
@@ -124,9 +100,12 @@ export const FileTree: FC<{
       aria-label="Files"
       className={styles.fileTree}
     >
-      {Object.entries(fileTree).map(([name, file]) => {
-        return buildTreeItems(name, file)
-      })}
+      {Object.keys(fileTree)
+        .sort(sortFileTree(fileTree))
+        .map((filename) => {
+          const child = fileTree[filename]
+          return buildTreeItems(filename, child)
+        })}
 
       <Menu
         onClose={() => setContextMenu(undefined)}
@@ -154,7 +133,7 @@ export const FileTree: FC<{
             if (!contextMenu) {
               return
             }
-            onRename(contextMenu.file)
+            onRename(contextMenu.path)
             setContextMenu(undefined)
           }}
         >
@@ -165,7 +144,7 @@ export const FileTree: FC<{
             if (!contextMenu) {
               return
             }
-            onDelete(contextMenu.file)
+            onDelete(contextMenu.path)
             setContextMenu(undefined)
           }}
         >

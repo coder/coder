@@ -28,8 +28,8 @@ func TestResetPassword(t *testing.T) {
 
 	const email = "some@one.com"
 	const username = "example"
-	const oldPassword = "password"
-	const newPassword = "password2"
+	const oldPassword = "MyOldPassword!"
+	const newPassword = "MyNewPassword!"
 
 	// start postgres and coder server processes
 

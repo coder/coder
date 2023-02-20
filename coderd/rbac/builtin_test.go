@@ -19,10 +19,11 @@ type authSubject struct {
 	Actor rbac.Subject
 }
 
+// TODO: add the SYSTEM to the MATRIX
 func TestRolePermissions(t *testing.T) {
 	t.Parallel()
 
-	auth := rbac.NewAuthorizer(prometheus.NewRegistry())
+	auth := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
 
 	// currentUser is anything that references "me", "mine", or "my".
 	currentUser := uuid.New()
@@ -183,8 +184,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []rbac.Action{rbac.ActionRead},
 			Resource: rbac.ResourceOrganization.WithID(orgID).InOrg(orgID),
 			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {otherOrgAdmin, otherOrgMember, memberMe, templateAdmin, userAdmin},
+				true:  {owner, orgAdmin, orgMemberMe, templateAdmin},
+				false: {otherOrgAdmin, otherOrgMember, memberMe, userAdmin},
 			},
 		},
 		{

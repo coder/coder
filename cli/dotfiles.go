@@ -111,7 +111,7 @@ func dotfiles() *cobra.Command {
 			}
 
 			// ensure command dir exists
-			err = os.MkdirAll(gitCmdDir, 0750)
+			err = os.MkdirAll(gitCmdDir, 0o750)
 			if err != nil {
 				return xerrors.Errorf("ensuring dir at %s: %w", gitCmdDir, err)
 			}

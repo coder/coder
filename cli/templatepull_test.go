@@ -97,7 +97,7 @@ func TestTemplatePull(t *testing.T) {
 
 		// Create the file so that we can test that the command
 		// warns the user before overwriting a preexisting file.
-		fi, err := os.OpenFile(dest, os.O_CREATE|os.O_RDONLY, 0600)
+		fi, err := os.OpenFile(dest, os.O_CREATE|os.O_RDONLY, 0o600)
 		require.NoError(t, err)
 		_ = fi.Close()
 

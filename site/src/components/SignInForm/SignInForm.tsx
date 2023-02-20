@@ -9,6 +9,7 @@ import { OAuthSignInForm } from "./OAuthSignInForm"
 import { BuiltInAuthFormValues } from "./SignInForm.types"
 import Button from "@material-ui/core/Button"
 import EmailIcon from "@material-ui/icons/EmailOutlined"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 
 export enum LoginErrors {
   AUTH_ERROR = "authError",
@@ -94,6 +95,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   const oAuthEnabled = Boolean(
     authMethods?.github.enabled || authMethods?.oidc.enabled,
   )
+  const passwordEnabled = authMethods?.password.enabled ?? true
 
   // Hide password auth by default if any OAuth method is enabled
   const [showPasswordAuth, setShowPasswordAuth] = useState(!oAuthEnabled)
@@ -108,7 +110,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         {loginPageTranslation.t("signInTo")}{" "}
         <strong>{commonTranslation.t("coder")}</strong>
       </h1>
-      <Maybe condition={showPasswordAuth}>
+      <Maybe condition={passwordEnabled && showPasswordAuth}>
         <PasswordSignInForm
           loginErrors={loginErrors}
           onSubmit={onSubmit}
@@ -116,7 +118,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
           isLoading={isLoading}
         />
       </Maybe>
-      <Maybe condition={showPasswordAuth && oAuthEnabled}>
+      <Maybe condition={passwordEnabled && showPasswordAuth && oAuthEnabled}>
         <div className={styles.divider}>
           <div className={styles.dividerLine} />
           <div className={styles.dividerLabel}>Or</div>
@@ -131,7 +133,14 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         />
       </Maybe>
 
-      <Maybe condition={!showPasswordAuth}>
+      <Maybe condition={!passwordEnabled && !oAuthEnabled}>
+        <AlertBanner
+          severity="error"
+          text="No authentication methods configured!"
+        />
+      </Maybe>
+
+      <Maybe condition={passwordEnabled && !showPasswordAuth}>
         <div className={styles.divider}>
           <div className={styles.dividerLine} />
           <div className={styles.dividerLabel}>Or</div>

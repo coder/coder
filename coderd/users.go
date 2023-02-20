@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -70,6 +71,7 @@ func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} codersdk.CreateFirstUserResponse
 // @Router /users/first [post]
 func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
+	// TODO: Should this admin system context be in a middleware?
 	ctx := r.Context()
 	var createUser codersdk.CreateFirstUserRequest
 	if !httpapi.Read(ctx, rw, r, &createUser) {
@@ -105,7 +107,20 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	user, organizationID, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
+	err = userpassword.Validate(createUser.Password)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Password not strong enough!",
+			Validations: []codersdk.ValidationError{{
+				Field:  "password",
+				Detail: err.Error(),
+			}},
+		})
+		return
+	}
+
+	//nolint:gocritic // needed to create first user
+	user, organizationID, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Email:    createUser.Email,
 			Username: createUser.Username,
@@ -134,7 +149,8 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// 	the user. Maybe I add this ability to grant roles in the createUser api
 	//	and add some rbac bypass when calling api functions this way??
 	// Add the admin role to this first user.
-	_, err = api.Database.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
+	//nolint:gocritic // needed to create first user
+	_, err = api.Database.UpdateUserRoles(dbauthz.AsSystemRestricted(ctx), database.UpdateUserRolesParams{
 		GrantedRoles: []string{rbac.RoleOwner()},
 		ID:           user.ID,
 	})
@@ -281,6 +297,15 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If password auth is disabled, don't allow new users to be
+	// created with a password!
+	if api.DeploymentConfig.DisablePasswordAuth.Value {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You cannot manually provision new users with password authentication disabled!",
+		})
+		return
+	}
+
 	// TODO: @emyrk Authorize the organization create if the createUser will do that.
 
 	_, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
@@ -312,6 +337,18 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching organization.",
 			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = userpassword.Validate(req.Password)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Password not strong enough!",
+			Validations: []codersdk.ValidationError{{
+				Field:  "password",
+				Detail: err.Error(),
+			}},
 		})
 		return
 	}
@@ -963,7 +1000,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	organizationName := chi.URLParam(r, "organizationname")
 	organization, err := api.Database.GetOrganizationByName(ctx, organizationName)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) || rbac.IsUnauthorizedError(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

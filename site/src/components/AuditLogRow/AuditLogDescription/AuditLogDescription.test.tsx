@@ -7,9 +7,13 @@ import {
   MockAuditLogUnsuccessfulLoginUnknownUser,
 } from "testHelpers/entities"
 import { AuditLogDescription } from "./AuditLogDescription"
-import { AuditLogRow } from "./AuditLogRow"
-import { render } from "../../testHelpers/renderHelpers"
+import { AuditLogRow } from "../AuditLogRow"
+import { render } from "testHelpers/renderHelpers"
 import { screen } from "@testing-library/react"
+import { i18n } from "i18n"
+
+const t = (str: string, variables?: Record<string, unknown>) =>
+  i18n.t<string>(str, variables)
 
 const getByTextContent = (text: string) => {
   return screen.getByText((_, element) => {
@@ -25,17 +29,14 @@ describe("AuditLogDescription", () => {
   it("renders the correct string for a workspace create audit log", async () => {
     render(<AuditLogDescription auditLog={MockAuditLog} />)
 
-    expect(
-      getByTextContent("TestUser created workspace bruno-dev"),
-    ).toBeDefined()
+    expect(screen.getByText("TestUser created workspace")).toBeDefined()
+    expect(screen.getByText("bruno-dev")).toBeDefined()
   })
 
   it("renders the correct string for a workspace_build stop audit log", async () => {
     render(<AuditLogDescription auditLog={MockAuditLogWithWorkspaceBuild} />)
 
-    expect(
-      getByTextContent("TestUser stopped build for workspace test2"),
-    ).toBeDefined()
+    expect(getByTextContent("TestUser stopped workspace test2")).toBeDefined()
   })
 
   it("renders the correct string for a workspace_build audit log with a duplicate word", async () => {
@@ -48,7 +49,7 @@ describe("AuditLogDescription", () => {
     render(<AuditLogDescription auditLog={AuditLogWithRepeat} />)
 
     expect(
-      getByTextContent("TestUser stopped build for workspace workspace"),
+      getByTextContent("TestUser stopped workspace workspace"),
     ).toBeDefined()
   })
   it("renders the correct string for a workspace created for a different owner", async () => {
@@ -57,27 +58,68 @@ describe("AuditLogDescription", () => {
         auditLog={MockWorkspaceCreateAuditLogForDifferentOwner}
       />,
     )
+
     expect(
-      getByTextContent(
-        `TestUser created workspace bruno-dev on behalf of ${MockWorkspaceCreateAuditLogForDifferentOwner.additional_fields.workspace_owner}`,
+      screen.getByText(
+        `on behalf of ${MockWorkspaceCreateAuditLogForDifferentOwner.additional_fields.workspace_owner}`,
+        { exact: false },
       ),
     ).toBeDefined()
   })
   it("renders the correct string for successful login", async () => {
     render(<AuditLogRow auditLog={MockAuditLogSuccessfulLogin} />)
-    expect(getByTextContent(`TestUser logged in`)).toBeDefined()
+
+    expect(
+      screen.getByText(
+        t("auditLog:table.logRow.description.unlinkedAuditDescription", {
+          truncatedDescription: `${MockAuditLogSuccessfulLogin.user?.username} logged in`,
+          target: "",
+          onBehalfOf: undefined,
+        })
+          .replace(/<[^>]*>/g, " ")
+          .replace(/\s{2,}/g, " ")
+          .trim(),
+      ),
+    ).toBeInTheDocument()
+
     const statusPill = screen.getByRole("status")
     expect(statusPill).toHaveTextContent("201")
   })
   it("renders the correct string for unsuccessful login for a known user", async () => {
     render(<AuditLogRow auditLog={MockAuditLogUnsuccessfulLoginKnownUser} />)
-    expect(getByTextContent(`TestUser logged in`)).toBeDefined()
+
+    expect(
+      screen.getByText(
+        t("auditLog:table.logRow.description.unlinkedAuditDescription", {
+          truncatedDescription: `${MockAuditLogUnsuccessfulLoginKnownUser.user?.username} logged in`,
+          target: "",
+          onBehalfOf: undefined,
+        })
+          .replace(/<[^>]*>/g, " ")
+          .replace(/\s{2,}/g, " ")
+          .trim(),
+      ),
+    ).toBeInTheDocument()
+
     const statusPill = screen.getByRole("status")
     expect(statusPill).toHaveTextContent("401")
   })
   it("renders the correct string for unsuccessful login for an unknown user", async () => {
     render(<AuditLogRow auditLog={MockAuditLogUnsuccessfulLoginUnknownUser} />)
-    expect(getByTextContent(`an unknown user logged in`)).toBeDefined()
+
+    expect(
+      screen.getByText(
+        t("auditLog:table.logRow.description.unlinkedAuditDescription", {
+          truncatedDescription: "an unknown user logged in",
+          target: "",
+          onBehalfOf: undefined,
+        })
+          .replace(/<[^>]*>/g, " ")
+          .replace(/\s{2,}/g, " ")
+          .trim(),
+      ),
+    ).toBeInTheDocument()
+
     const statusPill = screen.getByRole("status")
     expect(statusPill).toHaveTextContent("401")
   })

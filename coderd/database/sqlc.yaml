@@ -44,6 +44,7 @@ overrides:
       default_ttl: DefaultTTL
       max_ttl: MaxTTL
       motd_file: MOTDFile
+      uuid: UUID
 
 sql:
   - schema: "./dump.sql"

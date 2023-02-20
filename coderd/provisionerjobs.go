@@ -16,9 +16,10 @@ import (
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -32,6 +33,7 @@ import (
 func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
 	var (
 		ctx       = r.Context()
+		actor, _  = dbauthz.ActorFromContext(ctx)
 		logger    = api.Logger.With(slog.F("job_id", job.ID))
 		follow    = r.URL.Query().Has("follow")
 		afterRaw  = r.URL.Query().Get("after")
@@ -49,7 +51,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	// of processed IDs.
 	var bufferedLogs <-chan database.ProvisionerJobLog
 	if follow {
-		bl, closeFollow, err := api.followLogs(job.ID)
+		bl, closeFollow, err := api.followLogs(actor, job.ID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error watching provisioner logs.",
@@ -367,7 +369,7 @@ type provisionerJobLogsMessage struct {
 	EndOfLogs    bool  `json:"end_of_logs,omitempty"`
 }
 
-func (api *API) followLogs(jobID uuid.UUID) (<-chan database.ProvisionerJobLog, func(), error) {
+func (api *API) followLogs(actor rbac.Subject, jobID uuid.UUID) (<-chan database.ProvisionerJobLog, func(), error) {
 	logger := api.Logger.With(slog.F("job_id", jobID))
 
 	var (
@@ -392,7 +394,7 @@ func (api *API) followLogs(jobID uuid.UUID) (<-chan database.ProvisionerJobLog, 
 			}
 
 			if jlMsg.CreatedAfter != 0 {
-				logs, err := api.Database.GetProvisionerLogsByIDBetween(ctx, database.GetProvisionerLogsByIDBetweenParams{
+				logs, err := api.Database.GetProvisionerLogsByIDBetween(dbauthz.As(ctx, actor), database.GetProvisionerLogsByIDBetweenParams{
 					JobID:        jobID,
 					CreatedAfter: jlMsg.CreatedAfter,
 				})

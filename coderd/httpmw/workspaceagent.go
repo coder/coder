@@ -10,7 +10,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -45,7 +47,8 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 				})
 				return
 			}
-			agent, err := db.GetWorkspaceAgentByAuthToken(ctx, token)
+			//nolint:gocritic // System needs to be able to get workspace agents.
+			agent, err := db.GetWorkspaceAgentByAuthToken(dbauthz.AsSystemRestricted(ctx), token)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
@@ -62,8 +65,50 @@ func ExtractWorkspaceAgent(db database.Store) func(http.Handler) http.Handler {
 				return
 			}
 
+			//nolint:gocritic // System needs to be able to get workspace agents.
+			subject, err := getAgentSubject(dbauthz.AsSystemRestricted(ctx), db, agent)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error fetching workspace agent.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+
 			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, agent)
+			// Also set the dbauthz actor for the request.
+			ctx = dbauthz.As(ctx, subject)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
+}
+
+func getAgentSubject(ctx context.Context, db database.Store, agent database.WorkspaceAgent) (rbac.Subject, error) {
+	// TODO: make a different query that gets the workspace owner and roles along with the agent.
+	workspace, err := db.GetWorkspaceByAgentID(ctx, agent.ID)
+	if err != nil {
+		return rbac.Subject{}, err
+	}
+
+	user, err := db.GetUserByID(ctx, workspace.OwnerID)
+	if err != nil {
+		return rbac.Subject{}, err
+	}
+
+	roles, err := db.GetAuthorizationUserRoles(ctx, user.ID)
+	if err != nil {
+		return rbac.Subject{}, err
+	}
+
+	// A user that creates a workspace can use this agent auth token and
+	// impersonate the workspace. So to prevent privilege escalation, the
+	// subject inherits the roles of the user that owns the workspace.
+	// We then add a workspace-agent scope to limit the permissions
+	// to only what the workspace agent needs.
+	return rbac.Subject{
+		ID:     user.ID.String(),
+		Roles:  rbac.RoleNames(roles.Roles),
+		Groups: roles.Groups,
+		Scope:  rbac.WorkspaceAgentScope(workspace.ID, user.ID),
+	}, nil
 }

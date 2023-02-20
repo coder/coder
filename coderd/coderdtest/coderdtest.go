@@ -35,6 +35,7 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
@@ -58,6 +59,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -179,12 +181,13 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
 	}
 	// TODO: remove this once we're ready to enable authz querier by default.
-	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), "authz_querier") {
-		panic("Coming soon!")
-		// if options.Authorizer != nil {
-		// 	options.Authorizer = &RecordingAuthorizer{}
-		// }
-		// options.Database = authzquery.NewAuthzQuerier(options.Database, options.Authorizer)
+	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), string(codersdk.ExperimentAuthzQuerier)) {
+		if options.Authorizer == nil {
+			options.Authorizer = &RecordingAuthorizer{
+				Wrapped: rbac.NewCachingAuthorizer(prometheus.NewRegistry()),
+			}
+		}
+		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	}
 	if options.DeploymentConfig == nil {
 		options.DeploymentConfig = DeploymentConfig(t)
@@ -393,13 +396,16 @@ func NewProvisionerDaemon(t *testing.T, coderAPI *coderd.API) io.Closer {
 func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
 	echoClient, echoServer := provisionersdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	serveDone := make(chan struct{})
 	t.Cleanup(func() {
 		_ = echoClient.Close()
 		_ = echoServer.Close()
 		cancelFunc()
+		<-serveDone
 	})
 	fs := afero.NewMemMapFs()
 	go func() {
+		defer close(serveDone)
 		err := echo.Serve(ctx, fs, &provisionersdk.ServeOptions{
 			Listener: echoServer,
 		})
@@ -428,7 +434,7 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 var FirstUserParams = codersdk.CreateFirstUserRequest{
 	Email:    "testuser@coder.com",
 	Username: "testuser",
-	Password: "testpass",
+	Password: "SomeSecurePassword!",
 }
 
 // CreateFirstUser creates a user with preset credentials and authenticates
@@ -455,7 +461,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       randomUsername(),
-		Password:       "testpass",
+		Password:       "SomeSecurePassword!",
 		OrganizationID: organizationID,
 	}
 
@@ -516,17 +522,23 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 // CreateTemplateVersion creates a template import provisioner job
 // with the responses provided. It uses the "echo" provisioner for compatibility
 // with testing.
-func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses) codersdk.TemplateVersion {
+func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
 	t.Helper()
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
 	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
-	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
+
+	req := codersdk.CreateTemplateVersionRequest{
 		FileID:        file.ID,
 		StorageMethod: codersdk.ProvisionerStorageMethodFile,
 		Provisioner:   codersdk.ProvisionerTypeEcho,
-	})
+	}
+	for _, mut := range mutators {
+		mut(&req)
+	}
+
+	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, req)
 	require.NoError(t, err)
 	return templateVersion
 }
