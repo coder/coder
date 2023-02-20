@@ -1,13 +1,15 @@
 import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
-import { UpdateTemplateMeta } from "api/typesGenerated"
+import { Entitlements, UpdateTemplateMeta } from "api/typesGenerated"
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter"
-import { MockTemplate } from "../../testHelpers/entities"
+import { MockEntitlements, MockTemplate } from "../../testHelpers/entities"
 import { renderWithAuth } from "../../testHelpers/renderHelpers"
+import { server } from "../../testHelpers/server"
 import { getValidationSchema } from "./TemplateSettingsForm"
 import { TemplateSettingsPage } from "./TemplateSettingsPage"
 import i18next from "i18next"
+import { rest } from "msw"
 
 const { t } = i18next
 
@@ -27,7 +29,9 @@ const validFormValues = {
   display_name: "A display name",
   description: "A description",
   icon: "vscode.png",
+  // these are the form values which are actually hours
   default_ttl_ms: 1,
+  max_ttl_ms: 2,
   allow_user_cancel_workspace_jobs: false,
 }
 
@@ -36,6 +40,7 @@ const fillAndSubmitForm = async ({
   display_name,
   description,
   default_ttl_ms,
+  max_ttl_ms,
   icon,
   allow_user_cancel_workspace_jobs,
 }: Required<UpdateTemplateMeta>) => {
@@ -61,9 +66,17 @@ const fillAndSubmitForm = async ({
   await userEvent.type(iconField, icon)
 
   const defaultTtlLabel = t("defaultTtlLabel", { ns: "templateSettingsPage" })
-  const maxTtlField = await screen.findByLabelText(defaultTtlLabel)
-  await userEvent.clear(maxTtlField)
-  await userEvent.type(maxTtlField, default_ttl_ms.toString())
+  const defaultTtlField = await screen.findByLabelText(defaultTtlLabel)
+  await userEvent.clear(defaultTtlField)
+  await userEvent.type(defaultTtlField, default_ttl_ms.toString())
+
+  const entitlements = await API.getEntitlements()
+  if (entitlements.features["advanced_template_scheduling"].enabled) {
+    const maxTtlLabel = t("maxTtlLabel", { ns: "templateSettingsPage" })
+    const maxTtlField = await screen.findByLabelText(maxTtlLabel)
+    await userEvent.clear(maxTtlField)
+    await userEvent.type(maxTtlField, max_ttl_ms.toString())
+  }
 
   const allowCancelJobsField = screen.getByRole("checkbox")
   // checkbox is checked by default, so it must be clicked to get unchecked
@@ -109,7 +122,12 @@ describe("TemplateSettingsPage", () => {
     })
 
     await fillAndSubmitForm(validFormValues)
-    expect(screen.getByDisplayValue(1)).toBeInTheDocument() // the default_ttl_ms
+    expect(
+      screen.getByDisplayValue(validFormValues.default_ttl_ms),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryAllByDisplayValue(validFormValues.max_ttl_ms),
+    ).toHaveLength(0)
     await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1))
 
     await waitFor(() =>
@@ -117,7 +135,57 @@ describe("TemplateSettingsPage", () => {
         "test-template",
         expect.objectContaining({
           ...validFormValues,
-          default_ttl_ms: 3600000, // the default_ttl_ms to ms
+          // convert from the display value (hours) to ms
+          default_ttl_ms: validFormValues.default_ttl_ms * 3600000,
+          // this value is undefined if not entitled
+          max_ttl_ms: undefined,
+        }),
+      ),
+    )
+  })
+
+  test("max ttl shows if entitled", async () => {
+    const entitlements: Entitlements = {
+      ...MockEntitlements,
+      has_license: true,
+      features: {
+        ...MockEntitlements.features,
+        advanced_template_scheduling: {
+          entitlement: "entitled",
+          enabled: true,
+        },
+      },
+    }
+    server.use(
+      rest.get("/api/v2/entitlements", (req, res, ctx) => {
+        return res(ctx.status(200), ctx.json(entitlements))
+      }),
+    )
+
+    await renderTemplateSettingsPage()
+
+    jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+      ...MockTemplate,
+      ...validFormValues,
+    })
+
+    await fillAndSubmitForm(validFormValues)
+    expect(
+      screen.getByDisplayValue(validFormValues.default_ttl_ms),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByDisplayValue(validFormValues.max_ttl_ms),
+    ).toBeInTheDocument()
+    await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1))
+
+    await waitFor(() =>
+      expect(API.updateTemplateMeta).toBeCalledWith(
+        "test-template",
+        expect.objectContaining({
+          ...validFormValues,
+          // convert from the display value (hours) to ms
+          default_ttl_ms: validFormValues.default_ttl_ms * 3600000,
+          max_ttl_ms: validFormValues.max_ttl_ms * 3600000,
         }),
       ),
     )
@@ -148,7 +216,7 @@ describe("TemplateSettingsPage", () => {
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).toThrowError(
-      t("ttlMaxError", { ns: "templateSettingsPage" }),
+      t("defaultTTLMaxError", { ns: "templateSettingsPage" }),
     )
   })
 

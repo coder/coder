@@ -50,7 +50,10 @@ const defaultInitialValues: CreateTemplateData = {
   parameter_values_by_name: undefined,
 }
 
-const getInitialValues = (canSetMaxTTL: boolean, starterTemplate?: TemplateExample) => {
+const getInitialValues = (
+  canSetMaxTTL: boolean,
+  starterTemplate?: TemplateExample,
+) => {
   let initialValues = defaultInitialValues
   if (!canSetMaxTTL) {
     initialValues = {
@@ -97,7 +100,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   const styles = useStyles()
   const formFooterStyles = useFormFooterStyles()
   const { entitlements } = useDashboard()
-  const canSetMaxTTL = entitlements.features["advanced_template_scheduling"].enabled
+  const canSetMaxTTL =
+    entitlements.features["advanced_template_scheduling"].enabled
 
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues(canSetMaxTTL, starterTemplate),

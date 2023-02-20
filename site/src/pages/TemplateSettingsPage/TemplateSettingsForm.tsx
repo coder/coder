@@ -25,13 +25,19 @@ import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
 import { makeStyles } from "@material-ui/core/styles"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 
-+const TTLHelperText = ({ ttl, translationName }: { ttl?: number, translationName: string }) => {
+const TTLHelperText = ({
+  ttl,
+  translationName,
+}: {
+  ttl?: number
+  translationName: string
+}) => {
   const { t } = useTranslation("templateSettingsPage")
   const count = typeof ttl !== "number" ? 0 : ttl
   return (
     // no helper text if ttl is negative - error will show once field is considered touched
     <Maybe condition={count >= 0}>
-+      <span>{t(translationName, { count })}</span>
+      <span>{t(translationName, { count })}</span>
     </Maybe>
   )
 }
@@ -88,7 +94,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   initialTouched,
 }) => {
   const { entitlements } = useDashboard()
-  const canSetMaxTTL = entitlements.features["advanced_template_scheduling"].enabled
+  const canSetMaxTTL =
+    entitlements.features["advanced_template_scheduling"].enabled
 
   const validationSchema = getValidationSchema()
   const form: FormikContextType<UpdateTemplateMeta> =
@@ -189,7 +196,10 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         <TextField
           {...getFieldHelpers(
             "default_ttl_ms",
-            <TTLHelperText translationName="defaultTTLHelperText" ttl={form.values.default_ttl_ms} />,
+            <TTLHelperText
+              translationName="defaultTTLHelperText"
+              ttl={form.values.default_ttl_ms}
+            />,
           )}
           disabled={isSubmitting}
           fullWidth
@@ -202,13 +212,16 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         <Maybe condition={canSetMaxTTL}>
           <TextField
             {...getFieldHelpers(
-              "default_ttl_ms",
-              <TTLHelperText translationName="defaultTTLHelperText" ttl={form.values.default_ttl_ms} />,
+              "max_ttl_ms",
+              <TTLHelperText
+                translationName="maxTTLHelperText"
+                ttl={form.values.default_ttl_ms}
+              />,
             )}
             disabled={isSubmitting}
             fullWidth
             inputProps={{ min: 0, step: 1 }}
-            label={t("defaultTtlLabel")}
+            label={t("maxTtlLabel")}
             variant="outlined"
             type="number"
           />
