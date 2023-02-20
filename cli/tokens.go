@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -113,11 +114,17 @@ func tokenListRowFromToken(token codersdk.APIKey, usersByID map[uuid.UUID]coders
 }
 
 func listTokens() *cobra.Command {
+	// we only display the 'owner' column if the --all argument is passed in
+	defaultCols := []string{"id", "last used", "expires at", "created at"}
+	if len(os.Args) > 5 {
+		defaultCols = append(defaultCols, "owner")
+	}
+
 	var (
 		all           bool
 		displayTokens []tokenListRow
 		formatter     = cliui.NewOutputFormatter(
-			cliui.TableFormat([]tokenListRow{}, nil),
+			cliui.TableFormat([]tokenListRow{}, defaultCols),
 			cliui.JSONFormat(),
 		)
 	)
