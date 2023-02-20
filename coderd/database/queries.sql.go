@@ -3331,7 +3331,6 @@ INSERT INTO
 		provisioner,
 		active_version_id,
 		description,
-		default_ttl,
 		created_by,
 		icon,
 		user_acl,
@@ -3340,7 +3339,7 @@ INSERT INTO
 		allow_user_cancel_workspace_jobs
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl
 `
 
 type InsertTemplateParams struct {
@@ -3352,7 +3351,6 @@ type InsertTemplateParams struct {
 	Provisioner                  ProvisionerType `db:"provisioner" json:"provisioner"`
 	ActiveVersionID              uuid.UUID       `db:"active_version_id" json:"active_version_id"`
 	Description                  string          `db:"description" json:"description"`
-	DefaultTTL                   int64           `db:"default_ttl" json:"default_ttl"`
 	CreatedBy                    uuid.UUID       `db:"created_by" json:"created_by"`
 	Icon                         string          `db:"icon" json:"icon"`
 	UserACL                      TemplateACL     `db:"user_acl" json:"user_acl"`
@@ -3371,7 +3369,6 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.Provisioner,
 		arg.ActiveVersionID,
 		arg.Description,
-		arg.DefaultTTL,
 		arg.CreatedBy,
 		arg.Icon,
 		arg.UserACL,

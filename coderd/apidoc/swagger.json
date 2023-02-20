@@ -5107,6 +5107,10 @@
           "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
           "type": "string"
         },
+        "max_ttl_ms": {
+          "description": "MaxTTLMillis allows optionally specifying the max lifetime for\nworkspaces created from this template.",
+          "type": "integer"
+        },
         "name": {
           "description": "Name is the name of the template.",
           "type": "string"

@@ -23,14 +23,15 @@ import { Stack } from "components/Stack/Stack"
 import Checkbox from "@material-ui/core/Checkbox"
 import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
 import { makeStyles } from "@material-ui/core/styles"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 
-const TTLHelperText = ({ ttl }: { ttl?: number }) => {
++const TTLHelperText = ({ ttl, translationName }: { ttl?: number, translationName: string }) => {
   const { t } = useTranslation("templateSettingsPage")
   const count = typeof ttl !== "number" ? 0 : ttl
   return (
     // no helper text if ttl is negative - error will show once field is considered touched
     <Maybe condition={count >= 0}>
-      <span>{t("ttlHelperText", { count })}</span>
++      <span>{t(translationName, { count })}</span>
     </Maybe>
   )
 }
@@ -53,10 +54,17 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
     ),
     default_ttl_ms: Yup.number()
       .integer()
-      .min(0, i18next.t("ttlMinError", { ns: "templateSettingsPage" }))
+      .min(0, i18next.t("defaultTTLMinError", { ns: "templateSettingsPage" }))
       .max(
         24 * MAX_TTL_DAYS /* 7 days in hours */,
-        i18next.t("ttlMaxError", { ns: "templateSettingsPage" }),
+        i18next.t("defaultTTLMaxError", { ns: "templateSettingsPage" }),
+      ),
+    max_ttl_ms: Yup.number()
+      .integer()
+      .min(0, i18next.t("maxTTLMinError", { ns: "templateSettingsPage" }))
+      .max(
+        24 * MAX_TTL_DAYS /* 7 days in hours */,
+        i18next.t("maxTTLMaxError", { ns: "templateSettingsPage" }),
       ),
     allow_user_cancel_workspace_jobs: Yup.boolean(),
   })
@@ -79,6 +87,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   isSubmitting,
   initialTouched,
 }) => {
+  const { entitlements } = useDashboard()
+  const canSetMaxTTL = entitlements.features["advanced_template_scheduling"].enabled
+
   const validationSchema = getValidationSchema()
   const form: FormikContextType<UpdateTemplateMeta> =
     useFormik<UpdateTemplateMeta>({
@@ -88,6 +99,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         description: template.description,
         // on display, convert from ms => hours
         default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
+        // the API ignores this value, but to avoid tripping up validation set
+        // it to zero if the user can't set the field.
+        max_ttl_ms: canSetMaxTTL ? template.max_ttl_ms / MS_HOUR_CONVERSION : 0,
         icon: template.icon,
         allow_user_cancel_workspace_jobs:
           template.allow_user_cancel_workspace_jobs,
@@ -99,6 +113,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           ...formData,
           default_ttl_ms: formData.default_ttl_ms
             ? formData.default_ttl_ms * MS_HOUR_CONVERSION
+            : undefined,
+          max_ttl_ms: formData.max_ttl_ms
+            ? formData.max_ttl_ms * MS_HOUR_CONVERSION
             : undefined,
         })
       },
@@ -172,7 +189,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         <TextField
           {...getFieldHelpers(
             "default_ttl_ms",
-            <TTLHelperText ttl={form.values.default_ttl_ms} />,
+            <TTLHelperText translationName="defaultTTLHelperText" ttl={form.values.default_ttl_ms} />,
           )}
           disabled={isSubmitting}
           fullWidth
@@ -181,6 +198,21 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
           variant="outlined"
           type="number"
         />
+
+        <Maybe condition={canSetMaxTTL}>
+          <TextField
+            {...getFieldHelpers(
+              "default_ttl_ms",
+              <TTLHelperText translationName="defaultTTLHelperText" ttl={form.values.default_ttl_ms} />,
+            )}
+            disabled={isSubmitting}
+            fullWidth
+            inputProps={{ min: 0, step: 1 }}
+            label={t("defaultTtlLabel")}
+            variant="outlined"
+            type="number"
+          />
+        </Maybe>
       </FormSection>
 
       <FormSection

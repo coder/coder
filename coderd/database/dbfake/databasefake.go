@@ -2615,7 +2615,6 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		Provisioner:                  arg.Provisioner,
 		ActiveVersionID:              arg.ActiveVersionID,
 		Description:                  arg.Description,
-		DefaultTTL:                   arg.DefaultTTL,
 		CreatedBy:                    arg.CreatedBy,
 		UserACL:                      arg.UserACL,
 		GroupACL:                     arg.GroupACL,

@@ -440,7 +440,13 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		require.EqualValues(t, 0, template.MaxTTLMillis)
 		req := codersdk.UpdateTemplateMeta{
-			MaxTTLMillis: time.Hour.Milliseconds(),
+			Name:                         template.Name,
+			DisplayName:                  template.DisplayName,
+			Description:                  template.Description,
+			Icon:                         template.Icon,
+			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+			DefaultTTLMillis:             time.Hour.Milliseconds(),
+			MaxTTLMillis:                 (2 * time.Hour).Milliseconds(),
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)

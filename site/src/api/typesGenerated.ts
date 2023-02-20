@@ -179,6 +179,7 @@ export interface CreateTemplateRequest {
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
   readonly default_ttl_ms?: number
+  readonly max_ttl_ms?: number
   readonly allow_user_cancel_workspace_jobs?: boolean
 }
 

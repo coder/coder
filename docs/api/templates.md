@@ -192,6 +192,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "description": "string",
   "display_name": "string",
   "icon": "string",
+  "max_ttl_ms": 0,
   "name": "string",
   "parameter_values": [
     {

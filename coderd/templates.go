@@ -213,16 +213,31 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var ttl time.Duration
+	var (
+		defaultTTL time.Duration
+		maxTTL     time.Duration
+	)
 	if createTemplate.DefaultTTLMillis != nil {
-		ttl = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
+		defaultTTL = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
 	}
-	if ttl < 0 {
+	if createTemplate.MaxTTLMillis != nil {
+		maxTTL = time.Duration(*createTemplate.MaxTTLMillis) * time.Millisecond
+	}
+
+	var validErrs []codersdk.ValidationError
+	if defaultTTL < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if maxTTL < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if maxTTL != 0 && defaultTTL > maxTTL {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
+	}
+	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid create template request.",
-			Validations: []codersdk.ValidationError{
-				{Field: "default_ttl_ms", Detail: "Must be a positive integer."},
-			},
+			Message:     "Invalid create template request.",
+			Validations: validErrs,
 		})
 		return
 	}
@@ -245,7 +260,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Provisioner:     importJob.Provisioner,
 			ActiveVersionID: templateVersion.ID,
 			Description:     createTemplate.Description,
-			DefaultTTL:      int64(ttl),
 			CreatedBy:       apiKey.UserID,
 			UserACL:         database.TemplateACL{},
 			GroupACL: database.TemplateACL{
@@ -257,6 +271,17 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
+		}
+
+		if defaultTTL != 0 || maxTTL != 0 {
+			dbTemplate, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, dbTemplate, provisionerdserver.TemplateScheduleOptions{
+				UserSchedulingEnabled: true,
+				DefaultTTL:            defaultTTL,
+				MaxTTL:                maxTTL,
+			})
+			if err != nil {
+				return xerrors.Errorf("set template schedule options: %s", err)
+			}
 		}
 
 		templateAudit.New = dbTemplate
@@ -453,6 +478,12 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.DefaultTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
 	}
+	if req.MaxTTLMillis < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if req.MaxTTLMillis != 0 && req.DefaultTTLMillis > req.MaxTTLMillis {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
+	}
 
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -469,7 +500,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.DisplayName == template.DisplayName &&
 			req.Icon == template.Icon &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
-			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() {
+			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
+			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() {
 			return nil
 		}
 
@@ -647,6 +679,7 @@ func (api *API) convertTemplate(
 		Description:                  template.Description,
 		Icon:                         template.Icon,
 		DefaultTTLMillis:             time.Duration(template.DefaultTTL).Milliseconds(),
+		MaxTTLMillis:                 time.Duration(template.MaxTTL).Milliseconds(),
 		CreatedByID:                  template.CreatedBy,
 		CreatedByName:                createdByName,
 		AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,

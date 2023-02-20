@@ -953,6 +953,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "description": "string",
   "display_name": "string",
   "icon": "string",
+  "max_ttl_ms": 0,
   "name": "string",
   "parameter_values": [
     {
@@ -976,6 +977,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `description`                                                                                                                                                                             | string                                                                      | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                |
 | `display_name`                                                                                                                                                                            | string                                                                      | false    |              | Display name is the displayed name of the template.                                                        |
 | `icon`                                                                                                                                                                                    | string                                                                      | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.           |
+| `max_ttl_ms`                                                                                                                                                                              | integer                                                                     | false    |              | Max ttl ms allows optionally specifying the max lifetime for workspaces created from this template.        |
 | `name`                                                                                                                                                                                    | string                                                                      | true     |              | Name is the name of the template.                                                                          |
 | `parameter_values`                                                                                                                                                                        | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.]                         |
 | `template_version_id`                                                                                                                                                                     | string                                                                      | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.       |

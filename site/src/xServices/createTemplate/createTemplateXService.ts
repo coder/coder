@@ -37,6 +37,7 @@ export interface CreateTemplateData {
   description: string
   icon: string
   default_ttl_hours: number
+  max_ttl_hours: number
   allow_user_cancel_workspace_jobs: boolean
   parameter_values_by_name?: Record<string, string>
 }
@@ -372,6 +373,7 @@ export const createTemplateMachine =
 
           const {
             default_ttl_hours,
+            max_ttl_hours,
             parameter_values_by_name,
             ...safeTemplateData
           } = templateData
@@ -379,6 +381,7 @@ export const createTemplateMachine =
           return createTemplate(organizationId, {
             ...safeTemplateData,
             default_ttl_ms: templateData.default_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
+            max_ttl_ms: templateData.max_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
             template_version_id: version.id,
           })
         },

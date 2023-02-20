@@ -27,10 +27,12 @@
       "description": "Description",
       "icon": "Icon",
       "autoStop": "Auto-stop default",
+      "maxTTL": "Maximum lifetime of workspaces",
       "allowUsersToCancel": "Allow users to cancel in-progress workspace jobs"
     },
     "helperText": {
       "autoStop": "Time in hours",
+      "maxTTL": "Time in hours",
       "allowUsersToCancel": "If checked, users may be able to corrupt their workspace."
     },
     "upload": {

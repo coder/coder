@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,44 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/testutil"
 )
+
+func TestTemplates(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SetMaxTTL", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdenttest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAdvancedTemplateScheduling: 1,
+			},
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.EqualValues(t, 0, template.MaxTTLMillis)
+
+		ctx, _ := testutil.Context(t)
+
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name:                         template.Name,
+			DisplayName:                  template.DisplayName,
+			Description:                  template.Description,
+			Icon:                         template.Icon,
+			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+			DefaultTTLMillis:             time.Hour.Milliseconds(),
+			MaxTTLMillis:                 (2 * time.Hour).Milliseconds(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, 2*time.Hour, time.Duration(updated.MaxTTLMillis)*time.Millisecond)
+
+		template, err = client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, 2*time.Hour, time.Duration(template.MaxTTLMillis)*time.Millisecond)
+	})
+}
 
 func TestTemplateACL(t *testing.T) {
 	t.Parallel()

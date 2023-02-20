@@ -23,6 +23,8 @@ import * as Yup from "yup"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
 import { LazyIconField } from "components/IconField/LazyIconField"
+import { Maybe } from "components/Conditionals/Maybe"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),
@@ -30,6 +32,7 @@ const validationSchema = Yup.object({
   description: Yup.string().optional(),
   icon: Yup.string().optional(),
   default_ttl_hours: Yup.number(),
+  max_ttl_hours: Yup.number(),
   allow_user_cancel_workspace_jobs: Yup.boolean(),
   parameter_values_by_name: Yup.object().optional(),
 })
@@ -40,17 +43,27 @@ const defaultInitialValues: CreateTemplateData = {
   description: "",
   icon: "",
   default_ttl_hours: 24,
+  // max_ttl is an enterprise-only feature, and the server ignores the value if
+  // you are not licensed. We hide the form value based on entitlements.
+  max_ttl_hours: 24 * 7,
   allow_user_cancel_workspace_jobs: false,
   parameter_values_by_name: undefined,
 }
 
-const getInitialValues = (starterTemplate?: TemplateExample) => {
+const getInitialValues = (canSetMaxTTL: boolean, starterTemplate?: TemplateExample) => {
+  let initialValues = defaultInitialValues
+  if (!canSetMaxTTL) {
+    initialValues = {
+      ...initialValues,
+      max_ttl_hours: 0,
+    }
+  }
   if (!starterTemplate) {
-    return defaultInitialValues
+    return initialValues
   }
 
   return {
-    ...defaultInitialValues,
+    ...initialValues,
     name: starterTemplate.id,
     display_name: starterTemplate.name,
     icon: starterTemplate.icon,
@@ -83,8 +96,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
 }) => {
   const styles = useStyles()
   const formFooterStyles = useFormFooterStyles()
+  const { entitlements } = useDashboard()
+  const canSetMaxTTL = entitlements.features["advanced_template_scheduling"].enabled
+
   const form = useFormik<CreateTemplateData>({
-    initialValues: getInitialValues(starterTemplate),
+    initialValues: getInitialValues(canSetMaxTTL, starterTemplate),
     validationSchema,
     onSubmit,
   })
@@ -188,6 +204,19 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               type="number"
               helperText={t("form.helperText.autoStop")}
             />
+
+            <Maybe condition={canSetMaxTTL}>
+              <TextField
+                {...getFieldHelpers("max_ttl_hours")}
+                disabled={isSubmitting}
+                onChange={onChangeTrimmed(form)}
+                fullWidth
+                label={t("form.fields.maxTTL")}
+                variant="outlined"
+                type="number"
+                helperText={t("form.helperText.maxTTL")}
+              />
+            </Maybe>
           </Stack>
         </div>
 
