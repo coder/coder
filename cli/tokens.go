@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliflag"
@@ -114,7 +115,7 @@ func tokenListRowFromToken(token codersdk.APIKey, usersByID map[uuid.UUID]coders
 func listTokens() *cobra.Command {
 	// we only display the 'owner' column if the --all argument is passed in
 	defaultCols := []string{"id", "last used", "expires at", "created at"}
-	if len(os.Args) > 5 {
+	if slices.Contains(os.Args, "-a") || slices.Contains(os.Args, "--all") {
 		defaultCols = append(defaultCols, "owner")
 	}
 
