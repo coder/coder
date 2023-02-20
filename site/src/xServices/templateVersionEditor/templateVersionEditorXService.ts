@@ -7,8 +7,9 @@ import {
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 import * as API from "api/api"
-import Tar from "tar-js"
 import { FileTree, traverse } from "util/filetree"
+import { isAllowedFile } from "util/templateVersion"
+import { TarReader, TarWriter } from "util/tar"
 
 export interface CreateVersionData {
   file: File
@@ -22,6 +23,7 @@ export interface TemplateVersionEditorMachineContext {
   version?: TemplateVersion
   resources?: WorkspaceResource[]
   buildLogs?: ProvisionerJobLog[]
+  tarReader?: TarReader
 }
 
 export const templateVersionEditorMachine = createMachine(
@@ -31,6 +33,7 @@ export const templateVersionEditorMachine = createMachine(
     schema: {
       context: {} as TemplateVersionEditorMachineContext,
       events: {} as
+        | { type: "INITIALIZE"; tarReader: TarReader }
         | {
             type: "CREATE_VERSION"
             fileTree: FileTree
@@ -61,8 +64,16 @@ export const templateVersionEditorMachine = createMachine(
       },
     },
     tsTypes: {} as import("./templateVersionEditorXService.typegen").Typegen0,
-    initial: "idle",
+    initial: "initializing",
     states: {
+      initializing: {
+        on: {
+          INITIALIZE: {
+            actions: ["assignTarReader"],
+            target: "idle",
+          },
+        },
+      },
       idle: {
         on: {
           CREATE_VERSION: {
@@ -201,20 +212,54 @@ export const templateVersionEditorMachine = createMachine(
           }
         },
       }),
+      assignTarReader: assign({
+        tarReader: (_, { tarReader }) => tarReader,
+      }),
     },
     services: {
-      uploadTar: (ctx) => {
-        if (!ctx.fileTree) {
-          throw new Error("files must be set")
+      uploadTar: async ({ fileTree, tarReader }) => {
+        if (!fileTree) {
+          throw new Error("file tree must to be set")
         }
-        const tar = new Tar()
-        let out: Uint8Array = new Uint8Array()
-        traverse(ctx.fileTree, (content, _filename, fullPath) => {
+        if (!tarReader) {
+          throw new Error("tar reader must to be set")
+        }
+        const tar = new TarWriter()
+
+        // Add previous non editable files
+        for (const file of tarReader.fileInfo) {
+          if (!isAllowedFile(file.name)) {
+            if (file.type === "5") {
+              tar.addFolder(file.name, {
+                mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
+                mtime: file.mtime,
+                user: file.user,
+                group: file.group,
+              })
+            } else {
+              tar.addFile(
+                file.name,
+                tarReader.getTextFile(file.name) as string,
+                {
+                  mode: file.mode, // https://github.com/beatgammit/tar-js/blob/master/lib/tar.js#L42
+                  mtime: file.mtime,
+                  user: file.user,
+                  group: file.group,
+                },
+              )
+            }
+          }
+        }
+        // Add the editable files
+        traverse(fileTree, (content, _filename, fullPath) => {
           if (typeof content === "string") {
-            out = tar.append(fullPath, content)
+            tar.addFile(fullPath, content)
+          } else {
+            tar.addFolder(fullPath)
           }
         })
-        return API.uploadTemplateFile(new File([out], "template.tar"))
+        const blob = await tar.write()
+        return API.uploadTemplateFile(new File([blob], "template.tar"))
       },
       createBuild: (ctx) => {
         if (!ctx.uploadResponse) {

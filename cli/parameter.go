@@ -18,7 +18,6 @@ func createParameterMapFromFile(parameterFile string) (map[string]string, error)
 		parameterMap := make(map[string]string)
 
 		parameterFileContents, err := os.ReadFile(parameterFile)
-
 		if err != nil {
 			return nil, err
 		}

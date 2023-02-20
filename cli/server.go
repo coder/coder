@@ -558,11 +558,12 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					Verifier: oidcProvider.Verifier(&oidc.Config{
 						ClientID: cfg.OIDC.ClientID.Value,
 					}),
-					EmailDomain:   cfg.OIDC.EmailDomain.Value,
-					AllowSignups:  cfg.OIDC.AllowSignups.Value,
-					UsernameField: cfg.OIDC.UsernameField.Value,
-					SignInText:    cfg.OIDC.SignInText.Value,
-					IconURL:       cfg.OIDC.IconURL.Value,
+					EmailDomain:         cfg.OIDC.EmailDomain.Value,
+					AllowSignups:        cfg.OIDC.AllowSignups.Value,
+					UsernameField:       cfg.OIDC.UsernameField.Value,
+					SignInText:          cfg.OIDC.SignInText.Value,
+					IconURL:             cfg.OIDC.IconURL.Value,
+					IgnoreEmailVerified: cfg.OIDC.IgnoreEmailVerified.Value,
 				}
 			}
 
@@ -975,9 +976,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 // parseURL parses a string into a URL.
 func parseURL(u string) (*url.URL, error) {
-	var (
-		hasScheme = strings.HasPrefix(u, "http:") || strings.HasPrefix(u, "https:")
-	)
+	hasScheme := strings.HasPrefix(u, "http:") || strings.HasPrefix(u, "https:")
 
 	if !hasScheme {
 		return nil, xerrors.Errorf("URL %q must have a scheme of either http or https", u)
@@ -1528,7 +1527,7 @@ func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logge
 			sinks = append(sinks, sinkFn(cmd.ErrOrStderr()))
 
 		default:
-			fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+			fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 			if err != nil {
 				return xerrors.Errorf("open log file %q: %w", loc, err)
 			}

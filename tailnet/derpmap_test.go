@@ -68,7 +68,7 @@ func TestNewDERPMap(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		err = os.WriteFile(localPath, content, 0600)
+		err = os.WriteFile(localPath, content, 0o600)
 		require.NoError(t, err)
 		derpMap, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
 			RegionID: 2,

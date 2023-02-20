@@ -154,6 +154,7 @@ func (q *querier) DeleteOldAgentStats(ctx context.Context) error {
 func (q *querier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ParameterSchema, error) {
 	return q.db.GetParameterSchemasCreatedAfter(ctx, createdAt)
 }
+
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
 	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
 }
@@ -198,6 +199,10 @@ func (q *querier) InsertProvisionerDaemon(ctx context.Context, arg database.Inse
 
 func (q *querier) InsertTemplateVersionParameter(ctx context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
 	return q.db.InsertTemplateVersionParameter(ctx, arg)
+}
+
+func (q *querier) InsertTemplateVersionVariable(ctx context.Context, arg database.InsertTemplateVersionVariableParams) (database.TemplateVersionVariable, error) {
+	return q.db.InsertTemplateVersionVariable(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceResource(ctx context.Context, arg database.InsertWorkspaceResourceParams) (database.WorkspaceResource, error) {

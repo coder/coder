@@ -27,7 +27,7 @@ func TestDotfiles(t *testing.T) {
 		testRepo := testGitRepo(t, root)
 
 		// nolint:gosec
-		err := os.WriteFile(filepath.Join(testRepo, ".bashrc"), []byte("wow"), 0750)
+		err := os.WriteFile(filepath.Join(testRepo, ".bashrc"), []byte("wow"), 0o750)
 		require.NoError(t, err)
 
 		c := exec.Command("git", "add", ".bashrc")
@@ -56,7 +56,7 @@ func TestDotfiles(t *testing.T) {
 		testRepo := testGitRepo(t, root)
 
 		// nolint:gosec
-		err := os.WriteFile(filepath.Join(testRepo, "install.sh"), []byte("#!/bin/bash\necho wow > "+filepath.Join(string(root), ".bashrc")), 0750)
+		err := os.WriteFile(filepath.Join(testRepo, "install.sh"), []byte("#!/bin/bash\necho wow > "+filepath.Join(string(root), ".bashrc")), 0o750)
 		require.NoError(t, err)
 
 		c := exec.Command("git", "add", "install.sh")
@@ -82,12 +82,12 @@ func TestDotfiles(t *testing.T) {
 		testRepo := testGitRepo(t, root)
 
 		// nolint:gosec
-		err := os.WriteFile(filepath.Join(testRepo, ".bashrc"), []byte("wow"), 0750)
+		err := os.WriteFile(filepath.Join(testRepo, ".bashrc"), []byte("wow"), 0o750)
 		require.NoError(t, err)
 
 		// add a conflicting file at destination
 		// nolint:gosec
-		err = os.WriteFile(filepath.Join(string(root), ".bashrc"), []byte("backup"), 0750)
+		err = os.WriteFile(filepath.Join(string(root), ".bashrc"), []byte("backup"), 0o750)
 		require.NoError(t, err)
 
 		c := exec.Command("git", "add", ".bashrc")
@@ -119,7 +119,7 @@ func testGitRepo(t *testing.T, root config.Root) string {
 	r, err := cryptorand.String(8)
 	require.NoError(t, err)
 	dir := filepath.Join(string(root), fmt.Sprintf("test-repo-%s", r))
-	err = os.MkdirAll(dir, 0750)
+	err = os.MkdirAll(dir, 0o750)
 	require.NoError(t, err)
 
 	c := exec.Command("git", "init")

@@ -39,10 +39,12 @@ type TransitionStats struct {
 	P95 *int64 `example:"146"`
 }
 
-type TemplateBuildTimeStats map[WorkspaceTransition]TransitionStats
-type UpdateActiveTemplateVersion struct {
-	ID uuid.UUID `json:"id" validate:"required" format:"uuid"`
-}
+type (
+	TemplateBuildTimeStats      map[WorkspaceTransition]TransitionStats
+	UpdateActiveTemplateVersion struct {
+		ID uuid.UUID `json:"id" validate:"required" format:"uuid"`
+	}
+)
 
 type TemplateRole string
 
@@ -236,8 +238,7 @@ func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID) (*Templ
 // AgentStatsReportRequest is a WebSocket request by coderd
 // to the agent for stats.
 // @typescript-ignore AgentStatsReportRequest
-type AgentStatsReportRequest struct {
-}
+type AgentStatsReportRequest struct{}
 
 // AgentStatsReportResponse is returned for each report
 // request by the agent.

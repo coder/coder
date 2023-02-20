@@ -16,14 +16,21 @@ type Params = {
 export const TemplateVersionEditorPage: FC = () => {
   const { version: versionName, template: templateName } = useParams() as Params
   const orgId = useOrganizationId()
-  const { isSuccess, data } = useTemplateVersionData(
-    orgId,
-    templateName,
-    versionName,
-  )
   const [editorState, sendEvent] = useMachine(templateVersionEditorMachine, {
     context: { orgId },
   })
+  const { isSuccess, data } = useTemplateVersionData(
+    {
+      orgId,
+      templateName,
+      versionName,
+    },
+    {
+      onSuccess(data) {
+        sendEvent({ type: "INITIALIZE", tarReader: data.tarReader })
+      },
+    },
+  )
 
   return (
     <>
@@ -34,7 +41,7 @@ export const TemplateVersionEditorPage: FC = () => {
       {isSuccess && (
         <TemplateVersionEditor
           template={data.template}
-          templateVersion={editorState.context.version || data.currentVersion}
+          templateVersion={editorState.context.version || data.version}
           defaultFileTree={data.fileTree}
           onPreview={(fileTree) => {
             sendEvent({

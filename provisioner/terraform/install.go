@@ -29,7 +29,7 @@ var (
 // Install implements a thread-safe, idempotent Terraform Install
 // operation.
 func Install(ctx context.Context, log slog.Logger, dir string, wantVersion *version.Version) (string, error) {
-	err := os.MkdirAll(dir, 0750)
+	err := os.MkdirAll(dir, 0o750)
 	if err != nil {
 		return "", err
 	}

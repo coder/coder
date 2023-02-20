@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query"
-import { getTemplateByName, getTemplateVersionByName } from "api/api"
+import { useQuery, UseQueryOptions } from "@tanstack/react-query"
+import { getFile, getTemplateByName, getTemplateVersionByName } from "api/api"
+import { TarReader } from "util/tar"
 import { createTemplateVersionFileTree } from "util/templateVersion"
 
 const getTemplateVersionData = async (
@@ -7,26 +8,40 @@ const getTemplateVersionData = async (
   templateName: string,
   versionName: string,
 ) => {
-  const [template, currentVersion] = await Promise.all([
+  const [template, version] = await Promise.all([
     getTemplateByName(orgId, templateName),
     getTemplateVersionByName(orgId, templateName, versionName),
   ])
-  const fileTree = await createTemplateVersionFileTree(currentVersion)
+  const tarFile = await getFile(version.job.file_id)
+  const tarReader = new TarReader()
+  await tarReader.readFile(tarFile)
+  const fileTree = await createTemplateVersionFileTree(tarReader)
 
   return {
     template,
-    currentVersion,
+    version,
     fileTree,
+    tarReader,
   }
 }
 
+type GetTemplateVersionResponse = Awaited<
+  ReturnType<typeof getTemplateVersionData>
+>
+
+type UseTemplateVersionDataParams = {
+  orgId: string
+  templateName: string
+  versionName: string
+}
+
 export const useTemplateVersionData = (
-  orgId: string,
-  templateName: string,
-  versionName: string,
+  { templateName, versionName, orgId }: UseTemplateVersionDataParams,
+  options?: UseQueryOptions<GetTemplateVersionResponse>,
 ) => {
   return useQuery({
     queryKey: ["templateVersion", templateName, versionName],
     queryFn: () => getTemplateVersionData(orgId, templateName, versionName),
+    ...options,
   })
 }

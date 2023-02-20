@@ -191,7 +191,7 @@ func Archive(exampleID string) ([]byte, error) {
 				return xerrors.Errorf("get file header: %w", err)
 			}
 			header.Name = strings.TrimPrefix(path, "./")
-			header.Mode = 0644
+			header.Mode = 0o644
 
 			if entry.IsDir() {
 				// Trailing slash on entry name is not required. Our tar
@@ -199,7 +199,7 @@ func Archive(exampleID string) ([]byte, error) {
 				// include slashes so this we don't include them here for
 				// consistency.
 				// header.Name += "/"
-				header.Mode = 0755
+				header.Mode = 0o755
 				header.Typeflag = tar.TypeDir
 				err = tarWriter.WriteHeader(header)
 				if err != nil {
