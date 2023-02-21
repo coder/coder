@@ -288,6 +288,35 @@ jobs:
             ./build/*.rpm
           retention-days: 7
 
+      - name: Download release tarball to release-tarball
+        if: ${{ !inputs.dry_run }}
+        uses: robinraju/release-downloader@v1.7
+        with:
+          repository: "owner/repo"
+          tag: ${{ steps.version.outputs.version }}
+          tarBall: true
+          out-file-path: "release-tarball"
+
+      - name: ls release-tarball
+        if: ${{ !inputs.dry_run }}
+        run: ls -lah release-tarball
+
+      - name: Upload artifacts and copy of repo to bucket
+        if: ${{ !inputs.dry_run }}
+        run: |
+          cp "release-tarball/coder-${{ steps.version.outputs.version }}.tar.gz" build/source.tar.gz
+          gsutil cp \
+            -H "Cache-Control: no-cache,max-age=0" \
+            -H "Content-Type: application/x-gzip" \
+            ./build/*_installer.exe \
+            ./build/*.zip \
+            ./build/*.tar.gz \
+            ./build/*.tgz \
+            ./build/*.apk \
+            ./build/*.deb \
+            ./build/*.rpm \
+            "gs://coder-v2-releases/${{ steps.version.outputs.version }}/"
+
       - name: Start Packer builds
         if: ${{ !inputs.dry_run }}
         uses: peter-evans/repository-dispatch@v2
