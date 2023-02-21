@@ -292,7 +292,6 @@ jobs:
         if: ${{ !inputs.dry_run }}
         uses: robinraju/release-downloader@v1.7
         with:
-          repository: "owner/repo"
           tag: ${{ steps.version.outputs.version }}
           tarBall: true
           out-file-path: "release-tarball"
