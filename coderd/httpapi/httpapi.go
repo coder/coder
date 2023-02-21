@@ -182,7 +182,7 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	if len(msg) > websocketCloseMaxLen {
 		// Trim the string to 123 bytes. If we accidentally cut in the middle of
 		// a UTF-8 character, remove it from the string.
-		return strings.ToValidUTF8(string(msg[123]), "")
+		return strings.ToValidUTF8(msg[:websocketCloseMaxLen], "")
 	}
 
 	return msg

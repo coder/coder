@@ -51,7 +51,7 @@ func OverrideVSCodeConfigs(fs afero.Fs) error {
 				return xerrors.Errorf("mkdir all: %w", err)
 			}
 
-			err = afero.WriteFile(fs, configPath, data, 0600)
+			err = afero.WriteFile(fs, configPath, data, 0o600)
 			if err != nil {
 				return xerrors.Errorf("write %q: %w", configPath, err)
 			}
@@ -72,7 +72,7 @@ func OverrideVSCodeConfigs(fs afero.Fs) error {
 		if err != nil {
 			return xerrors.Errorf("marshal %q: %w", configPath, err)
 		}
-		err = afero.WriteFile(fs, configPath, data, 0600)
+		err = afero.WriteFile(fs, configPath, data, 0o600)
 		if err != nil {
 			return xerrors.Errorf("write %q: %w", configPath, err)
 		}

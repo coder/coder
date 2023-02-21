@@ -10,8 +10,10 @@ import (
 	"github.com/coder/coder/coderd/rbac/regosql/sqltypes"
 )
 
-var _ sqltypes.VariableMatcher = ACLGroupVar{}
-var _ sqltypes.Node = ACLGroupVar{}
+var (
+	_ sqltypes.VariableMatcher = ACLGroupVar{}
+	_ sqltypes.Node            = ACLGroupVar{}
+)
 
 // ACLGroupVar is a variable matcher that handles group_acl and user_acl.
 // The sql type is a jsonb object with the following structure:

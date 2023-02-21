@@ -96,7 +96,7 @@ func (c *Client) Tokens(ctx context.Context, userID string) ([]APIKey, error) {
 	if res.StatusCode > http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-	var apiKey = []APIKey{}
+	apiKey := []APIKey{}
 	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
 }
 

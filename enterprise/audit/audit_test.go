@@ -15,7 +15,7 @@ import (
 func TestAuditor(t *testing.T) {
 	t.Parallel()
 
-	var tests = []struct {
+	tests := []struct {
 		name            string
 		filterDecision  audit.FilterDecision
 		filterError     error

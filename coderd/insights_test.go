@@ -97,7 +97,6 @@ func TestDeploymentInsights(t *testing.T) {
 	wantDAUs := &codersdk.DeploymentDAUsResponse{
 		Entries: []codersdk.DAUEntry{
 			{
-
 				Date:   time.Now().UTC().Truncate(time.Hour * 24),
 				Amount: 1,
 			},

@@ -15,8 +15,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-type testOAuth2Provider struct {
-}
+type testOAuth2Provider struct{}
 
 func (*testOAuth2Provider) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
 	return "?state=" + url.QueryEscape(state)

@@ -474,7 +474,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		for _, templateVariable := range request.TemplateVariables {
 			server.Logger.Debug(ctx, "insert template variable", slog.F("template_version_id", templateVersion.ID), slog.F("template_variable", redactTemplateVariable(templateVariable)))
 
-			var value = templateVariable.DefaultValue
+			value := templateVariable.DefaultValue
 			for _, v := range request.UserVariableValues {
 				if v.Name == templateVariable.Name {
 					value = v.Value
@@ -1379,7 +1379,7 @@ func ProvisionerJobLogsNotifyChannel(jobID uuid.UUID) string {
 func asVariableValues(templateVariables []database.TemplateVersionVariable) []*sdkproto.VariableValue {
 	var apiVariableValues []*sdkproto.VariableValue
 	for _, v := range templateVariables {
-		var value = v.Value
+		value := v.Value
 		if value == "" && v.DefaultValue != "" {
 			value = v.DefaultValue
 		}

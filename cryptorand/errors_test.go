@@ -18,7 +18,7 @@ import (
 //
 //nolint:paralleltest
 func TestRandError(t *testing.T) {
-	var origReader = rand.Reader
+	origReader := rand.Reader
 	t.Cleanup(func() {
 		rand.Reader = origReader
 	})
