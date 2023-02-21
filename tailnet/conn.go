@@ -744,16 +744,25 @@ func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
 func (c *Conn) SetConnStatsCallback(maxPeriod time.Duration, maxConns int, dump func(start, end time.Time, virtual, physical map[netlogtype.Connection]netlogtype.Counts)) {
 	connStats := connstats.NewStatistics(maxPeriod, maxConns, dump)
 
+	shutdown := func(s *connstats.Statistics) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = s.Shutdown(ctx)
+	}
+
 	c.mutex.Lock()
+	if c.isClosed() {
+		c.mutex.Unlock()
+		shutdown(connStats)
+		return
+	}
 	old := c.trafficStats
 	c.trafficStats = connStats
 	c.mutex.Unlock()
 
 	// Make sure to shutdown the old callback.
 	if old != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = old.Shutdown(ctx)
+		shutdown(old)
 	}
 
 	c.tunDevice.SetStatistics(connStats)
