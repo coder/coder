@@ -288,19 +288,24 @@ jobs:
             ./build/*.rpm
           retention-days: 7
 
-      - name: Download release tarball to release-tarball
+      - name: Download release tarball
         uses: robinraju/release-downloader@v1.7
         with:
           tag: v0.17.4
           tarBall: true
-          out-file-path: "release-tarball"
+          out-file-path: "build"
 
-      - name: ls release-tarball
-        run: ls -lah release-tarball
+      - name: Download other repositories
+        run: |
+          setopt shwordsplit
+          for repo in "coder code-server slog enterprise-images"; do
+            set -x
+            wget "https://github.com/coder/${repo}/tarball/main" -O "./build/${repo}-main.tar.gz"
+            set +x
+          done
 
       - name: Upload artifacts and copy of repo to bucket
         run: |
-          cp "./release-tarball/coder-v0.17.4.tar.gz" ./build/source.tar.gz
           gsutil -m cp \
             ./build/*_installer.exe \
             ./build/*.zip \
