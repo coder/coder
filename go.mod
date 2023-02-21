@@ -68,6 +68,7 @@ require (
 	github.com/charmbracelet/glamour v0.6.0
 	github.com/charmbracelet/lipgloss v0.6.0
 	github.com/cli/safeexec v1.0.0
+	github.com/codeclysm/extract v2.2.0+incompatible
 	github.com/coder/retry v1.3.1-0.20230210155434-e90a2e1e091d
 	github.com/coder/terraform-provider-coder v0.6.11
 	github.com/coreos/go-oidc/v3 v3.4.0
@@ -111,7 +112,7 @@ require (
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
 	github.com/klauspost/compress v1.15.9
 	github.com/lib/pq v1.10.6
-	github.com/mattn/go-isatty v0.0.16
+	github.com/mattn/go-isatty v0.0.17
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/moby v20.10.23+incompatible
@@ -125,6 +126,7 @@ require (
 	github.com/prometheus/client_golang v1.14.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.21
 	github.com/robfig/cron/v3 v3.0.1
+	github.com/schollz/progressbar/v3 v3.13.0
 	github.com/spf13/afero v1.9.3
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
@@ -153,8 +155,8 @@ require (
 	golang.org/x/mod v0.7.0
 	golang.org/x/oauth2 v0.3.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.4.1-0.20230131160137-e7d7f63158de
-	golang.org/x/term v0.4.0
+	golang.org/x/sys v0.5.0
+	golang.org/x/term v0.5.0
 	golang.org/x/text v0.6.0
 	golang.org/x/tools v0.4.1-0.20221208213631-3f74d914ae6d
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
@@ -174,9 +176,9 @@ require (
 )
 
 require (
-	github.com/codeclysm/extract v2.2.0+incompatible // indirect
 	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/juju/errors v1.0.0 // indirect
+	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 )
 
 require (
@@ -299,7 +301,7 @@ require (
 	github.com/prometheus/common v0.39.0
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0 // indirect
-	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect

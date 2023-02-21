@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -68,9 +69,9 @@ func TestTemplatePull(t *testing.T) {
 		require.True(t, bytes.Equal(expected, buf.Bytes()), "tar files differ")
 	})
 
-	// ToFile tests that 'templates pull' pulls down the latest template
+	// ToDir tests that 'templates pull' pulls down the latest template
 	// and writes it to the correct directory.
-	t.Run("ToFile", func(t *testing.T) {
+	t.Run("ToDir", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -131,9 +132,73 @@ func TestTemplatePull(t *testing.T) {
 
 		require.True(t, bytes.Equal(expectedTar, actualTar), "tar files differ")
 	})
+
+	// FolderConflict tests that 'templates pull' fails when a folder with has
+	// existing
+	t.Run("FolderConflict", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create an initial template bundle.
+		source1 := genTemplateVersionSource()
+		// Create an updated template bundle. This will be used to ensure
+		// that templates are correctly returned in order from latest to oldest.
+		source2 := genTemplateVersionSource()
+
+		expected, err := echo.Tar(source2)
+		require.NoError(t, err)
+
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
+		_ = coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+
+		// Update the template version so that we can assert that templates
+		// are being sorted correctly.
+		_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+
+		dir := t.TempDir()
+
+		expectedDest := filepath.Join(dir, "expected")
+		conflictDest := filepath.Join(dir, "conflict")
+
+		err = os.MkdirAll(conflictDest, 0o700)
+		require.NoError(t, err)
+
+		err = os.WriteFile(
+			filepath.Join(conflictDest, "conflict-file"),
+			[]byte("conflict"), 0o600,
+		)
+		require.NoError(t, err)
+
+		ctx := context.Background()
+
+		err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
+		require.NoError(t, err)
+
+		cmd, root := clitest.New(t, "templates", "pull", template.Name, conflictDest)
+		clitest.SetupConfig(t, client, root)
+
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+
+		errChan := make(chan error)
+		go func() {
+			defer close(errChan)
+			errChan <- cmd.Execute()
+		}()
+
+		pty.ExpectMatch("not empty")
+		pty.WriteLine("no")
+
+		require.NoError(t, <-errChan)
+	})
 }
 
-// genTemplateVersionSource returns a unique bundle that can be used to create
+// genTemplateVersionSource returnS a unique bundle that can be used to create
 // a template version source.
 func genTemplateVersionSource() *echo.Responses {
 	return &echo.Responses{

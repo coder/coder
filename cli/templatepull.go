@@ -3,7 +3,6 @@ package cli
 import (
 	"bytes"
 	"fmt"
-	"io/fs"
 	"os"
 	"sort"
 
@@ -87,14 +86,29 @@ func templatePull() *cobra.Command {
 				dest = templateName + "/"
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Extracting template to %q\n", dest)
-
-			// Stat the destination to ensure nothing exists already.
-			_, err = os.Stat(dest)
-			if err != nil && !xerrors.Is(err, fs.ErrNotExist) {
-				return xerrors.Errorf("stat destination: %w", err)
+			err = os.MkdirAll(dest, 0o750)
+			if err != nil {
+				return xerrors.Errorf("mkdirall %q: %w", dest, err)
 			}
 
+			ents, err := os.ReadDir(dest)
+			if err != nil {
+				return xerrors.Errorf("read dir %q: %w", dest, err)
+			}
+
+			if len(ents) > 0 {
+				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					Text:      fmt.Sprintf("Directory %q is not empty, existing files may be overwritten.\nContinue extracting?", dest),
+					Default:   "No",
+					Secret:    false,
+					IsConfirm: true,
+				})
+				if err != nil {
+					return err
+				}
+			}
+
+			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Extracting template to %q\n", dest)
 			err = extract.Tar(ctx, bytes.NewReader(raw), dest, nil)
 			return err
 		},
