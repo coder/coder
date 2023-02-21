@@ -156,7 +156,7 @@ func categorizeFlags(usageOutput string) string {
 			}
 		}
 
-		_, _ = out.WriteString("ERROR: no category matched for flag")
+		_, _ = out.WriteString("ERROR: no category matched for flag\n")
 		_, _ = currentFlag.WriteTo(&out)
 	}
 	for sc.Scan() {
