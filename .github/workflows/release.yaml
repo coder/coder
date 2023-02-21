@@ -301,9 +301,7 @@ jobs:
       - name: Upload artifacts and copy of repo to bucket
         run: |
           cp "./release-tarball/coder-v0.17.4.tar.gz" ./build/source.tar.gz
-          gsutil cp \
-            -h "Cache-Control: no-cache,max-age=0" \
-            -h "Content-Type: application/x-gzip" \
+          gsutil -m cp \
             ./build/*_installer.exe \
             ./build/*.zip \
             ./build/*.tar.gz \
