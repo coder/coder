@@ -4,6 +4,8 @@
 FROM alpine:latest
 
 # We use a single RUN command to reduce the number of layers in the image.
+# NOTE: Keep the Terraform version in sync with minTerraformVersion and
+# maxTerraformVersion in provisioner/terraform/install.go.
 RUN apk add --no-cache \
 		curl \
 		wget \
@@ -21,25 +23,6 @@ RUN apk add --no-cache \
 		-u 1000 \
 		-G coder \
 		coder
-
-# Install Terraform plugins
-RUN mkdir -p /opt/terraform/plugins/registry.terraform.io
-# Add config for local terraform
-ADD files/terraform-config.tfrc /opt/terraform/config.tfrc
-ARG CODER_PROVIDER_VERSION=0.6.12
-RUN mkdir -p /opt/terraform/plugins/registry.terraform.io/coder/coder
-WORKDIR /opt/terraform/plugins/registry.terraform.io/coder/coder
-RUN curl -LOs https://github.com/coder/terraform-provider-coder/releases/download/v${CODER_PROVIDER_VERSION}/terraform-provider-coder_${CODER_PROVIDER_VERSION}_linux_amd64.zip
-ARG DOCKER_PROVIDER_VERSION=3.0.1
-RUN mkdir -p /opt/terraform/plugins/registry.terraform.io/kreuzwerker/docker
-WORKDIR /opt/terraform/plugins/registry.terraform.io/kreuzwerker/docker
-RUN curl -LOs https://github.com/kreuzwerker/terraform-provider-docker/releases/download/v${DOCKER_PROVIDER_VERSION}/terraform-provider-docker_${DOCKER_PROVIDER_VERSION}_linux_amd64.zip
-RUN chown -R coder:coder /opt/terraform/plugins
-ARG KUBERNETES_PROVIDER_VERSION=2.18.0
-RUN mkdir -p /opt/terraform/plugins/registry.terraform.io/hashicorp/kubernetes
-WORKDIR /opt/terraform/plugins/registry.terraform.io/hashicorp/kubernetes
-# TODO: What is the URL?
-RUN curl -LOs $KUBERNETES_URL_GOES_HERE
 
 USER 1000:1000
 ENV HOME=/home/coder
