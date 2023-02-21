@@ -52,9 +52,7 @@ replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230210022917-446f
 replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20220811105153-fcea99919338
 
 // Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
-replace github.com/imulab/go-scim => github.com/coder/go-scim v0.0.0-20230221052827-5568eb7253a0
-
-replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221052827-5568eb7253a0
+replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
 
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f
@@ -312,7 +310,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/satori/go.uuid v1.2.0 // indirect
+	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
