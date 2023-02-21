@@ -52,7 +52,9 @@ replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230210022917-446f
 replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20220811105153-fcea99919338
 
 // Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
-replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221045138-237314222367
+replace github.com/imulab/go-scim => github.com/coder/go-scim v0.0.0-20230221052827-5568eb7253a0
+
+replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221052827-5568eb7253a0
 
 require (
 	cdr.dev/slog v1.4.2-0.20220525200111-18dce5c2cd5f

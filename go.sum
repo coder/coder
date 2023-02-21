@@ -365,8 +365,8 @@ github.com/cockroachdb/errors v1.2.4/go.mod h1:rQD95gz6FARkaKkQXUksEje/d9a6wBJoC
 github.com/cockroachdb/logtags v0.0.0-20190617123548-eb05cc24525f/go.mod h1:i/u985jwjWRlyHXQbwatDASoW0RMlZ/3i9yJHE2xLkI=
 github.com/coder/glog v1.0.1-0.20220322161911-7365fe7f2cd1 h1:UqBrPWSYvRI2s5RtOul20JukUEpu4ip9u7biBL+ntgk=
 github.com/coder/glog v1.0.1-0.20220322161911-7365fe7f2cd1/go.mod h1:EWib/APOK0SL3dFbYqvxE3UYd8E6s1ouQ7iEp/0LWV4=
-github.com/coder/go-scim/pkg/v2 v2.0.0-20230221045138-237314222367 h1:b+wrQ8AjuGCtbOByurLKUyhtUBEJNYS0C0EczE7U4qQ=
-github.com/coder/go-scim/pkg/v2 v2.0.0-20230221045138-237314222367/go.mod h1:TvNTXjm2x/rJ3BBCQIKZVErA2AODyylGsLWR/spwL8A=
+github.com/coder/go-scim/pkg/v2 v2.0.0-20230221052827-5568eb7253a0 h1:GbuFpBvn+aM7tcLImrmC1SEVSR8BV5UQpFAmvi8GwSg=
+github.com/coder/go-scim/pkg/v2 v2.0.0-20230221052827-5568eb7253a0/go.mod h1:TvNTXjm2x/rJ3BBCQIKZVErA2AODyylGsLWR/spwL8A=
 github.com/coder/retry v1.3.1-0.20230210155434-e90a2e1e091d h1:09JG37IgTB6n3ouX9BXdUiibGzkGGbslFuDZO9Ru9aw=
 github.com/coder/retry v1.3.1-0.20230210155434-e90a2e1e091d/go.mod h1:r+1J5i/989wt6CUeNSuvFKKA9hHuKKPMxdzDbTuvwwk=
 github.com/coder/ssh v0.0.0-20220811105153-fcea99919338 h1:tN5GKFT68YLVzJoA8AHuiMNJ0qlhoD3pGN3JY9gxSko=
