@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"os"
 	"sort"
 
+	"github.com/codeclysm/extract"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
@@ -14,6 +16,7 @@ import (
 )
 
 func templatePull() *cobra.Command {
+	var tarMode bool
 	cmd := &cobra.Command{
 		Use:   "pull <name> [destination]",
 		Short: "Download the latest version of a template to a path.",
@@ -75,48 +78,29 @@ func templatePull() *cobra.Command {
 				return xerrors.Errorf("unexpected Content-Type %q, expecting %q", ctype, codersdk.ContentTypeTar)
 			}
 
-			// If the destination is empty then we write to stdout
-			// and bail early.
-			if dest == "" {
+			if tarMode {
 				_, err = cmd.OutOrStdout().Write(raw)
-				if err != nil {
-					return xerrors.Errorf("write stdout: %w", err)
-				}
-				return nil
+				return err
 			}
 
+			if dest == "" {
+				dest = templateName + "/"
+			}
+
+			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Extracting template to %q\n", dest)
+
 			// Stat the destination to ensure nothing exists already.
-			fi, err := os.Stat(dest)
+			_, err = os.Stat(dest)
 			if err != nil && !xerrors.Is(err, fs.ErrNotExist) {
 				return xerrors.Errorf("stat destination: %w", err)
 			}
 
-			if fi != nil && fi.IsDir() {
-				// If the destination is a directory we just bail.
-				return xerrors.Errorf("%q already exists.", dest)
-			}
-
-			// If a file exists at the destination prompt the user
-			// to ensure we don't overwrite something valuable.
-			if fi != nil {
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
-					Text:      fmt.Sprintf("%q already exists, do you want to overwrite it?", dest),
-					IsConfirm: true,
-				})
-				if err != nil {
-					return xerrors.Errorf("parse prompt: %w", err)
-				}
-			}
-
-			err = os.WriteFile(dest, raw, 0o600)
-			if err != nil {
-				return xerrors.Errorf("write to path: %w", err)
-			}
-
-			return nil
+			err = extract.Tar(ctx, bytes.NewReader(raw), dest, nil)
+			return err
 		},
 	}
 
+	cmd.Flags().BoolVar(&tarMode, "tar", false, "output the template as a tar archive to stdout")
 	cliui.AllowSkipPrompt(cmd)
 
 	return cmd

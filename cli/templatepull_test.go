@@ -2,11 +2,14 @@ package cli_test
 
 import (
 	"bytes"
-	"os"
+	"context"
+	"io"
 	"path/filepath"
 	"testing"
 
+	"github.com/codeclysm/extract"
 	"github.com/google/uuid"
+	"github.com/ory/dockertest/v3/docker/pkg/archive"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -53,7 +56,7 @@ func TestTemplatePull(t *testing.T) {
 		// are being sorted correctly.
 		_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
 
-		cmd, root := clitest.New(t, "templates", "pull", template.Name)
+		cmd, root := clitest.New(t, "templates", "pull", "--tar", template.Name)
 		clitest.SetupConfig(t, client, root)
 
 		var buf bytes.Buffer
@@ -93,15 +96,14 @@ func TestTemplatePull(t *testing.T) {
 
 		dir := t.TempDir()
 
-		dest := filepath.Join(dir, "actual.tar")
+		expectedDest := filepath.Join(dir, "expected")
+		actualDest := filepath.Join(dir, "actual")
+		ctx := context.Background()
 
-		// Create the file so that we can test that the command
-		// warns the user before overwriting a preexisting file.
-		fi, err := os.OpenFile(dest, os.O_CREATE|os.O_RDONLY, 0o600)
+		err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
 		require.NoError(t, err)
-		_ = fi.Close()
 
-		cmd, root := clitest.New(t, "templates", "pull", template.Name, dest)
+		cmd, root := clitest.New(t, "templates", "pull", template.Name, actualDest)
 		clitest.SetupConfig(t, client, root)
 
 		pty := ptytest.New(t)
@@ -114,16 +116,20 @@ func TestTemplatePull(t *testing.T) {
 			errChan <- cmd.Execute()
 		}()
 
-		// We expect to be prompted that a file already exists.
-		pty.ExpectMatch("already exists")
-		pty.WriteLine("yes")
-
 		require.NoError(t, <-errChan)
 
-		actual, err := os.ReadFile(dest)
+		expectedTarRd, err := archive.Tar(expectedDest, archive.Uncompressed)
+		require.NoError(t, err)
+		expectedTar, err := io.ReadAll(expectedTarRd)
 		require.NoError(t, err)
 
-		require.True(t, bytes.Equal(actual, expected), "tar files differ")
+		actualTarRd, err := archive.Tar(actualDest, archive.Uncompressed)
+		require.NoError(t, err)
+
+		actualTar, err := io.ReadAll(actualTarRd)
+		require.NoError(t, err)
+
+		require.True(t, bytes.Equal(expectedTar, actualTar), "tar files differ")
 	})
 }
 
