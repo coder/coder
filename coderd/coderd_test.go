@@ -78,8 +78,13 @@ func TestDERP(t *testing.T) {
 		DERPMap:   derpMap,
 	})
 	require.NoError(t, err)
+	w2Ready := make(chan struct{}, 1)
 	w1.SetNodeCallback(func(node *tailnet.Node) {
 		w2.UpdateNodes([]*tailnet.Node{node})
+		select {
+		case w2Ready <- struct{}{}:
+		default:
+		}
 	})
 	w2.SetNodeCallback(func(node *tailnet.Node) {
 		w1.UpdateNodes([]*tailnet.Node{node})
@@ -98,6 +103,7 @@ func TestDERP(t *testing.T) {
 	}()
 
 	<-conn
+	<-w2Ready
 	nc, err := w2.DialContextTCP(context.Background(), netip.AddrPortFrom(w1IP, 35565))
 	require.NoError(t, err)
 	_ = nc.Close()

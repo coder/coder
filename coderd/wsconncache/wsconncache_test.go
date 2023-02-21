@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/coder/tailnet/tailnettest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -131,6 +132,14 @@ func TestCache(t *testing.T) {
 					return
 				}
 				defer release()
+
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+				defer cancel()
+				if !conn.AwaitReachable(ctx) {
+					t.Error("agent not reachable")
+					return
+				}
+
 				transport := conn.HTTPTransport()
 				defer transport.CloseIdleConnections()
 				proxy.Transport = transport
@@ -146,6 +155,8 @@ func TestCache(t *testing.T) {
 }
 
 func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Duration) *codersdk.WorkspaceAgentConn {
+	t.Helper()
+
 	metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
 
 	coordinator := tailnet.NewCoordinator()

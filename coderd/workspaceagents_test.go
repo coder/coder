@@ -469,6 +469,8 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 	t.Parallel()
 
 	setup := func(t *testing.T, apps []*proto.App) (*codersdk.Client, uint16, uuid.UUID) {
+		t.Helper()
+
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		})
