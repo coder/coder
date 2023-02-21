@@ -4,9 +4,6 @@ import { TokensPageView } from "./TokensPageView"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Typography } from "components/Typography/Typography"
 import makeStyles from "@material-ui/core/styles/makeStyles"
-import Switch from "@material-ui/core/Switch"
-import FormGroup from "@material-ui/core/FormGroup"
-import FormControlLabel from "@material-ui/core/FormControlLabel"
 import { useTranslation } from "react-i18next"
 import { useTokensData, useDeleteToken } from "./hooks"
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils"
@@ -43,8 +40,6 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
     setTokenIdToDelete(undefined)
   }
 
-  console.log("data", tokens)
-
   const description = (
     <>
       {t("description")}{" "}
@@ -60,31 +55,10 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
       {tokenIdToDelete}
     </Typography>
   )
-  const [state, setState] = useState({
-    checkedA: true,
-    checkedB: true,
-  })
-
-  const handleChange = (event) => {
-    setState({ ...state, [event.target.name]: event.target.checked })
-  }
 
   return (
     <>
       <Section title={t("title")} description={description} layout="fluid">
-        <FormGroup row className={styles.formRow}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={state.checkedB}
-                onChange={handleChange}
-                name="checkedB"
-                color="primary"
-              />
-            }
-            label={t("toggleLabel")}
-          />
-        </FormGroup>
         <TokensPageView
           tokens={tokens}
           isLoading={isFetching}

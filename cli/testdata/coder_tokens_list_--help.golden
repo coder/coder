@@ -11,7 +11,7 @@ Flags:
                          Owner role to see all tokens).
   -c, --column strings   Columns to display in table output. Available columns: id, last used,
                          expires at, created at, owner (default [id,last used,expires
-                         at,created at,owner])
+                         at,created at])
   -h, --help             help for list
   -o, --output string    Output format. Available formats: table, json (default "table")
 
