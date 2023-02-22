@@ -506,7 +506,7 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: "14"
+          node-version: "16.16.0"
 
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
@@ -555,7 +555,7 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: "14"
+          node-version: "16.16.0"
 
       - name: Echo Go Cache Paths
         id: go-cache-paths
@@ -608,6 +608,10 @@ jobs:
           # Required by Chromatic for build-over-build history, otherwise we
           # only get 1 commit on shallow checkout.
           fetch-depth: 0
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "16.16.0"
 
       - name: Install dependencies
         run: cd site && yarn
