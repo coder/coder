@@ -114,9 +114,12 @@ export const GroupPage: React.FC = () => {
               actions={
                 <Maybe condition={canUpdateGroup}>
                   <Link to="settings" underline="none" component={RouterLink}>
-                    <Button startIcon={<SettingsOutlined />}>Settings</Button>
+                    <Button variant="outlined" startIcon={<SettingsOutlined />}>
+                      Settings
+                    </Button>
                   </Link>
                   <Button
+                    variant="outlined"
                     onClick={() => {
                       send("DELETE")
                     }}
