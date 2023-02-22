@@ -194,7 +194,12 @@ func TestTemplatePull(t *testing.T) {
 		pty.ExpectMatch("not empty")
 		pty.WriteLine("no")
 
-		require.NoError(t, <-errChan)
+		require.Error(t, <-errChan)
+
+		ents, err := os.ReadDir(conflictDest)
+		require.NoError(t, err)
+
+		require.Len(t, ents, 1, "conflict folder should have single conflict file")
 	})
 }
 
