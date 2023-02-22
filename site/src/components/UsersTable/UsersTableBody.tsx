@@ -44,6 +44,7 @@ interface UsersTableBodyProps {
     roles: TypesGen.Role["name"][],
   ) => void
   isNonInitialPage: boolean
+  actorID: string
 }
 
 export const UsersTableBody: FC<
@@ -61,6 +62,7 @@ export const UsersTableBody: FC<
   canEditUsers,
   isLoading,
   isNonInitialPage,
+  actorID,
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("usersPage")
@@ -179,6 +181,7 @@ export const UsersTableBody: FC<
                             {
                               label: t("deleteMenuItem"),
                               onClick: onDeleteUser,
+                              disabled: user.id === actorID,
                             },
                             {
                               label: t("listWorkspacesMenuItem"),

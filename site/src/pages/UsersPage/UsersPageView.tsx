@@ -31,6 +31,7 @@ export interface UsersPageViewProps {
   onFilter: (query: string) => void
   paginationRef: PaginationMachineRef
   isNonInitialPage: boolean
+  actorID: string
 }
 
 export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
@@ -51,6 +52,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   onFilter,
   paginationRef,
   isNonInitialPage,
+  actorID,
 }) => {
   const presetFilters = [
     { query: userFilterQuery.active, name: Language.activeUsersFilterName },
@@ -79,6 +81,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
         canEditUsers={canEditUsers}
         isLoading={isLoading}
         isNonInitialPage={isNonInitialPage}
+        actorID={actorID}
       />
 
       <PaginationWidget numRecords={count} paginationRef={paginationRef} />
