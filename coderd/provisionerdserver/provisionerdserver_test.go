@@ -734,10 +734,16 @@ func TestCompleteJob(t *testing.T) {
 	t.Run("TemplateImport", func(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
+		jobID := uuid.New()
+		version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+			ID:    uuid.New(),
+			JobID: jobID,
+		})
+		require.NoError(t, err)
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:            uuid.New(),
+			ID:            jobID,
 			Provisioner:   database.ProvisionerTypeEcho,
-			Input:         []byte(`{"template_version_id": "` + uuid.NewString() + `"}`),
+			Input:         []byte(`{"template_version_id": "` + version.ID.String() + `"}`),
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 		})

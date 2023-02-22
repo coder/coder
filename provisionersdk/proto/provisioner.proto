@@ -118,6 +118,11 @@ message InstanceIdentityAuth {
     string instance_id = 1;
 }
 
+message GitAuthProvider {
+	string id = 1;
+	string access_token = 2;
+}
+
 // Agent represents a running agent on the workspace.
 message Agent {
     string id = 1;
@@ -235,6 +240,7 @@ message Provision {
         repeated ParameterValue parameter_values = 2;
 		repeated RichParameterValue rich_parameter_values = 3;
 		repeated VariableValue variable_values = 4;
+		repeated GitAuthProvider git_auth_providers = 5;
     }
 
     message Apply {
