@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder templates edit
 
 Edit the metadata of a template by name.

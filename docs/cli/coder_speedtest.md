@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder speedtest
 
 Run upload and download tests from your machine to a workspace

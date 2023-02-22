@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder publickey
 
 Output your Coder public key used for Git operations

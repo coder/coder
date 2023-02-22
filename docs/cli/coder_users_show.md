@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder users show
 
 Show a single user. Use 'me' to indicate the currently authenticated user.

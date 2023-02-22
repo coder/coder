@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # {{ .Name }}
 
 {{ .Cmd.Short }}

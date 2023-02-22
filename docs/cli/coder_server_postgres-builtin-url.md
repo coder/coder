@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder server postgres-builtin-url
 
 Output the connection URL for the built-in PostgreSQL deployment.

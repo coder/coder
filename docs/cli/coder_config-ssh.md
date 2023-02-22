@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder config-ssh
 
 Add an SSH Host entry for your workspaces "ssh coder.workspace"

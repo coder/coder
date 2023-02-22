@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder server postgres-builtin-serve
 
 Run the built-in PostgreSQL deployment.

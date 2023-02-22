@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder dotfiles
 
 Checkout and install a dotfiles repository from a Git URL

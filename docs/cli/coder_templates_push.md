@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder templates push
 
 Push a new template version from the current directory or as specified by flag

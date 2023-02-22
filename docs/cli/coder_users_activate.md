@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder users activate
 
 Update a user's status to 'active'. Active users can fully interact with the platform

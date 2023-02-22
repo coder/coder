@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder scaletest create-workspaces
 
 Creates many workspaces and waits for them to be ready

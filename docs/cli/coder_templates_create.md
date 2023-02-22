@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder templates create
 
 Create a template from the current directory or as specified by flag

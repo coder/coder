@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder scaletest cleanup
 
 Cleanup any orphaned scaletest resources

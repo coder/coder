@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder port-forward
 
 Forward ports from machine to a workspace

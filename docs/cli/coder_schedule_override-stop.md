@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder schedule override-stop
 
 Edit stop time of active workspace

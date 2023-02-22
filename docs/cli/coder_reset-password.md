@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder reset-password
 
 Directly connect to the database to reset a user's password

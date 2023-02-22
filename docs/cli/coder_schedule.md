@@ -1,3 +1,4 @@
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder schedule
 
 Schedule automated start and stop times for workspaces
