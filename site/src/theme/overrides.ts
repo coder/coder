@@ -67,7 +67,7 @@ export const getOverrides = ({
 
         "&.Mui-disabled": {
           backgroundColor: palette.background.paper,
-          color: palette.secondary.main,
+          color: palette.secondary.light,
         },
       },
       sizeSmall: {
