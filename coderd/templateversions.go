@@ -1461,15 +1461,16 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 	}
 
 	return codersdk.TemplateVersion{
-		ID:             version.ID,
-		TemplateID:     &version.TemplateID.UUID,
-		OrganizationID: version.OrganizationID,
-		CreatedAt:      version.CreatedAt,
-		UpdatedAt:      version.UpdatedAt,
-		Name:           version.Name,
-		Job:            job,
-		Readme:         version.Readme,
-		CreatedBy:      createdBy,
+		ID:               version.ID,
+		TemplateID:       &version.TemplateID.UUID,
+		OrganizationID:   version.OrganizationID,
+		CreatedAt:        version.CreatedAt,
+		UpdatedAt:        version.UpdatedAt,
+		GitAuthProviders: version.GitAuthProviders,
+		Name:             version.Name,
+		Job:              job,
+		Readme:           version.Readme,
+		CreatedBy:        createdBy,
 	}
 }
 

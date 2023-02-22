@@ -13,15 +13,16 @@ import (
 
 // TemplateVersion represents a single version of a template.
 type TemplateVersion struct {
-	ID             uuid.UUID      `json:"id" format:"uuid"`
-	TemplateID     *uuid.UUID     `json:"template_id,omitempty" format:"uuid"`
-	OrganizationID uuid.UUID      `json:"organization_id,omitempty" format:"uuid"`
-	CreatedAt      time.Time      `json:"created_at" format:"date-time"`
-	UpdatedAt      time.Time      `json:"updated_at" format:"date-time"`
-	Name           string         `json:"name"`
-	Job            ProvisionerJob `json:"job"`
-	Readme         string         `json:"readme"`
-	CreatedBy      User           `json:"created_by"`
+	ID               uuid.UUID      `json:"id" format:"uuid"`
+	TemplateID       *uuid.UUID     `json:"template_id,omitempty" format:"uuid"`
+	OrganizationID   uuid.UUID      `json:"organization_id,omitempty" format:"uuid"`
+	CreatedAt        time.Time      `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time      `json:"updated_at" format:"date-time"`
+	GitAuthProviders []string       `json:"git_auth_providers"`
+	Name             string         `json:"name"`
+	Job              ProvisionerJob `json:"job"`
+	Readme           string         `json:"readme"`
+	CreatedBy        User           `json:"created_by"`
 }
 
 type ValidationMonotonicOrder string
