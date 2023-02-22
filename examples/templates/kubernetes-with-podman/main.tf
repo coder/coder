@@ -26,6 +26,36 @@ variable "os" {
   default = "ubuntu"
 }
 
+variable "cpus" {
+  type        = number
+  description = "How many CPUs would you like your workspace to have?"
+  default     = 4
+  validation {
+    condition     = var.cpus > 0
+    error_message = "Value must be greater than 0."
+  }
+}
+
+variable "memory" {
+  type        = number
+  description = "How much memory would you like your workspace to have (in GiB)?"
+  default     = 4
+  validation {
+    condition     = var.memory > 0
+    error_message = "Value must be greater than 0."
+  }
+}
+
+variable "home_disk_size" {
+  type        = number
+  description = "How large would you like your home volume to be (in GB)?"
+  default     = 10
+  validation {
+    condition     = var.home_disk_size >= 1
+    error_message = "Value must be greater than or equal to 1."
+  }
+}
+
 resource "coder_agent" "dev" {
   os             = "linux"
   arch           = "amd64"
@@ -112,7 +142,9 @@ resource "kubernetes_persistent_volume_claim" "home-directory" {
     access_modes = ["ReadWriteOnce"]
     resources {
       requests = {
-        storage = "10Gi"
+        cpus    = "${var.cpus}"
+        memory  = "${var.memory}Gi"
+        storage = "${var.home_disk_size}Gi"
       }
     }
   }
