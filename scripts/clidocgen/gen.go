@@ -9,30 +9,41 @@ import (
 	"text/template"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	_ "embed"
 
 	"github.com/coder/flog"
 )
 
-//go:embed command.tmpl
-var commandTemplate string
+//go:embed command.tpl
+var commandTemplateRaw string
 
-type commandTemplateParams struct {
-	Name  string
-	Usage string
-}
-
-var commandTemplateParsed *template.Template
+var commandTemplate *template.Template
 
 func init() {
-	commandTemplateParsed = template.Must(template.New("command").Parse(strings.TrimSpace(commandTemplate)))
+	commandTemplate = template.Must(
+		template.New("command.tpl").Funcs(template.FuncMap{
+			"newLinesToBr": func(s string) string {
+				return strings.ReplaceAll(s, "\n", "<br/>")
+			},
+			"wrapCode": func(s string) string {
+				return fmt.Sprintf("<code>%s</code>", s)
+			},
+		},
+		).Parse(strings.TrimSpace(commandTemplateRaw)),
+	)
 }
 
 func writeCommand(w io.Writer, cmd *cobra.Command) error {
-	err := commandTemplateParsed.Execute(w, commandTemplateParams{
-		Name:  fullCommandName(cmd),
-		Usage: cmd.UseLine(),
+	var flags []*pflag.Flag
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		flags = append(flags, f)
+	})
+	err := commandTemplate.Execute(w, map[string]any{
+		"Name":  fullCommandName(cmd),
+		"Cmd":   cmd,
+		"Flags": flags,
 	})
 	return err
 }
