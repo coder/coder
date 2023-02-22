@@ -440,7 +440,7 @@ export interface License {
 export interface LinkConfig {
   readonly name: string
   readonly target: string
-  readonly icon?: string
+  readonly icon: string
 }
 
 // From codersdk/deployment.go

@@ -285,7 +285,7 @@ type SupportConfig struct {
 type LinkConfig struct {
 	Name   string `json:"name"`
 	Target string `json:"target"`
-	Icon   string `json:"icon,omitempty"`
+	Icon   string `json:"icon"`
 }
 
 type Flaggable interface {
