@@ -153,6 +153,8 @@ type DeploymentConfig struct {
 	Address *DeploymentConfigField[string] `json:"address" typescript:",notnull"`
 	// DEPRECATED: Use Experiments instead.
 	Experimental *DeploymentConfigField[bool] `json:"experimental" typescript:",notnull"`
+
+	Support *SupportConfig `json:"support" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -276,8 +278,18 @@ type DangerousConfig struct {
 	AllowPathAppSiteOwnerAccess *DeploymentConfigField[bool] `json:"allow_path_app_site_owner_access" typescript:",notnull"`
 }
 
+type SupportConfig struct {
+	Links *DeploymentConfigField[[]LinkConfig] `json:"links" typescript:",notnull"`
+}
+
+type LinkConfig struct {
+	Name   string `json:"name"`
+	Target string `json:"target"`
+	Icon   string `json:"icon,omitempty"`
+}
+
 type Flaggable interface {
-	string | time.Duration | bool | int | []string | []GitAuthConfig
+	string | time.Duration | bool | int | []string | []GitAuthConfig | []LinkConfig
 }
 
 type DeploymentConfigField[T Flaggable] struct {
@@ -348,6 +360,7 @@ func (c *Client) DeploymentConfig(ctx context.Context) (DeploymentConfig, error)
 type AppearanceConfig struct {
 	LogoURL       string              `json:"logo_url"`
 	ServiceBanner ServiceBannerConfig `json:"service_banner"`
+	SupportLinks  []LinkConfig        `json:"support_links,omitempty"`
 }
 
 type ServiceBannerConfig struct {

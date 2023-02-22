@@ -24,7 +24,14 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
     "background_color": "string",
     "enabled": true,
     "message": "string"
-  }
+  },
+  "support_links": [
+    {
+      "icon": "string",
+      "name": "string",
+      "target": "string"
+    }
+  ]
 }
 ```
 
@@ -59,7 +66,14 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
     "background_color": "string",
     "enabled": true,
     "message": "string"
-  }
+  },
+  "support_links": [
+    {
+      "icon": "string",
+      "name": "string",
+      "target": "string"
+    }
+  ]
 }
 ```
 
@@ -80,7 +94,14 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
     "background_color": "string",
     "enabled": true,
     "message": "string"
-  }
+  },
+  "support_links": [
+    {
+      "icon": "string",
+      "name": "string",
+      "target": "string"
+    }
+  ]
 }
 ```
 
