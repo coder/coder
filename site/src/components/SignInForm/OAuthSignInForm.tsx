@@ -42,7 +42,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
             disabled={isLoading}
             fullWidth
             type="submit"
-            variant="contained"
+            variant="outlined"
           >
             {Language.githubSignIn}
           </Button>
@@ -71,7 +71,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
             disabled={isLoading}
             fullWidth
             type="submit"
-            variant="contained"
+            variant="outlined"
           >
             {authMethods.oidc.signInText || Language.oidcSignIn}
           </Button>

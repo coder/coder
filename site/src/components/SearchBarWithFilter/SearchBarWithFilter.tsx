@@ -77,6 +77,7 @@ export const SearchBarWithFilter: React.FC<
       <Stack direction="row" spacing={0}>
         {presetFilters && presetFilters.length > 0 && (
           <Button
+            variant="outlined"
             aria-controls="filter-menu"
             aria-haspopup="true"
             onClick={handleClick}

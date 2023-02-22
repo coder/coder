@@ -21,9 +21,7 @@ func TestOrganizationParam(t *testing.T) {
 	t.Parallel()
 
 	setupAuthentication := func(db database.Store) (*http.Request, database.User) {
-		var (
-			r = httptest.NewRequest("GET", "/", nil)
-		)
+		r := httptest.NewRequest("GET", "/", nil)
 
 		user := dbgen.User(t, db, database.User{
 			ID: uuid.New(),

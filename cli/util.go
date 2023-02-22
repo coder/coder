@@ -12,9 +12,11 @@ import (
 	"github.com/coder/coder/coderd/util/tz"
 )
 
-var errInvalidScheduleFormat = xerrors.New("Schedule must be in the format Mon-Fri 09:00AM America/Chicago")
-var errInvalidTimeFormat = xerrors.New("Start time must be in the format hh:mm[am|pm] or HH:MM")
-var errUnsupportedTimezone = xerrors.New("The location you provided looks like a timezone. Check https://ipinfo.io for your location.")
+var (
+	errInvalidScheduleFormat = xerrors.New("Schedule must be in the format Mon-Fri 09:00AM America/Chicago")
+	errInvalidTimeFormat     = xerrors.New("Start time must be in the format hh:mm[am|pm] or HH:MM")
+	errUnsupportedTimezone   = xerrors.New("The location you provided looks like a timezone. Check https://ipinfo.io for your location.")
+)
 
 // durationDisplay formats a duration for easier display:
 //   - Durations of 24 hours or greater are displays as Xd

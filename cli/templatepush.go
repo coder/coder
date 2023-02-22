@@ -34,9 +34,7 @@ func (pf *templateUploadFlags) stdin() bool {
 }
 
 func (pf *templateUploadFlags) upload(cmd *cobra.Command, client *codersdk.Client) (*codersdk.UploadResponse, error) {
-	var (
-		content io.Reader
-	)
+	var content io.Reader
 	if pf.stdin() {
 		content = cmd.InOrStdin()
 	} else {

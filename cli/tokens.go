@@ -47,9 +47,7 @@ func tokens() *cobra.Command {
 }
 
 func createToken() *cobra.Command {
-	var (
-		tokenLifetime time.Duration
-	)
+	var tokenLifetime time.Duration
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a tokens",

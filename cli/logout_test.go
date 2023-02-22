@@ -149,7 +149,7 @@ func TestLogout(t *testing.T) {
 			require.NoError(t, err)
 		} else {
 			// Changing the permissions to throw error during deletion.
-			err = os.Chmod(string(config), 0500)
+			err = os.Chmod(string(config), 0o500)
 			require.NoError(t, err)
 		}
 		defer func() {

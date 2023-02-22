@@ -368,8 +368,14 @@ install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	cp "$<" "$$output_file"
 .PHONY: install
 
-fmt: fmt/prettier fmt/terraform fmt/shfmt
+fmt: fmt/prettier fmt/terraform fmt/shfmt fmt/go
 .PHONY: fmt
+
+fmt/go:
+	# VS Code users should check out
+	# https://github.com/mvdan/gofumpt#visual-studio-code
+	go run mvdan.cc/gofumpt@v0.4.0 -w -l .
+.PHONY: fmt/go
 
 fmt/prettier:
 	echo "--- prettier"
