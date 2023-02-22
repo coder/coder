@@ -1,5 +1,6 @@
 import { action } from "@storybook/addon-actions"
 import { ComponentMeta, Story } from "@storybook/react"
+import { MockAuthMethods } from "testHelpers/entities"
 import { LoginPageView, LoginPageViewProps } from "./LoginPageView"
 
 export default {
@@ -15,7 +16,12 @@ export const Example = Template.bind({})
 Example.args = {
   isLoading: false,
   onSignIn: action("onSignIn"),
-  context: {},
+  context: {
+    data: {
+      authMethods: MockAuthMethods,
+      hasFirstUser: false,
+    },
+  },
 }
 
 const err = new Error("Username or email are wrong.")
@@ -26,6 +32,10 @@ AuthError.args = {
   onSignIn: action("onSignIn"),
   context: {
     error: err,
+    data: {
+      authMethods: MockAuthMethods,
+      hasFirstUser: false,
+    },
   },
 }
 
@@ -40,5 +50,10 @@ export const SigningIn = Template.bind({})
 SigningIn.args = {
   isSigningIn: true,
   onSignIn: action("onSignIn"),
-  context: {},
+  context: {
+    data: {
+      authMethods: MockAuthMethods,
+      hasFirstUser: false,
+    },
+  },
 }
