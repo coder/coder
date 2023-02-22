@@ -2,11 +2,15 @@ package cli_test
 
 import (
 	"bytes"
+	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/codeclysm/extract"
 	"github.com/google/uuid"
+	"github.com/ory/dockertest/v3/docker/pkg/archive"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -53,7 +57,7 @@ func TestTemplatePull(t *testing.T) {
 		// are being sorted correctly.
 		_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
 
-		cmd, root := clitest.New(t, "templates", "pull", template.Name)
+		cmd, root := clitest.New(t, "templates", "pull", "--tar", template.Name)
 		clitest.SetupConfig(t, client, root)
 
 		var buf bytes.Buffer
@@ -65,9 +69,9 @@ func TestTemplatePull(t *testing.T) {
 		require.True(t, bytes.Equal(expected, buf.Bytes()), "tar files differ")
 	})
 
-	// ToFile tests that 'templates pull' pulls down the latest template
+	// ToDir tests that 'templates pull' pulls down the latest template
 	// and writes it to the correct directory.
-	t.Run("ToFile", func(t *testing.T) {
+	t.Run("ToDir", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -93,15 +97,14 @@ func TestTemplatePull(t *testing.T) {
 
 		dir := t.TempDir()
 
-		dest := filepath.Join(dir, "actual.tar")
+		expectedDest := filepath.Join(dir, "expected")
+		actualDest := filepath.Join(dir, "actual")
+		ctx := context.Background()
 
-		// Create the file so that we can test that the command
-		// warns the user before overwriting a preexisting file.
-		fi, err := os.OpenFile(dest, os.O_CREATE|os.O_RDONLY, 0o600)
+		err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
 		require.NoError(t, err)
-		_ = fi.Close()
 
-		cmd, root := clitest.New(t, "templates", "pull", template.Name, dest)
+		cmd, root := clitest.New(t, "templates", "pull", template.Name, actualDest)
 		clitest.SetupConfig(t, client, root)
 
 		pty := ptytest.New(t)
@@ -114,16 +117,89 @@ func TestTemplatePull(t *testing.T) {
 			errChan <- cmd.Execute()
 		}()
 
-		// We expect to be prompted that a file already exists.
-		pty.ExpectMatch("already exists")
-		pty.WriteLine("yes")
-
 		require.NoError(t, <-errChan)
 
-		actual, err := os.ReadFile(dest)
+		expectedTarRd, err := archive.Tar(expectedDest, archive.Uncompressed)
+		require.NoError(t, err)
+		expectedTar, err := io.ReadAll(expectedTarRd)
 		require.NoError(t, err)
 
-		require.True(t, bytes.Equal(actual, expected), "tar files differ")
+		actualTarRd, err := archive.Tar(actualDest, archive.Uncompressed)
+		require.NoError(t, err)
+
+		actualTar, err := io.ReadAll(actualTarRd)
+		require.NoError(t, err)
+
+		require.True(t, bytes.Equal(expectedTar, actualTar), "tar files differ")
+	})
+
+	// FolderConflict tests that 'templates pull' fails when a folder with has
+	// existing
+	t.Run("FolderConflict", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create an initial template bundle.
+		source1 := genTemplateVersionSource()
+		// Create an updated template bundle. This will be used to ensure
+		// that templates are correctly returned in order from latest to oldest.
+		source2 := genTemplateVersionSource()
+
+		expected, err := echo.Tar(source2)
+		require.NoError(t, err)
+
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
+		_ = coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+
+		// Update the template version so that we can assert that templates
+		// are being sorted correctly.
+		_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+
+		dir := t.TempDir()
+
+		expectedDest := filepath.Join(dir, "expected")
+		conflictDest := filepath.Join(dir, "conflict")
+
+		err = os.MkdirAll(conflictDest, 0o700)
+		require.NoError(t, err)
+
+		err = os.WriteFile(
+			filepath.Join(conflictDest, "conflict-file"),
+			[]byte("conflict"), 0o600,
+		)
+		require.NoError(t, err)
+
+		ctx := context.Background()
+
+		err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
+		require.NoError(t, err)
+
+		cmd, root := clitest.New(t, "templates", "pull", template.Name, conflictDest)
+		clitest.SetupConfig(t, client, root)
+
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+
+		errChan := make(chan error)
+		go func() {
+			defer close(errChan)
+			errChan <- cmd.Execute()
+		}()
+
+		pty.ExpectMatch("not empty")
+		pty.WriteLine("no")
+
+		require.Error(t, <-errChan)
+
+		ents, err := os.ReadDir(conflictDest)
+		require.NoError(t, err)
+
+		require.Len(t, ents, 1, "conflict folder should have single conflict file")
 	})
 }
 

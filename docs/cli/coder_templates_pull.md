@@ -10,6 +10,7 @@ coder templates pull <name> [destination] [flags]
 
 ```
   -h, --help   help for pull
+      --tar    output the template as a tar archive to stdout
   -y, --yes    Bypass prompts
 ```
 
