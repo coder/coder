@@ -815,6 +815,7 @@ func (a addr) String() string  { return a.ln.addr }
 // Logger converts the Tailscale logging function to use slog.
 func Logger(logger slog.Logger) tslogger.Logf {
 	return tslogger.Logf(func(format string, args ...any) {
+		slog.Helper()
 		logger.Debug(context.Background(), fmt.Sprintf(format, args...))
 	})
 }
