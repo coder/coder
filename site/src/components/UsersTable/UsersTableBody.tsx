@@ -165,12 +165,14 @@ export const UsersTableBody: FC<
                                 {
                                   label: t("suspendMenuItem"),
                                   onClick: onSuspendUser,
+                                  disabled: false,
                                 },
                               ]
                             : [
                                 {
                                   label: t("activateMenuItem"),
                                   onClick: onActivateUser,
+                                  disabled: false,
                                 },
                               ]
                           ).concat(
@@ -181,10 +183,12 @@ export const UsersTableBody: FC<
                             {
                               label: t("listWorkspacesMenuItem"),
                               onClick: onListWorkspaces,
+                              disabled: false,
                             },
                             {
                               label: t("resetPasswordMenuItem"),
                               onClick: onResetUserPassword,
+                              disabled: false,
                             },
                           )
                         }
