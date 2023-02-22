@@ -122,7 +122,7 @@ export const MonacoEditor: FC<{
           ],
           colors: {
             "editor.foreground": hslToHex(theme.palette.text.primary),
-            "editor.background": hslToHex(theme.palette.background.paper),
+            "editor.background": hslToHex(theme.palette.background.default),
           },
         })
         editor.updateOptions({
