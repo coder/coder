@@ -4,10 +4,15 @@
 List parameters for a given scope
 ## Usage
 ```console
-coder parameters
+coder parameters [flags]
 ```
 
 ## Examples
 ```console
   $ coder parameters list workspace my-workspace 
 ```
+
+## Subcommands
+| Name |   Purpose |
+| ---- |   ----- |
+| <code>list</code> |  |

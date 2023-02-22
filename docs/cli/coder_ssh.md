@@ -7,6 +7,7 @@ Start a shell into a workspace
 coder ssh <workspace> [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

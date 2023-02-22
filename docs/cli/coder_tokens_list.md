@@ -7,6 +7,7 @@ List tokens
 coder tokens list [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

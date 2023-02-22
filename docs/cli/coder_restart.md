@@ -7,6 +7,7 @@ Restart a workspace
 coder restart <workspace> [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

@@ -7,6 +7,7 @@ Authenticate with Coder deployment
 coder login <url> [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

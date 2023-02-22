@@ -4,7 +4,7 @@
 Manage templates
 ## Usage
 ```console
-coder templates
+coder templates [flags]
 ```
 
 ## Examples
@@ -21,3 +21,16 @@ coder templates
 
       $ coder templates push my-template 
 ```
+
+## Subcommands
+| Name |   Purpose |
+| ---- |   ----- |
+| <code>create</code> | Create a template from the current directory or as specified by flag |
+| <code>delete</code> | Delete templates |
+| <code>edit</code> | Edit the metadata of a template by name. |
+| <code>init</code> | Get started with a templated template. |
+| <code>list</code> | List all the templates available for the organization |
+| <code>plan</code> | Plan a template push from the current directory |
+| <code>pull</code> | Download the latest version of a template to a path. |
+| <code>push</code> | Push a new template version from the current directory or as specified by flag |
+| <code>versions</code> | Manage different versions of the specified template |

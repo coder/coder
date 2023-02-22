@@ -7,6 +7,7 @@ Creates many workspaces and waits for them to be ready
 coder scaletest create-workspaces [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

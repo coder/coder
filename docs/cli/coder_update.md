@@ -7,6 +7,7 @@ Update a workspace
 coder update <workspace> [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

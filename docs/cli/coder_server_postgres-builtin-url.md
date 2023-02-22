@@ -7,6 +7,7 @@ Output the connection URL for the built-in PostgreSQL deployment.
 coder server postgres-builtin-url [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

@@ -7,6 +7,7 @@ Create a new admin user with the given username, email and password and adds it 
 coder server create-admin-user [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

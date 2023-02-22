@@ -7,6 +7,7 @@ Create a template from the current directory or as specified by flag
 coder templates create [name] [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

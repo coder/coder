@@ -7,6 +7,7 @@ List all the templates available for the organization
 coder templates list [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

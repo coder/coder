@@ -7,6 +7,7 @@ List workspaces
 coder list [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

@@ -4,5 +4,6 @@
 Wraps the "ssh" command and uses the coder gitssh key for authentication
 ## Usage
 ```console
-coder gitssh
+coder gitssh [flags]
 ```
+

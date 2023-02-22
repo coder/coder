@@ -4,7 +4,7 @@
 Edit workspace start schedule
 ## Usage
 ```console
-coder schedule start <workspace-name> { <start-time> [day-of-week] [location] | manual }
+coder schedule start <workspace-name> { <start-time> [day-of-week] [location] | manual } [flags]
 ```
 
 ## Examples
@@ -13,3 +13,4 @@ coder schedule start <workspace-name> { <start-time> [day-of-week] [location] | 
 
       $ coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin 
 ```
+

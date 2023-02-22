@@ -4,5 +4,6 @@
 Show coder version
 ## Usage
 ```console
-coder version
+coder version [flags]
 ```
+

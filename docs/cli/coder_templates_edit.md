@@ -7,6 +7,7 @@ Edit the metadata of a template by name.
 coder templates edit <template> [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

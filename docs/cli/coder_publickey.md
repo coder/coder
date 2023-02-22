@@ -7,6 +7,7 @@ Output your Coder public key used for Git operations
 coder publickey [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

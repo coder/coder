@@ -7,6 +7,7 @@ Stop a workspace
 coder stop <workspace> [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

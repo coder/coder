@@ -36,14 +36,21 @@ func init() {
 }
 
 func writeCommand(w io.Writer, cmd *cobra.Command) error {
-	var flags []*pflag.Flag
+	var (
+		flags          []*pflag.Flag
+		inheritedFlags []*pflag.Flag
+	)
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
 		flags = append(flags, f)
 	})
+	cmd.InheritedFlags().VisitAll(func(f *pflag.Flag) {
+		inheritedFlags = append(inheritedFlags, f)
+	})
 	err := commandTemplate.Execute(w, map[string]any{
-		"Name":  fullCommandName(cmd),
-		"Cmd":   cmd,
-		"Flags": flags,
+		"Name":           fullCommandName(cmd),
+		"Cmd":            cmd,
+		"Flags":          flags,
+		"InheritedFlags": inheritedFlags,
 	})
 	return err
 }

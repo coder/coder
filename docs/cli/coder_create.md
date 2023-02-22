@@ -7,6 +7,7 @@ Create a workspace
 coder create [name] [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

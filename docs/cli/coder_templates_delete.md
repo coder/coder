@@ -7,6 +7,7 @@ Delete templates
 coder templates delete [name...] [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

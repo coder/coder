@@ -7,6 +7,7 @@ Run the built-in PostgreSQL deployment.
 coder server postgres-builtin-serve [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

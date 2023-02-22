@@ -4,10 +4,11 @@
 Edit workspace stop schedule
 ## Usage
 ```console
-coder schedule stop <workspace-name> { <duration> | manual }
+coder schedule stop <workspace-name> { <duration> | manual } [flags]
 ```
 
 ## Examples
 ```console
   $ coder schedule stop my-workspace 2h30m 
 ```
+

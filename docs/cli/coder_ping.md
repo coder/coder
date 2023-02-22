@@ -7,6 +7,7 @@ Ping a workspace
 coder ping <workspace> [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

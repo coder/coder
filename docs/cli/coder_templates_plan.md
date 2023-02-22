@@ -4,5 +4,6 @@
 Plan a template push from the current directory
 ## Usage
 ```console
-coder templates plan <directory>
+coder templates plan <directory> [flags]
 ```
+

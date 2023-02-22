@@ -4,7 +4,7 @@
 Manage different versions of the specified template
 ## Usage
 ```console
-coder templates versions
+coder templates versions [flags]
 ```
 
 ## Examples
@@ -13,3 +13,8 @@ coder templates versions
 
       $ coder templates versions list my-template 
 ```
+
+## Subcommands
+| Name |   Purpose |
+| ---- |   ----- |
+| <code>list</code> | List all the versions of the specified template |

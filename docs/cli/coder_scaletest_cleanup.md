@@ -7,6 +7,7 @@ Cleanup any orphaned scaletest resources
 coder scaletest cleanup [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

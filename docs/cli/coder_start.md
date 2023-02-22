@@ -7,6 +7,7 @@ Start a workspace
 coder start <workspace> [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

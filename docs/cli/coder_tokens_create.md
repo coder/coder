@@ -7,6 +7,7 @@ Create a tokens
 coder tokens create [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

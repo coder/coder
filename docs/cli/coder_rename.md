@@ -7,6 +7,7 @@ Rename a workspace
 coder rename <workspace> <new name> [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

@@ -7,6 +7,7 @@ List all the versions of the specified template
 coder templates versions list <template> [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

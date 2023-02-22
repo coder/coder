@@ -7,6 +7,7 @@ Download the latest version of a template to a path.
 coder templates pull <name> [destination] [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

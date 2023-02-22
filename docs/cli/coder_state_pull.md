@@ -7,6 +7,7 @@
 coder state pull <workspace> [file] [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

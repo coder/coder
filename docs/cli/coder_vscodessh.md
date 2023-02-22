@@ -7,6 +7,7 @@
 coder vscodessh <coder-vscode--<owner>-<workspace>-<agent?>> [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

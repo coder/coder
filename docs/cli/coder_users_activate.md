@@ -12,6 +12,7 @@ coder users activate <username|user_id> [flags]
   $ coder users activate example_user 
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

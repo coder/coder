@@ -17,6 +17,15 @@
 ```
 {{end}}
 
+{{- range $index, $cmd := .Cmd.Commands }}
+{{- if eq $index 0 }}
+## Subcommands
+| Name |   Purpose |
+| ---- |   ----- |
+{{- end }}
+| {{ $cmd.Name | wrapCode }} | {{ $cmd.Short }} |
+{{- end}}
+{{ "" }}
 {{- range $index, $flag := .Flags }}
 {{- if eq $index 0 }}
 ## Local Flags

@@ -7,6 +7,7 @@ Push a new template version from the current directory or as specified by flag
 coder templates push [template] [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

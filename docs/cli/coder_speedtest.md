@@ -7,6 +7,7 @@ Run upload and download tests from your machine to a workspace
 coder speedtest <workspace> [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

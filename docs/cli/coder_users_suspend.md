@@ -12,6 +12,7 @@ coder users suspend <username|user_id> [flags]
   $ coder users suspend example_user 
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

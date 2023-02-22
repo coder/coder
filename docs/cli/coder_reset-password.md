@@ -7,6 +7,7 @@ Directly connect to the database to reset a user's password
 coder reset-password <username> [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

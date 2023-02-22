@@ -14,6 +14,7 @@ coder dotfiles [git_repo_url] [flags]
       $ coder dotfiles --yes git@github.com:example/dotfiles.git 
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

@@ -7,6 +7,7 @@ Delete a workspace
 coder delete <workspace> [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

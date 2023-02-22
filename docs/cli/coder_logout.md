@@ -7,6 +7,7 @@ Unauthenticate your local session
 coder logout [flags]
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

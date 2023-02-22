@@ -12,6 +12,7 @@ coder users show <username|user_id|'me'> [flags]
   $ coder users show me 
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |

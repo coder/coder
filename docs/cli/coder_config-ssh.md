@@ -19,6 +19,7 @@ coder config-ssh [flags]
       $ coder config-ssh --dry-run 
 ```
 
+
 ## Local Flags
 | Name |  Default | Usage |
 | ---- |  ------- | ----- |
