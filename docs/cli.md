@@ -1,1 +1,7 @@
 # coder
+
+## Usage
+
+```console
+coder
+```

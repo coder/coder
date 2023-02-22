@@ -10,15 +10,17 @@ import (
 
 	"github.com/spf13/cobra"
 
+	_ "embed"
+
 	"github.com/coder/flog"
 )
 
-const commandTemplate = `
-# {{ .Name }}
-`
+//go:embed command.tmpl
+var commandTemplate string
 
 type commandTemplateParams struct {
-	Name string
+	Name  string
+	Usage string
 }
 
 var commandTemplateParsed *template.Template
@@ -29,7 +31,8 @@ func init() {
 
 func writeCommand(w io.Writer, cmd *cobra.Command) error {
 	err := commandTemplateParsed.Execute(w, commandTemplateParams{
-		Name: fullCommandName(cmd),
+		Name:  fullCommandName(cmd),
+		Usage: cmd.UseLine(),
 	})
 	return err
 }
