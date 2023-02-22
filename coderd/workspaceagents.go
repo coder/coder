@@ -646,7 +646,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			// as this is a valid log.
 			//
 			// The pq error occurs when the server is shutting down.
-			if !xerrors.Is(err, context.Canceled) && err.Error() != "pq: canceling statement due to user request" {
+			if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
 				api.Logger.Error(ctx, "failed to update agent disconnect time",
 					slog.Error(err),
 					slog.F("workspace", build.WorkspaceID),
