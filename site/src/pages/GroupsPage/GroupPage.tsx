@@ -193,6 +193,7 @@ export const GroupPage: React.FC = () => {
                                           userId: member.id,
                                         })
                                       },
+                                      disabled: false,
                                     },
                                   ]}
                                 />
