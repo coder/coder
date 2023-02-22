@@ -1,7 +1,9 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder templates
 
-Manage templates
+
+Templates are written in standard Terraform and describe the infrastructure for workspaces
+
 ## Usage
 ```console
 coder templates [flags]

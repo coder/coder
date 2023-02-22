@@ -4,12 +4,9 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"os/user"
 	"path"
-	"regexp"
 	"strings"
 
-	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli"
 )
 
@@ -45,11 +42,6 @@ func main() {
 		}
 	}
 
-	u, err := user.Current()
-	if err != nil {
-		log.Fatal("Error on getting the current user: ", err)
-	}
-
 	// Get the cmd CLI
 	cmd := cli.Root(cli.AGPL())
 
@@ -62,7 +54,7 @@ func main() {
 	manifestFilepath := path.Join(basePath, "docs/manifest.json")
 
 	// Generate markdown
-	err = generateDocsTree(cmd, markdownDocsDir)
+	err := generateDocsTree(cmd, markdownDocsDir)
 	if err != nil {
 		log.Fatal("Error on generating CLI markdown docs: ", err)
 	}
@@ -83,38 +75,6 @@ func main() {
 			Title: title,
 			Path:  "./cli/" + file.Name(),
 		})
-
-		filepath := path.Join(markdownDocsDir, file.Name())
-		openFile, err := os.ReadFile(filepath)
-		if err != nil {
-			log.Fatal("Error on open file at ", filepath, ": ", err)
-		}
-		content := string(openFile)
-
-		// Remove non printable strings from generated markdown
-		// https://github.com/spf13/cobra/issues/1878
-		const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
-		ansiRegex := regexp.MustCompile(ansi)
-		content = ansiRegex.ReplaceAllString(content, "")
-
-		// Remove the version and its right space, since during this script running
-		// there is no build info available
-		content = strings.ReplaceAll(content, buildinfo.Version()+" ", "")
-
-		// Remove references to the current working directory
-		dir, err := os.Getwd()
-		if err != nil {
-			log.Fatal("Error on getting the current directory:", err)
-		}
-		content = strings.ReplaceAll(content, dir, "<current-directory>")
-
-		// Remove all absolute home paths.
-		content = strings.ReplaceAll(content, u.HomeDir, "~")
-
-		err = os.WriteFile(filepath, []byte(content), 0o644) // #nosec
-		if err != nil {
-			log.Fatal("Error on save file at ", filepath, ": ", err)
-		}
 	}
 
 	// Read manifest

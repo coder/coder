@@ -1,7 +1,9 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder users show
 
+
 Show a single user. Use 'me' to indicate the currently authenticated user.
+
 ## Usage
 ```console
 coder users show <username|user_id|'me'> [flags]
@@ -14,6 +16,6 @@ coder users show <username|user_id|'me'> [flags]
 
 
 ## Local Flags
-| Name |  Default | Usage |
-| ---- |  ------- | ----- |
-| --output, -o | table | <code>Output format. Available formats: table, json</code>|
+| Name |  Default | Usage | Environment | 
+| ---- |  ------- | ----- | -------- |
+| --output, -o |table |<code>Output format. Available formats: table, json</code> | |

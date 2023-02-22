@@ -1,7 +1,9 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder users suspend
 
+
 Update a user's status to 'suspended'. A suspended user cannot log into the platform
+
 ## Usage
 ```console
 coder users suspend <username|user_id> [flags]
@@ -14,6 +16,6 @@ coder users suspend <username|user_id> [flags]
 
 
 ## Local Flags
-| Name |  Default | Usage |
-| ---- |  ------- | ----- |
-| --column, -c | [username,email,created_at,status] | <code>Specify a column to filter in the table.</code>|
+| Name |  Default | Usage | Environment | 
+| ---- |  ------- | ----- | -------- |
+| --column, -c |[username,email,created_at,status] |<code>Specify a column to filter in the table.</code> | |

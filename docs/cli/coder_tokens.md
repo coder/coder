@@ -1,7 +1,9 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder tokens
 
-Manage personal access tokens
+
+Tokens are used to authenticate automated clients to Coder.
+
 ## Usage
 ```console
 coder tokens [flags]

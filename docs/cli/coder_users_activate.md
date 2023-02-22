@@ -1,7 +1,9 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder users activate
 
+
 Update a user's status to 'active'. Active users can fully interact with the platform
+
 ## Usage
 ```console
 coder users activate <username|user_id> [flags]
@@ -14,6 +16,6 @@ coder users activate <username|user_id> [flags]
 
 
 ## Local Flags
-| Name |  Default | Usage |
-| ---- |  ------- | ----- |
-| --column, -c | [username,email,created_at,status] | <code>Specify a column to filter in the table.</code>|
+| Name |  Default | Usage | Environment | 
+| ---- |  ------- | ----- | -------- |
+| --column, -c |[username,email,created_at,status] |<code>Specify a column to filter in the table.</code> | |

@@ -1,7 +1,9 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder dotfiles
 
+
 Checkout and install a dotfiles repository from a Git URL
+
 ## Usage
 ```console
 coder dotfiles [git_repo_url] [flags]
@@ -16,7 +18,7 @@ coder dotfiles [git_repo_url] [flags]
 
 
 ## Local Flags
-| Name |  Default | Usage |
-| ---- |  ------- | ----- |
-| --symlink-dir |  | <code>Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.<br/>Consumes $CODER_SYMLINK_DIR</code>|
-| --yes, -y | false | <code>Bypass prompts</code>|
+| Name |  Default | Usage | Environment | 
+| ---- |  ------- | ----- | -------- |
+| --symlink-dir | |<code>Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.</code> | <code>$CODER_SYMLINK_DIR</code>  |
+| --yes, -y |false |<code>Bypass prompts</code> | |

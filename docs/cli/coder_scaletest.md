@@ -1,7 +1,9 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # coder scaletest
 
-Run a scale test against the Coder API
+
+Perform scale tests against the Coder server.
+
 ## Usage
 ```console
 coder scaletest [flags]

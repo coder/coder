@@ -5,9 +5,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 
+	"github.com/acarl005/stripansi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -21,6 +23,27 @@ var commandTemplateRaw string
 
 var commandTemplate *template.Template
 
+var envRegex = regexp.MustCompile(`Consumes (\$\w+)$`)
+
+func parseEnv(flagUsage string) string {
+	flagUsage = stripansi.Strip(flagUsage)
+
+	ss := envRegex.FindStringSubmatch(flagUsage)
+	if len(ss) == 0 {
+		return ""
+	}
+	return ss[len(ss)-1]
+}
+
+func stripEnv(flagUsage string) string {
+	flagUsage = stripansi.Strip(flagUsage)
+	ss := envRegex.FindStringSubmatch(flagUsage)
+	if len(ss) == 0 {
+		return flagUsage
+	}
+	return strings.TrimSpace(strings.ReplaceAll(flagUsage, ss[0], ""))
+}
+
 func init() {
 	commandTemplate = template.Must(
 		template.New("command.tpl").Funcs(template.FuncMap{
@@ -30,6 +53,8 @@ func init() {
 			"wrapCode": func(s string) string {
 				return fmt.Sprintf("<code>%s</code>", s)
 			},
+			"parseEnv": parseEnv,
+			"stripEnv": stripEnv,
 		},
 		).Parse(strings.TrimSpace(commandTemplateRaw)),
 	)
@@ -41,17 +66,29 @@ func writeCommand(w io.Writer, cmd *cobra.Command) error {
 		inheritedFlags []*pflag.Flag
 	)
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		if f.Hidden {
+			return
+		}
 		flags = append(flags, f)
 	})
 	cmd.InheritedFlags().VisitAll(func(f *pflag.Flag) {
+		if f.Hidden {
+			return
+		}
 		inheritedFlags = append(inheritedFlags, f)
 	})
-	err := commandTemplate.Execute(w, map[string]any{
+	var b strings.Builder
+	err := commandTemplate.Execute(&b, map[string]any{
 		"Name":           fullCommandName(cmd),
 		"Cmd":            cmd,
 		"Flags":          flags,
 		"InheritedFlags": inheritedFlags,
 	})
+	if err != nil {
+		return err
+	}
+	content := stripansi.Strip(b.String())
+	_, err = w.Write([]byte(content))
 	return err
 }
 
@@ -74,6 +111,10 @@ func fmtDocFilename(cmd *cobra.Command) string {
 }
 
 func generateDocsTree(rootCmd *cobra.Command, basePath string) error {
+	if rootCmd.Hidden {
+		return nil
+	}
+
 	// Write out root.
 	fi, err := os.OpenFile(
 		filepath.Join(basePath, fmtDocFilename(rootCmd)),
