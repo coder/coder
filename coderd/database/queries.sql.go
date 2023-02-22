@@ -3671,7 +3671,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 FROM
 	template_versions
 WHERE
@@ -3705,13 +3705,14 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
+		pq.Array(&i.GitAuthProviders),
 	)
 	return i, err
 }
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 FROM
 	template_versions
 WHERE
@@ -3731,13 +3732,14 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
+		pq.Array(&i.GitAuthProviders),
 	)
 	return i, err
 }
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 FROM
 	template_versions
 WHERE
@@ -3757,13 +3759,14 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
+		pq.Array(&i.GitAuthProviders),
 	)
 	return i, err
 }
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 FROM
 	template_versions
 WHERE
@@ -3789,13 +3792,14 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
+		pq.Array(&i.GitAuthProviders),
 	)
 	return i, err
 }
 
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 FROM
 	template_versions
 WHERE
@@ -3821,6 +3825,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
+			pq.Array(&i.GitAuthProviders),
 		); err != nil {
 			return nil, err
 		}
@@ -3837,7 +3842,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 FROM
 	template_versions
 WHERE
@@ -3901,6 +3906,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
+			pq.Array(&i.GitAuthProviders),
 		); err != nil {
 			return nil, err
 		}
@@ -3916,7 +3922,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by FROM template_versions WHERE created_at > $1
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers FROM template_versions WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
@@ -3938,6 +3944,7 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
+			pq.Array(&i.GitAuthProviders),
 		); err != nil {
 			return nil, err
 		}
@@ -3966,7 +3973,7 @@ INSERT INTO
 		created_by
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 `
 
 type InsertTemplateVersionParams struct {
@@ -4004,6 +4011,7 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
+		pq.Array(&i.GitAuthProviders),
 	)
 	return i, err
 }
@@ -4047,6 +4055,27 @@ type UpdateTemplateVersionDescriptionByJobIDParams struct {
 
 func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateTemplateVersionDescriptionByJobID, arg.JobID, arg.Readme, arg.UpdatedAt)
+	return err
+}
+
+const updateTemplateVersionGitAuthProvidersByJobID = `-- name: UpdateTemplateVersionGitAuthProvidersByJobID :exec
+UPDATE
+	template_versions
+SET
+	git_auth_providers = $2,
+	updated_at = $3
+WHERE
+	job_id = $1
+`
+
+type UpdateTemplateVersionGitAuthProvidersByJobIDParams struct {
+	JobID            uuid.UUID `db:"job_id" json:"job_id"`
+	GitAuthProviders []string  `db:"git_auth_providers" json:"git_auth_providers"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionGitAuthProvidersByJobIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionGitAuthProvidersByJobID, arg.JobID, pq.Array(arg.GitAuthProviders), arg.UpdatedAt)
 	return err
 }
 

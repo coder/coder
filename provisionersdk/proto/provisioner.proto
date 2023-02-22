@@ -255,7 +255,8 @@ message Provision {
         string error = 2;
         repeated Resource resources = 3;
 		repeated RichParameter parameters = 4;
-		bytes plan = 5;
+		repeated string git_auth_providers = 5;
+		bytes plan = 6;
     }
     message Response {
         oneof type {

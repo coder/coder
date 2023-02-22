@@ -724,6 +724,18 @@ func (s *MethodTestSuite) TestTemplate() {
 			Readme: "foo",
 		}).Asserts(t1, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("UpdateTemplateVersionGitAuthProvidersByJobID", s.Subtest(func(db database.Store, check *expects) {
+		jobID := uuid.New()
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
+			JobID:      jobID,
+		})
+		check.Args(database.UpdateTemplateVersionGitAuthProvidersByJobIDParams{
+			JobID:            jobID,
+			GitAuthProviders: []string{},
+		}).Asserts(t1, rbac.ActionUpdate).Returns()
+	}))
 }
 
 func (s *MethodTestSuite) TestUser() {
