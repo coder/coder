@@ -150,7 +150,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         <Button
           fullWidth
           onClick={() => setShowPasswordAuth(true)}
-          variant="contained"
+          variant="outlined"
           startIcon={<EmailIcon className={styles.icon} />}
         >
           {loginPageTranslation.t("showPassword")}

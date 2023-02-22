@@ -130,6 +130,11 @@ const useStyles = makeStyles((theme) => ({
 
   button: {
     whiteSpace: "nowrap",
+    backgroundColor: theme.palette.background.default,
+
+    "&:hover": {
+      backgroundColor: `${theme.palette.background.default} !important`,
+    },
   },
 
   unhealthyIcon: {
