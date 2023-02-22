@@ -15,25 +15,23 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-var (
-	defaultSupportLinks = []codersdk.LinkConfig{
-		{
-			Name:   "Documentation",
-			Target: "https://coder.com/docs/coder-oss",
-			Icon:   "docs",
-		},
-		{
-			Name:   "Report a bug",
-			Target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body=TODO",
-			Icon:   "bug",
-		},
-		{
-			Name:   "Join the Coder Discord",
-			Target: "https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer",
-			Icon:   "chat",
-		},
-	}
-)
+var defaultSupportLinks = []codersdk.LinkConfig{
+	{
+		Name:   "Documentation",
+		Target: "https://coder.com/docs/coder-oss",
+		Icon:   "docs",
+	},
+	{
+		Name:   "Report a bug",
+		Target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body=TODO",
+		Icon:   "bug",
+	},
+	{
+		Name:   "Join the Coder Discord",
+		Target: "https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer",
+		Icon:   "chat",
+	},
+}
 
 // @Summary Get appearance
 // @ID get-appearance

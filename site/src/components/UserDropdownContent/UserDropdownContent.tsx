@@ -63,27 +63,32 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
       <Divider className={styles.divider} />
 
       <>
-        { supportLinks && supportLinks.map((link) => (
-          <a
-            href={link.target}
-            key={link.name}
-            target="_blank"
-            rel="noreferrer"
-            className={styles.link}
-          >
-            <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
-            {link.icon === "bug" && ( <BugIcon className={styles.menuItemIcon}/> )}
-            {link.icon === "chat" && ( <ChatIcon className={styles.menuItemIcon}/> )}
-            {link.icon === "docs" && ( <DocsIcon className={styles.menuItemIcon}/> )}
-              <span className={styles.menuItemText}>{link.name}</span>
-            </MenuItem>
-          </a>
-        )) }
+        {supportLinks &&
+          supportLinks.map((link) => (
+            <a
+              href={link.target}
+              key={link.name}
+              target="_blank"
+              rel="noreferrer"
+              className={styles.link}
+            >
+              <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
+                {link.icon === "bug" && (
+                  <BugIcon className={styles.menuItemIcon} />
+                )}
+                {link.icon === "chat" && (
+                  <ChatIcon className={styles.menuItemIcon} />
+                )}
+                {link.icon === "docs" && (
+                  <DocsIcon className={styles.menuItemIcon} />
+                )}
+                <span className={styles.menuItemText}>{link.name}</span>
+              </MenuItem>
+            </a>
+          ))}
       </>
 
-      {supportLinks && (
-        <Divider className={styles.divider} />
-      )}
+      {supportLinks && <Divider className={styles.divider} />}
 
       <Stack className={styles.info} spacing={0}>
         <a
