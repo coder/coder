@@ -88,7 +88,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
             loading={isLoading}
             fullWidth
             type="submit"
-            variant="contained"
+            variant="outlined"
           >
             {isLoading ? "" : Language.passwordSignIn}
           </LoadingButton>

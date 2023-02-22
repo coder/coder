@@ -121,11 +121,6 @@ export const AppLink: FC<AppLinkProps> = ({
 const useStyles = makeStyles((theme) => ({
   link: {
     textDecoration: "none !important",
-    backgroundColor: theme.palette.background.default,
-
-    "&:hover": {
-      borderColor: theme.palette.background.paperLight,
-    },
   },
 
   disabledLink: {
@@ -135,6 +130,11 @@ const useStyles = makeStyles((theme) => ({
 
   button: {
     whiteSpace: "nowrap",
+    backgroundColor: theme.palette.background.default,
+
+    "&:hover": {
+      backgroundColor: `${theme.palette.background.default} !important`,
+    },
   },
 
   unhealthyIcon: {
