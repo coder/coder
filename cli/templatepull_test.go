@@ -203,7 +203,7 @@ func TestTemplatePull(t *testing.T) {
 	})
 }
 
-// genTemplateVersionSource returnS a unique bundle that can be used to create
+// genTemplateVersionSource returns a unique bundle that can be used to create
 // a template version source.
 func genTemplateVersionSource() *echo.Responses {
 	return &echo.Responses{
