@@ -501,7 +501,7 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	yarn run format:write:only ../docs/admin/prometheus.md
 
 docs/cli/coder.md: scripts/clidocgen/main.go $(GO_SRC_FILES) docs/manifest.json
-	rm -rf  ../docs/cli/*
+	rm -rf ./docs/cli/*.md
 	BASE_PATH="." go run ./scripts/clidocgen
 	cd site
 	yarn run format:write:only ../docs/cli/*.md ../docs/manifest.json

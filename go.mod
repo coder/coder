@@ -177,6 +177,7 @@ require (
 )
 
 require (
+	github.com/coder/flog v1.0.0 // indirect
 	github.com/dgraph-io/badger/v3 v3.2103.5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect
