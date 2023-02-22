@@ -9,10 +9,10 @@ coder speedtest <workspace> [flags]
 ### Options
 
 ```
-  -d, --direct          Specifies whether to wait for a direct connection before testing speed.
-  -h, --help            help for speedtest
-  -r, --reverse         Specifies whether to run in reverse mode where the client receives and the server sends.
-  -t, --time duration   Specifies the duration to monitor traffic. (default 5s)
+  -d, --direct             Specifies whether to wait for a direct connection before testing speed.
+      --direction string   Specifies whether to run in reverse mode where the client receives and the server sends. (up|down) (default "down")
+  -h, --help               help for speedtest
+  -t, --time duration      Specifies the duration to monitor traffic. (default 5s)
 ```
 
 ### Options inherited from parent commands
