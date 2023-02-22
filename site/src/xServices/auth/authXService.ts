@@ -254,6 +254,7 @@ export const authMachine =
           },
         },
         signedIn: {
+          type: "parallel",
           on: {
             SIGN_OUT: {
               target: "signingOut",

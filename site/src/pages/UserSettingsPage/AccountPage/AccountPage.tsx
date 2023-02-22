@@ -16,10 +16,6 @@ export const AccountPage: FC = () => {
   const { updateProfileError } = authState.context
   const canEditUsers = permissions && permissions.updateUsers
 
-  if (!me) {
-    throw new Error("No current user found")
-  }
-
   return (
     <Section title={Language.title} description="Update your account info">
       <AccountForm
