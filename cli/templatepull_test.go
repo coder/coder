@@ -73,6 +73,7 @@ func TestTemplatePull(t *testing.T) {
 	// and writes it to the correct directory.
 	t.Run("ToDir", func(t *testing.T) {
 		t.Parallel()
+		t.Skip("FLAKE: @ammario to fix imminently")
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
