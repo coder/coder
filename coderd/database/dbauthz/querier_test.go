@@ -883,7 +883,7 @@ func (s *MethodTestSuite) TestUser() {
 		check.Args(database.UpdateGitAuthLinkParams{
 			ProviderID: link.ProviderID,
 			UserID:     link.UserID,
-		}).Asserts(link, rbac.ActionUpdate).Returns()
+		}).Asserts(link, rbac.ActionUpdate).Returns(link)
 	}))
 	s.Run("UpdateUserLink", s.Subtest(func(db database.Store, check *expects) {
 		link := dbgen.UserLink(s.T(), db, database.UserLink{})

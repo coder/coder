@@ -387,6 +387,14 @@ export interface GetUsersResponse {
   readonly count: number
 }
 
+// From codersdk/templateversions.go
+export interface GitAuth {
+  readonly id: string
+  readonly type: GitProvider
+  readonly authenticate_url: string
+  readonly authenticated: boolean
+}
+
 // From codersdk/deployment.go
 export interface GitAuthConfig {
   readonly id: string

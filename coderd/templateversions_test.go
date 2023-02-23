@@ -434,6 +434,25 @@ func TestTemplateVersionParameters(t *testing.T) {
 	})
 }
 
+func TestTemplateVersionsGitAuth(t *testing.T) {
+	t.Parallel()
+	t.Run("WithoutAny", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.TemplateVersionGitAuth(ctx, version.ID)
+		require.NoError(t, err)
+	})
+	// t.Run("", func(t *testing.T) {
+
+	// })
+}
+
 func TestTemplateVersionResources(t *testing.T) {
 	t.Parallel()
 	t.Run("ListRunning", func(t *testing.T) {

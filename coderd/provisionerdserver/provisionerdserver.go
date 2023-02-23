@@ -812,9 +812,15 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			}
 		}
 
+		var completedError sql.NullString
+
 		for _, gitAuthProvider := range jobType.TemplateImport.GitAuthProviders {
 			if !slice.Contains(server.GitAuthProviders, gitAuthProvider) {
-				return nil, xerrors.Errorf("git auth provider %q is not configured", gitAuthProvider)
+				completedError = sql.NullString{
+					String: fmt.Sprintf("git auth provider %q is not configured", gitAuthProvider),
+					Valid:  true,
+				}
+				break
 			}
 		}
 
@@ -834,6 +840,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				Time:  database.Now(),
 				Valid: true,
 			},
+			Error: completedError,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update provisioner job: %w", err)

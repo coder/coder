@@ -1121,11 +1121,11 @@ func (q *querier) InsertGitAuthLink(ctx context.Context, arg database.InsertGitA
 	return insert(q.log, q.auth, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.db.InsertGitAuthLink)(ctx, arg)
 }
 
-func (q *querier) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) error {
+func (q *querier) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
 	fetch := func(ctx context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
 		return q.db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
 	}
-	return update(q.log, q.auth, fetch, q.db.UpdateGitAuthLink)(ctx, arg)
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateGitAuthLink)(ctx, arg)
 }
 
 func (q *querier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {

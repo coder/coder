@@ -756,7 +756,7 @@ func TestCompleteJob(t *testing.T) {
 			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
 		})
 		require.NoError(t, err)
-		completeJob := func() error {
+		completeJob := func() {
 			_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
 				JobId: job.ID.String(),
 				Type: &proto.CompletedJob_TemplateImport_{
@@ -770,13 +770,17 @@ func TestCompleteJob(t *testing.T) {
 					},
 				},
 			})
-			return err
+			require.NoError(t, err)
 		}
-		err = completeJob()
-		require.ErrorContains(t, err, `git auth provider "github" is not configured`)
-		srv.GitAuthProviders = []string{"github"}
-		err = completeJob()
+		completeJob()
+		job, err = srv.Database.GetProvisionerJobByID(ctx, job.ID)
 		require.NoError(t, err)
+		require.Contains(t, job.Error.String, `git auth provider "github" is not configured`)
+		srv.GitAuthProviders = []string{"github"}
+		completeJob()
+		job, err = srv.Database.GetProvisionerJobByID(ctx, job.ID)
+		require.NoError(t, err)
+		require.False(t, job.Error.Valid)
 	})
 	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()

@@ -836,13 +836,13 @@ func (q *sqlQuerier) InsertGitAuthLink(ctx context.Context, arg InsertGitAuthLin
 	return i, err
 }
 
-const updateGitAuthLink = `-- name: UpdateGitAuthLink :exec
+const updateGitAuthLink = `-- name: UpdateGitAuthLink :one
 UPDATE git_auth_links SET
     updated_at = $3,
     oauth_access_token = $4,
     oauth_refresh_token = $5,
     oauth_expiry = $6
-WHERE provider_id = $1 AND user_id = $2
+WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry
 `
 
 type UpdateGitAuthLinkParams struct {
@@ -854,8 +854,8 @@ type UpdateGitAuthLinkParams struct {
 	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
 }
 
-func (q *sqlQuerier) UpdateGitAuthLink(ctx context.Context, arg UpdateGitAuthLinkParams) error {
-	_, err := q.db.ExecContext(ctx, updateGitAuthLink,
+func (q *sqlQuerier) UpdateGitAuthLink(ctx context.Context, arg UpdateGitAuthLinkParams) (GitAuthLink, error) {
+	row := q.db.QueryRowContext(ctx, updateGitAuthLink,
 		arg.ProviderID,
 		arg.UserID,
 		arg.UpdatedAt,
@@ -863,7 +863,17 @@ func (q *sqlQuerier) UpdateGitAuthLink(ctx context.Context, arg UpdateGitAuthLin
 		arg.OAuthRefreshToken,
 		arg.OAuthExpiry,
 	)
-	return err
+	var i GitAuthLink
+	err := row.Scan(
+		&i.ProviderID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthExpiry,
+	)
+	return i, err
 }
 
 const deleteGitSSHKey = `-- name: DeleteGitSSHKey :exec

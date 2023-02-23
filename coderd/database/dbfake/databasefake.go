@@ -4294,9 +4294,9 @@ func (q *fakeQuerier) InsertGitAuthLink(_ context.Context, arg database.InsertGi
 	return gitAuthLink, nil
 }
 
-func (q *fakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGitAuthLinkParams) error {
+func (q *fakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return err
+		return database.GitAuthLink{}, err
 	}
 
 	q.mutex.Lock()
@@ -4313,8 +4313,10 @@ func (q *fakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGi
 		gitAuthLink.OAuthRefreshToken = arg.OAuthRefreshToken
 		gitAuthLink.OAuthExpiry = arg.OAuthExpiry
 		q.gitAuthLinks[index] = gitAuthLink
+
+		return gitAuthLink, nil
 	}
-	return nil
+	return database.GitAuthLink{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UUID) (int64, error) {
