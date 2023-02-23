@@ -21,7 +21,7 @@ export const existsFile = (path: string, fileTree: FileTree) => {
 
 export const removeFile = (path: string, fileTree: FileTree) => {
   const updatedFileTree = { ...fileTree }
-  unset(fileTree, path.split("/"))
+  unset(updatedFileTree, path.split("/"))
   return updatedFileTree
 }
 

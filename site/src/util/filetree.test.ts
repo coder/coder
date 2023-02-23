@@ -30,7 +30,7 @@ test("getFileContent() return the file content from the file tree", () => {
   )
 })
 
-test("removeFile() removes a file from the file tree", () => {
+test("removeFile() removes a file from a folder", () => {
   let fileTree: FileTree = {
     "main.tf": "terraform content",
     images: {
@@ -43,6 +43,24 @@ test("removeFile() removes a file from the file tree", () => {
     "main.tf": "terraform content",
     images: {
       "java.Dockerfile": "java dockerfile",
+    },
+  }
+  expect(expectedFileTree).toEqual(fileTree)
+})
+
+test("removeFile() removes a file from root", () => {
+  let fileTree: FileTree = {
+    "main.tf": "terraform content",
+    images: {
+      "java.Dockerfile": "java dockerfile",
+      "python.Dockerfile": "python Dockerfile",
+    },
+  }
+  fileTree = removeFile("main.tf", fileTree)
+  const expectedFileTree = {
+    images: {
+      "java.Dockerfile": "java dockerfile",
+      "python.Dockerfile": "python Dockerfile",
     },
   }
   expect(expectedFileTree).toEqual(fileTree)
