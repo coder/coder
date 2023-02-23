@@ -191,12 +191,21 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 	})
 	go coordinator.ServeClient(serverConn, uuid.New(), agentID)
 	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		return conn.UpdateNodes(node)
+		return conn.UpdateNodes(node, false)
 	})
 	conn.SetNodeCallback(sendNode)
-	return &codersdk.WorkspaceAgentConn{
+	agentConn := &codersdk.WorkspaceAgentConn{
 		Conn: conn,
 	}
+	t.Cleanup(func() {
+		_ = agentConn.Close()
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+	if !agentConn.AwaitReachable(ctx) {
+		t.Fatal("agent not reachable")
+	}
+	return agentConn
 }
 
 type client struct {

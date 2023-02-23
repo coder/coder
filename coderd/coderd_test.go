@@ -80,16 +80,16 @@ func TestDERP(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	w2Ready := make(chan struct{}, 1)
+	w2Ready := make(chan struct{})
 	w2ReadyOnce := sync.Once{}
 	w1.SetNodeCallback(func(node *tailnet.Node) {
-		w2.UpdateNodes([]*tailnet.Node{node})
+		w2.UpdateNodes([]*tailnet.Node{node}, false)
 		w2ReadyOnce.Do(func() {
 			close(w2Ready)
 		})
 	})
 	w2.SetNodeCallback(func(node *tailnet.Node) {
-		w1.UpdateNodes([]*tailnet.Node{node})
+		w1.UpdateNodes([]*tailnet.Node{node}, false)
 	})
 
 	conn := make(chan struct{})

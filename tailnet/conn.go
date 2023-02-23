@@ -130,7 +130,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	}()
 
 	dialer := &tsdial.Dialer{
-		Logf: Logger(options.Logger),
+		Logf: Logger(options.Logger.Named("tsdial")),
 	}
 	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(options.Logger.Named("wgengine")), wgengine.Config{
 		LinkMonitor: wireguardMonitor,
@@ -179,6 +179,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
 	wireguardEngine.SetDERPMap(options.DERPMap)
 	netMapCopy := *netMap
+	options.Logger.Debug(context.Background(), "updating network map", slog.F("net_map", netMapCopy))
 	wireguardEngine.SetNetworkMap(&netMapCopy)
 
 	localIPSet := netipx.IPSetBuilder{}
@@ -329,9 +330,11 @@ func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.logger.Debug(context.Background(), "updating derp map", slog.F("derp_map", derpMap))
-	c.netMap.DERPMap = derpMap
-	c.wireguardEngine.SetNetworkMap(c.netMap)
 	c.wireguardEngine.SetDERPMap(derpMap)
+	c.netMap.DERPMap = derpMap
+	netMapCopy := *c.netMap
+	c.logger.Debug(context.Background(), "updating network map", slog.F("net_map", netMapCopy))
+	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 }
 
 func (c *Conn) RemoveAllPeers() error {
@@ -341,6 +344,7 @@ func (c *Conn) RemoveAllPeers() error {
 	c.netMap.Peers = []*tailcfg.Node{}
 	c.peerMap = map[tailcfg.NodeID]*tailcfg.Node{}
 	netMapCopy := *c.netMap
+	c.logger.Debug(context.Background(), "updating network map", slog.F("net_map", netMapCopy))
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
@@ -361,10 +365,14 @@ func (c *Conn) RemoveAllPeers() error {
 
 // UpdateNodes connects with a set of peers. This can be constantly updated,
 // and peers will continually be reconnected as necessary.
-func (c *Conn) UpdateNodes(nodes []*Node) error {
+func (c *Conn) UpdateNodes(nodes []*Node, replace bool) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	status := c.Status()
+	if replace {
+		c.netMap.Peers = []*tailcfg.Node{}
+		c.peerMap = map[tailcfg.NodeID]*tailcfg.Node{}
+	}
 	for _, peer := range c.netMap.Peers {
 		peerStatus, ok := status.Peer[peer.Key]
 		if !ok {
@@ -384,6 +392,11 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 		delete(c.peerMap, peer.ID)
 	}
 	for _, node := range nodes {
+		// If no preferred DERP is provided, we can't reach the node.
+		if node.PreferredDERP == 0 {
+			c.logger.Debug(context.Background(), "no preferred DERP, skipping node", slog.F("node", node))
+			continue
+		}
 		c.logger.Debug(context.Background(), "adding node", slog.F("node", node))
 
 		peerStatus, ok := status.Peer[node.Key]
@@ -402,10 +415,6 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 			// reason. TODO: @kylecarbs debug this!
 			KeepAlive: ok && peerStatus.Active,
 		}
-		// If no preferred DERP is provided, don't set an IP!
-		if node.PreferredDERP == 0 {
-			peerNode.DERP = ""
-		}
 		if c.blockEndpoints {
 			peerNode.Endpoints = nil
 		}
@@ -416,6 +425,7 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 		c.netMap.Peers = append(c.netMap.Peers, peer.Clone())
 	}
 	netMapCopy := *c.netMap
+	c.logger.Debug(context.Background(), "updating network map", slog.F("net_map", netMapCopy))
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
