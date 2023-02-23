@@ -15,10 +15,12 @@ import { makeStyles } from "@material-ui/core/styles"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 import { SelectedTemplate } from "./SelectedTemplate"
 import { Loader } from "components/Loader/Loader"
+import { GitAuth } from "components/GitAuth/GitAuth"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
   GET_TEMPLATE_SCHEMA_ERROR = "getTemplateSchemaError",
+  GET_TEMPLATE_GITAUTH_ERROR = "getTemplateGitAuthError",
   CREATE_WORKSPACE_ERROR = "createWorkspaceError",
 }
 
@@ -32,6 +34,7 @@ export interface CreateWorkspacePageViewProps {
   selectedTemplate?: TypesGen.Template
   templateParameters?: TypesGen.TemplateVersionParameter[]
   templateSchema?: TypesGen.ParameterSchema[]
+  templateGitAuth?: TypesGen.TemplateVersionGitAuth[]
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   canCreateForUser?: boolean
   owner: TypesGen.User | null
@@ -216,6 +219,36 @@ export const CreateWorkspacePageView: FC<
                   onChange={props.setOwner}
                   label={t("ownerLabel")}
                 />
+              </Stack>
+            </div>
+          )}
+
+          {/* Template git auth */}
+          {props.templateGitAuth && props.templateGitAuth.length > 0 && (
+            <div className={styles.formSection}>
+              <div className={styles.formSectionInfo}>
+                <h2 className={styles.formSectionInfoTitle}>
+                  Git Authentication
+                </h2>
+                <p className={styles.formSectionInfoDescription}>
+                  This workspace requires authenticating with Git providers to
+                  create a workspace.
+                </p>
+              </div>
+
+              <Stack
+                direction="column"
+                spacing={4}
+                className={styles.formSectionFields}
+              >
+                {props.templateGitAuth.map((auth, index) => (
+                  <GitAuth
+                    key={index}
+                    authenticateURL={auth.authenticate_url}
+                    authenticated={auth.authenticated}
+                    type={auth.type}
+                  />
+                ))}
               </Stack>
             </div>
           )}

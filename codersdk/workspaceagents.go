@@ -277,12 +277,11 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 
 // GitProvider is a constant that represents the
 // type of providers that are supported within Coder.
-// @typescript-ignore GitProvider
 type GitProvider string
 
 const (
-	GitProviderAzureDevops = "azure-devops"
-	GitProviderGitHub      = "github"
-	GitProviderGitLab      = "gitlab"
-	GitProviderBitBucket   = "bitbucket"
+	GitProviderAzureDevops GitProvider = "azure-devops"
+	GitProviderGitHub      GitProvider = "github"
+	GitProviderGitLab      GitProvider = "gitlab"
+	GitProviderBitBucket   GitProvider = "bitbucket"
 )

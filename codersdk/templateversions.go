@@ -11,13 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type GitAuth struct {
-	ID              string      `json:"id"`
-	Type            GitProvider `json:"type"`
-	AuthenticateURL string      `json:"authenticate_url"`
-	Authenticated   bool        `json:"authenticated"`
-}
-
 // TemplateVersion represents a single version of a template.
 type TemplateVersion struct {
 	ID             uuid.UUID      `json:"id" format:"uuid"`
@@ -29,6 +22,13 @@ type TemplateVersion struct {
 	Job            ProvisionerJob `json:"job"`
 	Readme         string         `json:"readme"`
 	CreatedBy      User           `json:"created_by"`
+}
+
+type TemplateVersionGitAuth struct {
+	ID              string      `json:"id"`
+	Type            GitProvider `json:"type"`
+	AuthenticateURL string      `json:"authenticate_url"`
+	Authenticated   bool        `json:"authenticated"`
 }
 
 type ValidationMonotonicOrder string
@@ -116,7 +116,7 @@ func (c *Client) TemplateVersionRichParameters(ctx context.Context, version uuid
 }
 
 // TemplateVersionGitAuth returns git authentication for the requested template version.
-func (c *Client) TemplateVersionGitAuth(ctx context.Context, version uuid.UUID) ([]GitAuth, error) {
+func (c *Client) TemplateVersionGitAuth(ctx context.Context, version uuid.UUID) ([]TemplateVersionGitAuth, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/gitauth", version), nil)
 	if err != nil {
 		return nil, err
@@ -125,7 +125,7 @@ func (c *Client) TemplateVersionGitAuth(ctx context.Context, version uuid.UUID) 
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-	var gitAuth []GitAuth
+	var gitAuth []TemplateVersionGitAuth
 	return gitAuth, json.NewDecoder(res.Body).Decode(&gitAuth)
 }
 

@@ -42,13 +42,13 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 	for _, entry := range entries {
 		var typ codersdk.GitProvider
 		switch entry.Type {
-		case codersdk.GitProviderAzureDevops:
+		case string(codersdk.GitProviderAzureDevops):
 			typ = codersdk.GitProviderAzureDevops
-		case codersdk.GitProviderBitBucket:
+		case string(codersdk.GitProviderBitBucket):
 			typ = codersdk.GitProviderBitBucket
-		case codersdk.GitProviderGitHub:
+		case string(codersdk.GitProviderGitHub):
 			typ = codersdk.GitProviderGitHub
-		case codersdk.GitProviderGitLab:
+		case string(codersdk.GitProviderGitLab):
 			typ = codersdk.GitProviderGitLab
 		default:
 			return nil, xerrors.Errorf("unknown git provider type: %q", entry.Type)

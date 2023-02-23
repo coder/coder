@@ -387,14 +387,6 @@ export interface GetUsersResponse {
   readonly count: number
 }
 
-// From codersdk/templateversions.go
-export interface GitAuth {
-  readonly id: string
-  readonly type: GitProvider
-  readonly authenticate_url: string
-  readonly authenticated: boolean
-}
-
 // From codersdk/deployment.go
 export interface GitAuthConfig {
   readonly id: string
@@ -760,6 +752,14 @@ export interface TemplateVersion {
   readonly job: ProvisionerJob
   readonly readme: string
   readonly created_by: User
+}
+
+// From codersdk/templateversions.go
+export interface TemplateVersionGitAuth {
+  readonly id: string
+  readonly type: GitProvider
+  readonly authenticate_url: string
+  readonly authenticated: boolean
 }
 
 // From codersdk/templateversions.go
@@ -1139,6 +1139,15 @@ export const FeatureNames: FeatureName[] = [
   "scim",
   "template_rbac",
   "user_limit",
+]
+
+// From codersdk/workspaceagents.go
+export type GitProvider = "azure-devops" | "bitbucket" | "github" | "gitlab"
+export const GitProviders: GitProvider[] = [
+  "azure-devops",
+  "bitbucket",
+  "github",
+  "gitlab",
 ]
 
 // From codersdk/provisionerdaemons.go

@@ -250,7 +250,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Success 200 {array} codersdk.GitAuth
+// @Success 200 {array} codersdk.TemplateVersionGitAuth
 // @Router /templateversions/{templateversion}/gitauth [get]
 func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -266,7 +266,7 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	rawProviders := templateVersion.GitAuthProviders
-	providers := make([]codersdk.GitAuth, 0)
+	providers := make([]codersdk.TemplateVersionGitAuth, 0)
 	for _, rawProvider := range rawProviders {
 		var config *gitauth.Config
 		for _, provider := range api.GitAuthConfigs {
@@ -293,7 +293,7 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		provider := codersdk.GitAuth{
+		provider := codersdk.TemplateVersionGitAuth{
 			ID:              config.ID,
 			Type:            config.Type,
 			AuthenticateURL: redirectURL.String(),

@@ -2,6 +2,7 @@ import {
   checkAuthorization,
   createWorkspace,
   getTemplates,
+  getTemplateVersionGitAuth,
   getTemplateVersionRichParameters,
   getTemplateVersionSchema,
 } from "api/api"
@@ -9,6 +10,7 @@ import {
   CreateWorkspaceRequest,
   ParameterSchema,
   Template,
+  TemplateVersionGitAuth,
   TemplateVersionParameter,
   User,
   Workspace,
@@ -23,11 +25,13 @@ type CreateWorkspaceContext = {
   selectedTemplate?: Template
   templateParameters?: TemplateVersionParameter[]
   templateSchema?: ParameterSchema[]
+  templateGitAuth?: TemplateVersionGitAuth[]
   createWorkspaceRequest?: CreateWorkspaceRequest
   createdWorkspace?: Workspace
   createWorkspaceError?: Error | unknown
   getTemplatesError?: Error | unknown
   getTemplateParametersError?: Error | unknown
+  getTemplateGitAuthError?: Error | unknown
   getTemplateSchemaError?: Error | unknown
   permissions?: Record<string, boolean>
   checkPermissionsError?: Error | unknown
@@ -55,6 +59,9 @@ export const createWorkspaceMachine = createMachine(
       services: {} as {
         getTemplates: {
           data: Template[]
+        }
+        getTemplateGitAuth: {
+          data: TemplateVersionGitAuth[]
         }
         getTemplateParameters: {
           data: TemplateVersionParameter[]
@@ -109,10 +116,24 @@ export const createWorkspaceMachine = createMachine(
           src: "getTemplateParameters",
           onDone: {
             actions: ["assignTemplateParameters"],
-            target: "checkingPermissions",
+            target: "gettingTemplateGitAuth",
           },
           onError: {
             actions: ["assignGetTemplateParametersError"],
+            target: "error",
+          },
+        },
+      },
+      gettingTemplateGitAuth: {
+        entry: "clearTemplateGitAuthError",
+        invoke: {
+          src: "getTemplateGitAuth",
+          onDone: {
+            actions: ["assignTemplateGitAuth"],
+            target: "checkingPermissions",
+          },
+          onError: {
+            actions: ["assignTemplateGitAuthError"],
             target: "error",
           },
         },
@@ -166,6 +187,17 @@ export const createWorkspaceMachine = createMachine(
   {
     services: {
       getTemplates: (context) => getTemplates(context.organizationId),
+      getTemplateGitAuth: (context) => {
+        const { selectedTemplate } = context
+
+        if (!selectedTemplate) {
+          throw new Error("No selected template")
+        }
+
+        return getTemplateVersionGitAuth(
+          selectedTemplate.active_version_id,
+        )
+      },
       getTemplateParameters: (context) => {
         const { selectedTemplate } = context
 
@@ -284,6 +316,15 @@ export const createWorkspaceMachine = createMachine(
       }),
       clearGetTemplateSchemaError: assign({
         getTemplateSchemaError: (_) => undefined,
+      }),
+      clearTemplateGitAuthError: assign({
+        getTemplateGitAuthError: (_) => undefined,
+      }),
+      assignTemplateGitAuthError: assign({
+        getTemplateGitAuthError: (_, event) => event.data,
+      }),
+      assignTemplateGitAuth: assign({
+        templateGitAuth: (_, event) => event.data,
       }),
     },
   },

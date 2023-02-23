@@ -4570,6 +4570,26 @@ Parameter represents a set value for the scope.
 | `template_id`     | string                                             | false    |              |             |
 | `updated_at`      | string                                             | false    |              |             |
 
+## codersdk.TemplateVersionGitAuth
+
+```json
+{
+  "authenticate_url": "string",
+  "authenticated": true,
+  "id": "string",
+  "type": "string"
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `authenticate_url` | string  | false    |              |             |
+| `authenticated`    | boolean | false    |              |             |
+| `id`               | string  | false    |              |             |
+| `type`             | string  | false    |              |             |
+
 ## codersdk.TemplateVersionParameter
 
 ```json
