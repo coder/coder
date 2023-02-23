@@ -1,24 +1,22 @@
 import { FC, PropsWithChildren, useState } from "react"
-import { Section } from "../../../components/SettingsLayout/Section"
+import { Section } from "components/SettingsLayout/Section"
 import { TokensPageView } from "./TokensPageView"
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { Typography } from "components/Typography/Typography"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import { useTranslation } from "react-i18next"
-import {
-  useTokensData,
-  useDeleteToken,
-  useCheckTokenPermissions,
-} from "./hooks"
-import { displaySuccess, displayError } from "components/GlobalSnackbar/utils"
-import { getErrorMessage } from "api/errors"
-import Switch from "@material-ui/core/Switch"
-import FormGroup from "@material-ui/core/FormGroup"
-import FormControlLabel from "@material-ui/core/FormControlLabel"
+import { useTokensData, useCheckTokenPermissions } from "./hooks"
+import { TokensSwitch, ConfirmDeleteDialog } from "./components"
 
 export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
   const styles = useStyles()
   const { t } = useTranslation("tokensPage")
+
+  const description = (
+    <>
+      {t("description")}{" "}
+      <code className={styles.code}>coder tokens create</code> command.
+    </>
+  )
+
   const [tokenIdToDelete, setTokenIdToDelete] = useState<string | undefined>(
     undefined,
   )
@@ -35,55 +33,14 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
     include_all: viewAllTokens,
   })
 
-  const { mutate: deleteToken, isLoading: isDeleting } =
-    useDeleteToken(queryKey)
-
-  const onDeleteSuccess = () => {
-    displaySuccess(t("deleteToken.deleteSuccess"))
-    setTokenIdToDelete(undefined)
-  }
-
-  const onDeleteError = (error: unknown) => {
-    const message = getErrorMessage(error, t("deleteToken.deleteFailure"))
-    displayError(message)
-    setTokenIdToDelete(undefined)
-  }
-
-  const description = (
-    <>
-      {t("description")}{" "}
-      <code className={styles.code}>coder tokens create</code> command.
-    </>
-  )
-
-  const content = (
-    <Typography>
-      {t("deleteToken.deleteCaption")}
-      <br />
-      <br />
-      {tokenIdToDelete}
-    </Typography>
-  )
-
   return (
     <>
       <Section title={t("title")} description={description} layout="fluid">
-        <FormGroup row className={styles.formRow}>
-          {perms?.readAllApiKeys && (
-            <FormControlLabel
-              control={
-                <Switch
-                  className={styles.selectAllSwitch}
-                  checked={viewAllTokens}
-                  onChange={() => setViewAllTokens(!viewAllTokens)}
-                  name="viewAllTokens"
-                  color="primary"
-                />
-              }
-              label={t("toggleLabel")}
-            />
-          )}
-        </FormGroup>
+        <TokensSwitch
+          hasReadAll={perms?.readAllApiKeys ?? false}
+          viewAllTokens={viewAllTokens}
+          setViewAllTokens={setViewAllTokens}
+        />
         <TokensPageView
           tokens={tokens}
           isLoading={isFetching}
@@ -94,24 +51,10 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
           }}
         />
       </Section>
-
-      <ConfirmDialog
-        title={t("deleteToken.delete")}
-        description={content}
-        open={Boolean(tokenIdToDelete) || isDeleting}
-        confirmLoading={isDeleting}
-        onConfirm={() => {
-          if (!tokenIdToDelete) {
-            return
-          }
-          deleteToken(tokenIdToDelete, {
-            onError: onDeleteError,
-            onSuccess: onDeleteSuccess,
-          })
-        }}
-        onClose={() => {
-          setTokenIdToDelete(undefined)
-        }}
+      <ConfirmDeleteDialog
+        queryKey={queryKey}
+        tokenId={tokenIdToDelete}
+        setTokenId={setTokenIdToDelete}
       />
     </>
   )
@@ -124,17 +67,6 @@ const useStyles = makeStyles((theme) => ({
     padding: "2px 4px",
     color: theme.palette.text.primary,
     borderRadius: 2,
-  },
-  formRow: {
-    justifyContent: "end",
-    marginBottom: "10px",
-  },
-  selectAllSwitch: {
-    // decrease the hover state on the switch
-    // so that it isn't hidden behind the container
-    "& .MuiIconButton-root": {
-      padding: "8px",
-    },
   },
 }))
 
