@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -78,13 +79,14 @@ func TestDERP(t *testing.T) {
 		DERPMap:   derpMap,
 	})
 	require.NoError(t, err)
+
 	w2Ready := make(chan struct{}, 1)
+	w2ReadyOnce := sync.Once{}
 	w1.SetNodeCallback(func(node *tailnet.Node) {
 		w2.UpdateNodes([]*tailnet.Node{node})
-		select {
-		case w2Ready <- struct{}{}:
-		default:
-		}
+		w2ReadyOnce.Do(func() {
+			close(w2Ready)
+		})
 	})
 	w2.SetNodeCallback(func(node *tailnet.Node) {
 		w1.UpdateNodes([]*tailnet.Node{node})
