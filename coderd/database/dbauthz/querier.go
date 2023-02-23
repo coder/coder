@@ -1263,6 +1263,27 @@ func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg datab
 	return q.db.UpdateWorkspaceAgentStartupByID(ctx, arg)
 }
 
+func (q *querier) GetStartupScriptLogsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.StartupScriptLog, error) {
+	build, err := q.db.GetWorkspaceBuildByJobID(ctx, jobID)
+	if err != nil {
+		return nil, err
+	}
+	// Authorized fetch
+	_, err = q.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetStartupScriptLogsByJobID(ctx, jobID)
+}
+
+func (q *querier) InsertOrUpdateStartupScriptLog(ctx context.Context, arg database.InsertOrUpdateStartupScriptLogParams) error {
+	// Authorized fetch
+	if _, err := q.GetWorkspaceByAgentID(ctx, arg.AgentID); err != nil {
+		return err
+	}
+	return q.db.InsertOrUpdateStartupScriptLog(ctx, arg)
+}
+
 func (q *querier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
 	// If we can fetch the workspace, we can fetch the apps. Use the authorized call.
 	if _, err := q.GetWorkspaceByAgentID(ctx, arg.AgentID); err != nil {

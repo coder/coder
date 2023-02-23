@@ -1401,6 +1401,12 @@ type SiteConfig struct {
 	Value string `db:"value" json:"value"`
 }
 
+type StartupScriptLog struct {
+	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
+	JobID   uuid.UUID `db:"job_id" json:"job_id"`
+	Output  string    `db:"output" json:"output"`
+}
+
 type Template struct {
 	ID              uuid.UUID       `db:"id" json:"id"`
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`

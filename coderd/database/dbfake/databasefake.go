@@ -53,6 +53,7 @@ func New() database.Store {
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			parameterValues:           make([]database.ParameterValue, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
+			startupScriptLogs:         make([]database.StartupScriptLog, 0),
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
 			provisionerJobLogs:        make([]database.ProvisionerJobLog, 0),
 			workspaceResources:        make([]database.WorkspaceResource, 0),
@@ -112,6 +113,7 @@ type data struct {
 	provisionerJobLogs        []database.ProvisionerJobLog
 	provisionerJobs           []database.ProvisionerJob
 	replicas                  []database.Replica
+	startupScriptLogs         []database.StartupScriptLog
 	templateVersions          []database.TemplateVersion
 	templateVersionParameters []database.TemplateVersionParameter
 	templateVersionVariables  []database.TemplateVersionVariable
@@ -3301,6 +3303,44 @@ func (q *fakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetStartupScriptLogsByJobID(_ context.Context, jobID uuid.UUID) ([]database.StartupScriptLog, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	logs := []database.StartupScriptLog{}
+	for _, log := range q.startupScriptLogs {
+		if log.JobID == jobID {
+			logs = append(logs, log)
+		}
+	}
+	return logs, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) InsertOrUpdateStartupScriptLog(_ context.Context, arg database.InsertOrUpdateStartupScriptLogParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, log := range q.startupScriptLogs {
+		if log.JobID != arg.JobID {
+			continue
+		}
+
+		log.Output = arg.Output
+		q.startupScriptLogs[index] = log
+		return nil
+	}
+	q.startupScriptLogs = append(q.startupScriptLogs, database.StartupScriptLog{
+		AgentID: arg.AgentID,
+		JobID:   arg.JobID,
+		Output:  arg.Output,
+	})
+	return nil
 }
 
 func (q *fakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.UpdateProvisionerJobByIDParams) error {

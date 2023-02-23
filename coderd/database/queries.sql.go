@@ -3050,6 +3050,61 @@ func (q *sqlQuerier) InsertOrUpdateServiceBanner(ctx context.Context, value stri
 	return err
 }
 
+const getStartupScriptLogsByJobID = `-- name: GetStartupScriptLogsByJobID :many
+SELECT
+	agent_id, job_id, output
+FROM
+	startup_script_logs
+WHERE
+	job_id = $1
+`
+
+func (q *sqlQuerier) GetStartupScriptLogsByJobID(ctx context.Context, jobID uuid.UUID) ([]StartupScriptLog, error) {
+	rows, err := q.db.QueryContext(ctx, getStartupScriptLogsByJobID, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []StartupScriptLog
+	for rows.Next() {
+		var i StartupScriptLog
+		if err := rows.Scan(&i.AgentID, &i.JobID, &i.Output); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertOrUpdateStartupScriptLog = `-- name: InsertOrUpdateStartupScriptLog :exec
+INSERT INTO
+	startup_script_logs (agent_id, job_id, output)
+VALUES ($1, $2, $3)
+ON CONFLICT (agent_id, job_id) DO UPDATE
+	SET
+		output = $3
+	WHERE
+		startup_script_logs.agent_id = $1
+		AND startup_script_logs.job_id = $2
+`
+
+type InsertOrUpdateStartupScriptLogParams struct {
+	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
+	JobID   uuid.UUID `db:"job_id" json:"job_id"`
+	Output  string    `db:"output" json:"output"`
+}
+
+func (q *sqlQuerier) InsertOrUpdateStartupScriptLog(ctx context.Context, arg InsertOrUpdateStartupScriptLogParams) error {
+	_, err := q.db.ExecContext(ctx, insertOrUpdateStartupScriptLog, arg.AgentID, arg.JobID, arg.Output)
+	return err
+}
+
 const getTemplateAverageBuildTime = `-- name: GetTemplateAverageBuildTime :one
 WITH build_times AS (
 SELECT
