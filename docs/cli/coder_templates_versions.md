@@ -19,4 +19,4 @@ coder templates versions [flags]
 ## Subcommands
 | Name |   Purpose |
 | ---- |   ----- |
-| <code>list</code> | List all the versions of the specified template |
+| [<code>list</code>](./coder_templates_versions_list) | List all the versions of the specified template |

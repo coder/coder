@@ -12,5 +12,5 @@ coder scaletest [flags]
 ## Subcommands
 | Name |   Purpose |
 | ---- |   ----- |
-| <code>cleanup</code> | Cleanup any orphaned scaletest resources |
-| <code>create-workspaces</code> | Creates many workspaces and waits for them to be ready |
+| [<code>cleanup</code>](./coder_scaletest_cleanup) | Cleanup any orphaned scaletest resources |
+| [<code>create-workspaces</code>](./coder_scaletest_create-workspaces) | Creates many workspaces and waits for them to be ready |

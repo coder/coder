@@ -27,7 +27,7 @@
 | Name |   Purpose |
 | ---- |   ----- |
 {{- end }}
-| {{ $cmd.Name | wrapCode }} | {{ $cmd.Short }} |
+| [{{ $cmd.Name | wrapCode }}](./{{if $.AtRoot}}cli/{{end}}{{commandURI $cmd}}) | {{ $cmd.Short }} |
 {{- end}}
 {{ "" }}
 {{- range $index, $flag := .Flags }}

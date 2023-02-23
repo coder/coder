@@ -55,6 +55,12 @@ func init() {
 			},
 			"parseEnv": parseEnv,
 			"stripEnv": stripEnv,
+			"commandURI": func(cmd *cobra.Command) string {
+				return strings.TrimSuffix(
+					fmtDocFilename(cmd),
+					".md",
+				)
+			},
 		},
 		).Parse(strings.TrimSpace(commandTemplateRaw)),
 	)
@@ -83,6 +89,7 @@ func writeCommand(w io.Writer, cmd *cobra.Command) error {
 		"Cmd":            cmd,
 		"Flags":          flags,
 		"InheritedFlags": inheritedFlags,
+		"AtRoot":         cmd.Parent() == nil,
 		"VisibleSubcommands": func() []*cobra.Command {
 			var scs []*cobra.Command
 			for _, sub := range cmd.Commands() {
