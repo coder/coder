@@ -220,6 +220,8 @@ message Provision {
         string workspace_id = 5;
         string workspace_owner_id = 6;
         string workspace_owner_email = 7;
+        string template_name = 8;
+        string template_version = 9;
     }
 
     // Config represents execution configuration shared by both Plan and

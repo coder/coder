@@ -1,3 +1,5 @@
+Push a Terraform state file to a workspace.
+
 Usage:
   coder state push <workspace> <file> [flags]
 

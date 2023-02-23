@@ -584,6 +584,11 @@ coderd_provisionerd_job_timings_seconds_count{provisioner="terraform",status="su
 # HELP coderd_provisionerd_jobs_current The number of currently running provisioner jobs.
 # TYPE coderd_provisionerd_jobs_current gauge
 coderd_provisionerd_jobs_current{provisioner="terraform"} 0
+# HELP coderd_workspace_builds_total The number of workspaces started, updated, or deleted.
+# TYPE coderd_workspace_builds_total counter
+coderd_workspace_builds_total{action="START",owner_email="admin@coder.com",status="failed",template_name="docker",template_version="gallant_wright0",workspace_name="test1"} 1
+coderd_workspace_builds_total{action="START",owner_email="admin@coder.com",status="success",template_name="docker",template_version="gallant_wright0",workspace_name="test1"} 1
+coderd_workspace_builds_total{action="STOP",owner_email="admin@coder.com",status="success",template_name="docker",template_version="gallant_wright0",workspace_name="test1"} 1
 # HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
 # TYPE go_gc_duration_seconds summary
 go_gc_duration_seconds{quantile="0"} 2.4056e-05

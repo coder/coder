@@ -27,8 +27,9 @@ func state() *cobra.Command {
 func statePull() *cobra.Command {
 	var buildNumber int
 	cmd := &cobra.Command{
-		Use:  "pull <workspace> [file]",
-		Args: cobra.MinimumNArgs(1),
+		Use:   "pull <workspace> [file]",
+		Short: "Pull a Terraform state file from a workspace.",
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {
@@ -68,8 +69,9 @@ func statePull() *cobra.Command {
 func statePush() *cobra.Command {
 	var buildNumber int
 	cmd := &cobra.Command{
-		Use:  "push <workspace> <file>",
-		Args: cobra.ExactArgs(2),
+		Use:   "push <workspace> <file>",
+		Args:  cobra.ExactArgs(2),
+		Short: "Push a Terraform state file to a workspace.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {

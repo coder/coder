@@ -3,14 +3,14 @@ package cli_test
 import (
 	"bytes"
 	"context"
-	"io"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/codeclysm/extract"
 	"github.com/google/uuid"
-	"github.com/ory/dockertest/v3/docker/pkg/archive"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
@@ -19,6 +19,26 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
 )
+
+// dirSum calculates a checksum of the files in a directory.
+func dirSum(t *testing.T, dir string) string {
+	ents, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	sum := sha256.New()
+	for _, e := range ents {
+		path := filepath.Join(dir, e.Name())
+
+		stat, err := os.Stat(path)
+		require.NoError(t, err)
+
+		byt, err := os.ReadFile(
+			path,
+		)
+		require.NoError(t, err, "mode: %+v", stat.Mode())
+		_, _ = sum.Write(byt)
+	}
+	return hex.EncodeToString(sum.Sum(nil))
+}
 
 func TestTemplatePull(t *testing.T) {
 	t.Parallel()
@@ -119,18 +139,10 @@ func TestTemplatePull(t *testing.T) {
 
 		require.NoError(t, <-errChan)
 
-		expectedTarRd, err := archive.Tar(expectedDest, archive.Uncompressed)
-		require.NoError(t, err)
-		expectedTar, err := io.ReadAll(expectedTarRd)
-		require.NoError(t, err)
-
-		actualTarRd, err := archive.Tar(actualDest, archive.Uncompressed)
-		require.NoError(t, err)
-
-		actualTar, err := io.ReadAll(actualTarRd)
-		require.NoError(t, err)
-
-		require.True(t, bytes.Equal(expectedTar, actualTar), "tar files differ")
+		require.Equal(t,
+			dirSum(t, expectedDest),
+			dirSum(t, actualDest),
+		)
 	})
 
 	// FolderConflict tests that 'templates pull' fails when a folder with has

@@ -31,6 +31,18 @@ func (s *MethodTestSuite) TestAPIKey() {
 			Asserts(a, rbac.ActionRead, b, rbac.ActionRead).
 			Returns(slice.New(a, b))
 	}))
+	s.Run("GetAPIKeysByUserID", s.Subtest(func(db database.Store, check *expects) {
+		idAB := uuid.New()
+		idC := uuid.New()
+
+		keyA, _ := dbgen.APIKey(s.T(), db, database.APIKey{UserID: idAB, LoginType: database.LoginTypeToken})
+		keyB, _ := dbgen.APIKey(s.T(), db, database.APIKey{UserID: idAB, LoginType: database.LoginTypeToken})
+		_, _ = dbgen.APIKey(s.T(), db, database.APIKey{UserID: idC, LoginType: database.LoginTypeToken})
+
+		check.Args(database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, UserID: idAB}).
+			Asserts(keyA, rbac.ActionRead, keyB, rbac.ActionRead).
+			Returns(slice.New(keyA, keyB))
+	}))
 	s.Run("GetAPIKeysLastUsedAfter", s.Subtest(func(db database.Store, check *expects) {
 		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{LastUsed: time.Now().Add(time.Hour)})
 		b, _ := dbgen.APIKey(s.T(), db, database.APIKey{LastUsed: time.Now().Add(time.Hour)})

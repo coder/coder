@@ -12,11 +12,11 @@ import (
 
 // APIKey: do not ever return the HashedSecret
 type APIKey struct {
-	ID              string      `json:"id" table:"id,default_sort" validate:"required"`
+	ID              string      `json:"id" validate:"required"`
 	UserID          uuid.UUID   `json:"user_id" validate:"required" format:"uuid"`
-	LastUsed        time.Time   `json:"last_used" table:"last used" validate:"required" format:"date-time"`
-	ExpiresAt       time.Time   `json:"expires_at" table:"expires at" validate:"required" format:"date-time"`
-	CreatedAt       time.Time   `json:"created_at" table:"created at" validate:"required" format:"date-time"`
+	LastUsed        time.Time   `json:"last_used" validate:"required" format:"date-time"`
+	ExpiresAt       time.Time   `json:"expires_at" validate:"required" format:"date-time"`
+	CreatedAt       time.Time   `json:"created_at" validate:"required" format:"date-time"`
 	UpdatedAt       time.Time   `json:"updated_at" validate:"required" format:"date-time"`
 	LoginType       LoginType   `json:"login_type" validate:"required" enums:"password,github,oidc,token"`
 	Scope           APIKeyScope `json:"scope" validate:"required" enums:"all,application_connect"`
@@ -86,9 +86,23 @@ func (c *Client) CreateAPIKey(ctx context.Context, user string) (GenerateAPIKeyR
 	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
 }
 
+type TokensFilter struct {
+	IncludeAll bool `json:"include_all"`
+}
+
+// asRequestOption returns a function that can be used in (*Client).Request.
+// It modifies the request query parameters.
+func (f TokensFilter) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		q.Set("include_all", fmt.Sprintf("%t", f.IncludeAll))
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // Tokens list machine API keys.
-func (c *Client) Tokens(ctx context.Context, userID string) ([]APIKey, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), nil)
+func (c *Client) Tokens(ctx context.Context, userID string, filter TokensFilter) ([]APIKey, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), nil, filter.asRequestOption())
 	if err != nil {
 		return nil, err
 	}
