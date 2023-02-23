@@ -364,12 +364,15 @@ func (c *Conn) RemoveAllPeers() error {
 }
 
 // UpdateNodes connects with a set of peers. This can be constantly updated,
-// and peers will continually be reconnected as necessary.
-func (c *Conn) UpdateNodes(nodes []*Node, replace bool) error {
+// and peers will continually be reconnected as necessary. If replacePeers is
+// true, all peers will be removed before adding the new ones.
+//
+//nolint:revive // Complains about replacePeers.
+func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	status := c.Status()
-	if replace {
+	if replacePeers {
 		c.netMap.Peers = []*tailcfg.Node{}
 		c.peerMap = map[tailcfg.NodeID]*tailcfg.Node{}
 	}
