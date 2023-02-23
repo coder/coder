@@ -2,7 +2,7 @@
 
 # coder
 
-Coder v0.0.0-devel — A tool for provisioning self-hosted development environments with Terraform.
+Coder — A tool for provisioning self-hosted development environments with Terraform.
 
 ## Usage
 

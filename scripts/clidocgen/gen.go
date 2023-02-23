@@ -15,6 +15,7 @@ import (
 
 	_ "embed"
 
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/flog"
 )
 
@@ -105,6 +106,18 @@ func writeCommand(w io.Writer, cmd *cobra.Command) error {
 		return err
 	}
 	content := stripansi.Strip(b.String())
+
+	// Remove the version and its right space, since during this script running
+	// there is no build info available
+	content = strings.ReplaceAll(content, buildinfo.Version()+" ", "")
+
+	// Remove references to the current working directory
+	dir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	content = strings.ReplaceAll(content, dir, "<current-directory>")
+
 	_, err = w.Write([]byte(content))
 	return err
 }
