@@ -1,7 +1,6 @@
 import { FC } from "react"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { useTranslation } from "react-i18next"
-import { Typography } from "components/Typography/Typography"
+import { useTranslation, Trans } from "react-i18next"
 import { useDeleteToken } from "../hooks"
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils"
 import { getErrorMessage } from "api/errors"
@@ -13,13 +12,13 @@ export const ConfirmDeleteDialog: FC<{
 }> = ({ queryKey, tokenId, setTokenId }) => {
   const { t } = useTranslation("tokensPage")
 
-  const content = (
-    <Typography>
-      {t("deleteToken.deleteCaption")}
+  const description = (
+    <Trans t={t} i18nKey="deleteToken.deleteCaption" values={{ tokenId }}>
+      Are you sure you want to delete this token?
       <br />
       <br />
-      {tokenId}
-    </Typography>
+      {{ tokenId }}
+    </Trans>
   )
 
   const { mutate: deleteToken, isLoading: isDeleting } =
@@ -39,7 +38,7 @@ export const ConfirmDeleteDialog: FC<{
   return (
     <ConfirmDialog
       title={t("deleteToken.delete")}
-      description={content}
+      description={description}
       open={Boolean(tokenId) || isDeleting}
       confirmLoading={isDeleting}
       onConfirm={() => {
