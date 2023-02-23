@@ -23,14 +23,10 @@ export const useCheckTokenPermissions = () => {
       },
     },
   }
-  const result = useQuery({
+  return useQuery({
     queryKey,
     queryFn: () => checkAuthorization(params),
   })
-
-  return {
-    ...result,
-  }
 }
 
 // Load all tokens
