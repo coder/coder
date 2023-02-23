@@ -1,47 +1,62 @@
-## coder create
+<!-- DO NOT EDIT | GENERATED CONTENT -->
+
+# coder create
 
 Create a workspace
 
-```
+## Usage
+
+```console
 coder create [name] [flags]
 ```
 
-### Options
+## Flags
 
-```
-  -h, --help                                   help for create
-      --parameter-file string                  Specify a file path with parameter values.
-                                               Consumes $CODER_PARAMETER_FILE
-      --rich-parameter-file string             Specify a file path with values for rich parameters defined in the template.
-                                               Consumes $CODER_RICH_PARAMETER_FILE
-      --start-at coder schedule start --help   Specify the workspace autostart schedule. Check coder schedule start --help for the syntax.
-                                               Consumes $CODER_WORKSPACE_START_AT
-      --stop-after duration                    Specify a duration after which the workspace should shut down (e.g. 8h).
-                                               Consumes $CODER_WORKSPACE_STOP_AFTER (default 8h0m0s)
-  -t, --template string                        Specify a template name.
-                                               Consumes $CODER_TEMPLATE_NAME
-  -y, --yes                                    Bypass prompts
-```
+### --parameter-file
 
-### Options inherited from parent commands
+Specify a file path with parameter values.
+<br/>
+| | |
+| --- | --- |
+| Consumes | <code>$CODER_PARAMETER_FILE</code> |
 
-```
-      --global-config coder   Path to the global coder config directory.
-                              Consumes $CODER_CONFIG_DIR (default "~/.config/coderv2")
-      --header stringArray    HTTP headers added to all requests. Provide as "Key=Value".
-                              Consumes $CODER_HEADER
-      --no-feature-warning    Suppress warnings about unlicensed features.
-                              Consumes $CODER_NO_FEATURE_WARNING
-      --no-version-warning    Suppress warning when client and server versions do not match.
-                              Consumes $CODER_NO_VERSION_WARNING
-      --token string          Specify an authentication token. For security reasons setting CODER_SESSION_TOKEN is preferred.
-                              Consumes $CODER_SESSION_TOKEN
-      --url string            URL to a deployment.
-                              Consumes $CODER_URL
-  -v, --verbose               Enable verbose output.
-                              Consumes $CODER_VERBOSE
-```
+### --rich-parameter-file
 
-### SEE ALSO
+Specify a file path with values for rich parameters defined in the template.
+<br/>
+| | |
+| --- | --- |
+| Consumes | <code>$CODER_RICH_PARAMETER_FILE</code> |
 
-- [coder](coder.md) -
+### --start-at
+
+Specify the workspace autostart schedule. Check `coder schedule start --help` for the syntax.
+<br/>
+| | |
+| --- | --- |
+| Consumes | <code>$CODER_WORKSPACE_START_AT</code> |
+
+### --stop-after
+
+Specify a duration after which the workspace should shut down (e.g. 8h).
+<br/>
+| | |
+| --- | --- |
+| Consumes | <code>$CODER_WORKSPACE_STOP_AFTER</code> |
+| Default | <code>8h0m0s</code> |
+
+### --template, -t
+
+Specify a template name.
+<br/>
+| | |
+| --- | --- |
+| Consumes | <code>$CODER_TEMPLATE_NAME</code> |
+
+### --yes, -y
+
+Bypass prompts
+<br/>
+| | |
+| --- | --- |
+| Default | <code>false</code> |

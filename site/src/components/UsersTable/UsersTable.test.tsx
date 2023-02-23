@@ -16,6 +16,7 @@ describe("AuditPage", () => {
         onResetUserPassword={() => jest.fn()}
         onUpdateUserRoles={() => jest.fn()}
         isNonInitialPage={false}
+        actorID="12345678-1234-1234-1234-123456789012"
       />,
     )
 

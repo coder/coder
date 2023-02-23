@@ -423,13 +423,9 @@
     {
       "title": "Command Line",
       "description": "Learn how to use Coder CLI",
-      "path": "./cli/coder.md",
+      "path": "./cli.md",
       "icon_path": "./images/icons/terminal.svg",
       "children": [
-        {
-          "title": "coder",
-          "path": "./cli/coder.md"
-        },
         {
           "title": "config-ssh",
           "path": "./cli/coder_config-ssh.md"

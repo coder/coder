@@ -327,6 +327,16 @@ func TestDeleteUser(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusExpectationFailed, apiErr.StatusCode())
 	})
+	t.Run("Self", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		err := client.DeleteUser(context.Background(), user.UserID)
+		var apiErr *codersdk.Error
+		require.Error(t, err, "should not be able to delete self")
+		require.ErrorAs(t, err, &apiErr, "should be a coderd error")
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode(), "should be forbidden")
+	})
 }
 
 func TestPostLogout(t *testing.T) {

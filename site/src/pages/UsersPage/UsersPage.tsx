@@ -5,6 +5,7 @@ import {
   getPaginationContext,
   nonInitialPage,
 } from "components/PaginationWidget/utils"
+import { useMe } from "hooks/useMe"
 import { usePermissions } from "hooks/usePermissions"
 import { FC, ReactNode } from "react"
 import { Helmet } from "react-helmet-async"
@@ -70,6 +71,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     usersState.matches("gettingUsers") ||
     (canEditUsers && rolesState.matches("gettingRoles"))
 
+  const me = useMe()
+
   return (
     <>
       <Helmet>
@@ -126,6 +129,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         }}
         paginationRef={paginationRef}
         isNonInitialPage={nonInitialPage(searchParams)}
+        actorID={me.id}
       />
 
       <DeleteDialog

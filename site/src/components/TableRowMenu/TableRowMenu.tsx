@@ -8,6 +8,7 @@ export interface TableRowMenuProps<TData> {
   data: TData
   menuItems: Array<{
     label: string
+    disabled: boolean
     onClick: (data: TData) => void
   }>
 }
@@ -47,6 +48,7 @@ export const TableRowMenu = <T,>({
         {menuItems.map((item) => (
           <MenuItem
             key={item.label}
+            disabled={item.disabled}
             onClick={() => {
               handleClose()
               item.onClick(data)
