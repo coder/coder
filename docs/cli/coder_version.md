@@ -1,11 +1,11 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# coder version
 
+# coder version
 
 Show coder version
 
 ## Usage
+
 ```console
 coder version [flags]
 ```
-
