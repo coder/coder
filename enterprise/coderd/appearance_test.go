@@ -43,6 +43,8 @@ func TestServiceBanners(t *testing.T) {
 
 	basicUserClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 
+	sb.SupportLinks = nil // clean "support links" as they can't be modified using API
+
 	// Regular user should be unable to set the banner
 	sb.ServiceBanner.Enabled = true
 	err = basicUserClient.UpdateAppearance(ctx, sb)
@@ -60,10 +62,77 @@ func TestServiceBanners(t *testing.T) {
 	require.NoError(t, err)
 	gotBanner, err := adminClient.Appearance(ctx)
 	require.NoError(t, err)
+	gotBanner.SupportLinks = nil // clean "support links" before comparison
 	require.Equal(t, wantBanner, gotBanner)
 
 	// But even an admin can't give a bad color
 	wantBanner.ServiceBanner.BackgroundColor = "#bad color"
 	err = adminClient.UpdateAppearance(ctx, wantBanner)
 	require.Error(t, err)
+}
+
+func TestCustomSupportLinks(t *testing.T) {
+	t.Parallel()
+
+	supportLinks := []codersdk.LinkConfig{
+		{
+			Name:   "First link",
+			Target: "http://first-link-1",
+			Icon:   "chat",
+		},
+		{
+			Name:   "Second link",
+			Target: "http://second-link-2",
+			Icon:   "bug",
+		},
+	}
+	cfg := coderdtest.DeploymentConfig(t)
+	cfg.Support = new(codersdk.SupportConfig)
+	cfg.Support.Links = &codersdk.DeploymentConfigField[[]codersdk.LinkConfig]{
+		Value: supportLinks,
+	}
+
+	client := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentConfig: cfg,
+		},
+	})
+	coderdtest.CreateFirstUser(t, client)
+	coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		Features: license.Features{
+			codersdk.FeatureAppearance: 1,
+		},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	appearance, err := client.Appearance(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, appearance.SupportLinks, 2)
+	require.Equal(t, supportLinks, appearance.SupportLinks)
+}
+
+func TestDefaultSupportLinks(t *testing.T) {
+	t.Parallel()
+
+	client := coderdenttest.New(t, nil)
+	coderdtest.CreateFirstUser(t, client)
+	coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		Features: license.Features{
+			codersdk.FeatureAppearance: 1,
+		},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	appearance, err := client.Appearance(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, appearance.SupportLinks, 3) // Documentation, Report a bug, Join the Coder Discord
+	require.Equal(t, appearance.SupportLinks[0].Name, "Documentation")
+	require.Equal(t, appearance.SupportLinks[1].Name, "Report a bug")
+	require.Equal(t, appearance.SupportLinks[2].Name, "Join the Coder Discord")
 }

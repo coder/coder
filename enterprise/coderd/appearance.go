@@ -48,7 +48,9 @@ func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if !isEntitled {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AppearanceConfig{})
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AppearanceConfig{
+			SupportLinks: defaultSupportLinks,
+		})
 		return
 	}
 
@@ -85,8 +87,9 @@ func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	cfg.SupportLinks = defaultSupportLinks
-	if len(api.DeploymentConfig.Support.Links.Value) > 0 {
+	if len(api.DeploymentConfig.Support.Links.Value) == 0 {
+		cfg.SupportLinks = defaultSupportLinks
+	} else {
 		cfg.SupportLinks = api.DeploymentConfig.Support.Links.Value
 	}
 
@@ -125,6 +128,13 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 
 	var appearance codersdk.AppearanceConfig
 	if !httpapi.Read(ctx, rw, r, &appearance) {
+		return
+	}
+
+	if len(appearance.SupportLinks) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Support links cannot be dynamically updated, use the config file instead.",
+		})
 		return
 	}
 
