@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ammario/prefixsuffix"
 	"github.com/armon/circbuf"
 	"github.com/gliderlabs/ssh"
 	"github.com/google/uuid"
@@ -76,6 +77,7 @@ type Client interface {
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
+	InsertOrUpdateStartupLogs(ctx context.Context, req agentsdk.InsertOrUpdateStartupLogsRequest) error
 }
 
 func New(options Options) io.Closer {
@@ -617,13 +619,26 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	}
 
 	a.logger.Info(ctx, "running startup script", slog.F("script", script))
-	writer, err := a.filesystem.OpenFile(filepath.Join(a.logDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
+
+	fileWriter, err := a.filesystem.OpenFile(filepath.Join(a.logDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open startup script log file: %w", err)
 	}
 	defer func() {
-		_ = writer.Close()
+		_ = fileWriter.Close()
 	}()
+
+	saver := &prefixsuffix.Saver{N: 512 << 10}
+	writer := io.MultiWriter(saver, fileWriter)
+	defer func() {
+		err := a.client.InsertOrUpdateStartupLogs(ctx, agentsdk.InsertOrUpdateStartupLogsRequest{
+			Output: string(saver.Bytes()),
+		})
+		if err != nil {
+			a.logger.Error(ctx, "upload startup logs", slog.Error(err))
+		}
+	}()
+
 	cmd, err := a.createCommand(ctx, script, nil)
 	if err != nil {
 		return xerrors.Errorf("create command: %w", err)

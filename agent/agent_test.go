@@ -667,9 +667,9 @@ func TestAgent_StartupScript(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("This test doesn't work on Windows for some reason...")
 	}
-	content := "output"
+	content := "output\n"
 	//nolint:dogsled
-	_, _, _, fs := setupAgent(t, agentsdk.Metadata{
+	_, client, _, fs := setupAgent(t, agentsdk.Metadata{
 		StartupScript: "echo " + content,
 	}, 0)
 	var gotContent string
@@ -694,7 +694,8 @@ func TestAgent_StartupScript(t *testing.T) {
 		gotContent = string(content)
 		return true
 	}, testutil.WaitShort, testutil.IntervalMedium)
-	require.Equal(t, content, strings.TrimSpace(gotContent))
+	require.Equal(t, content, gotContent)
+	require.Equal(t, content, client.getLogs())
 }
 
 func TestAgent_Lifecycle(t *testing.T) {
@@ -1229,6 +1230,7 @@ type client struct {
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 	startup         agentsdk.PostStartupRequest
+	logs            agentsdk.InsertOrUpdateStartupLogsRequest
 }
 
 func (c *client) Metadata(_ context.Context) (agentsdk.Metadata, error) {
@@ -1310,6 +1312,19 @@ func (c *client) PostStartup(_ context.Context, startup agentsdk.PostStartupRequ
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.startup = startup
+	return nil
+}
+
+func (c *client) getLogs() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.logs.Output
+}
+
+func (c *client) InsertOrUpdateStartupLogs(_ context.Context, logs agentsdk.InsertOrUpdateStartupLogsRequest) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.logs = logs
 	return nil
 }
 
