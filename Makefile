@@ -504,7 +504,7 @@ docs/cli/coder.md: scripts/clidocgen/main.go $(GO_SRC_FILES) docs/manifest.json
 	rm -rf ./docs/cli/*.md
 	BASE_PATH="." go run ./scripts/clidocgen
 	cd site
-	yarn run format:write:only ../docs/cli/*.md ../docs/manifest.json
+	yarn run format:write:only ../docs/cli.md ../docs/cli/*.md ../docs/manifest.json
 
 docs/admin/audit-logs.md: scripts/auditdocgen/main.go enterprise/audit/table.go
 	go run scripts/auditdocgen/main.go
