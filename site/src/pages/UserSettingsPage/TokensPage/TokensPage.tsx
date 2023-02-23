@@ -5,9 +5,16 @@ import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Typography } from "components/Typography/Typography"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import { useTranslation } from "react-i18next"
-import { useTokensData, useDeleteToken } from "./hooks"
+import {
+  useTokensData,
+  useDeleteToken,
+  useCheckTokenPermissions,
+} from "./hooks"
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils"
 import { getErrorMessage } from "api/errors"
+import Switch from "@material-ui/core/Switch"
+import FormGroup from "@material-ui/core/FormGroup"
+import FormControlLabel from "@material-ui/core/FormControlLabel"
 
 export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
   const styles = useStyles()
@@ -15,6 +22,8 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
   const [tokenIdToDelete, setTokenIdToDelete] = useState<string | undefined>(
     undefined,
   )
+  const [viewAllTokens, setViewAllTokens] = useState<boolean>(false)
+  const { data: perms } = useCheckTokenPermissions()
 
   const {
     data: tokens,
@@ -23,7 +32,7 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
     isFetched,
     queryKey,
   } = useTokensData({
-    include_all: true,
+    include_all: viewAllTokens,
   })
 
   const { mutate: deleteToken, isLoading: isDeleting } =
@@ -59,6 +68,22 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
   return (
     <>
       <Section title={t("title")} description={description} layout="fluid">
+        <FormGroup row className={styles.formRow}>
+          {perms?.readAllApiKeys && (
+            <FormControlLabel
+              control={
+                <Switch
+                  className={styles.selectAllSwitch}
+                  checked={viewAllTokens}
+                  onChange={() => setViewAllTokens(!viewAllTokens)}
+                  name="viewAllTokens"
+                  color="primary"
+                />
+              }
+              label={t("toggleLabel")}
+            />
+          )}
+        </FormGroup>
         <TokensPageView
           tokens={tokens}
           isLoading={isFetching}
@@ -103,6 +128,13 @@ const useStyles = makeStyles((theme) => ({
   formRow: {
     justifyContent: "end",
     marginBottom: "10px",
+  },
+  selectAllSwitch: {
+    // decrease the hover state on the switch
+    // so that it isn't hidden behind the container
+    "& .MuiIconButton-root": {
+      padding: "8px",
+    },
   },
 }))
 
