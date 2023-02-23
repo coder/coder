@@ -15,43 +15,43 @@ GithubNotAuthenticated.args = {
 }
 
 export const GithubAuthenticated = Template.bind({})
-GithubNotAuthenticated.args = {
+GithubAuthenticated.args = {
   type: "github",
   authenticated: true,
 }
 
 export const GitlabNotAuthenticated = Template.bind({})
-GithubNotAuthenticated.args = {
+GitlabNotAuthenticated.args = {
   type: "gitlab",
   authenticated: false,
 }
 
 export const GitlabAuthenticated = Template.bind({})
-GithubNotAuthenticated.args = {
+GitlabAuthenticated.args = {
   type: "gitlab",
   authenticated: true,
 }
 
 export const AzureDevOpsNotAuthenticated = Template.bind({})
-GithubNotAuthenticated.args = {
+AzureDevOpsNotAuthenticated.args = {
   type: "azure-devops",
   authenticated: false,
 }
 
 export const AzureDevOpsAuthenticated = Template.bind({})
-GithubNotAuthenticated.args = {
+AzureDevOpsAuthenticated.args = {
   type: "azure-devops",
   authenticated: true,
 }
 
 export const BitbucketNotAuthenticated = Template.bind({})
-GithubNotAuthenticated.args = {
+BitbucketNotAuthenticated.args = {
   type: "bitbucket",
   authenticated: false,
 }
 
 export const BitbucketAuthenticated = Template.bind({})
-GithubNotAuthenticated.args = {
+BitbucketAuthenticated.args = {
   type: "bitbucket",
   authenticated: true,
 }

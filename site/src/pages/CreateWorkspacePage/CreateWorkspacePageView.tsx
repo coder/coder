@@ -231,14 +231,14 @@ export const CreateWorkspacePageView: FC<
                   Git Authentication
                 </h2>
                 <p className={styles.formSectionInfoDescription}>
-                  This workspace requires authenticating with Git providers to
-                  create a workspace.
+                  This template requires authentication to automatically
+                  perform Git operations on create.
                 </p>
               </div>
 
               <Stack
                 direction="column"
-                spacing={4}
+                spacing={2}
                 className={styles.formSectionFields}
               >
                 {props.templateGitAuth.map((auth, index) => (
