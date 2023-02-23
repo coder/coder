@@ -206,6 +206,8 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceOwnerEmail: user.Email,
 					WorkspaceId:         workspace.ID.String(),
 					WorkspaceOwnerId:    user.ID.String(),
+					TemplateName:        template.Name,
+					TemplateVersion:     version.Name,
 				},
 			},
 		})

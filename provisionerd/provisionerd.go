@@ -157,6 +157,12 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 					60 * 60, // 1hr
 				},
 			}, []string{"provisioner", "status"}),
+			WorkspaceBuilds: auto.NewCounterVec(prometheus.CounterOpts{
+				Namespace: "coderd",
+				Subsystem: "", // Explicitly empty to make this a top-level metric.
+				Name:      "workspace_builds_total",
+				Help:      "The number of workspaces started, updated, or deleted.",
+			}, []string{"owner_email", "workspace_name", "template_name", "template_version", "action", "status"}),
 		},
 	}
 }
