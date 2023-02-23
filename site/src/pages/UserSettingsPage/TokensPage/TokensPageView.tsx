@@ -23,8 +23,13 @@ const lastUsedOrNever = (lastUsed: string) => {
   return now.isBefore(t.add(100, "year")) ? t.fromNow() : "Never"
 }
 
+interface ConvertedAPIKey extends APIKey {
+  username: string
+}
+
 export interface TokensPageViewProps {
-  tokens?: APIKey[]
+  tokens?: ConvertedAPIKey[]
+  viewAllTokens: boolean
   getTokensError?: Error | unknown
   isLoading: boolean
   hasLoaded: boolean
@@ -36,6 +41,7 @@ export const TokensPageView: FC<
   React.PropsWithChildren<TokensPageViewProps>
 > = ({
   tokens,
+  viewAllTokens,
   getTokensError,
   isLoading,
   hasLoaded,
@@ -44,6 +50,7 @@ export const TokensPageView: FC<
 }) => {
   const theme = useTheme()
   const { t } = useTranslation("tokensPage")
+  const colWidth = viewAllTokens ? "20%" : "25%"
 
   return (
     <Stack>
@@ -57,10 +64,13 @@ export const TokensPageView: FC<
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell width="25%">{t("table.id")}</TableCell>
-              <TableCell width="25%">{t("table.createdAt")}</TableCell>
-              <TableCell width="25%">{t("table.lastUsed")}</TableCell>
-              <TableCell width="25%">{t("table.expiresAt")}</TableCell>
+              <TableCell width={colWidth}>{t("table.id")}</TableCell>
+              <TableCell width={colWidth}>{t("table.createdAt")}</TableCell>
+              <TableCell width={colWidth}>{t("table.lastUsed")}</TableCell>
+              <TableCell width={colWidth}>{t("table.expiresAt")}</TableCell>
+              {viewAllTokens && (
+                <TableCell width="20%">{t("table.owner")}</TableCell>
+              )}
               <TableCell width="0%"></TableCell>
             </TableRow>
           </TableHead>
@@ -102,6 +112,13 @@ export const TokensPageView: FC<
                           {dayjs(token.expires_at).fromNow()}
                         </span>
                       </TableCell>
+                      {viewAllTokens && (
+                        <TableCell>
+                          <span style={{ color: theme.palette.text.secondary }}>
+                            {token.username}
+                          </span>
+                        </TableCell>
+                      )}
                       <TableCell>
                         <span style={{ color: theme.palette.text.secondary }}>
                           <IconButton

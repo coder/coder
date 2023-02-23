@@ -49,6 +49,7 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
         />
         <TokensPageView
           tokens={tokens}
+          viewAllTokens={viewAllTokens}
           isLoading={isFetching}
           hasLoaded={isFetched}
           getTokensError={getTokensError}

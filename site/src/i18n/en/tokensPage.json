@@ -13,6 +13,7 @@
     "id": "ID",
     "createdAt": "Created At",
     "lastUsed": "Last Used",
-    "expiresAt": "Expires At"
+    "expiresAt": "Expires At",
+    "owner": "Owner"
   }
 }

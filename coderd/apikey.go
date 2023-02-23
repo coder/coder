@@ -167,6 +167,11 @@ func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(key))
 }
 
+type ConvertedAPIKey struct {
+	codersdk.APIKey
+	Username string `json:"username"`
+}
+
 // @Summary Get user tokens
 // @ID get-user-tokens
 // @Security CoderSessionToken
@@ -216,9 +221,20 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var apiKeys []codersdk.APIKey
+	var apiKeys []ConvertedAPIKey
 	for _, key := range keys {
-		apiKeys = append(apiKeys, convertAPIKey(key))
+		user, err := api.Database.GetUserByID(ctx, key.UserID)
+		if err != nil {
+			apiKeys = append(apiKeys, ConvertedAPIKey{
+				APIKey:   convertAPIKey(key),
+				Username: "",
+			})
+		} else {
+			apiKeys = append(apiKeys, ConvertedAPIKey{
+				APIKey:   convertAPIKey(key),
+				Username: user.Username,
+			})
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, apiKeys)
