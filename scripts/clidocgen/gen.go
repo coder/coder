@@ -112,11 +112,11 @@ func writeCommand(w io.Writer, cmd *cobra.Command) error {
 	content = strings.ReplaceAll(content, buildinfo.Version()+" ", "")
 
 	// Remove references to the current working directory
-	dir, err := os.Getwd()
+	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	content = strings.ReplaceAll(content, dir, ".")
+	content = strings.ReplaceAll(content, cwd, ".")
 
 	_, err = w.Write([]byte(content))
 	return err
