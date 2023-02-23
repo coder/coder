@@ -1,6 +1,5 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # {{ .Name }}
-
 {{ if .Cmd.Long }}
 {{ .Cmd.Long }}
 {{ else }}
