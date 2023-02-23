@@ -644,7 +644,9 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			// This is a bug with unit tests that cancel the app context and
 			// cause this error log to be generated. We should fix the unit tests
 			// as this is a valid log.
-			if !xerrors.Is(err, context.Canceled) {
+			//
+			// The pq error occurs when the server is shutting down.
+			if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
 				api.Logger.Error(ctx, "failed to update agent disconnect time",
 					slog.Error(err),
 					slog.F("workspace", build.WorkspaceID),
