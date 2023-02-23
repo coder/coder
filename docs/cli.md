@@ -24,16 +24,13 @@ coder [flags]
 ## Subcommands
 | Name |   Purpose |
 | ---- |   ----- |
-| <code>agent</code> |  |
 | <code>config-ssh</code> | Add an SSH Host entry for your workspaces "ssh coder.workspace" |
 | <code>create</code> | Create a workspace |
 | <code>delete</code> | Delete a workspace |
 | <code>dotfiles</code> | Checkout and install a dotfiles repository from a Git URL |
-| <code>gitssh</code> | Wraps the "ssh" command and uses the coder gitssh key for authentication |
 | <code>list</code> | List workspaces |
 | <code>login</code> | Authenticate with Coder deployment |
 | <code>logout</code> | Unauthenticate your local session |
-| <code>parameters</code> | List parameters for a given scope |
 | <code>ping</code> | Ping a workspace |
 | <code>port-forward</code> | Forward ports from machine to a workspace |
 | <code>publickey</code> | Output your Coder public key used for Git operations |
@@ -54,4 +51,3 @@ coder [flags]
 | <code>update</code> | Update a workspace |
 | <code>users</code> | Manage users |
 | <code>version</code> | Show coder version |
-| <code>vscodessh</code> |  |

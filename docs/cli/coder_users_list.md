@@ -10,8 +10,21 @@ coder users list [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --column, -c |[username,email,created_at,status] |<code>Columns to display in table output. Available columns: id, username, email, created at, status</code> | |
-| --output, -o |table |<code>Output format. Available formats: table, json</code> | |
+## Flags
+### --column, -c
+Columns to display in table output. Available columns: id, username, email, created at, status
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>[username,email,created_at,status]</code> |
+
+
+
+### --output, -o
+Output format. Available formats: table, json
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>table</code> |
+
+

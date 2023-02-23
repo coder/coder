@@ -10,7 +10,10 @@ coder reset-password <username> [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --postgres-url | |<code>URL of a PostgreSQL database to connect to.</code> | <code>$CODER_PG_CONNECTION_URL</code>  |
+## Flags
+### --postgres-url
+URL of a PostgreSQL database to connect to.
+<br/>
+| | |
+| --- | --- |
+| Consumes | <code>$CODER_PG_CONNECTION_URL</code> |

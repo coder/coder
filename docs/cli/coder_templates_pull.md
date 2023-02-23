@@ -10,7 +10,12 @@ coder templates pull <name> [destination] [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --yes, -y |false |<code>Bypass prompts</code> | |
+## Flags
+### --yes, -y
+Bypass prompts
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+

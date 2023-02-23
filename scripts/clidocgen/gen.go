@@ -23,7 +23,7 @@ var commandTemplateRaw string
 
 var commandTemplate *template.Template
 
-var envRegex = regexp.MustCompile(`Consumes (\$\w+)$`)
+var envRegex = regexp.MustCompile(`Consumes (\$\w+).?$`)
 
 func parseEnv(flagUsage string) string {
 	flagUsage = stripansi.Strip(flagUsage)
@@ -83,6 +83,16 @@ func writeCommand(w io.Writer, cmd *cobra.Command) error {
 		"Cmd":            cmd,
 		"Flags":          flags,
 		"InheritedFlags": inheritedFlags,
+		"VisibleSubcommands": func() []*cobra.Command {
+			var scs []*cobra.Command
+			for _, sub := range cmd.Commands() {
+				if sub.Hidden {
+					continue
+				}
+				scs = append(scs, sub)
+			}
+			return scs
+		}(),
 	})
 	if err != nil {
 		return err

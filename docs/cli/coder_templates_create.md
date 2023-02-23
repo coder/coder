@@ -10,13 +10,60 @@ coder templates create [name] [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --default-ttl |24h0m0s |<code>Specify a default TTL for workspaces created from this template.</code> | |
-| --directory, -d |/home/coder/coder |<code>Specify the directory to create from, use '-' to read tar from stdin</code> | |
-| --parameter-file | |<code>Specify a file path with parameter values.</code> | |
-| --provisioner-tag |[] |<code>Specify a set of tags to target provisioner daemons.</code> | |
-| --variable |[] |<code>Specify a set of values for Terraform-managed variables.</code> | |
-| --variables-file | |<code>Specify a file path with values for Terraform-managed variables.</code> | |
-| --yes, -y |false |<code>Bypass prompts</code> | |
+## Flags
+### --default-ttl
+Specify a default TTL for workspaces created from this template.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>24h0m0s</code> |
+
+
+
+### --directory, -d
+Specify the directory to create from, use '-' to read tar from stdin
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>/home/coder/coder</code> |
+
+
+
+### --parameter-file
+Specify a file path with parameter values.
+<br/>
+| | |
+| --- | --- |
+
+### --provisioner-tag
+Specify a set of tags to target provisioner daemons.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>[]</code> |
+
+
+
+### --variable
+Specify a set of values for Terraform-managed variables.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>[]</code> |
+
+
+
+### --variables-file
+Specify a file path with values for Terraform-managed variables.
+<br/>
+| | |
+| --- | --- |
+
+### --yes, -y
+Bypass prompts
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+

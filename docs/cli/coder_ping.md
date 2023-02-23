@@ -10,10 +10,39 @@ coder ping <workspace> [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --num, -n |10 |<code>Specifies the number of pings to perform.</code> | |
-| --timeout, -t |5s |<code>Specifies how long to wait for a ping to complete.</code> | |
-| --verbose, -v |false |<code>Enables verbose logging.</code> | |
-| --wait |1s |<code>Specifies how long to wait between pings.</code> | |
+## Flags
+### --num, -n
+Specifies the number of pings to perform.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>10</code> |
+
+
+
+### --timeout, -t
+Specifies how long to wait for a ping to complete.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>5s</code> |
+
+
+
+### --verbose, -v
+Enables verbose logging.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+
+
+### --wait
+Specifies how long to wait between pings.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>1s</code> |
+
+

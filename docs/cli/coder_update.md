@@ -10,9 +10,26 @@ coder update <workspace> [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --always-prompt |false |<code>Always prompt all parameters. Does not pull parameter values from existing workspace</code> | |
-| --parameter-file | |<code>Specify a file path with parameter values.</code> | <code>$CODER_PARAMETER_FILE</code>  |
-| --rich-parameter-file | |<code>Specify a file path with values for rich parameters defined in the template.</code> | <code>$CODER_RICH_PARAMETER_FILE</code>  |
+## Flags
+### --always-prompt
+Always prompt all parameters. Does not pull parameter values from existing workspace
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+
+
+### --parameter-file
+Specify a file path with parameter values.
+<br/>
+| | |
+| --- | --- |
+| Consumes | <code>$CODER_PARAMETER_FILE</code> |
+
+### --rich-parameter-file
+Specify a file path with values for rich parameters defined in the template.
+<br/>
+| | |
+| --- | --- |
+| Consumes | <code>$CODER_RICH_PARAMETER_FILE</code> |

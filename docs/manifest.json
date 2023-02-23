@@ -429,10 +429,6 @@
       "icon_path": "./images/icons/terminal.svg",
       "children": [
         {
-          "title": "agent",
-          "path": "./cli/coder_agent.md"
-        },
-        {
           "title": "config-ssh",
           "path": "./cli/coder_config-ssh.md"
         },
@@ -449,10 +445,6 @@
           "path": "./cli/coder_dotfiles.md"
         },
         {
-          "title": "gitssh",
-          "path": "./cli/coder_gitssh.md"
-        },
-        {
           "title": "list",
           "path": "./cli/coder_list.md"
         },
@@ -463,14 +455,6 @@
         {
           "title": "logout",
           "path": "./cli/coder_logout.md"
-        },
-        {
-          "title": "parameters",
-          "path": "./cli/coder_parameters.md"
-        },
-        {
-          "title": "parameters list",
-          "path": "./cli/coder_parameters_list.md"
         },
         {
           "title": "ping",
@@ -667,10 +651,6 @@
         {
           "title": "version",
           "path": "./cli/coder_version.md"
-        },
-        {
-          "title": "vscodessh",
-          "path": "./cli/coder_vscodessh.md"
         }
       ]
     }

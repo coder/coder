@@ -10,8 +10,21 @@ coder delete <workspace> [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --orphan |false |<code>Delete a workspace without deleting its resources. This can delete a<br/>workspace in a broken state, but may also lead to unaccounted cloud resources.</code> | |
-| --yes, -y |false |<code>Bypass prompts</code> | |
+## Flags
+### --orphan
+Delete a workspace without deleting its resources. This can delete a<br/>workspace in a broken state, but may also lead to unaccounted cloud resources.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+
+
+### --yes, -y
+Bypass prompts
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+

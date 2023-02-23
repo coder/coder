@@ -22,11 +22,50 @@ coder config-ssh [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --dry-run, -n |false |<code>Perform a trial run with no changes made, showing a diff at the end.</code> | |
-| --ssh-config-file |~/.ssh/config |<code>Specifies the path to an SSH config.</code> | <code>$CODER_SSH_CONFIG_FILE</code>  |
-| --ssh-option, -o |[] |<code>Specifies additional SSH options to embed in each host stanza.</code> | |
-| --use-previous-options |false |<code>Specifies whether or not to keep options from previous run of config-ssh.</code> | <code>$CODER_SSH_USE_PREVIOUS_OPTIONS</code>  |
-| --yes, -y |false |<code>Bypass prompts</code> | |
+## Flags
+### --dry-run, -n
+Perform a trial run with no changes made, showing a diff at the end.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+
+
+### --ssh-config-file
+Specifies the path to an SSH config.
+<br/>
+| | |
+| --- | --- |
+| Consumes | <code>$CODER_SSH_CONFIG_FILE</code> |
+| Default |     <code>~/.ssh/config</code> |
+
+
+
+### --ssh-option, -o
+Specifies additional SSH options to embed in each host stanza.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>[]</code> |
+
+
+
+### --use-previous-options
+Specifies whether or not to keep options from previous run of config-ssh.
+<br/>
+| | |
+| --- | --- |
+| Consumes | <code>$CODER_SSH_USE_PREVIOUS_OPTIONS</code> |
+| Default |     <code>false</code> |
+
+
+
+### --yes, -y
+Bypass prompts
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+

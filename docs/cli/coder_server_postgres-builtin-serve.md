@@ -10,7 +10,12 @@ coder server postgres-builtin-serve [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --raw-url |false |<code>Output the raw connection URL instead of a psql command.</code> | |
+## Flags
+### --raw-url
+Output the raw connection URL instead of a psql command.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+

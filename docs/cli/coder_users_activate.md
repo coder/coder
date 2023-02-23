@@ -15,7 +15,12 @@ coder users activate <username|user_id> [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --column, -c |[username,email,created_at,status] |<code>Specify a column to filter in the table.</code> | |
+## Flags
+### --column, -c
+Specify a column to filter in the table.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>[username,email,created_at,status]</code> |
+
+

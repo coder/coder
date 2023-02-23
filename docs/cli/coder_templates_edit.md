@@ -10,13 +10,54 @@ coder templates edit <template> [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --allow-user-cancel-workspace-jobs |true |<code>Allow users to cancel in-progress workspace jobs.</code> | |
-| --default-ttl |0s |<code>Edit the template default time before shutdown - workspaces created from this template to this value.</code> | |
-| --description | |<code>Edit the template description</code> | |
-| --display-name | |<code>Edit the template display name</code> | |
-| --icon | |<code>Edit the template icon path</code> | |
-| --name | |<code>Edit the template name</code> | |
-| --yes, -y |false |<code>Bypass prompts</code> | |
+## Flags
+### --allow-user-cancel-workspace-jobs
+Allow users to cancel in-progress workspace jobs.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>true</code> |
+
+
+
+### --default-ttl
+Edit the template default time before shutdown - workspaces created from this template to this value.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>0s</code> |
+
+
+
+### --description
+Edit the template description
+<br/>
+| | |
+| --- | --- |
+
+### --display-name
+Edit the template display name
+<br/>
+| | |
+| --- | --- |
+
+### --icon
+Edit the template icon path
+<br/>
+| | |
+| --- | --- |
+
+### --name
+Edit the template name
+<br/>
+| | |
+| --- | --- |
+
+### --yes, -y
+Bypass prompts
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+

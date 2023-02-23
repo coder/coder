@@ -10,7 +10,13 @@ coder tokens create [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --lifetime |720h0m0s |<code>Specify a duration for the lifetime of the token.</code> | <code>$CODER_TOKEN_LIFETIME</code>  |
+## Flags
+### --lifetime
+Specify a duration for the lifetime of the token.
+<br/>
+| | |
+| --- | --- |
+| Consumes | <code>$CODER_TOKEN_LIFETIME</code> |
+| Default |     <code>720h0m0s</code> |
+
+

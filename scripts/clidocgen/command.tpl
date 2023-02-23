@@ -21,7 +21,7 @@
 ```
 {{end}}
 
-{{- range $index, $cmd := .Cmd.Commands }}
+{{- range $index, $cmd := .VisibleSubcommands }}
 {{- if eq $index 0 }}
 ## Subcommands
 | Name |   Purpose |
@@ -32,12 +32,19 @@
 {{ "" }}
 {{- range $index, $flag := .Flags }}
 {{- if eq $index 0 }}
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
+## Flags
 {{- end }}
-| --{{ $flag.Name }}{{ if $flag.Shorthand}}, -{{ $flag.Shorthand }}{{end}} |
-{{- $flag.DefValue }} |
-{{- $flag.Usage | stripEnv | newLinesToBr | wrapCode }} |
-{{- with $flag.Usage | parseEnv }} {{ . | wrapCode }} {{ end }} |
+### --{{ $flag.Name }}{{ if $flag.Shorthand}}, -{{ $flag.Shorthand }}{{end}}
+{{ $flag.Usage | stripEnv | newLinesToBr }}
+<br/>
+| | |
+| --- | --- |
+{{- with $flag.Usage | parseEnv }}
+| Consumes | {{ . | wrapCode }} |
+{{- end }}
+{{- with $flag.DefValue }}
+| Default | {{"    "}} {{- . | wrapCode }} |
+{{ "" }}
+{{ end }}
+{{ "" }}
 {{- end}}

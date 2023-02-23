@@ -10,7 +10,12 @@ coder state push <workspace> <file> [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --build, -b |0 |<code>Specify a workspace build to target by name.</code> | |
+## Flags
+### --build, -b
+Specify a workspace build to target by name.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>0</code> |
+
+

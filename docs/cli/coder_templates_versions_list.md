@@ -10,8 +10,21 @@ coder templates versions list <template> [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --column, -c |[name,created at,created by,status,active] |<code>Columns to display in table output. Available columns: name, created at, created by, status, active</code> | |
-| --output, -o |table |<code>Output format. Available formats: table, json</code> | |
+## Flags
+### --column, -c
+Columns to display in table output. Available columns: name, created at, created by, status, active
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>[name,created at,created by,status,active]</code> |
+
+
+
+### --output, -o
+Output format. Available formats: table, json
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>table</code> |
+
+

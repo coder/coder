@@ -17,8 +17,19 @@ coder dotfiles [git_repo_url] [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --symlink-dir | |<code>Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.</code> | <code>$CODER_SYMLINK_DIR</code>  |
-| --yes, -y |false |<code>Bypass prompts</code> | |
+## Flags
+### --symlink-dir
+Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.
+<br/>
+| | |
+| --- | --- |
+| Consumes | <code>$CODER_SYMLINK_DIR</code> |
+
+### --yes, -y
+Bypass prompts
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+

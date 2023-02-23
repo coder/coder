@@ -15,7 +15,12 @@ coder users show <username|user_id|'me'> [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --output, -o |table |<code>Output format. Available formats: table, json</code> | |
+## Flags
+### --output, -o
+Output format. Available formats: table, json
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>table</code> |
+
+

@@ -10,8 +10,21 @@ coder publickey [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --reset |false |<code>Regenerate your public key. This will require updating the key on any services it's registered with.</code> | |
-| --yes, -y |false |<code>Bypass prompts</code> | |
+## Flags
+### --reset
+Regenerate your public key. This will require updating the key on any services it's registered with.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+
+
+### --yes, -y
+Bypass prompts
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+

@@ -10,8 +10,21 @@ coder tokens list [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --column, -c |[id,last used,expires at,created at] |<code>Columns to display in table output. Available columns: id, last used, expires at, created at</code> | |
-| --output, -o |table |<code>Output format. Available formats: table, json</code> | |
+## Flags
+### --column, -c
+Columns to display in table output. Available columns: id, last used, expires at, created at
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>[id,last used,expires at,created at]</code> |
+
+
+
+### --output, -o
+Output format. Available formats: table, json
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>table</code> |
+
+

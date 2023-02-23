@@ -10,9 +10,30 @@ coder speedtest <workspace> [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --direct, -d |false |<code>Specifies whether to wait for a direct connection before testing speed.</code> | |
-| --reverse, -r |false |<code>Specifies whether to run in reverse mode where the client receives and the server sends.</code> | |
-| --time, -t |5s |<code>Specifies the duration to monitor traffic.</code> | |
+## Flags
+### --direct, -d
+Specifies whether to wait for a direct connection before testing speed.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+
+
+### --reverse, -r
+Specifies whether to run in reverse mode where the client receives and the server sends.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+
+
+### --time, -t
+Specifies the duration to monitor traffic.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>5s</code> |
+
+

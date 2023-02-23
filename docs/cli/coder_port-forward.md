@@ -31,8 +31,23 @@ coder port-forward <workspace> [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --tcp, -p |[] |<code>Forward TCP port(s) from the workspace to the local machine.</code> | <code>$CODER_PORT_FORWARD_TCP</code>  |
-| --udp |[] |<code>Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.</code> | <code>$CODER_PORT_FORWARD_UDP</code>  |
+## Flags
+### --tcp, -p
+Forward TCP port(s) from the workspace to the local machine.
+<br/>
+| | |
+| --- | --- |
+| Consumes | <code>$CODER_PORT_FORWARD_TCP</code> |
+| Default |     <code>[]</code> |
+
+
+
+### --udp
+Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.
+<br/>
+| | |
+| --- | --- |
+| Consumes | <code>$CODER_PORT_FORWARD_UDP</code> |
+| Default |     <code>[]</code> |
+
+

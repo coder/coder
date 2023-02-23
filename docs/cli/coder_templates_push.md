@@ -10,14 +10,66 @@ coder templates push [template] [flags]
 ```
 
 
-## Local Flags
-| Name |  Default | Usage | Environment | 
-| ---- |  ------- | ----- | -------- |
-| --always-prompt |false |<code>Always prompt all parameters. Does not pull parameter values from active template version</code> | |
-| --directory, -d |/home/coder/coder |<code>Specify the directory to create from, use '-' to read tar from stdin</code> | |
-| --name | |<code>Specify a name for the new template version. It will be automatically generated if not provided.</code> | |
-| --parameter-file | |<code>Specify a file path with parameter values.</code> | |
-| --provisioner-tag |[] |<code>Specify a set of tags to target provisioner daemons.</code> | |
-| --variable |[] |<code>Specify a set of values for Terraform-managed variables.</code> | |
-| --variables-file | |<code>Specify a file path with values for Terraform-managed variables.</code> | |
-| --yes, -y |false |<code>Bypass prompts</code> | |
+## Flags
+### --always-prompt
+Always prompt all parameters. Does not pull parameter values from active template version
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+
+
+### --directory, -d
+Specify the directory to create from, use '-' to read tar from stdin
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>/home/coder/coder</code> |
+
+
+
+### --name
+Specify a name for the new template version. It will be automatically generated if not provided.
+<br/>
+| | |
+| --- | --- |
+
+### --parameter-file
+Specify a file path with parameter values.
+<br/>
+| | |
+| --- | --- |
+
+### --provisioner-tag
+Specify a set of tags to target provisioner daemons.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>[]</code> |
+
+
+
+### --variable
+Specify a set of values for Terraform-managed variables.
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>[]</code> |
+
+
+
+### --variables-file
+Specify a file path with values for Terraform-managed variables.
+<br/>
+| | |
+| --- | --- |
+
+### --yes, -y
+Bypass prompts
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+
