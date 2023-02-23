@@ -24,7 +24,7 @@ func TestTokenCRUD(t *testing.T) {
 	defer cancel()
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
-	keys, err := client.Tokens(ctx, codersdk.Me)
+	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
 	require.Empty(t, keys)
 
@@ -32,7 +32,7 @@ func TestTokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, len(res.Key), 2)
 
-	keys, err = client.Tokens(ctx, codersdk.Me)
+	keys, err = client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
 	require.EqualValues(t, len(keys), 1)
 	require.Contains(t, res.Key, keys[0].ID)
@@ -45,7 +45,7 @@ func TestTokenCRUD(t *testing.T) {
 
 	err = client.DeleteAPIKey(ctx, codersdk.Me, keys[0].ID)
 	require.NoError(t, err)
-	keys, err = client.Tokens(ctx, codersdk.Me)
+	keys, err = client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
 	require.Empty(t, keys)
 }
@@ -64,7 +64,7 @@ func TestTokenScoped(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, len(res.Key), 2)
 
-	keys, err := client.Tokens(ctx, codersdk.Me)
+	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
 	require.EqualValues(t, len(keys), 1)
 	require.Contains(t, res.Key, keys[0].ID)
@@ -83,7 +83,7 @@ func TestTokenDuration(t *testing.T) {
 		Lifetime: time.Hour * 24 * 7,
 	})
 	require.NoError(t, err)
-	keys, err := client.Tokens(ctx, codersdk.Me)
+	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
 	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*6*24))
 	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*8*24))

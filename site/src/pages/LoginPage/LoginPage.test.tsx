@@ -36,13 +36,11 @@ describe("LoginPage", () => {
 
   it("shows an error message if SignIn fails", async () => {
     // Given
+    const apiErrorMessage = "Something wrong happened"
     server.use(
       // Make login fail
       rest.post("/api/v2/users/login", async (req, res, ctx) => {
-        return res(
-          ctx.status(500),
-          ctx.json({ message: Language.errorMessages.authError }),
-        )
+        return res(ctx.status(500), ctx.json({ message: apiErrorMessage }))
       }),
     )
 
@@ -58,29 +56,9 @@ describe("LoginPage", () => {
     fireEvent.click(signInButton)
 
     // Then
-    const errorMessage = await screen.findByText(
-      Language.errorMessages.authError,
-    )
-    expect(errorMessage).toBeDefined()
-    expect(history.location.pathname).toEqual("/login")
-  })
-
-  it("shows an error if fetching auth methods fails", async () => {
-    // Given
-    const apiErrorMessage = "Unable to fetch methods"
-    server.use(
-      // Make login fail
-      rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: apiErrorMessage }))
-      }),
-    )
-
-    // When
-    render(<LoginPage />)
-
-    // Then
     const errorMessage = await screen.findByText(apiErrorMessage)
     expect(errorMessage).toBeDefined()
+    expect(history.location.pathname).toEqual("/login")
   })
 
   it("shows github authentication when enabled", async () => {

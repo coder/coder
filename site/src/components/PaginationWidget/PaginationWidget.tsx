@@ -44,6 +44,7 @@ export const PaginationWidget = ({
     <Maybe condition={showWidget}>
       <div style={containerStyle} className={styles.defaultContainerStyles}>
         <Button
+          variant="outlined"
           className={styles.prevLabelStyles}
           aria-label="Previous page"
           disabled={firstPageActive}
@@ -82,6 +83,7 @@ export const PaginationWidget = ({
           </Cond>
         </ChooseOne>
         <Button
+          variant="outlined"
           aria-label="Next page"
           disabled={lastPageActive}
           onClick={() => send({ type: "NEXT_PAGE" })}
