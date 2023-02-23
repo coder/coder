@@ -93,7 +93,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.AppearanceConfig"
+                            "$ref": "#/definitions/codersdk.UpdateAppearanceConfig"
                         }
                     }
                 ],
@@ -101,7 +101,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.AppearanceConfig"
+                            "$ref": "#/definitions/codersdk.UpdateAppearanceConfig"
                         }
                     }
                 }
@@ -7861,6 +7861,17 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UpdateAppearanceConfig": {
+            "type": "object",
+            "properties": {
+                "logo_url": {
+                    "type": "string"
+                },
+                "service_banner": {
+                    "$ref": "#/definitions/codersdk.ServiceBannerConfig"
                 }
             }
         },

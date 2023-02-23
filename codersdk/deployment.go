@@ -363,6 +363,11 @@ type AppearanceConfig struct {
 	SupportLinks  []LinkConfig        `json:"support_links,omitempty"`
 }
 
+type UpdateAppearanceConfig struct {
+	LogoURL       string              `json:"logo_url"`
+	ServiceBanner ServiceBannerConfig `json:"service_banner"`
+}
+
 type ServiceBannerConfig struct {
 	Enabled         bool   `json:"enabled"`
 	Message         string `json:"message,omitempty"`
@@ -384,7 +389,7 @@ func (c *Client) Appearance(ctx context.Context) (AppearanceConfig, error) {
 	return cfg, json.NewDecoder(res.Body).Decode(&cfg)
 }
 
-func (c *Client) UpdateAppearance(ctx context.Context, appearance AppearanceConfig) error {
+func (c *Client) UpdateAppearance(ctx context.Context, appearance UpdateAppearanceConfig) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/v2/appearance", appearance)
 	if err != nil {
 		return err

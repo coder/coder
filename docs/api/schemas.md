@@ -4887,6 +4887,26 @@ Parameter represents a set value for the scope.
 | ---- | ------ | -------- | ------------ | ----------- |
 | `id` | string | true     |              |             |
 
+## codersdk.UpdateAppearanceConfig
+
+```json
+{
+  "logo_url": "string",
+  "service_banner": {
+    "background_color": "string",
+    "enabled": true,
+    "message": "string"
+  }
+}
+```
+
+### Properties
+
+| Name             | Type                                                         | Required | Restrictions | Description |
+| ---------------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `logo_url`       | string                                                       | false    |              |             |
+| `service_banner` | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
+
 ## codersdk.UpdateCheckResponse
 
 ```json

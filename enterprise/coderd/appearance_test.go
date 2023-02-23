@@ -43,18 +43,20 @@ func TestServiceBanners(t *testing.T) {
 
 	basicUserClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 
-	sb.SupportLinks = nil // clean "support links" as they can't be modified using API
-
+	uac := codersdk.UpdateAppearanceConfig{
+		ServiceBanner: sb.ServiceBanner,
+	}
 	// Regular user should be unable to set the banner
-	sb.ServiceBanner.Enabled = true
-	err = basicUserClient.UpdateAppearance(ctx, sb)
+	uac.ServiceBanner.Enabled = true
+
+	err = basicUserClient.UpdateAppearance(ctx, uac)
 	require.Error(t, err)
 	var sdkError *codersdk.Error
 	require.True(t, errors.As(err, &sdkError))
 	require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
 
 	// But an admin can
-	wantBanner := sb
+	wantBanner := uac
 	wantBanner.ServiceBanner.Enabled = true
 	wantBanner.ServiceBanner.Message = "Hey"
 	wantBanner.ServiceBanner.BackgroundColor = "#00FF00"
@@ -63,7 +65,7 @@ func TestServiceBanners(t *testing.T) {
 	gotBanner, err := adminClient.Appearance(ctx)
 	require.NoError(t, err)
 	gotBanner.SupportLinks = nil // clean "support links" before comparison
-	require.Equal(t, wantBanner, gotBanner)
+	require.Equal(t, wantBanner.ServiceBanner, gotBanner.ServiceBanner)
 
 	// But even an admin can't give a bad color
 	wantBanner.ServiceBanner.BackgroundColor = "#bad color"

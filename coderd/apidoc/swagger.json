@@ -71,7 +71,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/codersdk.AppearanceConfig"
+              "$ref": "#/definitions/codersdk.UpdateAppearanceConfig"
             }
           }
         ],
@@ -79,7 +79,7 @@
           "200": {
             "description": "OK",
             "schema": {
-              "$ref": "#/definitions/codersdk.AppearanceConfig"
+              "$ref": "#/definitions/codersdk.UpdateAppearanceConfig"
             }
           }
         }
@@ -7077,6 +7077,17 @@
         "id": {
           "type": "string",
           "format": "uuid"
+        }
+      }
+    },
+    "codersdk.UpdateAppearanceConfig": {
+      "type": "object",
+      "properties": {
+        "logo_url": {
+          "type": "string"
+        },
+        "service_banner": {
+          "$ref": "#/definitions/codersdk.ServiceBannerConfig"
         }
       }
     },

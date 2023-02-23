@@ -827,6 +827,12 @@ export interface UpdateActiveTemplateVersion {
   readonly id: string
 }
 
+// From codersdk/deployment.go
+export interface UpdateAppearanceConfig {
+  readonly logo_url: string
+  readonly service_banner: ServiceBannerConfig
+}
+
 // From codersdk/updatecheck.go
 export interface UpdateCheckResponse {
   readonly current: boolean

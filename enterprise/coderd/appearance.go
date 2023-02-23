@@ -113,8 +113,8 @@ func validateHexColor(color string) error {
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param request body codersdk.AppearanceConfig true "Update appearance request"
-// @Success 200 {object} codersdk.AppearanceConfig
+// @Param request body codersdk.UpdateAppearanceConfig true "Update appearance request"
+// @Success 200 {object} codersdk.UpdateAppearanceConfig
 // @Router /appearance [put]
 func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -126,15 +126,8 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var appearance codersdk.AppearanceConfig
+	var appearance codersdk.UpdateAppearanceConfig
 	if !httpapi.Read(ctx, rw, r, &appearance) {
-		return
-	}
-
-	if len(appearance.SupportLinks) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Support links cannot be dynamically updated, use the config file instead.",
-		})
 		return
 	}
 
