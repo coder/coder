@@ -1,3 +1,5 @@
+Pull a Terraform state file from a workspace.
+
 Usage:
   coder state pull <workspace> [file] [flags]
 
