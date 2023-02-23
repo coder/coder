@@ -331,7 +331,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		})
 		// TTL should be set by the template
 		require.Equal(t, template.DefaultTTLMillis, templateTTL)
-		require.Equal(t, template.DefaultTTLMillis, template.DefaultTTLMillis, workspace.TTLMillis)
+		require.Equal(t, template.DefaultTTLMillis, *workspace.TTLMillis)
 	})
 
 	t.Run("InvalidTTL", func(t *testing.T) {

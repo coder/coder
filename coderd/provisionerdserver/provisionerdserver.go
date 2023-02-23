@@ -308,7 +308,7 @@ func (server *Server) includeLastVariableValues(ctx context.Context, templateVer
 
 	templateVersion, err := server.Database.GetTemplateVersionByID(ctx, templateVersionID)
 	if err != nil {
-		return nil, fmt.Errorf("get template version: %w", err)
+		return nil, xerrors.Errorf("get template version: %w", err)
 	}
 
 	if templateVersion.TemplateID.UUID == uuid.Nil {
@@ -317,7 +317,7 @@ func (server *Server) includeLastVariableValues(ctx context.Context, templateVer
 
 	template, err := server.Database.GetTemplateByID(ctx, templateVersion.TemplateID.UUID)
 	if err != nil {
-		return nil, fmt.Errorf("get template: %w", err)
+		return nil, xerrors.Errorf("get template: %w", err)
 	}
 
 	if template.ActiveVersionID == uuid.Nil {
@@ -326,7 +326,7 @@ func (server *Server) includeLastVariableValues(ctx context.Context, templateVer
 
 	templateVariables, err := server.Database.GetTemplateVersionVariables(ctx, template.ActiveVersionID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("get template version variables: %w", err)
+		return nil, xerrors.Errorf("get template version variables: %w", err)
 	}
 
 	for _, templateVariable := range templateVariables {
