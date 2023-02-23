@@ -94,6 +94,20 @@
 | ---------------- | ------ | -------- | ------------ | ----------- |
 | `json_web_token` | string | true     |              |             |
 
+## agentsdk.InsertOrUpdateStartupLogsRequest
+
+```json
+{
+  "output": "string"
+}
+```
+
+### Properties
+
+| Name     | Type   | Required | Restrictions | Description |
+| -------- | ------ | -------- | ------------ | ----------- |
+| `output` | string | false    |              |             |
+
 ## agentsdk.Metadata
 
 ```json
@@ -4119,6 +4133,22 @@ Parameter represents a set value for the scope.
 | `background_color` | string  | false    |              |             |
 | `enabled`          | boolean | false    |              |             |
 | `message`          | string  | false    |              |             |
+
+## codersdk.StartupScriptLog
+
+```json
+{
+  "name": "string",
+  "output": "string"
+}
+```
+
+### Properties
+
+| Name     | Type   | Required | Restrictions | Description |
+| -------- | ------ | -------- | ------------ | ----------- |
+| `name`   | string | false    |              |             |
+| `output` | string | false    |              |             |
 
 ## codersdk.SwaggerConfig
 

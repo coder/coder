@@ -71,6 +71,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"GET:/api/v2/workspaceagents/me/metadata":               {NoAuthorize: true},
 		"GET:/api/v2/workspaceagents/me/coordinate":             {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/startup":               {NoAuthorize: true},
+		"PATCH:/api/v2/workspaceagents/me/startup/logs":         {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/app-health":            {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/report-stats":          {NoAuthorize: true},
 		"POST:/api/v2/workspaceagents/me/report-lifecycle":      {NoAuthorize: true},

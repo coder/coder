@@ -683,6 +683,56 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/lis
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Stream workspace agent startup logs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/logs \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/{workspaceagent}/logs`
+
+### Parameters
+
+| Name             | In   | Type   | Required | Description        |
+| ---------------- | ---- | ------ | -------- | ------------------ |
+| `workspacebuild` | path | string | true     | Workspace build ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "name": "string",
+    "output": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                    |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.StartupScriptLog](schemas.md#codersdkstartupscriptlog) |
+
+<h3 id="stream-workspace-agent-startup-logs-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `[array item]` | array  | false    |              |             |
+| `» name`       | string | false    |              |             |
+| `» output`     | string | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Open PTY to workspace agent
 
 ### Code samples

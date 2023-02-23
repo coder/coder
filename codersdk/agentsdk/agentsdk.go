@@ -499,6 +499,22 @@ func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error 
 	return nil
 }
 
+type InsertOrUpdateStartupLogsRequest struct {
+	Output string
+}
+
+func (c *Client) InsertOrUpdateStartupLogs(ctx context.Context, req InsertOrUpdateStartupLogsRequest) error {
+	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/startup/logs", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
+
 type GitAuthResponse struct {
 	Username string `json:"username"`
 	Password string `json:"password"`

@@ -208,6 +208,48 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
 
+// @Summary Submit most recent workspace agent startup logs
+// @ID insert-update-startup-script-logs
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Agents
+// @Param request body agentsdk.InsertOrUpdateStartupLogsRequest true "Startup logs"
+// @Success 200
+// @Router /workspaceagents/me/startup/logs [patch]
+// @x-apidocgen {"skip": true}
+func (api *API) insertOrUpdateStartupScriptLogs(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to upload startup logs",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var req agentsdk.InsertOrUpdateStartupLogsRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if err := api.Database.InsertOrUpdateStartupScriptLog(ctx, database.InsertOrUpdateStartupScriptLogParams{
+		AgentID: workspaceAgent.ID,
+		JobID:   resource.JobID,
+		Output:  req.Output,
+	}); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to upload startup logs",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, nil)
+}
+
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
 // This is used for the web terminal.
 //

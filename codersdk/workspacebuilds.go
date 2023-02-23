@@ -101,6 +101,12 @@ type WorkspaceBuildParameter struct {
 	Value string `json:"value"`
 }
 
+type StartupScriptLog struct {
+	AgentID uuid.UUID `json:"agent_id"`
+	JobID   uuid.UUID `json:"job_id"`
+	Output  string    `json:"output"`
+}
+
 // WorkspaceBuild returns a single workspace build for a workspace.
 // If history is "", the latest version is returned.
 func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error) {
@@ -137,6 +143,20 @@ func (c *Client) WorkspaceBuildLogsBefore(ctx context.Context, build uuid.UUID, 
 // WorkspaceBuildLogsAfter streams logs for a workspace build that occurred after a specific log ID.
 func (c *Client) WorkspaceBuildLogsAfter(ctx context.Context, build uuid.UUID, after int64) (<-chan ProvisionerJobLog, io.Closer, error) {
 	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", build), after)
+}
+
+// StartupScriptLogs returns the logs from startup scripts.
+func (c *Client) StartupScriptLogs(ctx context.Context, build uuid.UUID) ([]StartupScriptLog, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspacebuilds/%s/startup-script-logs", build), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var log []StartupScriptLog
+	return log, json.NewDecoder(res.Body).Decode(&log)
 }
 
 // WorkspaceBuildState returns the provisioner state of the build.

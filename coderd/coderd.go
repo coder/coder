@@ -572,7 +572,10 @@ func New(options *Options) *API {
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/metadata", api.workspaceAgentMetadata)
-				r.Post("/startup", api.postWorkspaceAgentStartup)
+				r.Route("/startup", func(r chi.Router) {
+					r.Post("/", api.postWorkspaceAgentStartup)
+					r.Patch("/logs", api.insertOrUpdateStartupScriptLogs)
+				})
 				r.Post("/app-health", api.postWorkspaceAppHealth)
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
@@ -630,6 +633,7 @@ func New(options *Options) *API {
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResources)
 			r.Get("/state", api.workspaceBuildState)
+			r.Get("/startup-script-logs", api.startupScriptLogs)
 		})
 		r.Route("/authcheck", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
