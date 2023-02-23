@@ -116,7 +116,7 @@ func writeCommand(w io.Writer, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	content = strings.ReplaceAll(content, dir, "<current-directory>")
+	content = strings.ReplaceAll(content, dir, ".")
 
 	_, err = w.Write([]byte(content))
 	return err

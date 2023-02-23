@@ -26,7 +26,7 @@ Specify the directory to create from, use '-' to read tar from stdin
 <br/>
 | | |
 | --- | --- |
-| Default | <code><current-directory></code> |
+| Default | <code>.</code> |
 
 ### --parameter-file
 
