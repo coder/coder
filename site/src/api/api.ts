@@ -130,9 +130,14 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
   return response.data
 }
 
-export const getTokens = async (): Promise<TypesGen.APIKey[]> => {
+export const getTokens = async (
+  params: TypesGen.TokensFilter,
+): Promise<TypesGen.APIKey[]> => {
   const response = await axios.get<TypesGen.APIKey[]>(
-    "/api/v2/users/me/keys/tokens",
+    `/api/v2/users/me/keys/tokens`,
+    {
+      params,
+    },
   )
   return response.data
 }

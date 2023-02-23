@@ -19,6 +19,7 @@ import starterTemplatesPage from "./starterTemplatesPage.json"
 import starterTemplatePage from "./starterTemplatePage.json"
 import createTemplatePage from "./createTemplatePage.json"
 import userSettingsPage from "./userSettingsPage.json"
+import tokensPage from "./tokensPage.json"
 
 export const en = {
   common,
@@ -42,4 +43,5 @@ export const en = {
   starterTemplatePage,
   createTemplatePage,
   userSettingsPage,
+  tokensPage,
 }
