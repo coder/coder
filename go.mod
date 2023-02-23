@@ -71,6 +71,7 @@ require (
 	github.com/charmbracelet/glamour v0.6.0
 	github.com/charmbracelet/lipgloss v0.6.0
 	github.com/cli/safeexec v1.0.0
+	github.com/codeclysm/extract v2.2.0+incompatible
 	github.com/coder/retry v1.3.1-0.20230210155434-e90a2e1e091d
 	github.com/coder/terraform-provider-coder v0.6.11
 	github.com/coreos/go-oidc/v3 v3.4.0
@@ -180,7 +181,9 @@ require (
 	github.com/dgraph-io/badger/v3 v3.2103.5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect
+	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/juju/errors v1.0.0 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-sqlite3 v1.14.15 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
