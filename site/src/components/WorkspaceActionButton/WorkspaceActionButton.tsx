@@ -14,6 +14,7 @@ export const WorkspaceActionButton: FC<
 > = ({ label, icon, onClick, className, ariaLabel }) => {
   return (
     <Button
+      variant="outlined"
       className={className}
       startIcon={icon}
       onClick={onClick}

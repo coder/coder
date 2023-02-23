@@ -11,6 +11,15 @@ coder templates pull <name> [destination] [flags]
 
 
 ## Flags
+### --tar
+output the template as a tar archive to stdout
+<br/>
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+
+
 ### --yes, -y
 Bypass prompts
 <br/>

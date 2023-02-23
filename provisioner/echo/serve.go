@@ -207,6 +207,7 @@ func Tar(responses *Responses) ([]byte, error) {
 		err = writer.WriteHeader(&tar.Header{
 			Name: fmt.Sprintf("%d.parse.protobuf", index),
 			Size: int64(len(data)),
+			Mode: 0o644,
 		})
 		if err != nil {
 			return nil, err

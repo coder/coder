@@ -102,7 +102,7 @@
         ErrorLog ${APACHE_LOG_DIR}/error.log
         CustomLog ${APACHE_LOG_DIR}/access.log combined
 
-        ProxyPass / http://127.0.0.1:3000/
+        ProxyPass / http://127.0.0.1:3000/ upgrade=any # required for websockets
         ProxyPassReverse / http://127.0.0.1:3000/
         ProxyRequests Off
         ProxyPreserveHost On

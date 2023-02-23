@@ -20,12 +20,12 @@ Specifies whether to wait for a direct connection before testing speed.
 
 
 
-### --reverse, -r
-Specifies whether to run in reverse mode where the client receives and the server sends.
+### --direction
+Specifies whether to run in reverse mode where the client receives and the server sends. (up|down)
 <br/>
 | | |
 | --- | --- |
-| Default |     <code>false</code> |
+| Default |     <code>down</code> |
 
 
 
