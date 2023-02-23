@@ -404,6 +404,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 }
 
 func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+	ctx := r.Context()
 	clientConn, serverConn := net.Pipe()
 
 	derpMap := api.DERPMap.Clone()
@@ -474,7 +475,7 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 			_ = agentConn.Close()
 		}
 	}()
-	if !agentConn.AwaitReachable(context.TODO()) {
+	if !agentConn.AwaitReachable(ctx) {
 		_ = agentConn.Close()
 		return nil, xerrors.Errorf("agent not reachable")
 	}
