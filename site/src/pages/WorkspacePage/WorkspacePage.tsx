@@ -1,8 +1,9 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
+import * as API from "api/api"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { FC, useEffect } from "react"
+import { FC, useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
 import { Loader } from "components/Loader/Loader"
 import { firstOrItem } from "util/array"
@@ -27,6 +28,10 @@ export const WorkspacePage: FC = () => {
   const { getQuotaError } = quotaState.context
   const styles = useStyles()
 
+  const [startupScriptLogs, setStartupScriptLogs] = useState<
+    Record<string, string> | Error | undefined | unknown
+  >(undefined)
+
   /**
    * Get workspace, template, and organization on mount and whenever workspaceId changes.
    * workspaceSend should not change.
@@ -40,6 +45,22 @@ export const WorkspacePage: FC = () => {
   useEffect(() => {
     username && quotaSend({ type: "GET_QUOTA", username })
   }, [username, quotaSend])
+
+  // Get startup logs once we have agents or when the agents change.
+  // TODO: Should use xstate?  Or that new thing?
+  // TODO: Does not stream yet.
+  // TODO: Should maybe add to the existing SSE endpoint instead?
+  useEffect(() => {
+    if (workspace?.latest_build) {
+      API.getStartupScriptLogs(workspace.latest_build.id)
+        .then((logs) => {
+          setStartupScriptLogs(logs)
+        })
+        .catch((error) => {
+          setStartupScriptLogs(error)
+        })
+    }
+  }, [workspace])
 
   return (
     <ChooseOne>
@@ -76,6 +97,7 @@ export const WorkspacePage: FC = () => {
           workspaceState={workspaceState}
           quotaState={quotaState}
           workspaceSend={workspaceSend}
+          startupScriptLogs={startupScriptLogs}
         />
       </Cond>
       <Cond>

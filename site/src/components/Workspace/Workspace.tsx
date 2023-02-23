@@ -1,6 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
-import { FC } from "react"
+import { FC, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
@@ -24,6 +24,7 @@ import {
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
 import { AgentRow } from "components/Resources/AgentRow"
 import { Avatar } from "components/Avatar/Avatar"
+import { CodeBlock } from "components/CodeBlock/CodeBlock"
 
 export enum WorkspaceErrors {
   GET_RESOURCES_ERROR = "getResourcesError",
@@ -60,6 +61,7 @@ export interface WorkspaceProps {
   template?: TypesGen.Template
   templateParameters?: TypesGen.TemplateVersionParameter[]
   quota_budget?: number
+  startupScriptLogs?: TypesGen.StartupScriptLog[] | Error | unknown
 }
 
 /**
@@ -87,6 +89,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   template,
   templateParameters,
   quota_budget,
+  startupScriptLogs,
 }) => {
   const { t } = useTranslation("workspacePage")
   const styles = useStyles()
@@ -233,6 +236,19 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           />
         )}
 
+        {typeof startupScriptLogs !== "undefined" &&
+          (Array.isArray(startupScriptLogs) ? (
+            startupScriptLogs.map((log) => (
+              <CodeBlock
+                key={log.agent_id}
+                className={styles.logs}
+                lines={log.output ? log.output.split("\n") : "No output"}
+              />
+            ))
+          ) : (
+            <AlertBanner severity="error" error={startupScriptLogs} />
+          ))}
+
         {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
           <AlertBanner
             severity="error"
@@ -278,6 +294,9 @@ export const useStyles = makeStyles((theme) => {
 
     timelineContents: {
       margin: 0,
+    },
+    logs: {
+      border: `1px solid ${theme.palette.divider}`,
     },
   }
 })

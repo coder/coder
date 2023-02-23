@@ -773,6 +773,15 @@ export const getAgentListeningPorts = async (
   return response.data
 }
 
+export const getStartupScriptLogs = async (
+  workspaceBuildId: string,
+): Promise<TypesGen.StartupScriptLog[]> => {
+  const response = await axios.get(
+    `/api/v2/workspacebuilds/${workspaceBuildId}/startup-script-logs`,
+  )
+  return response.data
+}
+
 export const getDeploymentConfig =
   async (): Promise<TypesGen.DeploymentConfig> => {
     const response = await axios.get(`/api/v2/config/deployment`)

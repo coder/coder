@@ -132,3 +132,13 @@ CancellationError.args = {
     }),
   },
 }
+
+export const StartupLogsError = Template.bind({})
+StartupLogsError.args = {
+  StartupLogs: new Error("Unable to fetch startup logs"),
+}
+
+export const StartupLogs = Template.bind({})
+StartupLogs.args = {
+  StartupLogs: [{ agent_id: "agent", job_id: "job", output: "startup logs" }],
+}
