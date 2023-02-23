@@ -118,12 +118,13 @@ func New(
 	logger := opts.Logger.With(slog.F("job_id", job.JobId))
 	if build := job.GetWorkspaceBuild(); build != nil {
 		logger = logger.With(
+			slog.F("action", build.Metadata.WorkspaceTransition.String()),
 			slog.F("owner_email", build.Metadata.WorkspaceOwnerEmail),
-			slog.F("workspace_id", build.Metadata.WorkspaceId),
-			slog.F("workspace_name", build.Metadata.WorkspaceName),
 			slog.F("template_name", build.Metadata.TemplateName),
 			slog.F("template_version", build.Metadata.TemplateVersion),
-			slog.F("action", build.Metadata.WorkspaceTransition.String()),
+			slog.F("workspace_build_id", build.WorkspaceBuildId),
+			slog.F("workspace_id", build.Metadata.WorkspaceId),
+			slog.F("workspace_name", build.Metadata.WorkspaceName),
 		)
 	}
 

@@ -353,12 +353,13 @@ func (p *Server) acquireJob(ctx context.Context) {
 
 	if build := job.GetWorkspaceBuild(); build != nil {
 		fields = append(fields,
+			slog.F("action", build.Metadata.WorkspaceTransition.String()),
+			slog.F("owner_email", build.Metadata.WorkspaceOwnerEmail),
+			slog.F("template_name", build.Metadata.TemplateName),
+			slog.F("template_version", build.Metadata.TemplateVersion),
 			slog.F("workspace_build_id", build.WorkspaceBuildId),
 			slog.F("workspace_id", build.Metadata.WorkspaceId),
 			slog.F("workspace_name", build.WorkspaceName),
-			slog.F("workspace_owner_id", build.Metadata.WorkspaceOwnerId),
-			slog.F("workspace_owner", build.Metadata.WorkspaceOwner),
-			slog.F("action", build.Metadata.WorkspaceTransition.String()),
 		)
 
 		span.SetAttributes(
