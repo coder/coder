@@ -115,13 +115,25 @@ func New(
 	forceStopContext, forceStopFunc := context.WithCancel(ctx)
 	gracefulContext, cancelFunc := context.WithCancel(forceStopContext)
 
+	logger := opts.Logger.With(slog.F("job_id", job.JobId))
+	if build := job.GetWorkspaceBuild(); build != nil {
+		logger = logger.With(
+			slog.F("owner_email", build.Metadata.WorkspaceOwnerEmail),
+			slog.F("workspace_id", build.Metadata.WorkspaceId),
+			slog.F("workspace_name", build.Metadata.WorkspaceName),
+			slog.F("template_name", build.Metadata.TemplateName),
+			slog.F("template_version", build.Metadata.TemplateVersion),
+			slog.F("transition", build.Metadata.WorkspaceTransition.String()),
+		)
+	}
+
 	return &Runner{
 		tracer:              opts.Tracer,
 		metrics:             opts.Metrics,
 		job:                 job,
 		sender:              opts.Updater,
 		quotaCommitter:      opts.QuotaCommitter,
-		logger:              opts.Logger.With(slog.F("job_id", job.JobId)),
+		logger:              logger,
 		filesystem:          opts.Filesystem,
 		workDirectory:       opts.WorkDirectory,
 		provisioner:         opts.Provisioner,
@@ -856,7 +868,7 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
-			r.logger.Debug(context.Background(), "workspace provision job logged",
+			r.logger.Info(context.Background(), "workspace provision job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 				slog.F("workspace_build_id", r.job.GetWorkspaceBuild().WorkspaceBuildId),
@@ -886,7 +898,6 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 				}
 			}
 
-			r.logger.Debug(context.Background(), "provision complete no error")
 			r.logger.Info(context.Background(), "provision successful",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
