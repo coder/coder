@@ -123,7 +123,7 @@ func New(
 			slog.F("workspace_name", build.Metadata.WorkspaceName),
 			slog.F("template_name", build.Metadata.TemplateName),
 			slog.F("template_version", build.Metadata.TemplateVersion),
-			slog.F("transition", build.Metadata.WorkspaceTransition.String()),
+			slog.F("action", build.Metadata.WorkspaceTransition.String()),
 		)
 	}
 
