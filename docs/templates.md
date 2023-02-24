@@ -231,7 +231,13 @@ provider "docker" {
 > For a complete list of supported parameter types, see the
 > [coder_parameter Terraform reference](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter)
 
-#### Start/stop
+#### Legacy parameters (deprecated)
+
+Prior to Coder v0.16.0 (Jan 2023), parameters were defined via Terraform `variable` blocks. These "legacy parameters" can still be used in templates, but are deprecated and will be removed in April 2023.
+
+> ⚠️ Legacy (`variable`) parameters and rich parameters cannot be used in the same template.
+
+### Start/stop
 
 [Learn about resource persistence in Coder](./templates/resource-persistence.md)
 
