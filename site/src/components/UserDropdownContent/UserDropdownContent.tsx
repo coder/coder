@@ -63,7 +63,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
         {supportLinks &&
           supportLinks.map((link) => (
             <a
-              href={link.target}
+              href={includeBuildInfo(link.target, buildInfo)}
               key={link.name}
               target="_blank"
               rel="noreferrer"
@@ -166,3 +166,8 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.primary,
   },
 }))
+
+const includeBuildInfo = (href: string, buildInfo?: TypesGen.BuildInfoResponse): string => {
+  return href.replace("{CODER_BUILD_INFO}",
+    `${encodeURIComponent(`Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})`)}`)
+}

@@ -73,7 +73,7 @@ export const MockSupportLinks: TypesGen.LinkConfig[] = [
   },
   {
     name: "Third link",
-    target: "http://third-link",
+    target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body={CODER_BUILD_INFO}",
     icon: ""
   }
 ];
