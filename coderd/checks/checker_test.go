@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/checks"
@@ -19,7 +20,7 @@ func Test_Checker(t *testing.T) {
 		done    = make(chan struct{})
 		testErr = assert.AnError
 	)
-
+	go c.Run()
 	t.Cleanup(func() { c.Stop() })
 
 	c.Add("good-test", func() error {
@@ -40,15 +41,17 @@ func Test_Checker(t *testing.T) {
 		tick <- time.Now()
 	}()
 
-	<-done // first check
-	<-done // second check
+	<-done                           // first check
+	<-done                           // second check
+	<-time.After(testutil.WaitShort) // hacky
 	results := c.Results()
-	assert.Len(t, results, 2)
+	require.Len(t, results, 2)
 	assert.Empty(t, results["good-test"].Error)
 	assert.Equal(t, results["bad-test"].Error, testErr.Error())
 	assert.Nil(t, results["slow-test"])
-	<-done // third check
+	<-done                           // third check
+	<-time.After(testutil.WaitShort) // yes, this is hacky
 	results = c.Results()
-	assert.Len(t, results, 3)
+	require.Len(t, results, 3)
 	assert.Empty(t, results["slow-test"].Error)
 }

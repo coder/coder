@@ -58,6 +58,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/awsidentity"
+	"github.com/coder/coder/coderd/checks"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbtestutil"
@@ -123,6 +124,8 @@ type Options struct {
 	Pubsub   database.Pubsub
 
 	SwaggerEndpoint bool
+
+	Checker checks.Checker
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
