@@ -167,7 +167,14 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-const includeBuildInfo = (href: string, buildInfo?: TypesGen.BuildInfoResponse): string => {
-  return href.replace("{CODER_BUILD_INFO}",
-    `${encodeURIComponent(`Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})`)}`)
+const includeBuildInfo = (
+  href: string,
+  buildInfo?: TypesGen.BuildInfoResponse,
+): string => {
+  return href.replace(
+    "{CODER_BUILD_INFO}",
+    `${encodeURIComponent(
+      `Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})`,
+    )}`,
+  )
 }

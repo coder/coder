@@ -64,19 +64,20 @@ export const MockSupportLinks: TypesGen.LinkConfig[] = [
   {
     name: "First link",
     target: "http://first-link",
-    icon: "chat"
+    icon: "chat",
   },
   {
     name: "Second link",
     target: "http://second-link",
-    icon: "docs"
+    icon: "docs",
   },
   {
     name: "Third link",
-    target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body={CODER_BUILD_INFO}",
-    icon: ""
-  }
-];
+    target:
+      "https://github.com/coder/coder/issues/new?labels=needs+grooming&body={CODER_BUILD_INFO}",
+    icon: "",
+  },
+]
 
 export const MockUpdateCheck: TypesGen.UpdateCheckResponse = {
   current: true,
