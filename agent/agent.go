@@ -601,7 +601,9 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 	}
 	defer coordinator.Close()
 	a.logger.Info(ctx, "connected to coordination server")
-	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, network.UpdateNodes)
+	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, func(nodes []*tailnet.Node) error {
+		return network.UpdateNodes(nodes, false)
+	})
 	network.SetNodeCallback(sendNodes)
 	select {
 	case <-ctx.Done():

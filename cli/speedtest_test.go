@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clitest"
@@ -28,7 +29,7 @@ func TestSpeedtest(t *testing.T) {
 	agentClient.SetSessionToken(agentToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent"),
+		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 	})
 	defer agentCloser.Close()
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
