@@ -10,6 +10,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
@@ -51,10 +52,12 @@ func TestSpeedtest(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)
 	cmd.SetOut(pty.Output())
+	cmd.SetErr(pty.Output())
 
 	ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
+	ctx = cli.ContextWithLogger(ctx, slogtest.Make(t, nil).Named("speedtest").Leveled(slog.LevelDebug))
 	cmdDone := tGo(t, func() {
 		err := cmd.ExecuteContext(ctx)
 		assert.NoError(t, err)
