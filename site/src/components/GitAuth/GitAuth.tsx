@@ -1,5 +1,6 @@
 import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
+import FormHelperText from "@material-ui/core/FormHelperText"
+import { makeStyles, Theme } from "@material-ui/core/styles"
 import { SvgIconProps } from "@material-ui/core/SvgIcon"
 import Tooltip from "@material-ui/core/Tooltip"
 import GitHub from "@material-ui/icons/GitHub"
@@ -14,14 +15,18 @@ export interface GitAuthProps {
   type: TypesGen.GitProvider
   authenticated: boolean
   authenticateURL: string
+  error?: string
 }
 
 export const GitAuth: FC<GitAuthProps> = ({
   type,
   authenticated,
   authenticateURL,
+  error,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles({
+    error: typeof error !== "undefined",
+  })
 
   let prettyName: string
   let Icon: (props: SvgIconProps) => JSX.Element
@@ -57,41 +62,42 @@ export const GitAuth: FC<GitAuthProps> = ({
         authenticated ? "You're already authenticated! No action needed." : ``
       }
     >
-      <a
-        href={redirectURL}
-        className={styles.link}
-        onClick={(event) => {
-          event.preventDefault()
-          // If the user is already authenticated, we don't want to redirect them
-          if (authenticated || authenticateURL === "") {
-            return
-          }
-          window.open(redirectURL, "_blank", "width=900,height=600")
-        }}
-      >
-        <Button className={styles.button} disabled={authenticated} fullWidth>
-          <div className={styles.root}>
-            <Icon className={styles.icon} />
-            <div className={styles.text}>
+      <div>
+        <a
+          href={redirectURL}
+          className={styles.link}
+          onClick={(event) => {
+            event.preventDefault()
+            // If the user is already authenticated, we don't want to redirect them
+            if (authenticated || authenticateURL === "") {
+              return
+            }
+            window.open(redirectURL, "_blank", "width=900,height=600")
+          }}
+        >
+          <Button className={styles.button} disabled={authenticated} fullWidth>
+            <div className={styles.root}>
+              <Icon className={styles.icon} />
               <Typography variant="body2">
                 {authenticated
                   ? `You're authenticated with ${prettyName}!`
                   : `Click to login with ${prettyName}!`}
               </Typography>
-              {!authenticated && (
-                <Typography variant="caption" color="textSecondary">
-                  {"You'll be redirected back here once authenticated."}
-                </Typography>
-              )}
             </div>
-          </div>
-        </Button>
-      </a>
+          </Button>
+        </a>
+        {error && <FormHelperText error>{error}</FormHelperText>}
+      </div>
     </Tooltip>
   )
 }
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles<
+  Theme,
+  {
+    error: boolean
+  }
+>((theme) => ({
   link: {
     textDecoration: "none",
   },
@@ -104,11 +110,8 @@ const useStyles = makeStyles(() => ({
   },
   button: {
     height: "unset",
-  },
-  text: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
+    border: ({ error }) =>
+      error ? `1px solid ${theme.palette.error.main}` : "unset",
   },
   icon: {
     width: 32,
