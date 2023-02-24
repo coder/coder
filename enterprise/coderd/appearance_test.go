@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/enterprise/coderd"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/testutil"
@@ -111,8 +112,6 @@ func TestCustomSupportLinks(t *testing.T) {
 
 	appearance, err := client.Appearance(ctx)
 	require.NoError(t, err)
-
-	require.Len(t, appearance.SupportLinks, 2)
 	require.Equal(t, supportLinks, appearance.SupportLinks)
 }
 
@@ -121,20 +120,12 @@ func TestDefaultSupportLinks(t *testing.T) {
 
 	client := coderdenttest.New(t, nil)
 	coderdtest.CreateFirstUser(t, client)
-	coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-		Features: license.Features{
-			codersdk.FeatureAppearance: 1,
-		},
-	})
+	// Don't need to set the license, as default links are passed without it.
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
 	appearance, err := client.Appearance(ctx)
 	require.NoError(t, err)
-
-	require.Len(t, appearance.SupportLinks, 3) // Documentation, Report a bug, Join the Coder Discord
-	require.Equal(t, appearance.SupportLinks[0].Name, "Documentation")
-	require.Equal(t, appearance.SupportLinks[1].Name, "Report a bug")
-	require.Equal(t, appearance.SupportLinks[2].Name, "Join the Coder Discord")
+	require.Equal(t, coderd.DefaultSupportLinks, appearance.SupportLinks)
 }

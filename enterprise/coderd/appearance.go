@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-var defaultSupportLinks = []codersdk.LinkConfig{
+var DefaultSupportLinks = []codersdk.LinkConfig{
 	{
 		Name:   "Documentation",
 		Target: "https://coder.com/docs/coder-oss",
@@ -49,7 +49,7 @@ func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 
 	if !isEntitled {
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AppearanceConfig{
-			SupportLinks: defaultSupportLinks,
+			SupportLinks: DefaultSupportLinks,
 		})
 		return
 	}
@@ -88,7 +88,7 @@ func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(api.DeploymentConfig.Support.Links.Value) == 0 {
-		cfg.SupportLinks = defaultSupportLinks
+		cfg.SupportLinks = DefaultSupportLinks
 	} else {
 		cfg.SupportLinks = api.DeploymentConfig.Support.Links.Value
 	}
