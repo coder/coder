@@ -118,13 +118,13 @@ func New(
 	logger := opts.Logger.With(slog.F("job_id", job.JobId))
 	if build := job.GetWorkspaceBuild(); build != nil {
 		logger = logger.With(
-			slog.F("action", build.Metadata.WorkspaceTransition.String()),
-			slog.F("owner_email", build.Metadata.WorkspaceOwnerEmail),
 			slog.F("template_name", build.Metadata.TemplateName),
 			slog.F("template_version", build.Metadata.TemplateVersion),
 			slog.F("workspace_build_id", build.WorkspaceBuildId),
 			slog.F("workspace_id", build.Metadata.WorkspaceId),
 			slog.F("workspace_name", build.Metadata.WorkspaceName),
+			slog.F("workspace_owner", build.Metadata.WorkspaceOwner),
+			slog.F("workspace_transition", build.Metadata.WorkspaceTransition.String()),
 		)
 	}
 
@@ -178,7 +178,7 @@ func (r *Runner) Run() {
 		concurrentGauge.Dec()
 		if build := r.job.GetWorkspaceBuild(); build != nil {
 			r.metrics.WorkspaceBuilds.WithLabelValues(
-				build.Metadata.WorkspaceOwnerEmail,
+				build.Metadata.WorkspaceOwner,
 				build.Metadata.WorkspaceName,
 				build.Metadata.TemplateName,
 				build.Metadata.TemplateVersion,

@@ -162,7 +162,7 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 				Subsystem: "", // Explicitly empty to make this a top-level metric.
 				Name:      "workspace_builds_total",
 				Help:      "The number of workspaces started, updated, or deleted.",
-			}, []string{"owner_email", "workspace_name", "template_name", "template_version", "action", "status"}),
+			}, []string{"workspace_owner", "workspace_name", "template_name", "template_version", "workspace_transition", "status"}),
 		},
 	}
 }
@@ -353,8 +353,8 @@ func (p *Server) acquireJob(ctx context.Context) {
 
 	if build := job.GetWorkspaceBuild(); build != nil {
 		fields = append(fields,
-			slog.F("action", build.Metadata.WorkspaceTransition.String()),
-			slog.F("owner_email", build.Metadata.WorkspaceOwnerEmail),
+			slog.F("workspace_transition", build.Metadata.WorkspaceTransition.String()),
+			slog.F("workspace_owner", build.Metadata.WorkspaceOwner),
 			slog.F("template_name", build.Metadata.TemplateName),
 			slog.F("template_version", build.Metadata.TemplateVersion),
 			slog.F("workspace_build_id", build.WorkspaceBuildId),
