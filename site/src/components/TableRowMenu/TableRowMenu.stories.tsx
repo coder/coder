@@ -18,8 +18,9 @@ export const Example = Template.bind({})
 Example.args = {
   data: { id: "123" },
   menuItems: [
-    { label: "Suspend", onClick: (data) => alert(data.id) },
-    { label: "Update", onClick: (data) => alert(data.id) },
-    { label: "Delete", onClick: (data) => alert(data.id) },
+    { label: "Suspend", onClick: (data) => alert(data.id), disabled: false },
+    { label: "Update", onClick: (data) => alert(data.id), disabled: false },
+    { label: "Delete", onClick: (data) => alert(data.id), disabled: false },
+    { label: "Explode", onClick: (data) => alert(data.id), disabled: true },
   ],
 }

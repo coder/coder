@@ -1,13 +1,13 @@
 import { useAuth } from "components/AuthProvider/AuthProvider"
-import { AuthContext } from "xServices/auth/authXService"
+import { isAuthenticated, Permissions } from "xServices/auth/authXService"
 
-export const usePermissions = (): NonNullable<AuthContext["permissions"]> => {
+export const usePermissions = (): Permissions => {
   const [authState] = useAuth()
-  const { permissions } = authState.context
+  const { data } = authState.context
 
-  if (!permissions) {
-    throw new Error("Permissions are not loaded yet.")
+  if (isAuthenticated(data)) {
+    return data.permissions
   }
 
-  return permissions
+  throw new Error("User is not authenticated.")
 }

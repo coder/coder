@@ -28,6 +28,7 @@ const TemplateSettingsButton: FC<{ templateName: string }> = ({
   templateName,
 }) => (
   <Button
+    variant="outlined"
     component={RouterLink}
     to={`/templates/${templateName}/settings`}
     startIcon={<SettingsOutlined />}
@@ -50,7 +51,7 @@ const CreateWorkspaceButton: FC<{
 )
 
 const DeleteTemplateButton: FC<{ onClick: () => void }> = ({ onClick }) => (
-  <Button startIcon={<DeleteOutlined />} onClick={onClick}>
+  <Button variant="outlined" startIcon={<DeleteOutlined />} onClick={onClick}>
     {Language.deleteButton}
   </Button>
 )

@@ -19,6 +19,7 @@ import (
 
 func TestSpeedtest(t *testing.T) {
 	t.Parallel()
+	t.Skip("Flaky test - see https://github.com/coder/coder/issues/6321")
 	if testing.Short() {
 		t.Skip("This test takes a minimum of 5ms per a hardcoded value in Tailscale!")
 	}

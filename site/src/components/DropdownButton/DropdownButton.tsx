@@ -41,6 +41,7 @@ export const DropdownButton: FC<DropdownButtonProps> = ({
         <>
           {/* popover toggle button */}
           <Button
+            variant="outlined"
             data-testid="workspace-actions-button"
             aria-controls="workspace-actions-menu"
             aria-haspopup="true"
@@ -86,13 +87,9 @@ export const DropdownButton: FC<DropdownButtonProps> = ({
 
 const useStyles = makeStyles((theme) => ({
   buttonContainer: {
-    border: `1px solid ${theme.palette.divider}`,
-    borderRadius: `${theme.shape.borderRadius}px`,
     display: "inline-flex",
   },
   dropdownButton: {
-    border: "none",
-    borderLeft: `1px solid ${theme.palette.divider}`,
     borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
     minWidth: "unset",
     width: "64px", // matching cancel button so button grouping doesn't grow in size
@@ -110,8 +107,18 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   popoverPaper: {
-    padding: `${theme.spacing(1)}px ${theme.spacing(2)}px ${theme.spacing(
-      1,
-    )}px`,
+    padding: 0,
+    width: theme.spacing(28),
+
+    "& .MuiButton-root": {
+      padding: theme.spacing(1, 2),
+      borderRadius: 0,
+      width: "100%",
+      border: 0,
+
+      "&:hover": {
+        background: theme.palette.action.hover,
+      },
+    },
   },
 }))
