@@ -199,13 +199,19 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		return nil, err
 	}
 
-	return &WorkspaceAgentConn{
+	agentConn := &WorkspaceAgentConn{
 		Conn: conn,
 		CloseFunc: func() {
 			cancelFunc()
 			<-closed
 		},
-	}, nil
+	}
+	if !agentConn.AwaitReachable(ctx) {
+		_ = agentConn.Close()
+		return nil, xerrors.Errorf("timed out waiting for agent to become reachable: %w", ctx.Err())
+	}
+
+	return agentConn, nil
 }
 
 // WorkspaceAgent returns an agent by ID.

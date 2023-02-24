@@ -60,7 +60,7 @@ type Options struct {
 }
 
 // NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
-func NewConn(options *Options) (*Conn, error) {
+func NewConn(options *Options) (conn *Conn, err error) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -123,6 +123,11 @@ func NewConn(options *Options) (*Conn, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("create wireguard link monitor: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			wireguardMonitor.Close()
+		}
+	}()
 
 	dialer := &tsdial.Dialer{
 		Logf: Logger(options.Logger),
@@ -134,6 +139,11 @@ func NewConn(options *Options) (*Conn, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			wireguardEngine.Close()
+		}
+	}()
 	dialer.UseNetstackForIP = func(ip netip.Addr) bool {
 		_, ok := wireguardEngine.PeerForIP(ip)
 		return ok
@@ -166,10 +176,6 @@ func NewConn(options *Options) (*Conn, error) {
 		return netStack.DialContextTCP(ctx, dst)
 	}
 	netStack.ProcessLocalIPs = true
-	err = netStack.Start(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("start netstack: %w", err)
-	}
 	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
 	wireguardEngine.SetDERPMap(options.DERPMap)
 	netMapCopy := *netMap
@@ -203,6 +209,11 @@ func NewConn(options *Options) (*Conn, error) {
 		},
 		wireguardEngine: wireguardEngine,
 	}
+	defer func() {
+		if err != nil {
+			_ = server.Close()
+		}
+	}()
 	wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
 		server.logger.Debug(context.Background(), "wireguard status", slog.F("status", s), slog.F("err", err))
 		if err != nil {
@@ -236,6 +247,12 @@ func NewConn(options *Options) (*Conn, error) {
 		server.sendNode()
 	})
 	netStack.ForwardTCPIn = server.forwardTCP
+
+	err = netStack.Start(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("start netstack: %w", err)
+	}
+
 	return server, nil
 }
 
@@ -519,22 +536,35 @@ func (c *Conn) Close() error {
 	default:
 	}
 	close(c.closed)
+	c.mutex.Unlock()
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	if c.trafficStats != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = c.trafficStats.Shutdown(ctx)
+		}()
+	}
+
+	_ = c.netStack.Close()
+	c.dialCancel()
+	_ = c.wireguardMonitor.Close()
+	_ = c.dialer.Close()
+	// Stops internals, e.g. tunDevice, magicConn and dnsManager.
+	c.wireguardEngine.Close()
+
+	c.mutex.Lock()
 	for _, l := range c.listeners {
 		_ = l.closeNoLock()
 	}
+	c.listeners = nil
 	c.mutex.Unlock()
-	c.dialCancel()
-	_ = c.dialer.Close()
-	_ = c.magicConn.Close()
-	_ = c.netStack.Close()
-	_ = c.wireguardMonitor.Close()
-	_ = c.tunDevice.Close()
-	c.wireguardEngine.Close()
-	if c.trafficStats != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = c.trafficStats.Shutdown(ctx)
-	}
+
 	return nil
 }
 
@@ -714,16 +744,25 @@ func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
 func (c *Conn) SetConnStatsCallback(maxPeriod time.Duration, maxConns int, dump func(start, end time.Time, virtual, physical map[netlogtype.Connection]netlogtype.Counts)) {
 	connStats := connstats.NewStatistics(maxPeriod, maxConns, dump)
 
+	shutdown := func(s *connstats.Statistics) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = s.Shutdown(ctx)
+	}
+
 	c.mutex.Lock()
+	if c.isClosed() {
+		c.mutex.Unlock()
+		shutdown(connStats)
+		return
+	}
 	old := c.trafficStats
 	c.trafficStats = connStats
 	c.mutex.Unlock()
 
 	// Make sure to shutdown the old callback.
 	if old != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = old.Shutdown(ctx)
+		shutdown(old)
 	}
 
 	c.tunDevice.SetStatistics(connStats)
@@ -776,6 +815,7 @@ func (a addr) String() string  { return a.ln.addr }
 // Logger converts the Tailscale logging function to use slog.
 func Logger(logger slog.Logger) tslogger.Logf {
 	return tslogger.Logf(func(format string, args ...any) {
+		slog.Helper()
 		logger.Debug(context.Background(), fmt.Sprintf(format, args...))
 	})
 }
