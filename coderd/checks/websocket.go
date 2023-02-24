@@ -7,19 +7,7 @@ import (
 
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
-
-	"github.com/coder/coder/codersdk"
 )
-
-func AccessURLAccessible(accessURL *url.URL, timeout time.Duration) CheckFunc {
-	client := codersdk.New(accessURL)
-	return func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-		_, err := client.BuildInfo(ctx)
-		return err
-	}
-}
 
 func CanDialWebsocket(accessURL *url.URL, timeout time.Duration) CheckFunc {
 	wsURL := *accessURL

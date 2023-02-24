@@ -896,7 +896,7 @@ func initChecker(log slog.Logger, accessURL *url.URL) checks.Checker {
 	// TODO(cian): make this configurable.
 	checkPoller := time.NewTicker(10 * time.Second)
 	checker := checks.New(checkPoller.C, log)
-	checker.Add("access-url", checks.AccessURLAccessible(accessURL, 5*time.Second))
+	checker.Add("access-url", checks.CanHitAccessURL(accessURL, 5*time.Second))
 	checker.Add("dial-websocket", checks.CanDialWebsocket(accessURL, 5*time.Second))
 	return checker
 }
