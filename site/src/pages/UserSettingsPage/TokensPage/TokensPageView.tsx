@@ -15,7 +15,7 @@ import { FC } from "react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import IconButton from "@material-ui/core/IconButton/IconButton"
 import { useTranslation } from "react-i18next"
-import { ConvertedAPIKey } from "./TokensPage"
+import { ConvertedAPIKey } from "api/typesGenerated"
 
 const lastUsedOrNever = (lastUsed: string) => {
   const t = dayjs(lastUsed)

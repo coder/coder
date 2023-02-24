@@ -135,6 +135,11 @@ export interface ComputedParameter extends Parameter {
   readonly default_source_value: boolean
 }
 
+// From codersdk/apikey.go
+export interface ConvertedAPIKey extends APIKey {
+  readonly username: string
+}
+
 // From codersdk/users.go
 export interface CreateFirstUserRequest {
   readonly email: string
