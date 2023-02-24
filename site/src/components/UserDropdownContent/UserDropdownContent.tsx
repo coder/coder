@@ -15,10 +15,7 @@ import { combineClasses } from "util/combineClasses"
 
 export const Language = {
   accountLabel: "Account",
-  docsLabel: "Documentation",
   signOutLabel: "Sign Out",
-  bugLabel: "Report a Bug",
-  discordLabel: "Join the Coder Discord",
   copyrightText: `\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`,
 }
 
