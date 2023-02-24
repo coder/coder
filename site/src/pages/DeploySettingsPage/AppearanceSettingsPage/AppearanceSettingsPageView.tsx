@@ -48,20 +48,22 @@ export const AppearanceSettingsPageView = ({
   })
   const logoFieldHelpers = getFormHelpers(logoForm)
 
-  const serviceBannerForm = useFormik<UpdateAppearanceConfig["service_banner"]>({
-    initialValues: {
-      message: appearance.service_banner.message,
-      enabled: appearance.service_banner.enabled,
-      background_color: appearance.service_banner.background_color,
+  const serviceBannerForm = useFormik<UpdateAppearanceConfig["service_banner"]>(
+    {
+      initialValues: {
+        message: appearance.service_banner.message,
+        enabled: appearance.service_banner.enabled,
+        background_color: appearance.service_banner.background_color,
+      },
+      onSubmit: (values) =>
+        updateAppearance(
+          {
+            service_banner: values,
+          },
+          false,
+        ),
     },
-    onSubmit: (values) =>
-      updateAppearance(
-        {
-          service_banner: values,
-        },
-        false,
-      ),
-  })
+  )
   const serviceBannerFieldHelpers = getFormHelpers(serviceBannerForm)
   const [backgroundColor, setBackgroundColor] = useState(
     serviceBannerForm.values.background_color,
