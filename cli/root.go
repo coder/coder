@@ -192,11 +192,8 @@ func ContextWithLogger(ctx context.Context, l slog.Logger) context.Context {
 }
 
 func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
-	l := ctx.Value(contextKeyLogger)
-	if l == nil {
-		return slog.Logger{}, false
-	}
-	return l.(slog.Logger), true
+	l, ok := ctx.Value(contextKeyLogger).(slog.Logger)
+	return l, ok
 }
 
 // fixUnknownSubcommandError modifies the provided commands so that the
