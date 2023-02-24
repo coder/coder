@@ -17,16 +17,16 @@ import { useTranslation } from "react-i18next"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import Switch from "@material-ui/core/Switch"
 import TextField from "@material-ui/core/TextField"
-import { AppearanceConfig } from "api/typesGenerated"
+import { UpdateAppearanceConfig } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { useFormik } from "formik"
 import { useTheme } from "@material-ui/core/styles"
 
 export type AppearanceSettingsPageViewProps = {
-  appearance: AppearanceConfig
+  appearance: UpdateAppearanceConfig
   isEntitled: boolean
   updateAppearance: (
-    newConfig: Partial<AppearanceConfig>,
+    newConfig: Partial<UpdateAppearanceConfig>,
     preview: boolean,
   ) => void
 }
@@ -48,7 +48,7 @@ export const AppearanceSettingsPageView = ({
   })
   const logoFieldHelpers = getFormHelpers(logoForm)
 
-  const serviceBannerForm = useFormik<AppearanceConfig["service_banner"]>({
+  const serviceBannerForm = useFormik<UpdateAppearanceConfig["service_banner"]>({
     initialValues: {
       message: appearance.service_banner.message,
       enabled: appearance.service_banner.enabled,

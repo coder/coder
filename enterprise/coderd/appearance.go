@@ -23,7 +23,7 @@ var defaultSupportLinks = []codersdk.LinkConfig{
 	},
 	{
 		Name:   "Report a bug",
-		Target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body=TODO",
+		Target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body={CODER_BUILD_INFO}",
 		Icon:   "bug",
 	},
 	{
