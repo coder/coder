@@ -15,7 +15,7 @@ export const LoginPage: FC = () => {
 
   if (authState.matches("signedIn")) {
     return <Navigate to={redirectTo} replace />
-  } else if (authState.matches("waitingForTheFirstUser")) {
+  } else if (authState.matches("configuringTheFirstUser")) {
     return <Navigate to="/setup" />
   } else {
     return (
@@ -27,7 +27,8 @@ export const LoginPage: FC = () => {
         </Helmet>
         <LoginPageView
           context={authState.context}
-          isLoading={authState.hasTag("loading")}
+          isLoading={authState.matches("loadingInitialAuthData")}
+          isSigningIn={authState.matches("signingIn")}
           onSignIn={({ email, password }) => {
             authSend({ type: "SIGN_IN", email, password })
           }}

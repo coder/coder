@@ -51,7 +51,10 @@ func speedtest() *cobra.Command {
 			if err != nil && !xerrors.Is(err, cliui.AgentStartError) {
 				return xerrors.Errorf("await agent: %w", err)
 			}
-			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
+			logger, ok := LoggerFromContext(ctx)
+			if !ok {
+				logger = slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
+			}
 			if cliflag.IsSetBool(cmd, varVerbose) {
 				logger = logger.Leveled(slog.LevelDebug)
 			}

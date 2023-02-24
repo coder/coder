@@ -115,13 +115,26 @@ func New(
 	forceStopContext, forceStopFunc := context.WithCancel(ctx)
 	gracefulContext, cancelFunc := context.WithCancel(forceStopContext)
 
+	logger := opts.Logger.With(slog.F("job_id", job.JobId))
+	if build := job.GetWorkspaceBuild(); build != nil {
+		logger = logger.With(
+			slog.F("template_name", build.Metadata.TemplateName),
+			slog.F("template_version", build.Metadata.TemplateVersion),
+			slog.F("workspace_build_id", build.WorkspaceBuildId),
+			slog.F("workspace_id", build.Metadata.WorkspaceId),
+			slog.F("workspace_name", build.Metadata.WorkspaceName),
+			slog.F("workspace_owner", build.Metadata.WorkspaceOwner),
+			slog.F("workspace_transition", build.Metadata.WorkspaceTransition.String()),
+		)
+	}
+
 	return &Runner{
 		tracer:              opts.Tracer,
 		metrics:             opts.Metrics,
 		job:                 job,
 		sender:              opts.Updater,
 		quotaCommitter:      opts.QuotaCommitter,
-		logger:              opts.Logger.With(slog.F("job_id", job.JobId)),
+		logger:              logger,
 		filesystem:          opts.Filesystem,
 		workDirectory:       opts.WorkDirectory,
 		provisioner:         opts.Provisioner,
@@ -165,7 +178,7 @@ func (r *Runner) Run() {
 		concurrentGauge.Dec()
 		if build := r.job.GetWorkspaceBuild(); build != nil {
 			r.metrics.WorkspaceBuilds.WithLabelValues(
-				build.Metadata.WorkspaceOwnerEmail,
+				build.Metadata.WorkspaceOwner,
 				build.Metadata.WorkspaceName,
 				build.Metadata.TemplateName,
 				build.Metadata.TemplateVersion,
@@ -751,8 +764,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 			}
 
 			if len(msgType.Complete.Parameters) > 0 && len(values) > 0 {
-				r.logger.Info(context.Background(), "template uses rich parameters which can't be used together with legacy parameters")
-				return nil, nil, xerrors.Errorf("invalid use of rich parameters")
+				return nil, nil, xerrors.Errorf(`rich parameters can't be used together with legacy parameters, set the coder provider flag "feature_use_managed_variables = true" to enable managed variables`)
 			}
 
 			r.logger.Info(context.Background(), "parse dry-run provision successful",
@@ -857,7 +869,7 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
-			r.logger.Debug(context.Background(), "workspace provision job logged",
+			r.logger.Info(context.Background(), "workspace provision job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 				slog.F("workspace_build_id", r.job.GetWorkspaceBuild().WorkspaceBuildId),
@@ -887,7 +899,6 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 				}
 			}
 
-			r.logger.Debug(context.Background(), "provision complete no error")
 			r.logger.Info(context.Background(), "provision successful",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
