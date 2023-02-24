@@ -345,7 +345,23 @@ func (p *Server) acquireJob(ctx context.Context) {
 	))
 	defer span.End()
 
+	fields := []slog.Field{
+		slog.F("initiator_username", job.UserName),
+		slog.F("provisioner", job.Provisioner),
+		slog.F("job_id", job.JobId),
+	}
+
 	if build := job.GetWorkspaceBuild(); build != nil {
+		fields = append(fields,
+			slog.F("action", build.Metadata.WorkspaceTransition.String()),
+			slog.F("owner_email", build.Metadata.WorkspaceOwnerEmail),
+			slog.F("template_name", build.Metadata.TemplateName),
+			slog.F("template_version", build.Metadata.TemplateVersion),
+			slog.F("workspace_build_id", build.WorkspaceBuildId),
+			slog.F("workspace_id", build.Metadata.WorkspaceId),
+			slog.F("workspace_name", build.WorkspaceName),
+		)
+
 		span.SetAttributes(
 			attribute.String("workspace_build_id", build.WorkspaceBuildId),
 			attribute.String("workspace_id", build.Metadata.WorkspaceId),
@@ -356,11 +372,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 		)
 	}
 
-	p.opts.Logger.Info(ctx, "acquired job",
-		slog.F("initiator_username", job.UserName),
-		slog.F("provisioner", job.Provisioner),
-		slog.F("job_id", job.JobId),
-	)
+	p.opts.Logger.Info(ctx, "acquired job", fields...)
 
 	provisioner, ok := p.opts.Provisioners[job.Provisioner]
 	if !ok {
