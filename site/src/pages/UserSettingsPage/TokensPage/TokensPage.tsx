@@ -5,6 +5,11 @@ import makeStyles from "@material-ui/core/styles/makeStyles"
 import { useTranslation, Trans } from "react-i18next"
 import { useTokensData, useCheckTokenPermissions } from "./hooks"
 import { TokensSwitch, ConfirmDeleteDialog } from "./components"
+import { APIKey } from "api/typesGenerated"
+
+export interface ConvertedAPIKey extends APIKey {
+  username: string
+}
 
 export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
   const styles = useStyles()
@@ -48,7 +53,7 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
           setViewAllTokens={setViewAllTokens}
         />
         <TokensPageView
-          tokens={tokens}
+          tokens={tokens as ConvertedAPIKey[]}
           viewAllTokens={viewAllTokens}
           isLoading={isFetching}
           hasLoaded={isFetched}

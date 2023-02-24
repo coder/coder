@@ -5,7 +5,6 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import { APIKey } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Stack } from "components/Stack/Stack"
 import { TableEmpty } from "components/TableEmpty/TableEmpty"
@@ -16,15 +15,12 @@ import { FC } from "react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import IconButton from "@material-ui/core/IconButton/IconButton"
 import { useTranslation } from "react-i18next"
+import { ConvertedAPIKey } from "./TokensPage"
 
 const lastUsedOrNever = (lastUsed: string) => {
   const t = dayjs(lastUsed)
   const now = dayjs()
   return now.isBefore(t.add(100, "year")) ? t.fromNow() : "Never"
-}
-
-interface ConvertedAPIKey extends APIKey {
-  username: string
 }
 
 export interface TokensPageViewProps {

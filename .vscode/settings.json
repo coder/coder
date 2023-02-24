@@ -4,6 +4,7 @@
     "agentsdk",
     "apps",
     "ASKPASS",
+    "authcheck",
     "autostop",
     "awsidentity",
     "bodyclose",
