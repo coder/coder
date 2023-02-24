@@ -27,6 +27,7 @@ type CheckResult struct {
 type Checker interface {
 	Results() map[string]*CheckResult
 	Add(name string, check CheckFunc)
+	Run()
 	Stop()
 }
 
@@ -48,7 +49,6 @@ func New(tick <-chan time.Time, log slog.Logger) Checker {
 		stop:    stop,
 		log:     log,
 	}
-	go c.run()
 	return c
 }
 
@@ -77,15 +77,17 @@ func (c *checker) Stop() {
 	close(c.stop)
 }
 
-func (c *checker) run() {
+func (c *checker) Run() {
 	for {
 		select {
 		case <-c.stop:
 			return
 		case <-c.tick:
+			c.RLock()
 			for name := range c.checks {
 				go c.runOneCheck(name)
 			}
+			c.RUnlock()
 		}
 	}
 }

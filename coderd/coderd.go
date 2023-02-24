@@ -898,5 +898,6 @@ func initChecker(log slog.Logger, accessURL *url.URL) checks.Checker {
 	checker := checks.New(checkPoller.C, log)
 	checker.Add("access-url", checks.CanHitAccessURL(accessURL, 5*time.Second))
 	checker.Add("dial-websocket", checks.CanDialWebsocket(accessURL, 5*time.Second))
+	go checker.Run()
 	return checker
 }
