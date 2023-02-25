@@ -319,6 +319,16 @@ func New(options *Options) *API {
 				next.ServeHTTP(w, r)
 			})
 		},
+		// This header stops a browser from trying to MIME-sniff the content type and
+		// forces it to stick with the declared content-type. This is the only valid
+		// value for this header.
+		// See: https://github.com/coder/security/issues/12
+		func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Add("X-Content-Type-Options", "nosniff")
+				next.ServeHTTP(w, r)
+			})
+		},
 		httpmw.CSRF(options.SecureAuthCookie),
 	)
 
