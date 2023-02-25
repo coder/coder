@@ -364,7 +364,7 @@ func (e *executor) stateResources(ctx, killCtx context.Context) (*ConvertedState
 	if err != nil {
 		return nil, xerrors.Errorf("get terraform graph: %w", err)
 	}
-	var converted *ConvertedState
+	converted := &ConvertedState{}
 	if state.Values != nil {
 		converted, err = ConvertState([]*tfjson.StateModule{
 			state.Values.RootModule,
