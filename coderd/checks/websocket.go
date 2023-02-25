@@ -3,6 +3,7 @@ package checks
 import (
 	"context"
 	"net/url"
+	"path/filepath"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -18,6 +19,7 @@ func CanDialWebsocket(accessURL *url.URL, timeout time.Duration) CheckFunc {
 		wsURL.Scheme = "wss"
 	default:
 	}
+	wsURL.Path = filepath.Join(wsURL.Path, "checks", "websocket")
 	return func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()

@@ -12,9 +12,7 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-func Test_CanHitAccessURL(t *testing.T) {
-	t.Parallel()
-
+func Test_CanDialWebsocket(t *testing.T) {
 	var (
 		ch      = make(chan time.Time)
 		done    = make(chan struct{})
@@ -25,7 +23,7 @@ func Test_CanHitAccessURL(t *testing.T) {
 		})
 	)
 
-	checker.Add("access-url", checks.CanHitAccessURL(client.URL, testutil.WaitShort))
+	checker.Add("dial-websocket", checks.CanDialWebsocket(client.URL, testutil.WaitShort))
 	go func() {
 		checker.Run()
 		close(done)
@@ -38,5 +36,5 @@ func Test_CanHitAccessURL(t *testing.T) {
 	<-done
 	results := checker.Results()
 	assert.Len(t, results, 1)
-	assert.Empty(t, results["access-url"].Error)
+	assert.Empty(t, results["dial-websocket"].Error)
 }
