@@ -112,7 +112,7 @@ type DeploymentConfig struct {
 	AccessURL                       bigcli.URL
 	WildcardAccessURL               *DeploymentConfigField[string]          `json:"wildcard_access_url" typescript:",notnull"`
 	RedirectToAccessURL             *DeploymentConfigField[bool]            `json:"redirect_to_access_url" typescript:",notnull"`
-	HTTPAddress                     *DeploymentConfigField[string]          `json:"http_address" typescript:",notnull"`
+	HTTPAddress                     bigcli.BindAddress                      `json:"http_address" typescript:",notnull"`
 	AutobuildPollInterval           *DeploymentConfigField[time.Duration]   `json:"autobuild_poll_interval" typescript:",notnull"`
 	DERP                            *DERP                                   `json:"derp" typescript:",notnull"`
 	GitAuth                         *DeploymentConfigField[[]GitAuthConfig] `json:"gitauth" typescript:",notnull"`
@@ -152,7 +152,7 @@ type DeploymentConfig struct {
 	DisablePasswordAuth             *DeploymentConfigField[bool]            `json:"disable_password_auth" typescript:",notnull"`
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
-	Address *DeploymentConfigField[string] `json:"address" typescript:",notnull"`
+	Address bigcli.BindAddress `json:"address" typescript:",notnull"`
 	// DEPRECATED: Use Experiments instead.
 	Experimental *DeploymentConfigField[bool] `json:"experimental" typescript:",notnull"`
 }
@@ -221,7 +221,7 @@ type TelemetryConfig struct {
 
 type TLSConfig struct {
 	Enable         *DeploymentConfigField[bool]     `json:"enable" typescript:",notnull"`
-	Address        *DeploymentConfigField[string]   `json:"address" typescript:",notnull"`
+	Address        bigcli.BindAddress               `json:"address" typescript:",notnull"`
 	RedirectHTTP   *DeploymentConfigField[bool]     `json:"redirect_http" typescript:",notnull"`
 	CertFiles      *DeploymentConfigField[[]string] `json:"cert_file" typescript:",notnull"`
 	ClientAuth     *DeploymentConfigField[string]   `json:"client_auth" typescript:",notnull"`

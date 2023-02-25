@@ -55,9 +55,9 @@ import (
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogstackdriver"
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/cli/bigcli"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/database"
@@ -83,39 +83,119 @@ import (
 	"github.com/coder/coder/tailnet"
 )
 
+func deprecationWarning(a bigcli.Annotations, warning string) bigcli.Annotations {
+	if a == nil {
+		a = make(bigcli.Annotations)
+	}
+	a["Deprecated"] = "true"
+	return a
+}
+
+func serverOptions(c *codersdk.DeploymentConfig) *bigcli.OptionSet {
+	httpAddress := bigcli.Option{
+		Name:    "HTTP Address",
+		Usage:   "HTTP bind address of the server. Unset to disable the HTTP endpoint.",
+		Flag:    "http-address",
+		Default: "127.0.0.1:3000",
+		Value:   &c.HTTPAddress,
+	}
+	tlsBindAddress := bigcli.Option{
+		Name:    "TLS Address",
+		Usage:   "HTTPS bind address of the server.",
+		Flag:    "tls-address",
+		Default: "127.0.0.1:3443",
+		Value:   &c.TLS.Address,
+	}
+	return &bigcli.OptionSet{
+		{
+			Name:  "Access URL",
+			Usage: `The URL that users will use to access the Coder deployment.`,
+			Value: &c.AccessURL,
+		},
+		httpAddress,
+		tlsBindAddress,
+		{
+			Name:          "Address",
+			Usage:         "Bind address of the server.",
+			Flag:          "address",
+			FlagShorthand: "a",
+			Hidden:        true,
+			UseInstead: []bigcli.Option{
+				httpAddress,
+				tlsBindAddress,
+			},
+		},
+	}
+}
+
 // nolint:gocyclo
 func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
 	root := &cobra.Command{
-		Use:   "server",
-		Short: "Start a Coder server",
+		Use:                "server",
+		Short:              "Start a Coder server",
+		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Main command context for managing cancellation of running
 			// services.
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
 
+			cfg := &codersdk.DeploymentConfig{
+				TLS: &codersdk.TLSConfig{},
+			}
+			cliOpts := serverOptions(cfg)
+
+			_, err := cliOpts.ParseFlags(args...)
+			if err != nil {
+				return xerrors.Errorf("parse flags: %w", err)
+			}
+
+			err = cliOpts.ParseEnv("CODER_", os.Environ())
+			if err != nil {
+				return xerrors.Errorf("parse env: %w", err)
+			}
+
+			err = cliOpts.SetDefaults()
+			if err != nil {
+				return xerrors.Errorf("set defaults: %w", err)
+			}
+
+			// Print deprecation warnings.
+			for _, opt := range *cliOpts {
+				if opt.UseInstead == nil {
+					continue
+				}
+
+				warnStr := opt.Name + " is deprecated, please use "
+				for i, use := range opt.UseInstead {
+					warnStr += use.Name + " "
+					if i != len(opt.UseInstead)-1 {
+						warnStr += "and "
+					}
+				}
+				warnStr += "instead.\n"
+
+				cmd.PrintErr(
+					cliui.Styles.Warn.Render("WARN: ") + warnStr,
+				)
+			}
+
 			go dumpHandler(ctx)
 
-			cfg, err := deployment.Config(cmd.Flags(), vip)
-			if err != nil {
-				return xerrors.Errorf("getting deployment config: %w", err)
-			}
-
 			// Validate bind addresses.
-			if cfg.Address.Value != "" {
-				cmd.PrintErr(cliui.Styles.Warn.Render("WARN:") + " --address and -a are deprecated, please use --http-address and --tls-address instead")
+			if cfg.Address.Host != "" {
 				if cfg.TLS.Enable.Value {
-					cfg.HTTPAddress.Value = ""
-					cfg.TLS.Address.Value = cfg.Address.Value
+					cfg.HTTPAddress.Host = ""
+					cfg.TLS.Address = cfg.Address
 				} else {
-					cfg.HTTPAddress.Value = cfg.Address.Value
-					cfg.TLS.Address.Value = ""
+					cfg.HTTPAddress = cfg.Address
+					cfg.TLS.Address.Host = ""
 				}
 			}
-			if cfg.TLS.Enable.Value && cfg.TLS.Address.Value == "" {
+			if cfg.TLS.Enable.Value && cfg.TLS.Address.Host == "" {
 				return xerrors.Errorf("TLS address must be set if TLS is enabled")
 			}
-			if !cfg.TLS.Enable.Value && cfg.HTTPAddress.Value == "" {
+			if !cfg.TLS.Enable.Value && cfg.HTTPAddress.Host == "" {
 				return xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
 			}
 
@@ -227,10 +307,10 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				httpListener net.Listener
 				httpURL      *url.URL
 			)
-			if cfg.HTTPAddress.Value != "" {
-				httpListener, err = net.Listen("tcp", cfg.HTTPAddress.Value)
+			if cfg.HTTPAddress.Host != "" {
+				httpListener, err = net.Listen("tcp", cfg.HTTPAddress.String())
 				if err != nil {
-					return xerrors.Errorf("listen %q: %w", cfg.HTTPAddress.Value, err)
+					return xerrors.Errorf("listen %q: %w", cfg.HTTPAddress.String(), err)
 				}
 				defer httpListener.Close()
 
@@ -239,7 +319,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				// httpListener.Addr().String() likes to return it as an ipv6
 				// address (i.e. [::]:x). If the input ip is 0.0.0.0, try to
 				// coerce the output back to ipv4 to make it less confusing.
-				if strings.Contains(cfg.HTTPAddress.Value, "0.0.0.0") {
+				if strings.Contains(cfg.HTTPAddress.String(), "0.0.0.0") {
 					listenAddrStr = strings.ReplaceAll(listenAddrStr, "[::]", "0.0.0.0")
 				}
 
@@ -267,7 +347,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				httpsURL      *url.URL
 			)
 			if cfg.TLS.Enable.Value {
-				if cfg.TLS.Address.Value == "" {
+				if cfg.TLS.Address.Host == "" {
 					return xerrors.New("tls address must be set if tls is enabled")
 				}
 
@@ -288,9 +368,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				if err != nil {
 					return xerrors.Errorf("configure tls: %w", err)
 				}
-				httpsListenerInner, err := net.Listen("tcp", cfg.TLS.Address.Value)
+				httpsListenerInner, err := net.Listen("tcp", cfg.TLS.Address.String())
 				if err != nil {
-					return xerrors.Errorf("listen %q: %w", cfg.TLS.Address.Value, err)
+					return xerrors.Errorf("listen %q: %w", cfg.TLS.Address.String(), err)
 				}
 				defer httpsListenerInner.Close()
 
@@ -303,7 +383,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				// an ipv6 address (i.e. [::]:x). If the input ip is 0.0.0.0,
 				// try to coerce the output back to ipv4 to make it less
 				// confusing.
-				if strings.Contains(cfg.HTTPAddress.Value, "0.0.0.0") {
+				if strings.Contains(cfg.HTTPAddress.String(), "0.0.0.0") {
 					listenAddrStr = strings.ReplaceAll(listenAddrStr, "[::]", "0.0.0.0")
 				}
 
@@ -972,7 +1052,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 	createAdminUserCommand := newCreateAdminUserCommand()
 	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd, createAdminUserCommand)
 
-	deployment.AttachFlags(root.Flags(), vip, false)
+	// deployment.AttachFlags(root.Flags(), vip, false)
 
 	return root
 }

@@ -32,23 +32,6 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage: "Specifies whether to redirect requests that do not match the access URL host.",
 			Flag:  "redirect-to-access-url",
 		},
-		// DEPRECATED: Use HTTPAddress or TLS.Address instead.
-		Address: &codersdk.DeploymentConfigField[string]{
-			Name:      "Address",
-			Usage:     "Bind address of the server.",
-			Flag:      "address",
-			Shorthand: "a",
-			// Deprecated, so we don't have a default. If set, it will overwrite
-			// HTTPAddress and TLS.Address and print a warning.
-			Hidden:  true,
-			Default: "",
-		},
-		HTTPAddress: &codersdk.DeploymentConfigField[string]{
-			Name:    "Address",
-			Usage:   "HTTP bind address of the server. Unset to disable the HTTP endpoint.",
-			Flag:    "http-address",
-			Default: "127.0.0.1:3000",
-		},
 		AutobuildPollInterval: &codersdk.DeploymentConfigField[time.Duration]{
 			Name:    "Autobuild Poll Interval",
 			Usage:   "Interval to poll for scheduled workspace builds.",
@@ -293,12 +276,6 @@ func newConfig() *codersdk.DeploymentConfig {
 				Name:  "TLS Enable",
 				Usage: "Whether TLS will be enabled.",
 				Flag:  "tls-enable",
-			},
-			Address: &codersdk.DeploymentConfigField[string]{
-				Name:    "TLS Address",
-				Usage:   "HTTPS bind address of the server.",
-				Flag:    "tls-address",
-				Default: "127.0.0.1:3443",
 			},
 			// DEPRECATED: Use RedirectToAccessURL instead.
 			RedirectHTTP: &codersdk.DeploymentConfigField[bool]{
@@ -653,6 +630,10 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 	for i := 0; i < typ.NumField(); i++ {
 		fv := val.Field(i)
 		ft := fv.Type()
+		if isBigCLI(ft) {
+			// Ignore these values while migrating.
+			continue
+		}
 		tag := typ.Field(i).Tag.Get("json")
 		var key string
 		if prefix == "" {
@@ -739,6 +720,10 @@ func NewViper() *viper.Viper {
 	return vip
 }
 
+func isBigCLI(typ reflect.Type) bool {
+	return strings.Contains(typ.PkgPath(), "bigcli")
+}
+
 func setViperDefaults(prefix string, vip *viper.Viper, target interface{}) {
 	val := reflect.ValueOf(target).Elem()
 	val = reflect.Indirect(val)
@@ -749,9 +734,18 @@ func setViperDefaults(prefix string, vip *viper.Viper, target interface{}) {
 		return
 	}
 
+	if isBigCLI(typ) {
+		// Ignore these values while migrating.
+		return
+	}
+
 	for i := 0; i < typ.NumField(); i++ {
 		fv := val.Field(i)
 		ft := fv.Type()
+		if isBigCLI(ft) {
+			// Ignore these values while migrating.
+			continue
+		}
 		tag := typ.Field(i).Tag.Get("json")
 		var key string
 		if prefix == "" {
@@ -766,7 +760,7 @@ func setViperDefaults(prefix string, vip *viper.Viper, target interface{}) {
 			// we currently don't support default values on structured slices
 			continue
 		default:
-			panic(fmt.Sprintf("unsupported type %T", ft))
+			panic(fmt.Sprintf("unsupported type %v", ft.String()))
 		}
 	}
 }
@@ -836,6 +830,10 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 	for i := 0; i < typ.NumField(); i++ {
 		fv := val.Field(i)
 		ft := fv.Type()
+		if isBigCLI(ft) {
+			// Ignore these values while migrating.
+			continue
+		}
 		tag := typ.Field(i).Tag.Get("json")
 		var key string
 		if prefix == "" {
@@ -852,7 +850,7 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 				setFlags(key, flagset, vip, fv.Index(j).Interface(), enterprise)
 			}
 		default:
-			panic(fmt.Sprintf("unsupported type %T", ft))
+			panic(fmt.Sprintf("unsupported type %v", ft))
 		}
 	}
 }

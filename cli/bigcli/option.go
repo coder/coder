@@ -13,6 +13,8 @@ import (
 // features.
 const Disable = "-"
 
+type Annotations map[string]string
+
 // Option is a configuration option for a CLI application.
 type Option struct {
 	Name  string
@@ -34,8 +36,13 @@ type Option struct {
 
 	// Annotations enable extensions to bigcli higher up in the stack. It's useful for
 	// help formatting and documentation generation.
-	Annotations map[string]string
-	Hidden      bool
+	Annotations Annotations
+
+	// UseInstead is a list of options that should be used instead of this one.
+	// The field is used to generate a deprecation warning.
+	UseInstead []Option
+
+	Hidden bool
 }
 
 // FlagName returns the flag name for the option.
@@ -69,7 +76,7 @@ func (os *OptionSet) Add(opts ...Option) {
 }
 
 // ParseFlags parses the given os.Args style arguments into the OptionSet.
-func (os *OptionSet) ParseFlags(args ...string) error {
+func (os *OptionSet) ParseFlags(args ...string) ([]string, error) {
 	fs := pflag.NewFlagSet("", pflag.ContinueOnError)
 	for _, opt := range *os {
 		flagName, ok := opt.FlagName()
@@ -88,7 +95,7 @@ func (os *OptionSet) ParseFlags(args ...string) error {
 			Hidden:      opt.Hidden,
 		})
 	}
-	return fs.Parse(args)
+	return fs.Args(), fs.Parse(args)
 }
 
 // ParseEnv parses the given environment variables into the OptionSet.
@@ -105,7 +112,7 @@ func (os *OptionSet) ParseEnv(globalPrefix string, environ []string) error {
 			continue
 		}
 
-		tokens := strings.Split(env, "=")
+		tokens := strings.SplitN(env, "=", 2)
 		if len(tokens) != 2 {
 			return xerrors.Errorf("invalid env %q", env)
 		}
@@ -139,6 +146,12 @@ func (os *OptionSet) SetDefaults() error {
 	var merr *multierror.Error
 	for _, opt := range *os {
 		if opt.Default == "" {
+			continue
+		}
+		if opt.Value == nil {
+			merr = multierror.Append(
+				merr, xerrors.Errorf("parse %q: no Value field set", opt.Name),
+			)
 			continue
 		}
 		if err := opt.Value.Set(opt.Default); err != nil {

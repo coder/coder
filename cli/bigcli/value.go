@@ -1,6 +1,7 @@
 package bigcli
 
 import (
+	"net"
 	"net/url"
 	"strconv"
 	"time"
@@ -78,4 +79,23 @@ func (*URL) Type() string {
 
 func (u *URL) URL() *url.URL {
 	return (*url.URL)(u)
+}
+
+type BindAddress struct {
+	Host string
+	Port string
+}
+
+func (b *BindAddress) Set(v string) error {
+	var err error
+	b.Host, b.Port, err = net.SplitHostPort(v)
+	return err
+}
+
+func (b *BindAddress) String() string {
+	return b.Host + ":" + b.Port
+}
+
+func (*BindAddress) Type() string {
+	return "bind-address"
 }
