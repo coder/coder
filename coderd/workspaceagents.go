@@ -404,6 +404,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 }
 
 func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+	ctx := r.Context()
 	clientConn, serverConn := net.Pipe()
 
 	derpMap := api.DERPMap.Clone()
@@ -453,32 +454,32 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	}
 
 	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		err := conn.RemoveAllPeers()
-		if err != nil {
-			return xerrors.Errorf("remove all peers: %w", err)
-		}
-
-		err = conn.UpdateNodes(node)
+		err = conn.UpdateNodes(node, true)
 		if err != nil {
 			return xerrors.Errorf("update nodes: %w", err)
 		}
 		return nil
 	})
 	conn.SetNodeCallback(sendNodes)
-	go func() {
-		err := (*api.TailnetCoordinator.Load()).ServeClient(serverConn, uuid.New(), agentID)
-		if err != nil {
-			api.Logger.Warn(r.Context(), "tailnet coordinator client error", slog.Error(err))
-			_ = conn.Close()
-		}
-	}()
-	return &codersdk.WorkspaceAgentConn{
+	agentConn := &codersdk.WorkspaceAgentConn{
 		Conn: conn,
 		CloseFunc: func() {
 			_ = clientConn.Close()
 			_ = serverConn.Close()
 		},
-	}, nil
+	}
+	go func() {
+		err := (*api.TailnetCoordinator.Load()).ServeClient(serverConn, uuid.New(), agentID)
+		if err != nil {
+			api.Logger.Warn(r.Context(), "tailnet coordinator client error", slog.Error(err))
+			_ = agentConn.Close()
+		}
+	}()
+	if !agentConn.AwaitReachable(ctx) {
+		_ = agentConn.Close()
+		return nil, xerrors.Errorf("agent not reachable")
+	}
+	return agentConn, nil
 }
 
 // @Summary Get connection info for workspace agent
@@ -644,7 +645,9 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			// This is a bug with unit tests that cancel the app context and
 			// cause this error log to be generated. We should fix the unit tests
 			// as this is a valid log.
-			if !xerrors.Is(err, context.Canceled) {
+			//
+			// The pq error occurs when the server is shutting down.
+			if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
 				api.Logger.Error(ctx, "failed to update agent disconnect time",
 					slog.Error(err),
 					slog.F("workspace", build.WorkspaceID),

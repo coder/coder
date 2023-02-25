@@ -1,5 +1,6 @@
 import { action } from "@storybook/addon-actions"
 import { ComponentMeta, Story } from "@storybook/react"
+import { MockAuthMethods } from "testHelpers/entities"
 import { LoginPageView, LoginPageViewProps } from "./LoginPageView"
 
 export default {
@@ -15,18 +16,44 @@ export const Example = Template.bind({})
 Example.args = {
   isLoading: false,
   onSignIn: action("onSignIn"),
-  context: {},
+  context: {
+    data: {
+      authMethods: MockAuthMethods,
+      hasFirstUser: false,
+    },
+  },
 }
 
-const err = new Error(
-  "You are signed out or your session has expired. Please sign in again to continue.",
-)
+const err = new Error("Username or email are wrong.")
 
 export const AuthError = Template.bind({})
 AuthError.args = {
   isLoading: false,
   onSignIn: action("onSignIn"),
   context: {
-    authError: err,
+    error: err,
+    data: {
+      authMethods: MockAuthMethods,
+      hasFirstUser: false,
+    },
+  },
+}
+
+export const LoadingInitialData = Template.bind({})
+LoadingInitialData.args = {
+  isLoading: true,
+  onSignIn: action("onSignIn"),
+  context: {},
+}
+
+export const SigningIn = Template.bind({})
+SigningIn.args = {
+  isSigningIn: true,
+  onSignIn: action("onSignIn"),
+  context: {
+    data: {
+      authMethods: MockAuthMethods,
+      hasFirstUser: false,
+    },
   },
 }

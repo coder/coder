@@ -803,6 +803,11 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
 }
 
+// From codersdk/apikey.go
+export interface TokensFilter {
+  readonly include_all: boolean
+}
+
 // From codersdk/deployment.go
 export interface TraceConfig {
   readonly enable: DeploymentConfigField<boolean>

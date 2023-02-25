@@ -2031,6 +2031,8 @@ type Provision_Metadata struct {
 	WorkspaceId         string              `protobuf:"bytes,5,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty"`
 	WorkspaceOwnerId    string              `protobuf:"bytes,6,opt,name=workspace_owner_id,json=workspaceOwnerId,proto3" json:"workspace_owner_id,omitempty"`
 	WorkspaceOwnerEmail string              `protobuf:"bytes,7,opt,name=workspace_owner_email,json=workspaceOwnerEmail,proto3" json:"workspace_owner_email,omitempty"`
+	TemplateName        string              `protobuf:"bytes,8,opt,name=template_name,json=templateName,proto3" json:"template_name,omitempty"`
+	TemplateVersion     string              `protobuf:"bytes,9,opt,name=template_version,json=templateVersion,proto3" json:"template_version,omitempty"`
 }
 
 func (x *Provision_Metadata) Reset() {
@@ -2110,6 +2112,20 @@ func (x *Provision_Metadata) GetWorkspaceOwnerId() string {
 func (x *Provision_Metadata) GetWorkspaceOwnerEmail() string {
 	if x != nil {
 		return x.WorkspaceOwnerEmail
+	}
+	return ""
+}
+
+func (x *Provision_Metadata) GetTemplateName() string {
+	if x != nil {
+		return x.TemplateName
+	}
+	return ""
+}
+
+func (x *Provision_Metadata) GetTemplateVersion() string {
+	if x != nil {
+		return x.TemplateVersion
 	}
 	return ""
 }

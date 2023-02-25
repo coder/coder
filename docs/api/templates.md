@@ -1751,7 +1751,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/g
     "authenticate_url": "string",
     "authenticated": true,
     "id": "string",
-    "type": "string"
+    "type": "azure-devops"
   }
 ]
 ```
@@ -1766,13 +1766,22 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/g
 
 Status Code **200**
 
-| Name                 | Type    | Required | Restrictions | Description |
-| -------------------- | ------- | -------- | ------------ | ----------- |
-| `[array item]`       | array   | false    |              |             |
-| `» authenticate_url` | string  | false    |              |             |
-| `» authenticated`    | boolean | false    |              |             |
-| `» id`               | string  | false    |              |             |
-| `» type`             | string  | false    |              |             |
+| Name                 | Type                                                   | Required | Restrictions | Description |
+| -------------------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]`       | array                                                  | false    |              |             |
+| `» authenticate_url` | string                                                 | false    |              |             |
+| `» authenticated`    | boolean                                                | false    |              |             |
+| `» id`               | string                                                 | false    |              |             |
+| `» type`             | [codersdk.GitProvider](schemas.md#codersdkgitprovider) | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value          |
+| -------- | -------------- |
+| `type`   | `azure-devops` |
+| `type`   | `github`       |
+| `type`   | `gitlab`       |
+| `type`   | `bitbucket`    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

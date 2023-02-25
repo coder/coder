@@ -6603,6 +6603,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GitProvider": {
+            "type": "string",
+            "enum": [
+                "azure-devops",
+                "github",
+                "gitlab",
+                "bitbucket"
+            ],
+            "x-enum-varnames": [
+                "GitProviderAzureDevops",
+                "GitProviderGitHub",
+                "GitProviderGitLab",
+                "GitProviderBitBucket"
+            ]
+        },
         "codersdk.GitSSHKey": {
             "type": "object",
             "properties": {
@@ -7699,7 +7714,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.GitProvider"
                 }
             }
         },
