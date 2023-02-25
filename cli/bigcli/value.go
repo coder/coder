@@ -1,6 +1,12 @@
 package bigcli
 
-import "strconv"
+import (
+	"strconv"
+	"time"
+)
+
+// values.go contains a standard set of value types that can be used as
+// Option Values.
 
 type Int int
 
@@ -31,4 +37,20 @@ func (s String) String() string {
 
 func (String) Type() string {
 	return "string"
+}
+
+type Duration time.Duration
+
+func (d *Duration) Set(v string) error {
+	dd, err := time.ParseDuration(v)
+	*d = Duration(dd)
+	return err
+}
+
+func (d *Duration) String() string {
+	return time.Duration(*d).String()
+}
+
+func (Duration) Type() string {
+	return "duration"
 }

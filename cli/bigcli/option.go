@@ -9,6 +9,8 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// Disable is a sentinel value for Option.Flag and Option.Env to disable
+// features.
 const Disable = "-"
 
 // Option is a configuration option for a CLI application.
@@ -30,12 +32,13 @@ type Option struct {
 	Default string
 	Value   pflag.Value
 
-	// Annotations can be anything and everything you want. It's useful for
+	// Annotations enable extensions to bigcli higher up in the stack. It's useful for
 	// help formatting and documentation generation.
 	Annotations map[string]string
 	Hidden      bool
 }
 
+// FlagName returns the flag name for the option.
 func (o *Option) FlagName() (string, bool) {
 	if o.Flag == Disable {
 		return "", false
@@ -131,7 +134,7 @@ func (os *OptionSet) ParseEnv(globalPrefix string, environ []string) error {
 }
 
 // SetDefaults sets the default values for each Option.
-// It should be called after all parsing (e.g. ParseFlags, ParseEnv, ParseConfig).
+// It should be called after all parsing (e.g. ParseFlags, ParseEnv).
 func (os *OptionSet) SetDefaults() error {
 	var merr *multierror.Error
 	for _, opt := range *os {
