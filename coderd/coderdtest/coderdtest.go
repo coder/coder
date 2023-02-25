@@ -484,6 +484,9 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 
 	other := codersdk.New(client.URL)
 	other.SetSessionToken(login.SessionToken)
+	t.Cleanup(func() {
+		other.HTTPClient.CloseIdleConnections()
+	})
 
 	if len(roles) > 0 {
 		// Find the roles for the org vs the site wide roles
