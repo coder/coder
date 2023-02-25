@@ -179,7 +179,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
 	wireguardEngine.SetDERPMap(options.DERPMap)
 	netMapCopy := *netMap
-	options.Logger.Debug(context.Background(), "updating network map", slog.F("net_map", netMapCopy))
+	options.Logger.Debug(context.Background(), "updating network map")
 	wireguardEngine.SetNetworkMap(&netMapCopy)
 
 	localIPSet := netipx.IPSetBuilder{}
@@ -333,7 +333,7 @@ func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	c.wireguardEngine.SetDERPMap(derpMap)
 	c.netMap.DERPMap = derpMap
 	netMapCopy := *c.netMap
-	c.logger.Debug(context.Background(), "updating network map", slog.F("net_map", netMapCopy))
+	c.logger.Debug(context.Background(), "updating network map")
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 }
 
@@ -344,7 +344,7 @@ func (c *Conn) RemoveAllPeers() error {
 	c.netMap.Peers = []*tailcfg.Node{}
 	c.peerMap = map[tailcfg.NodeID]*tailcfg.Node{}
 	netMapCopy := *c.netMap
-	c.logger.Debug(context.Background(), "updating network map", slog.F("net_map", netMapCopy))
+	c.logger.Debug(context.Background(), "updating network map")
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
@@ -428,7 +428,7 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 		c.netMap.Peers = append(c.netMap.Peers, peer.Clone())
 	}
 	netMapCopy := *c.netMap
-	c.logger.Debug(context.Background(), "updating network map", slog.F("net_map", netMapCopy))
+	c.logger.Debug(context.Background(), "updating network map")
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
