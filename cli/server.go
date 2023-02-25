@@ -356,13 +356,16 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			// If the access URL is empty, we attempt to run a reverse-proxy
 			// tunnel to make the initial setup really simple.
-			if cfg.AccessURL.Value == "" {
+			if cfg.AccessURL.String() == "" {
 				cmd.Printf("Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
 				tunnel, tunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
 				}
-				cfg.AccessURL.Value = tunnel.URL
+				err = cfg.AccessURL.Set(tunnel.URL)
+				if err != nil {
+					return xerrors.Errorf("set access url: %w", err)
+				}
 
 				if cfg.WildcardAccessURL.Value == "" {
 					u, err := parseURL(tunnel.URL)
@@ -375,34 +378,34 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 
-			accessURLParsed, err := parseURL(cfg.AccessURL.Value)
-			if err != nil {
-				return xerrors.Errorf("parse URL: %w", err)
-			}
-			accessURLPortRaw := accessURLParsed.Port()
+			_, accessURLPortRaw, _ := net.SplitHostPort(cfg.AccessURL.Host)
 			if accessURLPortRaw == "" {
 				accessURLPortRaw = "80"
-				if accessURLParsed.Scheme == "https" {
+				if cfg.AccessURL.Scheme == "https" {
 					accessURLPortRaw = "443"
 				}
 			}
+
 			accessURLPort, err := strconv.Atoi(accessURLPortRaw)
 			if err != nil {
 				return xerrors.Errorf("parse access URL port: %w", err)
 			}
 
 			// Warn the user if the access URL appears to be a loopback address.
-			isLocal, err := isLocalURL(ctx, accessURLParsed)
+			isLocal, err := isLocalURL(ctx, cfg.AccessURL.URL())
 			if isLocal || err != nil {
 				reason := "could not be resolved"
 				if isLocal {
 					reason = "isn't externally reachable"
 				}
-				cmd.Printf("%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n", cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(accessURLParsed.String()), reason)
+				cmd.Printf(
+					"%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n",
+					cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(cfg.AccessURL.String()), reason,
+				)
 			}
 
 			// A newline is added before for visibility in terminal output.
-			cmd.Printf("\nView the Web UI: %s\n", accessURLParsed.String())
+			cmd.Printf("\nView the Web UI: %s\n", cfg.AccessURL.String())
 
 			// Used for zero-trust instance identity with Google Cloud.
 			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
@@ -423,10 +426,10 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				Nodes: []*tailcfg.DERPNode{{
 					Name:      fmt.Sprintf("%db", cfg.DERP.Server.RegionID.Value),
 					RegionID:  cfg.DERP.Server.RegionID.Value,
-					HostName:  accessURLParsed.Hostname(),
+					HostName:  cfg.AccessURL.Host,
 					DERPPort:  accessURLPort,
 					STUNPort:  -1,
-					ForceHTTP: accessURLParsed.Scheme == "http",
+					ForceHTTP: cfg.AccessURL.Scheme == "http",
 				}},
 			}
 			if !cfg.DERP.Server.Enable.Value {
@@ -446,7 +449,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 
-			gitAuthConfigs, err := gitauth.ConvertConfig(cfg.GitAuth.Value, accessURLParsed)
+			gitAuthConfigs, err := gitauth.ConvertConfig(cfg.GitAuth.Value, cfg.AccessURL.URL())
 			if err != nil {
 				return xerrors.Errorf("parse git auth config: %w", err)
 			}
@@ -457,7 +460,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 
 			options := &coderd.Options{
-				AccessURL:                   accessURLParsed,
+				AccessURL:                   cfg.AccessURL.URL(),
 				AppHostname:                 appHostname,
 				AppHostnameRegex:            appHostnameRegex,
 				Logger:                      logger.Named("coderd"),
@@ -512,7 +515,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			}
 
 			if cfg.OAuth2.Github.ClientSecret.Value != "" {
-				options.GithubOAuth2Config, err = configureGithubOAuth2(accessURLParsed,
+				options.GithubOAuth2Config, err = configureGithubOAuth2(cfg.AccessURL.URL(),
 					cfg.OAuth2.Github.ClientID.Value,
 					cfg.OAuth2.Github.ClientSecret.Value,
 					cfg.OAuth2.Github.AllowSignups.Value,
@@ -542,7 +545,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				if err != nil {
 					return xerrors.Errorf("configure oidc provider: %w", err)
 				}
-				redirectURL, err := accessURLParsed.Parse("/api/v2/users/oidc/callback")
+				redirectURL, err := cfg.AccessURL.URL().Parse("/api/v2/users/oidc/callback")
 				if err != nil {
 					return xerrors.Errorf("parse oidc oauth callback url: %w", err)
 				}
@@ -731,7 +734,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// the request is not to a local IP.
 			var handler http.Handler = coderAPI.RootHandler
 			if cfg.RedirectToAccessURL.Value {
-				handler = redirectToAccessURL(handler, accessURLParsed, tunnel != nil, appHostnameRegex)
+				handler = redirectToAccessURL(handler, cfg.AccessURL.URL(), tunnel != nil, appHostnameRegex)
 			}
 
 			// ReadHeaderTimeout is purposefully not enabled. It caused some
@@ -798,7 +801,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				cmd.Println("\nFailed to check for the first user: " + err.Error())
 			} else if !hasFirstUser {
 				cmd.Println("\nGet started by creating the first user (in a new terminal):")
-				cmd.Println(cliui.Styles.Code.Render("coder login " + accessURLParsed.String()))
+				cmd.Println(cliui.Styles.Code.Render("coder login " + cfg.AccessURL.String()))
 			}
 
 			cmd.Println("\n==> Logs will stream in below (press ctrl+c to gracefully exit):")

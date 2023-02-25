@@ -9,6 +9,8 @@ import (
 
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cli/bigcli"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -107,7 +109,7 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 
 // DeploymentConfig is the central configuration for the coder server.
 type DeploymentConfig struct {
-	AccessURL                       *DeploymentConfigField[string]          `json:"access_url" typescript:",notnull"`
+	AccessURL                       bigcli.URL
 	WildcardAccessURL               *DeploymentConfigField[string]          `json:"wildcard_access_url" typescript:",notnull"`
 	RedirectToAccessURL             *DeploymentConfigField[bool]            `json:"redirect_to_access_url" typescript:",notnull"`
 	HTTPAddress                     *DeploymentConfigField[string]          `json:"http_address" typescript:",notnull"`

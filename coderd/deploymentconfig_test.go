@@ -17,7 +17,7 @@ func TestDeploymentConfig(t *testing.T) {
 	defer cancel()
 	cfg := coderdtest.DeploymentConfig(t)
 	// values should be returned
-	cfg.AccessURL.Value = hi
+	cfg.BrowserOnly.Value = true
 	// values should not be returned
 	cfg.OAuth2.Github.ClientSecret.Value = hi
 	cfg.OIDC.ClientSecret.Value = hi
@@ -31,7 +31,7 @@ func TestDeploymentConfig(t *testing.T) {
 	scrubbed, err := client.DeploymentConfig(ctx)
 	require.NoError(t, err)
 	// ensure normal values pass through
-	require.EqualValues(t, hi, scrubbed.AccessURL.Value)
+	require.EqualValues(t, true, scrubbed.BrowserOnly.Value)
 	// ensure secrets are removed
 	require.Empty(t, scrubbed.OAuth2.Github.ClientSecret.Value)
 	require.Empty(t, scrubbed.OIDC.ClientSecret.Value)

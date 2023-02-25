@@ -22,11 +22,6 @@ import (
 
 func newConfig() *codersdk.DeploymentConfig {
 	return &codersdk.DeploymentConfig{
-		AccessURL: &codersdk.DeploymentConfigField[string]{
-			Name:  "Access URL",
-			Usage: "External URL to access your deployment. This must be accessible by all provisioned workspaces.",
-			Flag:  "access-url",
-		},
 		WildcardAccessURL: &codersdk.DeploymentConfigField[string]{
 			Name:  "Wildcard Access URL",
 			Usage: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",

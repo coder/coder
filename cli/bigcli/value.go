@@ -1,6 +1,7 @@
 package bigcli
 
 import (
+	"net/url"
 	"strconv"
 	"time"
 )
@@ -53,4 +54,28 @@ func (d *Duration) String() string {
 
 func (Duration) Type() string {
 	return "duration"
+}
+
+type URL url.URL
+
+func (u *URL) Set(v string) error {
+	uu, err := url.Parse(v)
+	if err != nil {
+		return err
+	}
+	*u = URL(*uu)
+	return nil
+}
+
+func (u *URL) String() string {
+	uu := url.URL(*u)
+	return uu.String()
+}
+
+func (*URL) Type() string {
+	return "url"
+}
+
+func (u *URL) URL() *url.URL {
+	return (*url.URL)(u)
 }

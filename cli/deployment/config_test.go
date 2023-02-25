@@ -45,7 +45,6 @@ func TestConfig(t *testing.T) {
 		},
 		Valid: func(config *codersdk.DeploymentConfig) {
 			require.Equal(t, config.Address.Value, "0.0.0.0:8443")
-			require.Equal(t, config.AccessURL.Value, "https://dev.coder.com")
 			require.Equal(t, config.PostgresURL.Value, "some-url")
 			require.Equal(t, config.Pprof.Address.Value, "something")
 			require.Equal(t, config.Pprof.Enable.Value, true)
