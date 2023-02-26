@@ -700,8 +700,7 @@ func createTestParseResponseWithDefault(defaultValue string) []*proto.Parse_Resp
 	}}
 }
 
-type oauth2Config struct {
-}
+type oauth2Config struct{}
 
 func (*oauth2Config) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
 	return "/?state=" + url.QueryEscape(state)
@@ -719,8 +718,7 @@ func (*oauth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSou
 	return &oauth2TokenSource{}
 }
 
-type oauth2TokenSource struct {
-}
+type oauth2TokenSource struct{}
 
 func (*oauth2TokenSource) Token() (*oauth2.Token, error) {
 	return &oauth2.Token{

@@ -11,6 +11,7 @@ const GitAuthPage: FC = () => {
   useEffect(() => {
     // This is used to notify the parent window that the Git auth token has been refreshed.
     // It's critical in the create workspace flow!
+    // eslint-disable-next-line compat/compat -- It actually is supported... not sure why it's complaining.
     const bc = new BroadcastChannel(REFRESH_GITAUTH_BROADCAST_CHANNEL)
     // The message doesn't matter, any message refreshes the page!
     bc.postMessage("noop")

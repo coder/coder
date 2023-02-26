@@ -167,6 +167,7 @@ export const createWorkspaceMachine =
           invoke: {
             id: "listenForRefreshGitAuth",
             src: () => (callback) => {
+              // eslint-disable-next-line compat/compat -- It actually is supported... not sure why eslint is complaining.
               const bc = new BroadcastChannel(REFRESH_GITAUTH_BROADCAST_CHANNEL)
               bc.addEventListener("message", () => {
                 callback("REFRESH_GITAUTH")
