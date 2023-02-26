@@ -118,43 +118,43 @@ type DeploymentConfig struct {
 	GitAuth                         *DeploymentConfigField[[]GitAuthConfig] `json:"gitauth" typescript:",notnull"`
 	Prometheus                      *PrometheusConfig                       `json:"prometheus" typescript:",notnull"`
 	Pprof                           *PprofConfig                            `json:"pprof" typescript:",notnull"`
-	ProxyTrustedHeaders             *DeploymentConfigField[[]string]        `json:"proxy_trusted_headers" typescript:",notnull"`
-	ProxyTrustedOrigins             *DeploymentConfigField[[]string]        `json:"proxy_trusted_origins" typescript:",notnull"`
-	CacheDirectory                  *DeploymentConfigField[string]          `json:"cache_directory" typescript:",notnull"`
-	InMemoryDatabase                *DeploymentConfigField[bool]            `json:"in_memory_database" typescript:",notnull"`
-	PostgresURL                     *DeploymentConfigField[string]          `json:"pg_connection_url" typescript:",notnull"`
+	ProxyTrustedHeaders             bigcli.Strings                          `json:"proxy_trusted_headers" typescript:",notnull"`
+	ProxyTrustedOrigins             bigcli.Strings                          `json:"proxy_trusted_origins" typescript:",notnull"`
+	CacheDirectory                  bigcli.String                           `json:"cache_directory" typescript:",notnull"`
+	InMemoryDatabase                bigcli.Bool                             `json:"in_memory_database" typescript:",notnull"`
+	PostgresURL                     bigcli.String                           `json:"pg_connection_url" typescript:",notnull"`
 	OAuth2                          *OAuth2Config                           `json:"oauth2" typescript:",notnull"`
 	OIDC                            *OIDCConfig                             `json:"oidc" typescript:",notnull"`
 	Telemetry                       *TelemetryConfig                        `json:"telemetry" typescript:",notnull"`
 	TLS                             *TLSConfig                              `json:"tls" typescript:",notnull"`
 	Trace                           *TraceConfig                            `json:"trace" typescript:",notnull"`
-	SecureAuthCookie                *DeploymentConfigField[bool]            `json:"secure_auth_cookie" typescript:",notnull"`
-	StrictTransportSecurity         *DeploymentConfigField[int]             `json:"strict_transport_security" typescript:",notnull"`
-	StrictTransportSecurityOptions  *DeploymentConfigField[[]string]        `json:"strict_transport_security_options" typescript:",notnull"`
-	SSHKeygenAlgorithm              *DeploymentConfigField[string]          `json:"ssh_keygen_algorithm" typescript:",notnull"`
-	MetricsCacheRefreshInterval     *DeploymentConfigField[time.Duration]   `json:"metrics_cache_refresh_interval" typescript:",notnull"`
-	AgentStatRefreshInterval        *DeploymentConfigField[time.Duration]   `json:"agent_stat_refresh_interval" typescript:",notnull"`
-	AgentFallbackTroubleshootingURL *DeploymentConfigField[string]          `json:"agent_fallback_troubleshooting_url" typescript:",notnull"`
-	AuditLogging                    *DeploymentConfigField[bool]            `json:"audit_logging" typescript:",notnull"`
-	BrowserOnly                     *DeploymentConfigField[bool]            `json:"browser_only" typescript:",notnull"`
-	SCIMAPIKey                      *DeploymentConfigField[string]          `json:"scim_api_key" typescript:",notnull"`
+	SecureAuthCookie                bigcli.Bool                             `json:"secure_auth_cookie" typescript:",notnull"`
+	StrictTransportSecurity         bigcli.Int64                            `json:"strict_transport_security" typescript:",notnull"`
+	StrictTransportSecurityOptions  bigcli.Strings                          `json:"strict_transport_security_options" typescript:",notnull"`
+	SSHKeygenAlgorithm              bigcli.String                           `json:"ssh_keygen_algorithm" typescript:",notnull"`
+	MetricsCacheRefreshInterval     bigcli.Duration                         `json:"metrics_cache_refresh_interval" typescript:",notnull"`
+	AgentStatRefreshInterval        bigcli.Duration                         `json:"agent_stat_refresh_interval" typescript:",notnull"`
+	AgentFallbackTroubleshootingURL bigcli.String                           `json:"agent_fallback_troubleshooting_url" typescript:",notnull"`
+	AuditLogging                    bigcli.Bool                             `json:"audit_logging" typescript:",notnull"`
+	BrowserOnly                     bigcli.Bool                             `json:"browser_only" typescript:",notnull"`
+	SCIMAPIKey                      bigcli.String                           `json:"scim_api_key" typescript:",notnull"`
 	Provisioner                     *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
 	RateLimit                       *RateLimitConfig                        `json:"rate_limit" typescript:",notnull"`
-	Experiments                     *DeploymentConfigField[[]string]        `json:"experiments" typescript:",notnull"`
-	UpdateCheck                     *DeploymentConfigField[bool]            `json:"update_check" typescript:",notnull"`
-	MaxTokenLifetime                *DeploymentConfigField[time.Duration]   `json:"max_token_lifetime" typescript:",notnull"`
+	Experiments                     bigcli.Strings                          `json:"experiments" typescript:",notnull"`
+	UpdateCheck                     bigcli.Bool                             `json:"update_check" typescript:",notnull"`
+	MaxTokenLifetime                bigcli.Duration                         `json:"max_token_lifetime" typescript:",notnull"`
 	Swagger                         *SwaggerConfig                          `json:"swagger" typescript:",notnull"`
 	Logging                         *LoggingConfig                          `json:"logging" typescript:",notnull"`
 	Dangerous                       *DangerousConfig                        `json:"dangerous" typescript:",notnull"`
-	DisablePathApps                 *DeploymentConfigField[bool]            `json:"disable_path_apps" typescript:",notnull"`
-	SessionDuration                 *DeploymentConfigField[time.Duration]   `json:"max_session_expiry" typescript:",notnull"`
-	DisableSessionExpiryRefresh     *DeploymentConfigField[bool]            `json:"disable_session_expiry_refresh" typescript:",notnull"`
-	DisablePasswordAuth             *DeploymentConfigField[bool]            `json:"disable_password_auth" typescript:",notnull"`
+	DisablePathApps                 bigcli.Bool                             `json:"disable_path_apps" typescript:",notnull"`
+	SessionDuration                 bigcli.Duration                         `json:"max_session_expiry" typescript:",notnull"`
+	DisableSessionExpiryRefresh     bigcli.Bool                             `json:"disable_session_expiry_refresh" typescript:",notnull"`
+	DisablePasswordAuth             bigcli.Bool                             `json:"disable_password_auth" typescript:",notnull"`
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 	Address bigcli.BindAddress `json:"address" typescript:",notnull"`
 	// DEPRECATED: Use Experiments instead.
-	Experimental *DeploymentConfigField[bool] `json:"experimental" typescript:",notnull"`
+	Experimental bigcli.Bool `json:"experimental" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -163,27 +163,27 @@ type DERP struct {
 }
 
 type DERPServerConfig struct {
-	Enable        *DeploymentConfigField[bool]     `json:"enable" typescript:",notnull"`
-	RegionID      *DeploymentConfigField[int]      `json:"region_id" typescript:",notnull"`
-	RegionCode    *DeploymentConfigField[string]   `json:"region_code" typescript:",notnull"`
-	RegionName    *DeploymentConfigField[string]   `json:"region_name" typescript:",notnull"`
-	STUNAddresses *DeploymentConfigField[[]string] `json:"stun_addresses" typescript:",notnull"`
-	RelayURL      *DeploymentConfigField[string]   `json:"relay_url" typescript:",notnull"`
+	Enable        bigcli.Bool    `json:"enable" typescript:",notnull"`
+	RegionID      bigcli.Int64   `json:"region_id" typescript:",notnull"`
+	RegionCode    bigcli.String  `json:"region_code" typescript:",notnull"`
+	RegionName    bigcli.String  `json:"region_name" typescript:",notnull"`
+	STUNAddresses bigcli.Strings `json:"stun_addresses" typescript:",notnull"`
+	RelayURL      bigcli.String  `json:"relay_url" typescript:",notnull"`
 }
 
 type DERPConfig struct {
-	URL  *DeploymentConfigField[string] `json:"url" typescript:",notnull"`
-	Path *DeploymentConfigField[string] `json:"path" typescript:",notnull"`
+	URL  bigcli.String `json:"url" typescript:",notnull"`
+	Path bigcli.String `json:"path" typescript:",notnull"`
 }
 
 type PrometheusConfig struct {
-	Enable  *DeploymentConfigField[bool]   `json:"enable" typescript:",notnull"`
-	Address *DeploymentConfigField[string] `json:"address" typescript:",notnull"`
+	Enable  bigcli.Bool   `json:"enable" typescript:",notnull"`
+	Address bigcli.String `json:"address" typescript:",notnull"`
 }
 
 type PprofConfig struct {
-	Enable  *DeploymentConfigField[bool]   `json:"enable" typescript:",notnull"`
-	Address *DeploymentConfigField[string] `json:"address" typescript:",notnull"`
+	Enable  bigcli.Bool   `json:"enable" typescript:",notnull"`
+	Address bigcli.String `json:"address" typescript:",notnull"`
 }
 
 type OAuth2Config struct {
@@ -191,51 +191,51 @@ type OAuth2Config struct {
 }
 
 type OAuth2GithubConfig struct {
-	ClientID          *DeploymentConfigField[string]   `json:"client_id" typescript:",notnull"`
-	ClientSecret      *DeploymentConfigField[string]   `json:"client_secret" typescript:",notnull"`
-	AllowedOrgs       *DeploymentConfigField[[]string] `json:"allowed_orgs" typescript:",notnull"`
-	AllowedTeams      *DeploymentConfigField[[]string] `json:"allowed_teams" typescript:",notnull"`
-	AllowSignups      *DeploymentConfigField[bool]     `json:"allow_signups" typescript:",notnull"`
-	AllowEveryone     *DeploymentConfigField[bool]     `json:"allow_everyone" typescript:",notnull"`
-	EnterpriseBaseURL *DeploymentConfigField[string]   `json:"enterprise_base_url" typescript:",notnull"`
+	ClientID          bigcli.String  `json:"client_id" typescript:",notnull"`
+	ClientSecret      bigcli.String  `json:"client_secret" typescript:",notnull"`
+	AllowedOrgs       bigcli.Strings `json:"allowed_orgs" typescript:",notnull"`
+	AllowedTeams      bigcli.Strings `json:"allowed_teams" typescript:",notnull"`
+	AllowSignups      bigcli.Bool    `json:"allow_signups" typescript:",notnull"`
+	AllowEveryone     bigcli.Bool    `json:"allow_everyone" typescript:",notnull"`
+	EnterpriseBaseURL bigcli.String  `json:"enterprise_base_url" typescript:",notnull"`
 }
 
 type OIDCConfig struct {
-	AllowSignups        *DeploymentConfigField[bool]     `json:"allow_signups" typescript:",notnull"`
-	ClientID            *DeploymentConfigField[string]   `json:"client_id" typescript:",notnull"`
-	ClientSecret        *DeploymentConfigField[string]   `json:"client_secret" typescript:",notnull"`
-	EmailDomain         *DeploymentConfigField[[]string] `json:"email_domain" typescript:",notnull"`
-	IssuerURL           *DeploymentConfigField[string]   `json:"issuer_url" typescript:",notnull"`
-	Scopes              *DeploymentConfigField[[]string] `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified *DeploymentConfigField[bool]     `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField       *DeploymentConfigField[string]   `json:"username_field" typescript:",notnull"`
-	SignInText          *DeploymentConfigField[string]   `json:"sign_in_text" typescript:",notnull"`
-	IconURL             *DeploymentConfigField[string]   `json:"icon_url" typescript:",notnull"`
+	AllowSignups        bigcli.Bool    `json:"allow_signups" typescript:",notnull"`
+	ClientID            bigcli.String  `json:"client_id" typescript:",notnull"`
+	ClientSecret        bigcli.String  `json:"client_secret" typescript:",notnull"`
+	EmailDomain         bigcli.Strings `json:"email_domain" typescript:",notnull"`
+	IssuerURL           bigcli.String  `json:"issuer_url" typescript:",notnull"`
+	Scopes              bigcli.Strings `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified bigcli.Bool    `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       bigcli.String  `json:"username_field" typescript:",notnull"`
+	SignInText          bigcli.String  `json:"sign_in_text" typescript:",notnull"`
+	IconURL             bigcli.String  `json:"icon_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
-	Enable *DeploymentConfigField[bool]   `json:"enable" typescript:",notnull"`
-	Trace  *DeploymentConfigField[bool]   `json:"trace" typescript:",notnull"`
-	URL    *DeploymentConfigField[string] `json:"url" typescript:",notnull"`
+	Enable bigcli.Bool   `json:"enable" typescript:",notnull"`
+	Trace  bigcli.Bool   `json:"trace" typescript:",notnull"`
+	URL    bigcli.String `json:"url" typescript:",notnull"`
 }
 
 type TLSConfig struct {
-	Enable         bigcli.Bool                      `json:"enable" typescript:",notnull"`
-	Address        bigcli.BindAddress               `json:"address" typescript:",notnull"`
-	RedirectHTTP   *DeploymentConfigField[bool]     `json:"redirect_http" typescript:",notnull"`
-	CertFiles      *DeploymentConfigField[[]string] `json:"cert_file" typescript:",notnull"`
-	ClientAuth     *DeploymentConfigField[string]   `json:"client_auth" typescript:",notnull"`
-	ClientCAFile   *DeploymentConfigField[string]   `json:"client_ca_file" typescript:",notnull"`
-	KeyFiles       *DeploymentConfigField[[]string] `json:"key_file" typescript:",notnull"`
-	MinVersion     *DeploymentConfigField[string]   `json:"min_version" typescript:",notnull"`
-	ClientCertFile *DeploymentConfigField[string]   `json:"client_cert_file" typescript:",notnull"`
-	ClientKeyFile  *DeploymentConfigField[string]   `json:"client_key_file" typescript:",notnull"`
+	Enable         bigcli.Bool        `json:"enable" typescript:",notnull"`
+	Address        bigcli.BindAddress `json:"address" typescript:",notnull"`
+	RedirectHTTP   bigcli.Bool        `json:"redirect_http" typescript:",notnull"`
+	CertFiles      bigcli.Strings     `json:"cert_file" typescript:",notnull"`
+	ClientAuth     bigcli.String      `json:"client_auth" typescript:",notnull"`
+	ClientCAFile   bigcli.String      `json:"client_ca_file" typescript:",notnull"`
+	KeyFiles       bigcli.Strings     `json:"key_file" typescript:",notnull"`
+	MinVersion     bigcli.String      `json:"min_version" typescript:",notnull"`
+	ClientCertFile bigcli.String      `json:"client_cert_file" typescript:",notnull"`
+	ClientKeyFile  bigcli.String      `json:"client_key_file" typescript:",notnull"`
 }
 
 type TraceConfig struct {
-	Enable          *DeploymentConfigField[bool]   `json:"enable" typescript:",notnull"`
-	HoneycombAPIKey *DeploymentConfigField[string] `json:"honeycomb_api_key" typescript:",notnull"`
-	CaptureLogs     *DeploymentConfigField[bool]   `json:"capture_logs" typescript:",notnull"`
+	Enable          bigcli.Bool   `json:"enable" typescript:",notnull"`
+	HoneycombAPIKey bigcli.String `json:"honeycomb_api_key" typescript:",notnull"`
+	CaptureLogs     bigcli.Bool   `json:"capture_logs" typescript:",notnull"`
 }
 
 type GitAuthConfig struct {
@@ -252,30 +252,30 @@ type GitAuthConfig struct {
 }
 
 type ProvisionerConfig struct {
-	Daemons             *DeploymentConfigField[int]           `json:"daemons" typescript:",notnull"`
-	DaemonPollInterval  *DeploymentConfigField[time.Duration] `json:"daemon_poll_interval" typescript:",notnull"`
-	DaemonPollJitter    *DeploymentConfigField[time.Duration] `json:"daemon_poll_jitter" typescript:",notnull"`
-	ForceCancelInterval *DeploymentConfigField[time.Duration] `json:"force_cancel_interval" typescript:",notnull"`
+	Daemons             bigcli.Int64    `json:"daemons" typescript:",notnull"`
+	DaemonPollInterval  bigcli.Duration `json:"daemon_poll_interval" typescript:",notnull"`
+	DaemonPollJitter    bigcli.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
+	ForceCancelInterval bigcli.Duration `json:"force_cancel_interval" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
-	DisableAll *DeploymentConfigField[bool] `json:"disable_all" typescript:",notnull"`
-	API        *DeploymentConfigField[int]  `json:"api" typescript:",notnull"`
+	DisableAll bigcli.Bool  `json:"disable_all" typescript:",notnull"`
+	API        bigcli.Int64 `json:"api" typescript:",notnull"`
 }
 
 type SwaggerConfig struct {
-	Enable *DeploymentConfigField[bool] `json:"enable" typescript:",notnull"`
+	Enable bigcli.Bool `json:"enable" typescript:",notnull"`
 }
 
 type LoggingConfig struct {
-	Human       *DeploymentConfigField[string] `json:"human" typescript:",notnull"`
-	JSON        *DeploymentConfigField[string] `json:"json" typescript:",notnull"`
-	Stackdriver *DeploymentConfigField[string] `json:"stackdriver" typescript:",notnull"`
+	Human       bigcli.String `json:"human" typescript:",notnull"`
+	JSON        bigcli.String `json:"json" typescript:",notnull"`
+	Stackdriver bigcli.String `json:"stackdriver" typescript:",notnull"`
 }
 
 type DangerousConfig struct {
-	AllowPathAppSharing         *DeploymentConfigField[bool] `json:"allow_path_app_sharing" typescript:",notnull"`
-	AllowPathAppSiteOwnerAccess *DeploymentConfigField[bool] `json:"allow_path_app_site_owner_access" typescript:",notnull"`
+	AllowPathAppSharing         bigcli.Bool `json:"allow_path_app_sharing" typescript:",notnull"`
+	AllowPathAppSiteOwnerAccess bigcli.Bool `json:"allow_path_app_site_owner_access" typescript:",notnull"`
 }
 
 type Flaggable interface {
