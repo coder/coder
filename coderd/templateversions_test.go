@@ -485,7 +485,7 @@ func TestTemplateVersionsGitAuth(t *testing.T) {
 		require.False(t, providers[0].Authenticated)
 
 		// Perform the Git auth callback to authenticate the user...
-		resp := gitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
 		_ = resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 

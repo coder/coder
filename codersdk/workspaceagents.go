@@ -293,6 +293,21 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 // type of providers that are supported within Coder.
 type GitProvider string
 
+func (g GitProvider) Pretty() string {
+	switch g {
+	case GitProviderAzureDevops:
+		return "Azure DevOps"
+	case GitProviderGitHub:
+		return "GitHub"
+	case GitProviderGitLab:
+		return "GitLab"
+	case GitProviderBitBucket:
+		return "Bitbucket"
+	default:
+		return string(g)
+	}
+}
+
 const (
 	GitProviderAzureDevops GitProvider = "azure-devops"
 	GitProviderGitHub      GitProvider = "github"

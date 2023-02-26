@@ -50,11 +50,6 @@ export const GitAuth: FC<GitAuthProps> = ({
     default:
       throw new Error("invalid git provider: " + type)
   }
-  // The Git auth page uses a BroadcastChannel to notify listening
-  // pages for Git auth updates if the "notify" query parameter is specified.
-  const redirectURL = `${authenticateURL}?redirect=${encodeURIComponent(
-    `/gitauth?notify`,
-  )}`
 
   return (
     <Tooltip
@@ -64,7 +59,7 @@ export const GitAuth: FC<GitAuthProps> = ({
     >
       <div>
         <a
-          href={redirectURL}
+          href={authenticateURL}
           className={styles.link}
           onClick={(event) => {
             event.preventDefault()
@@ -72,7 +67,7 @@ export const GitAuth: FC<GitAuthProps> = ({
             if (authenticated || authenticateURL === "") {
               return
             }
-            window.open(redirectURL, "_blank", "width=900,height=600")
+            window.open(authenticateURL, "_blank", "width=900,height=600")
           }}
         >
           <Button className={styles.button} disabled={authenticated} fullWidth>
