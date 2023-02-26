@@ -17,9 +17,8 @@ usage: {{.FullUsage}}
     {{- with $option.Default }} (default: {{.}}) {{ end }}
         {{- with $option.Description }}
             {{- "" }}
-            {{- $desc := $option.Description }}
-            {{- if isEnterprise $option }} {{$desc = print $desc " Enterprise-Only." }} {{ end }}
-{{ $desc := wordWrap $desc 60 -}} {{- indent $desc 2}}
+            {{- $desc := formatDescription $option.Description }}
+{{- indent $desc 2}}
 {{- if isDeprecated $option }} DEPRECATED {{ end }}
         {{- end -}}
     {{- end }}

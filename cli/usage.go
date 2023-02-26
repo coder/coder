@@ -76,7 +76,6 @@ var usageTemplate = template.Must(
 				var sb strings.Builder
 				for _, line := range strings.Split(s, "\n") {
 					// Remove existing indent, if any.
-					line = strings.TrimSpace(line)
 					_, _ = sb.WriteString(strings.Repeat("\t", tabs))
 					_, _ = sb.WriteString(line)
 					_, _ = sb.WriteString("\n")
@@ -103,12 +102,24 @@ var usageTemplate = template.Must(
 			"isDeprecated": func(opt bigcli.Option) bool {
 				return len(opt.UseInstead) > 0
 			},
+			"formatDescription": func(s string) string {
+				s = "\n" + s + "\n"
+				s = wordwrap.WrapString(s, 60)
+				return s
+			},
 			"optionGroups": func(cmd *bigcli.Command) []optionGroup {
 				groups := []optionGroup{{
 					// Default group.
 					Name:        "",
 					Description: "",
 				}}
+
+				enterpriseGroup := optionGroup{
+					Name: "Enterprise",
+					Description: `
+These options are only available in the Enterprise Edition.
+`,
+				}
 
 				// Sort options lexicographically.
 				sort.Slice(cmd.Options, func(i, j int) bool {
@@ -118,6 +129,11 @@ var usageTemplate = template.Must(
 			optionLoop:
 				for _, opt := range cmd.Options {
 					if opt.Hidden {
+						continue
+					}
+					// Enterprise options are always grouped separately.
+					if opt.Annotations.IsSet("enterprise") {
+						enterpriseGroup.Options = append(enterpriseGroup.Options, opt)
 						continue
 					}
 					if len(opt.Group) == 0 {
@@ -146,7 +162,8 @@ var usageTemplate = template.Must(
 					// Sort groups lexicographically.
 					return groups[i].Name < groups[j].Name
 				})
-				return groups
+				// Always show enterprise group last.
+				return append(groups, enterpriseGroup)
 			},
 		},
 	).Parse(usageTemplateRaw),
