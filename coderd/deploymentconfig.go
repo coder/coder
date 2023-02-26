@@ -20,5 +20,11 @@ func (api *API) deploymentConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(r.Context(), rw, http.StatusOK, api.DeploymentConfig)
+	scrubbedConfig, err := api.DeploymentConfig.Scrub()
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, scrubbedConfig)
 }

@@ -4,6 +4,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/kirsle/configdir"
 )
 
 const (
@@ -97,4 +99,8 @@ func read(path string) ([]byte, error) {
 	}
 	defer fi.Close()
 	return io.ReadAll(fi)
+}
+
+func DefaultDir() string {
+	return configdir.LocalConfig("coderv2")
 }

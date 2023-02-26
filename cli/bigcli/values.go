@@ -149,9 +149,26 @@ func (b *BindAddress) Set(v string) error {
 }
 
 func (b *BindAddress) String() string {
+	if b.Host == "" && b.Port == "" {
+		return ""
+	}
 	return b.Host + ":" + b.Port
 }
 
 func (*BindAddress) Type() string {
 	return "bind-address"
+}
+
+type DiscardValue struct{}
+
+func (DiscardValue) Set(string) error {
+	return nil
+}
+
+func (DiscardValue) String() string {
+	return ""
+}
+
+func (DiscardValue) Type() string {
+	return "nop"
 }

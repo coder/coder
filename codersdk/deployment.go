@@ -14,9 +14,10 @@ import (
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
+	"github.com/coreos/go-oidc/v3/oidc"
+
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/bigcli"
-	"github.com/coreos/go-oidc/v3/oidc"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -120,42 +121,41 @@ type DeploymentConfig struct {
 	RedirectToAccessURL             bigcli.Bool
 	HTTPAddress                     bigcli.BindAddress `json:"http_address" typescript:",notnull"`
 	AutobuildPollInterval           bigcli.Duration
-	DERP                            *DERP                                   `json:"derp" typescript:",notnull"`
-	GitAuth                         *DeploymentConfigField[[]GitAuthConfig] `json:"gitauth" typescript:",notnull"`
-	Prometheus                      *PrometheusConfig                       `json:"prometheus" typescript:",notnull"`
-	Pprof                           *PprofConfig                            `json:"pprof" typescript:",notnull"`
-	ProxyTrustedHeaders             bigcli.Strings                          `json:"proxy_trusted_headers" typescript:",notnull"`
-	ProxyTrustedOrigins             bigcli.Strings                          `json:"proxy_trusted_origins" typescript:",notnull"`
-	CacheDir                        bigcli.String                           `json:"cache_directory" typescript:",notnull"`
-	InMemoryDatabase                bigcli.Bool                             `json:"in_memory_database" typescript:",notnull"`
-	PostgresURL                     bigcli.String                           `json:"pg_connection_url" typescript:",notnull"`
-	OAuth2                          *OAuth2Config                           `json:"oauth2" typescript:",notnull"`
-	OIDC                            *OIDCConfig                             `json:"oidc" typescript:",notnull"`
-	Telemetry                       *TelemetryConfig                        `json:"telemetry" typescript:",notnull"`
-	TLS                             *TLSConfig                              `json:"tls" typescript:",notnull"`
-	Trace                           *TraceConfig                            `json:"trace" typescript:",notnull"`
-	SecureAuthCookie                bigcli.Bool                             `json:"secure_auth_cookie" typescript:",notnull"`
-	StrictTransportSecurity         bigcli.Int64                            `json:"strict_transport_security" typescript:",notnull"`
-	StrictTransportSecurityOptions  bigcli.Strings                          `json:"strict_transport_security_options" typescript:",notnull"`
-	SSHKeygenAlgorithm              bigcli.String                           `json:"ssh_keygen_algorithm" typescript:",notnull"`
-	MetricsCacheRefreshInterval     bigcli.Duration                         `json:"metrics_cache_refresh_interval" typescript:",notnull"`
-	AgentStatRefreshInterval        bigcli.Duration                         `json:"agent_stat_refresh_interval" typescript:",notnull"`
-	AgentFallbackTroubleshootingURL bigcli.URL                              `json:"agent_fallback_troubleshooting_url" typescript:",notnull"`
-	AuditLogging                    bigcli.Bool                             `json:"audit_logging" typescript:",notnull"`
-	BrowserOnly                     bigcli.Bool                             `json:"browser_only" typescript:",notnull"`
-	SCIMAPIKey                      bigcli.String                           `json:"scim_api_key" typescript:",notnull"`
-	Provisioner                     *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
-	RateLimit                       *RateLimitConfig                        `json:"rate_limit" typescript:",notnull"`
-	Experiments                     bigcli.Strings                          `json:"experiments" typescript:",notnull"`
-	UpdateCheck                     bigcli.Bool                             `json:"update_check" typescript:",notnull"`
-	MaxTokenLifetime                bigcli.Duration                         `json:"max_token_lifetime" typescript:",notnull"`
-	Swagger                         *SwaggerConfig                          `json:"swagger" typescript:",notnull"`
-	Logging                         *LoggingConfig                          `json:"logging" typescript:",notnull"`
-	Dangerous                       *DangerousConfig                        `json:"dangerous" typescript:",notnull"`
-	DisablePathApps                 bigcli.Bool                             `json:"disable_path_apps" typescript:",notnull"`
-	SessionDuration                 bigcli.Duration                         `json:"max_session_expiry" typescript:",notnull"`
-	DisableSessionExpiryRefresh     bigcli.Bool                             `json:"disable_session_expiry_refresh" typescript:",notnull"`
-	DisablePasswordAuth             bigcli.Bool                             `json:"disable_password_auth" typescript:",notnull"`
+	DERP                            *DERP              `json:"derp" typescript:",notnull"`
+	Prometheus                      *PrometheusConfig  `json:"prometheus" typescript:",notnull"`
+	Pprof                           *PprofConfig       `json:"pprof" typescript:",notnull"`
+	ProxyTrustedHeaders             bigcli.Strings     `json:"proxy_trusted_headers" typescript:",notnull"`
+	ProxyTrustedOrigins             bigcli.Strings     `json:"proxy_trusted_origins" typescript:",notnull"`
+	CacheDir                        bigcli.String      `json:"cache_directory" typescript:",notnull"`
+	InMemoryDatabase                bigcli.Bool        `json:"in_memory_database" typescript:",notnull"`
+	PostgresURL                     bigcli.String      `json:"pg_connection_url" typescript:",notnull"`
+	OAuth2                          *OAuth2Config      `json:"oauth2" typescript:",notnull"`
+	OIDC                            *OIDCConfig        `json:"oidc" typescript:",notnull"`
+	Telemetry                       *TelemetryConfig   `json:"telemetry" typescript:",notnull"`
+	TLS                             *TLSConfig         `json:"tls" typescript:",notnull"`
+	Trace                           *TraceConfig       `json:"trace" typescript:",notnull"`
+	SecureAuthCookie                bigcli.Bool        `json:"secure_auth_cookie" typescript:",notnull"`
+	StrictTransportSecurity         bigcli.Int64       `json:"strict_transport_security" typescript:",notnull"`
+	StrictTransportSecurityOptions  bigcli.Strings     `json:"strict_transport_security_options" typescript:",notnull"`
+	SSHKeygenAlgorithm              bigcli.String      `json:"ssh_keygen_algorithm" typescript:",notnull"`
+	MetricsCacheRefreshInterval     bigcli.Duration    `json:"metrics_cache_refresh_interval" typescript:",notnull"`
+	AgentStatRefreshInterval        bigcli.Duration    `json:"agent_stat_refresh_interval" typescript:",notnull"`
+	AgentFallbackTroubleshootingURL bigcli.URL         `json:"agent_fallback_troubleshooting_url" typescript:",notnull"`
+	AuditLogging                    bigcli.Bool        `json:"audit_logging" typescript:",notnull"`
+	BrowserOnly                     bigcli.Bool        `json:"browser_only" typescript:",notnull"`
+	SCIMAPIKey                      bigcli.String      `json:"scim_api_key" typescript:",notnull"`
+	Provisioner                     *ProvisionerConfig `json:"provisioner" typescript:",notnull"`
+	RateLimit                       *RateLimitConfig   `json:"rate_limit" typescript:",notnull"`
+	Experiments                     bigcli.Strings     `json:"experiments" typescript:",notnull"`
+	UpdateCheck                     bigcli.Bool        `json:"update_check" typescript:",notnull"`
+	MaxTokenLifetime                bigcli.Duration    `json:"max_token_lifetime" typescript:",notnull"`
+	Swagger                         *SwaggerConfig     `json:"swagger" typescript:",notnull"`
+	Logging                         *LoggingConfig     `json:"logging" typescript:",notnull"`
+	Dangerous                       *DangerousConfig   `json:"dangerous" typescript:",notnull"`
+	DisablePathApps                 bigcli.Bool        `json:"disable_path_apps" typescript:",notnull"`
+	SessionDuration                 bigcli.Duration    `json:"max_session_expiry" typescript:",notnull"`
+	DisableSessionExpiryRefresh     bigcli.Bool        `json:"disable_session_expiry_refresh" typescript:",notnull"`
+	DisablePasswordAuth             bigcli.Bool        `json:"disable_password_auth" typescript:",notnull"`
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 	Address bigcli.BindAddress `json:"address" typescript:",notnull"`
@@ -314,6 +314,10 @@ func markEnterpriseOpt(an bigcli.Annotations) bigcli.Annotations {
 
 func markSecretOpt(an bigcli.Annotations) bigcli.Annotations {
 	return an.Mark("secret", "true")
+}
+
+func isSecretOpt(an bigcli.Annotations) bool {
+	return an.IsSet("secret")
 }
 
 func DefaultCacheDir() string {
@@ -941,53 +945,35 @@ type Flaggable interface {
 	string | time.Duration | bool | int | []string | []GitAuthConfig
 }
 
-type DeploymentConfigField[T Flaggable] struct {
-	Name  string `json:"name"`
-	Usage string `json:"usage"`
-	Flag  string `json:"flag"`
-	// EnvOverride will override the automatically generated environment
-	// variable name. Useful if you're moving values around but need to keep
-	// backwards compatibility with old environment variable names.
-	//
-	// NOTE: this is not supported for array flags.
-	EnvOverride string `json:"-"`
-	Shorthand   string `json:"shorthand"`
-	Enterprise  bool   `json:"enterprise"`
-	Hidden      bool   `json:"hidden"`
-	Secret      bool   `json:"secret"`
-	Default     T      `json:"default"`
-	Value       T      `json:"value"`
-}
+// Scrub returns a copy of the config without secret values.
+func (f *DeploymentConfig) Scrub() (*DeploymentConfig, error) {
+	var ff DeploymentConfig
 
-// MarshalJSON removes the Value field from the JSON output of any fields marked Secret.
-// nolint:revive
-func (f *DeploymentConfigField[T]) MarshalJSON() ([]byte, error) {
-	copy := struct {
-		Name       string `json:"name"`
-		Usage      string `json:"usage"`
-		Flag       string `json:"flag"`
-		Shorthand  string `json:"shorthand"`
-		Enterprise bool   `json:"enterprise"`
-		Hidden     bool   `json:"hidden"`
-		Secret     bool   `json:"secret"`
-		Default    T      `json:"default"`
-		Value      T      `json:"value"`
-	}{
-		Name:       f.Name,
-		Usage:      f.Usage,
-		Flag:       f.Flag,
-		Shorthand:  f.Shorthand,
-		Enterprise: f.Enterprise,
-		Hidden:     f.Hidden,
-		Secret:     f.Secret,
+	// Create copy via JSON.
+	byt, err := json.Marshal(f)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(byt, &ff)
+	if err != nil {
+		return nil, err
 	}
 
-	if !f.Secret {
-		copy.Default = f.Default
-		copy.Value = f.Value
+	for _, opt := range *ff.ConfigOptions() {
+		if !isSecretOpt(opt.Annotations) {
+			continue
+		}
+
+		// This only works with string values for now.
+		switch v := opt.Value.(type) {
+		case *bigcli.String:
+			v.Set("")
+		default:
+			return nil, xerrors.Errorf("unsupported type %T", v)
+		}
 	}
 
-	return json.Marshal(copy)
+	return &ff, nil
 }
 
 // DeploymentConfig returns the deployment config for the coder server.

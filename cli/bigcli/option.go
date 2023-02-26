@@ -169,7 +169,7 @@ func (os *OptionSet) ParseEnv(globalPrefix string, environ []string) error {
 }
 
 // SetDefaults sets the default values for each Option.
-// It should be called after all parsing (e.g. ParseFlags, ParseEnv).
+// It should be called before all parsing (e.g. ParseFlags, ParseEnv).
 func (os *OptionSet) SetDefaults() error {
 	var merr *multierror.Error
 	for _, opt := range *os {

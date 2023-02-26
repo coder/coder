@@ -1318,8 +1318,8 @@ func TestAppSharing(t *testing.T) {
 		deploymentConfig, err := ownerClient.DeploymentConfig(context.Background())
 		require.NoError(t, err)
 
-		assert.Equal(t, pathAppSharingEnabled, deploymentConfig.Dangerous.AllowPathAppSharing.Value)
-		assert.Equal(t, siteOwnerPathAppAccessEnabled, deploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value)
+		assert.Equal(t, pathAppSharingEnabled, deploymentConfig.Dangerous.AllowPathAppSharing.Value())
+		assert.Equal(t, siteOwnerPathAppAccessEnabled, deploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value())
 
 		t.Run("LevelOwner", func(t *testing.T) {
 			t.Parallel()

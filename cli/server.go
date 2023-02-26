@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -96,7 +97,24 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			cfg := codersdk.NewDeploymentConfig()
 			cliOpts := cfg.ConfigOptions()
 
-			_, err := cliOpts.ParseFlags(args...)
+			var configDir bigcli.String
+			// This is a hack to get around the fact that the Cobra-defined
+			// flags are not available.
+			cliOpts.Add(bigcli.Option{
+				Name:    "Global Config",
+				Flag:    config.FlagName,
+				Usage:   "Global Config is ignored in server mode.",
+				Hidden:  true,
+				Default: config.DefaultDir(),
+				Value:   &configDir,
+			})
+
+			err := cliOpts.SetDefaults()
+			if err != nil {
+				return xerrors.Errorf("set defaults: %w", err)
+			}
+
+			_, err = cliOpts.ParseFlags(args...)
 			if err != nil {
 				return xerrors.Errorf("parse flags: %w", err)
 			}
@@ -104,11 +122,6 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			err = cliOpts.ParseEnv("CODER_", os.Environ())
 			if err != nil {
 				return xerrors.Errorf("parse env: %w", err)
-			}
-
-			err = cliOpts.SetDefaults()
-			if err != nil {
-				return xerrors.Errorf("set defaults: %w", err)
 			}
 
 			// Print deprecation warnings.
@@ -134,7 +147,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			go dumpHandler(ctx)
 
 			// Validate bind addresses.
-			if cfg.Address.Host != "" {
+			if cfg.Address.String() != "" {
 				if cfg.TLS.Enable {
 					cfg.HTTPAddress.Host = ""
 					cfg.TLS.Address = cfg.Address
@@ -143,10 +156,10 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 					cfg.TLS.Address.Host = ""
 				}
 			}
-			if cfg.TLS.Enable && cfg.TLS.Address.Host == "" {
+			if cfg.TLS.Enable && cfg.TLS.Address.String() == "" {
 				return xerrors.Errorf("TLS address must be set if TLS is enabled")
 			}
-			if !cfg.TLS.Enable && cfg.HTTPAddress.Host == "" {
+			if !cfg.TLS.Enable && cfg.HTTPAddress.String() == "" {
 				return xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
 			}
 
@@ -155,7 +168,6 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			loginRateLimit := 60
 			filesRateLimit := 12
 			if cfg.RateLimit.DisableAll {
-
 				cfg.RateLimit.API = -1
 				loginRateLimit = -1
 				filesRateLimit = -1
@@ -233,7 +245,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				}
 			}
 
-			config := createConfig(cmd)
+			config := config.Root(configDir)
 			builtinPostgres := false
 			// Only use built-in if PostgreSQL URL isn't specified!
 			if !cfg.InMemoryDatabase && cfg.PostgresURL == "" {
@@ -264,7 +276,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				httpListener net.Listener
 				httpURL      *url.URL
 			)
-			if cfg.HTTPAddress.Host != "" {
+			if cfg.HTTPAddress.String() != "" {
 				httpListener, err = net.Listen("tcp", cfg.HTTPAddress.String())
 				if err != nil {
 					return xerrors.Errorf("listen %q: %w", cfg.HTTPAddress.String(), err)
@@ -304,7 +316,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				httpsURL      *url.URL
 			)
 			if cfg.TLS.Enable {
-				if cfg.TLS.Address.Host == "" {
+				if cfg.TLS.Address.String() == "" {
 					return xerrors.New("tls address must be set if tls is enabled")
 				}
 
@@ -736,7 +748,10 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			// This is helpful for tests, but can be silently ignored.
 			// Coder may be ran as users that don't have permission to write in the homedir,
 			// such as via the systemd service.
-			_ = config.URL().Write(client.URL.String())
+			err = config.URL().Write(client.URL.String())
+			if err != nil && flag.Lookup("test.v") != nil {
+				return xerrors.Errorf("write config url: %w", err)
+			}
 
 			// Since errCh only has one buffered slot, all routines
 			// sending on it must be wrapped in a select/default to
