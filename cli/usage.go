@@ -52,6 +52,10 @@ Telemetry is critical to our ability to improve Coder. We strip all personal
 information before sending data to our servers. Please only disable telemetry
 when required by your organization's security policy.
 `,
+	`Provisioning`: `
+Tune the behavior of the provisioner, which is responsible for creating,
+updating, and deleting workspace resources.
+`,
 }
 
 const envPrefix = "CODER_"
@@ -80,12 +84,15 @@ var usageTemplate = template.Must(
 				}
 				return envPrefix + n
 			},
-			"prettyHeader": func(s string) string {
-				return cliui.Styles.Bold.Render(s)
-			},
 			"flagName": func(opt bigcli.Option) string {
 				n, _ := opt.FlagName()
 				return n
+			},
+			"prettyHeader": func(s string) string {
+				return cliui.Styles.Bold.Render(s)
+			},
+			"isEnterprise": func(opt bigcli.Option) bool {
+				return opt.Annotations.IsSet("enterprise")
 			},
 			"isDeprecated": func(opt bigcli.Option) bool {
 				return len(opt.UseInstead) > 0

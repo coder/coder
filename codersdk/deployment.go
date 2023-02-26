@@ -741,6 +741,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "provisioner-daemons",
 			Default:     "3",
 			Value:       &c.Provisioner.Daemons,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Provisioning"),
 		},
 		{
 			Name:        "Poll Interval",
@@ -748,6 +749,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "provisioner-daemon-poll-interval",
 			Default:     time.Second.String(),
 			Value:       &c.Provisioner.DaemonPollInterval,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Provisioning"),
 		},
 		{
 			Name:        "Poll Jitter",
@@ -755,6 +757,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "provisioner-daemon-poll-jitter",
 			Default:     (100 * time.Millisecond).String(),
 			Value:       &c.Provisioner.DaemonPollJitter,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Provisioning"),
 		},
 		{
 			Name:        "Force Cancel Interval",
@@ -762,6 +765,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "provisioner-force-cancel-interval",
 			Default:     (10 * time.Minute).String(),
 			Value:       &c.Provisioner.ForceCancelInterval,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Provisioning"),
 		},
 		// RateLimit settings
 		{
@@ -770,6 +774,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "dangerous-disable-rate-limits",
 			Default:     "false",
 			Value:       &c.RateLimit.DisableAll,
+			Hidden:      true,
 		},
 		{
 			Name:        "API Rate Limit",
@@ -780,6 +785,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:    "api-rate-limit",
 			Default: "512",
 			Value:   &c.RateLimit.API,
+			Hidden:  true,
 		},
 		// Logging settings
 		{
@@ -788,6 +794,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "log-human",
 			Default:     "/dev/stderr",
 			Value:       &c.Logging.Human,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Introspection / Logging"),
 		},
 		{
 			Name:        "JSON Log Location",
@@ -795,6 +802,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "log-json",
 			Default:     "",
 			Value:       &c.Logging.JSON,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Introspection / Logging"),
 		},
 		{
 			Name:        "Stackdriver Log Location",
@@ -802,6 +810,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "log-stackdriver",
 			Default:     "",
 			Value:       &c.Logging.Stackdriver,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Introspection / Logging"),
 		},
 		// ☢️ Dangerous settings
 		{
@@ -810,6 +819,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "dangerous-allow-path-app-sharing",
 			Default:     "false",
 			Value:       &c.Dangerous.AllowPathAppSharing,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "⚠️ Dangerous"),
 		},
 		{
 			Name:        "DANGEROUS: Allow Site Owners to Access Path Apps",
@@ -817,6 +827,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "dangerous-allow-path-app-site-owner-access",
 			Default:     "false",
 			Value:       &c.Dangerous.AllowPathAppSiteOwnerAccess,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "⚠️ Dangerous"),
 		},
 		// Misc. settings
 		{
@@ -840,6 +851,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "max-token-lifetime",
 			Default:     (24 * 30 * time.Hour).String(),
 			Value:       &c.MaxTokenLifetime,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Security"),
 		},
 		{
 			Name:        "Enable swagger endpoint",
@@ -847,18 +859,21 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "swagger-enable",
 			Default:     "false",
 			Value:       &c.Swagger.Enable,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Intropection / Logging"),
 		},
 		{
 			Name:        "Proxy Trusted Headers",
 			Flag:        "proxy-trusted-headers",
 			Description: "Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For",
 			Value:       &c.ProxyTrustedHeaders,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking"),
 		},
 		{
 			Name:        "Proxy Trusted Origins",
 			Flag:        "proxy-trusted-origins",
 			Description: "Origin addresses to respect \"proxy-trusted-headers\". e.g. 192.168.1.0/24",
 			Value:       &c.ProxyTrustedOrigins,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking"),
 		},
 		{
 			Name:        "Cache Directory",
@@ -886,22 +901,25 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:        "secure-auth-cookie",
 			Value:       &c.SecureAuthCookie,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking"),
 		},
 		{
 			Name: "Strict-Transport-Security",
 			Description: "Controls if the 'Strict-Transport-Security' header is set on all static file responses. " +
 				"This header should only be set if the server is accessed via HTTPS. This value is the MaxAge in seconds of " +
 				"the header.",
-			Default: "0",
-			Flag:    "strict-transport-security",
-			Value:   &c.StrictTransportSecurity,
+			Default:     "0",
+			Flag:        "strict-transport-security",
+			Value:       &c.StrictTransportSecurity,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / TLS"),
 		},
 		{
 			Name: "Strict-Transport-Security Options",
 			Description: "Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. " +
 				"The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.",
-			Flag:  "strict-transport-security-options",
-			Value: &c.StrictTransportSecurityOptions,
+			Flag:        "strict-transport-security-options",
+			Value:       &c.StrictTransportSecurityOptions,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / TLS"),
 		},
 		{
 			Name:        "SSH Keygen Algorithm",
@@ -946,8 +964,9 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Name:        "Browser Only",
 			Description: "Whether Coder only allows connections to workspaces via the browser.",
 			Flag:        "browser-only",
-			Annotations: bigcli.Annotations{}.Mark(flagEnterpriseKey, "true"),
-			Value:       &c.BrowserOnly,
+			Annotations: bigcli.Annotations{}.Mark(flagEnterpriseKey, "true").
+				Mark(flagGroupKey, "Networking"),
+			Value: &c.BrowserOnly,
 		},
 		{
 			Name:        "SCIM API Key",
@@ -970,6 +989,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "session-duration",
 			Default:     (24 * time.Hour).String(),
 			Value:       &c.SessionDuration,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Security"),
 		},
 		{
 			Name:        "Disable Session Expiry Refresh",
@@ -977,6 +997,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "disable-session-expiry-refresh",
 			Default:     "false",
 			Value:       &c.DisableSessionExpiryRefresh,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Security"),
 		},
 		{
 			Name:        "Disable Password Authentication",
@@ -984,6 +1005,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "disable-password-auth",
 			Default:     "false",
 			Value:       &c.DisablePasswordAuth,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Security"),
 		},
 	}
 }
