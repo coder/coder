@@ -163,6 +163,20 @@ export const CreateWorkspacePageView: FC<
             }
           />
         )}
+        {Boolean(
+          props.createWorkspaceErrors[
+            CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
+          ],
+        ) && (
+          <AlertBanner
+            severity="error"
+            error={
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
+              ]
+            }
+          />
+        )}
       </Stack>
     )
   }
