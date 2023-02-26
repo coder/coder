@@ -3,25 +3,19 @@ import { makeStyles } from "@material-ui/core/styles"
 import { SignInLayout } from "components/SignInLayout/SignInLayout"
 import { Welcome } from "components/Welcome/Welcome"
 import { FC, useEffect } from "react"
-import { Link as RouterLink, useSearchParams } from "react-router-dom"
+import { Link as RouterLink } from "react-router-dom"
 import { REFRESH_GITAUTH_BROADCAST_CHANNEL } from "xServices/createWorkspace/createWorkspaceXService"
 
 const GitAuthPage: FC = () => {
   const styles = useStyles()
-  const [searchParams] = useSearchParams()
-  const shouldNotify = searchParams.has("notify")
   useEffect(() => {
-    if (!shouldNotify) {
-      return
-    }
-
     // This is used to notify the parent window that the Git auth token has been refreshed.
     // It's critical in the create workspace flow!
     const bc = new BroadcastChannel(REFRESH_GITAUTH_BROADCAST_CHANNEL)
     // The message doesn't matter, any message refreshes the page!
     bc.postMessage("noop")
     window.close()
-  }, [shouldNotify])
+  }, [])
 
   return (
     <SignInLayout>

@@ -701,14 +701,13 @@ func createTestParseResponseWithDefault(defaultValue string) []*proto.Parse_Resp
 }
 
 type oauth2Config struct {
-	token *oauth2.Token
 }
 
 func (*oauth2Config) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
 	return "/?state=" + url.QueryEscape(state)
 }
 
-func (o *oauth2Config) Exchange(context.Context, string, ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+func (*oauth2Config) Exchange(context.Context, string, ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	return &oauth2.Token{
 		AccessToken:  "token",
 		RefreshToken: "refresh",
@@ -716,20 +715,14 @@ func (o *oauth2Config) Exchange(context.Context, string, ...oauth2.AuthCodeOptio
 	}, nil
 }
 
-func (o *oauth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
-	return &oauth2TokenSource{
-		token: o.token,
-	}
+func (*oauth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
+	return &oauth2TokenSource{}
 }
 
 type oauth2TokenSource struct {
-	token *oauth2.Token
 }
 
-func (o *oauth2TokenSource) Token() (*oauth2.Token, error) {
-	if o.token != nil {
-		return o.token, nil
-	}
+func (*oauth2TokenSource) Token() (*oauth2.Token, error) {
 	return &oauth2.Token{
 		AccessToken:  "token",
 		RefreshToken: "refresh",
