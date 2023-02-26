@@ -158,7 +158,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	cmd.AddCommand(subcommands...)
 	fixUnknownSubcommandError(cmd.Commands())
 
-	cmd.SetUsageTemplate(usageTemplate())
+	cmd.SetUsageTemplate(usageTemplateCobra())
 
 	cliflag.String(cmd.PersistentFlags(), varURL, "", envURL, "", "URL to a deployment.")
 	cliflag.Bool(cmd.PersistentFlags(), varNoVersionCheck, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
@@ -479,7 +479,10 @@ func isWorkspaceCommand(cmd *cobra.Command) bool {
 	return ws
 }
 
-func usageTemplate() string {
+// We will eventually replace this with the bigcli template describedc
+// in usage.go. We don't want to continue working around
+// Cobra's feature-set.
+func usageTemplateCobra() string {
 	// usageHeader is defined in init().
 	return `{{usageHeader "Usage:"}}
 {{- if .Runnable}}

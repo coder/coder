@@ -1,6 +1,7 @@
 package bigcli
 
 import (
+	"os"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
@@ -41,10 +42,20 @@ func (a Annotations) IsSet(key string) bool {
 	return ok
 }
 
+// Get retrieves a key from the map, returning false if the key is not found
+// or the map is nil.
+func (a Annotations) Get(key string) (string, bool) {
+	if a == nil {
+		return "", false
+	}
+	v, ok := a[key]
+	return v, ok
+}
+
 // Option is a configuration option for a CLI application.
 type Option struct {
-	Name  string
-	Usage string
+	Name        string
+	Description string
 
 	// If unset, Flag defaults to the kebab-case version of Name.
 	// Use sentinel value `Disable` to disable flag support.
@@ -99,14 +110,14 @@ func (o *Option) EnvName() (string, bool) {
 type OptionSet []Option
 
 // Add adds the given Options to the OptionSet.
-func (os *OptionSet) Add(opts ...Option) {
-	*os = append(*os, opts...)
+func (s *OptionSet) Add(opts ...Option) {
+	*s = append(*s, opts...)
 }
 
 // FlagSet returns a pflag.FlagSet for the OptionSet.
-func (os *OptionSet) FlagSet() *pflag.FlagSet {
+func (s *OptionSet) FlagSet() *pflag.FlagSet {
 	fs := pflag.NewFlagSet("", pflag.ContinueOnError)
-	for _, opt := range *os {
+	for _, opt := range *s {
 		flagName, ok := opt.FlagName()
 		if !ok {
 			continue
@@ -124,7 +135,7 @@ func (os *OptionSet) FlagSet() *pflag.FlagSet {
 		fs.AddFlag(&pflag.Flag{
 			Name:        flagName,
 			Shorthand:   opt.FlagShorthand,
-			Usage:       opt.Usage,
+			Usage:       opt.Description,
 			Value:       opt.Value,
 			DefValue:    "",
 			Changed:     false,
@@ -133,11 +144,14 @@ func (os *OptionSet) FlagSet() *pflag.FlagSet {
 			Hidden:      opt.Hidden,
 		})
 	}
+	fs.Usage = func() {
+		_, _ = os.Stderr.WriteString("Override (*FlagSet).Usage() to print help text.\n")
+	}
 	return fs
 }
 
 // ParseEnv parses the given environment variables into the OptionSet.
-func (os *OptionSet) ParseEnv(globalPrefix string, environ []string) error {
+func (s *OptionSet) ParseEnv(globalPrefix string, environ []string) error {
 	var merr *multierror.Error
 
 	// We parse environment variables first instead of using a nested loop to
@@ -157,7 +171,7 @@ func (os *OptionSet) ParseEnv(globalPrefix string, environ []string) error {
 		envs[tokens[0]] = tokens[1]
 	}
 
-	for _, opt := range *os {
+	for _, opt := range *s {
 		envName, ok := opt.EnvName()
 		if !ok {
 			continue

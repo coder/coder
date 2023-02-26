@@ -100,12 +100,12 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			// This is a hack to get around the fact that the Cobra-defined
 			// flags are not available.
 			cliOpts.Add(bigcli.Option{
-				Name:    "Global Config",
-				Flag:    config.FlagName,
-				Usage:   "Global Config is ignored in server mode.",
-				Hidden:  true,
-				Default: config.DefaultDir(),
-				Value:   &configDir,
+				Name:        "Global Config",
+				Flag:        config.FlagName,
+				Description: "Global Config is ignored in server mode.",
+				Hidden:      true,
+				Default:     config.DefaultDir(),
+				Value:       &configDir,
 			})
 
 			err := cliOpts.SetDefaults()
@@ -119,13 +119,41 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			}
 
 			flagSet := cliOpts.FlagSet()
+			flagSet.Usage = usageFn(cmd.ErrOrStderr(), &bigcli.Command{
+				Parents: []*bigcli.Command{
+					{
+						Use: "coder",
+					},
+				},
+				Use:   "server [flags]",
+				Short: "Start a Coder server",
+				Long: `
+The server provides contains the Coder dashboard, API, and provisioners.
+If no options are provided, the server will start with a built-in postgres
+and an access URL provided by Coder's cloud service.
+
+Use the following command to print the built-in postgres URL:
+	$ coder server postgres-builtin-url
+
+Use the following command to manually run the built-in postgres:
+	$ coder server postgres-builtin-serve
+
+Options may be provided via environment variables prefixed with "CODER_",
+flags, and YAML configuration. The precedence is as follows:
+	1. Defaults
+	2. YAML configuration
+	3. Environment variables
+	4. Flags
+				`,
+				Options: cliOpts,
+			})
 			err = flagSet.Parse(args)
 			if err != nil {
 				return xerrors.Errorf("parse flags: %w", err)
 			}
 
 			// Print deprecation warnings.
-			for _, opt := range *cliOpts {
+			for _, opt := range cliOpts {
 				if opt.UseInstead == nil {
 					continue
 				}
@@ -1021,7 +1049,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 
 	createAdminUserCommand := newCreateAdminUserCommand()
 	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		cmd.Println(args)
+		// Help is handled by bigcli in command body.
+		return
 	})
 	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd, createAdminUserCommand)
 
