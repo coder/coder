@@ -2,6 +2,7 @@ package bigcli
 
 import (
 	"github.com/iancoleman/strcase"
+	"github.com/mitchellh/go-wordwrap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -50,7 +51,7 @@ func (s OptionSet) ToYAML() (*yaml.Node, error) {
 		nameNode := yaml.Node{
 			Kind:        yaml.ScalarNode,
 			Value:       opt.YAML,
-			HeadComment: opt.Description,
+			HeadComment: wordwrap.WrapString(opt.Description, 80),
 		}
 		valueNode := yaml.Node{
 			Kind:  yaml.ScalarNode,

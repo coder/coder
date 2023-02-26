@@ -909,7 +909,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "max-token-lifetime",
 			Default:     (24 * 30 * time.Hour).String(),
 			Value:       &c.MaxTokenLifetime,
-			Group:       []string{"Security"},
+			Group:       []string{"Networking", "HTTP"},
 			YAML:        "maxTokenLifetime",
 		},
 		{
