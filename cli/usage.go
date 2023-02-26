@@ -38,6 +38,20 @@ Configure TLS / HTTPS for your Coder deployment. If you're running
 Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
 secure link, you can safely ignore these settings. 
 `,
+	`Introspection`: `
+Configure logging, tracing, and metrics exporting.
+`,
+	`oAuth2`: `
+Configure login and user-provisioning with GitHub via oAuth2.
+`,
+	`OIDC`: `
+Configure login and user-provisioning with OIDC.
+`,
+	`Telemetry`: `
+Telemetry is critical to our ability to improve Coder. We strip all personal
+information before sending data to our servers. Please only disable telemetry
+when required by your organization's security policy.
+`,
 }
 
 const envPrefix = "CODER_"

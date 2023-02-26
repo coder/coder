@@ -531,6 +531,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Serve prometheus metrics on the address defined by prometheus address.",
 			Flag:        "prometheus-enable",
 			Value:       &c.Prometheus.Enable,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Introspection"),
 		},
 		{
 			Name:        "Prometheus Address",
@@ -538,6 +539,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "prometheus-address",
 			Default:     "127.0.0.1:2112",
 			Value:       &c.Prometheus.Address,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Introspection"),
 		},
 		// Pprof settings
 		{
@@ -545,6 +547,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Serve pprof metrics on the address defined by pprof address.",
 			Flag:        "pprof-enable",
 			Value:       &c.Pprof.Enable,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Introspection"),
 		},
 		{
 			Name:        "pprof Address",
@@ -552,6 +555,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "pprof-address",
 			Default:     "127.0.0.1:6060",
 			Value:       &c.Pprof.Address,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Introspection"),
 		},
 		// oAuth settings
 		{
@@ -559,43 +563,50 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Client ID for Login with GitHub.",
 			Flag:        "oauth2-github-client-id",
 			Value:       &c.OAuth2.Github.ClientID,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "oAuth2"),
 		},
 		{
 			Name:        "OAuth2 GitHub Client Secret",
 			Description: "Client secret for Login with GitHub.",
 			Flag:        "oauth2-github-client-secret",
 			Value:       &c.OAuth2.Github.ClientSecret,
-			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true"),
+			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true").
+				Mark(flagGroupKey, "oAuth2"),
 		},
 		{
 			Name:        "OAuth2 GitHub Allowed Orgs",
 			Description: "Organizations the user must be a member of to Login with GitHub.",
 			Flag:        "oauth2-github-allowed-orgs",
 			Value:       &c.OAuth2.Github.AllowedOrgs,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "oAuth2"),
 		},
 		{
 			Name:        "OAuth2 GitHub Allowed Teams",
 			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
 			Flag:        "oauth2-github-allowed-teams",
 			Value:       &c.OAuth2.Github.AllowedTeams,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "oAuth2"),
 		},
 		{
 			Name:        "OAuth2 GitHub Allow Signups",
 			Description: "Whether new users can sign up with GitHub.",
 			Flag:        "oauth2-github-allow-signups",
 			Value:       &c.OAuth2.Github.AllowSignups,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "oAuth2"),
 		},
 		{
 			Name:        "OAuth2 GitHub Allow Everyone",
 			Description: "Allow all logins, setting this option means allowed orgs and teams must be empty.",
 			Flag:        "oauth2-github-allow-everyone",
 			Value:       &c.OAuth2.Github.AllowEveryone,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "oAuth2"),
 		},
 		{
 			Name:        "OAuth2 GitHub Enterprise Base URL",
 			Description: "Base URL of a GitHub Enterprise deployment to use for Login with GitHub.",
 			Flag:        "oauth2-github-enterprise-base-url",
 			Value:       &c.OAuth2.Github.EnterpriseBaseURL,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "oAuth2"),
 		},
 		// OIDC settings.
 		{
@@ -604,31 +615,36 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "oidc-allow-signups",
 			Default:     "true",
 			Value:       &c.OIDC.AllowSignups,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "OIDC"),
 		},
 		{
 			Name:        "OIDC Client ID",
 			Description: "Client ID to use for Login with OIDC.",
 			Flag:        "oidc-client-id",
 			Value:       &c.OIDC.ClientID,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "OIDC"),
 		},
 		{
 			Name:        "OIDC Client Secret",
 			Description: "Client secret to use for Login with OIDC.",
 			Flag:        "oidc-client-secret",
-			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true"),
-			Value:       &c.OIDC.ClientSecret,
+			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true").
+				Mark(flagGroupKey, "OIDC"),
+			Value: &c.OIDC.ClientSecret,
 		},
 		{
 			Name:        "OIDC Email Domain",
 			Description: "Email domains that clients logging in with OIDC must match.",
 			Flag:        "oidc-email-domain",
 			Value:       &c.OIDC.EmailDomain,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "OIDC"),
 		},
 		{
 			Name:        "OIDC Issuer URL",
 			Description: "Issuer URL to use for Login with OIDC.",
 			Flag:        "oidc-issuer-url",
 			Value:       &c.OIDC.IssuerURL,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "OIDC"),
 		},
 		{
 			Name:        "OIDC Scopes",
@@ -636,6 +652,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "oidc-scopes",
 			Default:     strings.Join([]string{oidc.ScopeOpenID, "profile", "email"}, ","),
 			Value:       &c.OIDC.Scopes,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "OIDC"),
 		},
 		{
 			Name:        "OIDC Ignore Email Verified",
@@ -643,6 +660,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "oidc-ignore-email-verified",
 			Default:     "false",
 			Value:       &c.OIDC.IgnoreEmailVerified,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "OIDC"),
 		},
 		{
 			Name:        "OIDC Username Field",
@@ -650,6 +668,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "oidc-username-field",
 			Default:     "preferred_username",
 			Value:       &c.OIDC.UsernameField,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "OIDC"),
 		},
 		{
 			Name:        "OpenID Connect sign in text",
@@ -657,12 +676,14 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "oidc-sign-in-text",
 			Default:     "OpenID Connect",
 			Value:       &c.OIDC.SignInText,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "OIDC"),
 		},
 		{
 			Name:        "OpenID connect icon URL",
 			Description: "URL pointing to the icon to use on the OepnID Connect login button",
 			Flag:        "oidc-icon-url",
 			Value:       &c.OIDC.IconURL,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "OIDC"),
 		},
 		// Telemetry settings
 		{
@@ -671,6 +692,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "telemetry",
 			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
 			Value:       &c.Telemetry.Enable,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Telemetry"),
 		},
 		{
 			Name:        "Telemetry Trace",
@@ -678,6 +700,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "telemetry-trace",
 			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
 			Value:       &c.Telemetry.Trace,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Telemetry"),
 		},
 		{
 			Name:        "Telemetry URL",
@@ -686,6 +709,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Hidden:      true,
 			Default:     "https://telemetry.coder.com",
 			Value:       &c.Telemetry.URL,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Telemetry"),
 		},
 		// Trace settings
 		{
@@ -693,19 +717,22 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md",
 			Flag:        "trace",
 			Value:       &c.Trace.Enable,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Introspection"),
 		},
 		{
 			Name:        "Trace Honeycomb API Key",
 			Description: "Enables trace exporting to Honeycomb.io using the provided API Key.",
 			Flag:        "trace-honeycomb-api-key",
-			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true"),
-			Value:       &c.Trace.HoneycombAPIKey,
+			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true").
+				Mark(flagGroupKey, "Introspection"),
+			Value: &c.Trace.HoneycombAPIKey,
 		},
 		{
 			Name:        "Capture Logs in Traces",
 			Description: "Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.",
 			Flag:        "trace-logs",
 			Value:       &c.Trace.CaptureLogs,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Introspection"),
 		},
 		// Provisioner settings
 		{
