@@ -172,6 +172,7 @@ func serverOptions(c *codersdk.DeploymentConfig) *bigcli.OptionSet {
 			Flag:       "tls-redirect-http-to-https",
 			Default:    "true",
 			Hidden:     true,
+			Value:      &c.TLS.RedirectHTTP,
 			UseInstead: []bigcli.Option{redirectToAccessURL},
 		},
 		{
@@ -723,7 +724,24 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			defer cancel()
 
 			cfg := &codersdk.DeploymentConfig{
-				TLS: &codersdk.TLSConfig{},
+				TLS:         &codersdk.TLSConfig{},
+				Logging:     &codersdk.LoggingConfig{},
+				Provisioner: &codersdk.ProvisionerConfig{},
+				RateLimit:   &codersdk.RateLimitConfig{},
+				Dangerous:   &codersdk.DangerousConfig{},
+				Trace:       &codersdk.TraceConfig{},
+				Telemetry:   &codersdk.TelemetryConfig{},
+				OIDC:        &codersdk.OIDCConfig{},
+				OAuth2: &codersdk.OAuth2Config{
+					Github: &codersdk.OAuth2GithubConfig{},
+				},
+				Pprof:      &codersdk.PprofConfig{},
+				Prometheus: &codersdk.PrometheusConfig{},
+				DERP: &codersdk.DERP{
+					Server: &codersdk.DERPServerConfig{},
+					Config: &codersdk.DERPConfig{},
+				},
+				Swagger: &codersdk.SwaggerConfig{},
 			}
 			cliOpts := serverOptions(cfg)
 

@@ -28,7 +28,7 @@ func (a Annotations) Mark(key string, value string) Annotations {
 	} else {
 		aa = make(Annotations)
 	}
-	a[key] = value
+	aa[key] = value
 	return aa
 }
 
@@ -178,7 +178,11 @@ func (os *OptionSet) SetDefaults() error {
 		}
 		if opt.Value == nil {
 			merr = multierror.Append(
-				merr, xerrors.Errorf("parse %q: no Value field set", opt.Name),
+				merr,
+				xerrors.Errorf(
+					"parse %q: no Value field set\nFull opt: %+v",
+					opt.Name, opt,
+				),
 			)
 			continue
 		}

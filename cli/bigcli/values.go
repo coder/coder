@@ -34,6 +34,10 @@ func (Int64) Type() string {
 type Bool bool
 
 func (b *Bool) Set(s string) error {
+	if s == "" {
+		*b = Bool(false)
+		return nil
+	}
 	bb, err := strconv.ParseBool(s)
 	*b = Bool(bb)
 	return err
