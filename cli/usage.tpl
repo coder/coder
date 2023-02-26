@@ -24,3 +24,9 @@ usage: {{.FullUsage}}
         {{- end -}}
     {{- end }}
 {{- end }}
+{{- range $index, $child := .Children }}
+{{- if eq $index 0 }}
+{{ prettyHeader "Subcommands"}}
+{{- end }}
+{{ indent $child.Use 1 | trimNewline }}{{ indent $child.Short 1 | trimNewline }}
+{{- end }}

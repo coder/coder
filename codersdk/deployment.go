@@ -1015,11 +1015,11 @@ type Flaggable interface {
 }
 
 // Scrub returns a copy of the config without secret values.
-func (f *DeploymentConfig) Scrub() (*DeploymentConfig, error) {
+func (c *DeploymentConfig) Scrub() (*DeploymentConfig, error) {
 	var ff DeploymentConfig
 
 	// Create copy via JSON.
-	byt, err := json.Marshal(f)
+	byt, err := json.Marshal(c)
 	if err != nil {
 		return nil, err
 	}
@@ -1036,7 +1036,10 @@ func (f *DeploymentConfig) Scrub() (*DeploymentConfig, error) {
 		// This only works with string values for now.
 		switch v := opt.Value.(type) {
 		case *bigcli.String:
-			v.Set("")
+			err := v.Set("")
+			if err != nil {
+				panic(err)
+			}
 		default:
 			return nil, xerrors.Errorf("unsupported type %T", v)
 		}

@@ -119,10 +119,22 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			}
 
 			flagSet := cliOpts.FlagSet()
+			// These parents and children will be moved once we convert the
+			// rest of the `cli` package to bigcli.
 			flagSet.Usage = usageFn(cmd.ErrOrStderr(), &bigcli.Command{
 				Parents: []*bigcli.Command{
 					{
 						Use: "coder",
+					},
+				},
+				Children: []*bigcli.Command{
+					{
+						Use:   "postgres-builtin-url",
+						Short: "Output the connection URL for the built-in PostgreSQL deployment.",
+					},
+					{
+						Use:   "postgres-builtin-serve",
+						Short: "Run the built-in PostgreSQL deployment.",
 					},
 				},
 				Use:   "server [flags]",

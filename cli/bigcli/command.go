@@ -7,6 +7,8 @@ type Command struct {
 	// Parents is a list of parent commands, with
 	// the root command at index 0.
 	Parents []*Command
+	// Children is a list of direct descendants.
+	Children []*Command
 	// Use is provided in form "command [flags] [args...]".
 	Use string
 	// Short is a one-line description of the command.

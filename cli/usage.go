@@ -66,6 +66,9 @@ var usageTemplate = template.Must(
 			"wordWrap": func(s string, width uint) string {
 				return wordwrap.WrapString(s, width)
 			},
+			"trimNewline": func(s string) string {
+				return strings.TrimSuffix(s, "\n")
+			},
 			"indent": func(s string, tabs int) string {
 				var sb strings.Builder
 				for _, line := range strings.Split(s, "\n") {
