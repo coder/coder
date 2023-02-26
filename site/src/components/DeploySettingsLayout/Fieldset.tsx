@@ -39,7 +39,7 @@ const useStyles = makeStyles((theme) => ({
   },
   title: {
     ...theme.typography.h5,
-    fontWeight: "bold",
+    fontWeight: 600,
   },
   body: {
     ...theme.typography.body2,

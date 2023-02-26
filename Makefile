@@ -424,7 +424,7 @@ gen: \
 	provisionerd/proto/provisionerd.pb.go \
 	site/src/api/typesGenerated.ts \
 	docs/admin/prometheus.md \
-	docs/cli/coder.md \
+	docs/cli.md \
 	docs/admin/audit-logs.md \
 	coderd/apidoc/swagger.json \
 	.prettierignore.include \
@@ -444,7 +444,7 @@ gen/mark-fresh:
 		provisionerd/proto/provisionerd.pb.go \
 		site/src/api/typesGenerated.ts \
 		docs/admin/prometheus.md \
-		docs/cli/coder.md \
+		docs/cli.md \
 		docs/admin/audit-logs.md \
 		coderd/apidoc/swagger.json \
 		.prettierignore.include \
@@ -500,10 +500,11 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	cd site
 	yarn run format:write:only ../docs/admin/prometheus.md
 
-docs/cli/coder.md: scripts/clidocgen/main.go $(GO_SRC_FILES) docs/manifest.json
-	BASE_PATH="." go run scripts/clidocgen/main.go
+docs/cli.md: scripts/clidocgen/main.go $(GO_SRC_FILES) docs/manifest.json
+	rm -rf ./docs/cli/*.md
+	BASE_PATH="." go run ./scripts/clidocgen
 	cd site
-	yarn run format:write:only ../docs/cli/*.md ../docs/manifest.json
+	yarn run format:write:only ../docs/cli.md ../docs/cli/*.md ../docs/manifest.json
 
 docs/admin/audit-logs.md: scripts/auditdocgen/main.go enterprise/audit/table.go
 	go run scripts/auditdocgen/main.go

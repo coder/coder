@@ -11,24 +11,11 @@ import Button from "@material-ui/core/Button"
 import EmailIcon from "@material-ui/icons/EmailOutlined"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 
-export enum LoginErrors {
-  AUTH_ERROR = "authError",
-  GET_USER_ERROR = "getUserError",
-  CHECK_PERMISSIONS_ERROR = "checkPermissionsError",
-  GET_METHODS_ERROR = "getMethodsError",
-}
-
 export const Language = {
   emailLabel: "Email",
   passwordLabel: "Password",
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
-  errorMessages: {
-    [LoginErrors.AUTH_ERROR]: "Incorrect email or password.",
-    [LoginErrors.GET_USER_ERROR]: "Failed to fetch user details.",
-    [LoginErrors.CHECK_PERMISSIONS_ERROR]: "Unable to fetch user permissions.",
-    [LoginErrors.GET_METHODS_ERROR]: "Unable to fetch auth methods.",
-  },
   passwordSignIn: "Sign In",
   githubSignIn: "GitHub",
   oidcSignIn: "OpenID Connect",
@@ -48,6 +35,9 @@ const useStyles = makeStyles((theme) => ({
     "& strong": {
       fontWeight: 600,
     },
+  },
+  error: {
+    marginBottom: theme.spacing(4),
   },
   divider: {
     paddingTop: theme.spacing(3),
@@ -75,9 +65,9 @@ const useStyles = makeStyles((theme) => ({
 }))
 
 export interface SignInFormProps {
-  isLoading: boolean
+  isSigningIn: boolean
   redirectTo: string
-  loginErrors: Partial<Record<LoginErrors, Error | unknown>>
+  error?: unknown
   authMethods?: AuthMethods
   onSubmit: (credentials: { email: string; password: string }) => void
   // initialTouched is only used for testing the error state of the form.
@@ -87,8 +77,8 @@ export interface SignInFormProps {
 export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   authMethods,
   redirectTo,
-  isLoading,
-  loginErrors,
+  isSigningIn,
+  error,
   onSubmit,
   initialTouched,
 }) => {
@@ -96,11 +86,9 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
     authMethods?.github.enabled || authMethods?.oidc.enabled,
   )
   const passwordEnabled = authMethods?.password.enabled ?? true
-
   // Hide password auth by default if any OAuth method is enabled
   const [showPasswordAuth, setShowPasswordAuth] = useState(!oAuthEnabled)
   const styles = useStyles()
-
   const commonTranslation = useTranslation("common")
   const loginPageTranslation = useTranslation("loginPage")
 
@@ -110,12 +98,16 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         {loginPageTranslation.t("signInTo")}{" "}
         <strong>{commonTranslation.t("coder")}</strong>
       </h1>
+      <Maybe condition={error !== undefined}>
+        <div className={styles.error}>
+          <AlertBanner severity="error" error={error} />
+        </div>
+      </Maybe>
       <Maybe condition={passwordEnabled && showPasswordAuth}>
         <PasswordSignInForm
-          loginErrors={loginErrors}
           onSubmit={onSubmit}
           initialTouched={initialTouched}
-          isLoading={isLoading}
+          isSigningIn={isSigningIn}
         />
       </Maybe>
       <Maybe condition={passwordEnabled && showPasswordAuth && oAuthEnabled}>
@@ -127,7 +119,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
       </Maybe>
       <Maybe condition={oAuthEnabled}>
         <OAuthSignInForm
-          isLoading={isLoading}
+          isSigningIn={isSigningIn}
           redirectTo={redirectTo}
           authMethods={authMethods}
         />
@@ -150,7 +142,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         <Button
           fullWidth
           onClick={() => setShowPasswordAuth(true)}
-          variant="contained"
+          variant="outlined"
           startIcon={<EmailIcon className={styles.icon} />}
         >
           {loginPageTranslation.t("showPassword")}

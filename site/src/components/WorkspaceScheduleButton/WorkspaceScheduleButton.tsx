@@ -16,6 +16,7 @@ import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { colors } from "theme/colors"
 import { Workspace } from "../../api/typesGenerated"
 import { isWorkspaceOn } from "../../util/workspace"
 import { WorkspaceSchedule } from "../WorkspaceSchedule/WorkspaceSchedule"
@@ -154,6 +155,7 @@ export const WorkspaceScheduleButton: React.FC<
       </Maybe>
       <>
         <Button
+          variant="outlined"
           ref={anchorRef}
           startIcon={<ScheduleIcon />}
           onClick={() => {
@@ -198,8 +200,6 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   wrapper: {
     display: "inline-flex",
     alignItems: "center",
-    borderRadius: `${theme.shape.borderRadius}px`,
-    border: `1px solid ${theme.palette.divider}`,
 
     [theme.breakpoints.down("sm")]: {
       flexDirection: "column",
@@ -208,6 +208,14 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   label: {
     padding: theme.spacing(0, 2),
     color: theme.palette.text.secondary,
+    borderRadius: theme.shape.borderRadius,
+    border: `1px solid ${colors.gray[11]}`, // Same as outlined button
+    display: "flex",
+    height: theme.spacing(5), // Same as button
+    alignItems: "center",
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
+    borderRight: 0,
 
     [theme.breakpoints.down("sm")]: {
       width: "100%",
@@ -224,12 +232,9 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
     },
   },
   scheduleButton: {
-    border: "none",
-    borderRadius: `${theme.shape.borderRadius}px`,
     flexShrink: 0,
 
     "&.label": {
-      borderLeft: `1px solid ${theme.palette.divider}`,
       borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
     },
 

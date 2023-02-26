@@ -5,6 +5,7 @@ Usage:
 
 Flags:
   -h, --help   help for pull
+      --tar    output the template as a tar archive to stdout
   -y, --yes    Bypass prompts
 
 Global Flags:

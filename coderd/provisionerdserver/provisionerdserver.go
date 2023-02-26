@@ -210,6 +210,8 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 					WorkspaceOwnerEmail: owner.Email,
 					WorkspaceId:         workspace.ID.String(),
 					WorkspaceOwnerId:    owner.ID.String(),
+					TemplateName:        template.Name,
+					TemplateVersion:     templateVersion.Name,
 				},
 			},
 		}

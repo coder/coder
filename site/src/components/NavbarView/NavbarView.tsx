@@ -239,7 +239,7 @@ const useStyles = makeStyles((theme) => ({
     // NavLink adds this class when the current route matches.
     "&.active": {
       color: theme.palette.text.primary,
-      fontWeight: "bold",
+      fontWeight: 500,
     },
 
     [theme.breakpoints.up("md")]: {

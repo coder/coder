@@ -89,11 +89,16 @@ const useButtonStyles = makeStyles((theme) => ({
       backgroundColor: colors.red[10],
       borderColor: colors.red[9],
       color: theme.palette.text.primary,
-      "&:hover": {
+
+      "&:hover:not(:disabled)": {
         backgroundColor: colors.red[9],
+        borderColor: colors.red[9],
       },
+
       "&.Mui-disabled": {
-        opacity: 0.5,
+        backgroundColor: colors.red[15],
+        borderColor: colors.red[15],
+        color: colors.red[9],
       },
     },
   },

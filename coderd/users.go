@@ -387,6 +387,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := *api.Auditor.Load()
 	user := httpmw.UserParam(r)
+	auth := httpmw.UserAuthorization(r)
 	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
 		Audit:   auditor,
 		Log:     api.Logger,
@@ -398,6 +399,13 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 
 	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser) {
 		httpapi.Forbidden(rw)
+		return
+	}
+
+	if auth.Actor.ID == user.ID.String() {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You cannot delete yourself!",
+		})
 		return
 	}
 
