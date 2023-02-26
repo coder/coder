@@ -4,12 +4,14 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"text/template"
 
 	"github.com/mitchellh/go-wordwrap"
 
 	"github.com/coder/coder/cli/bigcli"
+	"github.com/coder/coder/cli/cliui"
 )
 
 //go:embed usage.tpl
@@ -23,7 +25,18 @@ type optionGroup struct {
 
 var optionGroupDescriptions = map[string]string{
 	"Networking": `
-Configure how coder server connects to users and workspaces.
+Configure TLS, the wildcard access URL, bind addresses, access URLs, etc.
+`,
+	"Networking / DERP": `
+Most Coder deployments never have to think about DERP because all connections
+between workspaces and users are peer-to-peer. However, when Coder cannot establish
+a peer to peer connection, Coder uses a distributed relay network backed by
+Tailscale and WireGuard.
+`,
+	"Networking / TLS": `
+Configure TLS / HTTPS for your Coder deployment. If you're running
+Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
+secure link, you can safely ignore these settings. 
 `,
 }
 
@@ -53,9 +66,15 @@ var usageTemplate = template.Must(
 				}
 				return envPrefix + n
 			},
+			"prettyHeader": func(s string) string {
+				return cliui.Styles.Bold.Render(s)
+			},
 			"flagName": func(opt bigcli.Option) string {
 				n, _ := opt.FlagName()
 				return n
+			},
+			"isDeprecated": func(opt bigcli.Option) bool {
+				return len(opt.UseInstead) > 0
 			},
 			"optionGroups": func(cmd *bigcli.Command) []optionGroup {
 				groups := []optionGroup{{
@@ -63,6 +82,11 @@ var usageTemplate = template.Must(
 					Name:        "",
 					Description: "",
 				}}
+
+				// Sort options lexicographically.
+				sort.Slice(cmd.Options, func(i, j int) bool {
+					return cmd.Options[i].Name < cmd.Options[j].Name
+				})
 
 			optionLoop:
 				for _, opt := range cmd.Options {
@@ -90,6 +114,10 @@ var usageTemplate = template.Must(
 						Options:     bigcli.OptionSet{opt},
 					})
 				}
+				sort.Slice(groups, func(i, j int) bool {
+					// Sort groups lexicographically.
+					return groups[i].Name < groups[j].Name
+				})
 				return groups
 			},
 		},

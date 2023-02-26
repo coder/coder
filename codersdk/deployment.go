@@ -308,20 +308,14 @@ type DangerousConfig struct {
 	AllowPathAppSiteOwnerAccess bigcli.Bool `json:"allow_path_app_site_owner_access" typescript:",notnull"`
 }
 
-func markEnterpriseOpt(an bigcli.Annotations) bigcli.Annotations {
-	return an.Mark("enterprise", "true")
-}
-
-func markSecretOpt(an bigcli.Annotations) bigcli.Annotations {
-	return an.Mark("secret", "true")
-}
-
-func markFlagGroup(an bigcli.Annotations, group string) bigcli.Annotations {
-	return an.Mark("group", group)
-}
+const (
+	flagEnterpriseKey = "enterprise"
+	flagSecretKey     = "secret"
+	flagGroupKey      = "group"
+)
 
 func isSecretOpt(an bigcli.Annotations) bool {
-	return an.IsSet("secret")
+	return an.IsSet(flagSecretKey)
 }
 
 func DefaultCacheDir() string {
@@ -344,7 +338,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 		Flag:        "http-address",
 		Default:     "127.0.0.1:3000",
 		Value:       &c.HTTPAddress,
-		Annotations: markFlagGroup(nil, "Networking"),
+		Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking"),
 	}
 	tlsBindAddress := bigcli.Option{
 		Name:        "TLS Address",
@@ -352,24 +346,28 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 		Flag:        "tls-address",
 		Default:     "127.0.0.1:3443",
 		Value:       &c.TLS.Address,
+		Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / TLS"),
 	}
 	redirectToAccessURL := bigcli.Option{
 		Name:        "Redirect to Access URL",
 		Description: "Specifies whether to redirect requests that do not match the access URL host.",
 		Flag:        "redirect-to-access-url",
 		Value:       &c.RedirectToAccessURL,
+		Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking"),
 	}
 	return bigcli.OptionSet{
 		{
 			Name:        "Access URL",
 			Description: `The URL that users will use to access the Coder deployment.`,
 			Value:       &c.AccessURL,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking"),
 		},
 		{
 			Name:        "Wildcard Access URL",
 			Description: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
 			Flag:        "wildcard-access-url",
 			Value:       &c.WildcardAccessURL,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking"),
 		},
 		redirectToAccessURL,
 		{
@@ -393,6 +391,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 				httpAddress,
 				tlsBindAddress,
 			},
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking"),
 		},
 		// TLS settings
 		{
@@ -400,6 +399,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Whether TLS will be enabled.",
 			Flag:        "tls-enable",
 			Value:       &c.TLS.Enable,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / TLS"),
 		},
 		{
 			Name:        "Redirect HTTP to HTTPS",
@@ -409,18 +409,21 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Hidden:      true,
 			Value:       &c.TLS.RedirectHTTP,
 			UseInstead:  []bigcli.Option{redirectToAccessURL},
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / TLS"),
 		},
 		{
 			Name:        "TLS Certificate Files",
 			Description: "Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.",
 			Flag:        "tls-cert-file",
 			Value:       &c.TLS.CertFiles,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / TLS"),
 		},
 		{
 			Name:        "TLS Client CA Files",
 			Description: "PEM-encoded Certificate Authority file used for checking the authenticity of client",
 			Flag:        "tls-client-ca-file",
 			Value:       &c.TLS.ClientCAFile,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / TLS"),
 		},
 		{
 			Name:        "TLS Client Auth",
@@ -428,12 +431,14 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "tls-client-auth",
 			Default:     "none",
 			Value:       &c.TLS.ClientAuth,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / TLS"),
 		},
 		{
 			Name:        "TLS Key Files",
 			Description: "Paths to the private keys for each of the certificates. It requires a PEM-encoded file.",
 			Flag:        "tls-key-file",
 			Value:       &c.TLS.KeyFiles,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / TLS"),
 		},
 		{
 			Name:        "TLS Minimum Version",
@@ -441,18 +446,21 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "tls-min-version",
 			Default:     "tls12",
 			Value:       &c.TLS.MinVersion,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / TLS"),
 		},
 		{
 			Name:        "TLS Client Cert File",
 			Description: "Path to certificate for client TLS authentication. It requires a PEM-encoded file.",
 			Flag:        "tls-client-cert-file",
 			Value:       &c.TLS.ClientCertFile,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / TLS"),
 		},
 		{
 			Name:        "TLS Client Key File",
 			Description: "Path to key for client TLS authentication. It requires a PEM-encoded file.",
 			Flag:        "tls-client-key-file",
 			Value:       &c.TLS.ClientKeyFile,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / TLS"),
 		},
 		// Derp settings
 		{
@@ -461,6 +469,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "derp-server-enable",
 			Default:     "true",
 			Value:       &c.DERP.Server.Enable,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / DERP"),
 		},
 		{
 			Name:        "DERP Server Region ID",
@@ -468,6 +477,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "derp-server-region-id",
 			Default:     "999",
 			Value:       &c.DERP.Server.RegionID,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / DERP"),
 		},
 		{
 			Name:        "DERP Server Region Code",
@@ -475,6 +485,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "derp-server-region-code",
 			Default:     "coder",
 			Value:       &c.DERP.Server.RegionCode,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / DERP"),
 		},
 		{
 			Name:        "DERP Server Region Name",
@@ -482,6 +493,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "derp-server-region-name",
 			Default:     "Coder Embedded Relay",
 			Value:       &c.DERP.Server.RegionName,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / DERP"),
 		},
 		{
 			Name:        "DERP Server STUN Addresses",
@@ -489,12 +501,13 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "derp-server-stun-addresses",
 			Default:     "stun.l.google.com:19302",
 			Value:       &c.DERP.Server.STUNAddresses,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / DERP"),
 		},
 		{
 			Name:        "DERP Server Relay URL",
 			Description: "An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.",
 			Flag:        "derp-server-relay-url",
-			Annotations: markEnterpriseOpt(nil),
+			Annotations: bigcli.Annotations{}.Mark(flagEnterpriseKey, "true").Mark(flagGroupKey, "Networking / DERP"),
 			Value:       &c.DERP.Server.RelayURL,
 		},
 		{
@@ -502,12 +515,14 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/",
 			Flag:        "derp-config-url",
 			Value:       &c.DERP.Config.URL,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / DERP"),
 		},
 		{
 			Name:        "DERP Config Path",
 			Description: "Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/",
 			Flag:        "derp-config-path",
 			Value:       &c.DERP.Config.Path,
+			Annotations: bigcli.Annotations{}.Mark(flagGroupKey, "Networking / DERP"),
 		},
 		// TODO: support Git Auth settings.
 		// Prometheus settings
@@ -550,7 +565,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Client secret for Login with GitHub.",
 			Flag:        "oauth2-github-client-secret",
 			Value:       &c.OAuth2.Github.ClientSecret,
-			Annotations: markSecretOpt(nil),
+			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true"),
 		},
 		{
 			Name:        "OAuth2 GitHub Allowed Orgs",
@@ -600,7 +615,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Name:        "OIDC Client Secret",
 			Description: "Client secret to use for Login with OIDC.",
 			Flag:        "oidc-client-secret",
-			Annotations: markSecretOpt(nil),
+			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true"),
 			Value:       &c.OIDC.ClientSecret,
 		},
 		{
@@ -683,7 +698,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Name:        "Trace Honeycomb API Key",
 			Description: "Enables trace exporting to Honeycomb.io using the provided API Key.",
 			Flag:        "trace-honeycomb-api-key",
-			Annotations: markSecretOpt(nil),
+			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true"),
 			Value:       &c.Trace.HoneycombAPIKey,
 		},
 		{
@@ -836,7 +851,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Name:        "Postgres Connection URL",
 			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
 			Flag:        "postgres-url",
-			Annotations: markSecretOpt(nil),
+			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true"),
 			Value:       &c.PostgresURL,
 		},
 		{
@@ -897,21 +912,21 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Specifies whether audit logging is enabled.",
 			Flag:        "audit-logging",
 			Default:     "true",
-			Annotations: markEnterpriseOpt(nil),
+			Annotations: bigcli.Annotations{}.Mark(flagEnterpriseKey, "true"),
 			Value:       &c.AuditLogging,
 		},
 		{
 			Name:        "Browser Only",
 			Description: "Whether Coder only allows connections to workspaces via the browser.",
 			Flag:        "browser-only",
-			Annotations: markEnterpriseOpt(nil),
+			Annotations: bigcli.Annotations{}.Mark(flagEnterpriseKey, "true"),
 			Value:       &c.BrowserOnly,
 		},
 		{
 			Name:        "SCIM API Key",
 			Description: "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.",
 			Flag:        "scim-auth-header",
-			Annotations: markEnterpriseOpt(markSecretOpt(nil)),
+			Annotations: bigcli.Annotations{}.Mark(flagEnterpriseKey, "true").Mark(flagSecretKey, "true"),
 			Value:       &c.SCIMAPIKey,
 		},
 

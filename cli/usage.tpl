@@ -5,8 +5,11 @@ usage: {{.FullUsage}}
 {{ with .Long}} {{.}} {{ end }}
 
 {{- range $index, $group := optionGroups . }}
-{{ with $group.Name }} {{- $group.Name }} Options{{ else -}} Options{{- end -}}:
-{{- with $group.Description }} {{- . -}} {{ end }}
+{{ with $group.Name }} {{- print $group.Name " Options" | prettyHeader }} {{ else -}} {{ prettyHeader "Options"}}{{- end -}}
+{{- with $group.Description }}
+{{ " " }}
+{{- . -}}
+{{ end }}
     {{- range $index, $option := $group.Options }}
     {{- with flagName $option }}
     --{{- . -}} {{ end }} {{- with $option.FlagShorthand }}, -{{- . -}} {{ end }}
@@ -15,6 +18,7 @@ usage: {{.FullUsage}}
         {{- with $option.Description }}
             {{- "" }}
 {{ $desc := wordWrap $option.Description 60 -}} {{- indent $desc 2}}
+{{ if isDeprecated $option }} DEPRECATED {{ end }}
         {{- end -}}
     {{- end }}
 {{- end }}
