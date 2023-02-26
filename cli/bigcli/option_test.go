@@ -25,11 +25,11 @@ func TestOptionSet_ParseFlags(t *testing.T) {
 		}
 
 		var err error
-		_, err = os.ParseFlags("--workspace-name", "foo")
+		err = os.FlagSet().Parse([]string{"--workspace-name", "foo"})
 		require.NoError(t, err)
 		require.EqualValues(t, "foo", workspaceName)
 
-		_, err = os.ParseFlags("-n", "f")
+		err = os.FlagSet().Parse([]string{"-n", "f"})
 		require.NoError(t, err)
 		require.EqualValues(t, "f", workspaceName)
 	})
@@ -46,7 +46,7 @@ func TestOptionSet_ParseFlags(t *testing.T) {
 			},
 		}
 
-		_, err := os.ParseFlags("--some-unknown", "foo")
+		err := os.FlagSet().Parse([]string{"--some-unknown", "foo"})
 		require.Error(t, err)
 	})
 }

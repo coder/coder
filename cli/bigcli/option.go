@@ -103,8 +103,8 @@ func (os *OptionSet) Add(opts ...Option) {
 	*os = append(*os, opts...)
 }
 
-// ParseFlags parses the given os.Args style arguments into the OptionSet.
-func (os *OptionSet) ParseFlags(args ...string) ([]string, error) {
+// FlagSet returns a pflag.FlagSet for the OptionSet.
+func (os *OptionSet) FlagSet() *pflag.FlagSet {
 	fs := pflag.NewFlagSet("", pflag.ContinueOnError)
 	for _, opt := range *os {
 		flagName, ok := opt.FlagName()
@@ -133,7 +133,7 @@ func (os *OptionSet) ParseFlags(args ...string) ([]string, error) {
 			Hidden:      opt.Hidden,
 		})
 	}
-	return fs.Args(), fs.Parse(args)
+	return fs
 }
 
 // ParseEnv parses the given environment variables into the OptionSet.

@@ -118,7 +118,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				return xerrors.Errorf("parse env: %w", err)
 			}
 
-			_, err = cliOpts.ParseFlags(args...)
+			flagSet := cliOpts.FlagSet()
+			err = flagSet.Parse(args)
 			if err != nil {
 				return xerrors.Errorf("parse flags: %w", err)
 			}
@@ -1019,6 +1020,9 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 	postgresBuiltinServeCmd.Flags().BoolVar(&pgRawURL, "raw-url", false, "Output the raw connection URL instead of a psql command.")
 
 	createAdminUserCommand := newCreateAdminUserCommand()
+	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		cmd.Println(args)
+	})
 	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd, createAdminUserCommand)
 
 	// deployment.AttachFlags(root.Flags(), vip, false)
