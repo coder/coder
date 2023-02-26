@@ -257,7 +257,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		return err
 	}
 
-	if entitlements.RequireTelemetry && !api.DeploymentConfig.Telemetry.Enable.Value {
+	if entitlements.RequireTelemetry && !api.DeploymentConfig.Telemetry.Enable {
 		// We can't fail because then the user couldn't remove the offending
 		// license w/o a restart.
 		//
@@ -270,7 +270,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		return nil
 	}
 
-	entitlements.Experimental = api.DeploymentConfig.Experimental.Value || len(api.AGPL.Experiments) != 0
+	entitlements.Experimental = api.DeploymentConfig.Experimental || len(api.AGPL.Experiments) != 0
 
 	featureChanged := func(featureName codersdk.FeatureName) (changed bool, enabled bool) {
 		if api.entitlements.Features == nil {

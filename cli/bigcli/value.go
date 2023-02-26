@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -55,6 +56,21 @@ func (s String) String() string {
 
 func (String) Type() string {
 	return "string"
+}
+
+type Strings []string
+
+func (s *Strings) Set(v string) error {
+	*s = strings.Split(v, ",")
+	return nil
+}
+
+func (s Strings) String() string {
+	return strings.Join(s, ",")
+}
+
+func (Strings) Type() string {
+	return "strings"
 }
 
 type Duration time.Duration

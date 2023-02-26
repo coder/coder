@@ -89,7 +89,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 
 	// If password authentication is disabled and the user does not have the
 	// owner role, block the request.
-	if api.DeploymentConfig.DisablePasswordAuth.Value {
+	if api.DeploymentConfig.DisablePasswordAuth {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Password authentication is disabled.",
 		})
@@ -285,7 +285,7 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
 		Password: codersdk.AuthMethod{
-			Enabled: !api.DeploymentConfig.DisablePasswordAuth.Value,
+			Enabled: !api.DeploymentConfig.DisablePasswordAuth,
 		},
 		Github: codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
 		OIDC: codersdk.OIDCAuthMethod{
