@@ -425,7 +425,7 @@ install_rpm() {
 
 	fetch "https://github.com/coder/coder/releases/download/v$VERSION/coder_${VERSION}_${OS}_${ARCH}.rpm" \
 		"$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.rpm"
-	sudo_sh_c rpm -i "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.rpm"
+	sudo_sh_c rpm -U "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.rpm"
 
 	echo_systemd_postinstall rpm
 }
