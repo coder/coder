@@ -148,7 +148,7 @@ func provisionerDaemonStart() *cobra.Command {
 		},
 	}
 
-	cliflag.StringVarP(cmd.Flags(), &cacheDir, "cache-dir", "c", "CODER_CACHE_DIRECTORY", agpl.DefaultCacheDir(),
+	cliflag.StringVarP(cmd.Flags(), &cacheDir, "cache-dir", "c", "CODER_CACHE_DIRECTORY", codersdk.DefaultCacheDir(),
 		"Specify a directory to cache provisioner job files.")
 	cliflag.StringArrayVarP(cmd.Flags(), &rawTags, "tag", "t", "CODER_PROVISIONERD_TAGS", []string{},
 		"Specify a list of tags to target provisioner jobs.")
