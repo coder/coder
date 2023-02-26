@@ -111,6 +111,16 @@ func (os *OptionSet) ParseFlags(args ...string) ([]string, error) {
 		if !ok {
 			continue
 		}
+
+		// HACK: allow omitting value for boolean flags.
+		var noOptDefValue string
+		{
+			no, ok := opt.Value.(NoOptDefValuer)
+			if ok {
+				noOptDefValue = no.NoOptDefValue()
+			}
+		}
+
 		fs.AddFlag(&pflag.Flag{
 			Name:        flagName,
 			Shorthand:   opt.FlagShorthand,
@@ -118,8 +128,8 @@ func (os *OptionSet) ParseFlags(args ...string) ([]string, error) {
 			Value:       opt.Value,
 			DefValue:    "",
 			Changed:     false,
-			NoOptDefVal: "",
 			Deprecated:  "",
+			NoOptDefVal: noOptDefValue,
 			Hidden:      opt.Hidden,
 		})
 	}

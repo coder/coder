@@ -715,15 +715,19 @@ func TestServer(t *testing.T) {
 		pty := ptytest.New(t)
 		root.SetOutput(pty.Output())
 		root.SetErr(pty.Output())
-		errC := make(chan error, 1)
+		serverStop := make(chan error, 1)
 		go func() {
-			errC <- root.ExecuteContext(ctx)
+			err := root.ExecuteContext(ctx)
+			if err != nil {
+				t.Error(err)
+			}
+			close(serverStop)
 		}()
 
 		pty.ExpectMatch("Started HTTP listener at http://0.0.0.0:")
 
 		cancelFunc()
-		require.NoError(t, <-errC)
+		<-serverStop
 	})
 
 	t.Run("CanListenUnspecifiedv6", func(t *testing.T) {

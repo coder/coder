@@ -96,7 +96,6 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 
 			cfg := codersdk.NewDeploymentConfig()
 			cliOpts := cfg.ConfigOptions()
-
 			var configDir bigcli.String
 			// This is a hack to get around the fact that the Cobra-defined
 			// flags are not available.
@@ -114,14 +113,14 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				return xerrors.Errorf("set defaults: %w", err)
 			}
 
-			_, err = cliOpts.ParseFlags(args...)
-			if err != nil {
-				return xerrors.Errorf("parse flags: %w", err)
-			}
-
 			err = cliOpts.ParseEnv("CODER_", os.Environ())
 			if err != nil {
 				return xerrors.Errorf("parse env: %w", err)
+			}
+
+			_, err = cliOpts.ParseFlags(args...)
+			if err != nil {
+				return xerrors.Errorf("parse flags: %w", err)
 			}
 
 			// Print deprecation warnings.
@@ -213,7 +212,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 
 			// Coder tracing should be disabled if telemetry is disabled unless
 			// --telemetry-trace was explicitly provided.
-			shouldCoderTrace := bool(cfg.Telemetry.Enable.Value()) && !isTest()
+			shouldCoderTrace := cfg.Telemetry.Enable.Value() && !isTest()
 			// Only override if telemetryTraceEnable was specifically set.
 			// By default we want it to be controlled by telemetryEnable.
 			if cmd.Flags().Changed("telemetry-trace") {

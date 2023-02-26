@@ -8,6 +8,14 @@ import (
 	"time"
 )
 
+// NoOptDefValuer describes behavior when no
+// option is passed into the flag.
+//
+// This is useful for boolean or otherwise binary flags.
+type NoOptDefValuer interface {
+	NoOptDefValue() string
+}
+
 // values.go contains a standard set of value types that can be used as
 // Option Values.
 
@@ -41,6 +49,10 @@ func (b *Bool) Set(s string) error {
 	bb, err := strconv.ParseBool(s)
 	*b = Bool(bb)
 	return err
+}
+
+func (b *Bool) NoOptDefValue() string {
+	return "true"
 }
 
 func (b Bool) String() string {
