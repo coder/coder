@@ -146,7 +146,8 @@ var usageTemplate = template.Must(
 				return groups
 			},
 		},
-	).Parse(usageTemplateRaw))
+	).Parse(usageTemplateRaw),
+)
 
 // usageFn returns a function that generates usage (help)
 // output for a given command.
