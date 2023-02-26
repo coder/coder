@@ -110,10 +110,10 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 // DeploymentConfig is the central configuration for the coder server.
 type DeploymentConfig struct {
 	AccessURL                       bigcli.URL
-	WildcardAccessURL               *DeploymentConfigField[string]          `json:"wildcard_access_url" typescript:",notnull"`
-	RedirectToAccessURL             *DeploymentConfigField[bool]            `json:"redirect_to_access_url" typescript:",notnull"`
-	HTTPAddress                     bigcli.BindAddress                      `json:"http_address" typescript:",notnull"`
-	AutobuildPollInterval           *DeploymentConfigField[time.Duration]   `json:"autobuild_poll_interval" typescript:",notnull"`
+	WildcardAccessURL               bigcli.String
+	RedirectToAccessURL             bigcli.Bool
+	HTTPAddress                     bigcli.BindAddress `json:"http_address" typescript:",notnull"`
+	AutobuildPollInterval           bigcli.Duration
 	DERP                            *DERP                                   `json:"derp" typescript:",notnull"`
 	GitAuth                         *DeploymentConfigField[[]GitAuthConfig] `json:"gitauth" typescript:",notnull"`
 	Prometheus                      *PrometheusConfig                       `json:"prometheus" typescript:",notnull"`
@@ -220,7 +220,7 @@ type TelemetryConfig struct {
 }
 
 type TLSConfig struct {
-	Enable         *DeploymentConfigField[bool]     `json:"enable" typescript:",notnull"`
+	Enable         bigcli.Bool                      `json:"enable" typescript:",notnull"`
 	Address        bigcli.BindAddress               `json:"address" typescript:",notnull"`
 	RedirectHTTP   *DeploymentConfigField[bool]     `json:"redirect_http" typescript:",notnull"`
 	CertFiles      *DeploymentConfigField[[]string] `json:"cert_file" typescript:",notnull"`

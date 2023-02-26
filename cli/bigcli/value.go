@@ -10,20 +10,36 @@ import (
 // values.go contains a standard set of value types that can be used as
 // Option Values.
 
-type Int int
+type Int64 int64
 
-func (i *Int) Set(s string) error {
+func (i *Int64) Set(s string) error {
 	ii, err := strconv.ParseInt(s, 10, 64)
-	*i = Int(ii)
+	*i = Int64(ii)
 	return err
 }
 
-func (i Int) String() string {
+func (i Int64) String() string {
 	return strconv.Itoa(int(i))
 }
 
-func (Int) Type() string {
+func (Int64) Type() string {
 	return "int"
+}
+
+type Bool bool
+
+func (b *Bool) Set(s string) error {
+	bb, err := strconv.ParseBool(s)
+	*b = Bool(bb)
+	return err
+}
+
+func (b Bool) String() string {
+	return strconv.FormatBool(bool(b))
+}
+
+func (Bool) Type() string {
+	return "bool"
 }
 
 type String string

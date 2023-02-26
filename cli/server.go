@@ -112,6 +112,26 @@ func serverOptions(c *codersdk.DeploymentConfig) *bigcli.OptionSet {
 			Usage: `The URL that users will use to access the Coder deployment.`,
 			Value: &c.AccessURL,
 		},
+		{
+			Name:  "Wildcard Access URL",
+			Usage: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
+			Flag:  "wildcard-access-url",
+			Value: &c.WildcardAccessURL,
+		},
+		{
+			Name:  "Redirect to Access URL",
+			Usage: "Specifies whether to redirect requests that do not match the access URL host.",
+			Flag:  "redirect-to-access-url",
+			Value: &c.RedirectToAccessURL,
+		},
+		{
+			Name:    "Autobuild Poll Interval",
+			Usage:   "Interval to poll for scheduled workspace builds.",
+			Flag:    "autobuild-poll-interval",
+			Hidden:  true,
+			Default: time.Minute.String(),
+			Value:   &c.AutobuildPollInterval,
+		},
 		httpAddress,
 		tlsBindAddress,
 		{
@@ -124,6 +144,12 @@ func serverOptions(c *codersdk.DeploymentConfig) *bigcli.OptionSet {
 				httpAddress,
 				tlsBindAddress,
 			},
+		},
+		{
+			Name:  "TLS Enable",
+			Usage: "Whether TLS will be enabled.",
+			Flag:  "tls-enable",
+			Value: &c.TLS.Enable,
 		},
 	}
 }
@@ -184,7 +210,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			// Validate bind addresses.
 			if cfg.Address.Host != "" {
-				if cfg.TLS.Enable.Value {
+				if cfg.TLS.Enable {
 					cfg.HTTPAddress.Host = ""
 					cfg.TLS.Address = cfg.Address
 				} else {
@@ -192,10 +218,10 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					cfg.TLS.Address.Host = ""
 				}
 			}
-			if cfg.TLS.Enable.Value && cfg.TLS.Address.Host == "" {
+			if cfg.TLS.Enable && cfg.TLS.Address.Host == "" {
 				return xerrors.Errorf("TLS address must be set if TLS is enabled")
 			}
-			if !cfg.TLS.Enable.Value && cfg.HTTPAddress.Host == "" {
+			if !cfg.TLS.Enable && cfg.HTTPAddress.Host == "" {
 				return xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
 			}
 
@@ -346,7 +372,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				httpsListener net.Listener
 				httpsURL      *url.URL
 			)
-			if cfg.TLS.Enable.Value {
+			if cfg.TLS.Enable {
 				if cfg.TLS.Address.Host == "" {
 					return xerrors.New("tls address must be set if tls is enabled")
 				}

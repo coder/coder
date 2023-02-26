@@ -13,6 +13,7 @@ import (
 // features.
 const Disable = "-"
 
+// Annotations is an arbitrary key-mapping used to extend the Option type.
 type Annotations map[string]string
 
 // Option is a configuration option for a CLI application.
@@ -21,7 +22,7 @@ type Option struct {
 	Usage string
 
 	// If unset, Flag defaults to the kebab-case version of Name.
-	// Use special value "Disable" to disable flag support.
+	// Use sentinel value `Disable` to disable flag support.
 	Flag string
 
 	FlagShorthand string
@@ -32,7 +33,9 @@ type Option struct {
 
 	// Default is parsed into Value if set.
 	Default string
-	Value   pflag.Value
+
+	// Value includes the types listed in values.go.
+	Value pflag.Value
 
 	// Annotations enable extensions to bigcli higher up in the stack. It's useful for
 	// help formatting and documentation generation.
@@ -58,10 +61,10 @@ func (o *Option) FlagName() (string, bool) {
 
 // EnvName returns the environment variable name for the option.
 func (o *Option) EnvName() (string, bool) {
+	if o.Env == Disable {
+		return "", false
+	}
 	if o.Env != "" {
-		if o.Env == Disable {
-			return "", false
-		}
 		return o.Env, true
 	}
 	return strings.ToUpper(strcase.ToSnake(o.Name)), true

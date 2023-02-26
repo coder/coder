@@ -22,23 +22,6 @@ import (
 
 func newConfig() *codersdk.DeploymentConfig {
 	return &codersdk.DeploymentConfig{
-		WildcardAccessURL: &codersdk.DeploymentConfigField[string]{
-			Name:  "Wildcard Access URL",
-			Usage: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
-			Flag:  "wildcard-access-url",
-		},
-		RedirectToAccessURL: &codersdk.DeploymentConfigField[bool]{
-			Name:  "Redirect to Access URL",
-			Usage: "Specifies whether to redirect requests that do not match the access URL host.",
-			Flag:  "redirect-to-access-url",
-		},
-		AutobuildPollInterval: &codersdk.DeploymentConfigField[time.Duration]{
-			Name:    "Autobuild Poll Interval",
-			Usage:   "Interval to poll for scheduled workspace builds.",
-			Flag:    "autobuild-poll-interval",
-			Hidden:  true,
-			Default: time.Minute,
-		},
 		DERP: &codersdk.DERP{
 			Server: &codersdk.DERPServerConfig{
 				Enable: &codersdk.DeploymentConfigField[bool]{
@@ -272,11 +255,6 @@ func newConfig() *codersdk.DeploymentConfig {
 			},
 		},
 		TLS: &codersdk.TLSConfig{
-			Enable: &codersdk.DeploymentConfigField[bool]{
-				Name:  "TLS Enable",
-				Usage: "Whether TLS will be enabled.",
-				Flag:  "tls-enable",
-			},
 			// DEPRECATED: Use RedirectToAccessURL instead.
 			RedirectHTTP: &codersdk.DeploymentConfigField[bool]{
 				Name:    "Redirect HTTP to HTTPS",
