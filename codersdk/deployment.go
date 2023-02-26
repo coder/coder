@@ -3,14 +3,20 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/bigcli"
+	"github.com/coreos/go-oidc/v3/oidc"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -157,6 +163,30 @@ type DeploymentConfig struct {
 	Experimental bigcli.Bool `json:"experimental" typescript:",notnull"`
 }
 
+// NewDeploymentConfig returns a new DeploymentConfig without any nil fields.
+func NewDeploymentConfig() *DeploymentConfig {
+	return &DeploymentConfig{
+		TLS:         &TLSConfig{},
+		Logging:     &LoggingConfig{},
+		Provisioner: &ProvisionerConfig{},
+		RateLimit:   &RateLimitConfig{},
+		Dangerous:   &DangerousConfig{},
+		Trace:       &TraceConfig{},
+		Telemetry:   &TelemetryConfig{},
+		OIDC:        &OIDCConfig{},
+		OAuth2: &OAuth2Config{
+			Github: &OAuth2GithubConfig{},
+		},
+		Pprof:      &PprofConfig{},
+		Prometheus: &PrometheusConfig{},
+		DERP: &DERP{
+			Server: &DERPServerConfig{},
+			Config: &DERPConfig{},
+		},
+		Swagger: &SwaggerConfig{},
+	}
+}
+
 type DERP struct {
 	Server *DERPServerConfig `json:"server" typescript:",notnull"`
 	Config *DERPConfig       `json:"config" typescript:",notnull"`
@@ -276,6 +306,635 @@ type LoggingConfig struct {
 type DangerousConfig struct {
 	AllowPathAppSharing         bigcli.Bool `json:"allow_path_app_sharing" typescript:",notnull"`
 	AllowPathAppSiteOwnerAccess bigcli.Bool `json:"allow_path_app_site_owner_access" typescript:",notnull"`
+}
+
+func markEnterpriseOpt(an bigcli.Annotations) bigcli.Annotations {
+	return an.Mark("enterprise", "true")
+}
+
+func markSecretOpt(an bigcli.Annotations) bigcli.Annotations {
+	return an.Mark("secret", "true")
+}
+
+func DefaultCacheDir() string {
+	defaultCacheDir, err := os.UserCacheDir()
+	if err != nil {
+		defaultCacheDir = os.TempDir()
+	}
+	if dir := os.Getenv("CACHE_DIRECTORY"); dir != "" {
+		// For compatibility with systemd.
+		defaultCacheDir = dir
+	}
+
+	return filepath.Join(defaultCacheDir, "coder")
+}
+
+func (c *DeploymentConfig) ConfigOptions() *bigcli.OptionSet {
+	httpAddress := bigcli.Option{
+		Name:    "HTTP Address",
+		Usage:   "HTTP bind address of the server. Unset to disable the HTTP endpoint.",
+		Flag:    "http-address",
+		Default: "127.0.0.1:3000",
+		Value:   &c.HTTPAddress,
+	}
+	tlsBindAddress := bigcli.Option{
+		Name:    "TLS Address",
+		Usage:   "HTTPS bind address of the server.",
+		Flag:    "tls-address",
+		Default: "127.0.0.1:3443",
+		Value:   &c.TLS.Address,
+	}
+	redirectToAccessURL := bigcli.Option{
+		Name:  "Redirect to Access URL",
+		Usage: "Specifies whether to redirect requests that do not match the access URL host.",
+		Flag:  "redirect-to-access-url",
+		Value: &c.RedirectToAccessURL,
+	}
+	return &bigcli.OptionSet{
+		{
+			Name:  "Access URL",
+			Usage: `The URL that users will use to access the Coder deployment.`,
+			Value: &c.AccessURL,
+		},
+		{
+			Name:  "Wildcard Access URL",
+			Usage: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
+			Flag:  "wildcard-access-url",
+			Value: &c.WildcardAccessURL,
+		},
+		redirectToAccessURL,
+		{
+			Name:    "Autobuild Poll Interval",
+			Usage:   "Interval to poll for scheduled workspace builds.",
+			Flag:    "autobuild-poll-interval",
+			Hidden:  true,
+			Default: time.Minute.String(),
+			Value:   &c.AutobuildPollInterval,
+		},
+		httpAddress,
+		tlsBindAddress,
+		{
+			Name:          "Address",
+			Usage:         "Bind address of the server.",
+			Flag:          "address",
+			FlagShorthand: "a",
+			Hidden:        true,
+			Value:         &c.Address,
+			UseInstead: []bigcli.Option{
+				httpAddress,
+				tlsBindAddress,
+			},
+		},
+		// TLS settings
+		{
+			Name:  "TLS Enable",
+			Usage: "Whether TLS will be enabled.",
+			Flag:  "tls-enable",
+			Value: &c.TLS.Enable,
+		},
+		{
+			Name:       "Redirect HTTP to HTTPS",
+			Usage:      "Whether HTTP requests will be redirected to the access URL (if it's a https URL and TLS is enabled). Requests to local IP addresses are never redirected regardless of this setting.",
+			Flag:       "tls-redirect-http-to-https",
+			Default:    "true",
+			Hidden:     true,
+			Value:      &c.TLS.RedirectHTTP,
+			UseInstead: []bigcli.Option{redirectToAccessURL},
+		},
+		{
+			Name:  "TLS Certificate Files",
+			Usage: "Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.",
+			Flag:  "tls-cert-file",
+			Value: &c.TLS.CertFiles,
+		},
+		{
+			Name:  "TLS Client CA Files",
+			Usage: "PEM-encoded Certificate Authority file used for checking the authenticity of client",
+			Flag:  "tls-client-ca-file",
+			Value: &c.TLS.ClientCAFile,
+		},
+		{
+			Name:    "TLS Client Auth",
+			Usage:   "Policy the server will follow for TLS Client Authentication. Accepted values are \"none\", \"request\", \"require-any\", \"verify-if-given\", or \"require-and-verify\".",
+			Flag:    "tls-client-auth",
+			Default: "none",
+			Value:   &c.TLS.ClientAuth,
+		},
+		{
+			Name:  "TLS Key Files",
+			Usage: "Paths to the private keys for each of the certificates. It requires a PEM-encoded file.",
+			Flag:  "tls-key-file",
+			Value: &c.TLS.KeyFiles,
+		},
+		{
+			Name:    "TLS Minimum Version",
+			Usage:   "Minimum supported version of TLS. Accepted values are \"tls10\", \"tls11\", \"tls12\" or \"tls13\"",
+			Flag:    "tls-min-version",
+			Default: "tls12",
+			Value:   &c.TLS.MinVersion,
+		},
+		{
+			Name:  "TLS Client Cert File",
+			Usage: "Path to certificate for client TLS authentication. It requires a PEM-encoded file.",
+			Flag:  "tls-client-cert-file",
+			Value: &c.TLS.ClientCertFile,
+		},
+		{
+			Name:  "TLS Client Key File",
+			Usage: "Path to key for client TLS authentication. It requires a PEM-encoded file.",
+			Flag:  "tls-client-key-file",
+			Value: &c.TLS.ClientKeyFile,
+		},
+		// Derp settings
+		{
+			Name:    "DERP Server Enable",
+			Usage:   "Whether to enable or disable the embedded DERP relay server.",
+			Flag:    "derp-server-enable",
+			Default: "true",
+			Value:   &c.DERP.Server.Enable,
+		},
+		{
+			Name:    "DERP Server Region ID",
+			Usage:   "Region ID to use for the embedded DERP server.",
+			Flag:    "derp-server-region-id",
+			Default: "999",
+			Value:   &c.DERP.Server.RegionID,
+		},
+		{
+			Name:    "DERP Server Region Code",
+			Usage:   "Region code to use for the embedded DERP server.",
+			Flag:    "derp-server-region-code",
+			Default: "coder",
+			Value:   &c.DERP.Server.RegionCode,
+		},
+		{
+			Name:    "DERP Server Region Name",
+			Usage:   "Region name that for the embedded DERP server.",
+			Flag:    "derp-server-region-name",
+			Default: "Coder Embedded Relay",
+			Value:   &c.DERP.Server.RegionName,
+		},
+		{
+			Name:    "DERP Server STUN Addresses",
+			Usage:   "Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.",
+			Flag:    "derp-server-stun-addresses",
+			Default: "stun.l.google.com:19302",
+			Value:   &c.DERP.Server.STUNAddresses,
+		},
+		{
+			Name:        "DERP Server Relay URL",
+			Usage:       "An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.",
+			Flag:        "derp-server-relay-url",
+			Annotations: markEnterpriseOpt(nil),
+			Value:       &c.DERP.Server.RelayURL,
+		},
+		{
+			Name:  "DERP Config URL",
+			Usage: "URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/",
+			Flag:  "derp-config-url",
+			Value: &c.DERP.Config.URL,
+		},
+		{
+			Name:  "DERP Config Path",
+			Usage: "Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/",
+			Flag:  "derp-config-path",
+			Value: &c.DERP.Config.Path,
+		},
+		// TODO: support Git Auth settings.
+		// Prometheus settings
+		{
+			Name:  "Prometheus Enable",
+			Usage: "Serve prometheus metrics on the address defined by prometheus address.",
+			Flag:  "prometheus-enable",
+			Value: &c.Prometheus.Enable,
+		},
+		{
+			Name:    "Prometheus Address",
+			Usage:   "The bind address to serve prometheus metrics.",
+			Flag:    "prometheus-address",
+			Default: "127.0.0.1:2112",
+			Value:   &c.Prometheus.Address,
+		},
+		// Pprof settings
+		{
+			Name:  "pprof Enable",
+			Usage: "Serve pprof metrics on the address defined by pprof address.",
+			Flag:  "pprof-enable",
+			Value: &c.Pprof.Enable,
+		},
+		{
+			Name:    "pprof Address",
+			Usage:   "The bind address to serve pprof.",
+			Flag:    "pprof-address",
+			Default: "127.0.0.1:6060",
+			Value:   &c.Pprof.Address,
+		},
+		// oAuth settings
+		{
+			Name:  "OAuth2 GitHub Client ID",
+			Usage: "Client ID for Login with GitHub.",
+			Flag:  "oauth2-github-client-id",
+			Value: &c.OAuth2.Github.ClientID,
+		},
+		{
+			Name:        "OAuth2 GitHub Client Secret",
+			Usage:       "Client secret for Login with GitHub.",
+			Flag:        "oauth2-github-client-secret",
+			Value:       &c.OAuth2.Github.ClientSecret,
+			Annotations: markSecretOpt(nil),
+		},
+		{
+			Name:  "OAuth2 GitHub Allowed Orgs",
+			Usage: "Organizations the user must be a member of to Login with GitHub.",
+			Flag:  "oauth2-github-allowed-orgs",
+			Value: &c.OAuth2.Github.AllowedOrgs,
+		},
+		{
+			Name:  "OAuth2 GitHub Allowed Teams",
+			Usage: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
+			Flag:  "oauth2-github-allowed-teams",
+			Value: &c.OAuth2.Github.AllowedTeams,
+		},
+		{
+			Name:  "OAuth2 GitHub Allow Signups",
+			Usage: "Whether new users can sign up with GitHub.",
+			Flag:  "oauth2-github-allow-signups",
+			Value: &c.OAuth2.Github.AllowSignups,
+		},
+		{
+			Name:  "OAuth2 GitHub Allow Everyone",
+			Usage: "Allow all logins, setting this option means allowed orgs and teams must be empty.",
+			Flag:  "oauth2-github-allow-everyone",
+			Value: &c.OAuth2.Github.AllowEveryone,
+		},
+		{
+			Name:  "OAuth2 GitHub Enterprise Base URL",
+			Usage: "Base URL of a GitHub Enterprise deployment to use for Login with GitHub.",
+			Flag:  "oauth2-github-enterprise-base-url",
+			Value: &c.OAuth2.Github.EnterpriseBaseURL,
+		},
+		// OIDC settings.
+		{
+			Name:    "OIDC Allow Signups",
+			Usage:   "Whether new users can sign up with OIDC.",
+			Flag:    "oidc-allow-signups",
+			Default: "true",
+			Value:   &c.OIDC.AllowSignups,
+		},
+		{
+			Name:  "OIDC Client ID",
+			Usage: "Client ID to use for Login with OIDC.",
+			Flag:  "oidc-client-id",
+			Value: &c.OIDC.ClientID,
+		},
+		{
+			Name:        "OIDC Client Secret",
+			Usage:       "Client secret to use for Login with OIDC.",
+			Flag:        "oidc-client-secret",
+			Annotations: markSecretOpt(nil),
+			Value:       &c.OIDC.ClientSecret,
+		},
+		{
+			Name:  "OIDC Email Domain",
+			Usage: "Email domains that clients logging in with OIDC must match.",
+			Flag:  "oidc-email-domain",
+			Value: &c.OIDC.EmailDomain,
+		},
+		{
+			Name:  "OIDC Issuer URL",
+			Usage: "Issuer URL to use for Login with OIDC.",
+			Flag:  "oidc-issuer-url",
+			Value: &c.OIDC.IssuerURL,
+		},
+		{
+			Name:    "OIDC Scopes",
+			Usage:   "Scopes to grant when authenticating with OIDC.",
+			Flag:    "oidc-scopes",
+			Default: strings.Join([]string{oidc.ScopeOpenID, "profile", "email"}, ","),
+			Value:   &c.OIDC.Scopes,
+		},
+		{
+			Name:    "OIDC Ignore Email Verified",
+			Usage:   "Ignore the email_verified claim from the upstream provider.",
+			Flag:    "oidc-ignore-email-verified",
+			Default: "false",
+			Value:   &c.OIDC.IgnoreEmailVerified,
+		},
+		{
+			Name:    "OIDC Username Field",
+			Usage:   "OIDC claim field to use as the username.",
+			Flag:    "oidc-username-field",
+			Default: "preferred_username",
+			Value:   &c.OIDC.UsernameField,
+		},
+		{
+			Name:    "OpenID Connect sign in text",
+			Usage:   "The text to show on the OpenID Connect sign in button",
+			Flag:    "oidc-sign-in-text",
+			Default: "OpenID Connect",
+			Value:   &c.OIDC.SignInText,
+		},
+		{
+			Name:  "OpenID connect icon URL",
+			Usage: "URL pointing to the icon to use on the OepnID Connect login button",
+			Flag:  "oidc-icon-url",
+			Value: &c.OIDC.IconURL,
+		},
+		// Telemetry settings
+		{
+			Name:    "Telemetry Enable",
+			Usage:   "Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.",
+			Flag:    "telemetry",
+			Default: strconv.FormatBool(flag.Lookup("test.v") == nil),
+			Value:   &c.Telemetry.Enable,
+		},
+		{
+			Name:    "Telemetry Trace",
+			Usage:   "Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.",
+			Flag:    "telemetry-trace",
+			Default: strconv.FormatBool(flag.Lookup("test.v") == nil),
+			Value:   &c.Telemetry.Trace,
+		},
+		{
+			Name:    "Telemetry URL",
+			Usage:   "URL to send telemetry.",
+			Flag:    "telemetry-url",
+			Hidden:  true,
+			Default: "https://telemetry.coder.com",
+			Value:   &c.Telemetry.URL,
+		},
+		// Trace settings
+		{
+			Name:  "Trace Enable",
+			Usage: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md",
+			Flag:  "trace",
+			Value: &c.Trace.Enable,
+		},
+		{
+			Name:        "Trace Honeycomb API Key",
+			Usage:       "Enables trace exporting to Honeycomb.io using the provided API Key.",
+			Flag:        "trace-honeycomb-api-key",
+			Annotations: markSecretOpt(nil),
+			Value:       &c.Trace.HoneycombAPIKey,
+		},
+		{
+			Name:  "Capture Logs in Traces",
+			Usage: "Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.",
+			Flag:  "trace-logs",
+			Value: &c.Trace.CaptureLogs,
+		},
+		// Provisioner settings
+		{
+			Name:    "Provisioner Daemons",
+			Usage:   "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
+			Flag:    "provisioner-daemons",
+			Default: "3",
+			Value:   &c.Provisioner.Daemons,
+		},
+		{
+			Name:    "Poll Interval",
+			Usage:   "Time to wait before polling for a new job.",
+			Flag:    "provisioner-daemon-poll-interval",
+			Default: time.Second.String(),
+			Value:   &c.Provisioner.DaemonPollInterval,
+		},
+		{
+			Name:    "Poll Jitter",
+			Usage:   "Random jitter added to the poll interval.",
+			Flag:    "provisioner-daemon-poll-jitter",
+			Default: (100 * time.Millisecond).String(),
+			Value:   &c.Provisioner.DaemonPollJitter,
+		},
+		{
+			Name:    "Force Cancel Interval",
+			Usage:   "Time to force cancel provisioning tasks that are stuck.",
+			Flag:    "provisioner-force-cancel-interval",
+			Default: (10 * time.Minute).String(),
+			Value:   &c.Provisioner.ForceCancelInterval,
+		},
+		// RateLimit settings
+		{
+			Name:    "Disable All Rate Limits",
+			Usage:   "Disables all rate limits. This is not recommended in production.",
+			Flag:    "dangerous-disable-rate-limits",
+			Default: "false",
+			Value:   &c.RateLimit.DisableAll,
+		},
+		{
+			Name:  "API Rate Limit",
+			Usage: "Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints have separate strict rate limits regardless of this value to prevent denial-of-service or brute force attacks.",
+			// Change the env from the auto-generated CODER_RATE_LIMIT_API to the
+			// old value to avoid breaking existing deployments.
+			Env:     "API_RATE_LIMIT",
+			Flag:    "api-rate-limit",
+			Default: "512",
+			Value:   &c.RateLimit.API,
+		},
+		// Logging settings
+		{
+			Name:    "Human Log Location",
+			Usage:   "Output human-readable logs to a given file.",
+			Flag:    "log-human",
+			Default: "/dev/stderr",
+			Value:   &c.Logging.Human,
+		},
+		{
+			Name:    "JSON Log Location",
+			Usage:   "Output JSON logs to a given file.",
+			Flag:    "log-json",
+			Default: "",
+			Value:   &c.Logging.JSON,
+		},
+		{
+			Name:    "Stackdriver Log Location",
+			Usage:   "Output Stackdriver compatible logs to a given file.",
+			Flag:    "log-stackdriver",
+			Default: "",
+			Value:   &c.Logging.Stackdriver,
+		},
+		// ☢️ Dangerous settings
+		{
+			Name:    "DANGEROUS: Allow Path App Sharing",
+			Usage:   "Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
+			Flag:    "dangerous-allow-path-app-sharing",
+			Default: "false",
+			Value:   &c.Dangerous.AllowPathAppSharing,
+		},
+		{
+			Name:    "DANGEROUS: Allow Site Owners to Access Path Apps",
+			Usage:   "Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
+			Flag:    "dangerous-allow-path-app-site-owner-access",
+			Default: "false",
+			Value:   &c.Dangerous.AllowPathAppSiteOwnerAccess,
+		},
+		// Misc. settings
+		{
+			Name:  "Experiments",
+			Usage: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
+			Flag:  "experiments",
+			Value: &c.Experiments,
+		},
+		{
+			Name:  "Update Check",
+			Usage: "Periodically check for new releases of Coder and inform the owner. The check is performed once per day.",
+			Flag:  "update-check",
+			Default: strconv.FormatBool(
+				flag.Lookup("test.v") == nil && !buildinfo.IsDev(),
+			),
+			Value: &c.UpdateCheck,
+		},
+		{
+			Name:    "Max Token Lifetime",
+			Usage:   "The maximum lifetime duration users can specify when creating an API token.",
+			Flag:    "max-token-lifetime",
+			Default: (24 * 30 * time.Hour).String(),
+			Value:   &c.MaxTokenLifetime,
+		},
+		{
+			Name:    "Enable swagger endpoint",
+			Usage:   "Expose the swagger endpoint via /swagger.",
+			Flag:    "swagger-enable",
+			Default: "false",
+			Value:   &c.Swagger.Enable,
+		},
+		{
+			Name:  "Proxy Trusted Headers",
+			Flag:  "proxy-trusted-headers",
+			Usage: "Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For",
+			Value: &c.ProxyTrustedHeaders,
+		},
+		{
+			Name:  "Proxy Trusted Origins",
+			Flag:  "proxy-trusted-origins",
+			Usage: "Origin addresses to respect \"proxy-trusted-headers\". e.g. 192.168.1.0/24",
+			Value: &c.ProxyTrustedOrigins,
+		},
+		{
+			Name:    "Cache Directory",
+			Usage:   "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.",
+			Flag:    "cache-dir",
+			Default: DefaultCacheDir(),
+			Value:   &c.CacheDir,
+		},
+		{
+			Name:   "In Memory Database",
+			Usage:  "Controls whether data will be stored in an in-memory database.",
+			Flag:   "in-memory",
+			Hidden: true,
+			Value:  &c.InMemoryDatabase,
+		},
+		{
+			Name:        "Postgres Connection URL",
+			Usage:       "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
+			Flag:        "postgres-url",
+			Annotations: markSecretOpt(nil),
+			Value:       &c.PostgresURL,
+		},
+		{
+			Name:  "Secure Auth Cookie",
+			Usage: "Controls if the 'Secure' property is set on browser session cookies.",
+			Flag:  "secure-auth-cookie",
+			Value: &c.SecureAuthCookie,
+		},
+		{
+			Name: "Strict-Transport-Security",
+			Usage: "Controls if the 'Strict-Transport-Security' header is set on all static file responses. " +
+				"This header should only be set if the server is accessed via HTTPS. This value is the MaxAge in seconds of " +
+				"the header.",
+			Default: "0",
+			Flag:    "strict-transport-security",
+			Value:   &c.StrictTransportSecurity,
+		},
+		{
+			Name: "Strict-Transport-Security Options",
+			Usage: "Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. " +
+				"The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.",
+			Flag:  "strict-transport-security-options",
+			Value: &c.StrictTransportSecurityOptions,
+		},
+		{
+			Name:    "SSH Keygen Algorithm",
+			Usage:   "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
+			Flag:    "ssh-keygen-algorithm",
+			Default: "ed25519",
+			Value:   &c.SSHKeygenAlgorithm,
+		},
+		{
+			Name:    "Metrics Cache Refresh Interval",
+			Usage:   "How frequently metrics are refreshed",
+			Flag:    "metrics-cache-refresh-interval",
+			Hidden:  true,
+			Default: time.Hour.String(),
+			Value:   &c.MetricsCacheRefreshInterval,
+		},
+		{
+			Name:    "Agent Stat Refresh Interval",
+			Usage:   "How frequently agent stats are recorded",
+			Flag:    "agent-stats-refresh-interval",
+			Hidden:  true,
+			Default: (10 * time.Minute).String(),
+			Value:   &c.AgentStatRefreshInterval,
+		},
+		{
+			Name:    "Agent Fallback Troubleshooting URL",
+			Usage:   "URL to use for agent troubleshooting when not set in the template",
+			Flag:    "agent-fallback-troubleshooting-url",
+			Hidden:  true,
+			Default: "https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates",
+			Value:   &c.AgentFallbackTroubleshootingURL,
+		},
+		{
+			Name:        "Audit Logging",
+			Usage:       "Specifies whether audit logging is enabled.",
+			Flag:        "audit-logging",
+			Default:     "true",
+			Annotations: markEnterpriseOpt(nil),
+			Value:       &c.AuditLogging,
+		},
+		{
+			Name:        "Browser Only",
+			Usage:       "Whether Coder only allows connections to workspaces via the browser.",
+			Flag:        "browser-only",
+			Annotations: markEnterpriseOpt(nil),
+			Value:       &c.BrowserOnly,
+		},
+		{
+			Name:        "SCIM API Key",
+			Usage:       "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.",
+			Flag:        "scim-auth-header",
+			Annotations: markEnterpriseOpt(markSecretOpt(nil)),
+			Value:       &c.SCIMAPIKey,
+		},
+
+		{
+			Name:    "Disable Path Apps",
+			Usage:   "Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.",
+			Flag:    "disable-path-apps",
+			Default: "false",
+			Value:   &c.DisablePathApps,
+		},
+		{
+			Name:    "Session Duration",
+			Usage:   "The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.",
+			Flag:    "session-duration",
+			Default: (24 * time.Hour).String(),
+			Value:   &c.SessionDuration,
+		},
+		{
+			Name:    "Disable Session Expiry Refresh",
+			Usage:   "Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.",
+			Flag:    "disable-session-expiry-refresh",
+			Default: "false",
+			Value:   &c.DisableSessionExpiryRefresh,
+		},
+		{
+			Name:    "Disable Password Authentication",
+			Usage:   "Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.",
+			Flag:    "disable-password-auth",
+			Default: "false",
+			Value:   &c.DisablePasswordAuth,
+		},
+	}
 }
 
 type Flaggable interface {

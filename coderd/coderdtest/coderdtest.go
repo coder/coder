@@ -37,7 +37,6 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
-	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -52,8 +51,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild/executor"
@@ -1030,11 +1027,8 @@ QastnN77KfUwdj3SJt44U/uh1jAIv4oSLBr8HYUkbnI8
 -----END RSA PRIVATE KEY-----`
 
 func DeploymentConfig(t *testing.T) *codersdk.DeploymentConfig {
-	vip := deployment.NewViper()
-	fs := pflag.NewFlagSet(randomUsername(), pflag.ContinueOnError)
-	fs.String(config.FlagName, randomUsername(), randomUsername())
-	cfg, err := deployment.Config(fs, vip)
+	cfg := codersdk.NewDeploymentConfig()
+	err := cfg.ConfigOptions().SetDefaults()
 	require.NoError(t, err)
-
 	return cfg
 }
