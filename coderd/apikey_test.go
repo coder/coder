@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/cli/bigcli"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbtestutil"
@@ -95,7 +96,7 @@ func TestTokenMaxLifetime(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	dc := coderdtest.DeploymentConfig(t)
-	dc.MaxTokenLifetime.Value = time.Hour * 24 * 7
+	dc.MaxTokenLifetime = bigcli.Duration(time.Hour * 24 * 7)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentConfig: dc,
 	})
@@ -135,7 +136,7 @@ func TestSessionExpiry(t *testing.T) {
 	//
 	// We don't support updating the deployment config after startup, but for
 	// this test it works because we don't copy the value (and we use pointers).
-	dc.SessionDuration.Value = time.Second
+	dc.SessionDuration = bigcli.Duration(time.Second)
 
 	userClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 
@@ -144,8 +145,8 @@ func TestSessionExpiry(t *testing.T) {
 	apiKey, err := db.GetAPIKeyByID(ctx, strings.Split(token, "-")[0])
 	require.NoError(t, err)
 
-	require.EqualValues(t, dc.SessionDuration.Value.Seconds(), apiKey.LifetimeSeconds)
-	require.WithinDuration(t, apiKey.CreatedAt.Add(dc.SessionDuration.Value), apiKey.ExpiresAt, 2*time.Second)
+	require.EqualValues(t, dc.SessionDuration.Value().Seconds(), apiKey.LifetimeSeconds)
+	require.WithinDuration(t, apiKey.CreatedAt.Add(dc.SessionDuration.Value()), apiKey.ExpiresAt, 2*time.Second)
 
 	// Update the session token to be expired so we can test that it is
 	// rejected for extra points.

@@ -452,7 +452,7 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, accessMethod workspaceApp
 	//
 	// Site owners are blocked from accessing path-based apps unless the
 	// Dangerous.AllowPathAppSiteOwnerAccess flag is enabled in the check below.
-	if isPathApp && !api.DeploymentConfig.Dangerous.AllowPathAppSharing {
+	if isPathApp && !api.DeploymentConfig.Dangerous.AllowPathAppSharing.Value() {
 		sharingLevel = database.AppSharingLevelOwner
 	}
 
@@ -474,7 +474,7 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, accessMethod workspaceApp
 	if isPathApp &&
 		sharingLevel == database.AppSharingLevelOwner &&
 		workspace.OwnerID.String() != roles.Actor.ID &&
-		!api.DeploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess {
+		!api.DeploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value() {
 
 		return false, nil
 	}
@@ -742,9 +742,9 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	// the current session.
 	exp := apiKey.ExpiresAt
 	lifetimeSeconds := apiKey.LifetimeSeconds
-	if exp.IsZero() || time.Until(exp) > api.DeploymentConfig.SessionDuration {
-		exp = database.Now().Add(api.DeploymentConfig.SessionDuration)
-		lifetimeSeconds = int64(api.DeploymentConfig.SessionDuration.Seconds())
+	if exp.IsZero() || time.Until(exp) > api.DeploymentConfig.SessionDuration.Value() {
+		exp = database.Now().Add(api.DeploymentConfig.SessionDuration.Value())
+		lifetimeSeconds = int64(api.DeploymentConfig.SessionDuration.Value().Seconds())
 	}
 	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:          apiKey.UserID,

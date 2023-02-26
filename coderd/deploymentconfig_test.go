@@ -19,10 +19,10 @@ func TestDeploymentConfig(t *testing.T) {
 	// values should be returned
 	cfg.BrowserOnly = true
 	// values should not be returned
-	cfg.OAuth2.Github.ClientSecret = hi
-	cfg.OIDC.ClientSecret = hi
-	cfg.PostgresURL = hi
-	cfg.SCIMAPIKey = hi
+	cfg.OAuth2.Github.ClientSecret.Set(hi)
+	cfg.OIDC.ClientSecret.Set(hi)
+	cfg.PostgresURL.Set(hi)
+	cfg.SCIMAPIKey.Set(hi)
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentConfig: cfg,

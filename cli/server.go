@@ -832,16 +832,16 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 
 			// Coder tracing should be disabled if telemetry is disabled unless
 			// --telemetry-trace was explicitly provided.
-			shouldCoderTrace := bool(cfg.Telemetry.Enable.Bool()) && !isTest()
+			shouldCoderTrace := bool(cfg.Telemetry.Enable.Value()) && !isTest()
 			// Only override if telemetryTraceEnable was specifically set.
 			// By default we want it to be controlled by telemetryEnable.
 			if cmd.Flags().Changed("telemetry-trace") {
-				shouldCoderTrace = cfg.Telemetry.Trace.Bool()
+				shouldCoderTrace = cfg.Telemetry.Trace.Value()
 			}
 
-			if cfg.Trace.Enable.Bool() || shouldCoderTrace || cfg.Trace.HoneycombAPIKey != "" {
+			if cfg.Trace.Enable.Value() || shouldCoderTrace || cfg.Trace.HoneycombAPIKey != "" {
 				sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
-					Default:   cfg.Trace.Enable.Bool(),
+					Default:   cfg.Trace.Enable.Value(),
 					Coder:     shouldCoderTrace,
 					Honeycomb: cfg.Trace.HoneycombAPIKey.String(),
 				})
@@ -1064,7 +1064,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			}
 
 			// Warn the user if the access URL appears to be a loopback address.
-			isLocal, err := isLocalURL(ctx, cfg.AccessURL.URL())
+			isLocal, err := isLocalURL(ctx, cfg.AccessURL.Value())
 			if isLocal || err != nil {
 				reason := "could not be resolved"
 				if isLocal {
@@ -1092,12 +1092,12 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 
 			defaultRegion := &tailcfg.DERPRegion{
 				EmbeddedRelay: true,
-				RegionID:      cfg.DERP.Server.RegionID.Int(),
+				RegionID:      int(cfg.DERP.Server.RegionID.Value()),
 				RegionCode:    cfg.DERP.Server.RegionCode.String(),
 				RegionName:    cfg.DERP.Server.RegionName.String(),
 				Nodes: []*tailcfg.DERPNode{{
 					Name:      fmt.Sprintf("%db", cfg.DERP.Server.RegionID),
-					RegionID:  cfg.DERP.Server.RegionID.Int(),
+					RegionID:  int(cfg.DERP.Server.RegionID.Value()),
 					HostName:  cfg.AccessURL.Host,
 					DERPPort:  accessURLPort,
 					STUNPort:  -1,
@@ -1130,7 +1130,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			}
 
 			options := &coderd.Options{
-				AccessURL:            cfg.AccessURL.URL(),
+				AccessURL:            cfg.AccessURL.Value(),
 				AppHostname:          appHostname,
 				AppHostnameRegex:     appHostnameRegex,
 				Logger:               logger.Named("coderd"),
@@ -1141,15 +1141,15 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				GoogleTokenValidator: googleTokenValidator,
 				// GitAuthConfigs:              gitAuthConfigs,
 				RealIPConfig:                realIPConfig,
-				SecureAuthCookie:            cfg.SecureAuthCookie.Bool(),
+				SecureAuthCookie:            cfg.SecureAuthCookie.Value(),
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
 				Telemetry:                   telemetry.NewNoop(),
-				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Duration(),
-				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Duration(),
+				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Value(),
+				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value(),
 				DeploymentConfig:            cfg,
 				PrometheusRegistry:          prometheus.NewRegistry(),
-				APIRateLimit:                cfg.RateLimit.API.Int(),
+				APIRateLimit:                int(cfg.RateLimit.API.Value()),
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
@@ -1160,7 +1160,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 
 			if cfg.StrictTransportSecurity > 0 {
 				options.StrictTransportSecurityCfg, err = httpmw.HSTSConfigOptions(
-					cfg.StrictTransportSecurity.Int(), cfg.StrictTransportSecurityOptions,
+					int(cfg.StrictTransportSecurity.Value()), cfg.StrictTransportSecurityOptions,
 				)
 				if err != nil {
 					return xerrors.Errorf("coderd: setting hsts header failed (options: %v): %w", cfg.StrictTransportSecurityOptions, err)
@@ -1187,11 +1187,11 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			}
 
 			if cfg.OAuth2.Github.ClientSecret != "" {
-				options.GithubOAuth2Config, err = configureGithubOAuth2(cfg.AccessURL.URL(),
+				options.GithubOAuth2Config, err = configureGithubOAuth2(cfg.AccessURL.Value(),
 					cfg.OAuth2.Github.ClientID.String(),
 					cfg.OAuth2.Github.ClientSecret.String(),
-					cfg.OAuth2.Github.AllowSignups.Bool(),
-					cfg.OAuth2.Github.AllowEveryone.Bool(),
+					cfg.OAuth2.Github.AllowSignups.Value(),
+					cfg.OAuth2.Github.AllowEveryone.Value(),
 					cfg.OAuth2.Github.AllowedOrgs,
 					cfg.OAuth2.Github.AllowedTeams,
 					cfg.OAuth2.Github.EnterpriseBaseURL.String(),
@@ -1219,7 +1219,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				if err != nil {
 					return xerrors.Errorf("configure oidc provider: %w", err)
 				}
-				redirectURL, err := cfg.AccessURL.URL().Parse("/api/v2/users/oidc/callback")
+				redirectURL, err := cfg.AccessURL.Value().Parse("/api/v2/users/oidc/callback")
 				if err != nil {
 					return xerrors.Errorf("parse oidc oauth callback url: %w", err)
 				}
@@ -1236,11 +1236,11 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 						ClientID: cfg.OIDC.ClientID.String(),
 					}),
 					EmailDomain:         cfg.OIDC.EmailDomain,
-					AllowSignups:        cfg.OIDC.AllowSignups.Bool(),
+					AllowSignups:        cfg.OIDC.AllowSignups.Value(),
 					UsernameField:       cfg.OIDC.UsernameField.String(),
 					SignInText:          cfg.OIDC.SignInText.String(),
 					IconURL:             cfg.OIDC.IconURL.String(),
-					IgnoreEmailVerified: cfg.OIDC.IgnoreEmailVerified.Bool(),
+					IgnoreEmailVerified: cfg.OIDC.IgnoreEmailVerified.Value(),
 				}
 			}
 
@@ -1294,14 +1294,14 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 					DeploymentID:       deploymentID,
 					Database:           options.Database,
 					Logger:             logger.Named("telemetry"),
-					URL:                cfg.Telemetry.URL.URL(),
+					URL:                cfg.Telemetry.URL.Value(),
 					Wildcard:           cfg.WildcardAccessURL.String() != "",
 					DERPServerRelayURL: cfg.DERP.Server.RelayURL.String(),
 					GitAuth:            gitAuth,
 					GitHubOAuth:        cfg.OAuth2.Github.ClientID != "",
 					OIDCAuth:           cfg.OIDC.ClientID != "",
 					OIDCIssuerURL:      cfg.OIDC.IssuerURL.String(),
-					Prometheus:         cfg.Prometheus.Enable.Bool(),
+					Prometheus:         cfg.Prometheus.Enable.Value(),
 					STUN:               len(cfg.DERP.Server.STUNAddresses) != 0,
 					Tunnel:             tunnel != nil,
 				})
@@ -1340,7 +1340,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			}
 
 			if cfg.Swagger.Enable {
-				options.SwaggerEndpoint = cfg.Swagger.Enable.Bool()
+				options.SwaggerEndpoint = cfg.Swagger.Enable.Value()
 			}
 
 			// We use a separate coderAPICloser so the Enterprise API
@@ -1384,7 +1384,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				}
 			}()
 			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
-			for i := 0; i < cfg.Provisioner.Daemons.Int(); i++ {
+			for i := int64(0); i < cfg.Provisioner.Daemons.Value(); i++ {
 				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
 				daemon, err := newProvisionerDaemon(ctx, coderAPI, provisionerdMetrics, logger, cfg, daemonCacheDir, errCh, false)
 				if err != nil {
@@ -1400,7 +1400,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			// the request is not to a local IP.
 			var handler http.Handler = coderAPI.RootHandler
 			if cfg.RedirectToAccessURL {
-				handler = redirectToAccessURL(handler, cfg.AccessURL.URL(), tunnel != nil, appHostnameRegex)
+				handler = redirectToAccessURL(handler, cfg.AccessURL.Value(), tunnel != nil, appHostnameRegex)
 			}
 
 			// ReadHeaderTimeout is purposefully not enabled. It caused some
@@ -1478,7 +1478,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
 
-			autobuildPoller := time.NewTicker(cfg.AutobuildPollInterval.Duration())
+			autobuildPoller := time.NewTicker(cfg.AutobuildPollInterval.Value())
 			defer autobuildPoller.Stop()
 			autobuildExecutor := executor.New(ctx, options.Database, logger, autobuildPoller.C)
 			autobuildExecutor.Run()
@@ -1765,11 +1765,11 @@ func newProvisionerDaemon(
 		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, debounce)
 	}, &provisionerd.Options{
 		Logger:              logger,
-		JobPollInterval:     cfg.Provisioner.DaemonPollInterval.Duration(),
-		JobPollJitter:       cfg.Provisioner.DaemonPollJitter.Duration(),
+		JobPollInterval:     cfg.Provisioner.DaemonPollInterval.Value(),
+		JobPollJitter:       cfg.Provisioner.DaemonPollJitter.Value(),
 		JobPollDebounce:     debounce,
 		UpdateInterval:      500 * time.Millisecond,
-		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Duration(),
+		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value(),
 		Provisioners:        provisioners,
 		WorkDirectory:       tempDir,
 		TracerProvider:      coderAPI.TracerProvider,

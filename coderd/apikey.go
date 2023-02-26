@@ -291,7 +291,7 @@ func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
 		return xerrors.New("lifetime must be positive number greater than 0")
 	}
 
-	if lifetime > api.DeploymentConfig.MaxTokenLifetime {
+	if lifetime > api.DeploymentConfig.MaxTokenLifetime.Value() {
 		return xerrors.Errorf("lifetime must be less than %s", api.DeploymentConfig.MaxTokenLifetime)
 	}
 
@@ -311,8 +311,8 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 		if params.LifetimeSeconds != 0 {
 			params.ExpiresAt = database.Now().Add(time.Duration(params.LifetimeSeconds) * time.Second)
 		} else {
-			params.ExpiresAt = database.Now().Add(api.DeploymentConfig.SessionDuration)
-			params.LifetimeSeconds = int64(api.DeploymentConfig.SessionDuration.Seconds())
+			params.ExpiresAt = database.Now().Add(api.DeploymentConfig.SessionDuration.Value())
+			params.LifetimeSeconds = int64(api.DeploymentConfig.SessionDuration.Value().Seconds())
 		}
 	}
 	if params.LifetimeSeconds == 0 {

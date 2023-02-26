@@ -19,8 +19,8 @@ func (i *Int64) Set(s string) error {
 	return err
 }
 
-func (i Int64) Int() int {
-	return int(i)
+func (i Int64) Value() int64 {
+	return int64(i)
 }
 
 func (i Int64) String() string {
@@ -43,7 +43,7 @@ func (b Bool) String() string {
 	return strconv.FormatBool(bool(b))
 }
 
-func (b Bool) Bool() bool {
+func (b Bool) Value() bool {
 	return bool(b)
 }
 
@@ -62,6 +62,10 @@ func (s String) String() string {
 	return string(s)
 }
 
+func (s String) Value() string {
+	return string(s)
+}
+
 func (String) Type() string {
 	return "string"
 }
@@ -77,7 +81,7 @@ func (s Strings) String() string {
 	return strings.Join(s, ",")
 }
 
-func (s Strings) Strings() []string {
+func (s Strings) Value() []string {
 	return []string(s)
 }
 
@@ -93,7 +97,7 @@ func (d *Duration) Set(v string) error {
 	return err
 }
 
-func (d *Duration) Duration() time.Duration {
+func (d *Duration) Value() time.Duration {
 	return time.Duration(*d)
 }
 
@@ -125,7 +129,7 @@ func (*URL) Type() string {
 	return "url"
 }
 
-func (u *URL) URL() *url.URL {
+func (u *URL) Value() *url.URL {
 	return (*url.URL)(u)
 }
 

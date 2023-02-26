@@ -157,7 +157,10 @@ func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}
 	}
-	experiments := initExperiments(options.Logger, options.DeploymentConfig.Experiments.Value, options.DeploymentConfig.Experimental.Value)
+	experiments := initExperiments(
+		options.Logger, options.DeploymentConfig.Experiments.Value(),
+		options.DeploymentConfig.Experimental.Value(),
+	)
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
@@ -268,7 +271,7 @@ func New(options *Options) *API {
 		DB:                          options.Database,
 		OAuth2Configs:               oauthConfigs,
 		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+		DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
 	})
 	// Same as above but it redirects to the login page.
@@ -276,7 +279,7 @@ func New(options *Options) *API {
 		DB:                          options.Database,
 		OAuth2Configs:               oauthConfigs,
 		RedirectToLogin:             true,
-		DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+		DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
 	})
 
@@ -304,7 +307,7 @@ func New(options *Options) *API {
 				// The code handles the the case where the user is not
 				// authenticated automatically.
 				RedirectToLogin:             false,
-				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value(),
 				Optional:                    true,
 			}),
 			httpmw.AsAuthzSystem(
@@ -344,7 +347,7 @@ func New(options *Options) *API {
 				// authorization check fails and the user is not authenticated,
 				// they will be redirected to the login page by the app handler.
 				RedirectToLogin:             false,
-				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value(),
 				Optional:                    true,
 			}),
 			httpmw.AsAuthzSystem(

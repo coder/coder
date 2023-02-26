@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/coder/coder/cli/bigcli"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
@@ -206,7 +207,7 @@ func TestPostLogin(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		dc.DisablePasswordAuth.Value = true
+		dc.DisablePasswordAuth = bigcli.Bool(true)
 
 		userClient := codersdk.New(client.URL)
 		_, err = userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{

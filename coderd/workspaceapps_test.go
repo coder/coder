@@ -21,6 +21,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/cli/bigcli"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
@@ -151,9 +152,9 @@ func setupProxyTest(t *testing.T, opts *setupProxyTestOpts) (*codersdk.Client, c
 	require.True(t, ok)
 
 	deploymentConfig := coderdtest.DeploymentConfig(t)
-	deploymentConfig.DisablePathApps.Value = opts.DisablePathApps
-	deploymentConfig.Dangerous.AllowPathAppSharing.Value = opts.DangerousAllowPathAppSharing
-	deploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value = opts.DangerousAllowPathAppSiteOwnerAccess
+	deploymentConfig.DisablePathApps = bigcli.Bool(opts.DisablePathApps)
+	deploymentConfig.Dangerous.AllowPathAppSharing = bigcli.Bool(opts.DangerousAllowPathAppSharing)
+	deploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess = bigcli.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentConfig:            deploymentConfig,
@@ -290,7 +291,7 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		t.Parallel()
 
 		deploymentConfig := coderdtest.DeploymentConfig(t)
-		deploymentConfig.DisablePathApps.Value = true
+		deploymentConfig.DisablePathApps = true
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentConfig:            deploymentConfig,
