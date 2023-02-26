@@ -16,11 +16,16 @@ func TestOption_ToYAML(t *testing.T) {
 
 	os := bigcli.OptionSet{
 		bigcli.Option{
-			Name:  "Workspace Name",
-			Value: &workspaceName,
-			Group: []string{"Names"},
+			Name:        "Workspace Name",
+			Value:       &workspaceName,
+			Default:     "billie",
+			Description: "The workspace's name",
+			Group:       []string{"Names"},
 		},
 	}
+
+	err := os.SetDefaults()
+	require.NoError(t, err)
 
 	n, err := os.ToYAML()
 	require.NoError(t, err)

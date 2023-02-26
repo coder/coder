@@ -156,6 +156,8 @@ type DeploymentConfig struct {
 	SessionDuration                 bigcli.Duration    `json:"max_session_expiry" typescript:",notnull"`
 	DisableSessionExpiryRefresh     bigcli.Bool        `json:"disable_session_expiry_refresh" typescript:",notnull"`
 	DisablePasswordAuth             bigcli.Bool        `json:"disable_password_auth" typescript:",notnull"`
+	Config                          bigcli.String      `json:"config" typescript:",notnull"`
+	WriteConfig                     bigcli.Bool        `json:"write_config" typescript:",notnull"`
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 	Address bigcli.BindAddress `json:"address" typescript:",notnull"`
@@ -313,8 +315,8 @@ const (
 	flagSecretKey     = "secret"
 )
 
-func isSecretOpt(an bigcli.Annotations) bool {
-	return an.IsSet(flagSecretKey)
+func IsSecretDeploymentOption(opt bigcli.Option) bool {
+	return opt.Annotations.IsSet(flagSecretKey)
 }
 
 func DefaultCacheDir() string {
@@ -337,7 +339,8 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 		Flag:        "http-address",
 		Default:     "127.0.0.1:3000",
 		Value:       &c.HTTPAddress,
-		Group:       []string{"Networking"},
+		Group:       []string{"Networking", "HTTP"},
+		YAML:        "httpAddress",
 	}
 	tlsBindAddress := bigcli.Option{
 		Name:        "TLS Address",
@@ -346,6 +349,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 		Default:     "127.0.0.1:3443",
 		Value:       &c.TLS.Address,
 		Group:       []string{"Networking", "TLS"},
+		YAML:        "address",
 	}
 	redirectToAccessURL := bigcli.Option{
 		Name:        "Redirect to Access URL",
@@ -353,6 +357,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 		Flag:        "redirect-to-access-url",
 		Value:       &c.RedirectToAccessURL,
 		Group:       []string{"Networking"},
+		YAML:        "redirectToAccessURL",
 	}
 	return bigcli.OptionSet{
 		{
@@ -360,6 +365,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: `The URL that users will use to access the Coder deployment.`,
 			Value:       &c.AccessURL,
 			Group:       []string{"Networking"},
+			YAML:        "accessURL",
 		},
 		{
 			Name:        "Wildcard Access URL",
@@ -367,6 +373,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "wildcard-access-url",
 			Value:       &c.WildcardAccessURL,
 			Group:       []string{"Networking"},
+			YAML:        "wildcardAccessURL",
 		},
 		redirectToAccessURL,
 		{
@@ -376,6 +383,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Hidden:      true,
 			Default:     time.Minute.String(),
 			Value:       &c.AutobuildPollInterval,
+			YAML:        "autobuildPollInterval",
 		},
 		httpAddress,
 		tlsBindAddress,
@@ -399,6 +407,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "tls-enable",
 			Value:       &c.TLS.Enable,
 			Group:       []string{"Networking", "TLS"},
+			YAML:        "enable",
 		},
 		{
 			Name:        "Redirect HTTP to HTTPS",
@@ -409,6 +418,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Value:       &c.TLS.RedirectHTTP,
 			UseInstead:  []bigcli.Option{redirectToAccessURL},
 			Group:       []string{"Networking", "TLS"},
+			YAML:        "redirectHTTP",
 		},
 		{
 			Name:        "TLS Certificate Files",
@@ -416,6 +426,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "tls-cert-file",
 			Value:       &c.TLS.CertFiles,
 			Group:       []string{"Networking", "TLS"},
+			YAML:        "certFiles",
 		},
 		{
 			Name:        "TLS Client CA Files",
@@ -423,6 +434,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "tls-client-ca-file",
 			Value:       &c.TLS.ClientCAFile,
 			Group:       []string{"Networking", "TLS"},
+			YAML:        "clientCAFile",
 		},
 		{
 			Name:        "TLS Client Auth",
@@ -431,6 +443,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "none",
 			Value:       &c.TLS.ClientAuth,
 			Group:       []string{"Networking", "TLS"},
+			YAML:        "clientAuth",
 		},
 		{
 			Name:        "TLS Key Files",
@@ -438,6 +451,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "tls-key-file",
 			Value:       &c.TLS.KeyFiles,
 			Group:       []string{"Networking", "TLS"},
+			YAML:        "keyFiles",
 		},
 		{
 			Name:        "TLS Minimum Version",
@@ -446,6 +460,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "tls12",
 			Value:       &c.TLS.MinVersion,
 			Group:       []string{"Networking", "TLS"},
+			YAML:        "minVersion",
 		},
 		{
 			Name:        "TLS Client Cert File",
@@ -453,6 +468,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "tls-client-cert-file",
 			Value:       &c.TLS.ClientCertFile,
 			Group:       []string{"Networking", "TLS"},
+			YAML:        "clientCertFile",
 		},
 		{
 			Name:        "TLS Client Key File",
@@ -460,6 +476,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "tls-client-key-file",
 			Value:       &c.TLS.ClientKeyFile,
 			Group:       []string{"Networking", "TLS"},
+			YAML:        "clientKeyFile",
 		},
 		// Derp settings
 		{
@@ -469,6 +486,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "true",
 			Value:       &c.DERP.Server.Enable,
 			Group:       []string{"Networking", "DERP"},
+			YAML:        "enable",
 		},
 		{
 			Name:        "DERP Server Region ID",
@@ -477,6 +495,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "999",
 			Value:       &c.DERP.Server.RegionID,
 			Group:       []string{"Networking", "DERP"},
+			YAML:        "regionID",
 		},
 		{
 			Name:        "DERP Server Region Code",
@@ -485,6 +504,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "coder",
 			Value:       &c.DERP.Server.RegionCode,
 			Group:       []string{"Networking", "DERP"},
+			YAML:        "regionCode",
 		},
 		{
 			Name:        "DERP Server Region Name",
@@ -493,6 +513,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "Coder Embedded Relay",
 			Value:       &c.DERP.Server.RegionName,
 			Group:       []string{"Networking", "DERP"},
+			YAML:        "regionName",
 		},
 		{
 			Name:        "DERP Server STUN Addresses",
@@ -501,6 +522,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "stun.l.google.com:19302",
 			Value:       &c.DERP.Server.STUNAddresses,
 			Group:       []string{"Networking", "DERP"},
+			YAML:        "stunAddresses",
 		},
 		{
 			Name:        "DERP Server Relay URL",
@@ -509,6 +531,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Annotations: bigcli.Annotations{}.Mark(flagEnterpriseKey, "true"),
 			Value:       &c.DERP.Server.RelayURL,
 			Group:       []string{"Networking", "DERP"},
+			YAML:        "relayURL",
 		},
 		{
 			Name:        "DERP Config URL",
@@ -516,6 +539,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "derp-config-url",
 			Value:       &c.DERP.Config.URL,
 			Group:       []string{"Networking", "DERP"},
+			YAML:        "url",
 		},
 		{
 			Name:        "DERP Config Path",
@@ -523,6 +547,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "derp-config-path",
 			Value:       &c.DERP.Config.Path,
 			Group:       []string{"Networking", "DERP"},
+			YAML:        "configPath",
 		},
 		// TODO: support Git Auth settings.
 		// Prometheus settings
@@ -531,7 +556,8 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Serve prometheus metrics on the address defined by prometheus address.",
 			Flag:        "prometheus-enable",
 			Value:       &c.Prometheus.Enable,
-			Group:       []string{"Introspection"},
+			Group:       []string{"Introspection", "Prometheus"},
+			YAML:        "enable",
 		},
 		{
 			Name:        "Prometheus Address",
@@ -539,7 +565,8 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "prometheus-address",
 			Default:     "127.0.0.1:2112",
 			Value:       &c.Prometheus.Address,
-			Group:       []string{"Introspection"},
+			Group:       []string{"Introspection", "Prometheus"},
+			YAML:        "address",
 		},
 		// Pprof settings
 		{
@@ -547,7 +574,8 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Serve pprof metrics on the address defined by pprof address.",
 			Flag:        "pprof-enable",
 			Value:       &c.Pprof.Enable,
-			Group:       []string{"Introspection"},
+			Group:       []string{"Introspection", "pprof"},
+			YAML:        "enable",
 		},
 		{
 			Name:        "pprof Address",
@@ -555,7 +583,8 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "pprof-address",
 			Default:     "127.0.0.1:6060",
 			Value:       &c.Pprof.Address,
-			Group:       []string{"Introspection"},
+			Group:       []string{"Introspection", "pprof"},
+			YAML:        "address",
 		},
 		// oAuth settings
 		{
@@ -563,7 +592,8 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Client ID for Login with GitHub.",
 			Flag:        "oauth2-github-client-id",
 			Value:       &c.OAuth2.Github.ClientID,
-			Group:       []string{"oAuth2"},
+			Group:       []string{"oAuth2", "GitHub"},
+			YAML:        "clientID",
 		},
 		{
 			Name:        "OAuth2 GitHub Client Secret",
@@ -571,28 +601,31 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "oauth2-github-client-secret",
 			Value:       &c.OAuth2.Github.ClientSecret,
 			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true"),
-			Group:       []string{"oAuth2"},
+			Group:       []string{"oAuth2", "GitHub"},
 		},
 		{
 			Name:        "OAuth2 GitHub Allowed Orgs",
 			Description: "Organizations the user must be a member of to Login with GitHub.",
 			Flag:        "oauth2-github-allowed-orgs",
 			Value:       &c.OAuth2.Github.AllowedOrgs,
-			Group:       []string{"oAuth2"},
+			Group:       []string{"oAuth2", "GitHub"},
+			YAML:        "allowedOrgs",
 		},
 		{
 			Name:        "OAuth2 GitHub Allowed Teams",
 			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
 			Flag:        "oauth2-github-allowed-teams",
 			Value:       &c.OAuth2.Github.AllowedTeams,
-			Group:       []string{"oAuth2"},
+			Group:       []string{"oAuth2", "GitHub"},
+			YAML:        "allowedTeams",
 		},
 		{
 			Name:        "OAuth2 GitHub Allow Signups",
 			Description: "Whether new users can sign up with GitHub.",
 			Flag:        "oauth2-github-allow-signups",
 			Value:       &c.OAuth2.Github.AllowSignups,
-			Group:       []string{"oAuth2"},
+			Group:       []string{"oAuth2", "GitHub"},
+			YAML:        "allowSignups",
 		},
 		{
 			Name:        "OAuth2 GitHub Allow Everyone",
@@ -600,13 +633,15 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "oauth2-github-allow-everyone",
 			Value:       &c.OAuth2.Github.AllowEveryone,
 			Group:       []string{"oAuth2"},
+			YAML:        "allowEveryone",
 		},
 		{
 			Name:        "OAuth2 GitHub Enterprise Base URL",
 			Description: "Base URL of a GitHub Enterprise deployment to use for Login with GitHub.",
 			Flag:        "oauth2-github-enterprise-base-url",
 			Value:       &c.OAuth2.Github.EnterpriseBaseURL,
-			Group:       []string{"oAuth2"},
+			Group:       []string{"oAuth2", "GitHub"},
+			YAML:        "enterpriseBaseURL",
 		},
 		// OIDC settings.
 		{
@@ -616,6 +651,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "true",
 			Value:       &c.OIDC.AllowSignups,
 			Group:       []string{"OIDC"},
+			YAML:        "allowSignups",
 		},
 		{
 			Name:        "OIDC Client ID",
@@ -623,6 +659,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "oidc-client-id",
 			Value:       &c.OIDC.ClientID,
 			Group:       []string{"OIDC"},
+			YAML:        "clientID",
 		},
 		{
 			Name:        "OIDC Client Secret",
@@ -638,6 +675,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "oidc-email-domain",
 			Value:       &c.OIDC.EmailDomain,
 			Group:       []string{"OIDC"},
+			YAML:        "emailDomain",
 		},
 		{
 			Name:        "OIDC Issuer URL",
@@ -645,6 +683,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "oidc-issuer-url",
 			Value:       &c.OIDC.IssuerURL,
 			Group:       []string{"OIDC"},
+			YAML:        "issuerURL",
 		},
 		{
 			Name:        "OIDC Scopes",
@@ -653,6 +692,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     strings.Join([]string{oidc.ScopeOpenID, "profile", "email"}, ","),
 			Value:       &c.OIDC.Scopes,
 			Group:       []string{"OIDC"},
+			YAML:        "scopes",
 		},
 		{
 			Name:        "OIDC Ignore Email Verified",
@@ -661,6 +701,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "false",
 			Value:       &c.OIDC.IgnoreEmailVerified,
 			Group:       []string{"OIDC"},
+			YAML:        "ignoreEmailVerified",
 		},
 		{
 			Name:        "OIDC Username Field",
@@ -669,6 +710,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "preferred_username",
 			Value:       &c.OIDC.UsernameField,
 			Group:       []string{"OIDC"},
+			YAML:        "usernameField",
 		},
 		{
 			Name:        "OpenID Connect sign in text",
@@ -677,6 +719,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "OpenID Connect",
 			Value:       &c.OIDC.SignInText,
 			Group:       []string{"OIDC"},
+			YAML:        "signInText",
 		},
 		{
 			Name:        "OpenID connect icon URL",
@@ -684,6 +727,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "oidc-icon-url",
 			Value:       &c.OIDC.IconURL,
 			Group:       []string{"OIDC"},
+			YAML:        "iconURL",
 		},
 		// Telemetry settings
 		{
@@ -693,6 +737,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
 			Value:       &c.Telemetry.Enable,
 			Group:       []string{"Telemetry"},
+			YAML:        "enable",
 		},
 		{
 			Name:        "Telemetry Trace",
@@ -701,6 +746,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
 			Value:       &c.Telemetry.Trace,
 			Group:       []string{"Telemetry"},
+			YAML:        "trace",
 		},
 		{
 			Name:        "Telemetry URL",
@@ -710,6 +756,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "https://telemetry.coder.com",
 			Value:       &c.Telemetry.URL,
 			Group:       []string{"Telemetry"},
+			YAML:        "url",
 		},
 		// Trace settings
 		{
@@ -717,7 +764,8 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md",
 			Flag:        "trace",
 			Value:       &c.Trace.Enable,
-			Group:       []string{"Introspection"},
+			Group:       []string{"Introspection", "Tracing"},
+			YAML:        "enable",
 		},
 		{
 			Name:        "Trace Honeycomb API Key",
@@ -725,14 +773,15 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "trace-honeycomb-api-key",
 			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true"),
 			Value:       &c.Trace.HoneycombAPIKey,
-			Group:       []string{"Introspection"},
+			Group:       []string{"Introspection", "Tracing"},
 		},
 		{
 			Name:        "Capture Logs in Traces",
 			Description: "Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.",
 			Flag:        "trace-logs",
 			Value:       &c.Trace.CaptureLogs,
-			Group:       []string{"Introspection"},
+			Group:       []string{"Introspection", "Tracing"},
+			YAML:        "captureLogs",
 		},
 		// Provisioner settings
 		{
@@ -742,6 +791,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "3",
 			Value:       &c.Provisioner.Daemons,
 			Group:       []string{"Provisioning"},
+			YAML:        "daemons",
 		},
 		{
 			Name:        "Poll Interval",
@@ -750,6 +800,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     time.Second.String(),
 			Value:       &c.Provisioner.DaemonPollInterval,
 			Group:       []string{"Provisioning"},
+			YAML:        "daemonPollInterval",
 		},
 		{
 			Name:        "Poll Jitter",
@@ -758,6 +809,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     (100 * time.Millisecond).String(),
 			Value:       &c.Provisioner.DaemonPollJitter,
 			Group:       []string{"Provisioning"},
+			YAML:        "daemonPollJitter",
 		},
 		{
 			Name:        "Force Cancel Interval",
@@ -766,6 +818,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     (10 * time.Minute).String(),
 			Value:       &c.Provisioner.ForceCancelInterval,
 			Group:       []string{"Provisioning"},
+			YAML:        "forceCancelInterval",
 		},
 		// RateLimit settings
 		{
@@ -795,6 +848,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "/dev/stderr",
 			Value:       &c.Logging.Human,
 			Group:       []string{"Introspection", "Logging"},
+			YAML:        "humanPath",
 		},
 		{
 			Name:        "JSON Log Location",
@@ -803,6 +857,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "",
 			Value:       &c.Logging.JSON,
 			Group:       []string{"Introspection", "Logging"},
+			YAML:        "jsonPath",
 		},
 		{
 			Name:        "Stackdriver Log Location",
@@ -811,6 +866,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "",
 			Value:       &c.Logging.Stackdriver,
 			Group:       []string{"Introspection", "Logging"},
+			YAML:        "stackdriverPath",
 		},
 		// ☢️ Dangerous settings
 		{
@@ -835,6 +891,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
 			Flag:        "experiments",
 			Value:       &c.Experiments,
+			YAML:        "experiments",
 		},
 		{
 			Name:        "Update Check",
@@ -844,6 +901,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 				flag.Lookup("test.v") == nil && !buildinfo.IsDev(),
 			),
 			Value: &c.UpdateCheck,
+			YAML:  "updateCheck",
 		},
 		{
 			Name:        "Max Token Lifetime",
@@ -852,6 +910,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     (24 * 30 * time.Hour).String(),
 			Value:       &c.MaxTokenLifetime,
 			Group:       []string{"Security"},
+			YAML:        "maxTokenLifetime",
 		},
 		{
 			Name:        "Enable swagger endpoint",
@@ -859,6 +918,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "swagger-enable",
 			Default:     "false",
 			Value:       &c.Swagger.Enable,
+			YAML:        "enableSwagger",
 		},
 		{
 			Name:        "Proxy Trusted Headers",
@@ -866,6 +926,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For",
 			Value:       &c.ProxyTrustedHeaders,
 			Group:       []string{"Networking"},
+			YAML:        "proxyTrustedHeaders",
 		},
 		{
 			Name:        "Proxy Trusted Origins",
@@ -873,6 +934,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Description: "Origin addresses to respect \"proxy-trusted-headers\". e.g. 192.168.1.0/24",
 			Value:       &c.ProxyTrustedOrigins,
 			Group:       []string{"Networking"},
+			YAML:        "proxyTrustedOrigins",
 		},
 		{
 			Name:        "Cache Directory",
@@ -880,6 +942,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "cache-dir",
 			Default:     DefaultCacheDir(),
 			Value:       &c.CacheDir,
+			YAML:        "cacheDir",
 		},
 		{
 			Name:        "In Memory Database",
@@ -887,6 +950,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "in-memory",
 			Hidden:      true,
 			Value:       &c.InMemoryDatabase,
+			YAML:        "inMemoryDatabase",
 		},
 		{
 			Name:        "Postgres Connection URL",
@@ -901,6 +965,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "secure-auth-cookie",
 			Value:       &c.SecureAuthCookie,
 			Group:       []string{"Networking"},
+			YAML:        "secureAuthCookie",
 		},
 		{
 			Name: "Strict-Transport-Security",
@@ -911,6 +976,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:    "strict-transport-security",
 			Value:   &c.StrictTransportSecurity,
 			Group:   []string{"Networking", "TLS"},
+			YAML:    "strictTransportSecurity",
 		},
 		{
 			Name: "Strict-Transport-Security Options",
@@ -919,6 +985,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:  "strict-transport-security-options",
 			Value: &c.StrictTransportSecurityOptions,
 			Group: []string{"Networking", "TLS"},
+			YAML:  "strictTransportSecurityOptions",
 		},
 		{
 			Name:        "SSH Keygen Algorithm",
@@ -926,6 +993,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "ssh-keygen-algorithm",
 			Default:     "ed25519",
 			Value:       &c.SSHKeygenAlgorithm,
+			YAML:        "sshKeygenAlgorithm",
 		},
 		{
 			Name:        "Metrics Cache Refresh Interval",
@@ -950,6 +1018,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Hidden:      true,
 			Default:     "https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates",
 			Value:       &c.AgentFallbackTroubleshootingURL,
+			YAML:        "agentFallbackTroubleshootingURL",
 		},
 		{
 			Name:        "Audit Logging",
@@ -958,6 +1027,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Default:     "true",
 			Annotations: bigcli.Annotations{}.Mark(flagEnterpriseKey, "true"),
 			Value:       &c.AuditLogging,
+			YAML:        "auditLogging",
 		},
 		{
 			Name:        "Browser Only",
@@ -966,6 +1036,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Annotations: bigcli.Annotations{}.Mark(flagEnterpriseKey, "true"),
 			Value:       &c.BrowserOnly,
 			Group:       []string{"Networking"},
+			YAML:        "browserOnly",
 		},
 		{
 			Name:        "SCIM API Key",
@@ -981,6 +1052,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "disable-path-apps",
 			Default:     "false",
 			Value:       &c.DisablePathApps,
+			YAML:        "disablePathApps",
 		},
 		{
 			Name:        "Session Duration",
@@ -988,7 +1060,8 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "session-duration",
 			Default:     (24 * time.Hour).String(),
 			Value:       &c.SessionDuration,
-			Group:       []string{"Security"},
+			Group:       []string{"Networking", "HTTP"},
+			YAML:        "sessionDuration",
 		},
 		{
 			Name:        "Disable Session Expiry Refresh",
@@ -996,7 +1069,8 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "disable-session-expiry-refresh",
 			Default:     "false",
 			Value:       &c.DisableSessionExpiryRefresh,
-			Group:       []string{"Security"},
+			Group:       []string{"Networking", "HTTP"},
+			YAML:        "disableSessionExpiryRefresh",
 		},
 		{
 			Name:        "Disable Password Authentication",
@@ -1004,7 +1078,24 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Flag:        "disable-password-auth",
 			Default:     "false",
 			Value:       &c.DisablePasswordAuth,
-			Group:       []string{"Security"},
+			Group:       []string{"Networking", "HTTP"},
+			YAML:        "disablePasswordAuth",
+		},
+		{
+			Name:          "Config Path",
+			Description:   `Specify a YAML file to load configuration from.`,
+			Flag:          "config",
+			FlagShorthand: "c",
+			Group:         []string{"Config"},
+			Value:         &c.Config,
+		},
+		{
+			Name: "Write Config",
+			Description: `
+Write out the current server configuration to the path specified by --config.`,
+			Flag:  "write-config",
+			Group: []string{"Config"},
+			Value: &c.WriteConfig,
 		},
 	}
 }
@@ -1028,7 +1119,7 @@ func (c *DeploymentConfig) Scrub() (*DeploymentConfig, error) {
 	}
 
 	for _, opt := range ff.ConfigOptions() {
-		if !isSecretOpt(opt.Annotations) {
+		if !IsSecretDeploymentOption(opt) {
 			continue
 		}
 

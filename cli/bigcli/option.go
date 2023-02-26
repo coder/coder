@@ -11,7 +11,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// Disable is a sentinel value for Option.Flag and Option.Env to disable
+// Disable is a sentinel value for Option.Flag, Option.Env, and Option.YAML to disable
 // features.
 const Disable = "-"
 
@@ -65,6 +65,10 @@ type Option struct {
 	// If unset, Env defaults to the upper-case, snake-case version of Name.
 	// Use special value "Disable" to disable environment variable support.
 	Env string
+
+	// Unlike Flag and Env, we do not infer YAML name because we want to provide
+	// the strongest compatibility guarantee for YAML configs.
+	YAML string
 
 	// Default is parsed into Value if set.
 	Default string

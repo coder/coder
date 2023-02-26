@@ -35,6 +35,7 @@ import (
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
+	"github.com/iancoleman/strcase"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -48,6 +49,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/api/option"
+	"gopkg.in/yaml.v3"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -81,6 +83,15 @@ import (
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/tailnet"
 )
+
+func init() {
+	// For YAML conversion.
+	strcase.ConfigureAcronym("ssh", "ssh")
+	strcase.ConfigureAcronym("SSH", "SSH")
+
+	strcase.ConfigureAcronym("TLS", "tls")
+	strcase.ConfigureAcronym("SCIM", "scim")
+}
 
 // nolint:gocyclo
 func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
@@ -162,6 +173,24 @@ flags, and YAML configuration. The precedence is as follows:
 			err = flagSet.Parse(args)
 			if err != nil {
 				return xerrors.Errorf("parse flags: %w", err)
+			}
+
+			if cfg.WriteConfig {
+				// TODO: this should output to a file.
+				n, err := cliOpts.ToYAML()
+				if err != nil {
+					return xerrors.Errorf("generate yaml: %w", err)
+				}
+				enc := yaml.NewEncoder(cmd.ErrOrStderr())
+				err = enc.Encode(n)
+				if err != nil {
+					return xerrors.Errorf("encode yaml: %w", err)
+				}
+				err = enc.Close()
+				if err != nil {
+					return xerrors.Errorf("close yaml encoder: %w", err)
+				}
+				return nil
 			}
 
 			// Print deprecation warnings.

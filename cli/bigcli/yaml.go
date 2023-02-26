@@ -1,43 +1,71 @@
 package bigcli
 
 import (
+	"github.com/iancoleman/strcase"
 	"gopkg.in/yaml.v3"
 )
 
-func (s *OptionSet) ToYAML() (*yaml.Node, error) {
+// deepMapNode returns the mapping node at the given path,
+// creating it if it doesn't exist.
+func deepMapNode(n *yaml.Node, path []string) *yaml.Node {
+	if len(path) == 0 {
+		return n
+	}
+
+	// Name is every two nodes.
+	for i := 0; i < len(n.Content); i += 2 {
+		if n.Content[i].Value == path[0] {
+			// Found matching name, recurse.
+			return deepMapNode(n.Content[i+1], path[1:])
+		}
+	}
+
+	// Not found, create it.
+	nameNode := yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Value: path[0],
+	}
+	valueNode := yaml.Node{
+		Kind: yaml.MappingNode,
+	}
+	n.Content = append(n.Content, &nameNode)
+	n.Content = append(n.Content, &valueNode)
+	return deepMapNode(&valueNode, path[1:])
+}
+
+// ToYAML converts the option set to a YAML node, that can be
+// converted into bytes via yaml.Marshal.
+//
+// The node is returned to enable post-processing higher up in
+// the stack.
+func (s OptionSet) ToYAML() (*yaml.Node, error) {
 	root := yaml.Node{
 		Kind: yaml.MappingNode,
 	}
 
-	// First, write all groups so that we can reference
-	// them when writing individual options.
-	for level := 1; ; level++ {
-		foundGroups := make(map[string]struct{})
-		// Find all groups at this level.
-		for _, opt := range *s {
-			if len(opt.Group) < level {
-				continue
-			}
-			name := opt.Group[level-1]
-			foundGroups[name] = struct{}{}
+	for _, opt := range s {
+		if opt.YAML == "" {
+			continue
 		}
-
-		for groupName := range foundGroups {
-			// Write group name.
-			nameNode := yaml.Node{
-				Kind:  yaml.ScalarNode,
-				Value: groupName,
-			}
-			root.Content = append(root.Content, &nameNode)
-			// Write group value.
-			valueNode := yaml.Node{
-				Kind: yaml.MappingNode,
-			}
-			root.Content = append(root.Content, &valueNode)
+		nameNode := yaml.Node{
+			Kind:        yaml.ScalarNode,
+			Value:       opt.YAML,
+			HeadComment: opt.Description,
 		}
-		if len(foundGroups) == 0 {
-			break
+		valueNode := yaml.Node{
+			Kind:  yaml.ScalarNode,
+			Value: opt.Value.String(),
 		}
+		var group []string
+		for _, g := range opt.Group {
+			group = append(group, strcase.ToSnake(g))
+		}
+		parent := deepMapNode(&root, group)
+		parent.Content = append(
+			parent.Content,
+			&nameNode,
+			&valueNode,
+		)
 	}
 	return &root, nil
 }

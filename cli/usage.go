@@ -56,6 +56,9 @@ when required by your organization's security policy.
 Tune the behavior of the provisioner, which is responsible for creating,
 updating, and deleting workspace resources.
 `,
+	`Config`: `
+Use a YAML configuration file when your server launch become unwieldy.
+`,
 }
 
 const envPrefix = "CODER_"
