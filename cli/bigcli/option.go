@@ -75,6 +75,10 @@ type Option struct {
 	// help formatting and documentation generation.
 	Annotations Annotations
 
+	// Group is a group hierarchy that helps organize this option in help, configs
+	// and other documentation.
+	Group []string
+
 	// UseInstead is a list of options that should be used instead of this one.
 	// The field is used to generate a deprecation warning.
 	UseInstead []Option
@@ -196,9 +200,9 @@ func (s *OptionSet) ParseEnv(globalPrefix string, environ []string) error {
 
 // SetDefaults sets the default values for each Option.
 // It should be called before all parsing (e.g. ParseFlags, ParseEnv).
-func (os *OptionSet) SetDefaults() error {
+func (s OptionSet) SetDefaults() error {
 	var merr *multierror.Error
-	for _, opt := range *os {
+	for _, opt := range s {
 		if opt.Default == "" {
 			continue
 		}

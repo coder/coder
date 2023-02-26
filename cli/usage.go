@@ -117,12 +117,13 @@ var usageTemplate = template.Must(
 					if opt.Hidden {
 						continue
 					}
-					groupName, ok := opt.Annotations.Get("group")
-					if !ok {
+					if len(opt.Group) == 0 {
 						// Just add option to default group.
 						groups[0].Options = append(groups[0].Options, opt)
 						continue
 					}
+
+					groupName := strings.Join(opt.Group, " / ")
 
 					for i, foundGroup := range groups {
 						if foundGroup.Name != groupName {
