@@ -113,7 +113,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				return xerrors.Errorf("set defaults: %w", err)
 			}
 
-			err = cliOpts.ParseEnv("CODER_", os.Environ())
+			err = cliOpts.ParseEnv(envPrefix, os.Environ())
 			if err != nil {
 				return xerrors.Errorf("parse env: %w", err)
 			}
@@ -128,7 +128,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				Use:   "server [flags]",
 				Short: "Start a Coder server",
 				Long: `
-The server provides contains the Coder dashboard, API, and provisioners.
+The server provides the Coder dashboard, API, and provisioners.
 If no options are provided, the server will start with a built-in postgres
 and an access URL provided by Coder's cloud service.
 

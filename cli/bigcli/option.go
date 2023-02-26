@@ -59,8 +59,7 @@ type Option struct {
 
 	// If unset, Flag defaults to the kebab-case version of Name.
 	// Use sentinel value `Disable` to disable flag support.
-	Flag string
-
+	Flag          string
 	FlagShorthand string
 
 	// If unset, Env defaults to the upper-case, snake-case version of Name.
@@ -69,7 +68,6 @@ type Option struct {
 
 	// Default is parsed into Value if set.
 	Default string
-
 	// Value includes the types listed in values.go.
 	Value pflag.Value
 
@@ -103,7 +101,11 @@ func (o *Option) EnvName() (string, bool) {
 	if o.Env != "" {
 		return o.Env, true
 	}
-	return strings.ToUpper(strcase.ToSnake(o.Name)), true
+	return strings.ToUpper(
+		strcase.ToSnake(
+			strings.ReplaceAll(o.Name, ":", ""),
+		),
+	), true
 }
 
 // OptionSet is a group of options that can be applied to a command.
