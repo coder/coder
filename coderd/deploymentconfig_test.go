@@ -17,12 +17,12 @@ func TestDeploymentConfig(t *testing.T) {
 	defer cancel()
 	cfg := coderdtest.DeploymentConfig(t)
 	// values should be returned
-	cfg.BrowserOnly.Value = true
+	cfg.BrowserOnly = true
 	// values should not be returned
-	cfg.OAuth2.Github.ClientSecret.Value = hi
-	cfg.OIDC.ClientSecret.Value = hi
-	cfg.PostgresURL.Value = hi
-	cfg.SCIMAPIKey.Value = hi
+	cfg.OAuth2.Github.ClientSecret = hi
+	cfg.OIDC.ClientSecret = hi
+	cfg.PostgresURL = hi
+	cfg.SCIMAPIKey = hi
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentConfig: cfg,

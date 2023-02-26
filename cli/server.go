@@ -40,7 +40,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
@@ -65,7 +64,6 @@ import (
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/devtunnel"
-	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -713,7 +711,7 @@ func serverOptions(c *codersdk.DeploymentConfig) *bigcli.OptionSet {
 }
 
 // nolint:gocyclo
-func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
+func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
 	root := &cobra.Command{
 		Use:                "server",
 		Short:              "Start a Coder server",
@@ -787,9 +785,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// was specified.
 			loginRateLimit := 60
 			filesRateLimit := 12
-			if cfg.RateLimit.DisableAll.Value {
+			if cfg.RateLimit.DisableAll {
 
-				cfg.RateLimit.API.Value = -1
+				cfg.RateLimit.API = -1
 				loginRateLimit = -1
 				filesRateLimit = -1
 			}
@@ -815,7 +813,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			defer notifyStop()
 
 			// Ensure we have a unique cache directory for this process.
-			cacheDir := filepath.Join(cfg.CacheDir.Value, uuid.NewString())
+			cacheDir := filepath.Join(cfg.CacheDir.String(), uuid.NewString())
 			err = os.MkdirAll(cacheDir, 0o700)
 			if err != nil {
 				return xerrors.Errorf("create cache directory: %w", err)
@@ -834,18 +832,18 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			// Coder tracing should be disabled if telemetry is disabled unless
 			// --telemetry-trace was explicitly provided.
-			shouldCoderTrace := cfg.Telemetry.Enable.Value && !isTest()
+			shouldCoderTrace := bool(cfg.Telemetry.Enable.Bool()) && !isTest()
 			// Only override if telemetryTraceEnable was specifically set.
 			// By default we want it to be controlled by telemetryEnable.
 			if cmd.Flags().Changed("telemetry-trace") {
-				shouldCoderTrace = cfg.Telemetry.Trace.Value
+				shouldCoderTrace = cfg.Telemetry.Trace.Bool()
 			}
 
-			if cfg.Trace.Enable.Value || shouldCoderTrace || cfg.Trace.HoneycombAPIKey.Value != "" {
+			if cfg.Trace.Enable.Bool() || shouldCoderTrace || cfg.Trace.HoneycombAPIKey != "" {
 				sdkTracerProvider, closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
-					Default:   cfg.Trace.Enable.Value,
+					Default:   cfg.Trace.Enable.Bool(),
 					Coder:     shouldCoderTrace,
-					Honeycomb: cfg.Trace.HoneycombAPIKey.Value,
+					Honeycomb: cfg.Trace.HoneycombAPIKey.String(),
 				})
 				if err != nil {
 					logger.Warn(ctx, "start telemetry exporter", slog.Error(err))
@@ -869,10 +867,15 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			config := createConfig(cmd)
 			builtinPostgres := false
 			// Only use built-in if PostgreSQL URL isn't specified!
-			if !cfg.InMemoryDatabase.Value && cfg.PostgresURL.Value == "" {
+			if !cfg.InMemoryDatabase && cfg.PostgresURL == "" {
 				var closeFunc func() error
 				cmd.Printf("Using built-in PostgreSQL (%s)\n", config.PostgresPath())
-				cfg.PostgresURL.Value, closeFunc, err = startBuiltinPostgres(ctx, config, logger)
+				pgURL, closeFunc, err := startBuiltinPostgres(ctx, config, logger)
+				if err != nil {
+					return err
+				}
+
+				err = cfg.PostgresURL.Set(pgURL)
 				if err != nil {
 					return err
 				}
@@ -940,15 +943,15 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				// It made more sense to have the redirect be opt-in.
 				if os.Getenv("CODER_TLS_REDIRECT_HTTP") == "true" || cmd.Flags().Changed("tls-redirect-http-to-https") {
 					cmd.PrintErr(cliui.Styles.Warn.Render("WARN:") + " --tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead\n")
-					cfg.RedirectToAccessURL.Value = cfg.TLS.RedirectHTTP.Value
+					cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
 				}
 
 				tlsConfig, err = configureTLS(
-					cfg.TLS.MinVersion.Value,
-					cfg.TLS.ClientAuth.Value,
-					cfg.TLS.CertFiles.Value,
-					cfg.TLS.KeyFiles.Value,
-					cfg.TLS.ClientCAFile.Value,
+					cfg.TLS.MinVersion.String(),
+					cfg.TLS.ClientAuth.String(),
+					cfg.TLS.CertFiles,
+					cfg.TLS.KeyFiles,
+					cfg.TLS.ClientCAFile.String(),
 				)
 				if err != nil {
 					return xerrors.Errorf("configure tls: %w", err)
@@ -1004,9 +1007,9 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			ctx, httpClient, err := configureHTTPClient(
 				ctx,
-				cfg.TLS.ClientCertFile.Value,
-				cfg.TLS.ClientKeyFile.Value,
-				cfg.TLS.ClientCAFile.Value,
+				cfg.TLS.ClientCertFile.String(),
+				cfg.TLS.ClientKeyFile.String(),
+				cfg.TLS.ClientCAFile.String(),
 			)
 			if err != nil {
 				return xerrors.Errorf("configure http client: %w", err)
@@ -1032,14 +1035,18 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					return xerrors.Errorf("set access url: %w", err)
 				}
 
-				if cfg.WildcardAccessURL.Value == "" {
+				if cfg.WildcardAccessURL.String() == "" {
 					u, err := parseURL(tunnel.URL)
 					if err != nil {
 						return xerrors.Errorf("parse tunnel url: %w", err)
 					}
 
 					// Suffixed wildcard access URL.
-					cfg.WildcardAccessURL.Value = fmt.Sprintf("*--%s", u.Hostname())
+					u, err = url.Parse(fmt.Sprintf("*--%s", u.Hostname()))
+					if err != nil {
+						return xerrors.Errorf("parse wildcard url: %w", err)
+					}
+					cfg.WildcardAccessURL = bigcli.URL(*u)
 				}
 			}
 
@@ -1078,34 +1085,37 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				return err
 			}
 
-			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(cfg.SSHKeygenAlgorithm.Value)
+			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(cfg.SSHKeygenAlgorithm.String())
 			if err != nil {
-				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", cfg.SSHKeygenAlgorithm.Value, err)
+				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", cfg.SSHKeygenAlgorithm, err)
 			}
 
 			defaultRegion := &tailcfg.DERPRegion{
 				EmbeddedRelay: true,
-				RegionID:      cfg.DERP.Server.RegionID.Value,
-				RegionCode:    cfg.DERP.Server.RegionCode.Value,
-				RegionName:    cfg.DERP.Server.RegionName.Value,
+				RegionID:      cfg.DERP.Server.RegionID.Int(),
+				RegionCode:    cfg.DERP.Server.RegionCode.String(),
+				RegionName:    cfg.DERP.Server.RegionName.String(),
 				Nodes: []*tailcfg.DERPNode{{
-					Name:      fmt.Sprintf("%db", cfg.DERP.Server.RegionID.Value),
-					RegionID:  cfg.DERP.Server.RegionID.Value,
+					Name:      fmt.Sprintf("%db", cfg.DERP.Server.RegionID),
+					RegionID:  cfg.DERP.Server.RegionID.Int(),
 					HostName:  cfg.AccessURL.Host,
 					DERPPort:  accessURLPort,
 					STUNPort:  -1,
 					ForceHTTP: cfg.AccessURL.Scheme == "http",
 				}},
 			}
-			if !cfg.DERP.Server.Enable.Value {
+			if !cfg.DERP.Server.Enable {
 				defaultRegion = nil
 			}
-			derpMap, err := tailnet.NewDERPMap(ctx, defaultRegion, cfg.DERP.Server.STUNAddresses.Value, cfg.DERP.Config.URL.Value, cfg.DERP.Config.Path.Value)
+			derpMap, err := tailnet.NewDERPMap(
+				ctx, defaultRegion, cfg.DERP.Server.STUNAddresses,
+				cfg.DERP.Config.URL.String(), cfg.DERP.Config.Path.String(),
+			)
 			if err != nil {
 				return xerrors.Errorf("create derp map: %w", err)
 			}
 
-			appHostname := strings.TrimSpace(cfg.WildcardAccessURL.Value)
+			appHostname := cfg.WildcardAccessURL.String()
 			var appHostnameRegex *regexp.Regexp
 			if appHostname != "" {
 				appHostnameRegex, err = httpapi.CompileHostnamePattern(appHostname)
@@ -1114,37 +1124,32 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 
-			gitAuthConfigs, err := gitauth.ConvertConfig(cfg.GitAuth.Value, cfg.AccessURL.URL())
-			if err != nil {
-				return xerrors.Errorf("parse git auth config: %w", err)
-			}
-
-			realIPConfig, err := httpmw.ParseRealIPConfig(cfg.ProxyTrustedHeaders.Value, cfg.ProxyTrustedOrigins.Value)
+			realIPConfig, err := httpmw.ParseRealIPConfig(cfg.ProxyTrustedHeaders, cfg.ProxyTrustedOrigins)
 			if err != nil {
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
 			options := &coderd.Options{
-				AccessURL:                   cfg.AccessURL.URL(),
-				AppHostname:                 appHostname,
-				AppHostnameRegex:            appHostnameRegex,
-				Logger:                      logger.Named("coderd"),
-				Database:                    dbfake.New(),
-				DERPMap:                     derpMap,
-				Pubsub:                      database.NewPubsubInMemory(),
-				CacheDir:                    cacheDir,
-				GoogleTokenValidator:        googleTokenValidator,
-				GitAuthConfigs:              gitAuthConfigs,
+				AccessURL:            cfg.AccessURL.URL(),
+				AppHostname:          appHostname,
+				AppHostnameRegex:     appHostnameRegex,
+				Logger:               logger.Named("coderd"),
+				Database:             dbfake.New(),
+				DERPMap:              derpMap,
+				Pubsub:               database.NewPubsubInMemory(),
+				CacheDir:             cacheDir,
+				GoogleTokenValidator: googleTokenValidator,
+				// GitAuthConfigs:              gitAuthConfigs,
 				RealIPConfig:                realIPConfig,
-				SecureAuthCookie:            cfg.SecureAuthCookie.Value,
+				SecureAuthCookie:            cfg.SecureAuthCookie.Bool(),
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
 				Telemetry:                   telemetry.NewNoop(),
-				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Value,
-				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value,
+				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Duration(),
+				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Duration(),
 				DeploymentConfig:            cfg,
 				PrometheusRegistry:          prometheus.NewRegistry(),
-				APIRateLimit:                cfg.RateLimit.API.Value,
+				APIRateLimit:                cfg.RateLimit.API.Int(),
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
@@ -1153,14 +1158,16 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				options.TLSCertificates = tlsConfig.Certificates
 			}
 
-			if cfg.StrictTransportSecurity.Value > 0 {
-				options.StrictTransportSecurityCfg, err = httpmw.HSTSConfigOptions(cfg.StrictTransportSecurity.Value, cfg.StrictTransportSecurityOptions.Value)
+			if cfg.StrictTransportSecurity > 0 {
+				options.StrictTransportSecurityCfg, err = httpmw.HSTSConfigOptions(
+					cfg.StrictTransportSecurity.Int(), cfg.StrictTransportSecurityOptions,
+				)
 				if err != nil {
-					return xerrors.Errorf("coderd: setting hsts header failed (options: %v): %w", cfg.StrictTransportSecurityOptions.Value, err)
+					return xerrors.Errorf("coderd: setting hsts header failed (options: %v): %w", cfg.StrictTransportSecurityOptions, err)
 				}
 			}
 
-			if cfg.UpdateCheck.Value {
+			if cfg.UpdateCheck {
 				options.UpdateCheckOptions = &updatecheck.Options{
 					// Avoid spamming GitHub API checking for updates.
 					Interval: 24 * time.Hour,
@@ -1179,34 +1186,36 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 
-			if cfg.OAuth2.Github.ClientSecret.Value != "" {
+			if cfg.OAuth2.Github.ClientSecret != "" {
 				options.GithubOAuth2Config, err = configureGithubOAuth2(cfg.AccessURL.URL(),
-					cfg.OAuth2.Github.ClientID.Value,
-					cfg.OAuth2.Github.ClientSecret.Value,
-					cfg.OAuth2.Github.AllowSignups.Value,
-					cfg.OAuth2.Github.AllowEveryone.Value,
-					cfg.OAuth2.Github.AllowedOrgs.Value,
-					cfg.OAuth2.Github.AllowedTeams.Value,
-					cfg.OAuth2.Github.EnterpriseBaseURL.Value,
+					cfg.OAuth2.Github.ClientID.String(),
+					cfg.OAuth2.Github.ClientSecret.String(),
+					cfg.OAuth2.Github.AllowSignups.Bool(),
+					cfg.OAuth2.Github.AllowEveryone.Bool(),
+					cfg.OAuth2.Github.AllowedOrgs,
+					cfg.OAuth2.Github.AllowedTeams,
+					cfg.OAuth2.Github.EnterpriseBaseURL.String(),
 				)
 				if err != nil {
 					return xerrors.Errorf("configure github oauth2: %w", err)
 				}
 			}
 
-			if cfg.OIDC.ClientSecret.Value != "" {
-				if cfg.OIDC.ClientID.Value == "" {
+			if cfg.OIDC.ClientSecret != "" {
+				if cfg.OIDC.ClientID == "" {
 					return xerrors.Errorf("OIDC client ID be set!")
 				}
-				if cfg.OIDC.IssuerURL.Value == "" {
+				if cfg.OIDC.IssuerURL == "" {
 					return xerrors.Errorf("OIDC issuer URL must be set!")
 				}
 
-				if cfg.OIDC.IgnoreEmailVerified.Value {
+				if cfg.OIDC.IgnoreEmailVerified {
 					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
 				}
 
-				oidcProvider, err := oidc.NewProvider(ctx, cfg.OIDC.IssuerURL.Value)
+				oidcProvider, err := oidc.NewProvider(
+					ctx, cfg.OIDC.IssuerURL.String(),
+				)
 				if err != nil {
 					return xerrors.Errorf("configure oidc provider: %w", err)
 				}
@@ -1216,30 +1225,30 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 				options.OIDCConfig = &coderd.OIDCConfig{
 					OAuth2Config: &oauth2.Config{
-						ClientID:     cfg.OIDC.ClientID.Value,
-						ClientSecret: cfg.OIDC.ClientSecret.Value,
+						ClientID:     cfg.OIDC.ClientID.String(),
+						ClientSecret: cfg.OIDC.ClientSecret.String(),
 						RedirectURL:  redirectURL.String(),
 						Endpoint:     oidcProvider.Endpoint(),
-						Scopes:       cfg.OIDC.Scopes.Value,
+						Scopes:       cfg.OIDC.Scopes,
 					},
 					Provider: oidcProvider,
 					Verifier: oidcProvider.Verifier(&oidc.Config{
-						ClientID: cfg.OIDC.ClientID.Value,
+						ClientID: cfg.OIDC.ClientID.String(),
 					}),
-					EmailDomain:         cfg.OIDC.EmailDomain.Value,
-					AllowSignups:        cfg.OIDC.AllowSignups.Value,
-					UsernameField:       cfg.OIDC.UsernameField.Value,
-					SignInText:          cfg.OIDC.SignInText.Value,
-					IconURL:             cfg.OIDC.IconURL.Value,
-					IgnoreEmailVerified: cfg.OIDC.IgnoreEmailVerified.Value,
+					EmailDomain:         cfg.OIDC.EmailDomain,
+					AllowSignups:        cfg.OIDC.AllowSignups.Bool(),
+					UsernameField:       cfg.OIDC.UsernameField.String(),
+					SignInText:          cfg.OIDC.SignInText.String(),
+					IconURL:             cfg.OIDC.IconURL.String(),
+					IgnoreEmailVerified: cfg.OIDC.IgnoreEmailVerified.Bool(),
 				}
 			}
 
-			if cfg.InMemoryDatabase.Value {
+			if cfg.InMemoryDatabase {
 				options.Database = dbfake.New()
 				options.Pubsub = database.NewPubsubInMemory()
 			} else {
-				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, cfg.PostgresURL.Value)
+				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, cfg.PostgresURL.String())
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -1248,7 +1257,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}()
 
 				options.Database = database.New(sqlDB)
-				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, cfg.PostgresURL.Value)
+				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, cfg.PostgresURL.String())
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}
@@ -1270,18 +1279,10 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}
 
-			// Disable telemetry if the in-memory database is used unless explicitly defined!
-			if cfg.InMemoryDatabase.Value && !cmd.Flags().Changed(cfg.Telemetry.Enable.Flag) {
-				cfg.Telemetry.Enable.Value = false
-			}
-			if cfg.Telemetry.Enable.Value {
-				// Parse the raw telemetry URL!
-				telemetryURL, err := parseURL(cfg.Telemetry.URL.Value)
-				if err != nil {
-					return xerrors.Errorf("parse telemetry url: %w", err)
-				}
-
+			if cfg.Telemetry.Enable {
 				gitAuth := make([]telemetry.GitAuth, 0)
+				// TODO:
+				var gitAuthConfigs []codersdk.GitAuthConfig
 				for _, cfg := range gitAuthConfigs {
 					gitAuth = append(gitAuth, telemetry.GitAuth{
 						Type: string(cfg.Type),
@@ -1293,15 +1294,15 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					DeploymentID:       deploymentID,
 					Database:           options.Database,
 					Logger:             logger.Named("telemetry"),
-					URL:                telemetryURL,
-					Wildcard:           cfg.WildcardAccessURL.Value != "",
-					DERPServerRelayURL: cfg.DERP.Server.RelayURL.Value,
+					URL:                cfg.Telemetry.URL.URL(),
+					Wildcard:           cfg.WildcardAccessURL.String() != "",
+					DERPServerRelayURL: cfg.DERP.Server.RelayURL.String(),
 					GitAuth:            gitAuth,
-					GitHubOAuth:        cfg.OAuth2.Github.ClientID.Value != "",
-					OIDCAuth:           cfg.OIDC.ClientID.Value != "",
-					OIDCIssuerURL:      cfg.OIDC.IssuerURL.Value,
-					Prometheus:         cfg.Prometheus.Enable.Value,
-					STUN:               len(cfg.DERP.Server.STUNAddresses.Value) != 0,
+					GitHubOAuth:        cfg.OAuth2.Github.ClientID != "",
+					OIDCAuth:           cfg.OIDC.ClientID != "",
+					OIDCIssuerURL:      cfg.OIDC.IssuerURL.String(),
+					Prometheus:         cfg.Prometheus.Enable.Bool(),
+					STUN:               len(cfg.DERP.Server.STUNAddresses) != 0,
 					Tunnel:             tunnel != nil,
 				})
 				if err != nil {
@@ -1312,11 +1313,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 
 			// This prevents the pprof import from being accidentally deleted.
 			_ = pprof.Handler
-			if cfg.Pprof.Enable.Value {
+			if cfg.Pprof.Enable {
 				//nolint:revive
-				defer serveHandler(ctx, logger, nil, cfg.Pprof.Address.Value, "pprof")()
+				defer serveHandler(ctx, logger, nil, cfg.Pprof.Address.String(), "pprof")()
 			}
-			if cfg.Prometheus.Enable.Value {
+			if cfg.Prometheus.Enable {
 				options.PrometheusRegistry.MustRegister(collectors.NewGoCollector())
 				options.PrometheusRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
@@ -1335,11 +1336,11 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				//nolint:revive
 				defer serveHandler(ctx, logger, promhttp.InstrumentMetricHandler(
 					options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
-				), cfg.Prometheus.Address.Value, "prometheus")()
+				), cfg.Prometheus.Address.String(), "prometheus")()
 			}
 
-			if cfg.Swagger.Enable.Value {
-				options.SwaggerEndpoint = cfg.Swagger.Enable.Value
+			if cfg.Swagger.Enable {
+				options.SwaggerEndpoint = cfg.Swagger.Enable.Bool()
 			}
 
 			// We use a separate coderAPICloser so the Enterprise API
@@ -1383,7 +1384,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}()
 			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
-			for i := 0; i < cfg.Provisioner.Daemons.Value; i++ {
+			for i := 0; i < cfg.Provisioner.Daemons.Int(); i++ {
 				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
 				daemon, err := newProvisionerDaemon(ctx, coderAPI, provisionerdMetrics, logger, cfg, daemonCacheDir, errCh, false)
 				if err != nil {
@@ -1398,7 +1399,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.
 			var handler http.Handler = coderAPI.RootHandler
-			if cfg.RedirectToAccessURL.Value {
+			if cfg.RedirectToAccessURL {
 				handler = redirectToAccessURL(handler, cfg.AccessURL.URL(), tunnel != nil, appHostnameRegex)
 			}
 
@@ -1477,7 +1478,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
 
-			autobuildPoller := time.NewTicker(cfg.AutobuildPollInterval.Value)
+			autobuildPoller := time.NewTicker(cfg.AutobuildPollInterval.Duration())
 			defer autobuildPoller.Stop()
 			autobuildExecutor := executor.New(ctx, options.Database, logger, autobuildPoller.C)
 			autobuildExecutor.Run()
@@ -1764,11 +1765,11 @@ func newProvisionerDaemon(
 		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, debounce)
 	}, &provisionerd.Options{
 		Logger:              logger,
-		JobPollInterval:     cfg.Provisioner.DaemonPollInterval.Value,
-		JobPollJitter:       cfg.Provisioner.DaemonPollJitter.Value,
+		JobPollInterval:     cfg.Provisioner.DaemonPollInterval.Duration(),
+		JobPollJitter:       cfg.Provisioner.DaemonPollJitter.Duration(),
 		JobPollDebounce:     debounce,
 		UpdateInterval:      500 * time.Millisecond,
-		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value,
+		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Duration(),
 		Provisioners:        provisioners,
 		WorkDirectory:       tempDir,
 		TracerProvider:      coderAPI.TracerProvider,
@@ -2206,20 +2207,20 @@ func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logge
 		return nil
 	}
 
-	err := addSinkIfProvided(sloghuman.Sink, cfg.Logging.Human.Value)
+	err := addSinkIfProvided(sloghuman.Sink, cfg.Logging.Human.String())
 	if err != nil {
 		return slog.Logger{}, nil, xerrors.Errorf("add human sink: %w", err)
 	}
-	err = addSinkIfProvided(slogjson.Sink, cfg.Logging.JSON.Value)
+	err = addSinkIfProvided(slogjson.Sink, cfg.Logging.JSON.String())
 	if err != nil {
 		return slog.Logger{}, nil, xerrors.Errorf("add json sink: %w", err)
 	}
-	err = addSinkIfProvided(slogstackdriver.Sink, cfg.Logging.Stackdriver.Value)
+	err = addSinkIfProvided(slogstackdriver.Sink, cfg.Logging.Stackdriver.String())
 	if err != nil {
 		return slog.Logger{}, nil, xerrors.Errorf("add stackdriver sink: %w", err)
 	}
 
-	if cfg.Trace.CaptureLogs.Value {
+	if cfg.Trace.CaptureLogs {
 		sinks = append(sinks, tracing.SlogSink{})
 	}
 

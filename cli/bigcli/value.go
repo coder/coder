@@ -19,6 +19,10 @@ func (i *Int64) Set(s string) error {
 	return err
 }
 
+func (i Int64) Int() int {
+	return int(i)
+}
+
 func (i Int64) String() string {
 	return strconv.Itoa(int(i))
 }
@@ -37,6 +41,10 @@ func (b *Bool) Set(s string) error {
 
 func (b Bool) String() string {
 	return strconv.FormatBool(bool(b))
+}
+
+func (b Bool) Bool() bool {
+	return bool(b)
 }
 
 func (Bool) Type() string {
@@ -69,6 +77,10 @@ func (s Strings) String() string {
 	return strings.Join(s, ",")
 }
 
+func (s Strings) Strings() []string {
+	return []string(s)
+}
+
 func (Strings) Type() string {
 	return "strings"
 }
@@ -79,6 +91,10 @@ func (d *Duration) Set(v string) error {
 	dd, err := time.ParseDuration(v)
 	*d = Duration(dd)
 	return err
+}
+
+func (d *Duration) Duration() time.Duration {
+	return time.Duration(*d)
 }
 
 func (d *Duration) String() string {

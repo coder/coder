@@ -35,7 +35,7 @@ func Test_Experiments(t *testing.T) {
 	t.Run("multiple features", func(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentConfig(t)
-		cfg.Experiments.Value = []string{"foo", "BAR"}
+		cfg.Experiments = []string{"foo", "BAR"}
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentConfig: cfg,
 		})
@@ -57,7 +57,7 @@ func Test_Experiments(t *testing.T) {
 	t.Run("wildcard", func(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentConfig(t)
-		cfg.Experiments.Value = []string{"*"}
+		cfg.Experiments = []string{"*"}
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentConfig: cfg,
 		})
@@ -79,7 +79,7 @@ func Test_Experiments(t *testing.T) {
 	t.Run("alternate wildcard with manual opt-in", func(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentConfig(t)
-		cfg.Experiments.Value = []string{"*", "dAnGeR"}
+		cfg.Experiments = []string{"*", "dAnGeR"}
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentConfig: cfg,
 		})
@@ -102,7 +102,7 @@ func Test_Experiments(t *testing.T) {
 	t.Run("legacy wildcard", func(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentConfig(t)
-		cfg.Experimental.Value = true
+		cfg.Experimental = true
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentConfig: cfg,
 		})
@@ -124,7 +124,7 @@ func Test_Experiments(t *testing.T) {
 	t.Run("Unauthorized", func(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentConfig(t)
-		cfg.Experiments.Value = []string{"*"}
+		cfg.Experiments = []string{"*"}
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentConfig: cfg,
 		})

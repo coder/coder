@@ -110,7 +110,7 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 // DeploymentConfig is the central configuration for the coder server.
 type DeploymentConfig struct {
 	AccessURL                       bigcli.URL
-	WildcardAccessURL               bigcli.String
+	WildcardAccessURL               bigcli.URL
 	RedirectToAccessURL             bigcli.Bool
 	HTTPAddress                     bigcli.BindAddress `json:"http_address" typescript:",notnull"`
 	AutobuildPollInterval           bigcli.Duration
@@ -168,7 +168,7 @@ type DERPServerConfig struct {
 	RegionCode    bigcli.String  `json:"region_code" typescript:",notnull"`
 	RegionName    bigcli.String  `json:"region_name" typescript:",notnull"`
 	STUNAddresses bigcli.Strings `json:"stun_addresses" typescript:",notnull"`
-	RelayURL      bigcli.String  `json:"relay_url" typescript:",notnull"`
+	RelayURL      bigcli.URL     `json:"relay_url" typescript:",notnull"`
 }
 
 type DERPConfig struct {
@@ -177,13 +177,13 @@ type DERPConfig struct {
 }
 
 type PrometheusConfig struct {
-	Enable  bigcli.Bool   `json:"enable" typescript:",notnull"`
-	Address bigcli.String `json:"address" typescript:",notnull"`
+	Enable  bigcli.Bool        `json:"enable" typescript:",notnull"`
+	Address bigcli.BindAddress `json:"address" typescript:",notnull"`
 }
 
 type PprofConfig struct {
-	Enable  bigcli.Bool   `json:"enable" typescript:",notnull"`
-	Address bigcli.String `json:"address" typescript:",notnull"`
+	Enable  bigcli.Bool        `json:"enable" typescript:",notnull"`
+	Address bigcli.BindAddress `json:"address" typescript:",notnull"`
 }
 
 type OAuth2Config struct {
