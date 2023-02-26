@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/iancoleman/strcase"
 	"github.com/spf13/pflag"
+	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 )
 
@@ -14,7 +15,31 @@ import (
 const Disable = "-"
 
 // Annotations is an arbitrary key-mapping used to extend the Option type.
+// Its methods won't panic if the map is nil.
 type Annotations map[string]string
+
+// Mark sets a value on the attonations map, creating one
+// if it doesn't exist. Mark does not mutate the original and
+// returns a copy. It is suitable for chaining.
+func (a Annotations) Mark(key string, value string) Annotations {
+	var aa Annotations
+	if a != nil {
+		aa = maps.Clone(a)
+	} else {
+		aa = make(Annotations)
+	}
+	a[key] = value
+	return aa
+}
+
+// IsSet returns true if the key is set in the annotations map.
+func (a Annotations) IsSet(key string) bool {
+	if a == nil {
+		return false
+	}
+	_, ok := a[key]
+	return ok
+}
 
 // Option is a configuration option for a CLI application.
 type Option struct {

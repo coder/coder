@@ -120,7 +120,7 @@ type DeploymentConfig struct {
 	Pprof                           *PprofConfig                            `json:"pprof" typescript:",notnull"`
 	ProxyTrustedHeaders             bigcli.Strings                          `json:"proxy_trusted_headers" typescript:",notnull"`
 	ProxyTrustedOrigins             bigcli.Strings                          `json:"proxy_trusted_origins" typescript:",notnull"`
-	CacheDirectory                  bigcli.String                           `json:"cache_directory" typescript:",notnull"`
+	CacheDir                        bigcli.String                           `json:"cache_directory" typescript:",notnull"`
 	InMemoryDatabase                bigcli.Bool                             `json:"in_memory_database" typescript:",notnull"`
 	PostgresURL                     bigcli.String                           `json:"pg_connection_url" typescript:",notnull"`
 	OAuth2                          *OAuth2Config                           `json:"oauth2" typescript:",notnull"`
@@ -134,7 +134,7 @@ type DeploymentConfig struct {
 	SSHKeygenAlgorithm              bigcli.String                           `json:"ssh_keygen_algorithm" typescript:",notnull"`
 	MetricsCacheRefreshInterval     bigcli.Duration                         `json:"metrics_cache_refresh_interval" typescript:",notnull"`
 	AgentStatRefreshInterval        bigcli.Duration                         `json:"agent_stat_refresh_interval" typescript:",notnull"`
-	AgentFallbackTroubleshootingURL bigcli.String                           `json:"agent_fallback_troubleshooting_url" typescript:",notnull"`
+	AgentFallbackTroubleshootingURL bigcli.URL                              `json:"agent_fallback_troubleshooting_url" typescript:",notnull"`
 	AuditLogging                    bigcli.Bool                             `json:"audit_logging" typescript:",notnull"`
 	BrowserOnly                     bigcli.Bool                             `json:"browser_only" typescript:",notnull"`
 	SCIMAPIKey                      bigcli.String                           `json:"scim_api_key" typescript:",notnull"`
@@ -210,13 +210,13 @@ type OIDCConfig struct {
 	IgnoreEmailVerified bigcli.Bool    `json:"ignore_email_verified" typescript:",notnull"`
 	UsernameField       bigcli.String  `json:"username_field" typescript:",notnull"`
 	SignInText          bigcli.String  `json:"sign_in_text" typescript:",notnull"`
-	IconURL             bigcli.String  `json:"icon_url" typescript:",notnull"`
+	IconURL             bigcli.URL     `json:"icon_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
-	Enable bigcli.Bool   `json:"enable" typescript:",notnull"`
-	Trace  bigcli.Bool   `json:"trace" typescript:",notnull"`
-	URL    bigcli.String `json:"url" typescript:",notnull"`
+	Enable bigcli.Bool `json:"enable" typescript:",notnull"`
+	Trace  bigcli.Bool `json:"trace" typescript:",notnull"`
+	URL    bigcli.URL  `json:"url" typescript:",notnull"`
 }
 
 type TLSConfig struct {
