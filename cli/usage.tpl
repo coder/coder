@@ -6,9 +6,9 @@ usage: {{.FullUsage}}
 
 {{- range $index, $group := optionGroups . }}
 {{ with $group.Name }} {{- print $group.Name " Options" | prettyHeader }} {{ else -}} {{ prettyHeader "Options"}}{{- end -}}
-{{- with $group.Description }}
 {{ " " }}
-{{- . -}}
+{{- with $group.Description }}
+{{ formatGroupDescription . -}}
 {{ end }}
     {{- range $index, $option := $group.Options }}
     {{- with flagName $option }}
@@ -16,9 +16,8 @@ usage: {{.FullUsage}}
     {{- with envName $option }}, ${{ . }} {{ end }}
     {{- with $option.Default }} (default: {{.}}) {{ end }}
         {{- with $option.Description }}
-            {{- "" }}
-            {{- $desc := formatDescription $option.Description }}
-{{- indent $desc 2}}
+            {{- $desc := wordWrap $option.Description 60 }}
+{{ indent $desc 2}}
 {{- if isDeprecated $option }} DEPRECATED {{ end }}
         {{- end -}}
     {{- end }}

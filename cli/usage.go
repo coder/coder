@@ -23,44 +23,6 @@ type optionGroup struct {
 	Options     bigcli.OptionSet
 }
 
-var optionGroupDescriptions = map[string]string{
-	"Networking": `
-Configure TLS, the wildcard access URL, bind addresses, access URLs, etc.
-`,
-	"Networking / DERP": `
-Most Coder deployments never have to think about DERP because all connections
-between workspaces and users are peer-to-peer. However, when Coder cannot establish
-a peer to peer connection, Coder uses a distributed relay network backed by
-Tailscale and WireGuard.
-`,
-	"Networking / TLS": `
-Configure TLS / HTTPS for your Coder deployment. If you're running
-Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
-secure link, you can safely ignore these settings. 
-`,
-	`Introspection`: `
-Configure logging, tracing, and metrics exporting.
-`,
-	`oAuth2`: `
-Configure login and user-provisioning with GitHub via oAuth2.
-`,
-	`OIDC`: `
-Configure login and user-provisioning with OIDC.
-`,
-	`Telemetry`: `
-Telemetry is critical to our ability to improve Coder. We strip all personal
-information before sending data to our servers. Please only disable telemetry
-when required by your organization's security policy.
-`,
-	`Provisioning`: `
-Tune the behavior of the provisioner, which is responsible for creating,
-updating, and deleting workspace resources.
-`,
-	`Config`: `
-Use a YAML configuration file when your server launch become unwieldy.
-`,
-}
-
 const envPrefix = "CODER_"
 
 var usageTemplate = template.Must(
@@ -102,7 +64,8 @@ var usageTemplate = template.Must(
 			"isDeprecated": func(opt bigcli.Option) bool {
 				return len(opt.UseInstead) > 0
 			},
-			"formatDescription": func(s string) string {
+			"formatGroupDescription": func(s string) string {
+				s = strings.ReplaceAll(s, "\n", "")
 				s = "\n" + s + "\n"
 				s = wordwrap.WrapString(s, 60)
 				return s
@@ -115,10 +78,8 @@ var usageTemplate = template.Must(
 				}}
 
 				enterpriseGroup := optionGroup{
-					Name: "Enterprise",
-					Description: `
-These options are only available in the Enterprise Edition.
-`,
+					Name:        "Enterprise",
+					Description: `These options are only available in the Enterprise Edition.`,
 				}
 
 				// Sort options lexicographically.
@@ -136,13 +97,13 @@ These options are only available in the Enterprise Edition.
 						enterpriseGroup.Options = append(enterpriseGroup.Options, opt)
 						continue
 					}
-					if len(opt.Group) == 0 {
+					if len(opt.Group.Ancestry()) == 0 {
 						// Just add option to default group.
 						groups[0].Options = append(groups[0].Options, opt)
 						continue
 					}
 
-					groupName := strings.Join(opt.Group, " / ")
+					groupName := opt.Group.FullName()
 
 					for i, foundGroup := range groups {
 						if foundGroup.Name != groupName {
@@ -154,7 +115,7 @@ These options are only available in the Enterprise Edition.
 
 					groups = append(groups, optionGroup{
 						Name:        groupName,
-						Description: optionGroupDescriptions[groupName],
+						Description: opt.Group.Description,
 						Options:     bigcli.OptionSet{opt},
 					})
 				}

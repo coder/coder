@@ -1,7 +1,8 @@
 package bigcli
 
 import (
-	"github.com/iancoleman/strcase"
+	"strings"
+
 	"github.com/mitchellh/go-wordwrap"
 	"gopkg.in/yaml.v3"
 )
@@ -58,8 +59,8 @@ func (s OptionSet) ToYAML() (*yaml.Node, error) {
 			Value: opt.Value.String(),
 		}
 		var group []string
-		for _, g := range opt.Group {
-			group = append(group, strcase.ToSnake(g))
+		for _, g := range opt.Group.Ancestry() {
+			group = append(group, strings.ToLower(g.Name))
 		}
 		parent := deepMapNode(&root, group)
 		parent.Content = append(

@@ -133,10 +133,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			// These parents and children will be moved once we convert the
 			// rest of the `cli` package to bigcli.
 			flagSet.Usage = usageFn(cmd.ErrOrStderr(), &bigcli.Command{
-				Parents: []*bigcli.Command{
-					{
-						Use: "coder",
-					},
+				Parent: &bigcli.Command{
+					Use: "coder",
 				},
 				Children: []*bigcli.Command{
 					{

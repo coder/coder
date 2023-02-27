@@ -4,9 +4,8 @@ import "strings"
 
 // Command describes an executable command.
 type Command struct {
-	// Parents is a list of parent commands, with
-	// the root command at index 0.
-	Parents []*Command
+	// Parent is the direct parent of the command.
+	Parent *Command
 	// Children is a list of direct descendants.
 	Children []*Command
 	// Use is provided in form "command [flags] [args...]".
@@ -15,8 +14,9 @@ type Command struct {
 	Short string
 	// Long is a detailed description of the command,
 	// presented on its help page. It may contain examples.
-	Long    string
-	Options OptionSet
+	Long        string
+	Options     OptionSet
+	Annotations Annotations
 }
 
 // Name returns the first word in the Use string.
@@ -28,8 +28,9 @@ func (c *Command) Name() string {
 // as seen on the command line.
 func (c *Command) FullName() string {
 	var names []string
-	for _, p := range c.Parents {
-		names = append(names, p.Name())
+
+	if c.Parent != nil {
+		names = append(names, c.Parent.FullName())
 	}
 	names = append(names, c.Name())
 	return strings.Join(names, " ")
@@ -39,18 +40,9 @@ func (c *Command) FullName() string {
 // by the usage of its parents.
 func (c *Command) FullUsage() string {
 	var uses []string
-	for _, p := range c.Parents {
-		uses = append(uses, p.Use)
+	if c.Parent != nil {
+		uses = append(uses, c.Parent.FullUsage())
 	}
 	uses = append(uses, c.Use)
 	return strings.Join(uses, " ")
-}
-
-// Parent returns the direct parent of the command,
-// or nil if there are no parents.
-func (c *Command) Parent() *Command {
-	if len(c.Parents) == 0 {
-		return nil
-	}
-	return c.Parents[len(c.Parents)-1]
 }
