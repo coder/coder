@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.10"
+      version = "0.6.14"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -54,6 +54,10 @@ provider "docker" {
 }
 
 provider "coder" {}
+
+data "coder_git_auth" "github" {
+  id = "github"
+}
 
 data "coder_workspace" "me" {}
 
