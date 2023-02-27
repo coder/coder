@@ -6,10 +6,11 @@ usage: {{.FullUsage}}
 
 {{- range $index, $group := optionGroups . }}
 {{ with $group.Name }} {{- print $group.Name " Options" | prettyHeader }} {{ else -}} {{ prettyHeader "Options"}}{{- end -}}
-{{ " " }}
 {{- with $group.Description }}
-{{ formatGroupDescription . -}}
-{{ end }}
+{{ formatGroupDescription . }}
+{{- else }}
+{{ " " }}
+{{- end }}
     {{- range $index, $option := $group.Options }}
     {{- with flagName $option }}
     --{{- . -}} {{ end }} {{- with $option.FlagShorthand }}, -{{- . -}} {{ end }}
