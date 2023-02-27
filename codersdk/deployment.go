@@ -161,32 +161,8 @@ type DeploymentConfig struct {
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 	Address bigcli.BindAddress `json:"address" typescript:",notnull"`
-	// DEPRECATED: Use Experiments instead.
-	Experimental bigcli.Bool `json:"experimental" typescript:",notnull"`
-}
 
-// NewDeploymentConfig returns a new DeploymentConfig without any nil fields.
-func NewDeploymentConfig() *DeploymentConfig {
-	return &DeploymentConfig{
-		TLS:         &TLSConfig{},
-		Logging:     &LoggingConfig{},
-		Provisioner: &ProvisionerConfig{},
-		RateLimit:   &RateLimitConfig{},
-		Dangerous:   &DangerousConfig{},
-		Trace:       &TraceConfig{},
-		Telemetry:   &TelemetryConfig{},
-		OIDC:        &OIDCConfig{},
-		OAuth2: &OAuth2Config{
-			Github: &OAuth2GithubConfig{},
-		},
-		Pprof:      &PprofConfig{},
-		Prometheus: &PrometheusConfig{},
-		DERP: &DERP{
-			Server: &DERPServerConfig{},
-			Config: &DERPConfig{},
-		},
-		Swagger: &SwaggerConfig{},
-	}
+	Support *SupportConfig `json:"support" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -1175,8 +1151,43 @@ Write out the current server configuration to the path specified by --config.`,
 	}
 }
 
+type SupportConfig struct {
+	Links bigcli.Struct[[]LinkConfig] `json:"links" typescript:",notnull"`
+}
+
+// NewDeploymentConfig returns a new DeploymentConfig without
+// nil values.
+func NewDeploymentConfig() *DeploymentConfig {
+	return &DeploymentConfig{
+		TLS:         &TLSConfig{},
+		Logging:     &LoggingConfig{},
+		Provisioner: &ProvisionerConfig{},
+		RateLimit:   &RateLimitConfig{},
+		Dangerous:   &DangerousConfig{},
+		Trace:       &TraceConfig{},
+		Telemetry:   &TelemetryConfig{},
+		OIDC:        &OIDCConfig{},
+		OAuth2: &OAuth2Config{
+			Github: &OAuth2GithubConfig{},
+		},
+		Pprof:      &PprofConfig{},
+		Prometheus: &PrometheusConfig{},
+		DERP: &DERP{
+			Server: &DERPServerConfig{},
+			Config: &DERPConfig{},
+		},
+		Swagger: &SwaggerConfig{},
+	}
+}
+
+type LinkConfig struct {
+	Name   string `json:"name" yaml:"name"`
+	Target string `json:"target" yaml:"target"`
+	Icon   string `json:"icon" yaml:"icon"`
+}
+
 type Flaggable interface {
-	string | time.Duration | bool | int | []string | []GitAuthConfig
+	string | time.Duration | bool | int | []string | []GitAuthConfig | []LinkConfig
 }
 
 // Scrub returns a copy of the config without secret values.
@@ -1232,6 +1243,12 @@ func (c *Client) DeploymentConfig(ctx context.Context) (DeploymentConfig, error)
 type AppearanceConfig struct {
 	LogoURL       string              `json:"logo_url"`
 	ServiceBanner ServiceBannerConfig `json:"service_banner"`
+	SupportLinks  []LinkConfig        `json:"support_links,omitempty"`
+}
+
+type UpdateAppearanceConfig struct {
+	LogoURL       string              `json:"logo_url"`
+	ServiceBanner ServiceBannerConfig `json:"service_banner"`
 }
 
 type ServiceBannerConfig struct {
@@ -1255,7 +1272,7 @@ func (c *Client) Appearance(ctx context.Context) (AppearanceConfig, error) {
 	return cfg, json.NewDecoder(res.Body).Decode(&cfg)
 }
 
-func (c *Client) UpdateAppearance(ctx context.Context, appearance AppearanceConfig) error {
+func (c *Client) UpdateAppearance(ctx context.Context, appearance UpdateAppearanceConfig) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/v2/appearance", appearance)
 	if err != nil {
 		return err

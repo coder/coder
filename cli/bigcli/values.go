@@ -1,12 +1,21 @@
 package bigcli
 
 import (
+	"fmt"
 	"net"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
+
+// YAMLer describes a value with special YAML-encoding behavior.
+type YAMLer interface {
+	ToYAML() (*yaml.Node, error)
+	FromYAML(*yaml.Node) error
+}
 
 // NoOptDefValuer describes behavior when no
 // option is passed into the flag.
@@ -169,6 +178,49 @@ func (b *BindAddress) String() string {
 
 func (*BindAddress) Type() string {
 	return "bind-address"
+}
+
+var (
+	_ yaml.Marshaler   = new(Struct[struct{}])
+	_ yaml.Unmarshaler = new(Struct[struct{}])
+)
+
+// Struct is a special value type that encodes an arbitrary struct.
+// It implements the flag.Value interface, but in general these values should
+// only be accepted via config for ergonomics.
+//
+// The string encoding type is YAML.
+type Struct[T any] struct {
+	Value T
+}
+
+func (s *Struct[T]) Set(v string) error {
+	return yaml.Unmarshal([]byte(v), &s.Value)
+}
+
+func (s *Struct[T]) String() string {
+	byt, err := yaml.Marshal(s.Value)
+	if err != nil {
+		return "decode failed: " + err.Error()
+	}
+	return string(byt)
+}
+
+func (s *Struct[T]) MarshalYAML() (interface{}, error) {
+	var n yaml.Node
+	err := n.Encode(s.Value)
+	if err != nil {
+		return nil, err
+	}
+	return n, nil
+}
+
+func (s *Struct[T]) UnmarshalYAML(n *yaml.Node) error {
+	return n.Decode(&s.Value)
+}
+
+func (s *Struct[T]) Type() string {
+	return fmt.Sprintf("struct[%T]", s.Value)
 }
 
 type DiscardValue struct{}

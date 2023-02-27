@@ -159,7 +159,6 @@ func New(options *Options) *API {
 	}
 	experiments := initExperiments(
 		options.Logger, options.DeploymentConfig.Experiments.Value(),
-		options.DeploymentConfig.Experimental.Value(),
 	)
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
@@ -492,6 +491,7 @@ func New(options *Options) *API {
 			r.Get("/schema", api.templateVersionSchema)
 			r.Get("/parameters", api.templateVersionParameters)
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
+			r.Get("/gitauth", api.templateVersionGitAuth)
 			r.Get("/variables", api.templateVersionVariables)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
@@ -808,12 +808,18 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}
 
 	mux := drpcmux.New()
+
+	gitAuthProviders := make([]string, 0, len(api.GitAuthConfigs))
+	for _, cfg := range api.GitAuthConfigs {
+		gitAuthProviders = append(gitAuthProviders, cfg.ID)
+	}
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
 		AccessURL:          api.AccessURL,
 		ID:                 daemon.ID,
 		Database:           api.Database,
 		Pubsub:             api.Pubsub,
 		Provisioners:       daemon.Provisioners,
+		GitAuthProviders:   gitAuthProviders,
 		Telemetry:          api.Telemetry,
 		Tags:               tags,
 		QuotaCommitter:     &api.QuotaCommitter,
@@ -846,7 +852,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 }
 
 // nolint:revive
-func initExperiments(log slog.Logger, raw []string, legacyAll bool) codersdk.Experiments {
+func initExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 	exps := make([]codersdk.Experiment, 0, len(raw))
 	for _, v := range raw {
 		switch v {
@@ -862,7 +868,7 @@ func initExperiments(log slog.Logger, raw []string, legacyAll bool) codersdk.Exp
 	}
 
 	// --experiments takes precedence over --experimental. It's deprecated.
-	if legacyAll && len(raw) == 0 {
+	if len(raw) == 0 {
 		log.Warn(context.Background(), "--experimental is deprecated, use --experiments='*' instead")
 		exps = append(exps, codersdk.ExperimentsAll...)
 	}

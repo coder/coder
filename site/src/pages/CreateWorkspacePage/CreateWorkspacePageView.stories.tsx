@@ -169,3 +169,25 @@ RichParameters.args = {
   ],
   createWorkspaceErrors: {},
 }
+
+export const GitAuth = Template.bind({})
+GitAuth.args = {
+  templates: [MockTemplate],
+  selectedTemplate: MockTemplate,
+  createWorkspaceErrors: {},
+  templateParameters: [],
+  templateGitAuth: [
+    {
+      id: "github",
+      type: "github",
+      authenticated: false,
+      authenticate_url: "",
+    },
+    {
+      id: "gitlab",
+      type: "gitlab",
+      authenticated: true,
+      authenticate_url: "",
+    },
+  ],
+}

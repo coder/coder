@@ -34,6 +34,7 @@ export interface AppHostResponse {
 export interface AppearanceConfig {
   readonly logo_url: string
   readonly service_banner: ServiceBannerConfig
+  readonly support_links?: LinkConfig[]
 }
 
 // From codersdk/roles.go
@@ -380,8 +381,7 @@ export interface DeploymentConfig {
   // Named type "github.com/coder/coder/cli/bigcli.BindAddress" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly address: any
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
-  readonly experimental: boolean
+  readonly support: SupportConfig
 }
 
 // From codersdk/deployment.go
@@ -467,6 +467,13 @@ export interface License {
   readonly uploaded_at: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly claims: Record<string, any>
+}
+
+// From codersdk/deployment.go
+export interface LinkConfig {
+  readonly name: string
+  readonly target: string
+  readonly icon: string
 }
 
 // From codersdk/deployment.go
@@ -726,6 +733,13 @@ export interface ServiceBannerConfig {
 }
 
 // From codersdk/deployment.go
+export interface SupportConfig {
+  // Named type "github.com/coder/coder/cli/bigcli.Struct[[]github.com/coder/coder/codersdk.LinkConfig]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  readonly links: any
+}
+
+// From codersdk/deployment.go
 export interface SwaggerConfig {
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
   readonly enable: boolean
@@ -839,6 +853,14 @@ export interface TemplateVersion {
 }
 
 // From codersdk/templateversions.go
+export interface TemplateVersionGitAuth {
+  readonly id: string
+  readonly type: GitProvider
+  readonly authenticate_url: string
+  readonly authenticated: boolean
+}
+
+// From codersdk/templateversions.go
 export interface TemplateVersionParameter {
   readonly name: string
   readonly description: string
@@ -903,6 +925,12 @@ export interface TransitionStats {
 // From codersdk/templates.go
 export interface UpdateActiveTemplateVersion {
   readonly id: string
+}
+
+// From codersdk/deployment.go
+export interface UpdateAppearanceConfig {
+  readonly logo_url: string
+  readonly service_banner: ServiceBannerConfig
 }
 
 // From codersdk/updatecheck.go
@@ -1225,6 +1253,15 @@ export const FeatureNames: FeatureName[] = [
   "user_limit",
 ]
 
+// From codersdk/workspaceagents.go
+export type GitProvider = "azure-devops" | "bitbucket" | "github" | "gitlab"
+export const GitProviders: GitProvider[] = [
+  "azure-devops",
+  "bitbucket",
+  "github",
+  "gitlab",
+]
+
 // From codersdk/provisionerdaemons.go
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
 export const LogLevels: LogLevel[] = ["debug", "error", "info", "trace", "warn"]
@@ -1418,4 +1455,10 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
 ]
 
 // From codersdk/deployment.go
-export type Flaggable = string | number | boolean | string[] | GitAuthConfig[]
+export type Flaggable =
+  | string
+  | number
+  | boolean
+  | string[]
+  | GitAuthConfig[]
+  | LinkConfig[]

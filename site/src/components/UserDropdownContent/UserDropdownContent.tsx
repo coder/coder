@@ -15,16 +15,14 @@ import { combineClasses } from "util/combineClasses"
 
 export const Language = {
   accountLabel: "Account",
-  docsLabel: "Documentation",
   signOutLabel: "Sign Out",
-  bugLabel: "Report a Bug",
-  discordLabel: "Join the Coder Discord",
   copyrightText: `\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`,
 }
 
 export interface UserDropdownContentProps {
   user: TypesGen.User
   buildInfo?: TypesGen.BuildInfoResponse
+  supportLinks?: TypesGen.LinkConfig[]
   onPopoverClose: () => void
   onSignOut: () => void
 }
@@ -32,14 +30,11 @@ export interface UserDropdownContentProps {
 export const UserDropdownContent: FC<UserDropdownContentProps> = ({
   buildInfo,
   user,
+  supportLinks,
   onPopoverClose,
   onSignOut,
 }) => {
   const styles = useStyles()
-  const githubUrl = `https://github.com/coder/coder/issues/new?labels=needs+grooming&body=${encodeURIComponent(`Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})
-
-  <!--- Ask a question or leave feedback! -->`)}`
-  const discordUrl = `https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer`
 
   return (
     <div>
@@ -64,43 +59,33 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 
       <Divider className={styles.divider} />
 
-      <a
-        href="https://coder.com/docs/coder-oss"
-        target="_blank"
-        rel="noreferrer"
-        className={styles.link}
-      >
-        <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
-          <DocsIcon className={styles.menuItemIcon} />
-          <span className={styles.menuItemText}>{Language.docsLabel}</span>
-        </MenuItem>
-      </a>
+      <>
+        {supportLinks &&
+          supportLinks.map((link) => (
+            <a
+              href={includeBuildInfo(link.target, buildInfo)}
+              key={link.name}
+              target="_blank"
+              rel="noreferrer"
+              className={styles.link}
+            >
+              <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
+                {link.icon === "bug" && (
+                  <BugIcon className={styles.menuItemIcon} />
+                )}
+                {link.icon === "chat" && (
+                  <ChatIcon className={styles.menuItemIcon} />
+                )}
+                {link.icon === "docs" && (
+                  <DocsIcon className={styles.menuItemIcon} />
+                )}
+                <span className={styles.menuItemText}>{link.name}</span>
+              </MenuItem>
+            </a>
+          ))}
+      </>
 
-      <a
-        href={githubUrl}
-        target="_blank"
-        rel="noreferrer"
-        className={styles.link}
-      >
-        <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
-          <BugIcon className={styles.menuItemIcon} />
-          <span className={styles.menuItemText}>{Language.bugLabel}</span>
-        </MenuItem>
-      </a>
-
-      <a
-        href={discordUrl}
-        target="_blank"
-        rel="noreferrer"
-        className={styles.link}
-      >
-        <MenuItem className={styles.menuItem} onClick={onPopoverClose}>
-          <ChatIcon className={styles.menuItemIcon} />
-          <span className={styles.menuItemText}>{Language.discordLabel}</span>
-        </MenuItem>
-      </a>
-
-      <Divider className={styles.divider} />
+      {supportLinks && <Divider className={styles.divider} />}
 
       <Stack className={styles.info} spacing={0}>
         <a
@@ -181,3 +166,15 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.primary,
   },
 }))
+
+const includeBuildInfo = (
+  href: string,
+  buildInfo?: TypesGen.BuildInfoResponse,
+): string => {
+  return href.replace(
+    "{CODER_BUILD_INFO}",
+    `${encodeURIComponent(
+      `Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})`,
+    )}`,
+  )
+}

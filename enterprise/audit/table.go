@@ -72,15 +72,16 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"allow_user_cancel_workspace_jobs": ActionTrack,
 	},
 	&database.TemplateVersion{}: {
-		"id":              ActionTrack,
-		"template_id":     ActionTrack,
-		"organization_id": ActionIgnore, // Never changes.
-		"created_at":      ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"name":            ActionTrack,
-		"readme":          ActionTrack,
-		"job_id":          ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
-		"created_by":      ActionTrack,
+		"id":                 ActionTrack,
+		"template_id":        ActionTrack,
+		"organization_id":    ActionIgnore, // Never changes.
+		"created_at":         ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"name":               ActionTrack,
+		"readme":             ActionTrack,
+		"job_id":             ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
+		"created_by":         ActionTrack,
+		"git_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
 	},
 	&database.User{}: {
 		"id":              ActionTrack,

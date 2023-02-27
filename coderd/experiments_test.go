@@ -99,28 +99,6 @@ func Test_Experiments(t *testing.T) {
 		require.False(t, experiments.Enabled("herebedragons"))
 	})
 
-	t.Run("legacy wildcard", func(t *testing.T) {
-		t.Parallel()
-		cfg := coderdtest.DeploymentConfig(t)
-		cfg.Experimental = true
-		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: cfg,
-		})
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		experiments, err := client.Experiments(ctx)
-		require.NoError(t, err)
-		require.NotNil(t, experiments)
-		require.ElementsMatch(t, codersdk.ExperimentsAll, experiments)
-		for _, ex := range codersdk.ExperimentsAll {
-			require.True(t, experiments.Enabled(ex))
-		}
-		require.False(t, experiments.Enabled("danger"))
-	})
-
 	t.Run("Unauthorized", func(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentConfig(t)

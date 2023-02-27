@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionerd/proto"
@@ -42,16 +43,17 @@ var (
 )
 
 type Server struct {
-	AccessURL      *url.URL
-	ID             uuid.UUID
-	Logger         slog.Logger
-	Provisioners   []database.ProvisionerType
-	Tags           json.RawMessage
-	Database       database.Store
-	Pubsub         database.Pubsub
-	Telemetry      telemetry.Reporter
-	QuotaCommitter *atomic.Pointer[proto.QuotaCommitter]
-	Auditor        *atomic.Pointer[audit.Auditor]
+	AccessURL        *url.URL
+	ID               uuid.UUID
+	Logger           slog.Logger
+	Provisioners     []database.ProvisionerType
+	GitAuthProviders []string
+	Tags             json.RawMessage
+	Database         database.Store
+	Pubsub           database.Pubsub
+	Telemetry        telemetry.Reporter
+	QuotaCommitter   *atomic.Pointer[proto.QuotaCommitter]
+	Auditor          *atomic.Pointer[audit.Auditor]
 
 	AcquireJobDebounce time.Duration
 }
@@ -812,6 +814,27 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			}
 		}
 
+		var completedError sql.NullString
+
+		for _, gitAuthProvider := range jobType.TemplateImport.GitAuthProviders {
+			if !slice.Contains(server.GitAuthProviders, gitAuthProvider) {
+				completedError = sql.NullString{
+					String: fmt.Sprintf("git auth provider %q is not configured", gitAuthProvider),
+					Valid:  true,
+				}
+				break
+			}
+		}
+
+		err = server.Database.UpdateTemplateVersionGitAuthProvidersByJobID(ctx, database.UpdateTemplateVersionGitAuthProvidersByJobIDParams{
+			JobID:            jobID,
+			GitAuthProviders: jobType.TemplateImport.GitAuthProviders,
+			UpdatedAt:        database.Now(),
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("update template version git auth providers: %w", err)
+		}
+
 		err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        jobID,
 			UpdatedAt: database.Now(),
@@ -819,6 +842,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				Time:  database.Now(),
 				Valid: true,
 			},
+			Error: completedError,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update provisioner job: %w", err)

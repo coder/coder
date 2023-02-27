@@ -152,7 +152,6 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
   "disable_password_auth": true,
   "disable_path_apps": true,
   "disable_session_expiry_refresh": true,
-  "experimental": true,
   "experiments": ["string"],
   "http_address": {
     "host": "string",
@@ -235,6 +234,17 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
   "ssh_keygen_algorithm": "string",
   "strict_transport_security": 0,
   "strict_transport_security_options": ["string"],
+  "support": {
+    "links": {
+      "value": [
+        {
+          "icon": "string",
+          "name": "string",
+          "target": "string"
+        }
+      ]
+    }
+  },
   "swagger": {
     "enable": true
   },

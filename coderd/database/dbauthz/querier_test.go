@@ -736,6 +736,18 @@ func (s *MethodTestSuite) TestTemplate() {
 			Readme: "foo",
 		}).Asserts(t1, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("UpdateTemplateVersionGitAuthProvidersByJobID", s.Subtest(func(db database.Store, check *expects) {
+		jobID := uuid.New()
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
+			JobID:      jobID,
+		})
+		check.Args(database.UpdateTemplateVersionGitAuthProvidersByJobIDParams{
+			JobID:            jobID,
+			GitAuthProviders: []string{},
+		}).Asserts(t1, rbac.ActionUpdate).Returns()
+	}))
 }
 
 func (s *MethodTestSuite) TestUser() {
@@ -881,9 +893,13 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("UpdateGitAuthLink", s.Subtest(func(db database.Store, check *expects) {
 		link := dbgen.GitAuthLink(s.T(), db, database.GitAuthLink{})
 		check.Args(database.UpdateGitAuthLinkParams{
-			ProviderID: link.ProviderID,
-			UserID:     link.UserID,
-		}).Asserts(link, rbac.ActionUpdate).Returns()
+			ProviderID:        link.ProviderID,
+			UserID:            link.UserID,
+			OAuthAccessToken:  link.OAuthAccessToken,
+			OAuthRefreshToken: link.OAuthRefreshToken,
+			OAuthExpiry:       link.OAuthExpiry,
+			UpdatedAt:         link.UpdatedAt,
+		}).Asserts(link, rbac.ActionUpdate).Returns(link)
 	}))
 	s.Run("UpdateUserLink", s.Subtest(func(db database.Store, check *expects) {
 		link := dbgen.UserLink(s.T(), db, database.UserLink{})

@@ -736,10 +736,16 @@ func TestCompleteJob(t *testing.T) {
 	t.Run("TemplateImport", func(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
+		jobID := uuid.New()
+		version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+			ID:    uuid.New(),
+			JobID: jobID,
+		})
+		require.NoError(t, err)
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:            uuid.New(),
+			ID:            jobID,
 			Provisioner:   database.ProvisionerTypeEcho,
-			Input:         []byte(`{"template_version_id": "` + uuid.NewString() + `"}`),
+			Input:         []byte(`{"template_version_id": "` + version.ID.String() + `"}`),
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 		})
@@ -752,19 +758,31 @@ func TestCompleteJob(t *testing.T) {
 			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
 		})
 		require.NoError(t, err)
-		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
-			JobId: job.ID.String(),
-			Type: &proto.CompletedJob_TemplateImport_{
-				TemplateImport: &proto.CompletedJob_TemplateImport{
-					StartResources: []*sdkproto.Resource{{
-						Name: "hello",
-						Type: "aws_instance",
-					}},
-					StopResources: []*sdkproto.Resource{},
+		completeJob := func() {
+			_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+				JobId: job.ID.String(),
+				Type: &proto.CompletedJob_TemplateImport_{
+					TemplateImport: &proto.CompletedJob_TemplateImport{
+						StartResources: []*sdkproto.Resource{{
+							Name: "hello",
+							Type: "aws_instance",
+						}},
+						StopResources:    []*sdkproto.Resource{},
+						GitAuthProviders: []string{"github"},
+					},
 				},
-			},
-		})
+			})
+			require.NoError(t, err)
+		}
+		completeJob()
+		job, err = srv.Database.GetProvisionerJobByID(ctx, job.ID)
 		require.NoError(t, err)
+		require.Contains(t, job.Error.String, `git auth provider "github" is not configured`)
+		srv.GitAuthProviders = []string{"github"}
+		completeJob()
+		job, err = srv.Database.GetProvisionerJobByID(ctx, job.ID)
+		require.NoError(t, err)
+		require.False(t, job.Error.Valid)
 	})
 	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
