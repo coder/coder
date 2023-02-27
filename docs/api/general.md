@@ -154,6 +154,21 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,
     "experiments": ["string"],
+    "git_auth": {
+      "value": [
+        {
+          "auth_url": "string",
+          "client_id": "string",
+          "id": "string",
+          "no_refresh": true,
+          "regex": "string",
+          "scopes": ["string"],
+          "token_url": "string",
+          "type": "string",
+          "validate_url": "string"
+        }
+      ]
+    },
     "http_address": {
       "host": "string",
       "port": "string"

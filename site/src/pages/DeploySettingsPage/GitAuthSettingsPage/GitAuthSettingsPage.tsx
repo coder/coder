@@ -13,7 +13,7 @@ const GitAuthSettingsPage: FC = () => {
         <title>{pageTitle("Git Authentication Settings")}</title>
       </Helmet>
 
-      <GitAuthSettingsPageView options={deploymentConfig.options} />
+      <GitAuthSettingsPageView config={deploymentConfig.config} />
     </>
   )
 }

@@ -268,6 +268,14 @@ func (s *Object[T]) Type() string {
 	return fmt.Sprintf("struct[%T]", s.Value)
 }
 
+func (s *Object[T]) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.Value)
+}
+
+func (s *Object[T]) UnmarshalJSON(b []byte) error {
+	return json.Unmarshal(b, &s.Value)
+}
+
 type DiscardValue struct{}
 
 func (DiscardValue) Set(string) error {

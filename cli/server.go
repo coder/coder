@@ -88,6 +88,7 @@ import (
 
 // ReadGitAuthProvidersFromEnv is provided for compatibility purposes with the
 // viper CLI.
+// DEPRECATED
 func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, error) {
 	// The index numbers must be in-order.
 	sort.Strings(environ)
@@ -631,8 +632,14 @@ flags, and YAML configuration. The precedence is as follows:
 				}
 			}
 
+			gitAuthEnv, err := ReadGitAuthProvidersFromEnv(os.Environ())
+			if err != nil {
+				return xerrors.Errorf("read git auth providers from env: %w", err)
+			}
+
 			gitAuthConfigs, err := gitauth.ConvertConfig(
-				cfg.GitAuthProviders.Value, cfg.AccessURL.Value(),
+				append(cfg.GitAuthProviders.Value, gitAuthEnv...),
+				cfg.AccessURL.Value(),
 			)
 			if err != nil {
 				return xerrors.Errorf("convert git auth config: %w", err)

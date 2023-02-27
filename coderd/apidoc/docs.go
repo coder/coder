@@ -5276,6 +5276,17 @@ const docTemplate = `{
                 }
             }
         },
+        "bigcli.Object-array_codersdk_GitAuthConfig": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.GitAuthConfig"
+                    }
+                }
+            }
+        },
         "bigcli.Object-array_codersdk_LinkConfig": {
             "type": "object",
             "properties": {
@@ -6334,6 +6345,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "git_auth": {
+                    "$ref": "#/definitions/bigcli.Object-array_codersdk_GitAuthConfig"
+                },
                 "http_address": {
                     "$ref": "#/definitions/bigcli.HostPort"
                 },
@@ -6553,6 +6567,41 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.User"
                     }
+                }
+            }
+        },
+        "codersdk.GitAuthConfig": {
+            "type": "object",
+            "properties": {
+                "auth_url": {
+                    "type": "string"
+                },
+                "client_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "no_refresh": {
+                    "type": "boolean"
+                },
+                "regex": {
+                    "type": "string"
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "token_url": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "validate_url": {
+                    "type": "string"
                 }
             }
         },

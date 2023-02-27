@@ -366,6 +366,10 @@ export interface DeploymentConfig {
   readonly disable_session_expiry_refresh?: boolean
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
   readonly disable_password_auth?: boolean
+  readonly support?: SupportConfig
+  // Named type "github.com/coder/coder/cli/bigcli.Object[[]github.com/coder/coder/codersdk.GitAuthConfig]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  readonly git_auth?: any
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
   readonly config?: string
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
@@ -373,7 +377,6 @@ export interface DeploymentConfig {
   // Named type "github.com/coder/coder/cli/bigcli.HostPort" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly address?: any
-  readonly support?: SupportConfig
 }
 
 // From codersdk/deployment.go
