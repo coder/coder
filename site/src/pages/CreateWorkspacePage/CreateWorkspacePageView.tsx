@@ -60,6 +60,11 @@ export const CreateWorkspacePageView: FC<
   )
   const [gitAuthErrors, setGitAuthErrors] = useState<Record<string, string>>({})
   useEffect(() => {
+    // templateGitAuth is refreshed automatically using a BroadcastChannel
+    // which may change the `authenticated` property.
+    //
+    // If the provider becomes authenticated, we want the error message
+    // to disappear.
     setGitAuthErrors({})
   }, [props.templateGitAuth])
 
