@@ -4,12 +4,13 @@ import (
 	"strings"
 
 	"github.com/mitchellh/go-wordwrap"
+	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 )
 
 // deepMapNode returns the mapping node at the given path,
 // creating it if it doesn't exist.
-func deepMapNode(n *yaml.Node, path []string) *yaml.Node {
+func deepMapNode(n *yaml.Node, path []string, headComment string) *yaml.Node {
 	if len(path) == 0 {
 		return n
 	}
@@ -18,21 +19,22 @@ func deepMapNode(n *yaml.Node, path []string) *yaml.Node {
 	for i := 0; i < len(n.Content); i += 2 {
 		if n.Content[i].Value == path[0] {
 			// Found matching name, recurse.
-			return deepMapNode(n.Content[i+1], path[1:])
+			return deepMapNode(n.Content[i+1], path[1:], headComment)
 		}
 	}
 
 	// Not found, create it.
 	nameNode := yaml.Node{
-		Kind:  yaml.ScalarNode,
-		Value: path[0],
+		Kind:        yaml.ScalarNode,
+		Value:       path[0],
+		HeadComment: headComment,
 	}
 	valueNode := yaml.Node{
 		Kind: yaml.MappingNode,
 	}
 	n.Content = append(n.Content, &nameNode)
 	n.Content = append(n.Content, &valueNode)
-	return deepMapNode(&valueNode, path[1:])
+	return deepMapNode(&valueNode, path[1:], headComment)
 }
 
 // ToYAML converts the option set to a YAML node, that can be
@@ -60,11 +62,25 @@ func (s OptionSet) ToYAML() (*yaml.Node, error) {
 		}
 		var group []string
 		for _, g := range opt.Group.Ancestry() {
+			if g.Name == "" {
+				return nil, xerrors.Errorf(
+					"group name is empty for %q, groups: %+v",
+					opt.Name,
+					opt.Group,
+				)
+			}
 			group = append(group, strings.ToLower(g.Name))
 		}
-		parent := deepMapNode(&root, group)
-		parent.Content = append(
-			parent.Content,
+		var groupDesc string
+		if opt.Group != nil {
+			groupDesc = wordwrap.WrapString(opt.Group.Description, 80)
+		}
+		parentValueNode := deepMapNode(
+			&root, group,
+			groupDesc,
+		)
+		parentValueNode.Content = append(
+			parentValueNode.Content,
 			&nameNode,
 			&valueNode,
 		)

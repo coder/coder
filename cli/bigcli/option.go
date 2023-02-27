@@ -43,7 +43,7 @@ type Option struct {
 
 	// Group is a group hierarchy that helps organize this option in help, configs
 	// and other documentation.
-	Group Group
+	Group *Group
 
 	// UseInstead is a list of options that should be used instead of this one.
 	// The field is used to generate a deprecation warning.

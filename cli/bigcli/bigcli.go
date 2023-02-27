@@ -28,6 +28,10 @@ func (g *Group) AddChild(child Group) {
 
 // Ancestry returns the group and all of its parents, in order.
 func (g *Group) Ancestry() []Group {
+	if g == nil {
+		return nil
+	}
+
 	groups := []Group{*g}
 	for p := g.Parent; p != nil; p = p.Parent {
 		// Prepend to the slice so that the order is correct.
