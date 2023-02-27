@@ -20,7 +20,8 @@ func TestOption_ToYAML(t *testing.T) {
 			Value:       &workspaceName,
 			Default:     "billie",
 			Description: "The workspace's name",
-			Group:       bigcli.Group{Name: "Names"},
+			Group:       &bigcli.Group{Name: "Names"},
+			YAML:        "workspaceName",
 		},
 	}
 
