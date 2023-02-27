@@ -83,7 +83,8 @@ resource "coder_agent" "dev" {
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
 
-    if [ ! -d "${data.coder_parameter.repo_dir.value}" ]; then
+
+    if [ ! -d ${data.coder_parameter.repo_dir.value} ]; then
       mkdir -p ${data.coder_parameter.repo_dir.value}
 
       git clone https://github.com/coder/coder ${data.coder_parameter.repo_dir.value}
