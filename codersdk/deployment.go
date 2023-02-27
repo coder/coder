@@ -1152,7 +1152,7 @@ Write out the current server configuration to the path specified by --config.`,
 }
 
 type SupportConfig struct {
-	Links bigcli.Struct[[]LinkConfig] `json:"links" typescript:",notnull"`
+	Links bigcli.Object[[]LinkConfig] `json:"links" typescript:",notnull"`
 }
 
 // NewDeploymentConfig returns a new DeploymentConfig without

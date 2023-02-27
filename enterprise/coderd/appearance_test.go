@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/cli/bigcli"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd"
@@ -91,7 +92,7 @@ func TestCustomSupportLinks(t *testing.T) {
 	}
 	cfg := coderdtest.DeploymentConfig(t)
 	cfg.Support = new(codersdk.SupportConfig)
-	cfg.Support.Links = &codersdk.DeploymentConfigField[[]codersdk.LinkConfig]{
+	cfg.Support.Links = bigcli.Object[[]codersdk.LinkConfig]{
 		Value: supportLinks,
 	}
 
