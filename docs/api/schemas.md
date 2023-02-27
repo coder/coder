@@ -286,6 +286,56 @@
 | ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
 | `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
 
+## bigcli.BindAddress
+
+```json
+{
+  "host": "string",
+  "port": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| `host` | string | false    |              |             |
+| `port` | string | false    |              |             |
+
+## bigcli.URL
+
+```json
+{
+  "forceQuery": true,
+  "fragment": "string",
+  "host": "string",
+  "omitHost": true,
+  "opaque": "string",
+  "path": "string",
+  "rawFragment": "string",
+  "rawPath": "string",
+  "rawQuery": "string",
+  "scheme": "string",
+  "user": {}
+}
+```
+
+### Properties
+
+| Name          | Type                         | Required | Restrictions | Description                                        |
+| ------------- | ---------------------------- | -------- | ------------ | -------------------------------------------------- |
+| `forceQuery`  | boolean                      | false    |              | append a query ('?') even if RawQuery is empty     |
+| `fragment`    | string                       | false    |              | fragment for references, without '#'               |
+| `host`        | string                       | false    |              | host or host:port                                  |
+| `omitHost`    | boolean                      | false    |              | do not emit empty host (authority)                 |
+| `opaque`      | string                       | false    |              | encoded opaque data                                |
+| `path`        | string                       | false    |              | path (relative paths may omit leading slash)       |
+| `rawFragment` | string                       | false    |              | encoded fragment hint (see EscapedFragment method) |
+| `rawPath`     | string                       | false    |              | encoded path hint (see EscapedPath method)         |
+| `rawQuery`    | string                       | false    |              | encoded query values, without '?'                  |
+| `scheme`      | string                       | false    |              |                                                    |
+| `user`        | [url.Userinfo](#urluserinfo) | false    |              | username and password information                  |
+
 ## coderd.SCIMUser
 
 ```json
@@ -1212,96 +1262,28 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "config": {
-    "path": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
+    "path": "string",
+    "url": "string"
   },
   "server": {
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "region_code": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "region_id": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    },
-    "region_name": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
+    "enable": true,
+    "region_code": "string",
+    "region_id": 0,
+    "region_name": "string",
     "relay_url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
     },
-    "stun_addresses": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    }
+    "stun_addresses": ["string"]
   }
 }
 ```
@@ -1317,37 +1299,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-  "path": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  }
+  "path": "string",
+  "url": "string"
 }
 ```
 
 ### Properties
 
-| Name   | Type                                                                           | Required | Restrictions | Description |
-| ------ | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `path` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
-| `url`  | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| `path` | string | false    |              |             |
+| `url`  | string | false    |              |             |
 
 ## codersdk.DERPRegion
 
@@ -1369,1393 +1331,316 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-  "enable": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "region_code": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "region_id": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "region_name": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
+  "enable": true,
+  "region_code": "string",
+  "region_id": 0,
+  "region_name": "string",
   "relay_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
   },
-  "stun_addresses": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  }
+  "stun_addresses": ["string"]
 }
 ```
 
 ### Properties
 
-| Name             | Type                                                                                       | Required | Restrictions | Description |
-| ---------------- | ------------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `enable`         | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
-| `region_code`    | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `region_id`      | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)                   | false    |              |             |
-| `region_name`    | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `relay_url`      | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `stun_addresses` | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
+| Name             | Type                     | Required | Restrictions | Description |
+| ---------------- | ------------------------ | -------- | ------------ | ----------- |
+| `enable`         | boolean                  | false    |              |             |
+| `region_code`    | string                   | false    |              |             |
+| `region_id`      | integer                  | false    |              |             |
+| `region_name`    | string                   | false    |              |             |
+| `relay_url`      | [bigcli.URL](#bigcliurl) | false    |              |             |
+| `stun_addresses` | array of string          | false    |              |             |
 
 ## codersdk.DangerousConfig
 
 ```json
 {
-  "allow_path_app_sharing": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "allow_path_app_site_owner_access": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  }
+  "allow_path_app_sharing": true,
+  "allow_path_app_site_owner_access": true
 }
 ```
 
 ### Properties
 
-| Name                               | Type                                                                       | Required | Restrictions | Description |
-| ---------------------------------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `allow_path_app_sharing`           | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool) | false    |              |             |
-| `allow_path_app_site_owner_access` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool) | false    |              |             |
+| Name                               | Type    | Required | Restrictions | Description |
+| ---------------------------------- | ------- | -------- | ------------ | ----------- |
+| `allow_path_app_sharing`           | boolean | false    |              |             |
+| `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
 ## codersdk.DeploymentConfig
 
 ```json
 {
-  "access_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+  "accessURL": {
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
   },
   "address": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "host": "string",
+    "port": "string"
   },
   "agent_fallback_troubleshooting_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
   },
-  "agent_stat_refresh_interval": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "audit_logging": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "autobuild_poll_interval": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "browser_only": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "cache_directory": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
+  "agent_stat_refresh_interval": 0,
+  "audit_logging": true,
+  "autobuildPollInterval": 0,
+  "browser_only": true,
+  "cache_directory": "string",
+  "config": "string",
   "dangerous": {
-    "allow_path_app_sharing": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "allow_path_app_site_owner_access": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
+    "allow_path_app_sharing": true,
+    "allow_path_app_site_owner_access": true
   },
   "derp": {
     "config": {
-      "path": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "url": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      }
+      "path": "string",
+      "url": "string"
     },
     "server": {
-      "enable": {
-        "default": true,
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": true
-      },
-      "region_code": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "region_id": {
-        "default": 0,
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": 0
-      },
-      "region_name": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
+      "enable": true,
+      "region_code": "string",
+      "region_id": 0,
+      "region_name": "string",
       "relay_url": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
       },
-      "stun_addresses": {
-        "default": ["string"],
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": ["string"]
-      }
+      "stun_addresses": ["string"]
     }
   },
-  "disable_password_auth": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "disable_path_apps": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "disable_session_expiry_refresh": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "experimental": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "experiments": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "gitauth": {
-    "default": [
-      {
-        "auth_url": "string",
-        "client_id": "string",
-        "id": "string",
-        "no_refresh": true,
-        "regex": "string",
-        "scopes": ["string"],
-        "token_url": "string",
-        "type": "string",
-        "validate_url": "string"
-      }
-    ],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": [
-      {
-        "auth_url": "string",
-        "client_id": "string",
-        "id": "string",
-        "no_refresh": true,
-        "regex": "string",
-        "scopes": ["string"],
-        "token_url": "string",
-        "type": "string",
-        "validate_url": "string"
-      }
-    ]
-  },
+  "disable_password_auth": true,
+  "disable_path_apps": true,
+  "disable_session_expiry_refresh": true,
+  "experimental": true,
+  "experiments": ["string"],
   "http_address": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "host": "string",
+    "port": "string"
   },
-  "in_memory_database": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
+  "in_memory_database": true,
   "logging": {
-    "human": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "json": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "stackdriver": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
+    "human": "string",
+    "json": "string",
+    "stackdriver": "string"
   },
-  "max_session_expiry": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "max_token_lifetime": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "metrics_cache_refresh_interval": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
+  "max_session_expiry": 0,
+  "max_token_lifetime": 0,
+  "metrics_cache_refresh_interval": 0,
   "oauth2": {
     "github": {
-      "allow_everyone": {
-        "default": true,
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": true
-      },
-      "allow_signups": {
-        "default": true,
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": true
-      },
-      "allowed_orgs": {
-        "default": ["string"],
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": ["string"]
-      },
-      "allowed_teams": {
-        "default": ["string"],
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": ["string"]
-      },
-      "client_id": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "client_secret": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "enterprise_base_url": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      }
+      "allow_everyone": true,
+      "allow_signups": true,
+      "allowed_orgs": ["string"],
+      "allowed_teams": ["string"],
+      "client_id": "string",
+      "client_secret": "string",
+      "enterprise_base_url": "string"
     }
   },
   "oidc": {
-    "allow_signups": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "client_id": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "client_secret": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "email_domain": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
+    "allow_signups": true,
+    "client_id": "string",
+    "client_secret": "string",
+    "email_domain": ["string"],
     "icon_url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
     },
-    "ignore_email_verified": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "issuer_url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "scopes": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "sign_in_text": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "username_field": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
+    "ignore_email_verified": true,
+    "issuer_url": "string",
+    "scopes": ["string"],
+    "sign_in_text": "string",
+    "username_field": "string"
   },
-  "pg_connection_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
+  "pg_connection_url": "string",
   "pprof": {
     "address": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
+      "host": "string",
+      "port": "string"
     },
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
+    "enable": true
   },
   "prometheus": {
     "address": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
+      "host": "string",
+      "port": "string"
     },
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
+    "enable": true
   },
   "provisioner": {
-    "daemon_poll_interval": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    },
-    "daemon_poll_jitter": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    },
-    "daemons": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    },
-    "force_cancel_interval": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    }
+    "daemon_poll_interval": 0,
+    "daemon_poll_jitter": 0,
+    "daemons": 0,
+    "force_cancel_interval": 0
   },
-  "proxy_trusted_headers": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "proxy_trusted_origins": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
+  "proxy_trusted_headers": ["string"],
+  "proxy_trusted_origins": ["string"],
   "rate_limit": {
-    "api": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    },
-    "disable_all": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
+    "api": 0,
+    "disable_all": true
   },
-  "redirect_to_access_url": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "scim_api_key": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "secure_auth_cookie": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "ssh_keygen_algorithm": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "strict_transport_security": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "strict_transport_security_options": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
+  "redirectToAccessURL": true,
+  "scim_api_key": "string",
+  "secure_auth_cookie": true,
+  "ssh_keygen_algorithm": "string",
+  "strict_transport_security": 0,
+  "strict_transport_security_options": ["string"],
   "swagger": {
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
+    "enable": true
   },
   "telemetry": {
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "trace": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
+    "enable": true,
+    "trace": true,
     "url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
     }
   },
   "tls": {
     "address": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
+      "host": "string",
+      "port": "string"
     },
-    "cert_file": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "client_auth": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "client_ca_file": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "client_cert_file": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "client_key_file": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "key_file": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "min_version": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "redirect_http": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
+    "cert_file": ["string"],
+    "client_auth": "string",
+    "client_ca_file": "string",
+    "client_cert_file": "string",
+    "client_key_file": "string",
+    "enable": true,
+    "key_file": ["string"],
+    "min_version": "string",
+    "redirect_http": true
   },
   "trace": {
-    "capture_logs": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "honeycomb_api_key": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
+    "capture_logs": true,
+    "enable": true,
+    "honeycomb_api_key": "string"
   },
-  "update_check": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
+  "update_check": true,
+  "wildcardAccessURL": {
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
   },
-  "wildcard_access_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  }
+  "write_config": true
 }
 ```
 
 ### Properties
 
-| Name                                 | Type                                                                                                                       | Required | Restrictions | Description                                     |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------- |
-| `access_url`                         | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-| `address`                            | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              | Address Use HTTPAddress or TLS.Address instead. |
-| `agent_fallback_troubleshooting_url` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-| `agent_stat_refresh_interval`        | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
-| `audit_logging`                      | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `autobuild_poll_interval`            | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
-| `browser_only`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `cache_directory`                    | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-| `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                                       | false    |              |                                                 |
-| `derp`                               | [codersdk.DERP](#codersdkderp)                                                                                             | false    |              |                                                 |
-| `disable_password_auth`              | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `disable_path_apps`                  | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `disable_session_expiry_refresh`     | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `experimental`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              | Experimental Use Experiments instead.           |
-| `experiments`                        | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
-| `gitauth`                            | [codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig](#codersdkdeploymentconfigfield-array_codersdk_gitauthconfig) | false    |              |                                                 |
-| `http_address`                       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-| `in_memory_database`                 | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                                           | false    |              |                                                 |
-| `max_session_expiry`                 | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
-| `max_token_lifetime`                 | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
-| `metrics_cache_refresh_interval`     | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
-| `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                                                             | false    |              |                                                 |
-| `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                                                 | false    |              |                                                 |
-| `pg_connection_url`                  | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-| `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                                                               | false    |              |                                                 |
-| `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                                                     | false    |              |                                                 |
-| `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                                                   | false    |              |                                                 |
-| `proxy_trusted_headers`              | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
-| `proxy_trusted_origins`              | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
-| `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                                                       | false    |              |                                                 |
-| `redirect_to_access_url`             | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `scim_api_key`                       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-| `secure_auth_cookie`                 | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `ssh_keygen_algorithm`               | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-| `strict_transport_security`          | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)                                                   | false    |              |                                                 |
-| `strict_transport_security_options`  | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
-| `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                                           | false    |              |                                                 |
-| `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                                       | false    |              |                                                 |
-| `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                                                   | false    |              |                                                 |
-| `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                                                               | false    |              |                                                 |
-| `update_check`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `wildcard_access_url`                | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-
-## codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig
-
-```json
-{
-  "default": [
-    {
-      "auth_url": "string",
-      "client_id": "string",
-      "id": "string",
-      "no_refresh": true,
-      "regex": "string",
-      "scopes": ["string"],
-      "token_url": "string",
-      "type": "string",
-      "validate_url": "string"
-    }
-  ],
-  "enterprise": true,
-  "flag": "string",
-  "hidden": true,
-  "name": "string",
-  "secret": true,
-  "shorthand": "string",
-  "usage": "string",
-  "value": [
-    {
-      "auth_url": "string",
-      "client_id": "string",
-      "id": "string",
-      "no_refresh": true,
-      "regex": "string",
-      "scopes": ["string"],
-      "token_url": "string",
-      "type": "string",
-      "validate_url": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name         | Type                                                      | Required | Restrictions | Description |
-| ------------ | --------------------------------------------------------- | -------- | ------------ | ----------- |
-| `default`    | array of [codersdk.GitAuthConfig](#codersdkgitauthconfig) | false    |              |             |
-| `enterprise` | boolean                                                   | false    |              |             |
-| `flag`       | string                                                    | false    |              |             |
-| `hidden`     | boolean                                                   | false    |              |             |
-| `name`       | string                                                    | false    |              |             |
-| `secret`     | boolean                                                   | false    |              |             |
-| `shorthand`  | string                                                    | false    |              |             |
-| `usage`      | string                                                    | false    |              |             |
-| `value`      | array of [codersdk.GitAuthConfig](#codersdkgitauthconfig) | false    |              |             |
-
-## codersdk.DeploymentConfigField-array_string
-
-```json
-{
-  "default": ["string"],
-  "enterprise": true,
-  "flag": "string",
-  "hidden": true,
-  "name": "string",
-  "secret": true,
-  "shorthand": "string",
-  "usage": "string",
-  "value": ["string"]
-}
-```
-
-### Properties
-
-| Name         | Type            | Required | Restrictions | Description |
-| ------------ | --------------- | -------- | ------------ | ----------- |
-| `default`    | array of string | false    |              |             |
-| `enterprise` | boolean         | false    |              |             |
-| `flag`       | string          | false    |              |             |
-| `hidden`     | boolean         | false    |              |             |
-| `name`       | string          | false    |              |             |
-| `secret`     | boolean         | false    |              |             |
-| `shorthand`  | string          | false    |              |             |
-| `usage`      | string          | false    |              |             |
-| `value`      | array of string | false    |              |             |
-
-## codersdk.DeploymentConfigField-bool
-
-```json
-{
-  "default": true,
-  "enterprise": true,
-  "flag": "string",
-  "hidden": true,
-  "name": "string",
-  "secret": true,
-  "shorthand": "string",
-  "usage": "string",
-  "value": true
-}
-```
-
-### Properties
-
-| Name         | Type    | Required | Restrictions | Description |
-| ------------ | ------- | -------- | ------------ | ----------- |
-| `default`    | boolean | false    |              |             |
-| `enterprise` | boolean | false    |              |             |
-| `flag`       | string  | false    |              |             |
-| `hidden`     | boolean | false    |              |             |
-| `name`       | string  | false    |              |             |
-| `secret`     | boolean | false    |              |             |
-| `shorthand`  | string  | false    |              |             |
-| `usage`      | string  | false    |              |             |
-| `value`      | boolean | false    |              |             |
-
-## codersdk.DeploymentConfigField-int
-
-```json
-{
-  "default": 0,
-  "enterprise": true,
-  "flag": "string",
-  "hidden": true,
-  "name": "string",
-  "secret": true,
-  "shorthand": "string",
-  "usage": "string",
-  "value": 0
-}
-```
-
-### Properties
-
-| Name         | Type    | Required | Restrictions | Description |
-| ------------ | ------- | -------- | ------------ | ----------- |
-| `default`    | integer | false    |              |             |
-| `enterprise` | boolean | false    |              |             |
-| `flag`       | string  | false    |              |             |
-| `hidden`     | boolean | false    |              |             |
-| `name`       | string  | false    |              |             |
-| `secret`     | boolean | false    |              |             |
-| `shorthand`  | string  | false    |              |             |
-| `usage`      | string  | false    |              |             |
-| `value`      | integer | false    |              |             |
-
-## codersdk.DeploymentConfigField-string
-
-```json
-{
-  "default": "string",
-  "enterprise": true,
-  "flag": "string",
-  "hidden": true,
-  "name": "string",
-  "secret": true,
-  "shorthand": "string",
-  "usage": "string",
-  "value": "string"
-}
-```
-
-### Properties
-
-| Name         | Type    | Required | Restrictions | Description |
-| ------------ | ------- | -------- | ------------ | ----------- |
-| `default`    | string  | false    |              |             |
-| `enterprise` | boolean | false    |              |             |
-| `flag`       | string  | false    |              |             |
-| `hidden`     | boolean | false    |              |             |
-| `name`       | string  | false    |              |             |
-| `secret`     | boolean | false    |              |             |
-| `shorthand`  | string  | false    |              |             |
-| `usage`      | string  | false    |              |             |
-| `value`      | string  | false    |              |             |
-
-## codersdk.DeploymentConfigField-time_Duration
-
-```json
-{
-  "default": 0,
-  "enterprise": true,
-  "flag": "string",
-  "hidden": true,
-  "name": "string",
-  "secret": true,
-  "shorthand": "string",
-  "usage": "string",
-  "value": 0
-}
-```
-
-### Properties
-
-| Name         | Type    | Required | Restrictions | Description |
-| ------------ | ------- | -------- | ------------ | ----------- |
-| `default`    | integer | false    |              |             |
-| `enterprise` | boolean | false    |              |             |
-| `flag`       | string  | false    |              |             |
-| `hidden`     | boolean | false    |              |             |
-| `name`       | string  | false    |              |             |
-| `secret`     | boolean | false    |              |             |
-| `shorthand`  | string  | false    |              |             |
-| `usage`      | string  | false    |              |             |
-| `value`      | integer | false    |              |             |
+| Name                                 | Type                                                     | Required | Restrictions | Description                                     |
+| ------------------------------------ | -------------------------------------------------------- | -------- | ------------ | ----------------------------------------------- |
+| `accessURL`                          | [bigcli.URL](#bigcliurl)                                 | false    |              |                                                 |
+| `address`                            | [bigcli.BindAddress](#bigclibindaddress)                 | false    |              | Address Use HTTPAddress or TLS.Address instead. |
+| `agent_fallback_troubleshooting_url` | [bigcli.URL](#bigcliurl)                                 | false    |              |                                                 |
+| `agent_stat_refresh_interval`        | integer                                                  | false    |              |                                                 |
+| `audit_logging`                      | boolean                                                  | false    |              |                                                 |
+| `autobuildPollInterval`              | integer                                                  | false    |              |                                                 |
+| `browser_only`                       | boolean                                                  | false    |              |                                                 |
+| `cache_directory`                    | string                                                   | false    |              |                                                 |
+| `config`                             | string                                                   | false    |              |                                                 |
+| `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)     | false    |              |                                                 |
+| `derp`                               | [codersdk.DERP](#codersdkderp)                           | false    |              |                                                 |
+| `disable_password_auth`              | boolean                                                  | false    |              |                                                 |
+| `disable_path_apps`                  | boolean                                                  | false    |              |                                                 |
+| `disable_session_expiry_refresh`     | boolean                                                  | false    |              |                                                 |
+| `experimental`                       | boolean                                                  | false    |              | Experimental Use Experiments instead.           |
+| `experiments`                        | array of string                                          | false    |              |                                                 |
+| `http_address`                       | [bigcli.BindAddress](#bigclibindaddress)                 | false    |              |                                                 |
+| `in_memory_database`                 | boolean                                                  | false    |              |                                                 |
+| `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)         | false    |              |                                                 |
+| `max_session_expiry`                 | integer                                                  | false    |              |                                                 |
+| `max_token_lifetime`                 | integer                                                  | false    |              |                                                 |
+| `metrics_cache_refresh_interval`     | integer                                                  | false    |              |                                                 |
+| `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)           | false    |              |                                                 |
+| `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)               | false    |              |                                                 |
+| `pg_connection_url`                  | string                                                   | false    |              |                                                 |
+| `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)             | false    |              |                                                 |
+| `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)   | false    |              |                                                 |
+| `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig) | false    |              |                                                 |
+| `proxy_trusted_headers`              | array of string                                          | false    |              |                                                 |
+| `proxy_trusted_origins`              | array of string                                          | false    |              |                                                 |
+| `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)     | false    |              |                                                 |
+| `redirectToAccessURL`                | boolean                                                  | false    |              |                                                 |
+| `scim_api_key`                       | string                                                   | false    |              |                                                 |
+| `secure_auth_cookie`                 | boolean                                                  | false    |              |                                                 |
+| `ssh_keygen_algorithm`               | string                                                   | false    |              |                                                 |
+| `strict_transport_security`          | integer                                                  | false    |              |                                                 |
+| `strict_transport_security_options`  | array of string                                          | false    |              |                                                 |
+| `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)         | false    |              |                                                 |
+| `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)     | false    |              |                                                 |
+| `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                 | false    |              |                                                 |
+| `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)             | false    |              |                                                 |
+| `update_check`                       | boolean                                                  | false    |              |                                                 |
+| `wildcardAccessURL`                  | [bigcli.URL](#bigcliurl)                                 | false    |              |                                                 |
+| `write_config`                       | boolean                                                  | false    |              |                                                 |
 
 ## codersdk.DeploymentDAUsResponse
 
@@ -2914,36 +1799,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `count` | integer                                 | false    |              |             |
 | `users` | array of [codersdk.User](#codersdkuser) | false    |              |             |
 
-## codersdk.GitAuthConfig
-
-```json
-{
-  "auth_url": "string",
-  "client_id": "string",
-  "id": "string",
-  "no_refresh": true,
-  "regex": "string",
-  "scopes": ["string"],
-  "token_url": "string",
-  "type": "string",
-  "validate_url": "string"
-}
-```
-
-### Properties
-
-| Name           | Type            | Required | Restrictions | Description |
-| -------------- | --------------- | -------- | ------------ | ----------- |
-| `auth_url`     | string          | false    |              |             |
-| `client_id`    | string          | false    |              |             |
-| `id`           | string          | false    |              |             |
-| `no_refresh`   | boolean         | false    |              |             |
-| `regex`        | string          | false    |              |             |
-| `scopes`       | array of string | false    |              |             |
-| `token_url`    | string          | false    |              |             |
-| `type`         | string          | false    |              |             |
-| `validate_url` | string          | false    |              |             |
-
 ## codersdk.GitSSHKey
 
 ```json
@@ -3080,49 +1935,19 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-  "human": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "json": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "stackdriver": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  }
+  "human": "string",
+  "json": "string",
+  "stackdriver": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                                           | Required | Restrictions | Description |
-| ------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `human`       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
-| `json`        | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
-| `stackdriver` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
+| Name          | Type   | Required | Restrictions | Description |
+| ------------- | ------ | -------- | ------------ | ----------- |
+| `human`       | string | false    |              |             |
+| `json`        | string | false    |              |             |
+| `stackdriver` | string | false    |              |             |
 
 ## codersdk.LoginType
 
@@ -3176,83 +2001,13 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "github": {
-    "allow_everyone": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "allow_signups": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "allowed_orgs": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "allowed_teams": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "client_id": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "client_secret": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "enterprise_base_url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
+    "allow_everyone": true,
+    "allow_signups": true,
+    "allowed_orgs": ["string"],
+    "allowed_teams": ["string"],
+    "client_id": "string",
+    "client_secret": "string",
+    "enterprise_base_url": "string"
   }
 }
 ```
@@ -3267,97 +2022,27 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-  "allow_everyone": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "allow_signups": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "allowed_orgs": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "allowed_teams": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "client_id": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "client_secret": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "enterprise_base_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  }
+  "allow_everyone": true,
+  "allow_signups": true,
+  "allowed_orgs": ["string"],
+  "allowed_teams": ["string"],
+  "client_id": "string",
+  "client_secret": "string",
+  "enterprise_base_url": "string"
 }
 ```
 
 ### Properties
 
-| Name                  | Type                                                                                       | Required | Restrictions | Description |
-| --------------------- | ------------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `allow_everyone`      | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
-| `allow_signups`       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
-| `allowed_orgs`        | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
-| `allowed_teams`       | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
-| `client_id`           | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `client_secret`       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `enterprise_base_url` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
+| Name                  | Type            | Required | Restrictions | Description |
+| --------------------- | --------------- | -------- | ------------ | ----------- |
+| `allow_everyone`      | boolean         | false    |              |             |
+| `allow_signups`       | boolean         | false    |              |             |
+| `allowed_orgs`        | array of string | false    |              |             |
+| `allowed_teams`       | array of string | false    |              |             |
+| `client_id`           | string          | false    |              |             |
+| `client_secret`       | string          | false    |              |             |
+| `enterprise_base_url` | string          | false    |              |             |
 
 ## codersdk.OIDCAuthMethod
 
@@ -3381,133 +2066,45 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-  "allow_signups": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "client_id": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "client_secret": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "email_domain": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
+  "allow_signups": true,
+  "client_id": "string",
+  "client_secret": "string",
+  "email_domain": ["string"],
   "icon_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
   },
-  "ignore_email_verified": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "issuer_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "scopes": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "sign_in_text": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "username_field": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  }
+  "ignore_email_verified": true,
+  "issuer_url": "string",
+  "scopes": ["string"],
+  "sign_in_text": "string",
+  "username_field": "string"
 }
 ```
 
 ### Properties
 
-| Name                    | Type                                                                                       | Required | Restrictions | Description |
-| ----------------------- | ------------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `allow_signups`         | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
-| `client_id`             | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `client_secret`         | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `email_domain`          | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
-| `icon_url`              | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `ignore_email_verified` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
-| `issuer_url`            | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `scopes`                | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
-| `sign_in_text`          | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `username_field`        | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
+| Name                    | Type                     | Required | Restrictions | Description |
+| ----------------------- | ------------------------ | -------- | ------------ | ----------- |
+| `allow_signups`         | boolean                  | false    |              |             |
+| `client_id`             | string                   | false    |              |             |
+| `client_secret`         | string                   | false    |              |             |
+| `email_domain`          | array of string          | false    |              |             |
+| `icon_url`              | [bigcli.URL](#bigcliurl) | false    |              |             |
+| `ignore_email_verified` | boolean                  | false    |              |             |
+| `issuer_url`            | string                   | false    |              |             |
+| `scopes`                | array of string          | false    |              |             |
+| `sign_in_text`          | string                   | false    |              |             |
+| `username_field`        | string                   | false    |              |             |
 
 ## codersdk.Organization
 
@@ -3707,132 +2304,58 @@ Parameter represents a set value for the scope.
 ```json
 {
   "address": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "host": "string",
+    "port": "string"
   },
-  "enable": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  }
+  "enable": true
 }
 ```
 
 ### Properties
 
-| Name      | Type                                                                           | Required | Restrictions | Description |
-| --------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `address` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
-| `enable`  | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)     | false    |              |             |
+| Name      | Type                                     | Required | Restrictions | Description |
+| --------- | ---------------------------------------- | -------- | ------------ | ----------- |
+| `address` | [bigcli.BindAddress](#bigclibindaddress) | false    |              |             |
+| `enable`  | boolean                                  | false    |              |             |
 
 ## codersdk.PrometheusConfig
 
 ```json
 {
   "address": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "host": "string",
+    "port": "string"
   },
-  "enable": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  }
+  "enable": true
 }
 ```
 
 ### Properties
 
-| Name      | Type                                                                           | Required | Restrictions | Description |
-| --------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `address` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
-| `enable`  | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)     | false    |              |             |
+| Name      | Type                                     | Required | Restrictions | Description |
+| --------- | ---------------------------------------- | -------- | ------------ | ----------- |
+| `address` | [bigcli.BindAddress](#bigclibindaddress) | false    |              |             |
+| `enable`  | boolean                                  | false    |              |             |
 
 ## codersdk.ProvisionerConfig
 
 ```json
 {
-  "daemon_poll_interval": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "daemon_poll_jitter": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "daemons": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "force_cancel_interval": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  }
+  "daemon_poll_interval": 0,
+  "daemon_poll_jitter": 0,
+  "daemons": 0,
+  "force_cancel_interval": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type                                                                                         | Required | Restrictions | Description |
-| ----------------------- | -------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `daemon_poll_interval`  | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration) | false    |              |             |
-| `daemon_poll_jitter`    | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration) | false    |              |             |
-| `daemons`               | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)                     | false    |              |             |
-| `force_cancel_interval` | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration) | false    |              |             |
+| Name                    | Type    | Required | Restrictions | Description |
+| ----------------------- | ------- | -------- | ------------ | ----------- |
+| `daemon_poll_interval`  | integer | false    |              |             |
+| `daemon_poll_jitter`    | integer | false    |              |             |
+| `daemons`               | integer | false    |              |             |
+| `force_cancel_interval` | integer | false    |              |             |
 
 ## codersdk.ProvisionerDaemon
 
@@ -3983,37 +2506,17 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "api": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "disable_all": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  }
+  "api": 0,
+  "disable_all": true
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                                       | Required | Restrictions | Description |
-| ------------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `api`         | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)   | false    |              |             |
-| `disable_all` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool) | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description |
+| ------------- | ------- | -------- | ------------ | ----------- |
+| `api`         | integer | false    |              |             |
+| `disable_all` | boolean | false    |              |             |
 
 ## codersdk.Replica
 
@@ -4124,205 +2627,80 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "enable": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  }
+  "enable": true
 }
 ```
 
 ### Properties
 
-| Name     | Type                                                                       | Required | Restrictions | Description |
-| -------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `enable` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool) | false    |              |             |
+| Name     | Type    | Required | Restrictions | Description |
+| -------- | ------- | -------- | ------------ | ----------- |
+| `enable` | boolean | false    |              |             |
 
 ## codersdk.TLSConfig
 
 ```json
 {
   "address": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "host": "string",
+    "port": "string"
   },
-  "cert_file": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "client_auth": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "client_ca_file": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "client_cert_file": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "client_key_file": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "enable": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "key_file": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "min_version": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "redirect_http": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  }
+  "cert_file": ["string"],
+  "client_auth": "string",
+  "client_ca_file": "string",
+  "client_cert_file": "string",
+  "client_key_file": "string",
+  "enable": true,
+  "key_file": ["string"],
+  "min_version": "string",
+  "redirect_http": true
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                                                       | Required | Restrictions | Description |
-| ------------------ | ------------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `address`          | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `cert_file`        | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
-| `client_auth`      | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `client_ca_file`   | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `client_cert_file` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `client_key_file`  | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `enable`           | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
-| `key_file`         | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
-| `min_version`      | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `redirect_http`    | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
+| Name               | Type                                     | Required | Restrictions | Description |
+| ------------------ | ---------------------------------------- | -------- | ------------ | ----------- |
+| `address`          | [bigcli.BindAddress](#bigclibindaddress) | false    |              |             |
+| `cert_file`        | array of string                          | false    |              |             |
+| `client_auth`      | string                                   | false    |              |             |
+| `client_ca_file`   | string                                   | false    |              |             |
+| `client_cert_file` | string                                   | false    |              |             |
+| `client_key_file`  | string                                   | false    |              |             |
+| `enable`           | boolean                                  | false    |              |             |
+| `key_file`         | array of string                          | false    |              |             |
+| `min_version`      | string                                   | false    |              |             |
+| `redirect_http`    | boolean                                  | false    |              |             |
 
 ## codersdk.TelemetryConfig
 
 ```json
 {
-  "enable": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "trace": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
+  "enable": true,
+  "trace": true,
   "url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
   }
 }
 ```
 
 ### Properties
 
-| Name     | Type                                                                           | Required | Restrictions | Description |
-| -------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `enable` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)     | false    |              |             |
-| `trace`  | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)     | false    |              |             |
-| `url`    | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
+| Name     | Type                     | Required | Restrictions | Description |
+| -------- | ------------------------ | -------- | ------------ | ----------- |
+| `enable` | boolean                  | false    |              |             |
+| `trace`  | boolean                  | false    |              |             |
+| `url`    | [bigcli.URL](#bigcliurl) | false    |              |             |
 
 ## codersdk.Template
 
@@ -4683,49 +3061,19 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "capture_logs": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "enable": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "honeycomb_api_key": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  }
+  "capture_logs": true,
+  "enable": true,
+  "honeycomb_api_key": "string"
 }
 ```
 
 ### Properties
 
-| Name                | Type                                                                           | Required | Restrictions | Description |
-| ------------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `capture_logs`      | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)     | false    |              |             |
-| `enable`            | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)     | false    |              |             |
-| `honeycomb_api_key` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
+| Name                | Type    | Required | Restrictions | Description |
+| ------------------- | ------- | -------- | ------------ | ----------- |
+| `capture_logs`      | boolean | false    |              |             |
+| `enable`            | boolean | false    |              |             |
+| `honeycomb_api_key` | string  | false    |              |             |
 
 ## codersdk.TransitionStats
 
@@ -6209,3 +4557,13 @@ It corresponds to the legacy derpN.tailscale.com hostnames used by older clients
 RegionIDs must be non-zero, positive, and guaranteed to fit in a JavaScript number.
 RegionIDs in range 900-999 are reserved for end users to run their own DERP nodes.|
 |`regionName`|string|false||Regionname is a long English name for the region: "New York City", "San Francisco", "Singapore", "Frankfurt", etc.|
+
+## url.Userinfo
+
+```json
+{}
+```
+
+### Properties
+
+_None_

@@ -263,8 +263,10 @@ export interface DERP {
 
 // From codersdk/deployment.go
 export interface DERPConfig {
-  readonly url: DeploymentConfigField<string>
-  readonly path: DeploymentConfigField<string>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly url: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly path: string
 }
 
 // From codersdk/workspaceagents.go
@@ -275,78 +277,111 @@ export interface DERPRegion {
 
 // From codersdk/deployment.go
 export interface DERPServerConfig {
-  readonly enable: DeploymentConfigField<boolean>
-  readonly region_id: DeploymentConfigField<number>
-  readonly region_code: DeploymentConfigField<string>
-  readonly region_name: DeploymentConfigField<string>
-  readonly stun_addresses: DeploymentConfigField<string[]>
-  readonly relay_url: DeploymentConfigField<string>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly enable: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Int64")
+  readonly region_id: number
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly region_code: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly region_name: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Strings")
+  readonly stun_addresses: string[]
+  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  readonly relay_url: any
 }
 
 // From codersdk/deployment.go
 export interface DangerousConfig {
-  readonly allow_path_app_sharing: DeploymentConfigField<boolean>
-  readonly allow_path_app_site_owner_access: DeploymentConfigField<boolean>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly allow_path_app_sharing: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly allow_path_app_site_owner_access: boolean
 }
 
 // From codersdk/deployment.go
 export interface DeploymentConfig {
-  readonly access_url: DeploymentConfigField<string>
-  readonly wildcard_access_url: DeploymentConfigField<string>
-  readonly redirect_to_access_url: DeploymentConfigField<boolean>
-  readonly http_address: DeploymentConfigField<string>
-  readonly autobuild_poll_interval: DeploymentConfigField<number>
+  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  readonly AccessURL: any
+  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  readonly WildcardAccessURL: any
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly RedirectToAccessURL: boolean
+  // Named type "github.com/coder/coder/cli/bigcli.BindAddress" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  readonly http_address: any
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Duration")
+  readonly AutobuildPollInterval: number
   readonly derp: DERP
-  readonly gitauth: DeploymentConfigField<GitAuthConfig[]>
   readonly prometheus: PrometheusConfig
   readonly pprof: PprofConfig
-  readonly proxy_trusted_headers: DeploymentConfigField<string[]>
-  readonly proxy_trusted_origins: DeploymentConfigField<string[]>
-  readonly cache_directory: DeploymentConfigField<string>
-  readonly in_memory_database: DeploymentConfigField<boolean>
-  readonly pg_connection_url: DeploymentConfigField<string>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Strings")
+  readonly proxy_trusted_headers: string[]
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Strings")
+  readonly proxy_trusted_origins: string[]
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly cache_directory: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly in_memory_database: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly pg_connection_url: string
   readonly oauth2: OAuth2Config
   readonly oidc: OIDCConfig
   readonly telemetry: TelemetryConfig
   readonly tls: TLSConfig
   readonly trace: TraceConfig
-  readonly secure_auth_cookie: DeploymentConfigField<boolean>
-  readonly strict_transport_security: DeploymentConfigField<number>
-  readonly strict_transport_security_options: DeploymentConfigField<string[]>
-  readonly ssh_keygen_algorithm: DeploymentConfigField<string>
-  readonly metrics_cache_refresh_interval: DeploymentConfigField<number>
-  readonly agent_stat_refresh_interval: DeploymentConfigField<number>
-  readonly agent_fallback_troubleshooting_url: DeploymentConfigField<string>
-  readonly audit_logging: DeploymentConfigField<boolean>
-  readonly browser_only: DeploymentConfigField<boolean>
-  readonly scim_api_key: DeploymentConfigField<string>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly secure_auth_cookie: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Int64")
+  readonly strict_transport_security: number
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Strings")
+  readonly strict_transport_security_options: string[]
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly ssh_keygen_algorithm: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Duration")
+  readonly metrics_cache_refresh_interval: number
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Duration")
+  readonly agent_stat_refresh_interval: number
+  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  readonly agent_fallback_troubleshooting_url: any
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly audit_logging: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly browser_only: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly scim_api_key: string
   readonly provisioner: ProvisionerConfig
   readonly rate_limit: RateLimitConfig
-  readonly experiments: DeploymentConfigField<string[]>
-  readonly update_check: DeploymentConfigField<boolean>
-  readonly max_token_lifetime: DeploymentConfigField<number>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Strings")
+  readonly experiments: string[]
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly update_check: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Duration")
+  readonly max_token_lifetime: number
   readonly swagger: SwaggerConfig
   readonly logging: LoggingConfig
   readonly dangerous: DangerousConfig
-  readonly disable_path_apps: DeploymentConfigField<boolean>
-  readonly max_session_expiry: DeploymentConfigField<number>
-  readonly disable_session_expiry_refresh: DeploymentConfigField<boolean>
-  readonly disable_password_auth: DeploymentConfigField<boolean>
-  readonly address: DeploymentConfigField<string>
-  readonly experimental: DeploymentConfigField<boolean>
-}
-
-// From codersdk/deployment.go
-export interface DeploymentConfigField<T extends Flaggable> {
-  readonly name: string
-  readonly usage: string
-  readonly flag: string
-  readonly shorthand: string
-  readonly enterprise: boolean
-  readonly hidden: boolean
-  readonly secret: boolean
-  readonly default: T
-  readonly value: T
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly disable_path_apps: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Duration")
+  readonly max_session_expiry: number
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly disable_session_expiry_refresh: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly disable_password_auth: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly config: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly write_config: boolean
+  // Named type "github.com/coder/coder/cli/bigcli.BindAddress" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  readonly address: any
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly experimental: boolean
 }
 
 // From codersdk/deployment.go
@@ -436,9 +471,12 @@ export interface License {
 
 // From codersdk/deployment.go
 export interface LoggingConfig {
-  readonly human: DeploymentConfigField<string>
-  readonly json: DeploymentConfigField<string>
-  readonly stackdriver: DeploymentConfigField<string>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly human: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly json: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly stackdriver: string
 }
 
 // From codersdk/users.go
@@ -459,13 +497,20 @@ export interface OAuth2Config {
 
 // From codersdk/deployment.go
 export interface OAuth2GithubConfig {
-  readonly client_id: DeploymentConfigField<string>
-  readonly client_secret: DeploymentConfigField<string>
-  readonly allowed_orgs: DeploymentConfigField<string[]>
-  readonly allowed_teams: DeploymentConfigField<string[]>
-  readonly allow_signups: DeploymentConfigField<boolean>
-  readonly allow_everyone: DeploymentConfigField<boolean>
-  readonly enterprise_base_url: DeploymentConfigField<string>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly client_id: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly client_secret: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Strings")
+  readonly allowed_orgs: string[]
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Strings")
+  readonly allowed_teams: string[]
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly allow_signups: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly allow_everyone: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly enterprise_base_url: string
 }
 
 // From codersdk/users.go
@@ -476,16 +521,27 @@ export interface OIDCAuthMethod extends AuthMethod {
 
 // From codersdk/deployment.go
 export interface OIDCConfig {
-  readonly allow_signups: DeploymentConfigField<boolean>
-  readonly client_id: DeploymentConfigField<string>
-  readonly client_secret: DeploymentConfigField<string>
-  readonly email_domain: DeploymentConfigField<string[]>
-  readonly issuer_url: DeploymentConfigField<string>
-  readonly scopes: DeploymentConfigField<string[]>
-  readonly ignore_email_verified: DeploymentConfigField<boolean>
-  readonly username_field: DeploymentConfigField<string>
-  readonly sign_in_text: DeploymentConfigField<string>
-  readonly icon_url: DeploymentConfigField<string>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly allow_signups: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly client_id: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly client_secret: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Strings")
+  readonly email_domain: string[]
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly issuer_url: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Strings")
+  readonly scopes: string[]
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly ignore_email_verified: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly username_field: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly sign_in_text: string
+  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  readonly icon_url: any
 }
 
 // From codersdk/organizations.go
@@ -556,22 +612,32 @@ export interface PatchGroupRequest {
 
 // From codersdk/deployment.go
 export interface PprofConfig {
-  readonly enable: DeploymentConfigField<boolean>
-  readonly address: DeploymentConfigField<string>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly enable: boolean
+  // Named type "github.com/coder/coder/cli/bigcli.BindAddress" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  readonly address: any
 }
 
 // From codersdk/deployment.go
 export interface PrometheusConfig {
-  readonly enable: DeploymentConfigField<boolean>
-  readonly address: DeploymentConfigField<string>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly enable: boolean
+  // Named type "github.com/coder/coder/cli/bigcli.BindAddress" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  readonly address: any
 }
 
 // From codersdk/deployment.go
 export interface ProvisionerConfig {
-  readonly daemons: DeploymentConfigField<number>
-  readonly daemon_poll_interval: DeploymentConfigField<number>
-  readonly daemon_poll_jitter: DeploymentConfigField<number>
-  readonly force_cancel_interval: DeploymentConfigField<number>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Int64")
+  readonly daemons: number
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Duration")
+  readonly daemon_poll_interval: number
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Duration")
+  readonly daemon_poll_jitter: number
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Duration")
+  readonly force_cancel_interval: number
 }
 
 // From codersdk/provisionerdaemons.go
@@ -615,8 +681,10 @@ export interface PutExtendWorkspaceRequest {
 
 // From codersdk/deployment.go
 export interface RateLimitConfig {
-  readonly disable_all: DeploymentConfigField<boolean>
-  readonly api: DeploymentConfigField<number>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly disable_all: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Int64")
+  readonly api: number
 }
 
 // From codersdk/replicas.go
@@ -659,28 +727,44 @@ export interface ServiceBannerConfig {
 
 // From codersdk/deployment.go
 export interface SwaggerConfig {
-  readonly enable: DeploymentConfigField<boolean>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly enable: boolean
 }
 
 // From codersdk/deployment.go
 export interface TLSConfig {
-  readonly enable: DeploymentConfigField<boolean>
-  readonly address: DeploymentConfigField<string>
-  readonly redirect_http: DeploymentConfigField<boolean>
-  readonly cert_file: DeploymentConfigField<string[]>
-  readonly client_auth: DeploymentConfigField<string>
-  readonly client_ca_file: DeploymentConfigField<string>
-  readonly key_file: DeploymentConfigField<string[]>
-  readonly min_version: DeploymentConfigField<string>
-  readonly client_cert_file: DeploymentConfigField<string>
-  readonly client_key_file: DeploymentConfigField<string>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly enable: boolean
+  // Named type "github.com/coder/coder/cli/bigcli.BindAddress" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  readonly address: any
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly redirect_http: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Strings")
+  readonly cert_file: string[]
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly client_auth: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly client_ca_file: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Strings")
+  readonly key_file: string[]
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly min_version: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly client_cert_file: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly client_key_file: string
 }
 
 // From codersdk/deployment.go
 export interface TelemetryConfig {
-  readonly enable: DeploymentConfigField<boolean>
-  readonly trace: DeploymentConfigField<boolean>
-  readonly url: DeploymentConfigField<string>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly enable: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly trace: boolean
+  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  readonly url: any
 }
 
 // From codersdk/templates.go
@@ -802,9 +886,12 @@ export interface TokensFilter {
 
 // From codersdk/deployment.go
 export interface TraceConfig {
-  readonly enable: DeploymentConfigField<boolean>
-  readonly honeycomb_api_key: DeploymentConfigField<string>
-  readonly capture_logs: DeploymentConfigField<boolean>
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly enable: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly honeycomb_api_key: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly capture_logs: boolean
 }
 
 // From codersdk/templates.go
