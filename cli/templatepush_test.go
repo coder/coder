@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
 )
 
@@ -250,6 +252,250 @@ func TestTemplatePush(t *testing.T) {
 		assert.Len(t, templateVersions, 2)
 		assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
 	})
+
+	t.Run("Variables", func(t *testing.T) {
+		t.Parallel()
+
+		initialTemplateVariables := []*proto.TemplateVariable{
+			{
+				Name:         "first_variable",
+				Description:  "This is the first variable",
+				Type:         "string",
+				DefaultValue: "abc",
+				Required:     false,
+				Sensitive:    true,
+			},
+		}
+
+		t.Run("VariableIsRequired", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+
+			templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
+			_ = coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
+
+			// Test the cli command.
+			modifiedTemplateVariables := append(initialTemplateVariables,
+				&proto.TemplateVariable{
+					Name:        "second_variable",
+					Description: "This is the second variable",
+					Type:        "string",
+					Required:    true,
+				},
+			)
+			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
+			tempDir := t.TempDir()
+			removeTmpDirUntilSuccessAfterTest(t, tempDir)
+			variablesFile, _ := os.CreateTemp(tempDir, "variables*.yaml")
+			_, _ = variablesFile.WriteString(`second_variable: foobar`)
+			cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--variables-file", variablesFile.Name())
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t)
+			cmd.SetIn(pty.Input())
+			cmd.SetOut(pty.Output())
+
+			execDone := make(chan error)
+			go func() {
+				execDone <- cmd.Execute()
+			}()
+
+			matches := []struct {
+				match string
+				write string
+			}{
+				{match: "Upload", write: "yes"},
+			}
+			for _, m := range matches {
+				pty.ExpectMatch(m.match)
+				pty.WriteLine(m.write)
+			}
+
+			require.NoError(t, <-execDone)
+
+			// Assert that the template version changed.
+			templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
+				TemplateID: template.ID,
+			})
+			require.NoError(t, err)
+			assert.Len(t, templateVersions, 2)
+			assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
+			require.Equal(t, "example", templateVersions[1].Name)
+
+			templateVariables, err := client.TemplateVersionVariables(context.Background(), templateVersions[1].ID)
+			require.NoError(t, err)
+			assert.Len(t, templateVariables, 2)
+			require.Equal(t, "second_variable", templateVariables[1].Name)
+			require.Equal(t, "foobar", templateVariables[1].Value)
+		})
+
+		t.Run("VariableIsRequiredButNotProvided", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+
+			templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
+			_ = coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
+
+			// Test the cli command.
+			modifiedTemplateVariables := append(initialTemplateVariables,
+				&proto.TemplateVariable{
+					Name:        "second_variable",
+					Description: "This is the second variable",
+					Type:        "string",
+					Required:    true,
+				},
+			)
+			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
+			cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t)
+			cmd.SetIn(pty.Input())
+			cmd.SetOut(pty.Output())
+
+			execDone := make(chan error)
+			go func() {
+				execDone <- cmd.Execute()
+			}()
+
+			matches := []struct {
+				match string
+				write string
+			}{
+				{match: "Upload", write: "yes"},
+			}
+			for _, m := range matches {
+				pty.ExpectMatch(m.match)
+				pty.WriteLine(m.write)
+			}
+
+			wantErr := <-execDone
+			require.Error(t, wantErr)
+			require.Contains(t, wantErr.Error(), "required template variables need values")
+		})
+
+		t.Run("VariableIsOptionalButNotProvided", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+
+			templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
+			_ = coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
+
+			// Test the cli command.
+			modifiedTemplateVariables := append(initialTemplateVariables,
+				&proto.TemplateVariable{
+					Name:         "second_variable",
+					Description:  "This is the second variable",
+					Type:         "string",
+					DefaultValue: "abc",
+					Required:     true,
+				},
+			)
+			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
+			cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t)
+			cmd.SetIn(pty.Input())
+			cmd.SetOut(pty.Output())
+
+			execDone := make(chan error)
+			go func() {
+				execDone <- cmd.Execute()
+			}()
+
+			matches := []struct {
+				match string
+				write string
+			}{
+				{match: "Upload", write: "yes"},
+			}
+			for _, m := range matches {
+				pty.ExpectMatch(m.match)
+				pty.WriteLine(m.write)
+			}
+
+			require.NoError(t, <-execDone)
+
+			// Assert that the template version changed.
+			templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
+				TemplateID: template.ID,
+			})
+			require.NoError(t, err)
+			assert.Len(t, templateVersions, 2)
+			assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
+			require.Equal(t, "example", templateVersions[1].Name)
+
+			templateVariables, err := client.TemplateVersionVariables(context.Background(), templateVersions[1].ID)
+			require.NoError(t, err)
+			assert.Len(t, templateVariables, 2)
+			require.Equal(t, "second_variable", templateVariables[1].Name)
+			require.Equal(t, "abc", templateVariables[1].Value)
+			require.Equal(t, templateVariables[1].DefaultValue, templateVariables[1].Value)
+		})
+
+		t.Run("WithVariableOption", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+
+			templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
+			_ = coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
+
+			// Test the cli command.
+			modifiedTemplateVariables := append(initialTemplateVariables,
+				&proto.TemplateVariable{
+					Name:        "second_variable",
+					Description: "This is the second variable",
+					Type:        "string",
+					Required:    true,
+				},
+			)
+			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
+			cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--variable", "second_variable=foobar")
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t)
+			cmd.SetIn(pty.Input())
+			cmd.SetOut(pty.Output())
+
+			execDone := make(chan error)
+			go func() {
+				execDone <- cmd.Execute()
+			}()
+
+			matches := []struct {
+				match string
+				write string
+			}{
+				{match: "Upload", write: "yes"},
+			}
+			for _, m := range matches {
+				pty.ExpectMatch(m.match)
+				pty.WriteLine(m.write)
+			}
+
+			require.NoError(t, <-execDone)
+
+			// Assert that the template version changed.
+			templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
+				TemplateID: template.ID,
+			})
+			require.NoError(t, err)
+			assert.Len(t, templateVersions, 2)
+			assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
+			require.Equal(t, "example", templateVersions[1].Name)
+
+			templateVariables, err := client.TemplateVersionVariables(context.Background(), templateVersions[1].ID)
+			require.NoError(t, err)
+			assert.Len(t, templateVariables, 2)
+			require.Equal(t, "second_variable", templateVariables[1].Name)
+			require.Equal(t, "foobar", templateVariables[1].Value)
+		})
+	})
 }
 
 func latestTemplateVersion(t *testing.T, client *codersdk.Client, templateID uuid.UUID) (codersdk.TemplateVersion, []codersdk.Parameter) {
@@ -264,4 +510,20 @@ func latestTemplateVersion(t *testing.T, client *codersdk.Client, templateID uui
 	require.NoError(t, err)
 
 	return tv, params
+}
+
+func createEchoResponsesWithTemplateVariables(templateVariables []*proto.TemplateVariable) *echo.Responses {
+	return &echo.Responses{
+		Parse: []*proto.Parse_Response{
+			{
+				Type: &proto.Parse_Response_Complete{
+					Complete: &proto.Parse_Complete{
+						TemplateVariables: templateVariables,
+					},
+				},
+			},
+		},
+		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionComplete,
+	}
 }

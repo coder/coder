@@ -96,6 +96,21 @@ func (q *querier) GetTemplates(ctx context.Context) ([]database.Template, error)
 	return q.db.GetTemplates(ctx)
 }
 
+// Only used by metrics cache.
+func (q *querier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
+	return q.db.GetTemplateAverageBuildTime(ctx, arg)
+}
+
+// Only used by metrics cache.
+func (q *querier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
+	return q.db.GetTemplateDAUs(ctx, templateID)
+}
+
+// Only used by metrics cache.
+func (q *querier) GetDeploymentDAUs(ctx context.Context) ([]database.GetDeploymentDAUsRow, error) {
+	return q.db.GetDeploymentDAUs(ctx)
+}
+
 // UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.
 func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
 	return q.db.UpdateWorkspaceBuildCostByID(ctx, arg)
@@ -139,6 +154,7 @@ func (q *querier) DeleteOldAgentStats(ctx context.Context) error {
 func (q *querier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ParameterSchema, error) {
 	return q.db.GetParameterSchemasCreatedAfter(ctx, createdAt)
 }
+
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
 	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
 }
@@ -183,6 +199,10 @@ func (q *querier) InsertProvisionerDaemon(ctx context.Context, arg database.Inse
 
 func (q *querier) InsertTemplateVersionParameter(ctx context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
 	return q.db.InsertTemplateVersionParameter(ctx, arg)
+}
+
+func (q *querier) InsertTemplateVersionVariable(ctx context.Context, arg database.InsertTemplateVersionVariableParams) (database.TemplateVersionVariable, error) {
+	return q.db.InsertTemplateVersionVariable(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceResource(ctx context.Context, arg database.InsertWorkspaceResourceParams) (database.WorkspaceResource, error) {

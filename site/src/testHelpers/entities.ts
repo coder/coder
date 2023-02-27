@@ -60,6 +60,25 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   version: "v99.999.9999+c9cdf14",
 }
 
+export const MockSupportLinks: TypesGen.LinkConfig[] = [
+  {
+    name: "First link",
+    target: "http://first-link",
+    icon: "chat",
+  },
+  {
+    name: "Second link",
+    target: "http://second-link",
+    icon: "docs",
+  },
+  {
+    name: "Third link",
+    target:
+      "https://github.com/coder/coder/issues/new?labels=needs+grooming&body={CODER_BUILD_INFO}",
+    icon: "",
+  },
+]
+
 export const MockUpdateCheck: TypesGen.UpdateCheckResponse = {
   current: true,
   url: "file:///mock-url",
@@ -1119,6 +1138,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
   has_license: false,
   features: withDefaultFeatures({}),
   experimental: false,
+  require_telemetry: false,
   trial: false,
 }
 
@@ -1128,6 +1148,7 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
   has_license: true,
   experimental: false,
   trial: false,
+  require_telemetry: false,
   features: withDefaultFeatures({
     user_limit: {
       enabled: true,
@@ -1151,6 +1172,7 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   warnings: [],
   has_license: true,
   experimental: false,
+  require_telemetry: false,
   trial: false,
   features: withDefaultFeatures({
     audit_log: {
@@ -1386,4 +1408,11 @@ export const mockParameterSchema = (
     validation_value_type: "",
     ...partial,
   }
+}
+
+export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
+  id: "github",
+  type: "github",
+  authenticate_url: "https://example.com/gitauth/github",
+  authenticated: false,
 }

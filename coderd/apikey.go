@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -142,9 +143,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.APIKey
 // @Router /users/{user}/keys/{keyid} [get]
 func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
-	)
+	ctx := r.Context()
 
 	keyID := chi.URLParam(r, "keyid")
 	key, err := api.Database.GetAPIKeyByID(ctx, keyID)
@@ -178,16 +177,34 @@ func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/{user}/keys/tokens [get]
 func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx = r.Context()
+		ctx           = r.Context()
+		user          = httpmw.UserParam(r)
+		keys          []database.APIKey
+		err           error
+		queryStr      = r.URL.Query().Get("include_all")
+		includeAll, _ = strconv.ParseBool(queryStr)
 	)
 
-	keys, err := api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching API keys.",
-			Detail:  err.Error(),
-		})
-		return
+	if includeAll {
+		// get tokens for all users
+		keys, err = api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching API keys.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	} else {
+		// get user's tokens only
+		keys, err = api.Database.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, UserID: user.ID})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching API keys.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	keys, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, keys)

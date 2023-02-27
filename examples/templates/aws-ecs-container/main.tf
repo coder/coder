@@ -1,12 +1,12 @@
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.28"
-    }
     coder = {
       source  = "coder/coder"
-      version = "0.6.10"
+      version = "~> 0.6.12"
+    }
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.55"
     }
   }
 }

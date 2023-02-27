@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -122,15 +123,28 @@ func TestRead(t *testing.T) {
 	})
 }
 
-func WebsocketCloseMsg(t *testing.T) {
+func TestWebsocketCloseMsg(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Sprintf", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			msg  = "this is my message %q %q"
+			opts = []any{"colin", "kyle"}
+		)
+
+		expected := fmt.Sprintf(msg, opts...)
+		got := httpapi.WebsocketCloseSprintf(msg, opts...)
+		assert.Equal(t, expected, got)
+	})
 
 	t.Run("TruncateSingleByteCharacters", func(t *testing.T) {
 		t.Parallel()
 
 		msg := strings.Repeat("d", 255)
 		trunc := httpapi.WebsocketCloseSprintf(msg)
-		assert.LessOrEqual(t, len(trunc), 123)
+		assert.Equal(t, len(trunc), 123)
 	})
 
 	t.Run("TruncateMultiByteCharacters", func(t *testing.T) {
@@ -138,6 +152,6 @@ func WebsocketCloseMsg(t *testing.T) {
 
 		msg := strings.Repeat("こんにちは", 10)
 		trunc := httpapi.WebsocketCloseSprintf(msg)
-		assert.LessOrEqual(t, len(trunc), 123)
+		assert.Equal(t, len(trunc), 123)
 	})
 }

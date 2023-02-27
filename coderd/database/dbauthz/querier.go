@@ -40,6 +40,10 @@ func (q *querier) GetAPIKeysByLoginType(ctx context.Context, loginType database.
 	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysByLoginType)(ctx, loginType)
 }
 
+func (q *querier) GetAPIKeysByUserID(ctx context.Context, params database.GetAPIKeysByUserIDParams) ([]database.APIKey, error) {
+	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysByUserID)(ctx, database.GetAPIKeysByUserIDParams{LoginType: params.LoginType, UserID: params.UserID})
+}
+
 func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]database.APIKey, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
 }
@@ -325,13 +329,6 @@ func (q *querier) GetProvisionerDaemons(ctx context.Context) ([]database.Provisi
 		return q.db.GetProvisionerDaemons(ctx)
 	}
 	return fetchWithPostFilter(q.auth, fetch)(ctx, nil)
-}
-
-func (q *querier) GetDeploymentDAUs(ctx context.Context) ([]database.GetDeploymentDAUsRow, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.All()); err != nil {
-		return nil, err
-	}
-	return q.db.GetDeploymentDAUs(ctx)
 }
 
 func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
@@ -622,31 +619,12 @@ func (q *querier) GetPreviousTemplateVersion(ctx context.Context, arg database.G
 	return q.db.GetPreviousTemplateVersion(ctx, arg)
 }
 
-func (q *querier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
-	// An actor can read the average build time if they can read the related template.
-	// It doesn't make any sense to get the average build time for a template that doesn't
-	// exist, so omitting this check here.
-	if _, err := q.GetTemplateByID(ctx, arg.TemplateID.UUID); err != nil {
-		return database.GetTemplateAverageBuildTimeRow{}, err
-	}
-	return q.db.GetTemplateAverageBuildTime(ctx, arg)
-}
-
 func (q *querier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
 	return fetch(q.log, q.auth, q.db.GetTemplateByID)(ctx, id)
 }
 
 func (q *querier) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
 	return fetch(q.log, q.auth, q.db.GetTemplateByOrganizationAndName)(ctx, arg)
-}
-
-func (q *querier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplateDAUsRow, error) {
-	// An actor can read the DAUs if they can read the related template.
-	// Again, it doesn't make sense to get DAUs for a template that doesn't exist.
-	if _, err := q.GetTemplateByID(ctx, templateID); err != nil {
-		return nil, err
-	}
-	return q.db.GetTemplateDAUs(ctx, templateID)
 }
 
 func (q *querier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUID) (database.TemplateVersion, error) {
@@ -722,6 +700,29 @@ func (q *querier) GetTemplateVersionParameters(ctx context.Context, templateVers
 		return nil, err
 	}
 	return q.db.GetTemplateVersionParameters(ctx, templateVersionID)
+}
+
+func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
+	tv, err := q.db.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var object rbac.Objecter
+	template, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		object = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		object = tv.RBACObject(template)
+	}
+
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, object); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateVersionVariables(ctx, templateVersionID)
 }
 
 func (q *querier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
@@ -886,6 +887,28 @@ func (q *querier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, a
 		return err
 	}
 	return q.db.UpdateTemplateVersionDescriptionByJobID(ctx, arg)
+}
+
+func (q *querier) UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.Context, arg database.UpdateTemplateVersionGitAuthProvidersByJobIDParams) error {
+	// An actor is allowed to update the template version git auth providers if they are authorized to update the template.
+	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
+	if err != nil {
+		return err
+	}
+	var obj rbac.Objecter
+	if !tv.TemplateID.Valid {
+		obj = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		tpl, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		if err != nil {
+			return err
+		}
+		obj = tpl
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, obj); err != nil {
+		return err
+	}
+	return q.db.UpdateTemplateVersionGitAuthProvidersByJobID(ctx, arg)
 }
 
 func (q *querier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
@@ -1102,11 +1125,11 @@ func (q *querier) InsertGitAuthLink(ctx context.Context, arg database.InsertGitA
 	return insert(q.log, q.auth, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.db.InsertGitAuthLink)(ctx, arg)
 }
 
-func (q *querier) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) error {
+func (q *querier) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
 	fetch := func(ctx context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
 		return q.db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
 	}
-	return update(q.log, q.auth, fetch, q.db.UpdateGitAuthLink)(ctx, arg)
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateGitAuthLink)(ctx, arg)
 }
 
 func (q *querier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {

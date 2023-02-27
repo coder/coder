@@ -25,9 +25,7 @@ const (
 	GovCloud Region = "govcloud"
 )
 
-var (
-	All = []Region{Other, HongKong, Bahrain, CapeTown, Milan, China, GovCloud}
-)
+var All = []Region{Other, HongKong, Bahrain, CapeTown, Milan, China, GovCloud}
 
 // Certificates hold public keys for various AWS regions. See:
 type Certificates map[Region]string

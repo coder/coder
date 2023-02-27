@@ -13,16 +13,15 @@ import (
 // AuditableResources map (below) as our documentation - generated in scripts/auditdocgen/main.go -
 // depends upon it.
 var AuditActionMap = map[string][]codersdk.AuditAction{
-	"GitSSHKey":          {codersdk.AuditActionCreate},
-	"OrganizationMember": {},
-	"Organization":       {},
-	"Template":           {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"TemplateVersion":    {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
-	"User":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"Workspace":          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"WorkspaceBuild":     {codersdk.AuditActionStart, codersdk.AuditActionStop},
-	"Group":              {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"APIKey":             {codersdk.AuditActionWrite},
+	"GitSSHKey":       {codersdk.AuditActionCreate},
+	"Template":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"TemplateVersion": {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
+	"User":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Workspace":       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"WorkspaceBuild":  {codersdk.AuditActionStart, codersdk.AuditActionStop},
+	"Group":           {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"APIKey":          {codersdk.AuditActionWrite},
+	"License":         {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 }
 
 type Action string
@@ -73,15 +72,16 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"allow_user_cancel_workspace_jobs": ActionTrack,
 	},
 	&database.TemplateVersion{}: {
-		"id":              ActionTrack,
-		"template_id":     ActionTrack,
-		"organization_id": ActionIgnore, // Never changes.
-		"created_at":      ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"name":            ActionTrack,
-		"readme":          ActionTrack,
-		"job_id":          ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
-		"created_by":      ActionTrack,
+		"id":                 ActionTrack,
+		"template_id":        ActionTrack,
+		"organization_id":    ActionIgnore, // Never changes.
+		"created_at":         ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"name":               ActionTrack,
+		"readme":             ActionTrack,
+		"job_id":             ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
+		"created_by":         ActionTrack,
+		"git_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
 	},
 	&database.User{}: {
 		"id":              ActionTrack,
@@ -146,6 +146,15 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"lifetime_seconds": ActionIgnore,
 		"ip_address":       ActionIgnore,
 		"scope":            ActionIgnore,
+	},
+	// TODO: track an ID here when the below ticket is completed:
+	// https://github.com/coder/coder/pull/6012
+	&database.License{}: {
+		"id":          ActionIgnore,
+		"uploaded_at": ActionTrack,
+		"jwt":         ActionIgnore,
+		"exp":         ActionTrack,
+		"uuid":        ActionTrack,
 	},
 })
 

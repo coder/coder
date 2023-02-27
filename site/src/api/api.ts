@@ -101,9 +101,19 @@ export const logout = async (): Promise<void> => {
   await axios.post("/api/v2/users/logout")
 }
 
-export const getUser = async (): Promise<TypesGen.User> => {
-  const response = await axios.get<TypesGen.User>("/api/v2/users/me")
-  return response.data
+export const getAuthenticatedUser = async (): Promise<
+  TypesGen.User | undefined
+> => {
+  try {
+    const response = await axios.get<TypesGen.User>("/api/v2/users/me")
+    return response.data
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      return undefined
+    }
+
+    throw error
+  }
 }
 
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
@@ -130,9 +140,14 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
   return response.data
 }
 
-export const getTokens = async (): Promise<TypesGen.APIKey[]> => {
+export const getTokens = async (
+  params: TypesGen.TokensFilter,
+): Promise<TypesGen.APIKey[]> => {
   const response = await axios.get<TypesGen.APIKey[]>(
-    "/api/v2/users/me/keys/tokens",
+    `/api/v2/users/me/keys/tokens`,
+    {
+      params,
+    },
   )
   return response.data
 }
@@ -276,6 +291,15 @@ export const createTemplateVersion = async (
   const response = await axios.post<TypesGen.TemplateVersion>(
     `/api/v2/organizations/${organizationId}/templateversions`,
     data,
+  )
+  return response.data
+}
+
+export const getTemplateVersionGitAuth = async (
+  versionId: string,
+): Promise<TypesGen.TemplateVersionGitAuth[]> => {
+  const response = await axios.get(
+    `/api/v2/templateversions/${versionId}/gitauth`,
   )
   return response.data
 }
@@ -654,6 +678,7 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
         experimental: false,
         features: withDefaultFeatures({}),
         has_license: false,
+        require_telemetry: false,
         trial: false,
         warnings: [],
       }

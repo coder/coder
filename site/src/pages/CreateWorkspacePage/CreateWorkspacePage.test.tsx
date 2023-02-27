@@ -12,6 +12,7 @@ import {
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
+  MockTemplateVersionGitAuth,
 } from "testHelpers/entities"
 import { renderWithAuth } from "testHelpers/renderHelpers"
 import CreateWorkspacePage from "./CreateWorkspacePage"
@@ -37,6 +38,17 @@ const renderCreateWorkspacePage = () => {
     path: "/templates/:template/workspace",
   })
 }
+
+Object.defineProperty(window, "BroadcastChannel", {
+  value: class {
+    addEventListener() {
+      // noop
+    }
+    close() {
+      // noop
+    }
+  },
+})
 
 describe("CreateWorkspacePage", () => {
   it("renders", async () => {
@@ -209,5 +221,25 @@ describe("CreateWorkspacePage", () => {
 
     const validationError = await screen.findByText(validationPatternNotMatched)
     expect(validationError).toBeInTheDocument()
+  })
+
+  it("gitauth: errors if unauthenticated and submits", async () => {
+    jest
+      .spyOn(API, "getTemplateVersionGitAuth")
+      .mockResolvedValueOnce([MockTemplateVersionGitAuth])
+
+    await waitFor(() => renderCreateWorkspacePage())
+
+    const nameField = await screen.findByLabelText(nameLabelText)
+
+    // have to use fireEvent b/c userEvent isn't cleaning up properly between tests
+    fireEvent.change(nameField, {
+      target: { value: "test" },
+    })
+
+    const submitButton = screen.getByText(createWorkspaceText)
+    await userEvent.click(submitButton)
+
+    await screen.findByText("You must authenticate to create a workspace!")
   })
 })

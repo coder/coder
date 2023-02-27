@@ -109,7 +109,7 @@ func BenchmarkRBACAuthorize(b *testing.B) {
 		uuid.MustParse("0632b012-49e0-4d70-a5b3-f4398f1dcd52"),
 		uuid.MustParse("70dbaa7a-ea9c-4f68-a781-97b08af8461d"),
 	)
-	authorizer := rbac.NewAuthorizer(prometheus.NewRegistry())
+	authorizer := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
 	// This benchmarks all the simple cases using just user permissions. Groups
 	// are added as noise, but do not do anything.
 	for _, c := range benchCases {
@@ -118,7 +118,7 @@ func BenchmarkRBACAuthorize(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				allowed := authorizer.Authorize(context.Background(), c.Actor, rbac.ActionRead, objects[b.N%len(objects)])
-				var _ = allowed
+				_ = allowed
 			}
 		})
 	}
@@ -136,7 +136,7 @@ func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 		uuid.MustParse("0632b012-49e0-4d70-a5b3-f4398f1dcd52"),
 		uuid.MustParse("70dbaa7a-ea9c-4f68-a781-97b08af8461d"),
 	)
-	authorizer := rbac.NewAuthorizer(prometheus.NewRegistry())
+	authorizer := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
 
 	// Same benchmark cases, but this time groups will be used to match.
 	// Some '*' permissions will still match, but using a fake action reduces
@@ -170,7 +170,7 @@ func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				allowed := authorizer.Authorize(context.Background(), c.Actor, neverMatchAction, objects[b.N%len(objects)])
-				var _ = allowed
+				_ = allowed
 			}
 		})
 	}
@@ -188,7 +188,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 		uuid.MustParse("70dbaa7a-ea9c-4f68-a781-97b08af8461d"),
 	)
 
-	authorizer := rbac.NewAuthorizer(prometheus.NewRegistry())
+	authorizer := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
 
 	for _, c := range benchCases {
 		b.Run("PrepareOnly-"+c.Name, func(b *testing.B) {
@@ -206,7 +206,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 			b.ResetTimer()
 			allowed, err := rbac.Filter(context.Background(), authorizer, c.Actor, rbac.ActionRead, objects)
 			require.NoError(b, err)
-			var _ = allowed
+			_ = allowed
 		})
 	}
 }

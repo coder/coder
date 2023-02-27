@@ -22,8 +22,9 @@ func TestConvertResources(t *testing.T) {
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
 	type testCase struct {
-		resources  []*proto.Resource
-		parameters []*proto.RichParameter
+		resources        []*proto.Resource
+		parameters       []*proto.RichParameter
+		gitAuthProviders []string
 	}
 	// nolint:paralleltest
 	for folderName, expected := range map[string]testCase{
@@ -170,6 +171,30 @@ func TestConvertResources(t *testing.T) {
 				}},
 			}},
 		},
+		"mapped-apps": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Apps: []*proto.App{
+						{
+							Slug:        "app1",
+							DisplayName: "app1",
+						},
+						{
+							Slug:        "app2",
+							DisplayName: "app2",
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					LoginBeforeReady:         true,
+					ConnectionTimeoutSeconds: 120,
+				}},
+			}},
+		},
 		// Tests fetching metadata about workspace resources.
 		"resource-metadata": {
 			resources: []*proto.Resource{{
@@ -270,6 +295,22 @@ func TestConvertResources(t *testing.T) {
 				}},
 			}},
 		},
+		"git-auth-providers": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:                        "main",
+					OperatingSystem:             "linux",
+					Architecture:                "amd64",
+					Auth:                        &proto.Agent_Token{},
+					LoginBeforeReady:            true,
+					ConnectionTimeoutSeconds:    120,
+					StartupScriptTimeoutSeconds: 300,
+				}},
+			}},
+			gitAuthProviders: []string{"github", "gitlab"},
+		},
 	} {
 		folderName := folderName
 		expected := expected
@@ -287,15 +328,19 @@ func TestConvertResources(t *testing.T) {
 				tfPlanGraph, err := os.ReadFile(filepath.Join(dir, folderName+".tfplan.dot"))
 				require.NoError(t, err)
 
-				modules := []*tfjson.StateModule{}
+				modules := []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}
 				if tfPlan.PriorState != nil {
 					modules = append(modules, tfPlan.PriorState.Values.RootModule)
+				} else {
+					// Ensure that resources can be duplicated in the source state
+					// and that no errors occur!
+					modules = append(modules, tfPlan.PlannedValues.RootModule)
 				}
-				modules = append(modules, tfPlan.PlannedValues.RootModule)
-				resources, parameters, err := terraform.ConvertResourcesAndParameters(modules, string(tfPlanGraph))
+				state, err := terraform.ConvertState(modules, string(tfPlanGraph))
 				require.NoError(t, err)
-				sortResources(resources)
-				sortParameters(parameters)
+				sortResources(state.Resources)
+				sortParameters(state.Parameters)
+				sort.Strings(state.GitAuthProviders)
 
 				expectedNoMetadata := make([]*proto.Resource, 0)
 				for _, resource := range expected.resources {
@@ -315,7 +360,7 @@ func TestConvertResources(t *testing.T) {
 				err = json.Unmarshal(data, &expectedNoMetadataMap)
 				require.NoError(t, err)
 
-				data, err = json.Marshal(resources)
+				data, err = json.Marshal(state.Resources)
 				require.NoError(t, err)
 				var resourcesMap []map[string]interface{}
 				err = json.Unmarshal(data, &resourcesMap)
@@ -327,10 +372,12 @@ func TestConvertResources(t *testing.T) {
 				}
 				parametersWant, err := json.Marshal(expected.parameters)
 				require.NoError(t, err)
-				parametersGot, err := json.Marshal(parameters)
+				parametersGot, err := json.Marshal(state.Parameters)
 				require.NoError(t, err)
 				require.Equal(t, string(parametersWant), string(parametersGot))
 				require.Equal(t, expectedNoMetadataMap, resourcesMap)
+
+				require.ElementsMatch(t, expected.gitAuthProviders, state.GitAuthProviders)
 			})
 
 			t.Run("Provision", func(t *testing.T) {
@@ -343,11 +390,12 @@ func TestConvertResources(t *testing.T) {
 				tfStateGraph, err := os.ReadFile(filepath.Join(dir, folderName+".tfstate.dot"))
 				require.NoError(t, err)
 
-				resources, parameters, err := terraform.ConvertResourcesAndParameters([]*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph))
+				state, err := terraform.ConvertState([]*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph))
 				require.NoError(t, err)
-				sortResources(resources)
-				sortParameters(parameters)
-				for _, resource := range resources {
+				sortResources(state.Resources)
+				sortParameters(state.Parameters)
+				sort.Strings(state.GitAuthProviders)
+				for _, resource := range state.Resources {
 					for _, agent := range resource.Agents {
 						agent.Id = ""
 						if agent.GetToken() != "" {
@@ -366,13 +414,14 @@ func TestConvertResources(t *testing.T) {
 				err = json.Unmarshal(data, &expectedMap)
 				require.NoError(t, err)
 
-				data, err = json.Marshal(resources)
+				data, err = json.Marshal(state.Resources)
 				require.NoError(t, err)
 				var resourcesMap []map[string]interface{}
 				err = json.Unmarshal(data, &resourcesMap)
 				require.NoError(t, err)
 
 				require.Equal(t, expectedMap, resourcesMap)
+				require.ElementsMatch(t, expected.gitAuthProviders, state.GitAuthProviders)
 			})
 		})
 	}
@@ -401,8 +450,8 @@ func TestAppSlugValidation(t *testing.T) {
 		}
 	}
 
-	resources, _, err := terraform.ConvertResourcesAndParameters([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
-	require.Nil(t, resources)
+	state, err := terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
+	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "invalid app slug")
 
@@ -413,8 +462,8 @@ func TestAppSlugValidation(t *testing.T) {
 		}
 	}
 
-	resources, _, err = terraform.ConvertResourcesAndParameters([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
-	require.Nil(t, resources)
+	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
+	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "duplicate app slug")
 }
@@ -446,7 +495,7 @@ func TestInstanceTypeAssociation(t *testing.T) {
 			t.Parallel()
 			instanceType, err := cryptorand.String(12)
 			require.NoError(t, err)
-			resources, _, err := terraform.ConvertResourcesAndParameters([]*tfjson.StateModule{{
+			state, err := terraform.ConvertState([]*tfjson.StateModule{{
 				Resources: []*tfjson.StateResource{{
 					Address: tc.ResourceType + ".dev",
 					Type:    tc.ResourceType,
@@ -465,8 +514,8 @@ func TestInstanceTypeAssociation(t *testing.T) {
 	}
 }`)
 			require.NoError(t, err)
-			require.Len(t, resources, 1)
-			require.Equal(t, resources[0].GetInstanceType(), instanceType)
+			require.Len(t, state.Resources, 1)
+			require.Equal(t, state.Resources[0].GetInstanceType(), instanceType)
 		})
 	}
 }
@@ -504,7 +553,7 @@ func TestInstanceIDAssociation(t *testing.T) {
 			t.Parallel()
 			instanceID, err := cryptorand.String(12)
 			require.NoError(t, err)
-			resources, _, err := terraform.ConvertResourcesAndParameters([]*tfjson.StateModule{{
+			state, err := terraform.ConvertState([]*tfjson.StateModule{{
 				Resources: []*tfjson.StateResource{{
 					Address: "coder_agent.dev",
 					Type:    "coder_agent",
@@ -536,9 +585,9 @@ func TestInstanceIDAssociation(t *testing.T) {
 }
 `)
 			require.NoError(t, err)
-			require.Len(t, resources, 1)
-			require.Len(t, resources[0].Agents, 1)
-			require.Equal(t, resources[0].Agents[0].GetInstanceId(), instanceID)
+			require.Len(t, state.Resources, 1)
+			require.Len(t, state.Resources[0].Agents, 1)
+			require.Equal(t, state.Resources[0].Agents[0].GetInstanceId(), instanceID)
 		})
 	}
 }

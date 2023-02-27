@@ -23,7 +23,7 @@ type authSubject struct {
 func TestRolePermissions(t *testing.T) {
 	t.Parallel()
 
-	auth := rbac.NewAuthorizer(prometheus.NewRegistry())
+	auth := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
 
 	// currentUser is anything that references "me", "mine", or "my".
 	currentUser := uuid.New()

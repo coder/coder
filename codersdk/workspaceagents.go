@@ -100,7 +100,7 @@ type DialWorkspaceAgentOptions struct {
 	BlockEndpoints bool
 }
 
-func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (*WorkspaceAgentConn, error) {
+func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (agentConn *WorkspaceAgentConn, err error) {
 	if options == nil {
 		options = &DialWorkspaceAgentOptions{}
 	}
@@ -128,6 +128,11 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			_ = conn.Close()
+		}
+	}()
 
 	coordinateURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", agentID))
 	if err != nil {
@@ -145,7 +150,12 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		Jar:       jar,
 		Transport: c.HTTPClient.Transport,
 	}
-	ctx, cancelFunc := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx)
+	defer func() {
+		if err != nil {
+			cancel()
+		}
+	}()
 	closed := make(chan struct{})
 	first := make(chan error)
 	go func() {
@@ -175,7 +185,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 				continue
 			}
 			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(node []*tailnet.Node) error {
-				return conn.UpdateNodes(node)
+				return conn.UpdateNodes(node, false)
 			})
 			conn.SetNodeCallback(sendNode)
 			options.Logger.Debug(ctx, "serving coordinator")
@@ -194,18 +204,22 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	}()
 	err = <-first
 	if err != nil {
-		cancelFunc()
-		_ = conn.Close()
 		return nil, err
 	}
 
-	return &WorkspaceAgentConn{
+	agentConn = &WorkspaceAgentConn{
 		Conn: conn,
 		CloseFunc: func() {
-			cancelFunc()
+			cancel()
 			<-closed
 		},
-	}, nil
+	}
+	if !agentConn.AwaitReachable(ctx) {
+		_ = agentConn.Close()
+		return nil, xerrors.Errorf("timed out waiting for agent to become reachable: %w", ctx.Err())
+	}
+
+	return agentConn, nil
 }
 
 // WorkspaceAgent returns an agent by ID.
@@ -277,12 +291,26 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 
 // GitProvider is a constant that represents the
 // type of providers that are supported within Coder.
-// @typescript-ignore GitProvider
 type GitProvider string
 
+func (g GitProvider) Pretty() string {
+	switch g {
+	case GitProviderAzureDevops:
+		return "Azure DevOps"
+	case GitProviderGitHub:
+		return "GitHub"
+	case GitProviderGitLab:
+		return "GitLab"
+	case GitProviderBitBucket:
+		return "Bitbucket"
+	default:
+		return string(g)
+	}
+}
+
 const (
-	GitProviderAzureDevops = "azure-devops"
-	GitProviderGitHub      = "github"
-	GitProviderGitLab      = "gitlab"
-	GitProviderBitBucket   = "bitbucket"
+	GitProviderAzureDevops GitProvider = "azure-devops"
+	GitProviderGitHub      GitProvider = "github"
+	GitProviderGitLab      GitProvider = "gitlab"
+	GitProviderBitBucket   GitProvider = "bitbucket"
 )

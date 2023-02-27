@@ -93,7 +93,8 @@ CREATE TYPE resource_type AS ENUM (
     'git_ssh_key',
     'api_key',
     'group',
-    'workspace_build'
+    'workspace_build',
+    'license'
 );
 
 CREATE TYPE user_status AS ENUM (
@@ -382,6 +383,31 @@ COMMENT ON COLUMN template_version_parameters.validation_error IS 'Validation: e
 
 COMMENT ON COLUMN template_version_parameters.validation_monotonic IS 'Validation: consecutive values preserve the monotonic order';
 
+CREATE TABLE template_version_variables (
+    template_version_id uuid NOT NULL,
+    name text NOT NULL,
+    description text NOT NULL,
+    type text NOT NULL,
+    value text NOT NULL,
+    default_value text NOT NULL,
+    required boolean NOT NULL,
+    sensitive boolean NOT NULL
+);
+
+COMMENT ON COLUMN template_version_variables.name IS 'Variable name';
+
+COMMENT ON COLUMN template_version_variables.description IS 'Variable description';
+
+COMMENT ON COLUMN template_version_variables.type IS 'Variable type';
+
+COMMENT ON COLUMN template_version_variables.value IS 'Variable value';
+
+COMMENT ON COLUMN template_version_variables.default_value IS 'Variable default value';
+
+COMMENT ON COLUMN template_version_variables.required IS 'Required variables needs a default value or a value provided by template admin';
+
+COMMENT ON COLUMN template_version_variables.sensitive IS 'Sensitive variables have their values redacted in logs or site UI';
+
 CREATE TABLE template_versions (
     id uuid NOT NULL,
     template_id uuid,
@@ -391,8 +417,11 @@ CREATE TABLE template_versions (
     name character varying(64) NOT NULL,
     readme character varying(1048576) NOT NULL,
     job_id uuid NOT NULL,
-    created_by uuid NOT NULL
+    created_by uuid NOT NULL,
+    git_auth_providers text[]
 );
+
+COMMENT ON COLUMN template_versions.git_auth_providers IS 'IDs of Git auth providers for a specific template version';
 
 CREATE TABLE templates (
     id uuid NOT NULL,
@@ -654,6 +683,9 @@ ALTER TABLE ONLY site_configs
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
 
+ALTER TABLE ONLY template_version_variables
+    ADD CONSTRAINT template_version_variables_template_version_id_name_key UNIQUE (template_version_id, name);
+
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_pkey PRIMARY KEY (id);
 
@@ -778,6 +810,9 @@ ALTER TABLE ONLY provisioner_jobs
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_variables
+    ADD CONSTRAINT template_version_variables_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT;

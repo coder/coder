@@ -17,11 +17,9 @@ import (
 
 var _ database.Store = (*querier)(nil)
 
-var (
-	// NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
-	// response when the user is not authorized.
-	NoActorError = xerrors.Errorf("no authorization actor in context: %w", sql.ErrNoRows)
-)
+// NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
+// response when the user is not authorized.
+var NoActorError = xerrors.Errorf("no authorization actor in context: %w", sql.ErrNoRows)
 
 // NotAuthorizedError is a sentinel error that unwraps to sql.ErrNoRows.
 // This allows the internal error to be read by the caller if needed. Otherwise
@@ -46,12 +44,12 @@ func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 	if err != nil && xerrors.As(err, &internalError) {
 		e := new(topdown.Error)
 		if xerrors.As(err, &e) || e.Code == topdown.CancelErr {
-			// For some reason rego changes a cancelled context to a topdown.CancelErr. We
-			// expect to check for cancelled context errors if the user cancels the request,
+			// For some reason rego changes a canceled context to a topdown.CancelErr. We
+			// expect to check for canceled context errors if the user cancels the request,
 			// so we should change the error to a context.Canceled error.
 			//
 			// NotAuthorizedError is == to sql.ErrNoRows, which is not correct
-			// if it's actually a cancelled context.
+			// if it's actually a canceled context.
 			internalError.SetInternal(context.Canceled)
 			return internalError
 		}
@@ -117,29 +115,73 @@ func ActorFromContext(ctx context.Context) (rbac.Subject, bool) {
 	return a, ok
 }
 
-// AsSystem returns a context with a system actor. This is used for internal
-// system operations that are not tied to any particular actor.
-// When you use this function, be sure to add a //nolint comment
-// explaining why it is necessary.
-//
-// We trust you have received the usual lecture from the local System
-// Administrator. It usually boils down to these three things:
-// #1) Respect the privacy of others.
-// #2) Think before you type.
-// #3) With great power comes great responsibility.
-func AsSystem(ctx context.Context) context.Context {
+// AsProvisionerd returns a context with an actor that has permissions required
+// for provisionerd to function.
+func AsProvisionerd(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, rbac.Subject{
+		ID: uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Name:        "provisionerd",
+				DisplayName: "Provisioner Daemon",
+				Site: rbac.Permissions(map[string][]rbac.Action{
+					rbac.ResourceFile.Type:      {rbac.ActionRead},
+					rbac.ResourceTemplate.Type:  {rbac.ActionRead, rbac.ActionUpdate},
+					rbac.ResourceUser.Type:      {rbac.ActionRead},
+					rbac.ResourceWorkspace.Type: {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	},
+	)
+}
+
+// AsAutostart returns a context with an actor that has permissions required
+// for autostart to function.
+func AsAutostart(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, rbac.Subject{
+		ID: uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Name:        "autostart",
+				DisplayName: "Autostart Daemon",
+				Site: rbac.Permissions(map[string][]rbac.Action{
+					rbac.ResourceTemplate.Type:  {rbac.ActionRead, rbac.ActionUpdate},
+					rbac.ResourceWorkspace.Type: {rbac.ActionRead, rbac.ActionUpdate},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	},
+	)
+}
+
+// AsSystemRestricted returns a context with an actor that has permissions
+// required for various system operations (login, logout, metrics cache).
+func AsSystemRestricted(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, rbac.Subject{
 		ID: uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Name:        "system",
-				DisplayName: "System",
-				Site: []rbac.Permission{
-					{
-						ResourceType: rbac.ResourceWildcard.Type,
-						Action:       rbac.WildcardSymbol,
-					},
-				},
+				DisplayName: "Coder",
+				Site: rbac.Permissions(map[string][]rbac.Action{
+					rbac.ResourceWildcard.Type:           {rbac.ActionRead},
+					rbac.ResourceAPIKey.Type:             {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
+					rbac.ResourceGroup.Type:              {rbac.ActionCreate, rbac.ActionUpdate},
+					rbac.ResourceRoleAssignment.Type:     {rbac.ActionCreate},
+					rbac.ResourceOrganization.Type:       {rbac.ActionCreate},
+					rbac.ResourceOrganizationMember.Type: {rbac.ActionCreate},
+					rbac.ResourceOrgRoleAssignment.Type:  {rbac.ActionCreate},
+					rbac.ResourceUser.Type:               {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
+					rbac.ResourceUserData.Type:           {rbac.ActionCreate, rbac.ActionUpdate},
+					rbac.ResourceWorkspace.Type:          {rbac.ActionUpdate},
+				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
 			},

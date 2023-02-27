@@ -114,6 +114,7 @@ type data struct {
 	replicas                  []database.Replica
 	templateVersions          []database.TemplateVersion
 	templateVersionParameters []database.TemplateVersionParameter
+	templateVersionVariables  []database.TemplateVersionVariable
 	templates                 []database.Template
 	workspaceAgents           []database.WorkspaceAgent
 	workspaceApps             []database.WorkspaceApp
@@ -477,6 +478,19 @@ func (q *fakeQuerier) GetAPIKeysByLoginType(_ context.Context, t database.LoginT
 	apiKeys := make([]database.APIKey, 0)
 	for _, key := range q.apiKeys {
 		if key.LoginType == t {
+			apiKeys = append(apiKeys, key)
+		}
+	}
+	return apiKeys, nil
+}
+
+func (q *fakeQuerier) GetAPIKeysByUserID(_ context.Context, params database.GetAPIKeysByUserIDParams) ([]database.APIKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	apiKeys := make([]database.APIKey, 0)
+	for _, key := range q.apiKeys {
+		if key.UserID == params.UserID && key.LoginType == params.LoginType {
 			apiKeys = append(apiKeys, key)
 		}
 	}
@@ -916,7 +930,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		if arg.TemplateName != "" {
-			template, err := q.GetTemplateByID(ctx, workspace.TemplateID)
+			template, err := q.getTemplateByIDNoLock(ctx, workspace.TemplateID)
 			if err == nil && !strings.EqualFold(arg.TemplateName, template.Name) {
 				continue
 			}
@@ -1617,10 +1631,14 @@ func (q *fakeQuerier) ParameterValues(_ context.Context, arg database.ParameterV
 	return parameterValues, nil
 }
 
-func (q *fakeQuerier) GetTemplateByID(_ context.Context, id uuid.UUID) (database.Template, error) {
+func (q *fakeQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	return q.getTemplateByIDNoLock(ctx, id)
+}
+
+func (q *fakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (database.Template, error) {
 	for _, template := range q.templates {
 		if template.ID == id {
 			return template, nil
@@ -1853,6 +1871,20 @@ func (q *fakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 		parameters = append(parameters, param)
 	}
 	return parameters, nil
+}
+
+func (q *fakeQuerier) GetTemplateVersionVariables(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	variables := make([]database.TemplateVersionVariable, 0)
+	for _, variable := range q.templateVersionVariables {
+		if variable.TemplateVersionID != templateVersionID {
+			continue
+		}
+		variables = append(variables, variable)
+	}
+	return variables, nil
 }
 
 func (q *fakeQuerier) GetTemplateVersionByID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
@@ -2657,6 +2689,29 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 	return param, nil
 }
 
+func (q *fakeQuerier) InsertTemplateVersionVariable(_ context.Context, arg database.InsertTemplateVersionVariableParams) (database.TemplateVersionVariable, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.TemplateVersionVariable{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	//nolint:gosimple
+	variable := database.TemplateVersionVariable{
+		TemplateVersionID: arg.TemplateVersionID,
+		Name:              arg.Name,
+		Description:       arg.Description,
+		Type:              arg.Type,
+		Value:             arg.Value,
+		DefaultValue:      arg.DefaultValue,
+		Required:          arg.Required,
+		Sensitive:         arg.Sensitive,
+	}
+	q.templateVersionVariables = append(q.templateVersionVariables, variable)
+	return variable, nil
+}
+
 func (q *fakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
@@ -3229,6 +3284,26 @@ func (q *fakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context,
 			continue
 		}
 		templateVersion.Readme = arg.Readme
+		templateVersion.UpdatedAt = arg.UpdatedAt
+		q.templateVersions[index] = templateVersion
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateTemplateVersionGitAuthProvidersByJobID(_ context.Context, arg database.UpdateTemplateVersionGitAuthProvidersByJobIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, templateVersion := range q.templateVersions {
+		if templateVersion.JobID != arg.JobID {
+			continue
+		}
+		templateVersion.GitAuthProviders = arg.GitAuthProviders
 		templateVersion.UpdatedAt = arg.UpdatedAt
 		q.templateVersions[index] = templateVersion
 		return nil
@@ -4250,9 +4325,9 @@ func (q *fakeQuerier) InsertGitAuthLink(_ context.Context, arg database.InsertGi
 	return gitAuthLink, nil
 }
 
-func (q *fakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGitAuthLinkParams) error {
+func (q *fakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return err
+		return database.GitAuthLink{}, err
 	}
 
 	q.mutex.Lock()
@@ -4269,8 +4344,10 @@ func (q *fakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGi
 		gitAuthLink.OAuthRefreshToken = arg.OAuthRefreshToken
 		gitAuthLink.OAuthExpiry = arg.OAuthExpiry
 		q.gitAuthLinks[index] = gitAuthLink
+
+		return gitAuthLink, nil
 	}
-	return nil
+	return database.GitAuthLink{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UUID) (int64, error) {

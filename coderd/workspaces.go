@@ -450,7 +450,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	tags := provisionerdserver.MutateTags(user.ID, templateVersionJob.Tags)
-
 	var (
 		provisionerJob database.ProvisionerJob
 		workspaceBuild database.WorkspaceBuild

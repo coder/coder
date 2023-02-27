@@ -19,9 +19,9 @@ import (
 
 func speedtest() *cobra.Command {
 	var (
-		direct   bool
-		duration time.Duration
-		reverse  bool
+		direct    bool
+		duration  time.Duration
+		direction string
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -48,10 +48,13 @@ func speedtest() *cobra.Command {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
 				},
 			})
-			if err != nil {
+			if err != nil && !xerrors.Is(err, cliui.AgentStartError) {
 				return xerrors.Errorf("await agent: %w", err)
 			}
-			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
+			logger, ok := LoggerFromContext(ctx)
+			if !ok {
+				logger = slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
+			}
 			if cliflag.IsSetBool(cmd, varVerbose) {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
@@ -94,17 +97,22 @@ func speedtest() *cobra.Command {
 			} else {
 				conn.AwaitReachable(ctx)
 			}
-			dir := tsspeedtest.Download
-			if reverse {
-				dir = tsspeedtest.Upload
+			var tsDir tsspeedtest.Direction
+			switch direction {
+			case "up":
+				tsDir = tsspeedtest.Upload
+			case "down":
+				tsDir = tsspeedtest.Download
+			default:
+				return xerrors.Errorf("invalid direction: %q", direction)
 			}
-			cmd.Printf("Starting a %ds %s test...\n", int(duration.Seconds()), dir)
-			results, err := conn.Speedtest(ctx, dir, duration)
+			cmd.Printf("Starting a %ds %s test...\n", int(duration.Seconds()), tsDir)
+			results, err := conn.Speedtest(ctx, tsDir, duration)
 			if err != nil {
 				return err
 			}
 			tableWriter := cliui.Table()
-			tableWriter.AppendHeader(table.Row{"Interval", "Transfer", "Bandwidth"})
+			tableWriter.AppendHeader(table.Row{"Interval", "Throughput"})
 			startTime := results[0].IntervalStart
 			for _, r := range results {
 				if r.Total {
@@ -112,7 +120,6 @@ func speedtest() *cobra.Command {
 				}
 				tableWriter.AppendRow(table.Row{
 					fmt.Sprintf("%.2f-%.2f sec", r.IntervalStart.Sub(startTime).Seconds(), r.IntervalEnd.Sub(startTime).Seconds()),
-					fmt.Sprintf("%.4f MBits", r.MegaBits()),
 					fmt.Sprintf("%.4f Mbits/sec", r.MBitsPerSecond()),
 				})
 			}
@@ -122,8 +129,9 @@ func speedtest() *cobra.Command {
 	}
 	cliflag.BoolVarP(cmd.Flags(), &direct, "direct", "d", "", false,
 		"Specifies whether to wait for a direct connection before testing speed.")
-	cliflag.BoolVarP(cmd.Flags(), &reverse, "reverse", "r", "", false,
-		"Specifies whether to run in reverse mode where the client receives and the server sends.")
+	cliflag.StringVarP(cmd.Flags(), &direction, "direction", "", "", "down",
+		"Specifies whether to run in reverse mode where the client receives and the server sends. (up|down)",
+	)
 	cmd.Flags().DurationVarP(&duration, "time", "t", tsspeedtest.DefaultDuration,
 		"Specifies the duration to monitor traffic.")
 	return cmd

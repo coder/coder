@@ -668,7 +668,8 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 						},
 					},
 				},
-			}},
+			},
+		},
 		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{},
@@ -810,7 +811,8 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 							Parameters: richParameters,
 						},
 					},
-				}},
+				},
+			},
 			ProvisionApply: []*proto.Provision_Response{
 				{
 					Type: &proto.Provision_Response_Complete{

@@ -1202,7 +1202,7 @@ func convertWorkspaceStatus(jobStatus codersdk.ProvisionerJobStatus, transition 
 }
 
 func convertWorkspaceBuildParameters(parameters []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
-	var apiParameters = make([]codersdk.WorkspaceBuildParameter, 0, len(parameters))
+	apiParameters := make([]codersdk.WorkspaceBuildParameter, 0, len(parameters))
 
 	for _, p := range parameters {
 		apiParameter := codersdk.WorkspaceBuildParameter{

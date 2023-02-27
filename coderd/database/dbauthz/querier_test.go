@@ -31,6 +31,18 @@ func (s *MethodTestSuite) TestAPIKey() {
 			Asserts(a, rbac.ActionRead, b, rbac.ActionRead).
 			Returns(slice.New(a, b))
 	}))
+	s.Run("GetAPIKeysByUserID", s.Subtest(func(db database.Store, check *expects) {
+		idAB := uuid.New()
+		idC := uuid.New()
+
+		keyA, _ := dbgen.APIKey(s.T(), db, database.APIKey{UserID: idAB, LoginType: database.LoginTypeToken})
+		keyB, _ := dbgen.APIKey(s.T(), db, database.APIKey{UserID: idAB, LoginType: database.LoginTypeToken})
+		_, _ = dbgen.APIKey(s.T(), db, database.APIKey{UserID: idC, LoginType: database.LoginTypeToken})
+
+		check.Args(database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, UserID: idAB}).
+			Asserts(keyA, rbac.ActionRead, keyB, rbac.ActionRead).
+			Returns(slice.New(keyA, keyB))
+	}))
 	s.Run("GetAPIKeysLastUsedAfter", s.Subtest(func(db database.Store, check *expects) {
 		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{LastUsed: time.Now().Add(time.Hour)})
 		b, _ := dbgen.APIKey(s.T(), db, database.APIKey{LastUsed: time.Now().Add(time.Hour)})
@@ -439,11 +451,13 @@ func (s *MethodTestSuite) TestParameters() {
 	s.Run("TemplateVersionTemplate/InsertParameterValue", s.Subtest(func(db database.Store, check *expects) {
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{})
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{JobID: j.ID,
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			JobID: j.ID,
 			TemplateID: uuid.NullUUID{
 				UUID:  tpl.ID,
 				Valid: true,
-			}},
+			},
+		},
 		)
 		check.Args(database.InsertParameterValueParams{
 			ScopeID:           j.ID,
@@ -528,23 +542,19 @@ func (s *MethodTestSuite) TestTemplate() {
 			ID:             tvid,
 			Name:           t1.Name,
 			OrganizationID: o1.ID,
-			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true}})
+			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
+		})
 		b := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			CreatedAt:      now.Add(-2 * time.Hour),
 			Name:           t1.Name,
 			OrganizationID: o1.ID,
-			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true}})
+			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
+		})
 		check.Args(database.GetPreviousTemplateVersionParams{
 			Name:           t1.Name,
 			OrganizationID: o1.ID,
 			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
 		}).Asserts(t1, rbac.ActionRead).Returns(b)
-	}))
-	s.Run("GetTemplateAverageBuildTime", s.Subtest(func(db database.Store, check *expects) {
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(database.GetTemplateAverageBuildTimeParams{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		}).Asserts(t1, rbac.ActionRead)
 	}))
 	s.Run("GetTemplateByID", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{})
@@ -559,10 +569,6 @@ func (s *MethodTestSuite) TestTemplate() {
 			Name:           t1.Name,
 			OrganizationID: o1.ID,
 		}).Asserts(t1, rbac.ActionRead).Returns(t1)
-	}))
-	s.Run("GetTemplateDAUs", s.Subtest(func(db database.Store, check *expects) {
-		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(t1.ID).Asserts(t1, rbac.ActionRead)
 	}))
 	s.Run("GetTemplateVersionByJobID", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{})
@@ -730,6 +736,18 @@ func (s *MethodTestSuite) TestTemplate() {
 			Readme: "foo",
 		}).Asserts(t1, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("UpdateTemplateVersionGitAuthProvidersByJobID", s.Subtest(func(db database.Store, check *expects) {
+		jobID := uuid.New()
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
+			JobID:      jobID,
+		})
+		check.Args(database.UpdateTemplateVersionGitAuthProvidersByJobIDParams{
+			JobID:            jobID,
+			GitAuthProviders: []string{},
+		}).Asserts(t1, rbac.ActionUpdate).Returns()
+	}))
 }
 
 func (s *MethodTestSuite) TestUser() {
@@ -875,9 +893,13 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("UpdateGitAuthLink", s.Subtest(func(db database.Store, check *expects) {
 		link := dbgen.GitAuthLink(s.T(), db, database.GitAuthLink{})
 		check.Args(database.UpdateGitAuthLinkParams{
-			ProviderID: link.ProviderID,
-			UserID:     link.UserID,
-		}).Asserts(link, rbac.ActionUpdate).Returns()
+			ProviderID:        link.ProviderID,
+			UserID:            link.UserID,
+			OAuthAccessToken:  link.OAuthAccessToken,
+			OAuthRefreshToken: link.OAuthRefreshToken,
+			OAuthExpiry:       link.OAuthExpiry,
+			UpdatedAt:         link.UpdatedAt,
+		}).Asserts(link, rbac.ActionUpdate).Returns(link)
 	}))
 	s.Run("UpdateUserLink", s.Subtest(func(db database.Store, check *expects) {
 		link := dbgen.UserLink(s.T(), db, database.UserLink{})
@@ -1219,8 +1241,5 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		})
 		s.NoError(err, "insert provisioner daemon")
 		check.Args().Asserts(d, rbac.ActionRead)
-	}))
-	s.Run("GetDeploymentDAUs", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceUser.All(), rbac.ActionRead)
 	}))
 }

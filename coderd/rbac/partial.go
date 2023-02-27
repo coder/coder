@@ -141,7 +141,6 @@ func (a RegoAuthorizer) newPartialAuthorizer(ctx context.Context, subject Subjec
 	}
 
 	partialQueries, err := a.partialQuery.Partial(ctx, rego.EvalParsedInput(input))
-
 	if err != nil {
 		return nil, xerrors.Errorf("prepare: %w", err)
 	}

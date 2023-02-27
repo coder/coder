@@ -25,6 +25,7 @@ either contain a known prefix with an exclamation mark ("feat!:",
 GitHub labels that affect release notes:
 
 - release/breaking: Shown under BREAKING CHANGES, prevents patch release.
+- release/experimental: Shown at the bottom under Experimental.
 - security: Shown under SECURITY.
 
 Flags:

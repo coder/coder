@@ -1,8 +1,9 @@
 import MuiDialog, {
   DialogProps as MuiDialogProps,
 } from "@material-ui/core/Dialog"
-import { alpha, darken, lighten, makeStyles } from "@material-ui/core/styles"
+import { alpha, darken, makeStyles } from "@material-ui/core/styles"
 import * as React from "react"
+import { colors } from "theme/colors"
 import { combineClasses } from "../../util/combineClasses"
 import {
   LoadingButton,
@@ -42,7 +43,6 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
   cancelText = "Cancel",
   confirmText = "Confirm",
   confirmLoading = false,
-  confirmDialog,
   disabled = false,
   onCancel,
   onConfirm,
@@ -54,20 +54,17 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
     <>
       {onCancel && (
         <LoadingButton
-          className={combineClasses({
-            [styles.dialogButton]: true,
-            [styles.cancelButton]: true,
-            [styles.confirmDialogCancelButton]: confirmDialog,
-          })}
           disabled={confirmLoading}
           onClick={onCancel}
           variant="outlined"
+          fullWidth
         >
           {cancelText}
         </LoadingButton>
       )}
       {onConfirm && (
         <LoadingButton
+          fullWidth
           variant="contained"
           onClick={onConfirm}
           color={typeToColor(type)}
@@ -75,8 +72,6 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           disabled={disabled}
           type="submit"
           className={combineClasses({
-            [styles.dialogButton]: true,
-            [styles.submitButton]: true,
             [styles.errorButton]: type === "delete",
             [styles.successButton]: type === "success",
           })}
@@ -88,119 +83,22 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
   )
 }
 
-interface StyleProps {
-  type: ConfirmDialogType
-}
-
 const useButtonStyles = makeStyles((theme) => ({
-  dialogButton: {
-    borderRadius: theme.shape.borderRadius,
-    fontSize: theme.typography.h6.fontSize,
-    fontWeight: theme.typography.h5.fontWeight,
-    padding: `${theme.spacing(0.75)}px ${theme.spacing(2)}px`,
-    width: "100%",
-    boxShadow: "none",
-  },
-  cancelButton: {
-    background: alpha(theme.palette.primary.main, 0.1),
-    color: theme.palette.primary.main,
-
-    "&:hover": {
-      background: alpha(theme.palette.primary.main, 0.3),
-    },
-  },
-  confirmDialogCancelButton: (props: StyleProps) => {
-    const color =
-      props.type === "info"
-        ? theme.palette.primary.contrastText
-        : theme.palette.error.contrastText
-    return {
-      background: alpha(color, 0.15),
-      color,
-
-      "&:hover": {
-        background: alpha(color, 0.3),
-      },
-
-      "&.Mui-disabled": {
-        background: alpha(color, 0.15),
-        color: alpha(color, 0.5),
-      },
-    }
-  },
-  submitButton: {
-    // Override disabled to keep background color, change loading spinner to contrast color
-    "&.Mui-disabled": {
-      "&.MuiButton-containedPrimary": {
-        background: theme.palette.primary.dark,
-
-        "& .MuiCircularProgress-root": {
-          color: theme.palette.primary.contrastText,
-        },
-      },
-
-      "&.CdrButton-error.MuiButton-contained": {
-        background: darken(theme.palette.error.main, 0.3),
-
-        "& .MuiCircularProgress-root": {
-          color: theme.palette.error.contrastText,
-        },
-      },
-    },
-  },
   errorButton: {
     "&.MuiButton-contained": {
-      backgroundColor: lighten(theme.palette.error.dark, 0.15),
-      color: theme.palette.error.contrastText,
-      "&:hover": {
-        backgroundColor: theme.palette.error.dark,
-        "@media (hover: none)": {
-          backgroundColor: "transparent",
-        },
-        "&.Mui-disabled": {
-          backgroundColor: "transparent",
-        },
-      },
-      "&.Mui-disabled": {
-        backgroundColor: theme.palette.action.disabledBackground,
-        color: alpha(theme.palette.text.disabled, 0.5),
-      },
-    },
+      backgroundColor: colors.red[10],
+      borderColor: colors.red[9],
+      color: theme.palette.text.primary,
 
-    "&.MuiButton-outlined": {
-      color: theme.palette.error.main,
-      borderColor: theme.palette.error.main,
-      "&:hover": {
-        backgroundColor: alpha(
-          theme.palette.error.main,
-          theme.palette.action.hoverOpacity,
-        ),
-        "@media (hover: none)": {
-          backgroundColor: "transparent",
-        },
-        "&.Mui-disabled": {
-          backgroundColor: "transparent",
-        },
+      "&:hover:not(:disabled)": {
+        backgroundColor: colors.red[9],
+        borderColor: colors.red[9],
       },
-      "&.Mui-disabled": {
-        color: alpha(theme.palette.text.disabled, 0.5),
-        borderColor: theme.palette.action.disabled,
-      },
-    },
 
-    "&.MuiButton-text": {
-      color: theme.palette.error.main,
-      "&:hover": {
-        backgroundColor: alpha(
-          theme.palette.error.main,
-          theme.palette.action.hoverOpacity,
-        ),
-        "@media (hover: none)": {
-          backgroundColor: "transparent",
-        },
-      },
       "&.Mui-disabled": {
-        color: alpha(theme.palette.text.disabled, 0.5),
+        backgroundColor: colors.red[15],
+        borderColor: colors.red[15],
+        color: colors.red[9],
       },
     },
   },

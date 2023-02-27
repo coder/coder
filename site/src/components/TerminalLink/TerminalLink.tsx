@@ -51,15 +51,28 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
         )
       }}
     >
-      <Button startIcon={<ComputerIcon />} size="small">
+      <Button
+        startIcon={<ComputerIcon />}
+        size="small"
+        className={styles.button}
+      >
         {Language.linkText}
       </Button>
     </Link>
   )
 }
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
   link: {
     textDecoration: "none !important",
+  },
+
+  button: {
+    whiteSpace: "nowrap",
+    backgroundColor: theme.palette.background.default,
+
+    "&:hover": {
+      backgroundColor: `${theme.palette.background.default} !important`,
+    },
   },
 }))

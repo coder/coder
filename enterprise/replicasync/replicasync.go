@@ -21,9 +21,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
-var (
-	PubsubEvent = "replica"
-)
+var PubsubEvent = "replica"
 
 type Options struct {
 	ID              uuid.UUID

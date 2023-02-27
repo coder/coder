@@ -1,7 +1,6 @@
 import { TemplateVersion } from "api/typesGenerated"
 import { FC, ReactNode } from "react"
 import { PaletteIndex } from "theme/palettes"
-
 import CircularProgress from "@material-ui/core/CircularProgress"
 import ErrorIcon from "@material-ui/icons/ErrorOutline"
 import CheckIcon from "@material-ui/icons/CheckOutlined"
@@ -11,7 +10,14 @@ export const TemplateVersionStatusBadge: FC<{
   version: TemplateVersion
 }> = ({ version }) => {
   const { text, icon, type } = getStatus(version)
-  return <Pill icon={icon} text={text} type={type} />
+  return (
+    <Pill
+      icon={icon}
+      text={text}
+      type={type}
+      title={`Build status is ${text}`}
+    />
+  )
 }
 
 const LoadingIcon: FC = () => {
