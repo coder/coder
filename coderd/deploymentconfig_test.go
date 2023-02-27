@@ -31,10 +31,10 @@ func TestDeploymentConfig(t *testing.T) {
 	scrubbed, err := client.DeploymentConfig(ctx)
 	require.NoError(t, err)
 	// ensure normal values pass through
-	require.EqualValues(t, true, scrubbed.BrowserOnly.Value())
+	require.EqualValues(t, true, scrubbed.Config.BrowserOnly.Value())
 	// ensure secrets are removed
-	require.Empty(t, scrubbed.OAuth2.Github.ClientSecret.Value())
-	require.Empty(t, scrubbed.OIDC.ClientSecret.Value())
-	require.Empty(t, scrubbed.PostgresURL.Value())
-	require.Empty(t, scrubbed.SCIMAPIKey.Value())
+	require.Empty(t, scrubbed.Config.OAuth2.Github.ClientSecret.Value())
+	require.Empty(t, scrubbed.Config.OIDC.ClientSecret.Value())
+	require.Empty(t, scrubbed.Config.PostgresURL.Value())
+	require.Empty(t, scrubbed.Config.SCIMAPIKey.Value())
 }

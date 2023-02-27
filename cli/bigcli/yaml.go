@@ -56,9 +56,26 @@ func (s OptionSet) ToYAML() (*yaml.Node, error) {
 			Value:       opt.YAML,
 			HeadComment: wordwrap.WrapString(opt.Description, 80),
 		}
-		valueNode := yaml.Node{
-			Kind:  yaml.ScalarNode,
-			Value: opt.Value.String(),
+		var valueNode yaml.Node
+		if m, ok := opt.Value.(yaml.Marshaler); ok {
+			v, err := m.MarshalYAML()
+			if err != nil {
+				return nil, xerrors.Errorf(
+					"marshal %q: %w", opt.Name, err,
+				)
+			}
+			valueNode, ok = v.(yaml.Node)
+			if !ok {
+				return nil, xerrors.Errorf(
+					"marshal %q: unexpected underlying type %T",
+					opt.Name, v,
+				)
+			}
+		} else {
+			valueNode = yaml.Node{
+				Kind:  yaml.ScalarNode,
+				Value: opt.Value.String(),
+			}
 		}
 		var group []string
 		for _, g := range opt.Group.Ancestry() {

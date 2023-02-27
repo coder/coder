@@ -754,8 +754,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 
 		// If it's a struct, just use the name of the struct type
 		if _, ok := n.Underlying().(*types.Struct); ok {
-			return TypescriptType{ValueType: "any", AboveTypeLine: fmt.Sprintf("%s\n%s",
-				indentedComment(fmt.Sprintf("Named type %q unknown, using \"any\"", n.String())),
+			return TypescriptType{ValueType: "unknown", AboveTypeLine: fmt.Sprintf("%s\n%s",
+				indentedComment(fmt.Sprintf("Named type %q unknown, using \"unknown\"", n.String())),
 				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed"),
 			)}, nil
 		}

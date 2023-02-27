@@ -16,40 +16,40 @@ const Disable = "-"
 
 // Option is a configuration option for a CLI application.
 type Option struct {
-	Name        string
-	Description string
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
 
 	// If unset, Flag defaults to the kebab-case version of Name.
 	// Use sentinel value `Disable` to disable flag support.
-	Flag          string
-	FlagShorthand string
+	Flag          string `json:"flag,omitempty"`
+	FlagShorthand string `json:"flag_shorthand,omitempty"`
 
 	// If unset, Env defaults to the upper-case, snake-case version of Name.
 	// Use special value "Disable" to disable environment variable support.
-	Env string
+	Env string `json:"env,omitempty"`
 
 	// Unlike Flag and Env, we do not infer YAML name because we want to provide
 	// the strongest compatibility guarantee for YAML configs.
-	YAML string
+	YAML string `json:"yaml,omitempty"`
 
 	// Default is parsed into Value if set.
-	Default string
+	Default string `json:"default,omitempty"`
 	// Value includes the types listed in values.go.
-	Value pflag.Value
+	Value pflag.Value `json:"value,omitempty"`
 
 	// Annotations enable extensions to bigcli higher up in the stack. It's useful for
 	// help formatting and documentation generation.
-	Annotations Annotations
+	Annotations Annotations `json:"annotations,omitempty"`
 
 	// Group is a group hierarchy that helps organize this option in help, configs
 	// and other documentation.
-	Group *Group
+	Group *Group `json:"group,omitempty"`
 
 	// UseInstead is a list of options that should be used instead of this one.
 	// The field is used to generate a deprecation warning.
-	UseInstead []Option
+	UseInstead []Option `json:"use_instead,omitempty"`
 
-	Hidden bool
+	Hidden bool `json:"hidden,omitempty"`
 }
 
 // FlagName returns the flag name for the option.

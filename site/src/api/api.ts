@@ -797,11 +797,12 @@ export const getAgentListeningPorts = async (
   return response.data
 }
 
-export const getDeploymentConfig =
-  async (): Promise<TypesGen.DeploymentConfig> => {
-    const response = await axios.get(`/api/v2/config/deployment`)
-    return response.data
-  }
+export const getDeploymentConfig = async (): Promise<
+  Types.DeploymentOption[]
+> => {
+  const response = await axios.get(`/api/v2/config/deployment`)
+  return response.data
+}
 
 export const getReplicas = async (): Promise<TypesGen.Replica[]> => {
   const response = await axios.get(`/api/v2/replicas`)

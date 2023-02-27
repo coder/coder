@@ -14,3 +14,12 @@ export interface ReconnectingPTYRequest {
 export type WorkspaceBuildTransition = "start" | "stop" | "delete"
 
 export type Message = { message: string }
+
+export interface DeploymentOption {
+  readonly name: string
+  readonly description: string
+  readonly flag: string
+  readonly flag_shorthand: string
+  readonly value: unknown
+  readonly hidden: boolean
+}

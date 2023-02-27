@@ -60,9 +60,9 @@ export interface AuditLog {
   readonly request_id: string
   readonly time: string
   readonly organization_id: string
-  // Named type "net/netip.Addr" unknown, using "any"
+  // Named type "net/netip.Addr" unknown, using "unknown"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
-  readonly ip: any
+  readonly ip: unknown
   readonly user_agent: string
   readonly resource_type: ResourceType
   readonly resource_id: string
@@ -288,9 +288,9 @@ export interface DERPServerConfig {
   readonly region_name: string
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Strings")
   readonly stun_addresses: string[]
-  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "any"
+  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "unknown"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
-  readonly relay_url: any
+  readonly relay_url: unknown
 }
 
 // From codersdk/deployment.go
@@ -303,17 +303,17 @@ export interface DangerousConfig {
 
 // From codersdk/deployment.go
 export interface DeploymentConfig {
-  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "any"
+  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "unknown"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
-  readonly AccessURL: any
-  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "any"
+  readonly AccessURL: unknown
+  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "unknown"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
-  readonly WildcardAccessURL: any
+  readonly WildcardAccessURL: unknown
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
   readonly RedirectToAccessURL: boolean
-  // Named type "github.com/coder/coder/cli/bigcli.BindAddress" unknown, using "any"
+  // Named type "github.com/coder/coder/cli/bigcli.HostPort" unknown, using "unknown"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
-  readonly http_address: any
+  readonly http_address: unknown
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Duration")
   readonly AutobuildPollInterval: number
   readonly derp: DERP
@@ -346,9 +346,9 @@ export interface DeploymentConfig {
   readonly metrics_cache_refresh_interval: number
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Duration")
   readonly agent_stat_refresh_interval: number
-  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "any"
+  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "unknown"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
-  readonly agent_fallback_troubleshooting_url: any
+  readonly agent_fallback_troubleshooting_url: unknown
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
   readonly audit_logging: boolean
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
@@ -378,10 +378,17 @@ export interface DeploymentConfig {
   readonly config: string
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
   readonly write_config: boolean
-  // Named type "github.com/coder/coder/cli/bigcli.BindAddress" unknown, using "any"
+  // Named type "github.com/coder/coder/cli/bigcli.HostPort" unknown, using "unknown"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
-  readonly address: any
+  readonly address: unknown
   readonly support: SupportConfig
+}
+
+// From codersdk/deployment.go
+export interface DeploymentConfigAndOptions {
+  readonly config?: DeploymentConfig
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.OptionSet")
+  readonly options?: unknown[]
 }
 
 // From codersdk/deployment.go
@@ -546,9 +553,9 @@ export interface OIDCConfig {
   readonly username_field: string
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
   readonly sign_in_text: string
-  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "any"
+  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "unknown"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
-  readonly icon_url: any
+  readonly icon_url: unknown
 }
 
 // From codersdk/organizations.go
@@ -621,18 +628,18 @@ export interface PatchGroupRequest {
 export interface PprofConfig {
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
   readonly enable: boolean
-  // Named type "github.com/coder/coder/cli/bigcli.BindAddress" unknown, using "any"
+  // Named type "github.com/coder/coder/cli/bigcli.HostPort" unknown, using "unknown"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
-  readonly address: any
+  readonly address: unknown
 }
 
 // From codersdk/deployment.go
 export interface PrometheusConfig {
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
   readonly enable: boolean
-  // Named type "github.com/coder/coder/cli/bigcli.BindAddress" unknown, using "any"
+  // Named type "github.com/coder/coder/cli/bigcli.HostPort" unknown, using "unknown"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
-  readonly address: any
+  readonly address: unknown
 }
 
 // From codersdk/deployment.go
@@ -734,9 +741,9 @@ export interface ServiceBannerConfig {
 
 // From codersdk/deployment.go
 export interface SupportConfig {
-  // Named type "github.com/coder/coder/cli/bigcli.Struct[[]github.com/coder/coder/codersdk.LinkConfig]" unknown, using "any"
+  // Named type "github.com/coder/coder/cli/bigcli.Object[[]github.com/coder/coder/codersdk.LinkConfig]" unknown, using "unknown"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
-  readonly links: any
+  readonly links: unknown
 }
 
 // From codersdk/deployment.go
@@ -749,9 +756,9 @@ export interface SwaggerConfig {
 export interface TLSConfig {
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
   readonly enable: boolean
-  // Named type "github.com/coder/coder/cli/bigcli.BindAddress" unknown, using "any"
+  // Named type "github.com/coder/coder/cli/bigcli.HostPort" unknown, using "unknown"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
-  readonly address: any
+  readonly address: unknown
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
   readonly redirect_http: boolean
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Strings")
@@ -776,9 +783,9 @@ export interface TelemetryConfig {
   readonly enable: boolean
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
   readonly trace: boolean
-  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "any"
+  // Named type "github.com/coder/coder/cli/bigcli.URL" unknown, using "unknown"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
-  readonly url: any
+  readonly url: unknown
 }
 
 // From codersdk/templates.go

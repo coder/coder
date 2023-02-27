@@ -158,25 +158,25 @@ func (u *URL) Value() *url.URL {
 	return (*url.URL)(u)
 }
 
-type BindAddress struct {
+type HostPort struct {
 	Host string
 	Port string
 }
 
-func (b *BindAddress) Set(v string) error {
+func (b *HostPort) Set(v string) error {
 	var err error
 	b.Host, b.Port, err = net.SplitHostPort(v)
 	return err
 }
 
-func (b *BindAddress) String() string {
+func (b *HostPort) String() string {
 	if b.Host == "" && b.Port == "" {
 		return ""
 	}
 	return b.Host + ":" + b.Port
 }
 
-func (*BindAddress) Type() string {
+func (*HostPort) Type() string {
 	return "bind-address"
 }
 

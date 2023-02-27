@@ -13,7 +13,7 @@ import {
 import { FC } from "react"
 
 const OptionsTable: FC<{
-  options: Record<string, DeploymentConfigField<Flaggable>>
+  options: Record<string, unknown>
 }> = ({ options }) => {
   const styles = useStyles()
 

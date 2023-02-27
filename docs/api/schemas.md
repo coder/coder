@@ -286,7 +286,54 @@
 | ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
 | `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
 
-## bigcli.BindAddress
+## bigcli.Annotations
+
+```json
+{
+  "property1": "string",
+  "property2": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `[any property]` | string | false    |              |             |
+
+## bigcli.Group
+
+```json
+{
+  "children": [
+    {
+      "children": [],
+      "description": "string",
+      "name": "string",
+      "parent": {}
+    }
+  ],
+  "description": "string",
+  "name": "string",
+  "parent": {
+    "children": [{}],
+    "description": "string",
+    "name": "string",
+    "parent": {}
+  }
+}
+```
+
+### Properties
+
+| Name          | Type                                  | Required | Restrictions | Description |
+| ------------- | ------------------------------------- | -------- | ------------ | ----------- |
+| `children`    | array of [bigcli.Group](#bigcligroup) | false    |              |             |
+| `description` | string                                | false    |              |             |
+| `name`        | string                                | false    |              |             |
+| `parent`      | [bigcli.Group](#bigcligroup)          | false    |              |             |
+
+## bigcli.HostPort
 
 ```json
 {
@@ -302,7 +349,7 @@
 | `host` | string | false    |              |             |
 | `port` | string | false    |              |             |
 
-## bigcli.Struct-array_codersdk_LinkConfig
+## bigcli.Object-array_codersdk_LinkConfig
 
 ```json
 {
@@ -321,6 +368,97 @@
 | Name    | Type                                                | Required | Restrictions | Description |
 | ------- | --------------------------------------------------- | -------- | ------------ | ----------- |
 | `value` | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
+
+## bigcli.Option
+
+```json
+{
+  "annotations": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "default": "string",
+  "description": "string",
+  "env": "string",
+  "flag": "string",
+  "flag_shorthand": "string",
+  "group": {
+    "children": [
+      {
+        "children": [],
+        "description": "string",
+        "name": "string",
+        "parent": {}
+      }
+    ],
+    "description": "string",
+    "name": "string",
+    "parent": {
+      "children": [{}],
+      "description": "string",
+      "name": "string",
+      "parent": {}
+    }
+  },
+  "hidden": true,
+  "name": "string",
+  "use_instead": [
+    {
+      "annotations": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "default": "string",
+      "description": "string",
+      "env": "string",
+      "flag": "string",
+      "flag_shorthand": "string",
+      "group": {
+        "children": [
+          {
+            "children": [],
+            "description": "string",
+            "name": "string",
+            "parent": {}
+          }
+        ],
+        "description": "string",
+        "name": "string",
+        "parent": {
+          "children": [{}],
+          "description": "string",
+          "name": "string",
+          "parent": {}
+        }
+      },
+      "hidden": true,
+      "name": "string",
+      "use_instead": [],
+      "value": null,
+      "yaml": "string"
+    }
+  ],
+  "value": null,
+  "yaml": "string"
+}
+```
+
+### Properties
+
+| Name             | Type                                     | Required | Restrictions | Description                                                                                                                                |
+| ---------------- | ---------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `annotations`    | [bigcli.Annotations](#bigcliannotations) | false    |              | Annotations enable extensions to bigcli higher up in the stack. It's useful for help formatting and documentation generation.              |
+| `default`        | string                                   | false    |              | Default is parsed into Value if set.                                                                                                       |
+| `description`    | string                                   | false    |              |                                                                                                                                            |
+| `env`            | string                                   | false    |              | If unset, Env defaults to the upper-case, snake-case version of Name. Use special value "Disable" to disable environment variable support. |
+| `flag`           | string                                   | false    |              | If unset, Flag defaults to the kebab-case version of Name. Use sentinel value `Disable` to disable flag support.                           |
+| `flag_shorthand` | string                                   | false    |              |                                                                                                                                            |
+| `group`          | [bigcli.Group](#bigcligroup)             | false    |              | Group is a group hierarchy that helps organize this option in help, configs and other documentation.                                       |
+| `hidden`         | boolean                                  | false    |              |                                                                                                                                            |
+| `name`           | string                                   | false    |              |                                                                                                                                            |
+| `use_instead`    | array of [bigcli.Option](#bigclioption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning.             |
+| `value`          | any                                      | false    |              | Value includes the types listed in values.go.                                                                                              |
+| `yaml`           | string                                   | false    |              | Unlike Flag and Env, we do not infer YAML name because we want to provide the strongest compatibility guarantee for YAML configs.          |
 
 ## bigcli.URL
 
@@ -1636,7 +1774,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Name                                 | Type                                                     | Required | Restrictions | Description                                     |
 | ------------------------------------ | -------------------------------------------------------- | -------- | ------------ | ----------------------------------------------- |
 | `accessURL`                          | [bigcli.URL](#bigcliurl)                                 | false    |              |                                                 |
-| `address`                            | [bigcli.BindAddress](#bigclibindaddress)                 | false    |              | Address Use HTTPAddress or TLS.Address instead. |
+| `address`                            | [bigcli.HostPort](#bigclihostport)                       | false    |              | Address Use HTTPAddress or TLS.Address instead. |
 | `agent_fallback_troubleshooting_url` | [bigcli.URL](#bigcliurl)                                 | false    |              |                                                 |
 | `agent_stat_refresh_interval`        | integer                                                  | false    |              |                                                 |
 | `audit_logging`                      | boolean                                                  | false    |              |                                                 |
@@ -1650,7 +1788,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `disable_path_apps`                  | boolean                                                  | false    |              |                                                 |
 | `disable_session_expiry_refresh`     | boolean                                                  | false    |              |                                                 |
 | `experiments`                        | array of string                                          | false    |              |                                                 |
-| `http_address`                       | [bigcli.BindAddress](#bigclibindaddress)                 | false    |              |                                                 |
+| `http_address`                       | [bigcli.HostPort](#bigclihostport)                       | false    |              |                                                 |
 | `in_memory_database`                 | boolean                                                  | false    |              |                                                 |
 | `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)         | false    |              |                                                 |
 | `max_session_expiry`                 | integer                                                  | false    |              |                                                 |
@@ -1679,6 +1817,275 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `update_check`                       | boolean                                                  | false    |              |                                                 |
 | `wildcardAccessURL`                  | [bigcli.URL](#bigcliurl)                                 | false    |              |                                                 |
 | `write_config`                       | boolean                                                  | false    |              |                                                 |
+
+## codersdk.DeploymentConfigAndOptions
+
+```json
+{
+  "config": {
+    "accessURL": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
+    "address": {
+      "host": "string",
+      "port": "string"
+    },
+    "agent_fallback_troubleshooting_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
+    "agent_stat_refresh_interval": 0,
+    "audit_logging": true,
+    "autobuildPollInterval": 0,
+    "browser_only": true,
+    "cache_directory": "string",
+    "config": "string",
+    "dangerous": {
+      "allow_path_app_sharing": true,
+      "allow_path_app_site_owner_access": true
+    },
+    "derp": {
+      "config": {
+        "path": "string",
+        "url": "string"
+      },
+      "server": {
+        "enable": true,
+        "region_code": "string",
+        "region_id": 0,
+        "region_name": "string",
+        "relay_url": {
+          "forceQuery": true,
+          "fragment": "string",
+          "host": "string",
+          "omitHost": true,
+          "opaque": "string",
+          "path": "string",
+          "rawFragment": "string",
+          "rawPath": "string",
+          "rawQuery": "string",
+          "scheme": "string",
+          "user": {}
+        },
+        "stun_addresses": ["string"]
+      }
+    },
+    "disable_password_auth": true,
+    "disable_path_apps": true,
+    "disable_session_expiry_refresh": true,
+    "experiments": ["string"],
+    "http_address": {
+      "host": "string",
+      "port": "string"
+    },
+    "in_memory_database": true,
+    "logging": {
+      "human": "string",
+      "json": "string",
+      "stackdriver": "string"
+    },
+    "max_session_expiry": 0,
+    "max_token_lifetime": 0,
+    "metrics_cache_refresh_interval": 0,
+    "oauth2": {
+      "github": {
+        "allow_everyone": true,
+        "allow_signups": true,
+        "allowed_orgs": ["string"],
+        "allowed_teams": ["string"],
+        "client_id": "string",
+        "client_secret": "string",
+        "enterprise_base_url": "string"
+      }
+    },
+    "oidc": {
+      "allow_signups": true,
+      "client_id": "string",
+      "client_secret": "string",
+      "email_domain": ["string"],
+      "icon_url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      },
+      "ignore_email_verified": true,
+      "issuer_url": "string",
+      "scopes": ["string"],
+      "sign_in_text": "string",
+      "username_field": "string"
+    },
+    "pg_connection_url": "string",
+    "pprof": {
+      "address": {
+        "host": "string",
+        "port": "string"
+      },
+      "enable": true
+    },
+    "prometheus": {
+      "address": {
+        "host": "string",
+        "port": "string"
+      },
+      "enable": true
+    },
+    "provisioner": {
+      "daemon_poll_interval": 0,
+      "daemon_poll_jitter": 0,
+      "daemons": 0,
+      "force_cancel_interval": 0
+    },
+    "proxy_trusted_headers": ["string"],
+    "proxy_trusted_origins": ["string"],
+    "rate_limit": {
+      "api": 0,
+      "disable_all": true
+    },
+    "redirectToAccessURL": true,
+    "scim_api_key": "string",
+    "secure_auth_cookie": true,
+    "ssh_keygen_algorithm": "string",
+    "strict_transport_security": 0,
+    "strict_transport_security_options": ["string"],
+    "support": {
+      "links": {
+        "value": [
+          {
+            "icon": "string",
+            "name": "string",
+            "target": "string"
+          }
+        ]
+      }
+    },
+    "swagger": {
+      "enable": true
+    },
+    "telemetry": {
+      "enable": true,
+      "trace": true,
+      "url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      }
+    },
+    "tls": {
+      "address": {
+        "host": "string",
+        "port": "string"
+      },
+      "cert_file": ["string"],
+      "client_auth": "string",
+      "client_ca_file": "string",
+      "client_cert_file": "string",
+      "client_key_file": "string",
+      "enable": true,
+      "key_file": ["string"],
+      "min_version": "string",
+      "redirect_http": true
+    },
+    "trace": {
+      "capture_logs": true,
+      "enable": true,
+      "honeycomb_api_key": "string"
+    },
+    "update_check": true,
+    "wildcardAccessURL": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
+    "write_config": true
+  },
+  "options": [
+    {
+      "annotations": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "default": "string",
+      "description": "string",
+      "env": "string",
+      "flag": "string",
+      "flag_shorthand": "string",
+      "group": {
+        "children": [
+          {
+            "children": [],
+            "description": "string",
+            "name": "string",
+            "parent": {}
+          }
+        ],
+        "description": "string",
+        "name": "string",
+        "parent": {
+          "children": [{}],
+          "description": "string",
+          "name": "string",
+          "parent": {}
+        }
+      },
+      "hidden": true,
+      "name": "string",
+      "use_instead": [{}],
+      "value": null,
+      "yaml": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                   | Required | Restrictions | Description |
+| --------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
+| `config`  | [codersdk.DeploymentConfig](#codersdkdeploymentconfig) | false    |              |             |
+| `options` | array of [bigcli.Option](#bigclioption)                | false    |              |             |
 
 ## codersdk.DeploymentDAUsResponse
 
@@ -2386,10 +2793,10 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name      | Type                                     | Required | Restrictions | Description |
-| --------- | ---------------------------------------- | -------- | ------------ | ----------- |
-| `address` | [bigcli.BindAddress](#bigclibindaddress) | false    |              |             |
-| `enable`  | boolean                                  | false    |              |             |
+| Name      | Type                               | Required | Restrictions | Description |
+| --------- | ---------------------------------- | -------- | ------------ | ----------- |
+| `address` | [bigcli.HostPort](#bigclihostport) | false    |              |             |
+| `enable`  | boolean                            | false    |              |             |
 
 ## codersdk.PrometheusConfig
 
@@ -2405,10 +2812,10 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name      | Type                                     | Required | Restrictions | Description |
-| --------- | ---------------------------------------- | -------- | ------------ | ----------- |
-| `address` | [bigcli.BindAddress](#bigclibindaddress) | false    |              |             |
-| `enable`  | boolean                                  | false    |              |             |
+| Name      | Type                               | Required | Restrictions | Description |
+| --------- | ---------------------------------- | -------- | ------------ | ----------- |
+| `address` | [bigcli.HostPort](#bigclihostport) | false    |              |             |
+| `enable`  | boolean                            | false    |              |             |
 
 ## codersdk.ProvisionerConfig
 
@@ -2716,7 +3123,7 @@ Parameter represents a set value for the scope.
 
 | Name    | Type                                                                               | Required | Restrictions | Description |
 | ------- | ---------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `links` | [bigcli.Struct-array_codersdk_LinkConfig](#bigclistruct-array_codersdk_linkconfig) | false    |              |             |
+| `links` | [bigcli.Object-array_codersdk_LinkConfig](#bigcliobject-array_codersdk_linkconfig) | false    |              |             |
 
 ## codersdk.SwaggerConfig
 
@@ -2754,18 +3161,18 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name               | Type                                     | Required | Restrictions | Description |
-| ------------------ | ---------------------------------------- | -------- | ------------ | ----------- |
-| `address`          | [bigcli.BindAddress](#bigclibindaddress) | false    |              |             |
-| `cert_file`        | array of string                          | false    |              |             |
-| `client_auth`      | string                                   | false    |              |             |
-| `client_ca_file`   | string                                   | false    |              |             |
-| `client_cert_file` | string                                   | false    |              |             |
-| `client_key_file`  | string                                   | false    |              |             |
-| `enable`           | boolean                                  | false    |              |             |
-| `key_file`         | array of string                          | false    |              |             |
-| `min_version`      | string                                   | false    |              |             |
-| `redirect_http`    | boolean                                  | false    |              |             |
+| Name               | Type                               | Required | Restrictions | Description |
+| ------------------ | ---------------------------------- | -------- | ------------ | ----------- |
+| `address`          | [bigcli.HostPort](#bigclihostport) | false    |              |             |
+| `cert_file`        | array of string                    | false    |              |             |
+| `client_auth`      | string                             | false    |              |             |
+| `client_ca_file`   | string                             | false    |              |             |
+| `client_cert_file` | string                             | false    |              |             |
+| `client_key_file`  | string                             | false    |              |             |
+| `enable`           | boolean                            | false    |              |             |
+| `key_file`         | array of string                    | false    |              |             |
+| `min_version`      | string                             | false    |              |             |
+| `redirect_http`    | boolean                            | false    |              |             |
 
 ## codersdk.TelemetryConfig
 

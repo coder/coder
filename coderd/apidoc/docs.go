@@ -323,7 +323,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.DeploymentConfig"
+                            "$ref": "#/definitions/codersdk.DeploymentConfigAndOptions"
                         }
                     }
                 }
@@ -5239,7 +5239,33 @@ const docTemplate = `{
                 }
             }
         },
-        "bigcli.BindAddress": {
+        "bigcli.Annotations": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
+            }
+        },
+        "bigcli.Group": {
+            "type": "object",
+            "properties": {
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/bigcli.Group"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parent": {
+                    "$ref": "#/definitions/bigcli.Group"
+                }
+            }
+        },
+        "bigcli.HostPort": {
             "type": "object",
             "properties": {
                 "host": {
@@ -5250,7 +5276,7 @@ const docTemplate = `{
                 }
             }
         },
-        "bigcli.Struct-array_codersdk_LinkConfig": {
+        "bigcli.Object-array_codersdk_LinkConfig": {
             "type": "object",
             "properties": {
                 "value": {
@@ -5258,6 +5284,65 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.LinkConfig"
                     }
+                }
+            }
+        },
+        "bigcli.Option": {
+            "type": "object",
+            "properties": {
+                "annotations": {
+                    "description": "Annotations enable extensions to bigcli higher up in the stack. It's useful for\nhelp formatting and documentation generation.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/bigcli.Annotations"
+                        }
+                    ]
+                },
+                "default": {
+                    "description": "Default is parsed into Value if set.",
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "env": {
+                    "description": "If unset, Env defaults to the upper-case, snake-case version of Name.\nUse special value \"Disable\" to disable environment variable support.",
+                    "type": "string"
+                },
+                "flag": {
+                    "description": "If unset, Flag defaults to the kebab-case version of Name.\nUse sentinel value ` + "`" + `Disable` + "`" + ` to disable flag support.",
+                    "type": "string"
+                },
+                "flag_shorthand": {
+                    "type": "string"
+                },
+                "group": {
+                    "description": "Group is a group hierarchy that helps organize this option in help, configs\nand other documentation.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/bigcli.Group"
+                        }
+                    ]
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "use_instead": {
+                    "description": "UseInstead is a list of options that should be used instead of this one.\nThe field is used to generate a deprecation warning.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/bigcli.Option"
+                    }
+                },
+                "value": {
+                    "description": "Value includes the types listed in values.go."
+                },
+                "yaml": {
+                    "description": "Unlike Flag and Env, we do not infer YAML name because we want to provide\nthe strongest compatibility guarantee for YAML configs.",
+                    "type": "string"
                 }
             }
         },
@@ -6203,7 +6288,7 @@ const docTemplate = `{
                     "description": "DEPRECATED: Use HTTPAddress or TLS.Address instead.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/bigcli.BindAddress"
+                            "$ref": "#/definitions/bigcli.HostPort"
                         }
                     ]
                 },
@@ -6250,7 +6335,7 @@ const docTemplate = `{
                     }
                 },
                 "http_address": {
-                    "$ref": "#/definitions/bigcli.BindAddress"
+                    "$ref": "#/definitions/bigcli.HostPort"
                 },
                 "in_memory_database": {
                     "type": "boolean"
@@ -6344,6 +6429,20 @@ const docTemplate = `{
                 },
                 "write_config": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.DeploymentConfigAndOptions": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfig"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/bigcli.Option"
+                    }
                 }
             }
         },
@@ -6985,7 +7084,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/bigcli.BindAddress"
+                    "$ref": "#/definitions/bigcli.HostPort"
                 },
                 "enable": {
                     "type": "boolean"
@@ -6996,7 +7095,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/bigcli.BindAddress"
+                    "$ref": "#/definitions/bigcli.HostPort"
                 },
                 "enable": {
                     "type": "boolean"
@@ -7299,7 +7398,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "links": {
-                    "$ref": "#/definitions/bigcli.Struct-array_codersdk_LinkConfig"
+                    "$ref": "#/definitions/bigcli.Object-array_codersdk_LinkConfig"
                 }
             }
         },
@@ -7315,7 +7414,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/bigcli.BindAddress"
+                    "$ref": "#/definitions/bigcli.HostPort"
                 },
                 "cert_file": {
                     "type": "array",

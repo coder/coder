@@ -83,57 +83,107 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
 
 ```json
 {
-  "accessURL": {
-    "forceQuery": true,
-    "fragment": "string",
-    "host": "string",
-    "omitHost": true,
-    "opaque": "string",
-    "path": "string",
-    "rawFragment": "string",
-    "rawPath": "string",
-    "rawQuery": "string",
-    "scheme": "string",
-    "user": {}
-  },
-  "address": {
-    "host": "string",
-    "port": "string"
-  },
-  "agent_fallback_troubleshooting_url": {
-    "forceQuery": true,
-    "fragment": "string",
-    "host": "string",
-    "omitHost": true,
-    "opaque": "string",
-    "path": "string",
-    "rawFragment": "string",
-    "rawPath": "string",
-    "rawQuery": "string",
-    "scheme": "string",
-    "user": {}
-  },
-  "agent_stat_refresh_interval": 0,
-  "audit_logging": true,
-  "autobuildPollInterval": 0,
-  "browser_only": true,
-  "cache_directory": "string",
-  "config": "string",
-  "dangerous": {
-    "allow_path_app_sharing": true,
-    "allow_path_app_site_owner_access": true
-  },
-  "derp": {
-    "config": {
+  "config": {
+    "accessURL": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
       "path": "string",
-      "url": "string"
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
     },
-    "server": {
-      "enable": true,
-      "region_code": "string",
-      "region_id": 0,
-      "region_name": "string",
-      "relay_url": {
+    "address": {
+      "host": "string",
+      "port": "string"
+    },
+    "agent_fallback_troubleshooting_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
+    "agent_stat_refresh_interval": 0,
+    "audit_logging": true,
+    "autobuildPollInterval": 0,
+    "browser_only": true,
+    "cache_directory": "string",
+    "config": "string",
+    "dangerous": {
+      "allow_path_app_sharing": true,
+      "allow_path_app_site_owner_access": true
+    },
+    "derp": {
+      "config": {
+        "path": "string",
+        "url": "string"
+      },
+      "server": {
+        "enable": true,
+        "region_code": "string",
+        "region_id": 0,
+        "region_name": "string",
+        "relay_url": {
+          "forceQuery": true,
+          "fragment": "string",
+          "host": "string",
+          "omitHost": true,
+          "opaque": "string",
+          "path": "string",
+          "rawFragment": "string",
+          "rawPath": "string",
+          "rawQuery": "string",
+          "scheme": "string",
+          "user": {}
+        },
+        "stun_addresses": ["string"]
+      }
+    },
+    "disable_password_auth": true,
+    "disable_path_apps": true,
+    "disable_session_expiry_refresh": true,
+    "experiments": ["string"],
+    "http_address": {
+      "host": "string",
+      "port": "string"
+    },
+    "in_memory_database": true,
+    "logging": {
+      "human": "string",
+      "json": "string",
+      "stackdriver": "string"
+    },
+    "max_session_expiry": 0,
+    "max_token_lifetime": 0,
+    "metrics_cache_refresh_interval": 0,
+    "oauth2": {
+      "github": {
+        "allow_everyone": true,
+        "allow_signups": true,
+        "allowed_orgs": ["string"],
+        "allowed_teams": ["string"],
+        "client_id": "string",
+        "client_secret": "string",
+        "enterprise_base_url": "string"
+      }
+    },
+    "oidc": {
+      "allow_signups": true,
+      "client_id": "string",
+      "client_secret": "string",
+      "email_domain": ["string"],
+      "icon_url": {
         "forceQuery": true,
         "fragment": "string",
         "host": "string",
@@ -146,43 +196,98 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
         "scheme": "string",
         "user": {}
       },
-      "stun_addresses": ["string"]
-    }
-  },
-  "disable_password_auth": true,
-  "disable_path_apps": true,
-  "disable_session_expiry_refresh": true,
-  "experiments": ["string"],
-  "http_address": {
-    "host": "string",
-    "port": "string"
-  },
-  "in_memory_database": true,
-  "logging": {
-    "human": "string",
-    "json": "string",
-    "stackdriver": "string"
-  },
-  "max_session_expiry": 0,
-  "max_token_lifetime": 0,
-  "metrics_cache_refresh_interval": 0,
-  "oauth2": {
-    "github": {
-      "allow_everyone": true,
-      "allow_signups": true,
-      "allowed_orgs": ["string"],
-      "allowed_teams": ["string"],
-      "client_id": "string",
-      "client_secret": "string",
-      "enterprise_base_url": "string"
-    }
-  },
-  "oidc": {
-    "allow_signups": true,
-    "client_id": "string",
-    "client_secret": "string",
-    "email_domain": ["string"],
-    "icon_url": {
+      "ignore_email_verified": true,
+      "issuer_url": "string",
+      "scopes": ["string"],
+      "sign_in_text": "string",
+      "username_field": "string"
+    },
+    "pg_connection_url": "string",
+    "pprof": {
+      "address": {
+        "host": "string",
+        "port": "string"
+      },
+      "enable": true
+    },
+    "prometheus": {
+      "address": {
+        "host": "string",
+        "port": "string"
+      },
+      "enable": true
+    },
+    "provisioner": {
+      "daemon_poll_interval": 0,
+      "daemon_poll_jitter": 0,
+      "daemons": 0,
+      "force_cancel_interval": 0
+    },
+    "proxy_trusted_headers": ["string"],
+    "proxy_trusted_origins": ["string"],
+    "rate_limit": {
+      "api": 0,
+      "disable_all": true
+    },
+    "redirectToAccessURL": true,
+    "scim_api_key": "string",
+    "secure_auth_cookie": true,
+    "ssh_keygen_algorithm": "string",
+    "strict_transport_security": 0,
+    "strict_transport_security_options": ["string"],
+    "support": {
+      "links": {
+        "value": [
+          {
+            "icon": "string",
+            "name": "string",
+            "target": "string"
+          }
+        ]
+      }
+    },
+    "swagger": {
+      "enable": true
+    },
+    "telemetry": {
+      "enable": true,
+      "trace": true,
+      "url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      }
+    },
+    "tls": {
+      "address": {
+        "host": "string",
+        "port": "string"
+      },
+      "cert_file": ["string"],
+      "client_auth": "string",
+      "client_ca_file": "string",
+      "client_cert_file": "string",
+      "client_key_file": "string",
+      "enable": true,
+      "key_file": ["string"],
+      "min_version": "string",
+      "redirect_http": true
+    },
+    "trace": {
+      "capture_logs": true,
+      "enable": true,
+      "honeycomb_api_key": "string"
+    },
+    "update_check": true,
+    "wildcardAccessURL": {
       "forceQuery": true,
       "fragment": "string",
       "host": "string",
@@ -195,119 +300,52 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "scheme": "string",
       "user": {}
     },
-    "ignore_email_verified": true,
-    "issuer_url": "string",
-    "scopes": ["string"],
-    "sign_in_text": "string",
-    "username_field": "string"
+    "write_config": true
   },
-  "pg_connection_url": "string",
-  "pprof": {
-    "address": {
-      "host": "string",
-      "port": "string"
-    },
-    "enable": true
-  },
-  "prometheus": {
-    "address": {
-      "host": "string",
-      "port": "string"
-    },
-    "enable": true
-  },
-  "provisioner": {
-    "daemon_poll_interval": 0,
-    "daemon_poll_jitter": 0,
-    "daemons": 0,
-    "force_cancel_interval": 0
-  },
-  "proxy_trusted_headers": ["string"],
-  "proxy_trusted_origins": ["string"],
-  "rate_limit": {
-    "api": 0,
-    "disable_all": true
-  },
-  "redirectToAccessURL": true,
-  "scim_api_key": "string",
-  "secure_auth_cookie": true,
-  "ssh_keygen_algorithm": "string",
-  "strict_transport_security": 0,
-  "strict_transport_security_options": ["string"],
-  "support": {
-    "links": {
-      "value": [
-        {
-          "icon": "string",
+  "options": [
+    {
+      "annotations": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "default": "string",
+      "description": "string",
+      "env": "string",
+      "flag": "string",
+      "flag_shorthand": "string",
+      "group": {
+        "children": [
+          {
+            "children": [],
+            "description": "string",
+            "name": "string",
+            "parent": {}
+          }
+        ],
+        "description": "string",
+        "name": "string",
+        "parent": {
+          "children": [{}],
+          "description": "string",
           "name": "string",
-          "target": "string"
+          "parent": {}
         }
-      ]
+      },
+      "hidden": true,
+      "name": "string",
+      "use_instead": [{}],
+      "value": null,
+      "yaml": "string"
     }
-  },
-  "swagger": {
-    "enable": true
-  },
-  "telemetry": {
-    "enable": true,
-    "trace": true,
-    "url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    }
-  },
-  "tls": {
-    "address": {
-      "host": "string",
-      "port": "string"
-    },
-    "cert_file": ["string"],
-    "client_auth": "string",
-    "client_ca_file": "string",
-    "client_cert_file": "string",
-    "client_key_file": "string",
-    "enable": true,
-    "key_file": ["string"],
-    "min_version": "string",
-    "redirect_http": true
-  },
-  "trace": {
-    "capture_logs": true,
-    "enable": true,
-    "honeycomb_api_key": "string"
-  },
-  "update_check": true,
-  "wildcardAccessURL": {
-    "forceQuery": true,
-    "fragment": "string",
-    "host": "string",
-    "omitHost": true,
-    "opaque": "string",
-    "path": "string",
-    "rawFragment": "string",
-    "rawPath": "string",
-    "rawQuery": "string",
-    "scheme": "string",
-    "user": {}
-  },
-  "write_config": true
+  ]
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                           |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentConfig](schemas.md#codersdkdeploymentconfig) |
+| Status | Meaning                                                 | Description | Schema                                                                               |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentConfigAndOptions](schemas.md#codersdkdeploymentconfigandoptions) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

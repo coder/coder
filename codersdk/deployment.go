@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -119,7 +120,7 @@ type DeploymentConfig struct {
 	AccessURL                       bigcli.URL
 	WildcardAccessURL               bigcli.URL
 	RedirectToAccessURL             bigcli.Bool
-	HTTPAddress                     bigcli.BindAddress `json:"http_address" typescript:",notnull"`
+	HTTPAddress                     bigcli.HostPort `json:"http_address" typescript:",notnull"`
 	AutobuildPollInterval           bigcli.Duration
 	DERP                            *DERP              `json:"derp" typescript:",notnull"`
 	Prometheus                      *PrometheusConfig  `json:"prometheus" typescript:",notnull"`
@@ -160,7 +161,7 @@ type DeploymentConfig struct {
 	WriteConfig                     bigcli.Bool        `json:"write_config" typescript:",notnull"`
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
-	Address bigcli.BindAddress `json:"address" typescript:",notnull"`
+	Address bigcli.HostPort `json:"address" typescript:",notnull"`
 
 	Support *SupportConfig `json:"support" typescript:",notnull"`
 }
@@ -185,13 +186,13 @@ type DERPConfig struct {
 }
 
 type PrometheusConfig struct {
-	Enable  bigcli.Bool        `json:"enable" typescript:",notnull"`
-	Address bigcli.BindAddress `json:"address" typescript:",notnull"`
+	Enable  bigcli.Bool     `json:"enable" typescript:",notnull"`
+	Address bigcli.HostPort `json:"address" typescript:",notnull"`
 }
 
 type PprofConfig struct {
-	Enable  bigcli.Bool        `json:"enable" typescript:",notnull"`
-	Address bigcli.BindAddress `json:"address" typescript:",notnull"`
+	Enable  bigcli.Bool     `json:"enable" typescript:",notnull"`
+	Address bigcli.HostPort `json:"address" typescript:",notnull"`
 }
 
 type OAuth2Config struct {
@@ -228,16 +229,16 @@ type TelemetryConfig struct {
 }
 
 type TLSConfig struct {
-	Enable         bigcli.Bool        `json:"enable" typescript:",notnull"`
-	Address        bigcli.BindAddress `json:"address" typescript:",notnull"`
-	RedirectHTTP   bigcli.Bool        `json:"redirect_http" typescript:",notnull"`
-	CertFiles      bigcli.Strings     `json:"cert_file" typescript:",notnull"`
-	ClientAuth     bigcli.String      `json:"client_auth" typescript:",notnull"`
-	ClientCAFile   bigcli.String      `json:"client_ca_file" typescript:",notnull"`
-	KeyFiles       bigcli.Strings     `json:"key_file" typescript:",notnull"`
-	MinVersion     bigcli.String      `json:"min_version" typescript:",notnull"`
-	ClientCertFile bigcli.String      `json:"client_cert_file" typescript:",notnull"`
-	ClientKeyFile  bigcli.String      `json:"client_key_file" typescript:",notnull"`
+	Enable         bigcli.Bool     `json:"enable" typescript:",notnull"`
+	Address        bigcli.HostPort `json:"address" typescript:",notnull"`
+	RedirectHTTP   bigcli.Bool     `json:"redirect_http" typescript:",notnull"`
+	CertFiles      bigcli.Strings  `json:"cert_file" typescript:",notnull"`
+	ClientAuth     bigcli.String   `json:"client_auth" typescript:",notnull"`
+	ClientCAFile   bigcli.String   `json:"client_ca_file" typescript:",notnull"`
+	KeyFiles       bigcli.Strings  `json:"key_file" typescript:",notnull"`
+	MinVersion     bigcli.String   `json:"min_version" typescript:",notnull"`
+	ClientCertFile bigcli.String   `json:"client_cert_file" typescript:",notnull"`
+	ClientKeyFile  bigcli.String   `json:"client_key_file" typescript:",notnull"`
 }
 
 type TraceConfig struct {
@@ -381,6 +382,13 @@ when required by your organization's security policy.`,
 		Description: `Use a YAML configuration file when your server launch become unwieldy.`,
 	}
 )
+
+// DeploymentConfigAndOptions is the response type to the
+// GetDeploymentConfig endpoint.
+type DeploymentConfigAndOptions struct {
+	Config  *DeploymentConfig `json:"config,omitempty"`
+	Options bigcli.OptionSet  `json:"options,omitempty"`
+}
 
 func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 	httpAddress := bigcli.Option{
@@ -1148,6 +1156,14 @@ Write out the current server configuration to the path specified by --config.`,
 			Group: &DeploymentGroupConfig,
 			Value: &c.WriteConfig,
 		},
+		{
+			Name:        "Support Links",
+			Description: "Support links to display in the top right drop down menu.",
+			Flag:        bigcli.Disable,
+			Env:         bigcli.Disable,
+			YAML:        "supportLinks",
+			Value:       &c.Support.Links,
+		},
 	}
 }
 
@@ -1177,6 +1193,7 @@ func NewDeploymentConfig() *DeploymentConfig {
 			Config: &DERPConfig{},
 		},
 		Swagger: &SwaggerConfig{},
+		Support: &SupportConfig{},
 	}
 }
 
@@ -1225,19 +1242,33 @@ func (c *DeploymentConfig) Scrub() (*DeploymentConfig, error) {
 }
 
 // DeploymentConfig returns the deployment config for the coder server.
-func (c *Client) DeploymentConfig(ctx context.Context) (DeploymentConfig, error) {
+func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentConfigAndOptions, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/config/deployment", nil)
 	if err != nil {
-		return DeploymentConfig{}, xerrors.Errorf("execute request: %w", err)
+		return nil, xerrors.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return DeploymentConfig{}, ReadBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 
-	var df DeploymentConfig
-	return df, json.NewDecoder(res.Body).Decode(&df)
+	byt, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, xerrors.Errorf("read response: %w", err)
+	}
+
+	conf := NewDeploymentConfig()
+	resp := &DeploymentConfigAndOptions{
+		Config:  conf,
+		Options: conf.ConfigOptions(),
+	}
+
+	err = json.Unmarshal(byt, resp)
+	if err != nil {
+		return nil, xerrors.Errorf("decode response: %w\n%s", err, byt)
+	}
+	return resp, nil
 }
 
 type AppearanceConfig struct {
