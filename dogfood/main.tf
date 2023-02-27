@@ -18,6 +18,7 @@ locals {
     "us-pittsburgh" = "tcp://100.94.74.63:2375"
     "eu-helsinki"   = "tcp://100.117.102.81:2375"
     "ap-sydney"     = "tcp://100.127.2.1:2375"
+    "eu-paris"      = "tcp://100.74.161.61:2375"
   }
 }
 
@@ -55,6 +56,11 @@ data "coder_parameter" "region" {
     name = "Sydney"
     value = "ap-sydney"
   }
+  # option {
+  #   icon = "/emojis/1f1eb-1f1f7.png"
+  #   name = "Phorcys' Server in Paris"
+  #   value = "eu-paris"
+  # }
 }
 
 provider "docker" {
@@ -91,7 +97,7 @@ resource "coder_agent" "dev" {
     fi
 
     sudo service docker start
-    DOTFILES_URI=${data.coder_parameter.dotfiles_url.value}
+    DOTFILES_URI="${data.coder_parameter.dotfiles_url.value}"
     rm -f ~/.personalize.log
     if [ -n "$DOTFILES_URI" ]; then
       coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log
