@@ -1184,16 +1184,18 @@ func (q fakeQuerier) convertToWorkspaceData(workspaces []database.Workspace, cou
 	return rows
 }
 
-func (q *fakeQuerier) GetWorkspaceByID(_ context.Context, id uuid.UUID) (database.Workspace, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, workspace := range q.workspaces {
-		if workspace.ID == id {
-			return workspace, nil
-		}
+func (q *fakeQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.WorkspaceWithData, error) {
+	workspaces, err := q.GetWorkspaces(ctx, database.GetWorkspacesParams{
+		WorkspaceIds: []uuid.UUID{id},
+		Limit:        1,
+	})
+	if err != nil {
+		return database.WorkspaceWithData{}, err
 	}
-	return database.Workspace{}, sql.ErrNoRows
+	if len(workspaces) == 0 {
+		return database.WorkspaceWithData{}, sql.ErrNoRows
+	}
+	return workspaces[0], nil
 }
 
 func (q *fakeQuerier) GetWorkspaceByAgentID(_ context.Context, agentID uuid.UUID) (database.Workspace, error) {
@@ -1242,36 +1244,24 @@ func (q *fakeQuerier) GetWorkspaceByAgentID(_ context.Context, agentID uuid.UUID
 	return database.Workspace{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg database.GetWorkspaceByOwnerIDAndNameParams) (database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg database.GetWorkspaceByOwnerIDAndNameParams) (database.WorkspaceWithData, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.Workspace{}, err
+		return database.WorkspaceWithData{}, err
 	}
 
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	var found *database.Workspace
-	for _, workspace := range q.workspaces {
-		workspace := workspace
-		if workspace.OwnerID != arg.OwnerID {
-			continue
-		}
-		if !strings.EqualFold(workspace.Name, arg.Name) {
-			continue
-		}
-		if workspace.Deleted != arg.Deleted {
-			continue
-		}
-
-		// Return the most recent workspace with the given name
-		if found == nil || workspace.CreatedAt.After(found.CreatedAt) {
-			found = &workspace
-		}
+	workspaces, err := q.GetWorkspaces(ctx, database.GetWorkspacesParams{
+		OwnerID:   arg.OwnerID,
+		ExactName: arg.Name,
+		Deleted:   arg.Deleted,
+		Limit:     1,
+	})
+	if err != nil {
+		return database.WorkspaceWithData{}, err
 	}
-	if found != nil {
-		return *found, nil
+	if len(workspaces) == 0 {
+		return database.WorkspaceWithData{}, sql.ErrNoRows
 	}
-	return database.Workspace{}, sql.ErrNoRows
+	return workspaces[0], nil
 }
 
 func (q *fakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {

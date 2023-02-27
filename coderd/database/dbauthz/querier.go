@@ -1372,11 +1372,11 @@ func (q *querier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) 
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByAgentID)(ctx, agentID)
 }
 
-func (q *querier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
+func (q *querier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.WorkspaceWithData, error) {
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByID)(ctx, id)
 }
 
-func (q *querier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg database.GetWorkspaceByOwnerIDAndNameParams) (database.Workspace, error) {
+func (q *querier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg database.GetWorkspaceByOwnerIDAndNameParams) (database.WorkspaceWithData, error) {
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByOwnerIDAndName)(ctx, arg)
 }
 

@@ -74,6 +74,10 @@ func (g Group) RBACObject() rbac.Object {
 		InOrg(g.OrganizationID)
 }
 
+func (w WorkspaceWithData) RBACObject() rbac.Object {
+	return w.Workspace.RBACObject()
+}
+
 func (w Workspace) RBACObject() rbac.Object {
 	return rbac.ResourceWorkspace.WithID(w.ID).
 		InOrg(w.OrganizationID).
