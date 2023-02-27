@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -39,6 +40,62 @@ import (
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
+
+func TestReadGitAuthProvidersFromEnv(t *testing.T) {
+	t.Parallel()
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+			"HOME=/home/frodo",
+		})
+		require.NoError(t, err)
+		require.Empty(t, providers)
+	})
+	t.Run("InvalidKey", func(t *testing.T) {
+		t.Parallel()
+		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+			"CODER_GITAUTH_XXX=invalid",
+		})
+		require.Error(t, err, "providers: %+v", providers)
+		require.Empty(t, providers)
+	})
+	t.Run("SkipKey", func(t *testing.T) {
+		t.Parallel()
+		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+			"CODER_GITAUTH_0_ID=invalid",
+			"CODER_GITAUTH_2_ID=invalid",
+		})
+		require.Error(t, err, "%+v", providers)
+		require.Empty(t, providers)
+	})
+	t.Run("Valid", func(t *testing.T) {
+		t.Parallel()
+		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+			"CODER_GITAUTH_0_ID=1",
+			"CODER_GITAUTH_0_TYPE=gitlab",
+			"CODER_GITAUTH_1_ID=2",
+			"CODER_GITAUTH_1_CLIENT_ID=sid",
+			"CODER_GITAUTH_1_CLIENT_SECRET=hunter12",
+			"CODER_GITAUTH_1_TOKEN_URL=google.com",
+			"CODER_GITAUTH_1_VALIDATE_URL=bing.com",
+			"CODER_GITAUTH_1_SCOPES=repo:read repo:write",
+		})
+		require.NoError(t, err)
+		require.Len(t, providers, 2)
+
+		// Validate the first provider.
+		assert.Equal(t, "1", providers[0].ID)
+		assert.Equal(t, "gitlab", providers[0].Type)
+
+		// Validate the second provider.
+		assert.Equal(t, "2", providers[1].ID)
+		assert.Equal(t, "sid", providers[1].ClientID)
+		assert.Equal(t, "hunter12", providers[1].ClientSecret)
+		assert.Equal(t, "google.com", providers[1].TokenURL)
+		assert.Equal(t, "bing.com", providers[1].ValidateURL)
+		assert.Equal(t, []string{"repo:read", "repo:write"}, providers[1].Scopes)
+	})
+}
 
 // This cannot be ran in parallel because it uses a signal.
 // nolint:tparallel,paralleltest

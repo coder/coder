@@ -25,6 +25,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,7 +36,6 @@ import (
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
-	"github.com/iancoleman/strcase"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -60,6 +60,7 @@ import (
 	"github.com/coder/coder/cli/bigcli"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
+	"github.com/coder/coder/cli/envparse"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/database"
@@ -85,13 +86,70 @@ import (
 	"github.com/coder/coder/tailnet"
 )
 
-func init() {
-	// For YAML conversion.
-	strcase.ConfigureAcronym("ssh", "ssh")
-	strcase.ConfigureAcronym("SSH", "SSH")
+// ReadGitAuthProvidersFromEnv is provided for compatibility purposes with the
+// viper CLI.
+func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, error) {
+	// The index numbers must be in-order.
+	sort.Strings(environ)
 
-	strcase.ConfigureAcronym("TLS", "tls")
-	strcase.ConfigureAcronym("SCIM", "scim")
+	var providers []codersdk.GitAuthConfig
+	for _, v := range envparse.FilterNamePrefix(environ, envPrefix+"GITAUTH_") {
+		tokens := strings.SplitN(v.Name, "_", 2)
+		if len(tokens) != 2 {
+			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
+		}
+
+		providerNum, err := strconv.Atoi(tokens[0])
+		if err != nil {
+			return nil, xerrors.Errorf("parse number: %s", v.Name)
+		}
+
+		var provider codersdk.GitAuthConfig
+		switch {
+		case len(providers) < providerNum:
+			return nil, xerrors.Errorf(
+				"provider num %v skipped: %s",
+				len(providers),
+				v.Name,
+			)
+		case len(providers) == providerNum:
+			// At the next next provider.
+			providers = append(providers, provider)
+		case len(providers) == providerNum+1:
+			// At the current provider.
+			provider = providers[providerNum]
+		}
+
+		key := tokens[1]
+		switch key {
+		case "ID":
+			provider.ID = v.Value
+		case "TYPE":
+			provider.Type = v.Value
+		case "CLIENT_ID":
+			provider.ClientID = v.Value
+		case "CLIENT_SECRET":
+			provider.ClientSecret = v.Value
+		case "AUTH_URL":
+			provider.AuthURL = v.Value
+		case "TOKEN_URL":
+			provider.TokenURL = v.Value
+		case "VALIDATE_URL":
+			provider.ValidateURL = v.Value
+		case "REGEX":
+			provider.Regex = v.Value
+		case "NO_REFRESH":
+			b, err := strconv.ParseBool(key)
+			if err != nil {
+				return nil, xerrors.Errorf("parse bool: %s", v.Value)
+			}
+			provider.NoRefresh = b
+		case "SCOPES":
+			provider.Scopes = strings.Split(v.Value, " ")
+		}
+		providers[providerNum] = provider
+	}
+	return providers, nil
 }
 
 // nolint:gocyclo
