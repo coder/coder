@@ -16,6 +16,7 @@ trial](https://coder.com/trial).
 | Deployment      | [High Availability](./admin/high-availability.md)                           |     ❌      |     ✅     |
 | Deployment      | [Service Banners](./admin/service-banners.md)                               |     ❌      |     ✅     |
 | Deployment      | Isolated Terraform Runners                                                  |     ❌      |     ✅     |
+| Deployment      | [Support links](./admin/support-links.md)                                   |     ❌      |     ✅     |
 
 > Previous plans to restrict OIDC and Git Auth features in OSS have been removed
 > as of 2023-01-11
