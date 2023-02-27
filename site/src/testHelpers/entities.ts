@@ -60,6 +60,25 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   version: "v99.999.9999+c9cdf14",
 }
 
+export const MockSupportLinks: TypesGen.LinkConfig[] = [
+  {
+    name: "First link",
+    target: "http://first-link",
+    icon: "chat",
+  },
+  {
+    name: "Second link",
+    target: "http://second-link",
+    icon: "docs",
+  },
+  {
+    name: "Third link",
+    target:
+      "https://github.com/coder/coder/issues/new?labels=needs+grooming&body={CODER_BUILD_INFO}",
+    icon: "",
+  },
+]
+
 export const MockUpdateCheck: TypesGen.UpdateCheckResponse = {
   current: true,
   url: "file:///mock-url",
