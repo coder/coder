@@ -117,53 +117,54 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 
 // DeploymentConfig is the central configuration for the coder server.
 type DeploymentConfig struct {
-	AccessURL                       bigcli.URL         `json:"access_url,omitempty"`
-	WildcardAccessURL               bigcli.URL         `json:"wildcard_access_url,omitempty"`
-	RedirectToAccessURL             bigcli.Bool        `json:"redirect_to_access_url,omitempty"`
-	HTTPAddress                     bigcli.HostPort    `json:"http_address,omitempty" typescript:",notnull"`
-	AutobuildPollInterval           bigcli.Duration    `json:"autobuild_poll_interval,omitempty"`
-	DERP                            *DERP              `json:"derp,omitempty" typescript:",notnull"`
-	Prometheus                      *PrometheusConfig  `json:"prometheus,omitempty" typescript:",notnull"`
-	Pprof                           *PprofConfig       `json:"pprof,omitempty" typescript:",notnull"`
-	ProxyTrustedHeaders             bigcli.Strings     `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
-	ProxyTrustedOrigins             bigcli.Strings     `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
-	CacheDir                        bigcli.String      `json:"cache_directory,omitempty" typescript:",notnull"`
-	InMemoryDatabase                bigcli.Bool        `json:"in_memory_database,omitempty" typescript:",notnull"`
-	PostgresURL                     bigcli.String      `json:"pg_connection_url,omitempty" typescript:",notnull"`
-	OAuth2                          *OAuth2Config      `json:"oauth2,omitempty" typescript:",notnull"`
-	OIDC                            *OIDCConfig        `json:"oidc,omitempty" typescript:",notnull"`
-	Telemetry                       *TelemetryConfig   `json:"telemetry,omitempty" typescript:",notnull"`
-	TLS                             *TLSConfig         `json:"tls,omitempty" typescript:",notnull"`
-	Trace                           *TraceConfig       `json:"trace,omitempty" typescript:",notnull"`
-	SecureAuthCookie                bigcli.Bool        `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
-	StrictTransportSecurity         bigcli.Int64       `json:"strict_transport_security,omitempty" typescript:",notnull"`
-	StrictTransportSecurityOptions  bigcli.Strings     `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
-	SSHKeygenAlgorithm              bigcli.String      `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
-	MetricsCacheRefreshInterval     bigcli.Duration    `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
-	AgentStatRefreshInterval        bigcli.Duration    `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
-	AgentFallbackTroubleshootingURL bigcli.URL         `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
-	AuditLogging                    bigcli.Bool        `json:"audit_logging,omitempty" typescript:",notnull"`
-	BrowserOnly                     bigcli.Bool        `json:"browser_only,omitempty" typescript:",notnull"`
-	SCIMAPIKey                      bigcli.String      `json:"scim_api_key,omitempty" typescript:",notnull"`
-	Provisioner                     *ProvisionerConfig `json:"provisioner,omitempty" typescript:",notnull"`
-	RateLimit                       *RateLimitConfig   `json:"rate_limit,omitempty" typescript:",notnull"`
-	Experiments                     bigcli.Strings     `json:"experiments,omitempty" typescript:",notnull"`
-	UpdateCheck                     bigcli.Bool        `json:"update_check,omitempty" typescript:",notnull"`
-	MaxTokenLifetime                bigcli.Duration    `json:"max_token_lifetime,omitempty" typescript:",notnull"`
-	Swagger                         *SwaggerConfig     `json:"swagger,omitempty" typescript:",notnull"`
-	Logging                         *LoggingConfig     `json:"logging,omitempty" typescript:",notnull"`
-	Dangerous                       *DangerousConfig   `json:"dangerous,omitempty" typescript:",notnull"`
-	DisablePathApps                 bigcli.Bool        `json:"disable_path_apps,omitempty" typescript:",notnull"`
-	SessionDuration                 bigcli.Duration    `json:"max_session_expiry,omitempty" typescript:",notnull"`
-	DisableSessionExpiryRefresh     bigcli.Bool        `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
-	DisablePasswordAuth             bigcli.Bool        `json:"disable_password_auth,omitempty" typescript:",notnull"`
-	Config                          bigcli.String      `json:"config,omitempty" typescript:",notnull"`
-	WriteConfig                     bigcli.Bool        `json:"write_config,omitempty" typescript:",notnull"`
+	AccessURL                       bigcli.URL                     `json:"access_url,omitempty"`
+	WildcardAccessURL               bigcli.URL                     `json:"wildcard_access_url,omitempty"`
+	RedirectToAccessURL             bigcli.Bool                    `json:"redirect_to_access_url,omitempty"`
+	HTTPAddress                     bigcli.HostPort                `json:"http_address,omitempty" typescript:",notnull"`
+	AutobuildPollInterval           bigcli.Duration                `json:"autobuild_poll_interval,omitempty"`
+	DERP                            *DERP                          `json:"derp,omitempty" typescript:",notnull"`
+	Prometheus                      *PrometheusConfig              `json:"prometheus,omitempty" typescript:",notnull"`
+	Pprof                           *PprofConfig                   `json:"pprof,omitempty" typescript:",notnull"`
+	ProxyTrustedHeaders             bigcli.Strings                 `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
+	ProxyTrustedOrigins             bigcli.Strings                 `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
+	CacheDir                        bigcli.String                  `json:"cache_directory,omitempty" typescript:",notnull"`
+	InMemoryDatabase                bigcli.Bool                    `json:"in_memory_database,omitempty" typescript:",notnull"`
+	PostgresURL                     bigcli.String                  `json:"pg_connection_url,omitempty" typescript:",notnull"`
+	OAuth2                          *OAuth2Config                  `json:"oauth2,omitempty" typescript:",notnull"`
+	OIDC                            *OIDCConfig                    `json:"oidc,omitempty" typescript:",notnull"`
+	Telemetry                       *TelemetryConfig               `json:"telemetry,omitempty" typescript:",notnull"`
+	TLS                             *TLSConfig                     `json:"tls,omitempty" typescript:",notnull"`
+	Trace                           *TraceConfig                   `json:"trace,omitempty" typescript:",notnull"`
+	SecureAuthCookie                bigcli.Bool                    `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
+	StrictTransportSecurity         bigcli.Int64                   `json:"strict_transport_security,omitempty" typescript:",notnull"`
+	StrictTransportSecurityOptions  bigcli.Strings                 `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
+	SSHKeygenAlgorithm              bigcli.String                  `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
+	MetricsCacheRefreshInterval     bigcli.Duration                `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
+	AgentStatRefreshInterval        bigcli.Duration                `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
+	AgentFallbackTroubleshootingURL bigcli.URL                     `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
+	AuditLogging                    bigcli.Bool                    `json:"audit_logging,omitempty" typescript:",notnull"`
+	BrowserOnly                     bigcli.Bool                    `json:"browser_only,omitempty" typescript:",notnull"`
+	SCIMAPIKey                      bigcli.String                  `json:"scim_api_key,omitempty" typescript:",notnull"`
+	Provisioner                     *ProvisionerConfig             `json:"provisioner,omitempty" typescript:",notnull"`
+	RateLimit                       *RateLimitConfig               `json:"rate_limit,omitempty" typescript:",notnull"`
+	Experiments                     bigcli.Strings                 `json:"experiments,omitempty" typescript:",notnull"`
+	UpdateCheck                     bigcli.Bool                    `json:"update_check,omitempty" typescript:",notnull"`
+	MaxTokenLifetime                bigcli.Duration                `json:"max_token_lifetime,omitempty" typescript:",notnull"`
+	Swagger                         *SwaggerConfig                 `json:"swagger,omitempty" typescript:",notnull"`
+	Logging                         *LoggingConfig                 `json:"logging,omitempty" typescript:",notnull"`
+	Dangerous                       *DangerousConfig               `json:"dangerous,omitempty" typescript:",notnull"`
+	DisablePathApps                 bigcli.Bool                    `json:"disable_path_apps,omitempty" typescript:",notnull"`
+	SessionDuration                 bigcli.Duration                `json:"max_session_expiry,omitempty" typescript:",notnull"`
+	DisableSessionExpiryRefresh     bigcli.Bool                    `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
+	DisablePasswordAuth             bigcli.Bool                    `json:"disable_password_auth,omitempty" typescript:",notnull"`
+	Support                         *SupportConfig                 `json:"support,omitempty" typescript:",notnull"`
+	GitAuthProviders                bigcli.Object[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
+
+	Config      bigcli.String `json:"config,omitempty" typescript:",notnull"`
+	WriteConfig bigcli.Bool   `json:"write_config,omitempty" typescript:",notnull"`
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 	Address bigcli.HostPort `json:"address,omitempty" typescript:",notnull"`
-
-	Support *SupportConfig `json:"support,omitempty" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -1166,6 +1167,14 @@ Write out the current server configuration to the path specified by --config.`,
 			Env:         bigcli.Disable,
 			YAML:        "supportLinks",
 			Value:       &c.Support.Links,
+		},
+		{
+			Name:        "Git Auth Providers",
+			Description: "Git Authentication providers",
+			Flag:        bigcli.Disable,
+			Env:         bigcli.Disable,
+			YAML:        "gitAuthProviders",
+			Value:       &c.GitAuthProviders,
 		},
 	}
 }

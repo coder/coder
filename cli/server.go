@@ -66,6 +66,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/devtunnel"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -572,22 +573,29 @@ flags, and YAML configuration. The precedence is as follows:
 				}
 			}
 
+			gitAuthConfigs, err := gitauth.ConvertConfig(
+				cfg.GitAuthProviders.Value, cfg.AccessURL.Value(),
+			)
+			if err != nil {
+				return xerrors.Errorf("convert git auth config: %w", err)
+			}
+
 			realIPConfig, err := httpmw.ParseRealIPConfig(cfg.ProxyTrustedHeaders, cfg.ProxyTrustedOrigins)
 			if err != nil {
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
 			options := &coderd.Options{
-				AccessURL:            cfg.AccessURL.Value(),
-				AppHostname:          appHostname,
-				AppHostnameRegex:     appHostnameRegex,
-				Logger:               logger.Named("coderd"),
-				Database:             dbfake.New(),
-				DERPMap:              derpMap,
-				Pubsub:               database.NewPubsubInMemory(),
-				CacheDir:             cacheDir,
-				GoogleTokenValidator: googleTokenValidator,
-				// GitAuthConfigs:              gitAuthConfigs,
+				AccessURL:                   cfg.AccessURL.Value(),
+				AppHostname:                 appHostname,
+				AppHostnameRegex:            appHostnameRegex,
+				Logger:                      logger.Named("coderd"),
+				Database:                    dbfake.New(),
+				DERPMap:                     derpMap,
+				Pubsub:                      database.NewPubsubInMemory(),
+				CacheDir:                    cacheDir,
+				GoogleTokenValidator:        googleTokenValidator,
+				GitAuthConfigs:              gitAuthConfigs,
 				RealIPConfig:                realIPConfig,
 				SecureAuthCookie:            cfg.SecureAuthCookie.Value(),
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,

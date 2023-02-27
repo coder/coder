@@ -8,6 +8,8 @@ import (
 	"github.com/iancoleman/strcase"
 	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cli/envparse"
 )
 
 // Disable is a sentinel value for Option.Flag, Option.Env, and Option.YAML to disable
@@ -130,17 +132,8 @@ func (s *OptionSet) ParseEnv(globalPrefix string, environ []string) error {
 	// avoid N*M complexity when there are a lot of options and environment
 	// variables.
 	envs := make(map[string]string)
-	for _, env := range environ {
-		env = strings.TrimPrefix(env, globalPrefix)
-		if len(env) == 0 {
-			continue
-		}
-
-		tokens := strings.SplitN(env, "=", 2)
-		if len(tokens) != 2 {
-			return xerrors.Errorf("invalid env %q", env)
-		}
-		envs[tokens[0]] = tokens[1]
+	for _, v := range envparse.FilterNamePrefix(environ, globalPrefix) {
+		envs[v.Name] = v.Value
 	}
 
 	for _, opt := range *s {
