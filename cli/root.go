@@ -19,6 +19,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
@@ -64,9 +66,7 @@ const (
 	envURL              = "CODER_URL"
 )
 
-var (
-	errUnauthenticated = xerrors.New(notLoggedInMessage)
-)
+var errUnauthenticated = xerrors.New(notLoggedInMessage)
 
 func init() {
 	// Set cobra template functions in init to avoid conflicts in tests.
@@ -179,6 +179,21 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	cliflag.Bool(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", false, "Enable verbose output.")
 
 	return cmd
+}
+
+type contextKey int
+
+const (
+	contextKeyLogger contextKey = iota
+)
+
+func ContextWithLogger(ctx context.Context, l slog.Logger) context.Context {
+	return context.WithValue(ctx, contextKeyLogger, l)
+}
+
+func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
+	l, ok := ctx.Value(contextKeyLogger).(slog.Logger)
+	return l, ok
 }
 
 // fixUnknownSubcommandError modifies the provided commands so that the

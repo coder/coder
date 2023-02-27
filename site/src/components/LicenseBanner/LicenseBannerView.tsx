@@ -93,7 +93,7 @@ const useStyles = makeStyles((theme) => ({
   link: {
     color: "inherit",
     textDecoration: "none",
-    fontWeight: "bold",
+    fontWeight: 600,
   },
   list: {
     padding: theme.spacing(1),

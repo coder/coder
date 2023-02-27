@@ -30,9 +30,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		planRequest  = request.GetPlan()
 	)
 
-	var (
-		config *proto.Provision_Config
-	)
+	var config *proto.Provision_Config
 	if applyRequest == nil && planRequest == nil {
 		return nil
 	} else if applyRequest != nil {
@@ -237,22 +235,20 @@ func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue
 	return env, nil
 }
 
-var (
-	// tfEnvSafeToPrint is the set of terraform environment variables that we are quite sure won't contain secrets,
-	// and therefore it's ok to log their values
-	tfEnvSafeToPrint = map[string]bool{
-		"TF_LOG":                      true,
-		"TF_LOG_PATH":                 true,
-		"TF_INPUT":                    true,
-		"TF_DATA_DIR":                 true,
-		"TF_WORKSPACE":                true,
-		"TF_IN_AUTOMATION":            true,
-		"TF_REGISTRY_DISCOVERY_RETRY": true,
-		"TF_REGISTRY_CLIENT_TIMEOUT":  true,
-		"TF_CLI_CONFIG_FILE":          true,
-		"TF_IGNORE":                   true,
-	}
-)
+// tfEnvSafeToPrint is the set of terraform environment variables that we are quite sure won't contain secrets,
+// and therefore it's ok to log their values
+var tfEnvSafeToPrint = map[string]bool{
+	"TF_LOG":                      true,
+	"TF_LOG_PATH":                 true,
+	"TF_INPUT":                    true,
+	"TF_DATA_DIR":                 true,
+	"TF_WORKSPACE":                true,
+	"TF_IN_AUTOMATION":            true,
+	"TF_REGISTRY_DISCOVERY_RETRY": true,
+	"TF_REGISTRY_CLIENT_TIMEOUT":  true,
+	"TF_CLI_CONFIG_FILE":          true,
+	"TF_IGNORE":                   true,
+}
 
 func logTerraformEnvVars(sink logSink) {
 	env := safeEnviron()

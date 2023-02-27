@@ -8,6 +8,7 @@ import MenuItem from "@material-ui/core/MenuItem"
 import { FC, useState } from "react"
 import { FileTree } from "util/filetree"
 import { DockerIcon } from "components/Icons/DockerIcon"
+import { colors } from "theme/colors"
 
 const sortFileTree = (fileTree: FileTree) => (a: string, b: string) => {
   const contentA = fileTree[a]
@@ -98,7 +99,6 @@ export const FileTreeView: FC<{
       defaultCollapseIcon={<ExpandMoreIcon />}
       defaultExpandIcon={<ChevronRightIcon />}
       aria-label="Files"
-      className={styles.fileTree}
     >
       {Object.keys(fileTree)
         .sort(sortFileTree(fileTree))
@@ -156,23 +156,22 @@ export const FileTreeView: FC<{
 }
 
 const useStyles = makeStyles((theme) => ({
-  fileTree: {},
   fileTreeItem: {
     overflow: "hidden",
     userSelect: "none",
 
-    "&:focus": {
-      "& > .MuiTreeItem-content": {
-        background: "rgba(255, 255, 255, 0.1)",
-      },
+    "&:focus:not(.active) > .MuiTreeItem-content": {
+      background: theme.palette.action.hover,
+      color: theme.palette.text.primary,
     },
-    "& > .MuiTreeItem-content:hover": {
-      background: theme.palette.background.paperLight,
+
+    "&:not(:focus):not(.active) > .MuiTreeItem-content:hover": {
+      background: theme.palette.action.hover,
       color: theme.palette.text.primary,
     },
 
     "& > .MuiTreeItem-content": {
-      padding: "1px 16px",
+      padding: theme.spacing(0.25, 2),
       color: theme.palette.text.secondary,
 
       "& svg": {
@@ -182,16 +181,25 @@ const useStyles = makeStyles((theme) => ({
 
       "& > .MuiTreeItem-label": {
         marginLeft: 4,
-        fontSize: 14,
+        fontSize: 13,
         color: "inherit",
       },
     },
 
     "&.active": {
-      background: theme.palette.background.paper,
-
       "& > .MuiTreeItem-content": {
         color: theme.palette.text.primary,
+        background: colors.gray[13],
+        pointerEvents: "none",
+      },
+    },
+
+    "& .MuiTreeItem-group": {
+      marginLeft: 0,
+
+      // We need to find a better way to recursive padding here
+      "& .MuiTreeItem-content": {
+        paddingLeft: theme.spacing(5),
       },
     },
   },

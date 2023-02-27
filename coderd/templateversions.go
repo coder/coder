@@ -948,7 +948,6 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		Name:           templateVersionName,
 		TemplateID:     templateVersion.TemplateID,
 	})
-
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{

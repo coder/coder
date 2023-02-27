@@ -153,6 +153,8 @@ type DeploymentConfig struct {
 	Address *DeploymentConfigField[string] `json:"address" typescript:",notnull"`
 	// DEPRECATED: Use Experiments instead.
 	Experimental *DeploymentConfigField[bool] `json:"experimental" typescript:",notnull"`
+
+	Support *SupportConfig `json:"support" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -276,8 +278,18 @@ type DangerousConfig struct {
 	AllowPathAppSiteOwnerAccess *DeploymentConfigField[bool] `json:"allow_path_app_site_owner_access" typescript:",notnull"`
 }
 
+type SupportConfig struct {
+	Links *DeploymentConfigField[[]LinkConfig] `json:"links" typescript:",notnull"`
+}
+
+type LinkConfig struct {
+	Name   string `json:"name"`
+	Target string `json:"target"`
+	Icon   string `json:"icon"`
+}
+
 type Flaggable interface {
-	string | time.Duration | bool | int | []string | []GitAuthConfig
+	string | time.Duration | bool | int | []string | []GitAuthConfig | []LinkConfig
 }
 
 type DeploymentConfigField[T Flaggable] struct {
@@ -348,6 +360,12 @@ func (c *Client) DeploymentConfig(ctx context.Context) (DeploymentConfig, error)
 type AppearanceConfig struct {
 	LogoURL       string              `json:"logo_url"`
 	ServiceBanner ServiceBannerConfig `json:"service_banner"`
+	SupportLinks  []LinkConfig        `json:"support_links,omitempty"`
+}
+
+type UpdateAppearanceConfig struct {
+	LogoURL       string              `json:"logo_url"`
+	ServiceBanner ServiceBannerConfig `json:"service_banner"`
 }
 
 type ServiceBannerConfig struct {
@@ -371,7 +389,7 @@ func (c *Client) Appearance(ctx context.Context) (AppearanceConfig, error) {
 	return cfg, json.NewDecoder(res.Body).Decode(&cfg)
 }
 
-func (c *Client) UpdateAppearance(ctx context.Context, appearance AppearanceConfig) error {
+func (c *Client) UpdateAppearance(ctx context.Context, appearance UpdateAppearanceConfig) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/v2/appearance", appearance)
 	if err != nil {
 		return err
@@ -432,13 +450,11 @@ const (
 	// ExperimentExample Experiment = "example"
 )
 
-var (
-	// ExperimentsAll should include all experiments that are safe for
-	// users to opt-in to via --experimental='*'.
-	// Experiments that are not ready for consumption by all users should
-	// not be included here and will be essentially hidden.
-	ExperimentsAll = Experiments{ExperimentTemplateEditor}
-)
+// ExperimentsAll should include all experiments that are safe for
+// users to opt-in to via --experimental='*'.
+// Experiments that are not ready for consumption by all users should
+// not be included here and will be essentially hidden.
+var ExperimentsAll = Experiments{ExperimentTemplateEditor}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.

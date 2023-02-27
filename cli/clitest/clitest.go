@@ -78,7 +78,7 @@ func extractTar(t *testing.T, data []byte, directory string) {
 		path := filepath.Join(directory, header.Name)
 		mode := header.FileInfo().Mode()
 		if mode == 0 {
-			mode = 0600
+			mode = 0o600
 		}
 		switch header.Typeflag {
 		case tar.TypeDir:

@@ -170,6 +170,30 @@ func TestConvertResources(t *testing.T) {
 				}},
 			}},
 		},
+		"mapped-apps": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Apps: []*proto.App{
+						{
+							Slug:        "app1",
+							DisplayName: "app1",
+						},
+						{
+							Slug:        "app2",
+							DisplayName: "app2",
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					LoginBeforeReady:         true,
+					ConnectionTimeoutSeconds: 120,
+				}},
+			}},
+		},
 		// Tests fetching metadata about workspace resources.
 		"resource-metadata": {
 			resources: []*proto.Resource{{
@@ -287,11 +311,14 @@ func TestConvertResources(t *testing.T) {
 				tfPlanGraph, err := os.ReadFile(filepath.Join(dir, folderName+".tfplan.dot"))
 				require.NoError(t, err)
 
-				modules := []*tfjson.StateModule{}
+				modules := []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}
 				if tfPlan.PriorState != nil {
 					modules = append(modules, tfPlan.PriorState.Values.RootModule)
+				} else {
+					// Ensure that resources can be duplicated in the source state
+					// and that no errors occur!
+					modules = append(modules, tfPlan.PlannedValues.RootModule)
 				}
-				modules = append(modules, tfPlan.PlannedValues.RootModule)
 				resources, parameters, err := terraform.ConvertResourcesAndParameters(modules, string(tfPlanGraph))
 				require.NoError(t, err)
 				sortResources(resources)

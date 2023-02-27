@@ -63,7 +63,7 @@ func TestTar(t *testing.T) {
 			file.Name = filepath.FromSlash(file.Name)
 			if filepath.Base(file.Name) != file.Name {
 				newDir = filepath.Join(newDir, filepath.Dir(file.Name))
-				err := os.MkdirAll(newDir, 0755)
+				err := os.MkdirAll(newDir, 0o755)
 				require.NoError(t, err)
 				file.Name = filepath.Base(file.Name)
 			}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -16,7 +17,11 @@ const (
 
 func TestValidate(t *testing.T) {
 	t.Parallel()
-	vm, err := azureidentity.Validate(context.Background(), signature, x509.VerifyOptions{})
+	ct, err := time.Parse(time.RFC3339, "2023-02-01T00:00:00Z")
+	require.NoError(t, err)
+	vm, err := azureidentity.Validate(context.Background(), signature, x509.VerifyOptions{
+		CurrentTime: ct,
+	})
 	require.NoError(t, err)
 	require.Equal(t, "bd8e7443-24a0-41f3-b949-8baf4fd1c573", vm)
 }

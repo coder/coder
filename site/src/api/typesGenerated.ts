@@ -34,6 +34,7 @@ export interface AppHostResponse {
 export interface AppearanceConfig {
   readonly logo_url: string
   readonly service_banner: ServiceBannerConfig
+  readonly support_links?: LinkConfig[]
 }
 
 // From codersdk/roles.go
@@ -334,6 +335,7 @@ export interface DeploymentConfig {
   readonly disable_password_auth: DeploymentConfigField<boolean>
   readonly address: DeploymentConfigField<string>
   readonly experimental: DeploymentConfigField<boolean>
+  readonly support: SupportConfig
 }
 
 // From codersdk/deployment.go
@@ -432,6 +434,13 @@ export interface License {
   readonly uploaded_at: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly claims: Record<string, any>
+}
+
+// From codersdk/deployment.go
+export interface LinkConfig {
+  readonly name: string
+  readonly target: string
+  readonly icon: string
 }
 
 // From codersdk/deployment.go
@@ -658,6 +667,11 @@ export interface ServiceBannerConfig {
 }
 
 // From codersdk/deployment.go
+export interface SupportConfig {
+  readonly links: DeploymentConfigField<LinkConfig[]>
+}
+
+// From codersdk/deployment.go
 export interface SwaggerConfig {
   readonly enable: DeploymentConfigField<boolean>
 }
@@ -795,6 +809,11 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
 }
 
+// From codersdk/apikey.go
+export interface TokensFilter {
+  readonly include_all: boolean
+}
+
 // From codersdk/deployment.go
 export interface TraceConfig {
   readonly enable: DeploymentConfigField<boolean>
@@ -811,6 +830,12 @@ export interface TransitionStats {
 // From codersdk/templates.go
 export interface UpdateActiveTemplateVersion {
   readonly id: string
+}
+
+// From codersdk/deployment.go
+export interface UpdateAppearanceConfig {
+  readonly logo_url: string
+  readonly service_banner: ServiceBannerConfig
 }
 
 // From codersdk/updatecheck.go
@@ -1326,4 +1351,10 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
 ]
 
 // From codersdk/deployment.go
-export type Flaggable = string | number | boolean | string[] | GitAuthConfig[]
+export type Flaggable =
+  | string
+  | number
+  | boolean
+  | string[]
+  | GitAuthConfig[]
+  | LinkConfig[]

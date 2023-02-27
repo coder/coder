@@ -26,6 +26,7 @@ export const UpdateButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
 
   return (
     <Button
+      variant="outlined"
       className={styles.actionButton}
       startIcon={<CloudQueueIcon />}
       onClick={handleAction}
@@ -43,6 +44,7 @@ export const ChangeVersionButton: FC<
 
   return (
     <Button
+      variant="outlined"
       className={styles.actionButton}
       startIcon={<UpdateOutlined />}
       onClick={handleAction}
@@ -60,6 +62,7 @@ export const BuildParametersButton: FC<
 
   return (
     <Button
+      variant="outlined"
       className={styles.actionButton}
       startIcon={<SettingsOutlined />}
       onClick={handleAction}
@@ -150,7 +153,7 @@ export const DisabledButton: FC<React.PropsWithChildren<DisabledProps>> = ({
   const styles = useStyles()
 
   return (
-    <Button disabled className={styles.actionButton}>
+    <Button variant="outlined" disabled className={styles.actionButton}>
       {label}
     </Button>
   )
@@ -167,6 +170,7 @@ export const ActionLoadingButton: FC<React.PropsWithChildren<LoadingProps>> = ({
   return (
     <LoadingButton
       loading
+      variant="outlined"
       loadingLabel={label}
       className={combineClasses([styles.loadingButton, styles.actionButton])}
     />
@@ -178,13 +182,17 @@ const useStyles = makeStyles((theme) => ({
     // Set fixed width for the action buttons so they will not change the size
     // during the transitions
     width: theme.spacing(20),
-    border: "none",
     borderRadius: `${theme.shape.borderRadius}px 0px 0px ${theme.shape.borderRadius}px`,
+    // This is used to show the hover effect
+    marginRight: -1,
+    position: "relative",
+    "&:hover": {
+      zIndex: 1,
+    },
   },
   cancelButton: {
     "&.MuiButton-root": {
       padding: "0px 0px !important",
-      border: "none",
       borderLeft: `1px solid ${theme.palette.divider}`,
       borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
       width: "63px", // matching dropdown button so button grouping doesn't grow in size

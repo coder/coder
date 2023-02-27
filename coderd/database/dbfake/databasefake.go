@@ -484,6 +484,19 @@ func (q *fakeQuerier) GetAPIKeysByLoginType(_ context.Context, t database.LoginT
 	return apiKeys, nil
 }
 
+func (q *fakeQuerier) GetAPIKeysByUserID(_ context.Context, params database.GetAPIKeysByUserIDParams) ([]database.APIKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	apiKeys := make([]database.APIKey, 0)
+	for _, key := range q.apiKeys {
+		if key.UserID == params.UserID && key.LoginType == params.LoginType {
+			apiKeys = append(apiKeys, key)
+		}
+	}
+	return apiKeys, nil
+}
+
 func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -923,7 +936,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		if arg.TemplateName != "" {
-			template, err := q.GetTemplateByID(ctx, workspace.TemplateID)
+			template, err := q.getTemplateByIDNoLock(ctx, workspace.TemplateID)
 			if err == nil && !strings.EqualFold(arg.TemplateName, template.Name) {
 				continue
 			}
@@ -1604,10 +1617,14 @@ func (q *fakeQuerier) ParameterValues(_ context.Context, arg database.ParameterV
 	return parameterValues, nil
 }
 
-func (q *fakeQuerier) GetTemplateByID(_ context.Context, id uuid.UUID) (database.Template, error) {
+func (q *fakeQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	return q.getTemplateByIDNoLock(ctx, id)
+}
+
+func (q *fakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (database.Template, error) {
 	for _, template := range q.templates {
 		if template.ID == id {
 			return template, nil

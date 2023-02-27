@@ -347,7 +347,9 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 	})
 	require.NoError(t, err, "create token")
 
-	apiKeys, err := client.Tokens(ctx, admin.UserID.String())
+	apiKeys, err := client.Tokens(ctx, admin.UserID.String(), codersdk.TokensFilter{
+		IncludeAll: true,
+	})
 	require.NoError(t, err, "get tokens")
 	apiKey := apiKeys[0]
 
@@ -693,6 +695,7 @@ func (s *PreparedRecorder) Authorize(ctx context.Context, object rbac.Object) er
 	}
 	return s.prepped.Authorize(ctx, object)
 }
+
 func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
 	s.rw.Lock()
 	defer s.rw.Unlock()
