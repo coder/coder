@@ -1390,3 +1390,10 @@ export const mockParameterSchema = (
     ...partial,
   }
 }
+
+export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
+  id: "github",
+  type: "github",
+  authenticate_url: "https://example.com/gitauth/github",
+  authenticated: false,
+}
