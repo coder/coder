@@ -1,7 +1,4 @@
-import {
-  DeploymentConfig,
-  DeploymentDAUsResponse,
-} from "./../../api/typesGenerated"
+import { DeploymentDAUsResponse } from "./../../api/typesGenerated"
 import { getDeploymentConfig, getDeploymentDAUs } from "api/api"
 import { createMachine, assign } from "xstate"
 import { DeploymentConfigAndOptions } from "api/types"
@@ -21,7 +18,7 @@ export const deploymentConfigMachine = createMachine(
       events: {} as { type: "LOAD" },
       services: {} as {
         getDeploymentConfig: {
-          data: DeploymentConfig
+          data: DeploymentConfigAndOptions
         }
         getDeploymentDAUs: {
           data: DeploymentDAUsResponse

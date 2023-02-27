@@ -24,7 +24,7 @@ func (c *Command) Name() string {
 	return strings.Split(c.Use, " ")[0]
 }
 
-// FullName returns the full invokation name of the command,
+// FullName returns the full invocation name of the command,
 // as seen on the command line.
 func (c *Command) FullName() string {
 	var names []string
