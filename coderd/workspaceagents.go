@@ -1393,7 +1393,7 @@ func validateGitToken(ctx context.Context, validateURL, token string) (bool, err
 	}
 	if res.StatusCode != http.StatusOK {
 		data, _ := io.ReadAll(res.Body)
-		return false, xerrors.Errorf("git token validation failed: status %d: body: %s", res.StatusCode, data)
+		return false, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
 	}
 	return true, nil
 }

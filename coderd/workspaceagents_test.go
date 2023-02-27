@@ -1005,7 +1005,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusInternalServerError, apiError.StatusCode())
-		require.Equal(t, "git token validation failed: status 403: body: Something went wrong!", apiError.Detail)
+		require.Equal(t, "validate git auth token: status 403: body: Something went wrong!", apiError.Detail)
 	})
 
 	t.Run("ExpiredNoRefresh", func(t *testing.T) {
