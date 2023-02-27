@@ -51,7 +51,7 @@ func (b *Bool) Set(s string) error {
 	return err
 }
 
-func (b *Bool) NoOptDefValue() string {
+func (*Bool) NoOptDefValue() string {
 	return "true"
 }
 

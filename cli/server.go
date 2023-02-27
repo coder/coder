@@ -733,7 +733,7 @@ flags, and YAML configuration. The precedence is as follows:
 				var gitAuthConfigs []codersdk.GitAuthConfig
 				for _, cfg := range gitAuthConfigs {
 					gitAuth = append(gitAuth, telemetry.GitAuth{
-						Type: string(cfg.Type),
+						Type: cfg.Type,
 					})
 				}
 
@@ -1089,7 +1089,6 @@ flags, and YAML configuration. The precedence is as follows:
 	createAdminUserCommand := newCreateAdminUserCommand()
 	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		// Help is handled by bigcli in command body.
-		return
 	})
 	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd, createAdminUserCommand)
 

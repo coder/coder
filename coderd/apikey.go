@@ -292,7 +292,10 @@ func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
 	}
 
 	if lifetime > api.DeploymentConfig.MaxTokenLifetime.Value() {
-		return xerrors.Errorf("lifetime must be less than %s", api.DeploymentConfig.MaxTokenLifetime)
+		return xerrors.Errorf(
+			"lifetime must be less than %v",
+			api.DeploymentConfig.MaxTokenLifetime,
+		)
 	}
 
 	return nil
