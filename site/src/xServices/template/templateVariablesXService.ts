@@ -1,7 +1,8 @@
-import { getTemplateByName, getTemplateVersionVariables } from "api/api"
+import { getTemplateByName, getTemplateVersion, getTemplateVersionVariables } from "api/api"
 import {
-  CreateWorkspaceBuildRequest,
+  CreateTemplateVersionRequest,
   Template,
+  TemplateVersion,
   TemplateVersionVariable,
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
@@ -10,16 +11,18 @@ type TemplateVariablesContext = {
   organizationId: string
   templateName: string
 
-  selectedTemplate?: Template
+  template?: Template
+  activeTemplateVersion?: TemplateVersion
   templateVariables?: TemplateVersionVariable[]
 
   getTemplateError?: Error | unknown
+  getActiveTemplateVersionError?: Error | unknown
   getTemplateVariablesError?: Error | unknown
 }
 
-type UpdateTemplateEvent = {
-  type: "UPDATE_TEMPLATE"
-  request: CreateWorkspaceBuildRequest // FIXME
+type CreateTemplateVersionEvent = {
+  type: "CREATE_TEMPLATE_VERSION"
+  request: CreateTemplateVersionRequest // FIXME
 }
 
 export const templateVariablesMachine = createMachine(
@@ -29,10 +32,13 @@ export const templateVariablesMachine = createMachine(
     tsTypes: {} as import("./templateVariablesXService.typegen").Typegen0,
     schema: {
       context: {} as TemplateVariablesContext,
-      events: {} as UpdateTemplateEvent,
+      events: {} as CreateTemplateVersionEvent,
       services: {} as {
         getTemplate: {
           data: Template
+        }
+        getActiveTemplateVersion: {
+          data: TemplateVersion
         }
         getTemplateVariables: {
           data: TemplateVersionVariable[]
@@ -53,6 +59,22 @@ export const templateVariablesMachine = createMachine(
           ],
           onError: {
             actions: ["assignGetTemplateError"],
+            target: "error",
+          },
+        },
+      },
+      gettingActiveTemplateVersion: {
+        entry: "clearGetActiveTemplateVersionError",
+        invoke: {
+          src: "getActiveTemplateVersion",
+          onDone: [
+            {
+              actions: ["assignActiveTemplateVersion"],
+              target: "gettingTemplateVariables",
+            },
+          ],
+          onError: {
+            actions: ["assignGetActiveTemplateVersionError"],
             target: "error",
           },
         },
@@ -89,19 +111,28 @@ export const templateVariablesMachine = createMachine(
         const { organizationId, templateName } = context
         return getTemplateByName(organizationId, templateName)
       },
-      getTemplateVariables: (context) => {
-        const { selectedTemplate } = context
-
-        if (!selectedTemplate) {
+      getActiveTemplateVersion: (context) => {
+        const { template } = context
+        if (!template) {
           throw new Error("No template selected")
         }
+        return getTemplateVersion(template.active_version_id)
 
-        return getTemplateVersionVariables(selectedTemplate.active_version_id)
+      },
+      getTemplateVariables: (context) => {
+        const { template } = context
+        if (!template) {
+          throw new Error("No template selected")
+        }
+        return getTemplateVersionVariables(template.active_version_id)
       },
     },
     actions: {
       assignTemplate: assign({
-        selectedTemplate: (_, event) => event.data,
+        template: (_, event) => event.data,
+      }),
+      assignActiveTemplateVersion: assign({
+        activeTemplateVersion: (_, event) => event.data,
       }),
       assignTemplateVariables: assign({
         templateVariables: (_, event) => event.data,
