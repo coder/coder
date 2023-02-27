@@ -5,17 +5,17 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import { DeploymentConfig } from "api/typesGenerated"
+import { DeploymentOption } from "api/types"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges"
 import { Header } from "components/DeploySettingsLayout/Header"
 
 export type GitAuthSettingsPageViewProps = {
-  deploymentConfig: Pick<DeploymentConfig, "gitauth">
+  options: DeploymentOption[]
 }
 
 export const GitAuthSettingsPageView = ({
-  deploymentConfig,
+  options,
 }: GitAuthSettingsPageViewProps): JSX.Element => {
   const styles = useStyles()
 
@@ -57,7 +57,7 @@ export const GitAuthSettingsPageView = ({
             </TableRow>
           </TableHead>
           <TableBody>
-            {deploymentConfig.gitauth.value.length === 0 && (
+            {/* {deploymentConfig.gitauth.value.length === 0 && (
               <TableRow>
                 <TableCell colSpan={999}>
                   <div className={styles.empty}>
@@ -76,7 +76,7 @@ export const GitAuthSettingsPageView = ({
                   <TableCell>{git.regex || "Not Set"}</TableCell>
                 </TableRow>
               )
-            })}
+            })} */}
           </TableBody>
         </Table>
       </TableContainer>

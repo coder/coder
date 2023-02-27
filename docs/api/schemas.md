@@ -1549,7 +1549,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-  "accessURL": {
+  "access_url": {
     "forceQuery": true,
     "fragment": "string",
     "host": "string",
@@ -1581,7 +1581,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   },
   "agent_stat_refresh_interval": 0,
   "audit_logging": true,
-  "autobuildPollInterval": 0,
+  "autobuild_poll_interval": 0,
   "browser_only": true,
   "cache_directory": "string",
   "config": "string",
@@ -1694,7 +1694,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "api": 0,
     "disable_all": true
   },
-  "redirectToAccessURL": true,
+  "redirect_to_access_url": true,
   "scim_api_key": "string",
   "secure_auth_cookie": true,
   "ssh_keygen_algorithm": "string",
@@ -1752,7 +1752,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "honeycomb_api_key": "string"
   },
   "update_check": true,
-  "wildcardAccessURL": {
+  "wildcard_access_url": {
     "forceQuery": true,
     "fragment": "string",
     "host": "string",
@@ -1773,12 +1773,12 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 | Name                                 | Type                                                     | Required | Restrictions | Description                                     |
 | ------------------------------------ | -------------------------------------------------------- | -------- | ------------ | ----------------------------------------------- |
-| `accessURL`                          | [bigcli.URL](#bigcliurl)                                 | false    |              |                                                 |
+| `access_url`                         | [bigcli.URL](#bigcliurl)                                 | false    |              |                                                 |
 | `address`                            | [bigcli.HostPort](#bigclihostport)                       | false    |              | Address Use HTTPAddress or TLS.Address instead. |
 | `agent_fallback_troubleshooting_url` | [bigcli.URL](#bigcliurl)                                 | false    |              |                                                 |
 | `agent_stat_refresh_interval`        | integer                                                  | false    |              |                                                 |
 | `audit_logging`                      | boolean                                                  | false    |              |                                                 |
-| `autobuildPollInterval`              | integer                                                  | false    |              |                                                 |
+| `autobuild_poll_interval`            | integer                                                  | false    |              |                                                 |
 | `browser_only`                       | boolean                                                  | false    |              |                                                 |
 | `cache_directory`                    | string                                                   | false    |              |                                                 |
 | `config`                             | string                                                   | false    |              |                                                 |
@@ -1803,7 +1803,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `proxy_trusted_headers`              | array of string                                          | false    |              |                                                 |
 | `proxy_trusted_origins`              | array of string                                          | false    |              |                                                 |
 | `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)     | false    |              |                                                 |
-| `redirectToAccessURL`                | boolean                                                  | false    |              |                                                 |
+| `redirect_to_access_url`             | boolean                                                  | false    |              |                                                 |
 | `scim_api_key`                       | string                                                   | false    |              |                                                 |
 | `secure_auth_cookie`                 | boolean                                                  | false    |              |                                                 |
 | `ssh_keygen_algorithm`               | string                                                   | false    |              |                                                 |
@@ -1815,7 +1815,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                 | false    |              |                                                 |
 | `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)             | false    |              |                                                 |
 | `update_check`                       | boolean                                                  | false    |              |                                                 |
-| `wildcardAccessURL`                  | [bigcli.URL](#bigcliurl)                                 | false    |              |                                                 |
+| `wildcard_access_url`                | [bigcli.URL](#bigcliurl)                                 | false    |              |                                                 |
 | `write_config`                       | boolean                                                  | false    |              |                                                 |
 
 ## codersdk.DeploymentConfigAndOptions
@@ -1823,7 +1823,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "config": {
-    "accessURL": {
+    "access_url": {
       "forceQuery": true,
       "fragment": "string",
       "host": "string",
@@ -1855,7 +1855,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     },
     "agent_stat_refresh_interval": 0,
     "audit_logging": true,
-    "autobuildPollInterval": 0,
+    "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
     "config": "string",
@@ -1968,7 +1968,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "api": 0,
       "disable_all": true
     },
-    "redirectToAccessURL": true,
+    "redirect_to_access_url": true,
     "scim_api_key": "string",
     "secure_auth_cookie": true,
     "ssh_keygen_algorithm": "string",
@@ -2026,7 +2026,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "honeycomb_api_key": "string"
     },
     "update_check": true,
-    "wildcardAccessURL": {
+    "wildcard_access_url": {
       "forceQuery": true,
       "fragment": "string",
       "host": "string",

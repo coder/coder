@@ -1,6 +1,10 @@
+import {
+  DeploymentConfig,
+  DeploymentDAUsResponse,
+} from "./../../api/typesGenerated"
 import { getDeploymentConfig, getDeploymentDAUs } from "api/api"
-import { DeploymentConfig, DeploymentDAUsResponse } from "api/typesGenerated"
 import { createMachine, assign } from "xstate"
+import { DeploymentConfigAndOptions } from "api/types"
 
 export const deploymentConfigMachine = createMachine(
   {
@@ -9,7 +13,7 @@ export const deploymentConfigMachine = createMachine(
 
     schema: {
       context: {} as {
-        deploymentConfig?: DeploymentConfig
+        deploymentConfig?: DeploymentConfigAndOptions
         getDeploymentConfigError?: unknown
         deploymentDAUs?: DeploymentDAUsResponse
         getDeploymentDAUsError?: unknown

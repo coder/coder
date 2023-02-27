@@ -16,7 +16,7 @@ const SecuritySettingsPage: FC = () => {
       </Helmet>
 
       <SecuritySettingsPageView
-        deploymentConfig={deploymentConfig}
+        options={deploymentConfig.options}
         featureAuditLogEnabled={entitlements.features["audit_log"].enabled}
         featureBrowserOnlyEnabled={
           entitlements.features["browser_only"].enabled

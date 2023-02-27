@@ -15,10 +15,10 @@ import (
 
 // Group describes a hierarchy of groups that an option or command belongs to.
 type Group struct {
-	Parent      *Group
-	Name        string
-	Children    []Group
-	Description string
+	Parent      *Group  `json:"parent,omitempty"`
+	Name        string  `json:"name,omitempty"`
+	Children    []Group `json:"children,omitempty"`
+	Description string  `json:"description,omitempty"`
 }
 
 func (g *Group) AddChild(child Group) {

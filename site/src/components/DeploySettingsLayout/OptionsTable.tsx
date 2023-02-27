@@ -5,6 +5,7 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
+import { DeploymentOption } from "api/types"
 import {
   OptionDescription,
   OptionName,
@@ -13,7 +14,7 @@ import {
 import { FC } from "react"
 
 const OptionsTable: FC<{
-  options: Record<string, unknown>
+  options: DeploymentOption[]
 }> = ({ options }) => {
   const styles = useStyles()
 
@@ -28,15 +29,18 @@ const OptionsTable: FC<{
         </TableHead>
         <TableBody>
           {Object.values(options).map((option) => {
+            if (option.value === null || option.value === "") {
+              return null
+            }
             return (
               <TableRow key={option.flag}>
                 <TableCell>
                   <OptionName>{option.name}</OptionName>
-                  <OptionDescription>{option.usage}</OptionDescription>
+                  <OptionDescription>{option.description}</OptionDescription>
                 </TableCell>
 
                 <TableCell>
-                  <OptionValue>{option.value.toString()}</OptionValue>
+                  <OptionValue>{option.value}</OptionValue>
                 </TableCell>
               </TableRow>
             )

@@ -710,6 +710,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "string"}, nil
 		case "encoding/json.RawMessage":
 			return TypescriptType{ValueType: "Record<string, string>"}, nil
+		case "github.com/coder/coder/cli/bigcli.URL":
+			return TypescriptType{ValueType: "string"}, nil
 		}
 
 		// Then see if the type is defined elsewhere. If it is, we can just
@@ -754,8 +756,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 
 		// If it's a struct, just use the name of the struct type
 		if _, ok := n.Underlying().(*types.Struct); ok {
-			return TypescriptType{ValueType: "unknown", AboveTypeLine: fmt.Sprintf("%s\n%s",
-				indentedComment(fmt.Sprintf("Named type %q unknown, using \"unknown\"", n.String())),
+			return TypescriptType{ValueType: "any", AboveTypeLine: fmt.Sprintf("%s\n%s",
+				indentedComment(fmt.Sprintf("Named type %q unknown, using \"any\"", n.String())),
 				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed"),
 			)}, nil
 		}

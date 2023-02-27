@@ -13,7 +13,7 @@ const NetworkSettingsPage: FC = () => {
         <title>{pageTitle("Network Settings")}</title>
       </Helmet>
 
-      <NetworkSettingsPageView deploymentConfig={deploymentConfig} />
+      <NetworkSettingsPageView options={deploymentConfig.options} />
     </>
   )
 }

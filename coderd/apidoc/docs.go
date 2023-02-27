@@ -6281,7 +6281,7 @@ const docTemplate = `{
         "codersdk.DeploymentConfig": {
             "type": "object",
             "properties": {
-                "accessURL": {
+                "access_url": {
                     "$ref": "#/definitions/bigcli.URL"
                 },
                 "address": {
@@ -6301,7 +6301,7 @@ const docTemplate = `{
                 "audit_logging": {
                     "type": "boolean"
                 },
-                "autobuildPollInterval": {
+                "autobuild_poll_interval": {
                     "type": "integer"
                 },
                 "browser_only": {
@@ -6385,7 +6385,7 @@ const docTemplate = `{
                 "rate_limit": {
                     "$ref": "#/definitions/codersdk.RateLimitConfig"
                 },
-                "redirectToAccessURL": {
+                "redirect_to_access_url": {
                     "type": "boolean"
                 },
                 "scim_api_key": {
@@ -6424,7 +6424,7 @@ const docTemplate = `{
                 "update_check": {
                     "type": "boolean"
                 },
-                "wildcardAccessURL": {
+                "wildcard_access_url": {
                     "$ref": "#/definitions/bigcli.URL"
                 },
                 "write_config": {

@@ -1,6 +1,7 @@
 package bigcli
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
@@ -130,6 +131,19 @@ func (d *Duration) String() string {
 	return time.Duration(*d).String()
 }
 
+func (d *Duration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.String())
+}
+
+func (d *Duration) UnmarshalJSON(b []byte) error {
+	var s string
+	err := json.Unmarshal(b, &s)
+	if err != nil {
+		return err
+	}
+	return d.Set(s)
+}
+
 func (Duration) Type() string {
 	return "duration"
 }
@@ -150,6 +164,19 @@ func (u *URL) String() string {
 	return uu.String()
 }
 
+func (u *URL) MarshalJSON() ([]byte, error) {
+	return json.Marshal(u.String())
+}
+
+func (u *URL) UnmarshalJSON(b []byte) error {
+	var s string
+	err := json.Unmarshal(b, &s)
+	if err != nil {
+		return err
+	}
+	return u.Set(s)
+}
+
 func (*URL) Type() string {
 	return "url"
 }
@@ -163,17 +190,35 @@ type HostPort struct {
 	Port string
 }
 
-func (b *HostPort) Set(v string) error {
+func (hp *HostPort) Set(v string) error {
 	var err error
-	b.Host, b.Port, err = net.SplitHostPort(v)
+	hp.Host, hp.Port, err = net.SplitHostPort(v)
 	return err
 }
 
-func (b *HostPort) String() string {
-	if b.Host == "" && b.Port == "" {
+func (hp *HostPort) String() string {
+	if hp.Host == "" && hp.Port == "" {
 		return ""
 	}
-	return b.Host + ":" + b.Port
+	return hp.Host + ":" + hp.Port
+}
+
+func (hp *HostPort) MarshalJSON() ([]byte, error) {
+	return json.Marshal(hp.String())
+}
+
+func (hp *HostPort) UnmarshalJSON(b []byte) error {
+	var s string
+	err := json.Unmarshal(b, &s)
+	if err != nil {
+		return err
+	}
+	if s == "" {
+		hp.Host = ""
+		hp.Port = ""
+		return nil
+	}
+	return hp.Set(s)
 }
 
 func (*HostPort) Type() string {

@@ -14,7 +14,7 @@ const GeneralSettingsPage: FC = () => {
         <title>{pageTitle("General Settings")}</title>
       </Helmet>
       <GeneralSettingsPageView
-        deploymentConfig={deploymentConfig}
+        deploymentOptions={deploymentConfig.options}
         deploymentDAUs={deploymentDAUs}
         getDeploymentDAUsError={getDeploymentDAUsError}
       />

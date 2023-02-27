@@ -84,7 +84,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
 ```json
 {
   "config": {
-    "accessURL": {
+    "access_url": {
       "forceQuery": true,
       "fragment": "string",
       "host": "string",
@@ -116,7 +116,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     },
     "agent_stat_refresh_interval": 0,
     "audit_logging": true,
-    "autobuildPollInterval": 0,
+    "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
     "config": "string",
@@ -229,7 +229,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "api": 0,
       "disable_all": true
     },
-    "redirectToAccessURL": true,
+    "redirect_to_access_url": true,
     "scim_api_key": "string",
     "secure_auth_cookie": true,
     "ssh_keygen_algorithm": "string",
@@ -287,7 +287,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "honeycomb_api_key": "string"
     },
     "update_check": true,
-    "wildcardAccessURL": {
+    "wildcard_access_url": {
       "forceQuery": true,
       "fragment": "string",
       "host": "string",

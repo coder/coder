@@ -8,7 +8,7 @@ export default {
   title: "pages/NetworkSettingsPageView",
   component: NetworkSettingsPageView,
   argTypes: {
-    deploymentConfig: {
+    options: {
       defaultValue: {
         derp: {
           server: {
