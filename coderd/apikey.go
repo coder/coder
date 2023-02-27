@@ -96,6 +96,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 					Detail: "This value is already in use and should be unique.",
 				}},
 			})
+			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create API key.",

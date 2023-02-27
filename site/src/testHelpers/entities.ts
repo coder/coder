@@ -41,6 +41,7 @@ export const MockTokens: TypesGen.APIKey[] = [
     login_type: "token",
     scope: "all",
     lifetime_seconds: 2592000,
+    token_name: "token-one",
   },
   {
     id: "tBoVE3dqLl",
@@ -52,6 +53,7 @@ export const MockTokens: TypesGen.APIKey[] = [
     login_type: "token",
     scope: "all",
     lifetime_seconds: 2592000,
+    token_name: "token-two",
   },
 ]
 
