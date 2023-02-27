@@ -64,7 +64,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   } = templateState.context
   const permissions = usePermissions()
 
-  if (!template || !templatePermissions) {
+  if (!template || !templatePermissions || !templateVersionVariables) {
     return <Loader />
   }
 
