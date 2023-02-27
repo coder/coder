@@ -11,34 +11,6 @@ terraform {
   }
 }
 
-# User parameters
-
-variable "region" {
-  type        = string
-  description = "Which region to deploy to."
-  default     = "us-pittsburgh"
-  validation {
-    condition     = contains(["us-pittsburgh", "eu-helsinki", "ap-sydney"], var.region)
-    error_message = "Region must be one of us-pittsburg, eu-helsinki, or ap-sydney."
-  }
-}
-
-variable "dotfiles_uri" {
-  type        = string
-  description = <<-EOF
-  Dotfiles repo URI (optional)
-
-  see https://dotfiles.github.io
-  EOF
-  default     = ""
-}
-
-variable "datocms_api_token" {
-  type        = string
-  description = "An API token from DATOCMS for usage with building our website."
-  default     = ""
-}
-
 locals {
   // These are Tailscale IP addresses. Ask Dean or Kyle for help.
   docker_host = {
@@ -49,8 +21,44 @@ locals {
   }
 }
 
+data "coder_parameter" "repo_dir" {
+  type = "string"
+  name = "Coder Repository Directory"
+  default = "~/coder"
+  description = "The directory specified will be created and [coder/coder](https://github.com/coder/coder) will be automatically cloned into it 🪄."
+  mutable = true
+}
+
+data "coder_parameter" "dotfiles_url" {
+  type = "string"
+  name = "Dotfiles URL"
+  description = "A path to your dotfiles. See: https://dotfiles.github.io"
+  default = " "
+  mutable = true
+}
+
+data "coder_parameter" "region" {
+  type = "string"
+  name = "Region"
+  option {
+    icon = "/emojis/1f1fa-1f1f8.png"
+    name = "Pittsburgh"
+    value = "us-pittsburgh"
+  }
+  option {
+    icon = "/emojis/1f1eb-1f1ee.png"
+    name = "Helsinki"
+    value = "eu-helsinki"
+  }
+  option {
+    icon = "/emojis/1f1e6-1f1fa.png"
+    name = "Sydney"
+    value = "ap-sydney"
+  }
+}
+
 provider "docker" {
-  host = lookup(local.docker_host, var.region)
+  host = lookup(local.docker_host, data.coder_parameter.region.value)
 }
 
 provider "coder" {}
@@ -65,15 +73,24 @@ resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
 
+  dir = data.coder_parameter.repo_dir.value
   login_before_ready     = false
   startup_script_timeout = 60
   startup_script         = <<-EOT
     set -eux -o pipefail
+
     # install and start code-server
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
+
+    if [ ! -d "${data.coder_parameter.repo_dir.value}" ]; then
+      mkdir -p ${data.coder_parameter.repo_dir.value}
+
+      git clone https://github.com/coder/coder ${data.coder_parameter.repo_dir.value}
+    fi
+
     sudo service docker start
-    DOTFILES_URI=${var.dotfiles_uri}
+    DOTFILES_URI=${data.coder_parameter.dotfiles_url.value}
     rm -f ~/.personalize.log
     if [ -n "$DOTFILES_URI" ]; then
       coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log
@@ -129,15 +146,6 @@ resource "docker_volume" "home_volume" {
   }
 }
 
-resource "coder_metadata" "home_info" {
-  resource_id = docker_volume.home_volume.id
-  item {
-    key       = "🤫🤫🤫<br/><br/>"
-    value     = "❤️❤️❤️"
-    sensitive = true
-  }
-}
-
 locals {
   container_name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   registry_name  = "codercom/oss-dogfood"
@@ -169,7 +177,6 @@ resource "docker_container" "workspace" {
   runtime = "sysbox-runc"
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
-    "DATOCMS_API_TOKEN=${var.datocms_api_token}",
   ]
   host {
     host = "host.docker.internal"
