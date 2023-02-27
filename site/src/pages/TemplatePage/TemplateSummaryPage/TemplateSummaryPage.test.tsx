@@ -36,6 +36,15 @@ describe("TemplateSummaryPage", () => {
     const mock = jest.spyOn(CreateDayString, "createDayString")
     mock.mockImplementation(() => "a minute ago")
 
+    server.use(
+      rest.get(
+        "/api/v2/templateversions/:templateVersion/variables",
+        (req, res, ctx) => {
+          return res(ctx.status(200), ctx.json([]))
+        },
+      ),
+    )
+
     renderPage()
     await screen.findByText(MockTemplate.display_name)
     await screen.findByTestId("markdown")
@@ -45,6 +54,12 @@ describe("TemplateSummaryPage", () => {
   it("does not allow a member to delete a template", () => {
     // get member-level permissions
     server.use(
+      rest.get(
+        "/api/v2/templateversions/:templateVersion/variables",
+        (req, res, ctx) => {
+          return res(ctx.status(200), ctx.json([]))
+        },
+      ),
       rest.post("/api/v2/authcheck", async (req, res, ctx) => {
         return res(ctx.status(200), ctx.json(MockMemberPermissions))
       }),
