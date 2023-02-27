@@ -240,9 +240,9 @@ message Provision {
     message Plan {
         Config config = 1;
         repeated ParameterValue parameter_values = 2;
-		repeated RichParameterValue rich_parameter_values = 3;
-		repeated VariableValue variable_values = 4;
-		repeated GitAuthProvider git_auth_providers = 5;
+        repeated RichParameterValue rich_parameter_values = 3;
+        repeated VariableValue variable_values = 4;
+        repeated GitAuthProvider git_auth_providers = 5;
     }
 
     message Apply {

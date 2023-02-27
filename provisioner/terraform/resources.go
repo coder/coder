@@ -72,7 +72,7 @@ type metadataItem struct {
 	IsNull    bool   `mapstructure:"is_null"`
 }
 
-type ConvertedState struct {
+type State struct {
 	Resources        []*proto.Resource
 	Parameters       []*proto.RichParameter
 	GitAuthProviders []string
@@ -81,7 +81,7 @@ type ConvertedState struct {
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
 // nolint:gocyclo
-func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*ConvertedState, error) {
+func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
 		return nil, xerrors.Errorf("parse graph: %w", err)
@@ -474,7 +474,6 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*ConvertedSta
 	gitAuthProvidersMap := map[string]struct{}{}
 	for _, tfResources := range tfResourcesByLabel {
 		for _, resource := range tfResources {
-			//
 			if resource.Type != "coder_git_auth" {
 				continue
 			}
@@ -490,7 +489,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*ConvertedSta
 		gitAuthProviders = append(gitAuthProviders, id)
 	}
 
-	return &ConvertedState{
+	return &State{
 		Resources:        resources,
 		Parameters:       parameters,
 		GitAuthProviders: gitAuthProviders,

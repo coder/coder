@@ -172,6 +172,8 @@ func (p *Server) connect(ctx context.Context) {
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+		// It's possible for the provisioner daemon to be shut down
+		// before the wait is complete!
 		if p.isClosed() {
 			return
 		}

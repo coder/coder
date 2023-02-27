@@ -318,7 +318,7 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 		}
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching Git auth link.",
+				Message: "Internal error fetching git auth link.",
 				Detail:  err.Error(),
 			})
 			return

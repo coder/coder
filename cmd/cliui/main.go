@@ -244,9 +244,13 @@ func main() {
 			var githubAuthed atomic.Bool
 			var gitlabAuthed atomic.Bool
 			go func() {
+				// Sleep to display the loading indicator.
 				time.Sleep(time.Second)
+				// Swap to true to display success and move onto GitLab.
 				githubAuthed.Store(true)
+				// Show the loading indicator again...
 				time.Sleep(time.Second * 2)
+				// Complete the auth!
 				gitlabAuthed.Store(true)
 			}()
 			return cliui.GitAuth(cmd.Context(), cmd.OutOrStdout(), cliui.GitAuthOptions{

@@ -34,21 +34,21 @@ type Config struct {
 	ValidateURL string
 }
 
-// ConvertConfig converts the YAML configuration entry to the
-// parsed and ready-to-consume provider type.
+// ConvertConfig converts the SDK configuration entry format
+// to the parsed and ready-to-consume in coderd provider type.
 func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
 		var typ codersdk.GitProvider
-		switch entry.Type {
-		case string(codersdk.GitProviderAzureDevops):
+		switch codersdk.GitProvider(entry.Type) {
+		case codersdk.GitProviderAzureDevops:
 			typ = codersdk.GitProviderAzureDevops
-		case string(codersdk.GitProviderBitBucket):
+		case codersdk.GitProviderBitBucket:
 			typ = codersdk.GitProviderBitBucket
-		case string(codersdk.GitProviderGitHub):
+		case codersdk.GitProviderGitHub:
 			typ = codersdk.GitProviderGitHub
-		case string(codersdk.GitProviderGitLab):
+		case codersdk.GitProviderGitLab:
 			typ = codersdk.GitProviderGitLab
 		default:
 			return nil, xerrors.Errorf("unknown git provider type: %q", entry.Type)

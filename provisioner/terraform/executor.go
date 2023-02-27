@@ -244,7 +244,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 }
 
 // planResources must only be called while the lock is held.
-func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*ConvertedState, error) {
+func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, error) {
 	plan, err := e.showPlan(ctx, killCtx, planfilePath)
 	if err != nil {
 		return nil, xerrors.Errorf("show terraform plan file: %w", err)
@@ -355,7 +355,7 @@ func (e *executor) apply(
 }
 
 // stateResources must only be called while the lock is held.
-func (e *executor) stateResources(ctx, killCtx context.Context) (*ConvertedState, error) {
+func (e *executor) stateResources(ctx, killCtx context.Context) (*State, error) {
 	state, err := e.state(ctx, killCtx)
 	if err != nil {
 		return nil, err
@@ -364,7 +364,7 @@ func (e *executor) stateResources(ctx, killCtx context.Context) (*ConvertedState
 	if err != nil {
 		return nil, xerrors.Errorf("get terraform graph: %w", err)
 	}
-	converted := &ConvertedState{}
+	converted := &State{}
 	if state.Values != nil {
 		converted, err = ConvertState([]*tfjson.StateModule{
 			state.Values.RootModule,
