@@ -38,9 +38,7 @@ func Overlap[T comparable](a []T, b []T) bool {
 }
 
 // Unique returns a new slice with all duplicate elements removed.
-// This is a slow function on large lists.
-// TODO: Sort elements and implement a faster search algorithm if we
-// really start to use this.
+// This is a slow function on large lists. O(n^2)
 func Unique[T comparable](a []T) []T {
 	cpy := make([]T, 0, len(a))
 	for _, v := range a {

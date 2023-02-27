@@ -16,6 +16,8 @@ import (
 )
 
 var nameRegex = regexp.MustCompile(`@([a-zA-Z0-9_]+)`)
+
+// dbmapper grabs struct 'db' tags.
 var dbmapper = reflectx.NewMapper("db")
 var sqlValuer = reflect.TypeOf((*driver.Valuer)(nil)).Elem()
 
@@ -26,7 +28,7 @@ var sqlValuer = reflect.TypeOf((*driver.Valuer)(nil)).Elem()
 //
 // 1. SQLx does not reuse arguments, so "@arg, @arg" will result in two arguments
 // "$1, $2" instead of "$1, $1".
-// 2. SQLx does not handle generic array types
+// 2. SQLx does not handle uuid arrays.
 // 3. SQLx only supports ":name" style arguments and breaks "::" type casting.
 func bindNamed(query string, arg interface{}) (newQuery string, args []interface{}, err error) {
 	// We do not need to implement a sql parser to extract and replace the variable names.
@@ -39,13 +41,14 @@ func bindNamed(query string, arg interface{}) (newQuery string, args []interface
 	for i, name := range names {
 		rpl := fmt.Sprintf("$%d", i+1)
 		query = strings.ReplaceAll(query, name, rpl)
+		// Remove the "@" prefix to match to the "db" struct tag.
 		names[i] = strings.TrimPrefix(name, "@")
 	}
 
 	arglist := make([]interface{}, 0, len(names))
 
-	// This comes straight from SQLx
-	// grab the indirected value of arg
+	// This comes straight from SQLx's implementation to get the values
+	// of the struct fields.
 	v := reflect.ValueOf(arg)
 	for v = reflect.ValueOf(arg); v.Kind() == reflect.Ptr; {
 		v = v.Elem()
@@ -60,6 +63,7 @@ func bindNamed(query string, arg interface{}) (newQuery string, args []interface
 
 		// Handle some custom types to make arguments easier to use.
 		switch val.Interface().(type) {
+		// Feel free to add more types here as needed.
 		case []uuid.UUID:
 			arglist = append(arglist, pq.Array(val.Interface()))
 		default:
@@ -73,16 +77,4 @@ func bindNamed(query string, arg interface{}) (newQuery string, args []interface
 	}
 
 	return query, arglist, nil
-}
-
-type UUIDs []uuid.UUID
-
-func (ids UUIDs) Value() (driver.Value, error) {
-	v := pq.Array(ids)
-	return v.Value()
-}
-
-func (ids *UUIDs) Scan(src interface{}) error {
-	v := pq.Array(ids)
-	return v.Scan(src)
 }

@@ -1147,9 +1147,12 @@ func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetW
 	return q.db.GetAuthorizedWorkspaces(ctx, arg, prep)
 }
 
-func (q *querier) GetWorkspaces(_ context.Context, _ database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
-	// Always call GetAuthorizedWorkspaces.
-	panic("not implemented")
+func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.WorkspaceWithData, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceWorkspace.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.GetAuthorizedWorkspaces(ctx, arg, prep)
 }
 
 func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {

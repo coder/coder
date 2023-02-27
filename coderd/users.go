@@ -403,7 +403,8 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaces, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
+	// Return all workspaces, not just the workspaces the user can view.
+	workspaces, err := api.Database.GetWorkspaces(dbauthz.AsSystem(ctx), database.GetWorkspacesParams{
 		OwnerID: user.ID,
 	})
 	if err != nil {

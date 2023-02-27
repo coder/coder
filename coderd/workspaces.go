@@ -1055,7 +1055,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		return workspaceData{}, xerrors.Errorf("get workspace builds: %w", err)
 	}
 
-	data, err := api.workspaceBuildsData(ctx, workspaces, builds)
+	data, err := api.workspaceBuildsData(ctx, builds)
 	if err != nil {
 		return workspaceData{}, xerrors.Errorf("get workspace builds data: %w", err)
 	}
@@ -1065,10 +1065,10 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		workspaces,
 		data.jobs,
 		data.users,
-		data.resources,
-		data.metadata,
-		data.agents,
-		data.apps,
+		data.resourceData.resources,
+		data.resourceData.metadata,
+		data.resourceData.agents,
+		data.resourceData.apps,
 		data.templateVersions,
 	)
 	if err != nil {
@@ -1082,12 +1082,16 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}, nil
 }
 
+type workspaceResources struct {
+}
+
 func convertWorkspaceDatas(
 	workspaces []database.WorkspaceWithData,
+	resources map[uuid.UUID][]database.WorkspaceResource,
 ) ([]codersdk.Workspace, error) {
 	converted := make([]codersdk.Workspace, 0, len(workspaces))
 	for _, workspace := range workspaces {
-		convertedWorkspace, err := convertWorkspaceData(workspace)
+		convertedWorkspace, err := convertWorkspaceData(workspace, resources[workspace.ID])
 		if err != nil {
 			return nil, err
 		}
@@ -1098,6 +1102,7 @@ func convertWorkspaceDatas(
 
 func convertWorkspaceData(
 	workspace database.WorkspaceWithData,
+	resources []database.WorkspaceResource,
 ) (codersdk.Workspace, error) {
 	var autostartSchedule *string
 	if workspace.AutostartSchedule.Valid {

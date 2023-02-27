@@ -183,9 +183,10 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 
 type workspaceQuerier interface {
 	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]WorkspaceWithData, error)
+	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]WorkspaceWithData, error)
 }
 
-// WorkspaceWithData includes information returned by the api for a workspace.
+// WorkspaceWithData includes related information to the workspace.
 type WorkspaceWithData struct {
 	Workspace `db:""`
 
@@ -227,6 +228,15 @@ type GetWorkspacesParams struct {
 	Limit                                 int32       `db:"limit_" json:"limit_"`
 }
 
+func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]WorkspaceWithData, error) {
+	// Only GetAuthorizedWorkspaces should be called. This is a placeholder for the interface,
+	// as the GetWorkspaces method is used in dbauthz package.
+	panic("not implemented")
+}
+
+//go:embed sqlxqueries/getworkspaces.sql
+var getAuthorizedWorkspacesQuery string
+
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
 // clause.
@@ -236,17 +246,9 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
 
-	// getQuery is just the SQL query from the sqlxqueries/getworkspaces.sql file.
-	// TODO: This syntax kinda sucks, but embedding is nice? Could just be a
-	// string constant.
-	getQuery, err := sqlxQueries.ReadFile("sqlxqueries/getworkspaces.sql")
-	if err != nil {
-		panic("developer error")
-	}
-
 	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
 	// authorizedFilter between the end of the where clause and those statements.
-	filtered, err := insertAuthorizedFilter(string(getQuery), fmt.Sprintf(" AND %s", authorizedFilter))
+	filtered, err := insertAuthorizedFilter(getAuthorizedWorkspacesQuery, fmt.Sprintf(" AND %s", authorizedFilter))
 	if err != nil {
 		return nil, xerrors.Errorf("insert authorized filter: %w", err)
 	}

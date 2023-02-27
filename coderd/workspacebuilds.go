@@ -55,7 +55,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.jobs[0],
 		data.users,
-		data.resources,
+		data.resourceData,
 		data.metadata,
 		data.agents,
 		data.apps,
@@ -174,7 +174,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		[]database.Workspace{workspace},
 		data.jobs,
 		data.users,
-		data.resources,
+		data.resourceData,
 		data.metadata,
 		data.agents,
 		data.apps,
@@ -267,7 +267,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		workspace,
 		data.jobs[0],
 		data.users,
-		data.resources,
+		data.resourceData,
 		data.metadata,
 		data.agents,
 		data.apps,
@@ -907,20 +907,22 @@ type workspaceBuildsData struct {
 	users            []database.User
 	jobs             []database.ProvisionerJob
 	templateVersions []database.TemplateVersion
-	resources        []database.WorkspaceResource
-	metadata         []database.WorkspaceResourceMetadatum
-	agents           []database.WorkspaceAgent
-	apps             []database.WorkspaceApp
+	resourceData     workspaceResourceData
 }
 
-func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.Workspace, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
+type workspaceResourceData struct {
+	resources []database.WorkspaceResource
+	metadata  []database.WorkspaceResourceMetadatum
+	agents    []database.WorkspaceAgent
+	apps      []database.WorkspaceApp
+}
+
+func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
 	userIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
 		userIDs = append(userIDs, build.InitiatorID)
 	}
-	for _, workspace := range workspaces {
-		userIDs = append(userIDs, workspace.OwnerID)
-	}
+
 	users, err := api.Database.GetUsersByIDs(ctx, userIDs)
 	if err != nil {
 		return workspaceBuildsData{}, xerrors.Errorf("get users: %w", err)
@@ -944,42 +946,43 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 		return workspaceBuildsData{}, xerrors.Errorf("get template versions: %w", err)
 	}
 
+	resources, err := api.workspaceResources(ctx, jobIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, err
+	}
+
+	return workspaceBuildsData{
+		users:            users,
+		jobs:             jobs,
+		templateVersions: templateVersions,
+		resourceData:     resources,
+	}, nil
+}
+
+func (api *API) workspaceResources(ctx context.Context, jobIDs []uuid.UUID) (workspaceResourceData, error) {
 	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(ctx, jobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get workspace resources by job: %w", err)
+		return workspaceResourceData{}, xerrors.Errorf("get workspace resources: %w", err)
 	}
 
 	if len(resources) == 0 {
-		return workspaceBuildsData{
-			users:            users,
-			jobs:             jobs,
-			templateVersions: templateVersions,
+		return workspaceResourceData{
+			resources: resources,
+			metadata:  []database.WorkspaceResourceMetadatum{},
+			agents:    []database.WorkspaceAgent{},
+			apps:      []database.WorkspaceApp{},
 		}, nil
 	}
 
-	resourceIDs := make([]uuid.UUID, 0)
-	for _, resource := range resources {
-		resourceIDs = append(resourceIDs, resource.ID)
-	}
-
+	resourceIDs := make([]uuid.UUID, 0, len(resources))
 	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(ctx, resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("fetching resource metadata: %w", err)
+		return workspaceResourceData{}, xerrors.Errorf("get workspace resource metadata: %w", err)
 	}
 
 	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get workspace agents: %w", err)
-	}
-
-	if len(resources) == 0 {
-		return workspaceBuildsData{
-			users:            users,
-			jobs:             jobs,
-			templateVersions: templateVersions,
-			resources:        resources,
-			metadata:         metadata,
-		}, nil
+		return workspaceResourceData{}, xerrors.Errorf("get workspace agents: %w", err)
 	}
 
 	agentIDs := make([]uuid.UUID, 0)
@@ -989,17 +992,14 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 
 	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(ctx, agentIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("fetching workspace apps: %w", err)
+		return workspaceResourceData{}, xerrors.Errorf("fetching workspace apps: %w", err)
 	}
 
-	return workspaceBuildsData{
-		users:            users,
-		jobs:             jobs,
-		templateVersions: templateVersions,
-		resources:        resources,
-		metadata:         metadata,
-		agents:           agents,
-		apps:             apps,
+	return workspaceResourceData{
+		resources: resources,
+		metadata:  metadata,
+		agents:    agents,
+		apps:      apps,
 	}, nil
 }
 
@@ -1066,7 +1066,7 @@ func (api *API) convertWorkspaceBuilds(
 
 func (api *API) convertWorkspaceBuild(
 	build database.WorkspaceBuild,
-	workspace database.Workspace,
+	workspace database.WorkspaceWithData,
 	job database.ProvisionerJob,
 	users []database.User,
 	workspaceResources []database.WorkspaceResource,
@@ -1096,10 +1096,6 @@ func (api *API) convertWorkspaceBuild(
 		appsByAgentID[app.AgentID] = append(appsByAgentID[app.AgentID], app)
 	}
 
-	owner, exists := userByID[workspace.OwnerID]
-	if !exists {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("owner not found for workspace: %q", workspace.Name)
-	}
 	initiator, exists := userByID[build.InitiatorID]
 	if !exists {
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("build initiator not found for workspace: %q", workspace.Name)
@@ -1128,7 +1124,7 @@ func (api *API) convertWorkspaceBuild(
 		CreatedAt:           build.CreatedAt,
 		UpdatedAt:           build.UpdatedAt,
 		WorkspaceOwnerID:    workspace.OwnerID,
-		WorkspaceOwnerName:  owner.Username,
+		WorkspaceOwnerName:  workspace.OwnerUserName,
 		WorkspaceID:         build.WorkspaceID,
 		WorkspaceName:       workspace.Name,
 		TemplateVersionID:   build.TemplateVersionID,

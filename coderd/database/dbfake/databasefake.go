@@ -881,226 +881,218 @@ func (q *fakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 	}, nil
 }
 
-func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
-	panic("not implemented")
-	//if err := validateDatabaseType(arg); err != nil {
-	//	return nil, err
-	//}
-	//
-	//// A nil auth filter means no auth filter.
-	//workspaceRows, err := q.GetAuthorizedWorkspaces(ctx, arg, nil)
-	//return workspaceRows, err
+func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.WorkspaceWithData, error) {
+	return q.GetAuthorizedWorkspaces(ctx, arg, nil)
 }
 
 //nolint:gocyclo
 func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]database.WorkspaceWithData, error) {
-	panic("not implemented")
-	//if err := validateDatabaseType(arg); err != nil {
-	//	return nil, err
-	//}
-	//
-	//q.mutex.RLock()
-	//defer q.mutex.RUnlock()
-	//
-	//if prepared != nil {
-	//	// Call this to match the same function calls as the SQL implementation.
-	//	_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
-	//	if err != nil {
-	//		return nil, err
-	//	}
-	//}
-	//
-	//workspaces := make([]database.Workspace, 0)
-	//for _, workspace := range q.workspaces {
-	//	if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
-	//		continue
-	//	}
-	//
-	//	if arg.OwnerUsername != "" {
-	//		owner, err := q.getUserByIDNoLock(workspace.OwnerID)
-	//		if err == nil && !strings.EqualFold(arg.OwnerUsername, owner.Username) {
-	//			continue
-	//		}
-	//	}
-	//
-	//	if arg.TemplateName != "" {
-	//		template, err := q.GetTemplateByID(ctx, workspace.TemplateID)
-	//		if err == nil && !strings.EqualFold(arg.TemplateName, template.Name) {
-	//			continue
-	//		}
-	//	}
-	//
-	//	if !arg.Deleted && workspace.Deleted {
-	//		continue
-	//	}
-	//
-	//	if arg.Name != "" && !strings.Contains(strings.ToLower(workspace.Name), strings.ToLower(arg.Name)) {
-	//		continue
-	//	}
-	//
-	//	if arg.Status != "" {
-	//		build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-	//		if err != nil {
-	//			return nil, xerrors.Errorf("get latest build: %w", err)
-	//		}
-	//
-	//		job, err := q.GetProvisionerJobByID(ctx, build.JobID)
-	//		if err != nil {
-	//			return nil, xerrors.Errorf("get provisioner job: %w", err)
-	//		}
-	//
-	//		switch arg.Status {
-	//		case "pending":
-	//			if !job.StartedAt.Valid {
-	//				continue
-	//			}
-	//
-	//		case "starting":
-	//			if !job.StartedAt.Valid &&
-	//				!job.CanceledAt.Valid &&
-	//				job.CompletedAt.Valid &&
-	//				time.Since(job.UpdatedAt) > 30*time.Second ||
-	//				build.Transition != database.WorkspaceTransitionStart {
-	//				continue
-	//			}
-	//
-	//		case "running":
-	//			if !job.CompletedAt.Valid &&
-	//				job.CanceledAt.Valid &&
-	//				job.Error.Valid ||
-	//				build.Transition != database.WorkspaceTransitionStart {
-	//				continue
-	//			}
-	//
-	//		case "stopping":
-	//			if !job.StartedAt.Valid &&
-	//				!job.CanceledAt.Valid &&
-	//				job.CompletedAt.Valid &&
-	//				time.Since(job.UpdatedAt) > 30*time.Second ||
-	//				build.Transition != database.WorkspaceTransitionStop {
-	//				continue
-	//			}
-	//
-	//		case "stopped":
-	//			if !job.CompletedAt.Valid &&
-	//				job.CanceledAt.Valid &&
-	//				job.Error.Valid ||
-	//				build.Transition != database.WorkspaceTransitionStop {
-	//				continue
-	//			}
-	//
-	//		case "failed":
-	//			if (!job.CanceledAt.Valid && !job.Error.Valid) ||
-	//				(!job.CompletedAt.Valid && !job.Error.Valid) {
-	//				continue
-	//			}
-	//
-	//		case "canceling":
-	//			if !job.CanceledAt.Valid && job.CompletedAt.Valid {
-	//				continue
-	//			}
-	//
-	//		case "canceled":
-	//			if !job.CanceledAt.Valid && !job.CompletedAt.Valid {
-	//				continue
-	//			}
-	//
-	//		case "deleted":
-	//			if !job.StartedAt.Valid &&
-	//				job.CanceledAt.Valid &&
-	//				!job.CompletedAt.Valid &&
-	//				time.Since(job.UpdatedAt) > 30*time.Second ||
-	//				build.Transition != database.WorkspaceTransitionDelete {
-	//				continue
-	//			}
-	//
-	//		case "deleting":
-	//			if !job.CompletedAt.Valid &&
-	//				job.CanceledAt.Valid &&
-	//				job.Error.Valid &&
-	//				build.Transition != database.WorkspaceTransitionDelete {
-	//				continue
-	//			}
-	//
-	//		default:
-	//			return nil, xerrors.Errorf("unknown workspace status in filter: %q", arg.Status)
-	//		}
-	//	}
-	//
-	//	if arg.HasAgent != "" {
-	//		build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-	//		if err != nil {
-	//			return nil, xerrors.Errorf("get latest build: %w", err)
-	//		}
-	//
-	//		job, err := q.GetProvisionerJobByID(ctx, build.JobID)
-	//		if err != nil {
-	//			return nil, xerrors.Errorf("get provisioner job: %w", err)
-	//		}
-	//
-	//		workspaceResources, err := q.GetWorkspaceResourcesByJobID(ctx, job.ID)
-	//		if err != nil {
-	//			return nil, xerrors.Errorf("get workspace resources: %w", err)
-	//		}
-	//
-	//		var workspaceResourceIDs []uuid.UUID
-	//		for _, wr := range workspaceResources {
-	//			workspaceResourceIDs = append(workspaceResourceIDs, wr.ID)
-	//		}
-	//
-	//		workspaceAgents, err := q.GetWorkspaceAgentsByResourceIDs(ctx, workspaceResourceIDs)
-	//		if err != nil {
-	//			return nil, xerrors.Errorf("get workspace agents: %w", err)
-	//		}
-	//
-	//		var hasAgentMatched bool
-	//		for _, wa := range workspaceAgents {
-	//			if mapAgentStatus(wa, arg.AgentInactiveDisconnectTimeoutSeconds) == arg.HasAgent {
-	//				hasAgentMatched = true
-	//			}
-	//		}
-	//
-	//		if !hasAgentMatched {
-	//			continue
-	//		}
-	//	}
-	//
-	//	if len(arg.TemplateIds) > 0 {
-	//		match := false
-	//		for _, id := range arg.TemplateIds {
-	//			if workspace.TemplateID == id {
-	//				match = true
-	//				break
-	//			}
-	//		}
-	//		if !match {
-	//			continue
-	//		}
-	//	}
-	//
-	//	// If the filter exists, ensure the object is authorized.
-	//	if prepared != nil && prepared.Authorize(ctx, workspace.RBACObject()) != nil {
-	//		continue
-	//	}
-	//	workspaces = append(workspaces, workspace)
-	//}
-	//
-	//beforePageCount := len(workspaces)
-	//
-	//if arg.Offset > 0 {
-	//	if int(arg.Offset) > len(workspaces) {
-	//		return []database.GetWorkspacesRow{}, nil
-	//	}
-	//	workspaces = workspaces[arg.Offset:]
-	//}
-	//if arg.Limit > 0 {
-	//	if int(arg.Limit) > len(workspaces) {
-	//		return convertToWorkspaceRows(workspaces, int64(beforePageCount)), nil
-	//	}
-	//	workspaces = workspaces[:arg.Limit]
-	//}
-	//
-	//return convertToWorkspaceRows(workspaces, int64(beforePageCount)), nil
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if prepared != nil {
+		// Call this to match the same function calls as the SQL implementation.
+		_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL(""))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	workspaces := make([]database.Workspace, 0)
+	for _, workspace := range q.workspaces {
+		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
+			continue
+		}
+
+		if arg.OwnerUsername != "" {
+			owner, err := q.getUserByIDNoLock(workspace.OwnerID)
+			if err == nil && !strings.EqualFold(arg.OwnerUsername, owner.Username) {
+				continue
+			}
+		}
+
+		if arg.TemplateName != "" {
+			template, err := q.GetTemplateByID(ctx, workspace.TemplateID)
+			if err == nil && !strings.EqualFold(arg.TemplateName, template.Name) {
+				continue
+			}
+		}
+
+		if !arg.Deleted && workspace.Deleted {
+			continue
+		}
+
+		if arg.Name != "" && !strings.Contains(strings.ToLower(workspace.Name), strings.ToLower(arg.Name)) {
+			continue
+		}
+
+		if arg.Status != "" {
+			build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get latest build: %w", err)
+			}
+
+			job, err := q.GetProvisionerJobByID(ctx, build.JobID)
+			if err != nil {
+				return nil, xerrors.Errorf("get provisioner job: %w", err)
+			}
+
+			switch arg.Status {
+			case "pending":
+				if !job.StartedAt.Valid {
+					continue
+				}
+
+			case "starting":
+				if !job.StartedAt.Valid &&
+					!job.CanceledAt.Valid &&
+					job.CompletedAt.Valid &&
+					time.Since(job.UpdatedAt) > 30*time.Second ||
+					build.Transition != database.WorkspaceTransitionStart {
+					continue
+				}
+
+			case "running":
+				if !job.CompletedAt.Valid &&
+					job.CanceledAt.Valid &&
+					job.Error.Valid ||
+					build.Transition != database.WorkspaceTransitionStart {
+					continue
+				}
+
+			case "stopping":
+				if !job.StartedAt.Valid &&
+					!job.CanceledAt.Valid &&
+					job.CompletedAt.Valid &&
+					time.Since(job.UpdatedAt) > 30*time.Second ||
+					build.Transition != database.WorkspaceTransitionStop {
+					continue
+				}
+
+			case "stopped":
+				if !job.CompletedAt.Valid &&
+					job.CanceledAt.Valid &&
+					job.Error.Valid ||
+					build.Transition != database.WorkspaceTransitionStop {
+					continue
+				}
+
+			case "failed":
+				if (!job.CanceledAt.Valid && !job.Error.Valid) ||
+					(!job.CompletedAt.Valid && !job.Error.Valid) {
+					continue
+				}
+
+			case "canceling":
+				if !job.CanceledAt.Valid && job.CompletedAt.Valid {
+					continue
+				}
+
+			case "canceled":
+				if !job.CanceledAt.Valid && !job.CompletedAt.Valid {
+					continue
+				}
+
+			case "deleted":
+				if !job.StartedAt.Valid &&
+					job.CanceledAt.Valid &&
+					!job.CompletedAt.Valid &&
+					time.Since(job.UpdatedAt) > 30*time.Second ||
+					build.Transition != database.WorkspaceTransitionDelete {
+					continue
+				}
+
+			case "deleting":
+				if !job.CompletedAt.Valid &&
+					job.CanceledAt.Valid &&
+					job.Error.Valid &&
+					build.Transition != database.WorkspaceTransitionDelete {
+					continue
+				}
+
+			default:
+				return nil, xerrors.Errorf("unknown workspace status in filter: %q", arg.Status)
+			}
+		}
+
+		if arg.HasAgent != "" {
+			build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get latest build: %w", err)
+			}
+
+			job, err := q.GetProvisionerJobByID(ctx, build.JobID)
+			if err != nil {
+				return nil, xerrors.Errorf("get provisioner job: %w", err)
+			}
+
+			workspaceResources, err := q.GetWorkspaceResourcesByJobID(ctx, job.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("get workspace resources: %w", err)
+			}
+
+			var workspaceResourceIDs []uuid.UUID
+			for _, wr := range workspaceResources {
+				workspaceResourceIDs = append(workspaceResourceIDs, wr.ID)
+			}
+
+			workspaceAgents, err := q.GetWorkspaceAgentsByResourceIDs(ctx, workspaceResourceIDs)
+			if err != nil {
+				return nil, xerrors.Errorf("get workspace agents: %w", err)
+			}
+
+			var hasAgentMatched bool
+			for _, wa := range workspaceAgents {
+				if mapAgentStatus(wa, arg.AgentInactiveDisconnectTimeoutSeconds) == arg.HasAgent {
+					hasAgentMatched = true
+				}
+			}
+
+			if !hasAgentMatched {
+				continue
+			}
+		}
+
+		if len(arg.TemplateIds) > 0 {
+			match := false
+			for _, id := range arg.TemplateIds {
+				if workspace.TemplateID == id {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue
+			}
+		}
+
+		// If the filter exists, ensure the object is authorized.
+		if prepared != nil && prepared.Authorize(ctx, workspace.RBACObject()) != nil {
+			continue
+		}
+		workspaces = append(workspaces, workspace)
+	}
+
+	beforePageCount := len(workspaces)
+
+	if arg.Offset > 0 {
+		if int(arg.Offset) > len(workspaces) {
+			return []database.WorkspaceWithData{}, nil
+		}
+		workspaces = workspaces[arg.Offset:]
+	}
+	if arg.Limit > 0 {
+		if int(arg.Limit) > len(workspaces) {
+			return q.convertToWorkspaceData(workspaces, int64(beforePageCount)), nil
+		}
+		workspaces = workspaces[:arg.Limit]
+	}
+
+	return q.convertToWorkspaceData(workspaces, int64(beforePageCount)), nil
 }
 
 // mapAgentStatus determines the agent status based on different timestamps like created_at, last_connected_at, disconnected_at, etc.
@@ -1137,22 +1129,42 @@ func mapAgentStatus(dbAgent database.WorkspaceAgent, agentInactiveDisconnectTime
 	return status
 }
 
-func convertToWorkspaceRows(workspaces []database.Workspace, count int64) []database.GetWorkspacesRow {
-	rows := make([]database.GetWorkspacesRow, len(workspaces))
+func (q fakeQuerier) convertToWorkspaceData(workspaces []database.Workspace, count int64) []database.WorkspaceWithData {
+	rows := make([]database.WorkspaceWithData, len(workspaces))
 	for i, w := range workspaces {
-		rows[i] = database.GetWorkspacesRow{
-			ID:                w.ID,
-			CreatedAt:         w.CreatedAt,
-			UpdatedAt:         w.UpdatedAt,
-			OwnerID:           w.OwnerID,
-			OrganizationID:    w.OrganizationID,
-			TemplateID:        w.TemplateID,
-			Deleted:           w.Deleted,
-			Name:              w.Name,
-			AutostartSchedule: w.AutostartSchedule,
-			Ttl:               w.Ttl,
-			LastUsedAt:        w.LastUsedAt,
-			Count:             count,
+		// TODO: (@emyrk) Should these error?
+		owner, _ := q.GetUserByID(context.Background(), w.OwnerID)
+		latestBuild, _ := q.GetLatestWorkspaceBuildByWorkspaceID(context.Background(), w.ID)
+		job, _ := q.GetProvisionerJobByID(context.Background(), latestBuild.JobID)
+		latestBuildUser, _ := q.GetUserByID(context.Background(), latestBuild.InitiatorID)
+		tv, _ := q.GetTemplateVersionByID(context.Background(), latestBuild.TemplateVersionID)
+		tpl, _ := q.GetTemplateByID(context.Background(), w.TemplateID)
+
+		rows[i] = database.WorkspaceWithData{
+			Workspace: database.Workspace{
+				ID:                w.ID,
+				CreatedAt:         w.CreatedAt,
+				UpdatedAt:         w.UpdatedAt,
+				OwnerID:           w.OwnerID,
+				OrganizationID:    w.OrganizationID,
+				TemplateID:        w.TemplateID,
+				Deleted:           w.Deleted,
+				Name:              w.Name,
+				AutostartSchedule: w.AutostartSchedule,
+				Ttl:               w.Ttl,
+				LastUsedAt:        w.LastUsedAt,
+			},
+			OwnerUserName:                        owner.Username,
+			LatestBuildInitiatorUsername:         latestBuildUser.Username,
+			LatestBuildTemplateVersionName:       tv.Name,
+			TemplateName:                         tpl.Name,
+			TemplateIcon:                         tpl.Icon,
+			TemplateDisplayName:                  tpl.DisplayName,
+			TemplateAllowUserCancelWorkspaceJobs: tpl.AllowUserCancelWorkspaceJobs,
+			TemplateActiveVersionID:              tpl.ActiveVersionID,
+			LatestBuild:                          latestBuild,
+			LatestBuildJob:                       job,
+			Count:                                count,
 		}
 	}
 	return rows
