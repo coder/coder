@@ -1030,6 +1030,7 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Name:        "Postgres Connection URL",
 			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
 			Flag:        "postgres-url",
+			Env:         "PG_CONNECTION_URL",
 			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true"),
 			Value:       &c.PostgresURL,
 		},

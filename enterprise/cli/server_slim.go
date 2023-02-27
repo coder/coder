@@ -6,11 +6,11 @@ import (
 	"context"
 	"io"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
 	agplcoderd "github.com/coder/coder/coderd"
+	"github.com/spf13/cobra"
 )
 
 func server() *cobra.Command {
