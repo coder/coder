@@ -9,8 +9,8 @@ Custom links can be set in the deployment configuration using the `server.yaml` 
 ```yaml
 support:
   links:
-    - name: "RTFM 🔥"
-      target: "https://coder.com/docs/v2/latest"
+    - name: "On-call 🔥"
+      target: "http://on-call.example.internal"
       icon: "bug"
     - name: "😉 Getting started with Go!"
       target: "https://go.dev/"
