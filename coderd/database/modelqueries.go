@@ -2,11 +2,12 @@ package database
 
 import (
 	"context"
-	"embed"
+	"database/sql"
+
+	"github.com/coder/coder/coderd/database/sqlxqueries"
+
 	"fmt"
 	"strings"
-
-	_ "embed"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -15,9 +16,6 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/rbac/regosql"
 )
-
-//go:embed sqlxqueries/*.sql
-var sqlxQueries embed.FS
 
 const (
 	authorizedQueryPlaceholder = "-- @authorize_filter"
@@ -184,6 +182,8 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 type workspaceQuerier interface {
 	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]WorkspaceWithData, error)
 	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]WorkspaceWithData, error)
+	GetWorkspaceByID(ctx context.Context, id uuid.UUID) (WorkspaceWithData, error)
+	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (WorkspaceWithData, error)
 }
 
 // WorkspaceWithData includes related information to the workspace.
@@ -222,6 +222,7 @@ type GetWorkspacesParams struct {
 	TemplateIds                           []uuid.UUID `db:"template_ids" json:"template_ids"`
 	WorkspaceIds                          []uuid.UUID `db:"workspace_ids" json:"workspace_ids"`
 	Name                                  string      `db:"name" json:"name"`
+	ExactName                             string      `db:"exact_name" json:"exact_name"`
 	HasAgent                              string      `db:"has_agent" json:"has_agent"`
 	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
 	Offset                                int32       `db:"offset_" json:"offset_"`
@@ -229,13 +230,44 @@ type GetWorkspacesParams struct {
 }
 
 func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]WorkspaceWithData, error) {
-	// Only GetAuthorizedWorkspaces should be called. This is a placeholder for the interface,
-	// as the GetWorkspaces method is used in dbauthz package.
-	panic("not implemented")
+	return q.GetAuthorizedWorkspaces(ctx, arg, NoopAuthorizer{})
 }
 
-//go:embed sqlxqueries/getworkspaces.sql
-var getAuthorizedWorkspacesQuery string
+type GetWorkspaceByOwnerIDAndNameParams struct {
+	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
+	Deleted bool      `db:"deleted" json:"deleted"`
+	Name    string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (WorkspaceWithData, error) {
+	workspaces, err := q.GetAuthorizedWorkspaces(ctx, GetWorkspacesParams{
+		Deleted:   arg.Deleted,
+		ExactName: arg.Name,
+		OwnerID:   arg.OwnerID,
+		Limit:     1,
+	}, NoopAuthorizer{})
+	if err != nil {
+		return WorkspaceWithData{}, err
+	}
+	if len(workspaces) == 0 {
+		return WorkspaceWithData{}, sql.ErrNoRows
+	}
+	return workspaces[0], nil
+}
+
+func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (WorkspaceWithData, error) {
+	workspaces, err := q.GetAuthorizedWorkspaces(ctx, GetWorkspacesParams{
+		WorkspaceIds: []uuid.UUID{id},
+		Limit:        1,
+	}, NoopAuthorizer{})
+	if err != nil {
+		return WorkspaceWithData{}, err
+	}
+	if len(workspaces) == 0 {
+		return WorkspaceWithData{}, sql.ErrNoRows
+	}
+	return workspaces[0], nil
+}
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
 // This code is copied from `GetWorkspaces` and adds the authorized filter WHERE
@@ -244,6 +276,11 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL("workspaces."))
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	getAuthorizedWorkspacesQuery, err := sqlxqueries.GetAuthorizedWorkspaces()
+	if err != nil {
+		return nil, xerrors.Errorf("get query: %w", err)
 	}
 
 	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
@@ -301,4 +338,14 @@ func insertAuthorizedFilter(query string, replaceWith string) (string, error) {
 	}
 	filtered := strings.Replace(query, authorizedQueryPlaceholder, replaceWith, 1)
 	return filtered, nil
+}
+
+// TODO: This can be removed once dbauthz becomes the default.
+type NoopAuthorizer struct{}
+
+func (NoopAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
+	return nil
+}
+func (NoopAuthorizer) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
+	return "", nil
 }

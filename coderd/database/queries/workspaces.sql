@@ -1,13 +1,3 @@
--- name: GetWorkspaceByID :one
-SELECT
-	*
-FROM
-	workspaces
-WHERE
-	id = $1
-LIMIT
-	1;
-
 -- name: GetWorkspaceByWorkspaceAppID :one
 SELECT
 	*
@@ -72,17 +62,6 @@ WHERE
 					)
 			)
 	);
-
--- name: GetWorkspaceByOwnerIDAndName :one
-SELECT
-	*
-FROM
-	workspaces
-WHERE
-	owner_id = @owner_id
-	AND deleted = @deleted
-	AND LOWER("name") = LOWER(@name)
-ORDER BY created_at DESC;
 
 -- name: InsertWorkspace :one
 INSERT INTO
