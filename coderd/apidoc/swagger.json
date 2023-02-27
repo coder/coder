@@ -4681,6 +4681,7 @@
         "lifetime_seconds",
         "login_type",
         "scope",
+        "token_name",
         "updated_at",
         "user_id"
       ],
@@ -4718,6 +4719,9 @@
               "$ref": "#/definitions/codersdk.APIKeyScope"
             }
           ]
+        },
+        "token_name": {
+          "type": "string"
         },
         "updated_at": {
           "type": "string",
@@ -5214,6 +5218,9 @@
               "$ref": "#/definitions/codersdk.APIKeyScope"
             }
           ]
+        },
+        "token_name": {
+          "type": "string"
         }
       }
     },

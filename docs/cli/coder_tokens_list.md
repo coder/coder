@@ -22,11 +22,11 @@ Specifies whether all users' tokens will be listed or not (must have Owner role 
 
 ### --column, -c
 
-Columns to display in table output. Available columns: id, last used, expires at, created at, owner
+Columns to display in table output. Available columns: id, name, last used, expires at, created at, owner
 <br/>
 | | |
 | --- | --- |
-| Default | <code>[id,last used,expires at,created at]</code> |
+| Default | <code>[id,name,last used,expires at,created at]</code> |
 
 ### --output, -o
 

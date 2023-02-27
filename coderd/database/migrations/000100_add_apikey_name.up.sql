@@ -1,0 +1,3 @@
+ALTER TABLE ONLY api_keys
+  ADD COLUMN IF NOT EXISTS token_name text NOT NULL UNIQUE DEFAULT '';
+

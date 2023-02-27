@@ -20,6 +20,7 @@ type APIKey struct {
 	UpdatedAt       time.Time   `json:"updated_at" validate:"required" format:"date-time"`
 	LoginType       LoginType   `json:"login_type" validate:"required" enums:"password,github,oidc,token"`
 	Scope           APIKeyScope `json:"scope" validate:"required" enums:"all,application_connect"`
+	TokenName       string      `json:"token_name" validate:"required"`
 	LifetimeSeconds int64       `json:"lifetime_seconds" validate:"required"`
 }
 
@@ -44,8 +45,9 @@ const (
 )
 
 type CreateTokenRequest struct {
-	Lifetime time.Duration `json:"lifetime"`
-	Scope    APIKeyScope   `json:"scope" enums:"all,application_connect"`
+	Lifetime  time.Duration `json:"lifetime"`
+	Scope     APIKeyScope   `json:"scope" enums:"all,application_connect"`
+	TokenName string        `json:"token_name"`
 }
 
 // GenerateAPIKeyResponse contains an API key for a user.

@@ -9,10 +9,12 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
 
@@ -62,6 +64,12 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		lifeTime = createToken.Lifetime
 	}
 
+	tokenName := namesgenerator.GetRandomName(1)
+
+	if len(createToken.TokenName) != 0 {
+		tokenName = createToken.TokenName
+	}
+
 	err := api.validateAPIKeyLifetime(lifeTime)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -77,8 +85,18 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		ExpiresAt:       database.Now().Add(lifeTime),
 		Scope:           scope,
 		LifetimeSeconds: int64(lifeTime.Seconds()),
+		TokenName:       tokenName,
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("A token with name %q already exists.", tokenName),
+				Validations: []codersdk.ValidationError{{
+					Field:  "name",
+					Detail: "This value is already in use and should be unique.",
+				}},
+			})
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create API key.",
 			Detail:  err.Error(),
@@ -295,6 +313,7 @@ type createAPIKeyParams struct {
 	ExpiresAt       time.Time
 	LifetimeSeconds int64
 	Scope           database.APIKeyScope
+	TokenName       string
 }
 
 func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
@@ -364,6 +383,7 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
 		Scope:        scope,
+		TokenName:    params.TokenName,
 	})
 	if err != nil {
 		return nil, nil, xerrors.Errorf("insert API key: %w", err)

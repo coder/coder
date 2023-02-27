@@ -144,7 +144,8 @@ CREATE TABLE api_keys (
     login_type login_type NOT NULL,
     lifetime_seconds bigint DEFAULT 86400 NOT NULL,
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
-    scope api_key_scope DEFAULT 'all'::api_key_scope NOT NULL
+    scope api_key_scope DEFAULT 'all'::api_key_scope NOT NULL,
+    token_name text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN api_keys.hashed_secret IS 'hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.';
@@ -613,6 +614,9 @@ ALTER TABLE ONLY agent_stats
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY api_keys
+    ADD CONSTRAINT api_keys_token_name_key UNIQUE (token_name);
 
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);

@@ -1231,5 +1231,6 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		LoginType:       codersdk.LoginType(k.LoginType),
 		Scope:           codersdk.APIKeyScope(k.Scope),
 		LifetimeSeconds: k.LifetimeSeconds,
+		TokenName:       k.TokenName,
 	}
 }

@@ -577,6 +577,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
     "lifetime_seconds": 0,
     "login_type": "password",
     "scope": "all",
+    "token_name": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
   }
@@ -603,6 +604,7 @@ Status Code **200**
 | `» lifetime_seconds` | integer                                                | true     |              |             |
 | `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | true     |              |             |
 | `» scope`            | [codersdk.APIKeyScope](schemas.md#codersdkapikeyscope) | true     |              |             |
+| `» token_name`       | string                                                 | true     |              |             |
 | `» updated_at`       | string(date-time)                                      | true     |              |             |
 | `» user_id`          | string(uuid)                                           | true     |              |             |
 
@@ -638,7 +640,8 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 ```json
 {
   "lifetime": 0,
-  "scope": "all"
+  "scope": "all",
+  "token_name": "string"
 }
 ```
 
@@ -700,6 +703,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
   "lifetime_seconds": 0,
   "login_type": "password",
   "scope": "all",
+  "token_name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }

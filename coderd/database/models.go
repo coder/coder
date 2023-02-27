@@ -1216,6 +1216,7 @@ type APIKey struct {
 	LifetimeSeconds int64       `db:"lifetime_seconds" json:"lifetime_seconds"`
 	IPAddress       pqtype.Inet `db:"ip_address" json:"ip_address"`
 	Scope           APIKeyScope `db:"scope" json:"scope"`
+	TokenName       string      `db:"token_name" json:"token_name"`
 }
 
 type AgentStat struct {

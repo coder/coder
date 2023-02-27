@@ -30,7 +30,8 @@ INSERT INTO
 		created_at,
 		updated_at,
 		login_type,
-		scope
+		scope,
+		token_name
 	)
 VALUES
 	(@id,
@@ -39,7 +40,7 @@ VALUES
 	     WHEN 0 THEN 86400
 		 ELSE @lifetime_seconds::bigint
 	 END
-	 , @hashed_secret, @ip_address, @user_id, @last_used, @expires_at, @created_at, @updated_at, @login_type, @scope) RETURNING *;
+	 , @hashed_secret, @ip_address, @user_id, @last_used, @expires_at, @created_at, @updated_at, @login_type, @scope, @token_name) RETURNING *;
 
 -- name: UpdateAPIKeyByID :exec
 UPDATE

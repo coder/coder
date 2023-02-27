@@ -5284,6 +5284,7 @@ const docTemplate = `{
                 "lifetime_seconds",
                 "login_type",
                 "scope",
+                "token_name",
                 "updated_at",
                 "user_id"
             ],
@@ -5329,6 +5330,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.APIKeyScope"
                         }
                     ]
+                },
+                "token_name": {
+                    "type": "string"
                 },
                 "updated_at": {
                     "type": "string",
@@ -5879,6 +5883,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.APIKeyScope"
                         }
                     ]
+                },
+                "token_name": {
+                    "type": "string"
                 }
             }
         },
