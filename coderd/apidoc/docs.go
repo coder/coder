@@ -2485,6 +2485,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/gitauth": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get git auth by template version",
+                "operationId": "get-git-auth-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.TemplateVersionGitAuth"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/logs": {
             "get": {
                 "security": [
@@ -6612,6 +6650,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GitProvider": {
+            "type": "string",
+            "enum": [
+                "azure-devops",
+                "github",
+                "gitlab",
+                "bitbucket"
+            ],
+            "x-enum-varnames": [
+                "GitProviderAzureDevops",
+                "GitProviderGitHub",
+                "GitProviderGitLab",
+                "GitProviderBitBucket"
+            ]
+        },
         "codersdk.GitSSHKey": {
             "type": "object",
             "properties": {
@@ -7714,6 +7767,23 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.TemplateVersionGitAuth": {
+            "type": "object",
+            "properties": {
+                "authenticate_url": {
+                    "type": "string"
+                },
+                "authenticated": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.GitProvider"
                 }
             }
         },

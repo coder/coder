@@ -26,37 +26,37 @@ func TestConvertYAML(t *testing.T) {
 	}, {
 		Name: "InvalidID",
 		Input: []codersdk.GitAuthConfig{{
-			Type: codersdk.GitProviderGitHub,
+			Type: string(codersdk.GitProviderGitHub),
 			ID:   "$hi$",
 		}},
 		Error: "doesn't have a valid id",
 	}, {
 		Name: "NoClientID",
 		Input: []codersdk.GitAuthConfig{{
-			Type: codersdk.GitProviderGitHub,
+			Type: string(codersdk.GitProviderGitHub),
 		}},
 		Error: "client_id must be provided",
 	}, {
 		Name: "NoClientSecret",
 		Input: []codersdk.GitAuthConfig{{
-			Type:     codersdk.GitProviderGitHub,
+			Type:     string(codersdk.GitProviderGitHub),
 			ClientID: "example",
 		}},
 		Error: "client_secret must be provided",
 	}, {
 		Name: "DuplicateType",
 		Input: []codersdk.GitAuthConfig{{
-			Type:         codersdk.GitProviderGitHub,
+			Type:         string(codersdk.GitProviderGitHub),
 			ClientID:     "example",
 			ClientSecret: "example",
 		}, {
-			Type: codersdk.GitProviderGitHub,
+			Type: string(codersdk.GitProviderGitHub),
 		}},
 		Error: "multiple github git auth providers provided",
 	}, {
 		Name: "InvalidRegex",
 		Input: []codersdk.GitAuthConfig{{
-			Type:         codersdk.GitProviderGitHub,
+			Type:         string(codersdk.GitProviderGitHub),
 			ClientID:     "example",
 			ClientSecret: "example",
 			Regex:        `\K`,
@@ -79,7 +79,7 @@ func TestConvertYAML(t *testing.T) {
 	t.Run("CustomScopesAndEndpoint", func(t *testing.T) {
 		t.Parallel()
 		config, err := gitauth.ConvertConfig([]codersdk.GitAuthConfig{{
-			Type:         codersdk.GitProviderGitLab,
+			Type:         string(codersdk.GitProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
 			AuthURL:      "https://auth.com",

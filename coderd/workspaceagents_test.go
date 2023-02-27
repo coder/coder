@@ -911,7 +911,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 				Type:         codersdk.GitProviderGitHub,
 			}},
 		})
-		resp := gitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	})
 	t.Run("AuthorizedCallback", func(t *testing.T) {
@@ -926,14 +926,14 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 			}},
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
-		resp := gitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		location, err := resp.Location()
 		require.NoError(t, err)
 		require.Equal(t, "/gitauth", location.Path)
 
 		// Callback again to simulate updating the token.
-		resp = gitAuthCallback(t, "github", client)
+		resp = coderdtest.RequestGitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 	})
 	t.Run("ValidateURL", func(t *testing.T) {
@@ -983,7 +983,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
 
-		resp := gitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
 		// If the validation URL says unauthorized, the callback
@@ -1005,7 +1005,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusInternalServerError, apiError.StatusCode())
-		require.Equal(t, "git token validation failed: status 403: body: Something went wrong!", apiError.Detail)
+		require.Equal(t, "validate git auth token: status 403: body: Something went wrong!", apiError.Detail)
 	})
 
 	t.Run("ExpiredNoRefresh", func(t *testing.T) {
@@ -1063,7 +1063,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		// In the configuration, we set our OAuth provider
 		// to return an expired token. Coder consumes this
 		// and stores it.
-		resp := gitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
 		// Because the token is expired and `NoRefresh` is specified,
@@ -1128,7 +1128,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 
 		time.Sleep(250 * time.Millisecond)
 
-		resp := gitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		token = <-tokenChan
 		require.Equal(t, "token", token.Username)
@@ -1195,31 +1195,6 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 			"%s is not after %s", newWorkspace.LastUsedAt, workspace.LastUsedAt,
 		)
 	})
-}
-
-func gitAuthCallback(t *testing.T, id string, client *codersdk.Client) *http.Response {
-	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	state := "somestate"
-	oauthURL, err := client.URL.Parse(fmt.Sprintf("/gitauth/%s/callback?code=asd&state=%s", id, state))
-	require.NoError(t, err)
-	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
-	require.NoError(t, err)
-	req.AddCookie(&http.Cookie{
-		Name:  codersdk.OAuth2StateCookie,
-		Value: state,
-	})
-	req.AddCookie(&http.Cookie{
-		Name:  codersdk.SessionTokenCookie,
-		Value: client.SessionToken(),
-	})
-	res, err := client.HTTPClient.Do(req)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = res.Body.Close()
-	})
-	return res
 }
 
 func TestWorkspaceAgent_LifecycleState(t *testing.T) {

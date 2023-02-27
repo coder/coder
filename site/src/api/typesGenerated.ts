@@ -769,6 +769,14 @@ export interface TemplateVersion {
 }
 
 // From codersdk/templateversions.go
+export interface TemplateVersionGitAuth {
+  readonly id: string
+  readonly type: GitProvider
+  readonly authenticate_url: string
+  readonly authenticated: boolean
+}
+
+// From codersdk/templateversions.go
 export interface TemplateVersionParameter {
   readonly name: string
   readonly description: string
@@ -1156,6 +1164,15 @@ export const FeatureNames: FeatureName[] = [
   "scim",
   "template_rbac",
   "user_limit",
+]
+
+// From codersdk/workspaceagents.go
+export type GitProvider = "azure-devops" | "bitbucket" | "github" | "gitlab"
+export const GitProviders: GitProvider[] = [
+  "azure-devops",
+  "bitbucket",
+  "github",
+  "gitlab",
 ]
 
 // From codersdk/provisionerdaemons.go

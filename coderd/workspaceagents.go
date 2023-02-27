@@ -1313,13 +1313,28 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// If the token is expired and refresh is disabled, we prompt
-	// the user to authenticate again.
-	if gitAuthConfig.NoRefresh && gitAuthLink.OAuthExpiry.Before(database.Now()) {
+	gitAuthLink, updated, err := refreshGitToken(ctx, api.Database, workspace.OwnerID, gitAuthConfig, gitAuthLink)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to refresh git auth token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !updated {
 		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
 			URL: redirectURL.String(),
 		})
 		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, gitAuthLink.OAuthAccessToken))
+}
+
+func refreshGitToken(ctx context.Context, db database.Store, owner uuid.UUID, gitAuthConfig *gitauth.Config, gitAuthLink database.GitAuthLink) (database.GitAuthLink, bool, error) {
+	// If the token is expired and refresh is disabled, we prompt
+	// the user to authenticate again.
+	if gitAuthConfig.NoRefresh && gitAuthLink.OAuthExpiry.Before(database.Now()) {
+		return gitAuthLink, false, nil
 	}
 
 	token, err := gitAuthConfig.TokenSource(ctx, &oauth2.Token{
@@ -1328,49 +1343,35 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		Expiry:       gitAuthLink.OAuthExpiry,
 	}).Token()
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
-			URL: redirectURL.String(),
-		})
-		return
+		return gitAuthLink, false, nil
 	}
 
 	if gitAuthConfig.ValidateURL != "" {
 		valid, err := validateGitToken(ctx, gitAuthConfig.ValidateURL, token.AccessToken)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate Git authentication token.",
-				Detail:  err.Error(),
-			})
-			return
+			return gitAuthLink, false, xerrors.Errorf("validate git auth token: %w", err)
 		}
 		if !valid {
 			// The token is no longer valid!
-			httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
-				URL: redirectURL.String(),
-			})
-			return
+			return gitAuthLink, false, nil
 		}
 	}
 
 	if token.AccessToken != gitAuthLink.OAuthAccessToken {
 		// Update it
-		err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
+		gitAuthLink, err = db.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
 			ProviderID:        gitAuthConfig.ID,
-			UserID:            workspace.OwnerID,
+			UserID:            owner,
 			UpdatedAt:         database.Now(),
 			OAuthAccessToken:  token.AccessToken,
 			OAuthRefreshToken: token.RefreshToken,
 			OAuthExpiry:       token.Expiry,
 		})
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to update git auth link.",
-				Detail:  err.Error(),
-			})
-			return
+			return gitAuthLink, false, xerrors.Errorf("update git auth link: %w", err)
 		}
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, token.AccessToken))
+	return gitAuthLink, true, nil
 }
 
 // validateGitToken ensures the git token provided is valid
@@ -1392,7 +1393,7 @@ func validateGitToken(ctx context.Context, validateURL, token string) (bool, err
 	}
 	if res.StatusCode != http.StatusOK {
 		data, _ := io.ReadAll(res.Body)
-		return false, xerrors.Errorf("git token validation failed: status %d: body: %s", res.StatusCode, data)
+		return false, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
 	}
 	return true, nil
 }
@@ -1459,7 +1460,7 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 				return
 			}
 		} else {
-			err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
+			_, err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
 				ProviderID:        gitAuthConfig.ID,
 				UserID:            apiKey.UserID,
 				UpdatedAt:         database.Now(),
@@ -1485,8 +1486,12 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 			return
 		}
 
+		redirect := state.Redirect
+		if redirect == "" {
+			redirect = "/gitauth"
+		}
 		// This is a nicely rendered screen on the frontend
-		http.Redirect(rw, r, "/gitauth", http.StatusTemporaryRedirect)
+		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 	}
 }
 

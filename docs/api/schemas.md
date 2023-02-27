@@ -3020,6 +3020,23 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `type`         | string          | false    |              |             |
 | `validate_url` | string          | false    |              |             |
 
+## codersdk.GitProvider
+
+```json
+"azure-devops"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+| -------------- |
+| `azure-devops` |
+| `github`       |
+| `gitlab`       |
+| `bitbucket`    |
+
 ## codersdk.GitSSHKey
 
 ```json
@@ -4699,6 +4716,26 @@ Parameter represents a set value for the scope.
 | `readme`          | string                                             | false    |              |             |
 | `template_id`     | string                                             | false    |              |             |
 | `updated_at`      | string                                             | false    |              |             |
+
+## codersdk.TemplateVersionGitAuth
+
+```json
+{
+  "authenticate_url": "string",
+  "authenticated": true,
+  "id": "string",
+  "type": "azure-devops"
+}
+```
+
+### Properties
+
+| Name               | Type                                         | Required | Restrictions | Description |
+| ------------------ | -------------------------------------------- | -------- | ------------ | ----------- |
+| `authenticate_url` | string                                       | false    |              |             |
+| `authenticated`    | boolean                                      | false    |              |             |
+| `id`               | string                                       | false    |              |             |
+| `type`             | [codersdk.GitProvider](#codersdkgitprovider) | false    |              |             |
 
 ## codersdk.TemplateVersionParameter
 
