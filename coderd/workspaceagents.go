@@ -482,26 +482,6 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	return agentConn, nil
 }
 
-// @Summary Get connection info for workspace agent
-// @ID get-connection-info-for-workspace-agent
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Agents
-// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
-// @Success 200 {object} codersdk.WorkspaceAgentConnectionInfo
-// @Router /workspaceagents/{workspaceagent}/connection [get]
-func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
-		DERPMap: api.DERPMap,
-	})
-}
-
 // @Summary Coordinate workspace agent via Tailnet
 // @Description It accepts a WebSocket connection to an agent that listens to
 // @Description incoming connections and publishes node updates.

@@ -116,6 +116,11 @@ export const getAuthenticatedUser = async (): Promise<
   }
 }
 
+export const getDERPMap = async (): Promise<TypesGen.DERPMap> => {
+  const response = await axios.get<TypesGen.DERPMap>("/derpmap")
+  return response.data
+}
+
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
   const response = await axios.get<TypesGen.AuthMethods>(
     "/api/v2/users/authmethods",

@@ -369,6 +369,12 @@ func New(options *Options) *API {
 			w.WriteHeader(http.StatusOK)
 		})
 	})
+	r.Route("/derpmap", func(r chi.Router) {
+		r.Use(apiKeyMiddleware)
+		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			httpapi.Write(ctx, w, http.StatusOK, api.DERPMap)
+		})
+	})
 
 	r.Route("/gitauth", func(r chi.Router) {
 		for _, gitAuthConfig := range options.GitAuthConfigs {
@@ -600,7 +606,6 @@ func New(options *Options) *API {
 				r.Get("/", api.workspaceAgent)
 				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
-				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 			})
 		})

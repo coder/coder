@@ -124,6 +124,15 @@ func TestDERPLatencyCheck(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.StatusCode)
 }
 
+func TestDERPMap(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	coderdtest.CreateFirstUser(t, client)
+	derpMap, err := client.DERPMap(context.Background())
+	require.NoError(t, err)
+	require.Greater(t, len(derpMap.Regions), 0)
+}
+
 func TestHealthz(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)

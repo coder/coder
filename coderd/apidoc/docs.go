@@ -4266,41 +4266,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/{workspaceagent}/connection": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Get connection info for workspace agent",
-                "operationId": "get-connection-info-for-workspace-agent",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace agent ID",
-                        "name": "workspaceagent",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceAgentConnectionInfo"
-                        }
-                    }
-                }
-            }
-        },
         "/workspaceagents/{workspaceagent}/coordinate": {
             "get": {
                 "security": [
@@ -8306,14 +8271,6 @@ const docTemplate = `{
                 },
                 "version": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.WorkspaceAgentConnectionInfo": {
-            "type": "object",
-            "properties": {
-                "derp_map": {
-                    "$ref": "#/definitions/tailcfg.DERPMap"
                 }
             }
         },

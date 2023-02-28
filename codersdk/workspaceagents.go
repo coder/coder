@@ -86,13 +86,6 @@ type DERPRegion struct {
 	LatencyMilliseconds float64 `json:"latency_ms"`
 }
 
-// WorkspaceAgentConnectionInfo returns required information for establishing
-// a connection with a workspace.
-// @typescript-ignore WorkspaceAgentConnectionInfo
-type WorkspaceAgentConnectionInfo struct {
-	DERPMap *tailcfg.DERPMap `json:"derp_map"`
-}
-
 // @typescript-ignore DialWorkspaceAgentOptions
 type DialWorkspaceAgentOptions struct {
 	Logger slog.Logger
@@ -100,11 +93,8 @@ type DialWorkspaceAgentOptions struct {
 	BlockEndpoints bool
 }
 
-func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (agentConn *WorkspaceAgentConn, err error) {
-	if options == nil {
-		options = &DialWorkspaceAgentOptions{}
-	}
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
+func (c *Client) DERPMap(ctx context.Context) (*tailcfg.DERPMap, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/derpmap", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -112,16 +102,27 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-	var connInfo WorkspaceAgentConnectionInfo
-	err = json.NewDecoder(res.Body).Decode(&connInfo)
+	var derpMap tailcfg.DERPMap
+	err = json.NewDecoder(res.Body).Decode(&derpMap)
 	if err != nil {
-		return nil, xerrors.Errorf("decode conn info: %w", err)
+		return nil, xerrors.Errorf("decode derp map: %w", err)
+	}
+	return &derpMap, nil
+}
+
+func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (agentConn *WorkspaceAgentConn, err error) {
+	if options == nil {
+		options = &DialWorkspaceAgentOptions{}
+	}
+	derpMap, err := c.DERPMap(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	ip := tailnet.IP()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:      []netip.Prefix{netip.PrefixFrom(ip, 128)},
-		DERPMap:        connInfo.DERPMap,
+		DERPMap:        derpMap,
 		Logger:         options.Logger,
 		BlockEndpoints: options.BlockEndpoints,
 	})
