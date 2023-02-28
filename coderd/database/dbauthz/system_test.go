@@ -128,7 +128,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		_ = dbgen.WorkspaceResourceMetadatums(s.T(), db, database.WorkspaceResourceMetadatum{})
 		check.Args(time.Now()).Asserts()
 	}))
-	s.Run("DeleteOldAgentStats", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteOldWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts()
 	}))
 	s.Run("GetParameterSchemasCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
