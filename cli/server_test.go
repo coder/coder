@@ -1195,6 +1195,26 @@ func TestServer(t *testing.T) {
 		})
 	})
 
+	waitFile := func(t *testing.T, fiName string, dur time.Duration) {
+		var lastStat os.FileInfo
+		require.Eventually(t, func() bool {
+			var err error
+			lastStat, err = os.Stat(fiName)
+			if err != nil {
+				if !os.IsNotExist(err) {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return false
+			}
+			return lastStat.Size() > 0
+		},
+			testutil.WaitShort,
+			testutil.IntervalFast,
+			"file at %s should exist, last stat: %+v",
+			fiName, lastStat,
+		)
+	}
+
 	t.Run("Logging", func(t *testing.T) {
 		t.Parallel()
 
@@ -1212,10 +1232,7 @@ func TestServer(t *testing.T) {
 			)
 			clitest.Start(t, root)
 
-			assert.Eventually(t, func() bool {
-				stat, err := os.Stat(fiName)
-				return err == nil && stat.Size() > 0
-			}, testutil.WaitShort, testutil.IntervalFast)
+			waitFile(t, fiName, testutil.WaitShort)
 		})
 
 		t.Run("Human", func(t *testing.T) {
@@ -1232,10 +1249,7 @@ func TestServer(t *testing.T) {
 			)
 			clitest.Start(t, root)
 
-			assert.Eventually(t, func() bool {
-				stat, err := os.Stat(fi)
-				return err == nil && stat.Size() > 0
-			}, testutil.WaitShort, testutil.IntervalFast)
+			waitFile(t, fi, testutil.WaitShort)
 		})
 
 		t.Run("JSON", func(t *testing.T) {
@@ -1252,10 +1266,7 @@ func TestServer(t *testing.T) {
 			)
 			clitest.Start(t, root)
 
-			assert.Eventually(t, func() bool {
-				stat, err := os.Stat(fi)
-				return err == nil && stat.Size() > 0
-			}, testutil.WaitShort, testutil.IntervalFast)
+			waitFile(t, fi, testutil.WaitShort)
 		})
 
 		t.Run("Stackdriver", func(t *testing.T) {
@@ -1292,10 +1303,7 @@ func TestServer(t *testing.T) {
 			// starting point for expecting logs.
 			_ = pty.ExpectMatchContext(ctx, "Started HTTP listener at ")
 
-			require.Eventually(t, func() bool {
-				stat, err := os.Stat(fi)
-				return err == nil && stat.Size() > 0
-			}, testutil.WaitLong, testutil.IntervalMedium)
+			waitFile(t, fi, testutil.WaitSuperLong)
 		})
 
 		t.Run("Multiple", func(t *testing.T) {
@@ -1327,31 +1335,15 @@ func TestServer(t *testing.T) {
 			root.SetOut(pty.Output())
 			root.SetErr(pty.Output())
 
-			serverErr := make(chan error, 1)
-			go func() {
-				serverErr <- root.ExecuteContext(ctx)
-			}()
-			defer func() {
-				cancelFunc()
-				<-serverErr
-			}()
+			clitest.Start(t, root)
 
 			// Wait for server to listen on HTTP, this is a good
 			// starting point for expecting logs.
 			_ = pty.ExpectMatchContext(ctx, "Started HTTP listener at ")
 
-			require.Eventually(t, func() bool {
-				stat, err := os.Stat(fi1)
-				return err == nil && stat.Size() > 0
-			}, testutil.WaitShort, testutil.IntervalMedium, "log human size > 0")
-			require.Eventually(t, func() bool {
-				stat, err := os.Stat(fi2)
-				return err == nil && stat.Size() > 0
-			}, testutil.WaitShort, testutil.IntervalMedium, "log json size > 0")
-			require.Eventually(t, func() bool {
-				stat, err := os.Stat(fi3)
-				return err == nil && stat.Size() > 0
-			}, testutil.WaitShort, testutil.IntervalMedium, "log stackdriver size > 0")
+			waitFile(t, fi1, testutil.WaitSuperLong)
+			waitFile(t, fi2, testutil.WaitSuperLong)
+			waitFile(t, fi3, testutil.WaitSuperLong)
 		})
 	})
 }

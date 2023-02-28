@@ -308,6 +308,10 @@ flags, and YAML configuration. The precedence is as follows:
 			}
 			defer logCloser()
 
+			// This line is helpful in tests.
+			logger.Debug(ctx, "started debug logging")
+			logger.Sync()
+
 			// Register signals early on so that graceful shutdown can't
 			// be interrupted by additional signals. Note that we avoid
 			// shadowing cancel() (from above) here because notifyStop()
@@ -1732,7 +1736,6 @@ func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logge
 			if err != nil {
 				return xerrors.Errorf("open log file %q: %w", loc, err)
 			}
-
 			closers = append(closers, fi.Close)
 			sinks = append(sinks, sinkFn(fi))
 		}
@@ -1757,7 +1760,7 @@ func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logge
 	}
 
 	level := slog.LevelInfo
-	if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
+	if cfg.Verbose {
 		level = slog.LevelDebug
 	}
 
