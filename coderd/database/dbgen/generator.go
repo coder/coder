@@ -152,31 +152,20 @@ func Workspace(t testing.TB, db database.Store, orig database.Workspace) databas
 	return workspace
 }
 
-type workspaceBuild interface {
-	database.WorkspaceBuild | database.WorkspaceBuildThin
-}
-
-func WorkspaceBuild[Build workspaceBuild](t testing.TB, db database.Store, orig Build) database.WorkspaceBuildThin {
-	var input database.WorkspaceBuildThin
-	switch any(orig).(type) {
-	case database.WorkspaceBuild:
-		input = any(orig).(database.WorkspaceBuild).ToThin()
-	case database.WorkspaceBuildThin:
-		input = any(orig).(database.WorkspaceBuildThin)
-	}
+func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuild) database.WorkspaceBuildThin {
 	build, err := db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
-		ID:                takeFirst(input.ID, uuid.New()),
-		CreatedAt:         takeFirst(input.CreatedAt, database.Now()),
-		UpdatedAt:         takeFirst(input.UpdatedAt, database.Now()),
-		WorkspaceID:       takeFirst(input.WorkspaceID, uuid.New()),
-		TemplateVersionID: takeFirst(input.TemplateVersionID, uuid.New()),
-		BuildNumber:       takeFirst(input.BuildNumber, 1),
-		Transition:        takeFirst(input.Transition, database.WorkspaceTransitionStart),
-		InitiatorID:       takeFirst(input.InitiatorID, uuid.New()),
-		JobID:             takeFirst(input.JobID, uuid.New()),
-		ProvisionerState:  takeFirstSlice(input.ProvisionerState, []byte{}),
-		Deadline:          takeFirst(input.Deadline, database.Now().Add(time.Hour)),
-		Reason:            takeFirst(input.Reason, database.BuildReasonInitiator),
+		ID:                takeFirst(orig.ID, uuid.New()),
+		CreatedAt:         takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
+		WorkspaceID:       takeFirst(orig.WorkspaceID, uuid.New()),
+		TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
+		BuildNumber:       takeFirst(orig.BuildNumber, 1),
+		Transition:        takeFirst(orig.Transition, database.WorkspaceTransitionStart),
+		InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
+		JobID:             takeFirst(orig.JobID, uuid.New()),
+		ProvisionerState:  takeFirstSlice(orig.ProvisionerState, []byte{}),
+		Deadline:          takeFirst(orig.Deadline, database.Now().Add(time.Hour)),
+		Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
 	})
 	require.NoError(t, err, "insert workspace build")
 	return build
