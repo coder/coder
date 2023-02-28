@@ -23,7 +23,7 @@ type Ticket struct {
 	AppSlugOrPort     string       `json:"app_slug_or_port"`
 
 	// Trusted resolved details.
-	Expiry      int64     `json:"expiry"` // set by generateWorkspaceAppTicket
+	Expiry      int64     `json:"expiry"` // set by GenerateTicket if unset
 	UserID      uuid.UUID `json:"user_id"`
 	WorkspaceID uuid.UUID `json:"workspace_id"`
 	AgentID     uuid.UUID `json:"agent_id"`
@@ -39,7 +39,9 @@ func (t Ticket) MatchesRequest(req Request) bool {
 }
 
 func (p *Provider) GenerateTicket(payload Ticket) (string, error) {
-	payload.Expiry = time.Now().Add(1 * time.Minute).Unix()
+	if payload.Expiry == 0 {
+		payload.Expiry = time.Now().Add(TicketExpiry).Unix()
+	}
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return "", xerrors.Errorf("marshal payload to JSON: %w", err)
