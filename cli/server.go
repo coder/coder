@@ -653,6 +653,12 @@ flags, and YAML configuration. The precedence is as follows:
 			if err != nil {
 				return xerrors.Errorf("convert git auth config: %w", err)
 			}
+			for _, c := range gitAuthConfigs {
+				logger.Debug(
+					ctx, "loaded git auth config",
+					slog.F("id", c.ID),
+				)
+			}
 
 			realIPConfig, err := httpmw.ParseRealIPConfig(cfg.ProxyTrustedHeaders, cfg.ProxyTrustedOrigins)
 			if err != nil {
