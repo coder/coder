@@ -933,21 +933,26 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 
 	activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID)
 
-	payload, err := json.Marshal(req)
+	payload, err := json.Marshal(req.ConnectionsByProto)
 	if err != nil {
-		api.Logger.Error(ctx, "marshal agent stats report", slog.Error(err))
+		api.Logger.Error(ctx, "marshal agent connections by proto", slog.F("workspace_agent", workspaceAgent.ID), slog.Error(err))
 		payload = json.RawMessage("{}")
 	}
 
 	now := database.Now()
 	_, err = api.Database.InsertWorkspaceAgentStat(ctx, database.InsertWorkspaceAgentStatParams{
-		ID:          uuid.New(),
-		CreatedAt:   now,
-		AgentID:     workspaceAgent.ID,
-		WorkspaceID: workspace.ID,
-		UserID:      workspace.OwnerID,
-		TemplateID:  workspace.TemplateID,
-		Payload:     payload,
+		ID:                 uuid.New(),
+		CreatedAt:          now,
+		AgentID:            workspaceAgent.ID,
+		WorkspaceID:        workspace.ID,
+		UserID:             workspace.OwnerID,
+		TemplateID:         workspace.TemplateID,
+		ConnectionsByProto: payload,
+		ConnectionCount:    int32(req.ConnectionCount),
+		RxPackets:          int32(req.RxPackets),
+		RxBytes:            int32(req.RxBytes),
+		TxPackets:          int32(req.TxPackets),
+		TxBytes:            int32(req.TxBytes),
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

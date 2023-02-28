@@ -5411,20 +5411,30 @@ INSERT INTO
 		workspace_id,
 		template_id,
 		agent_id,
-		payload
+		connections_by_proto,
+		connection_count,
+		rx_packets,
+		rx_bytes,
+		tx_packets,
+		tx_bytes
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, payload
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes
 `
 
 type InsertWorkspaceAgentStatParams struct {
-	ID          uuid.UUID       `db:"id" json:"id"`
-	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
-	UserID      uuid.UUID       `db:"user_id" json:"user_id"`
-	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	TemplateID  uuid.UUID       `db:"template_id" json:"template_id"`
-	AgentID     uuid.UUID       `db:"agent_id" json:"agent_id"`
-	Payload     json.RawMessage `db:"payload" json:"payload"`
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+	UserID             uuid.UUID       `db:"user_id" json:"user_id"`
+	WorkspaceID        uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	TemplateID         uuid.UUID       `db:"template_id" json:"template_id"`
+	AgentID            uuid.UUID       `db:"agent_id" json:"agent_id"`
+	ConnectionsByProto json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
+	ConnectionCount    int32           `db:"connection_count" json:"connection_count"`
+	RxPackets          int32           `db:"rx_packets" json:"rx_packets"`
+	RxBytes            int32           `db:"rx_bytes" json:"rx_bytes"`
+	TxPackets          int32           `db:"tx_packets" json:"tx_packets"`
+	TxBytes            int32           `db:"tx_bytes" json:"tx_bytes"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWorkspaceAgentStatParams) (WorkspaceAgentStat, error) {
@@ -5435,7 +5445,12 @@ func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWor
 		arg.WorkspaceID,
 		arg.TemplateID,
 		arg.AgentID,
-		arg.Payload,
+		arg.ConnectionsByProto,
+		arg.ConnectionCount,
+		arg.RxPackets,
+		arg.RxBytes,
+		arg.TxPackets,
+		arg.TxBytes,
 	)
 	var i WorkspaceAgentStat
 	err := row.Scan(
@@ -5445,7 +5460,12 @@ func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWor
 		&i.AgentID,
 		&i.WorkspaceID,
 		&i.TemplateID,
-		&i.Payload,
+		&i.ConnectionsByProto,
+		&i.ConnectionCount,
+		&i.RxPackets,
+		&i.RxBytes,
+		&i.TxPackets,
+		&i.TxBytes,
 	)
 	return i, err
 }

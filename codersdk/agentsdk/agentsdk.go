@@ -397,7 +397,7 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 	}
 
 	// Send an empty stat to get the interval.
-	postStat(&Stats{ConnsByProto: map[string]int64{}})
+	postStat(&Stats{ConnectionsByProto: map[string]int64{}})
 
 	go func() {
 		defer close(exited)
@@ -426,10 +426,10 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 // Stats records the Agent's network connection statistics for use in
 // user-facing metrics and debugging.
 type Stats struct {
-	// ConnsByProto is a count of connections by protocol.
-	ConnsByProto map[string]int64 `json:"conns_by_proto"`
-	// NumConns is the number of connections received by an agent.
-	NumConns int64 `json:"num_comms"`
+	// ConnectionsByProto is a count of connections by protocol.
+	ConnectionsByProto map[string]int64 `json:"conns_by_proto"`
+	// ConnectionCount is the number of connections received by an agent.
+	ConnectionCount int64 `json:"num_comms"`
 	// RxPackets is the number of received packets.
 	RxPackets int64 `json:"rx_packets"`
 	// RxBytes is the number of received bytes.

@@ -272,13 +272,18 @@ func (q *fakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.Ins
 	defer q.mutex.Unlock()
 
 	stat := database.WorkspaceAgentStat{
-		ID:          p.ID,
-		CreatedAt:   p.CreatedAt,
-		WorkspaceID: p.WorkspaceID,
-		AgentID:     p.AgentID,
-		UserID:      p.UserID,
-		Payload:     p.Payload,
-		TemplateID:  p.TemplateID,
+		ID:                 p.ID,
+		CreatedAt:          p.CreatedAt,
+		WorkspaceID:        p.WorkspaceID,
+		AgentID:            p.AgentID,
+		UserID:             p.UserID,
+		ConnectionsByProto: p.ConnectionsByProto,
+		ConnectionCount:    p.ConnectionCount,
+		RxPackets:          p.RxPackets,
+		RxBytes:            p.RxBytes,
+		TxPackets:          p.TxPackets,
+		TxBytes:            p.TxBytes,
+		TemplateID:         p.TemplateID,
 	}
 	q.workspaceAgentStats = append(q.workspaceAgentStats, stat)
 	return stat, nil

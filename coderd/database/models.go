@@ -1549,13 +1549,18 @@ type WorkspaceAgent struct {
 }
 
 type WorkspaceAgentStat struct {
-	ID          uuid.UUID       `db:"id" json:"id"`
-	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
-	UserID      uuid.UUID       `db:"user_id" json:"user_id"`
-	AgentID     uuid.UUID       `db:"agent_id" json:"agent_id"`
-	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	TemplateID  uuid.UUID       `db:"template_id" json:"template_id"`
-	Payload     json.RawMessage `db:"payload" json:"payload"`
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+	UserID             uuid.UUID       `db:"user_id" json:"user_id"`
+	AgentID            uuid.UUID       `db:"agent_id" json:"agent_id"`
+	WorkspaceID        uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	TemplateID         uuid.UUID       `db:"template_id" json:"template_id"`
+	ConnectionsByProto json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
+	ConnectionCount    int32           `db:"connection_count" json:"connection_count"`
+	RxPackets          int32           `db:"rx_packets" json:"rx_packets"`
+	RxBytes            int32           `db:"rx_bytes" json:"rx_bytes"`
+	TxPackets          int32           `db:"tx_packets" json:"tx_packets"`
+	TxBytes            int32           `db:"tx_bytes" json:"tx_bytes"`
 }
 
 type WorkspaceApp struct {

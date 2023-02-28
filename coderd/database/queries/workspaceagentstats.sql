@@ -7,10 +7,15 @@ INSERT INTO
 		workspace_id,
 		template_id,
 		agent_id,
-		payload
+		connections_by_proto,
+		connection_count,
+		rx_packets,
+		rx_bytes,
+		tx_packets,
+		tx_bytes
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
 
 -- name: GetTemplateDAUs :many
 SELECT
