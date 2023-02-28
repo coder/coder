@@ -185,7 +185,9 @@ coder dotfiles -y ${var.dotfiles_uri}
 }
 ```
 
-### Parameters
+### Parameters (alpha)
+
+> Parameters are an [alpha feature](./contributing/feature-stages.md#alpha-features). See the [Rich Parameters Milestone](https://github.com/coder/coder/milestone/11) for more details.
 
 Templates can contain _parameters_, which prompt the user for additional information
 in the "create workspace" screen.
@@ -231,9 +233,34 @@ provider "docker" {
 > For a complete list of supported parameter types, see the
 > [coder_parameter Terraform reference](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter)
 
-#### Legacy parameters (deprecated)
+#### Legacy parameters
 
-Prior to Coder v0.16.0 (Jan 2023), parameters were defined via Terraform `variable` blocks. These "legacy parameters" can still be used in templates, but are deprecated and will be removed in April 2023.
+Prior to Coder v0.16.0 (Jan 2023), parameters were defined via Terraform `variable` blocks. These "legacy parameters" can still be used in templates, but will be removed in April 2023.
+
+```hcl
+variable "use_kubeconfig" {
+  sensitive   = true # Admin (template-level) parameter
+  type        = bool
+  description = <<-EOF
+  Use host kubeconfig? (true/false)
+  EOF
+}
+
+variable "cpu" {
+  sensitive   = false # User (workspace-level) parameter
+  description = "CPU (__ cores)"
+  default     = 2
+  validation {
+    condition = contains([
+      "2",
+      "4",
+      "6",
+      "8"
+    ], var.cpu)
+    error_message = "Invalid cpu!"
+  }
+}
+```
 
 > ⚠️ Legacy (`variable`) parameters and rich parameters cannot be used in the same template.
 

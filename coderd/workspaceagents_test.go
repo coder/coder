@@ -1178,12 +1178,12 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 		agentClient.SetSessionToken(authToken)
 
 		_, err := agentClient.PostStats(context.Background(), &agentsdk.Stats{
-			ConnsByProto: map[string]int64{"TCP": 1},
-			NumConns:     1,
-			RxPackets:    1,
-			RxBytes:      1,
-			TxPackets:    1,
-			TxBytes:      1,
+			ConnectionsByProto: map[string]int64{"TCP": 1},
+			ConnectionCount:    1,
+			RxPackets:          1,
+			RxBytes:            1,
+			TxPackets:          1,
+			TxBytes:            1,
 		})
 		require.NoError(t, err)
 

@@ -123,16 +123,6 @@ CREATE TYPE workspace_transition AS ENUM (
     'delete'
 );
 
-CREATE TABLE agent_stats (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    user_id uuid NOT NULL,
-    agent_id uuid NOT NULL,
-    workspace_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    payload jsonb NOT NULL
-);
-
 CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
@@ -472,6 +462,21 @@ CREATE TABLE users (
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
 );
 
+CREATE TABLE workspace_agent_stats (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    user_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    connections_by_proto jsonb DEFAULT '{}'::jsonb NOT NULL,
+    connection_count bigint DEFAULT 0 NOT NULL,
+    rx_packets bigint DEFAULT 0 NOT NULL,
+    rx_bytes bigint DEFAULT 0 NOT NULL,
+    tx_packets bigint DEFAULT 0 NOT NULL,
+    tx_bytes bigint DEFAULT 0 NOT NULL
+);
+
 CREATE TABLE workspace_agents (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -611,7 +616,7 @@ ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provi
 
 ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval('workspace_resource_metadata_id_seq'::regclass);
 
-ALTER TABLE ONLY agent_stats
+ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY api_keys
@@ -734,9 +739,9 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
-CREATE INDEX idx_agent_stats_created_at ON agent_stats USING btree (created_at);
+CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
-CREATE INDEX idx_agent_stats_user_id ON agent_stats USING btree (user_id);
+CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
 
 CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id);
 
