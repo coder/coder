@@ -270,8 +270,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		return nil
 	}
 
-	entitlements.Experimental = len(api.AGPL.Experiments) != 0
-
 	featureChanged := func(featureName codersdk.FeatureName) (changed bool, enabled bool) {
 		if api.entitlements.Features == nil {
 			return true, entitlements.Features[featureName].Enabled
