@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -88,7 +87,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		TokenName:       tokenName,
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+		if database.IsUniqueViolation(err) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: fmt.Sprintf("A token with name %q already exists.", tokenName),
 				Validations: []codersdk.ValidationError{{
