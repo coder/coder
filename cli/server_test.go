@@ -873,21 +873,15 @@ func TestServer(t *testing.T) {
 			pty := ptytest.New(t)
 			root.SetOutput(pty.Output())
 			root.SetErr(pty.Output())
-			errC := make(chan error, 1)
-			go func() {
-				errC <- root.ExecuteContext(ctx)
-			}()
+			clitest.Start(ctx, t, root)
 
-			pty.ExpectMatch("--address and -a are deprecated")
+			pty.ExpectMatch("is deprecated")
 
 			accessURL := waitAccessURL(t, cfg)
 			require.Equal(t, "http", accessURL.Scheme)
 			client := codersdk.New(accessURL)
 			_, err := client.HasFirstUser(ctx)
 			require.NoError(t, err)
-
-			cancelFunc()
-			require.NoError(t, <-errC)
 		})
 
 		t.Run("TLS", func(t *testing.T) {
@@ -900,7 +894,7 @@ func TestServer(t *testing.T) {
 				"server",
 				"--in-memory",
 				"--address", ":0",
-				"--access-url", "http://example.com",
+				"--access-url", "https://example.com",
 				"--tls-enable",
 				"--tls-cert-file", certPath,
 				"--tls-key-file", keyPath,
@@ -909,12 +903,9 @@ func TestServer(t *testing.T) {
 			pty := ptytest.New(t)
 			root.SetOutput(pty.Output())
 			root.SetErr(pty.Output())
-			errC := make(chan error, 1)
-			go func() {
-				errC <- root.ExecuteContext(ctx)
-			}()
+			clitest.Start(ctx, t, root)
 
-			pty.ExpectMatch("--address and -a are deprecated")
+			pty.ExpectMatch("is deprecated")
 
 			accessURL := waitAccessURL(t, cfg)
 			require.Equal(t, "https", accessURL.Scheme)
@@ -930,9 +921,6 @@ func TestServer(t *testing.T) {
 			defer client.HTTPClient.CloseIdleConnections()
 			_, err := client.HasFirstUser(ctx)
 			require.NoError(t, err)
-
-			cancelFunc()
-			require.NoError(t, <-errC)
 		})
 	})
 

@@ -277,10 +277,12 @@ flags, and YAML configuration. The precedence is as follows:
 			if cfg.Address.String() != "" {
 				if cfg.TLS.Enable {
 					cfg.HTTPAddress.Host = ""
+					cfg.HTTPAddress.Port = ""
 					cfg.TLS.Address = cfg.Address
 				} else {
 					cfg.HTTPAddress = cfg.Address
 					cfg.TLS.Address.Host = ""
+					cfg.TLS.Address.Port = ""
 				}
 			}
 			if cfg.TLS.Enable && cfg.TLS.Address.String() == "" {

@@ -866,11 +866,5 @@ func initExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 			exps = append(exps, ex)
 		}
 	}
-
-	// --experiments takes precedence over --experimental. It's deprecated.
-	if len(raw) == 0 {
-		log.Warn(context.Background(), "--experimental is deprecated, use --experiments='*' instead")
-		exps = append(exps, codersdk.ExperimentsAll...)
-	}
 	return exps
 }
