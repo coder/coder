@@ -570,7 +570,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 	aReq.New = workspace
 
-	users, err := api.Database.GetUsersByIDs(ctx, []uuid.UUID{user.ID, workspaceBuild.InitiatorID})
+	initiator, err := api.Database.GetUserByID(ctx, workspaceBuild.InitiatorID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user.",
@@ -584,6 +584,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(workspaceBuild)},
 	})
 
+	users := []database.User{user, initiator}
 	apiBuild, err := api.convertWorkspaceBuild(
 		workspaceBuild,
 		workspace,
