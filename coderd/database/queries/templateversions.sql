@@ -102,6 +102,15 @@ SET
 WHERE
 	job_id = $1;
 
+-- name: UpdateTemplateVersionGitAuthProvidersByJobID :exec
+UPDATE
+	template_versions
+SET
+	git_auth_providers = $2,
+	updated_at = $3
+WHERE
+	job_id = $1;
+
 -- name: GetPreviousTemplateVersion :one
 SELECT
 	*

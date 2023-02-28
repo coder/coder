@@ -1722,6 +1722,69 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get git auth by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/gitauth \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/gitauth`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+| ----------------- | ---- | ------------ | -------- | ------------------- |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "authenticate_url": "string",
+    "authenticated": true,
+    "id": "string",
+    "type": "azure-devops"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TemplateVersionGitAuth](schemas.md#codersdktemplateversiongitauth) |
+
+<h3 id="get-git-auth-by-template-version-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                 | Type                                                   | Required | Restrictions | Description |
+| -------------------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]`       | array                                                  | false    |              |             |
+| `» authenticate_url` | string                                                 | false    |              |             |
+| `» authenticated`    | boolean                                                | false    |              |             |
+| `» id`               | string                                                 | false    |              |             |
+| `» type`             | [codersdk.GitProvider](schemas.md#codersdkgitprovider) | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value          |
+| -------- | -------------- |
+| `type`   | `azure-devops` |
+| `type`   | `github`       |
+| `type`   | `gitlab`       |
+| `type`   | `bitbucket`    |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get logs by template version
 
 ### Code samples

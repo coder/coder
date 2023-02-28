@@ -187,39 +187,57 @@ coder dotfiles -y ${var.dotfiles_uri}
 
 ### Parameters
 
-Templates often contain _parameters_. These are defined by `variable` blocks in
-Terraform. There are two types of parameters:
+Templates can contain _parameters_, which prompt the user for additional information
+in the "create workspace" screen.
 
-- **Admin/template-wide parameters** are set when a template is created/updated.
-  These values are often cloud configuration, such as a `VPC`, and are annotated
-  with `sensitive = true` in the template code.
-- **User/workspace parameters** are set when a user creates a workspace. These
-  values are often personalization settings such as "preferred region", "machine
-  type" or "workspace image".
-
-The template sample below uses _admin and user parameters_ to allow developers
-to create workspaces from any image as long as it is in the proper registry:
+![Parameters in Create Workspace screen](./images/parameters.png)
 
 ```hcl
-variable "image_registry_url" {
-  description = "The image registry developers can select"
-  default     = "artifactory1.organization.com"
-  sensitive   = true # admin (template-wide) parameter
-}
+data "coder_parameter" "docker_host" {
+  name        = "Region"
+  description = "Which region would you like to deploy to?"
+  icon        = "/emojis/1f30f.png"
+  type        = "string"
+  default     = "tcp://100.94.74.63:2375"
 
-variable "docker_image_name" {
-  description = "The image your workspace will start from"
-  default     = "base_image"
-  sensitive   = false # user (workspace) parameter
-}
+  option {
+    name = "Pittsburgh, USA"
+    value = "tcp://100.94.74.63:2375"
+    icon = "/emojis/1f1fa-1f1f8.png"
+  }
 
-resource "docker_image" "workspace" {
-  # ... other config
-  name = "${var.image_registry_url}/${var.docker_image_name}"
+  option {
+    name = "Helsinki, Finland"
+    value = "tcp://100.117.102.81:2375"
+    icon = "/emojis/1f1eb-1f1ee.png"
+  }
+
+  option {
+    name = "Sydney, Australia"
+    value = "tcp://100.127.2.1:2375"
+    icon = "/emojis/1f1e6-1f1f9.png"
+  }
 }
 ```
 
-#### Start/stop
+From there, parameters can be referenced during build-time:
+
+```hcl
+provider "docker" {
+  host = data.coder_parameter.docker_host.value
+}
+```
+
+> For a complete list of supported parameter types, see the
+> [coder_parameter Terraform reference](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter)
+
+#### Legacy parameters (deprecated)
+
+Prior to Coder v0.16.0 (Jan 2023), parameters were defined via Terraform `variable` blocks. These "legacy parameters" can still be used in templates, but are deprecated and will be removed in April 2023.
+
+> ⚠️ Legacy (`variable`) parameters and rich parameters cannot be used in the same template.
+
+### Start/stop
 
 [Learn about resource persistence in Coder](./templates/resource-persistence.md)
 

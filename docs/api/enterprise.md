@@ -24,7 +24,14 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
     "background_color": "string",
     "enabled": true,
     "message": "string"
-  }
+  },
+  "support_links": [
+    {
+      "icon": "string",
+      "name": "string",
+      "target": "string"
+    }
+  ]
 }
 ```
 
@@ -65,9 +72,9 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 ### Parameters
 
-| Name   | In   | Type                                                             | Required | Description               |
-| ------ | ---- | ---------------------------------------------------------------- | -------- | ------------------------- |
-| `body` | body | [codersdk.AppearanceConfig](schemas.md#codersdkappearanceconfig) | true     | Update appearance request |
+| Name   | In   | Type                                                                         | Required | Description               |
+| ------ | ---- | ---------------------------------------------------------------------------- | -------- | ------------------------- |
+| `body` | body | [codersdk.UpdateAppearanceConfig](schemas.md#codersdkupdateappearanceconfig) | true     | Update appearance request |
 
 ### Example responses
 
@@ -86,9 +93,9 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                           |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AppearanceConfig](schemas.md#codersdkappearanceconfig) |
+| Status | Meaning                                                 | Description | Schema                                                                       |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UpdateAppearanceConfig](schemas.md#codersdkupdateappearanceconfig) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

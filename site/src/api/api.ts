@@ -295,6 +295,15 @@ export const createTemplateVersion = async (
   return response.data
 }
 
+export const getTemplateVersionGitAuth = async (
+  versionId: string,
+): Promise<TypesGen.TemplateVersionGitAuth[]> => {
+  const response = await axios.get(
+    `/api/v2/templateversions/${versionId}/gitauth`,
+  )
+  return response.data
+}
+
 export const getTemplateVersionParameters = async (
   versionId: string,
 ): Promise<TypesGen.Parameter[]> => {

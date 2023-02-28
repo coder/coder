@@ -484,6 +484,9 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 
 	other := codersdk.New(client.URL)
 	other.SetSessionToken(login.SessionToken)
+	t.Cleanup(func() {
+		other.HTTPClient.CloseIdleConnections()
+	})
 
 	if len(roles) > 0 {
 		// Find the roles for the org vs the site wide roles
@@ -715,6 +718,33 @@ func MustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID)
 	}
 	require.NoError(t, err, "no workspace found with id %s", workspaceID)
 	return ws
+}
+
+// RequestGitAuthCallback makes a request with the proper OAuth2 state cookie
+// to the git auth callback endpoint.
+func RequestGitAuthCallback(t *testing.T, providerID string, client *codersdk.Client) *http.Response {
+	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	state := "somestate"
+	oauthURL, err := client.URL.Parse(fmt.Sprintf("/gitauth/%s/callback?code=asd&state=%s", providerID, state))
+	require.NoError(t, err)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:  codersdk.OAuth2StateCookie,
+		Value: state,
+	})
+	req.AddCookie(&http.Cookie{
+		Name:  codersdk.SessionTokenCookie,
+		Value: client.SessionToken(),
+	})
+	res, err := client.HTTPClient.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = res.Body.Close()
+	})
+	return res
 }
 
 // NewGoogleInstanceIdentity returns a metadata client and ID token validator for faking

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"regexp"
 	"testing"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/examples"
@@ -431,6 +433,67 @@ func TestTemplateVersionParameters(t *testing.T) {
 		require.Len(t, params, 2)
 		require.Equal(t, "hello", params[0].SourceValue)
 		require.Equal(t, "world", params[1].SourceValue)
+	})
+}
+
+func TestTemplateVersionsGitAuth(t *testing.T) {
+	t.Parallel()
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.TemplateVersionGitAuth(ctx, version.ID)
+		require.NoError(t, err)
+	})
+	t.Run("Authenticated", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			GitAuthConfigs: []*gitauth.Config{{
+				OAuth2Config: &oauth2Config{},
+				ID:           "github",
+				Regex:        regexp.MustCompile(`github\.com`),
+				Type:         codersdk.GitProviderGitHub,
+			}},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						GitAuthProviders: []string{"github"},
+					},
+				},
+			}},
+		})
+		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		require.Empty(t, version.Job.Error)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Not authenticated to start!
+		providers, err := client.TemplateVersionGitAuth(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, providers, 1)
+		require.False(t, providers[0].Authenticated)
+
+		// Perform the Git auth callback to authenticate the user...
+		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		// Ensure that the returned Git auth for the template is authenticated!
+		providers, err = client.TemplateVersionGitAuth(ctx, version.ID)
+		require.NoError(t, err)
+		require.Len(t, providers, 1)
+		require.True(t, providers[0].Authenticated)
 	})
 }
 

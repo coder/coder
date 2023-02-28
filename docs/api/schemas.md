@@ -440,7 +440,14 @@
     "background_color": "string",
     "enabled": true,
     "message": "string"
-  }
+  },
+  "support_links": [
+    {
+      "icon": "string",
+      "name": "string",
+      "target": "string"
+    }
+  ]
 }
 ```
 
@@ -450,6 +457,7 @@
 | ---------------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
 | `logo_url`       | string                                                       | false    |              |             |
 | `service_banner` | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
+| `support_links`  | array of [codersdk.LinkConfig](#codersdklinkconfig)          | false    |              |             |
 
 ## codersdk.AssignableRoles
 
@@ -2285,6 +2293,31 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "usage": "string",
     "value": ["string"]
   },
+  "support": {
+    "links": {
+      "default": [
+        {
+          "icon": "string",
+          "name": "string",
+          "target": "string"
+        }
+      ],
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": [
+        {
+          "icon": "string",
+          "name": "string",
+          "target": "string"
+        }
+      ]
+    }
+  },
   "swagger": {
     "enable": {
       "default": true,
@@ -2546,6 +2579,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `ssh_keygen_algorithm`               | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
 | `strict_transport_security`          | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)                                                   | false    |              |                                                 |
 | `strict_transport_security_options`  | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
+| `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                                                           | false    |              |                                                 |
 | `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                                           | false    |              |                                                 |
 | `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                                       | false    |              |                                                 |
 | `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                                                   | false    |              |                                                 |
@@ -2606,6 +2640,48 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `shorthand`  | string                                                    | false    |              |             |
 | `usage`      | string                                                    | false    |              |             |
 | `value`      | array of [codersdk.GitAuthConfig](#codersdkgitauthconfig) | false    |              |             |
+
+## codersdk.DeploymentConfigField-array_codersdk_LinkConfig
+
+```json
+{
+  "default": [
+    {
+      "icon": "string",
+      "name": "string",
+      "target": "string"
+    }
+  ],
+  "enterprise": true,
+  "flag": "string",
+  "hidden": true,
+  "name": "string",
+  "secret": true,
+  "shorthand": "string",
+  "usage": "string",
+  "value": [
+    {
+      "icon": "string",
+      "name": "string",
+      "target": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                | Required | Restrictions | Description |
+| ------------ | --------------------------------------------------- | -------- | ------------ | ----------- |
+| `default`    | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
+| `enterprise` | boolean                                             | false    |              |             |
+| `flag`       | string                                              | false    |              |             |
+| `hidden`     | boolean                                             | false    |              |             |
+| `name`       | string                                              | false    |              |             |
+| `secret`     | boolean                                             | false    |              |             |
+| `shorthand`  | string                                              | false    |              |             |
+| `usage`      | string                                              | false    |              |             |
+| `value`      | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
 
 ## codersdk.DeploymentConfigField-array_string
 
@@ -2944,6 +3020,23 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `type`         | string          | false    |              |             |
 | `validate_url` | string          | false    |              |             |
 
+## codersdk.GitProvider
+
+```json
+"azure-devops"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+| -------------- |
+| `azure-devops` |
+| `github`       |
+| `gitlab`       |
+| `bitbucket`    |
+
 ## codersdk.GitSSHKey
 
 ```json
@@ -3042,6 +3135,24 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `id`          | integer | false    |              |                                                                                                                                                                                                        |
 | `uploaded_at` | string  | false    |              |                                                                                                                                                                                                        |
 | `uuid`        | string  | false    |              |                                                                                                                                                                                                        |
+
+## codersdk.LinkConfig
+
+```json
+{
+  "icon": "string",
+  "name": "string",
+  "target": "string"
+}
+```
+
+### Properties
+
+| Name     | Type   | Required | Restrictions | Description |
+| -------- | ------ | -------- | ------------ | ----------- |
+| `icon`   | string | false    |              |             |
+| `name`   | string | false    |              |             |
+| `target` | string | false    |              |             |
 
 ## codersdk.LogLevel
 
@@ -4120,6 +4231,42 @@ Parameter represents a set value for the scope.
 | `enabled`          | boolean | false    |              |             |
 | `message`          | string  | false    |              |             |
 
+## codersdk.SupportConfig
+
+```json
+{
+  "links": {
+    "default": [
+      {
+        "icon": "string",
+        "name": "string",
+        "target": "string"
+      }
+    ],
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": [
+      {
+        "icon": "string",
+        "name": "string",
+        "target": "string"
+      }
+    ]
+  }
+}
+```
+
+### Properties
+
+| Name    | Type                                                                                                                 | Required | Restrictions | Description |
+| ------- | -------------------------------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `links` | [codersdk.DeploymentConfigField-array_codersdk_LinkConfig](#codersdkdeploymentconfigfield-array_codersdk_linkconfig) | false    |              |             |
+
 ## codersdk.SwaggerConfig
 
 ```json
@@ -4570,6 +4717,26 @@ Parameter represents a set value for the scope.
 | `template_id`     | string                                             | false    |              |             |
 | `updated_at`      | string                                             | false    |              |             |
 
+## codersdk.TemplateVersionGitAuth
+
+```json
+{
+  "authenticate_url": "string",
+  "authenticated": true,
+  "id": "string",
+  "type": "azure-devops"
+}
+```
+
+### Properties
+
+| Name               | Type                                         | Required | Restrictions | Description |
+| ------------------ | -------------------------------------------- | -------- | ------------ | ----------- |
+| `authenticate_url` | string                                       | false    |              |             |
+| `authenticated`    | boolean                                      | false    |              |             |
+| `id`               | string                                       | false    |              |             |
+| `type`             | [codersdk.GitProvider](#codersdkgitprovider) | false    |              |             |
+
 ## codersdk.TemplateVersionParameter
 
 ```json
@@ -4756,6 +4923,26 @@ Parameter represents a set value for the scope.
 | Name | Type   | Required | Restrictions | Description |
 | ---- | ------ | -------- | ------------ | ----------- |
 | `id` | string | true     |              |             |
+
+## codersdk.UpdateAppearanceConfig
+
+```json
+{
+  "logo_url": "string",
+  "service_banner": {
+    "background_color": "string",
+    "enabled": true,
+    "message": "string"
+  }
+}
+```
+
+### Properties
+
+| Name             | Type                                                         | Required | Restrictions | Description |
+| ---------------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `logo_url`       | string                                                       | false    |              |             |
+| `service_banner` | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
 
 ## codersdk.UpdateCheckResponse
 
