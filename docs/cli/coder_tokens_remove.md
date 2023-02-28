@@ -7,5 +7,5 @@ Delete a token
 ## Usage
 
 ```console
-coder tokens remove [id] [flags]
+coder tokens remove [name] [flags]
 ```

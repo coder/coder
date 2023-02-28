@@ -179,7 +179,7 @@ func listTokens() *cobra.Command {
 
 func removeToken() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "remove [id]",
+		Use:     "remove [name]",
 		Aliases: []string{"rm"},
 		Short:   "Delete a token",
 		Args:    cobra.ExactArgs(1),
@@ -189,7 +189,12 @@ func removeToken() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			err = client.DeleteAPIKey(cmd.Context(), codersdk.Me, args[0])
+			token, err := client.APIKeyByName(cmd.Context(), codersdk.Me, args[0])
+			if err != nil {
+				return xerrors.Errorf("delete api key: %w", err)
+			}
+
+			err = client.DeleteAPIKey(cmd.Context(), codersdk.Me, token.ID)
 			if err != nil {
 				return xerrors.Errorf("delete api key: %w", err)
 			}

@@ -121,8 +121,8 @@ func (c *Client) Tokens(ctx context.Context, userID string, filter TokensFilter)
 	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
 }
 
-// APIKey returns the api key by id.
-func (c *Client) APIKey(ctx context.Context, userID string, id string) (*APIKey, error) {
+// APIKeyByID returns the api key by id.
+func (c *Client) APIKeyByID(ctx context.Context, userID string, id string) (*APIKey, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, id), nil)
 	if err != nil {
 		return nil, err
@@ -135,9 +135,23 @@ func (c *Client) APIKey(ctx context.Context, userID string, id string) (*APIKey,
 	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
 }
 
-// DeleteAPIKey deletes API key by name.
-func (c *Client) DeleteAPIKey(ctx context.Context, userID string, name string) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, name), nil)
+// APIKeyByName returns the api key by name.
+func (c *Client) APIKeyByName(ctx context.Context, userID string, name string) (*APIKey, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens/%s", userID, name), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode > http.StatusCreated {
+		return nil, ReadBodyAsError(res)
+	}
+	apiKey := &APIKey{}
+	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
+}
+
+// DeleteAPIKey deletes API key by id.
+func (c *Client) DeleteAPIKey(ctx context.Context, userID string, id string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, id), nil)
 	if err != nil {
 		return err
 	}

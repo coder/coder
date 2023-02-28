@@ -3350,8 +3350,8 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Get API key",
-                "operationId": "get-api-key",
+                "summary": "Get API key by ID",
+                "operationId": "get-api-key-by-id",
                 "parameters": [
                     {
                         "type": "string",
@@ -3409,6 +3409,48 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/users/{user}/keys/{keyname}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get API key by token name",
+                "operationId": "get-api-key-by-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Key Name",
+                        "name": "keyname",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.APIKey"
+                        }
                     }
                 }
             }

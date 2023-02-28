@@ -152,8 +152,8 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
 }
 
-// @Summary Get API key
-// @ID get-api-key
+// @Summary Get API key by ID
+// @ID get-api-key-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
@@ -161,7 +161,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Param keyid path string true "Key ID" format(uuid)
 // @Success 200 {object} codersdk.APIKey
 // @Router /users/{user}/keys/{keyid} [get]
-func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
+func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	keyID := chi.URLParam(r, "keyid")
@@ -184,6 +184,46 @@ func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(key))
+}
+
+// @Summary Get API key by token name
+// @ID get-api-key-by-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param keyname path string true "Key Name" format(string)
+// @Success 200 {object} codersdk.APIKey
+// @Router /users/{user}/keys/tokens/{keyname} [get]
+func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx       = r.Context()
+		user      = httpmw.UserParam(r)
+		tokenName = chi.URLParam(r, "keyname")
+	)
+
+	token, err := api.Database.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
+		TokenName: tokenName,
+		UserID:    user.ID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if !api.Authorize(r, rbac.ActionRead, token) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(token))
 }
 
 // @Summary Get user tokens
