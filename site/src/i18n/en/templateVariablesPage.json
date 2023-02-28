@@ -1,3 +1,4 @@
 {
-  "title": "Template variables"
+  "title": "Template variables",
+  "sensitiveVariableHelperText": "This variable is sensitive."
 }

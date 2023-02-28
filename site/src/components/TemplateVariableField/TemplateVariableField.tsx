@@ -4,15 +4,19 @@ import RadioGroup from "@material-ui/core/RadioGroup"
 import TextField from "@material-ui/core/TextField"
 import { TemplateVersionVariable } from "api/typesGenerated"
 import { FC, useState } from "react"
+import { useTranslation } from "react-i18next"
+
+export const SensitiveVariableHelperText = () => {
+  const { t } = useTranslation("templateVariablesPage")
+  return (
+    <span>{t("sensitiveVariableHelperText") }</span>
+  )
+}
 
 export interface TemplateVariableFieldProps {
   templateVersionVariable: TemplateVersionVariable
   disabled: boolean
   onChange: (value: string) => void
-}
-
-const isBoolean = (variable: TemplateVersionVariable) => {
-  return variable.type === "bool"
 }
 
 export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
@@ -74,4 +78,8 @@ export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
       variant="outlined"
     />
   )
+}
+
+const isBoolean = (variable: TemplateVersionVariable) => {
+  return variable.type === "bool"
 }

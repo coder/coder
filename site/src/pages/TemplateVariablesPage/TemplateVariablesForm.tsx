@@ -16,7 +16,8 @@ import {
   HorizontalForm,
   FormFooter,
 } from "components/HorizontalForm/HorizontalForm"
-import { TemplateVariableField } from "components/TemplateVariableField/TemplateVariableField"
+import { SensitiveVariableHelperText, TemplateVariableField } from "components/TemplateVariableField/TemplateVariableField"
+import { SensitiveValue } from "components/Resources/SensitiveValue"
 
 export const getValidationSchema = (): Yup.AnyObjectSchema => Yup.object()
 
@@ -67,27 +68,37 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
       onSubmit={form.handleSubmit}
       aria-label={t("formAriaLabel")}
     >
-      {templateVariables.map((templateVariable, index) => (
-        <FormSection
-          key={templateVariable.name}
-          title={templateVariable.name}
-          description={templateVariable.description}
-        >
-          <FormFields>
-            <TemplateVariableField
-              {...getFieldHelpers("user_variable_values[" + index + "].value")}
-              templateVersionVariable={templateVariable}
-              disabled={isSubmitting}
-              onChange={(value) => {
-                form.setFieldValue("rich_parameter_values." + index, {
-                  name: templateVariable.name,
-                  value: value,
-                })
-              }}
-            />
-          </FormFields>
-        </FormSection>
-      ))}
+      {templateVariables.map((templateVariable, index) => {
+        let fieldHelpers;
+        if (templateVariable.sensitive) {
+          fieldHelpers = getFieldHelpers("user_variable_values[" + index + "].value",
+            <SensitiveVariableHelperText/>)
+        } else {
+          fieldHelpers = getFieldHelpers("user_variable_values[" + index + "].value")
+        }
+
+        return(
+          <FormSection
+            key={templateVariable.name}
+            title={templateVariable.name}
+            description={templateVariable.description}
+          >
+            <FormFields>
+              <TemplateVariableField
+                {...fieldHelpers}
+                templateVersionVariable={templateVariable}
+                disabled={isSubmitting}
+                onChange={(value) => {
+                  form.setFieldValue("user_variable_values." + index, {
+                    name: templateVariable.name,
+                    value: value,
+                  })
+                }}
+              />
+            </FormFields>
+          </FormSection>
+      )
+      })}
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
