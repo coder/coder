@@ -1168,9 +1168,9 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID: agt.ID,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
-	s.Run("InsertAgentStat", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("InsertWorkspaceAgentStat", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		check.Args(database.InsertAgentStatParams{
+		check.Args(database.InsertWorkspaceAgentStatParams{
 			WorkspaceID: ws.ID,
 		}).Asserts(ws, rbac.ActionUpdate)
 	}))

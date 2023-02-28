@@ -147,8 +147,8 @@ func (q *querier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, 
 	return q.db.GetWorkspaceResourceMetadataCreatedAfter(ctx, createdAt)
 }
 
-func (q *querier) DeleteOldAgentStats(ctx context.Context) error {
-	return q.db.DeleteOldAgentStats(ctx)
+func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
+	return q.db.DeleteOldWorkspaceAgentStats(ctx)
 }
 
 func (q *querier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ParameterSchema, error) {

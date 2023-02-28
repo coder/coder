@@ -1,6 +1,6 @@
--- name: InsertAgentStat :one
+-- name: InsertWorkspaceAgentStat :one
 INSERT INTO
-	agent_stats (
+	workspace_agent_stats (
 		id,
 		created_at,
 		user_id,
@@ -17,7 +17,7 @@ SELECT
 	(created_at at TIME ZONE 'UTC')::date as date,
 	user_id
 FROM
-	agent_stats
+	workspace_agent_stats
 WHERE
 	template_id = $1
 GROUP BY
@@ -30,11 +30,11 @@ SELECT
 	(created_at at TIME ZONE 'UTC')::date as date,
 	user_id
 FROM
-	agent_stats
+	workspace_agent_stats
 GROUP BY
 	date, user_id
 ORDER BY
 	date ASC;
 
--- name: DeleteOldAgentStats :exec
-DELETE FROM agent_stats WHERE created_at < NOW() - INTERVAL '30 days';
+-- name: DeleteOldWorkspaceAgentStats :exec
+DELETE FROM workspace_agent_stats WHERE created_at < NOW() - INTERVAL '30 days';

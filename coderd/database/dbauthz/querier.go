@@ -1528,18 +1528,18 @@ func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg da
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceAgentConnectionByID)(ctx, arg)
 }
 
-func (q *querier) InsertAgentStat(ctx context.Context, arg database.InsertAgentStatParams) (database.AgentStat, error) {
+func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
 	// TODO: This is a workspace agent operation. Should users be able to query this?
 	// Not really sure what this is for.
 	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
-		return database.AgentStat{}, err
+		return database.WorkspaceAgentStat{}, err
 	}
 	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
 	if err != nil {
-		return database.AgentStat{}, err
+		return database.WorkspaceAgentStat{}, err
 	}
-	return q.db.InsertAgentStat(ctx, arg)
+	return q.db.InsertWorkspaceAgentStat(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {

@@ -940,7 +940,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	}
 
 	now := database.Now()
-	_, err = api.Database.InsertAgentStat(ctx, database.InsertAgentStatParams{
+	_, err = api.Database.InsertWorkspaceAgentStat(ctx, database.InsertWorkspaceAgentStatParams{
 		ID:          uuid.New(),
 		CreatedAt:   now,
 		AgentID:     workspaceAgent.ID,

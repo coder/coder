@@ -16,145 +16,6 @@ import (
 	"github.com/tabbed/pqtype"
 )
 
-const deleteOldAgentStats = `-- name: DeleteOldAgentStats :exec
-DELETE FROM agent_stats WHERE created_at < NOW() - INTERVAL '30 days'
-`
-
-func (q *sqlQuerier) DeleteOldAgentStats(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deleteOldAgentStats)
-	return err
-}
-
-const getDeploymentDAUs = `-- name: GetDeploymentDAUs :many
-SELECT
-	(created_at at TIME ZONE 'UTC')::date as date,
-	user_id
-FROM
-	agent_stats
-GROUP BY
-	date, user_id
-ORDER BY
-	date ASC
-`
-
-type GetDeploymentDAUsRow struct {
-	Date   time.Time `db:"date" json:"date"`
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
-}
-
-func (q *sqlQuerier) GetDeploymentDAUs(ctx context.Context) ([]GetDeploymentDAUsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getDeploymentDAUs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetDeploymentDAUsRow
-	for rows.Next() {
-		var i GetDeploymentDAUsRow
-		if err := rows.Scan(&i.Date, &i.UserID); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getTemplateDAUs = `-- name: GetTemplateDAUs :many
-SELECT
-	(created_at at TIME ZONE 'UTC')::date as date,
-	user_id
-FROM
-	agent_stats
-WHERE
-	template_id = $1
-GROUP BY
-	date, user_id
-ORDER BY
-	date ASC
-`
-
-type GetTemplateDAUsRow struct {
-	Date   time.Time `db:"date" json:"date"`
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
-}
-
-func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]GetTemplateDAUsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateDAUs, templateID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetTemplateDAUsRow
-	for rows.Next() {
-		var i GetTemplateDAUsRow
-		if err := rows.Scan(&i.Date, &i.UserID); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const insertAgentStat = `-- name: InsertAgentStat :one
-INSERT INTO
-	agent_stats (
-		id,
-		created_at,
-		user_id,
-		workspace_id,
-		template_id,
-		agent_id,
-		payload
-	)
-VALUES
-	($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, payload
-`
-
-type InsertAgentStatParams struct {
-	ID          uuid.UUID       `db:"id" json:"id"`
-	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
-	UserID      uuid.UUID       `db:"user_id" json:"user_id"`
-	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	TemplateID  uuid.UUID       `db:"template_id" json:"template_id"`
-	AgentID     uuid.UUID       `db:"agent_id" json:"agent_id"`
-	Payload     json.RawMessage `db:"payload" json:"payload"`
-}
-
-func (q *sqlQuerier) InsertAgentStat(ctx context.Context, arg InsertAgentStatParams) (AgentStat, error) {
-	row := q.db.QueryRowContext(ctx, insertAgentStat,
-		arg.ID,
-		arg.CreatedAt,
-		arg.UserID,
-		arg.WorkspaceID,
-		arg.TemplateID,
-		arg.AgentID,
-		arg.Payload,
-	)
-	var i AgentStat
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UserID,
-		&i.AgentID,
-		&i.WorkspaceID,
-		&i.TemplateID,
-		&i.Payload,
-	)
-	return i, err
-}
-
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE
 FROM
@@ -5448,6 +5309,145 @@ type UpdateWorkspaceAgentStartupByIDParams struct {
 func (q *sqlQuerier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg UpdateWorkspaceAgentStartupByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentStartupByID, arg.ID, arg.Version, arg.ExpandedDirectory)
 	return err
+}
+
+const deleteOldWorkspaceAgentStats = `-- name: DeleteOldWorkspaceAgentStats :exec
+DELETE FROM workspace_agent_stats WHERE created_at < NOW() - INTERVAL '30 days'
+`
+
+func (q *sqlQuerier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteOldWorkspaceAgentStats)
+	return err
+}
+
+const getDeploymentDAUs = `-- name: GetDeploymentDAUs :many
+SELECT
+	(created_at at TIME ZONE 'UTC')::date as date,
+	user_id
+FROM
+	workspace_agent_stats
+GROUP BY
+	date, user_id
+ORDER BY
+	date ASC
+`
+
+type GetDeploymentDAUsRow struct {
+	Date   time.Time `db:"date" json:"date"`
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) GetDeploymentDAUs(ctx context.Context) ([]GetDeploymentDAUsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getDeploymentDAUs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetDeploymentDAUsRow
+	for rows.Next() {
+		var i GetDeploymentDAUsRow
+		if err := rows.Scan(&i.Date, &i.UserID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTemplateDAUs = `-- name: GetTemplateDAUs :many
+SELECT
+	(created_at at TIME ZONE 'UTC')::date as date,
+	user_id
+FROM
+	workspace_agent_stats
+WHERE
+	template_id = $1
+GROUP BY
+	date, user_id
+ORDER BY
+	date ASC
+`
+
+type GetTemplateDAUsRow struct {
+	Date   time.Time `db:"date" json:"date"`
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) ([]GetTemplateDAUsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateDAUs, templateID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateDAUsRow
+	for rows.Next() {
+		var i GetTemplateDAUsRow
+		if err := rows.Scan(&i.Date, &i.UserID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceAgentStat = `-- name: InsertWorkspaceAgentStat :one
+INSERT INTO
+	workspace_agent_stats (
+		id,
+		created_at,
+		user_id,
+		workspace_id,
+		template_id,
+		agent_id,
+		payload
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, payload
+`
+
+type InsertWorkspaceAgentStatParams struct {
+	ID          uuid.UUID       `db:"id" json:"id"`
+	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
+	UserID      uuid.UUID       `db:"user_id" json:"user_id"`
+	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	TemplateID  uuid.UUID       `db:"template_id" json:"template_id"`
+	AgentID     uuid.UUID       `db:"agent_id" json:"agent_id"`
+	Payload     json.RawMessage `db:"payload" json:"payload"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWorkspaceAgentStatParams) (WorkspaceAgentStat, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceAgentStat,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UserID,
+		arg.WorkspaceID,
+		arg.TemplateID,
+		arg.AgentID,
+		arg.Payload,
+	)
+	var i WorkspaceAgentStat
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UserID,
+		&i.AgentID,
+		&i.WorkspaceID,
+		&i.TemplateID,
+		&i.Payload,
+	)
+	return i, err
 }
 
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one

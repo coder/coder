@@ -40,7 +40,6 @@ func New() database.Store {
 		mutex: &sync.RWMutex{},
 		data: &data{
 			apiKeys:                   make([]database.APIKey, 0),
-			agentStats:                make([]database.AgentStat, 0),
 			organizationMembers:       make([]database.OrganizationMember, 0),
 			organizations:             make([]database.Organization, 0),
 			users:                     make([]database.User, 0),
@@ -60,6 +59,7 @@ func New() database.Store {
 			provisionerJobs:           make([]database.ProvisionerJob, 0),
 			templateVersions:          make([]database.TemplateVersion, 0),
 			templates:                 make([]database.Template, 0),
+			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
 			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
@@ -98,7 +98,7 @@ type data struct {
 	userLinks           []database.UserLink
 
 	// New tables
-	agentStats                []database.AgentStat
+	workspaceAgentStats       []database.WorkspaceAgentStat
 	auditLogs                 []database.AuditLog
 	files                     []database.File
 	gitAuthLinks              []database.GitAuthLink
@@ -258,20 +258,20 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
-func (*fakeQuerier) DeleteOldAgentStats(_ context.Context) error {
+func (*fakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	// no-op
 	return nil
 }
 
-func (q *fakeQuerier) InsertAgentStat(_ context.Context, p database.InsertAgentStatParams) (database.AgentStat, error) {
+func (q *fakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
 	if err := validateDatabaseType(p); err != nil {
-		return database.AgentStat{}, err
+		return database.WorkspaceAgentStat{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	stat := database.AgentStat{
+	stat := database.WorkspaceAgentStat{
 		ID:          p.ID,
 		CreatedAt:   p.CreatedAt,
 		WorkspaceID: p.WorkspaceID,
@@ -280,7 +280,7 @@ func (q *fakeQuerier) InsertAgentStat(_ context.Context, p database.InsertAgentS
 		Payload:     p.Payload,
 		TemplateID:  p.TemplateID,
 	}
-	q.agentStats = append(q.agentStats, stat)
+	q.workspaceAgentStats = append(q.workspaceAgentStats, stat)
 	return stat, nil
 }
 
@@ -290,7 +290,7 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 
 	seens := make(map[time.Time]map[uuid.UUID]struct{})
 
-	for _, as := range q.agentStats {
+	for _, as := range q.workspaceAgentStats {
 		if as.TemplateID != templateID {
 			continue
 		}
@@ -330,7 +330,7 @@ func (q *fakeQuerier) GetDeploymentDAUs(_ context.Context) ([]database.GetDeploy
 
 	seens := make(map[time.Time]map[uuid.UUID]struct{})
 
-	for _, as := range q.agentStats {
+	for _, as := range q.workspaceAgentStats {
 		date := as.CreatedAt.Truncate(time.Hour * 24)
 
 		dateEntry := seens[date]

@@ -26,7 +26,7 @@ type sqlcQuerier interface {
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
 	DeleteGroupMembersByOrgAndUser(ctx context.Context, arg DeleteGroupMembersByOrgAndUserParams) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
-	DeleteOldAgentStats(ctx context.Context) error
+	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
@@ -133,7 +133,6 @@ type sqlcQuerier interface {
 	GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error)
 	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
-	InsertAgentStat(ctx context.Context, arg InsertAgentStatParams) (AgentStat, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is
 	// every member of the org.
@@ -168,6 +167,7 @@ type sqlcQuerier interface {
 	InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error)
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error)
 	InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error)
+	InsertWorkspaceAgentStat(ctx context.Context, arg InsertWorkspaceAgentStatParams) (WorkspaceAgentStat, error)
 	InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error)
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuild, error)
 	InsertWorkspaceBuildParameters(ctx context.Context, arg InsertWorkspaceBuildParametersParams) error
