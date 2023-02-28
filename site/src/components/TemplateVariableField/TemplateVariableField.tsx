@@ -8,28 +8,24 @@ import { useTranslation } from "react-i18next"
 
 export const SensitiveVariableHelperText = () => {
   const { t } = useTranslation("templateVariablesPage")
-  return (
-    <span>{t("sensitiveVariableHelperText") }</span>
-  )
+  return <span>{t("sensitiveVariableHelperText")}</span>
 }
 
 export interface TemplateVariableFieldProps {
   templateVersionVariable: TemplateVersionVariable
+  initialValue: string
   disabled: boolean
   onChange: (value: string) => void
 }
 
 export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
   templateVersionVariable,
+  initialValue,
   disabled,
   onChange,
   ...props
 }) => {
-  const [variableValue, setVariableValue] = useState(
-    templateVersionVariable.sensitive
-      ? ""
-      : templateVersionVariable.default_value,
-  )
+  const [variableValue, setVariableValue] = useState(initialValue)
   if (isBoolean(templateVersionVariable)) {
     return (
       <RadioGroup
@@ -71,6 +67,11 @@ export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
       fullWidth
       label={templateVersionVariable.name}
       value={variableValue}
+      placeholder={
+        templateVersionVariable.sensitive
+          ? ""
+          : templateVersionVariable.default_value
+      }
       onChange={(event) => {
         setVariableValue(event.target.value)
         onChange(event.target.value)

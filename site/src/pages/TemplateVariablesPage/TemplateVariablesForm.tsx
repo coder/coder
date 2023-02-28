@@ -1,4 +1,3 @@
-import TextField from "@material-ui/core/TextField"
 import {
   CreateTemplateVersionRequest,
   TemplateVersion,
@@ -16,8 +15,10 @@ import {
   HorizontalForm,
   FormFooter,
 } from "components/HorizontalForm/HorizontalForm"
-import { SensitiveVariableHelperText, TemplateVariableField } from "components/TemplateVariableField/TemplateVariableField"
-import { SensitiveValue } from "components/Resources/SensitiveValue"
+import {
+  SensitiveVariableHelperText,
+  TemplateVariableField,
+} from "components/TemplateVariableField/TemplateVariableField"
 
 export const getValidationSchema = (): Yup.AnyObjectSchema => Yup.object()
 
@@ -31,7 +32,6 @@ export interface TemplateVariablesForm {
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<CreateTemplateVersionRequest>
 }
-
 export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
   templateVersion,
   templateVariables,
@@ -41,7 +41,8 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
   isSubmitting,
   initialTouched,
 }) => {
-  const validationSchema = getValidationSchema()
+  const initialUserVariableValues =
+    selectInitialUserVariableValues(templateVariables)
   const form: FormikContextType<CreateTemplateVersionRequest> =
     useFormik<CreateTemplateVersionRequest>({
       initialValues: {
@@ -50,10 +51,14 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
         storage_method: "file",
         tags: {},
         // FIXME file_id: null,
-        user_variable_values:
-          selectInitialUserVariableValues(templateVariables),
+        user_variable_values: initialUserVariableValues,
       },
-      validationSchema,
+      validationSchema: Yup.object({
+        user_variable_values: ValidationSchemaForTemplateVariables(
+          "templateVariablesPage",
+          templateVariables,
+        ),
+      }),
       onSubmit: onSubmit,
       initialTouched,
     })
@@ -69,15 +74,19 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
       aria-label={t("formAriaLabel")}
     >
       {templateVariables.map((templateVariable, index) => {
-        let fieldHelpers;
+        let fieldHelpers
         if (templateVariable.sensitive) {
-          fieldHelpers = getFieldHelpers("user_variable_values[" + index + "].value",
-            <SensitiveVariableHelperText/>)
+          fieldHelpers = getFieldHelpers(
+            "user_variable_values[" + index + "].value",
+            <SensitiveVariableHelperText />,
+          )
         } else {
-          fieldHelpers = getFieldHelpers("user_variable_values[" + index + "].value")
+          fieldHelpers = getFieldHelpers(
+            "user_variable_values[" + index + "].value",
+          )
         }
 
-        return(
+        return (
           <FormSection
             key={templateVariable.name}
             title={templateVariable.name}
@@ -87,6 +96,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
               <TemplateVariableField
                 {...fieldHelpers}
                 templateVersionVariable={templateVariable}
+                initialValue={initialUserVariableValues[index].value}
                 disabled={isSubmitting}
                 onChange={(value) => {
                   form.setFieldValue("user_variable_values." + index, {
@@ -97,7 +107,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
               />
             </FormFields>
           </FormSection>
-      )
+        )
       })}
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
@@ -118,10 +128,7 @@ export const selectInitialUserVariableValues = (
       return
     }
 
-    if (
-      templateVariable.value === "" &&
-      templateVariable.default_value !== ""
-    ) {
+    if (templateVariable.required && templateVariable.value === "") {
       defaults.push({
         name: templateVariable.name,
         value: templateVariable.default_value,
@@ -135,4 +142,34 @@ export const selectInitialUserVariableValues = (
     })
   })
   return defaults
+}
+
+export const ValidationSchemaForTemplateVariables = (
+  ns: string,
+  templateVariables: TemplateVersionVariable[],
+): Yup.AnySchema => {
+  const { t } = useTranslation(ns)
+
+  return Yup.array()
+    .of(
+      Yup.object().shape({
+        name: Yup.string().required(),
+        value: Yup.string().test("verify with template", (val, ctx) => {
+          const name = ctx.parent.name
+          const templateVariable = templateVariables.find(
+            (variable) => variable.name === name,
+          )
+          if (templateVariable && templateVariable.required) {
+            if (!val || val.length === 0) {
+              return ctx.createError({
+                path: ctx.path,
+                message: t("validationRequiredVariable"),
+              })
+            }
+          }
+          return true
+        }),
+      }),
+    )
+    .required()
 }
