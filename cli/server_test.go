@@ -399,17 +399,14 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--http-address", "",
-			"--access-url", "http://example.com",
+			"--access-url", "https://example.com",
 			"--tls-enable",
 			"--tls-address", ":0",
 			"--tls-cert-file", certPath,
 			"--tls-key-file", keyPath,
 			"--cache-dir", t.TempDir(),
 		)
-		errC := make(chan error, 1)
-		go func() {
-			errC <- root.ExecuteContext(ctx)
-		}()
+		clitest.Start(t, root)
 
 		// Verify HTTPS
 		accessURL := waitAccessURL(t, cfg)
@@ -426,9 +423,6 @@ func TestServer(t *testing.T) {
 		defer client.HTTPClient.CloseIdleConnections()
 		_, err := client.HasFirstUser(ctx)
 		require.NoError(t, err)
-
-		cancelFunc()
-		require.NoError(t, <-errC)
 	})
 	t.Run("TLSValidMultiple", func(t *testing.T) {
 		t.Parallel()
@@ -441,7 +435,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--http-address", "",
-			"--access-url", "http://example.com",
+			"--access-url", "https://example.com",
 			"--tls-enable",
 			"--tls-address", ":0",
 			"--tls-cert-file", cert1Path,
@@ -450,10 +444,10 @@ func TestServer(t *testing.T) {
 			"--tls-key-file", key2Path,
 			"--cache-dir", t.TempDir(),
 		)
-		errC := make(chan error, 1)
-		go func() {
-			errC <- root.ExecuteContext(ctx)
-		}()
+		pty := ptytest.New(t)
+		root.SetOut(pty.Output())
+		clitest.Start(t, root)
+
 		accessURL := waitAccessURL(t, cfg)
 		require.Equal(t, "https", accessURL.Scheme)
 		originalHost := accessURL.Host
@@ -509,9 +503,6 @@ func TestServer(t *testing.T) {
 		_, err = client.HasFirstUser(ctx)
 		require.NoError(t, err)
 		require.EqualValues(t, 2, atomic.LoadInt64(&dials))
-
-		cancelFunc()
-		require.NoError(t, <-errC)
 	})
 
 	t.Run("TLSAndHTTP", func(t *testing.T) {
@@ -873,7 +864,7 @@ func TestServer(t *testing.T) {
 			pty := ptytest.New(t)
 			root.SetOutput(pty.Output())
 			root.SetErr(pty.Output())
-			clitest.Start(ctx, t, root)
+			clitest.Start(t, root)
 
 			pty.ExpectMatch("is deprecated")
 
@@ -903,7 +894,7 @@ func TestServer(t *testing.T) {
 			pty := ptytest.New(t)
 			root.SetOutput(pty.Output())
 			root.SetErr(pty.Output())
-			clitest.Start(ctx, t, root)
+			clitest.Start(t, root)
 
 			pty.ExpectMatch("is deprecated")
 
@@ -1209,9 +1200,6 @@ func TestServer(t *testing.T) {
 
 		t.Run("CreatesFile", func(t *testing.T) {
 			t.Parallel()
-			ctx, cancelFunc := context.WithCancel(context.Background())
-			defer cancelFunc()
-
 			fiName := testutil.TempFile(t, "", "coder-logging-test-*")
 
 			root, _ := clitest.New(t,
@@ -1222,7 +1210,7 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-human", fiName,
 			)
-			clitest.Start(ctx, t, root)
+			clitest.Start(t, root)
 
 			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fiName)
@@ -1232,9 +1220,6 @@ func TestServer(t *testing.T) {
 
 		t.Run("Human", func(t *testing.T) {
 			t.Parallel()
-			ctx, cancelFunc := context.WithCancel(context.Background())
-			defer cancelFunc()
-
 			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
 			root, _ := clitest.New(t,
@@ -1245,7 +1230,7 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-human", fi,
 			)
-			clitest.Start(ctx, t, root)
+			clitest.Start(t, root)
 
 			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fi)
@@ -1255,9 +1240,6 @@ func TestServer(t *testing.T) {
 
 		t.Run("JSON", func(t *testing.T) {
 			t.Parallel()
-			ctx, cancelFunc := context.WithCancel(context.Background())
-			defer cancelFunc()
-
 			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
 			root, _ := clitest.New(t,
@@ -1268,7 +1250,7 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-json", fi,
 			)
-			clitest.Start(ctx, t, root)
+			clitest.Start(t, root)
 
 			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fi)

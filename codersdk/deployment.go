@@ -114,11 +114,12 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 
 // DeploymentConfig is the central configuration for the coder server.
 type DeploymentConfig struct {
-	Verbose                         bigcli.Bool                    `json:"verbose,omitempty"`
-	AccessURL                       bigcli.URL                     `json:"access_url,omitempty"`
-	WildcardAccessURL               bigcli.URL                     `json:"wildcard_access_url,omitempty"`
-	RedirectToAccessURL             bigcli.Bool                    `json:"redirect_to_access_url,omitempty"`
-	HTTPAddress                     bigcli.HostPort                `json:"http_address,omitempty" typescript:",notnull"`
+	Verbose             bigcli.Bool `json:"verbose,omitempty"`
+	AccessURL           bigcli.URL  `json:"access_url,omitempty"`
+	WildcardAccessURL   bigcli.URL  `json:"wildcard_access_url,omitempty"`
+	RedirectToAccessURL bigcli.Bool `json:"redirect_to_access_url,omitempty"`
+	// HTTPAddress is a string because it may be set to zero to disable.
+	HTTPAddress                     bigcli.String                  `json:"http_address,omitempty" typescript:",notnull"`
 	AutobuildPollInterval           bigcli.Duration                `json:"autobuild_poll_interval,omitempty"`
 	DERP                            *DERP                          `json:"derp,omitempty" typescript:",notnull"`
 	Prometheus                      *PrometheusConfig              `json:"prometheus,omitempty" typescript:",notnull"`

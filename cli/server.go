@@ -276,11 +276,10 @@ flags, and YAML configuration. The precedence is as follows:
 			// Validate bind addresses.
 			if cfg.Address.String() != "" {
 				if cfg.TLS.Enable {
-					cfg.HTTPAddress.Host = ""
-					cfg.HTTPAddress.Port = ""
+					cfg.HTTPAddress = ""
 					cfg.TLS.Address = cfg.Address
 				} else {
-					cfg.HTTPAddress = cfg.Address
+					_ = cfg.HTTPAddress.Set(cfg.Address.String())
 					cfg.TLS.Address.Host = ""
 					cfg.TLS.Address.Port = ""
 				}

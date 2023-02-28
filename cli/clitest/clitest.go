@@ -27,6 +27,23 @@ func New(t *testing.T, args ...string) (*cobra.Command, config.Root) {
 	return NewWithSubcommands(t, cli.AGPL(), args...)
 }
 
+type logWriter struct {
+	prefix string
+	t      *testing.T
+}
+
+func (l *logWriter) Write(p []byte) (n int, err error) {
+	trimmed := strings.TrimSpace(string(p))
+	if trimmed == "" {
+		return len(p), nil
+	}
+	l.t.Log(
+		l.prefix+": ",
+		trimmed,
+	)
+	return len(p), nil
+}
+
 func NewWithSubcommands(
 	t *testing.T, subcommands []*cobra.Command, args ...string,
 ) (*cobra.Command, config.Root) {
@@ -35,10 +52,9 @@ func NewWithSubcommands(
 	root := config.Root(dir)
 	cmd.SetArgs(append([]string{"--global-config", dir}, args...))
 
-	// We could consider using writers
-	// that log via t.Log here instead.
-	cmd.SetOut(io.Discard)
-	cmd.SetErr(io.Discard)
+	// These can be overridden by the test.
+	cmd.SetOut(&logWriter{prefix: "stdout", t: t})
+	cmd.SetErr(&logWriter{prefix: "stderr", t: t})
 
 	return cmd, root
 }
@@ -102,12 +118,12 @@ func extractTar(t *testing.T, data []byte, directory string) {
 
 // Start runs the command in a goroutine and cleans it up when
 // the test completed.
-func Start(ctx context.Context, t *testing.T, cmd *cobra.Command) {
+func Start(t *testing.T, cmd *cobra.Command) {
 	t.Helper()
 
 	closeCh := make(chan struct{})
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
 		defer cancel()

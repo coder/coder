@@ -82,6 +82,10 @@ func (Bool) Type() string {
 
 type String string
 
+func (*String) NoOptDefValue() string {
+	return ""
+}
+
 func (s *String) Set(v string) error {
 	*s = String(v)
 	return nil
