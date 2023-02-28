@@ -56,6 +56,7 @@ import (
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
@@ -234,6 +235,11 @@ func New(options *Options) *API {
 	// static files since it only affects browsers.
 	staticHandler = httpmw.HSTS(staticHandler, options.StrictTransportSecurityCfg)
 
+	oauthConfigs := &httpmw.OAuth2Configs{
+		Github: options.GithubOAuth2Config,
+		OIDC:   options.OIDCConfig,
+	}
+
 	r := chi.NewRouter()
 	ctx, cancel := context.WithCancel(context.Background())
 	api := &API{
@@ -248,6 +254,15 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
+		WorkspaceAppsProvider: workspaceapps.New(
+			options.Logger.Named("workspaceapps"),
+			options.AccessURL,
+			options.Authorizer,
+			options.Database,
+			options.DeploymentConfig,
+			oauthConfigs,
+			options.AppSigningKey,
+		),
 		metricsCache: metricsCache,
 		Auditor:      atomic.Pointer[audit.Auditor]{},
 		Experiments:  experiments,
@@ -262,10 +277,6 @@ func New(options *Options) *API {
 	api.Auditor.Store(&options.Auditor)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
-	oauthConfigs := &httpmw.OAuth2Configs{
-		Github: options.GithubOAuth2Config,
-		OIDC:   options.OIDCConfig,
-	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
 		DB:                          options.Database,
@@ -698,9 +709,10 @@ type API struct {
 	WebsocketWaitMutex sync.Mutex
 	WebsocketWaitGroup sync.WaitGroup
 
-	metricsCache        *metricscache.Cache
-	workspaceAgentCache *wsconncache.Cache
-	updateChecker       *updatecheck.Checker
+	metricsCache          *metricscache.Cache
+	workspaceAgentCache   *wsconncache.Cache
+	updateChecker         *updatecheck.Checker
+	WorkspaceAppsProvider *workspaceapps.Provider
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.

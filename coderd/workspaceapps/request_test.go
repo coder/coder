@@ -1,23 +1,25 @@
-package coderd
+package workspaceapps_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/coderd/workspaceapps"
 )
 
-func Test_workspaceAppRequestValidate(t *testing.T) {
+func Test_RequestValidate(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
 		name        string
-		req         workspaceAppRequest
+		req         workspaceapps.Request
 		errContains string
 	}{
 		{
 			name: "OK1",
-			req: workspaceAppRequest{
-				AccessMethod:      workspaceAppAccessMethodPath,
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/",
 				UsernameOrID:      "foo",
 				WorkspaceNameOrID: "bar",
@@ -27,8 +29,8 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		},
 		{
 			name: "OK2",
-			req: workspaceAppRequest{
-				AccessMethod:      workspaceAppAccessMethodSubdomain,
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
 				BasePath:          "/",
 				UsernameOrID:      "foo",
 				WorkspaceAndAgent: "bar.baz",
@@ -37,8 +39,8 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		},
 		{
 			name: "OK3",
-			req: workspaceAppRequest{
-				AccessMethod:      workspaceAppAccessMethodPath,
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/",
 				UsernameOrID:      "foo",
 				WorkspaceNameOrID: "bar",
@@ -47,7 +49,7 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		},
 		{
 			name: "NoAccessMethod",
-			req: workspaceAppRequest{
+			req: workspaceapps.Request{
 				AccessMethod:      "",
 				BasePath:          "/",
 				UsernameOrID:      "foo",
@@ -59,7 +61,7 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		},
 		{
 			name: "UnknownAccessMethod",
-			req: workspaceAppRequest{
+			req: workspaceapps.Request{
 				AccessMethod:      "dean was here",
 				BasePath:          "/",
 				UsernameOrID:      "foo",
@@ -71,8 +73,8 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		},
 		{
 			name: "NoBasePath",
-			req: workspaceAppRequest{
-				AccessMethod:      workspaceAppAccessMethodPath,
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "",
 				UsernameOrID:      "foo",
 				WorkspaceNameOrID: "bar",
@@ -83,8 +85,8 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		},
 		{
 			name: "NoUsernameOrID",
-			req: workspaceAppRequest{
-				AccessMethod:      workspaceAppAccessMethodPath,
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/",
 				UsernameOrID:      "",
 				WorkspaceNameOrID: "bar",
@@ -95,8 +97,8 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		},
 		{
 			name: "NoMe",
-			req: workspaceAppRequest{
-				AccessMethod:      workspaceAppAccessMethodPath,
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/",
 				UsernameOrID:      "me",
 				WorkspaceNameOrID: "bar",
@@ -107,8 +109,8 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		},
 		{
 			name: "InvalidWorkspaceAndAgent/Empty1",
-			req: workspaceAppRequest{
-				AccessMethod:      workspaceAppAccessMethodPath,
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/",
 				UsernameOrID:      "foo",
 				WorkspaceAndAgent: ".bar",
@@ -118,8 +120,8 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		},
 		{
 			name: "InvalidWorkspaceAndAgent/Empty2",
-			req: workspaceAppRequest{
-				AccessMethod:      workspaceAppAccessMethodPath,
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/",
 				UsernameOrID:      "foo",
 				WorkspaceAndAgent: "bar.",
@@ -129,8 +131,8 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		},
 		{
 			name: "InvalidWorkspaceAndAgent/TwoDots",
-			req: workspaceAppRequest{
-				AccessMethod:      workspaceAppAccessMethodPath,
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/",
 				UsernameOrID:      "foo",
 				WorkspaceAndAgent: "bar.baz.qux",
@@ -140,8 +142,8 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		},
 		{
 			name: "AmbiguousWorkspaceAndAgent/1",
-			req: workspaceAppRequest{
-				AccessMethod:      workspaceAppAccessMethodPath,
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/",
 				UsernameOrID:      "foo",
 				WorkspaceAndAgent: "bar.baz",
@@ -152,8 +154,8 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		},
 		{
 			name: "AmbiguousWorkspaceAndAgent/2",
-			req: workspaceAppRequest{
-				AccessMethod:      workspaceAppAccessMethodPath,
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/",
 				UsernameOrID:      "foo",
 				WorkspaceAndAgent: "bar.baz",
@@ -164,8 +166,8 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		},
 		{
 			name: "NoWorkspaceNameOrID",
-			req: workspaceAppRequest{
-				AccessMethod:      workspaceAppAccessMethodPath,
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/",
 				UsernameOrID:      "foo",
 				WorkspaceNameOrID: "",
@@ -176,8 +178,8 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		},
 		{
 			name: "NoAppSlugOrPort",
-			req: workspaceAppRequest{
-				AccessMethod:      workspaceAppAccessMethodPath,
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/",
 				UsernameOrID:      "foo",
 				WorkspaceNameOrID: "bar",
@@ -202,5 +204,3 @@ func Test_workspaceAppRequestValidate(t *testing.T) {
 		})
 	}
 }
-
-// TODO: resolveWorkspaceApp tests
