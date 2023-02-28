@@ -135,9 +135,9 @@ func (c *Client) APIKey(ctx context.Context, userID string, id string) (*APIKey,
 	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
 }
 
-// DeleteAPIKey deletes API key by id.
-func (c *Client) DeleteAPIKey(ctx context.Context, userID string, id string) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, id), nil)
+// DeleteAPIKey deletes API key by name.
+func (c *Client) DeleteAPIKey(ctx context.Context, userID string, name string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, name), nil)
 	if err != nil {
 		return err
 	}

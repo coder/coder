@@ -211,6 +211,45 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 	return i, err
 }
 
+const getAPIKeyByName = `-- name: GetAPIKeyByName :one
+SELECT
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
+FROM
+	api_keys
+WHERE
+	user_id = $1 AND
+	token_name = $2 AND
+	token_name != ''
+LIMIT
+	1
+`
+
+type GetAPIKeyByNameParams struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	TokenName string    `db:"token_name" json:"token_name"`
+}
+
+// there is no unique constraint on empty token names
+func (q *sqlQuerier) GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error) {
+	row := q.db.QueryRowContext(ctx, getAPIKeyByName, arg.UserID, arg.TokenName)
+	var i APIKey
+	err := row.Scan(
+		&i.ID,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.LastUsed,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LoginType,
+		&i.LifetimeSeconds,
+		&i.IPAddress,
+		&i.Scope,
+		&i.TokenName,
+	)
+	return i, err
+}
+
 const getAPIKeysByLoginType = `-- name: GetAPIKeysByLoginType :many
 SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name FROM api_keys WHERE login_type = $1
 `

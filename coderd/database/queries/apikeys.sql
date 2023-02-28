@@ -8,6 +8,19 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetAPIKeyByName :one
+SELECT
+	*
+FROM
+	api_keys
+WHERE
+	user_id = @user_id AND
+	token_name = @token_name AND
+-- there is no unique constraint on empty token names
+	token_name != ''
+LIMIT
+	1;
+
 -- name: GetAPIKeysLastUsedAfter :many
 SELECT * FROM api_keys WHERE last_used > $1;
 

@@ -618,9 +618,6 @@ ALTER TABLE ONLY agent_stats
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY api_keys
-    ADD CONSTRAINT api_keys_token_name_key UNIQUE (token_name);
-
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
@@ -741,6 +738,8 @@ ALTER TABLE ONLY workspaces
 CREATE INDEX idx_agent_stats_created_at ON agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON agent_stats USING btree (user_id);
+
+CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (user_id, token_name) WHERE (login_type = 'token'::login_type);
 
 CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id);
 
