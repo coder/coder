@@ -231,7 +231,7 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 			// "anonymous app". We only support HTTP for port-based URLs.
 			//
 			// This is only supported for subdomain-based applications.
-			ticket.AppURL = fmt.Sprintf("http://%s:%d", appReq.AppSlugOrPort, portUint)
+			ticket.AppURL = fmt.Sprintf("http://127.0.0.1:%d", portUint)
 		} else {
 			app, ok := p.lookupWorkspaceApp(rw, r, agent.ID, appReq.AppSlugOrPort)
 			if !ok {

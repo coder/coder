@@ -138,8 +138,8 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		BasePath:          basePath,
 		UsernameOrID:      chi.URLParam(r, "user"),
 		WorkspaceAndAgent: chi.URLParam(r, "workspace_and_agent"),
-		// We don't support port proxying on paths. The resolveWorkspaceApp
-		// method won't allow port proxying on path-based apps.
+		// We don't support port proxying on paths. The ResolveRequest method
+		// won't allow port proxying on path-based apps if the app is a number.
 		AppSlugOrPort: chi.URLParam(r, "workspaceapp"),
 	})
 	if !ok {
