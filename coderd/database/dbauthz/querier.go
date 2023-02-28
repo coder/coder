@@ -251,8 +251,6 @@ func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (data
 	return job, nil
 }
 
-
-
 func (q *querier) GetProvisionerLogsByIDBetween(ctx context.Context, arg database.GetProvisionerLogsByIDBetweenParams) ([]database.ProvisionerJobLog, error) {
 	// Authorized read on job lets the actor also read the logs.
 	_, err := q.GetProvisionerJobByID(ctx, arg.JobID)
@@ -721,7 +719,6 @@ func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersi
 	return q.db.GetTemplateVersionVariables(ctx, templateVersionID)
 }
 
-
 func (q *querier) GetTemplateVersionsByTemplateID(ctx context.Context, arg database.GetTemplateVersionsByTemplateIDParams) ([]database.TemplateVersion, error) {
 	// An actor can read template versions if they can read the related template.
 	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
@@ -1185,8 +1182,6 @@ func (q *querier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanc
 	return agent, nil
 }
 
-
-
 func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
 	if err != nil {
@@ -1238,8 +1233,6 @@ func (q *querier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UU
 	}
 	return q.db.GetWorkspaceAppsByAgentID(ctx, agentID)
 }
-
-
 
 func (q *querier) GetWorkspaceBuildByID(ctx context.Context, buildID uuid.UUID) (database.WorkspaceBuild, error) {
 	build, err := q.db.GetWorkspaceBuildByID(ctx, buildID)
@@ -1317,7 +1310,6 @@ func (q *querier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (d
 	return resource, nil
 }
 
-
 func (q *querier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
 	job, err := q.db.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
@@ -1362,8 +1354,6 @@ func (q *querier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.U
 	}
 	return q.db.GetWorkspaceResourcesByJobID(ctx, jobID)
 }
-
-
 
 func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
 	obj := rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
