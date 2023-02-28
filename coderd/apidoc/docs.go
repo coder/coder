@@ -6349,7 +6349,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/bigcli.Object-array_codersdk_GitAuthConfig"
                 },
                 "http_address": {
-                    "$ref": "#/definitions/bigcli.HostPort"
+                    "description": "HTTPAddress is a string because it may be set to zero to disable.",
+                    "type": "string"
                 },
                 "in_memory_database": {
                     "type": "boolean"

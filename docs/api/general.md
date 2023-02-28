@@ -169,10 +169,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
         }
       ]
     },
-    "http_address": {
-      "host": "string",
-      "port": "string"
-    },
+    "http_address": "string",
     "in_memory_database": true,
     "logging": {
       "human": "string",

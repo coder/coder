@@ -307,9 +307,8 @@ export interface DeploymentConfig {
   readonly wildcard_access_url?: string
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
   readonly redirect_to_access_url?: boolean
-  // Named type "github.com/coder/coder/cli/bigcli.HostPort" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
-  readonly http_address?: any
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
+  readonly http_address?: string
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Duration")
   readonly autobuild_poll_interval?: number
   readonly derp?: DERP

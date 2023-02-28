@@ -1660,10 +1660,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       }
     ]
   },
-  "http_address": {
-    "host": "string",
-    "port": "string"
-  },
+  "http_address": "string",
   "in_memory_database": true,
   "logging": {
     "human": "string",
@@ -1813,54 +1810,54 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name                                 | Type                                                                                     | Required | Restrictions | Description                                     |
-| ------------------------------------ | ---------------------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------- |
-| `access_url`                         | [bigcli.URL](#bigcliurl)                                                                 | false    |              |                                                 |
-| `address`                            | [bigcli.HostPort](#bigclihostport)                                                       | false    |              | Address Use HTTPAddress or TLS.Address instead. |
-| `agent_fallback_troubleshooting_url` | [bigcli.URL](#bigcliurl)                                                                 | false    |              |                                                 |
-| `agent_stat_refresh_interval`        | integer                                                                                  | false    |              |                                                 |
-| `audit_logging`                      | boolean                                                                                  | false    |              |                                                 |
-| `autobuild_poll_interval`            | integer                                                                                  | false    |              |                                                 |
-| `browser_only`                       | boolean                                                                                  | false    |              |                                                 |
-| `cache_directory`                    | string                                                                                   | false    |              |                                                 |
-| `config`                             | string                                                                                   | false    |              |                                                 |
-| `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                     | false    |              |                                                 |
-| `derp`                               | [codersdk.DERP](#codersdkderp)                                                           | false    |              |                                                 |
-| `disable_password_auth`              | boolean                                                                                  | false    |              |                                                 |
-| `disable_path_apps`                  | boolean                                                                                  | false    |              |                                                 |
-| `disable_session_expiry_refresh`     | boolean                                                                                  | false    |              |                                                 |
-| `experiments`                        | array of string                                                                          | false    |              |                                                 |
-| `git_auth`                           | [bigcli.Object-array_codersdk_GitAuthConfig](#bigcliobject-array_codersdk_gitauthconfig) | false    |              |                                                 |
-| `http_address`                       | [bigcli.HostPort](#bigclihostport)                                                       | false    |              |                                                 |
-| `in_memory_database`                 | boolean                                                                                  | false    |              |                                                 |
-| `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                         | false    |              |                                                 |
-| `max_session_expiry`                 | integer                                                                                  | false    |              |                                                 |
-| `max_token_lifetime`                 | integer                                                                                  | false    |              |                                                 |
-| `metrics_cache_refresh_interval`     | integer                                                                                  | false    |              |                                                 |
-| `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                           | false    |              |                                                 |
-| `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                               | false    |              |                                                 |
-| `pg_connection_url`                  | string                                                                                   | false    |              |                                                 |
-| `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                             | false    |              |                                                 |
-| `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                   | false    |              |                                                 |
-| `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                 | false    |              |                                                 |
-| `proxy_trusted_headers`              | array of string                                                                          | false    |              |                                                 |
-| `proxy_trusted_origins`              | array of string                                                                          | false    |              |                                                 |
-| `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                     | false    |              |                                                 |
-| `redirect_to_access_url`             | boolean                                                                                  | false    |              |                                                 |
-| `scim_api_key`                       | string                                                                                   | false    |              |                                                 |
-| `secure_auth_cookie`                 | boolean                                                                                  | false    |              |                                                 |
-| `ssh_keygen_algorithm`               | string                                                                                   | false    |              |                                                 |
-| `strict_transport_security`          | integer                                                                                  | false    |              |                                                 |
-| `strict_transport_security_options`  | array of string                                                                          | false    |              |                                                 |
-| `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                         | false    |              |                                                 |
-| `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                         | false    |              |                                                 |
-| `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                     | false    |              |                                                 |
-| `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                 | false    |              |                                                 |
-| `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                             | false    |              |                                                 |
-| `update_check`                       | boolean                                                                                  | false    |              |                                                 |
-| `verbose`                            | boolean                                                                                  | false    |              |                                                 |
-| `wildcard_access_url`                | [bigcli.URL](#bigcliurl)                                                                 | false    |              |                                                 |
-| `write_config`                       | boolean                                                                                  | false    |              |                                                 |
+| Name                                 | Type                                                                                     | Required | Restrictions | Description                                                        |
+| ------------------------------------ | ---------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------ |
+| `access_url`                         | [bigcli.URL](#bigcliurl)                                                                 | false    |              |                                                                    |
+| `address`                            | [bigcli.HostPort](#bigclihostport)                                                       | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
+| `agent_fallback_troubleshooting_url` | [bigcli.URL](#bigcliurl)                                                                 | false    |              |                                                                    |
+| `agent_stat_refresh_interval`        | integer                                                                                  | false    |              |                                                                    |
+| `audit_logging`                      | boolean                                                                                  | false    |              |                                                                    |
+| `autobuild_poll_interval`            | integer                                                                                  | false    |              |                                                                    |
+| `browser_only`                       | boolean                                                                                  | false    |              |                                                                    |
+| `cache_directory`                    | string                                                                                   | false    |              |                                                                    |
+| `config`                             | string                                                                                   | false    |              |                                                                    |
+| `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                     | false    |              |                                                                    |
+| `derp`                               | [codersdk.DERP](#codersdkderp)                                                           | false    |              |                                                                    |
+| `disable_password_auth`              | boolean                                                                                  | false    |              |                                                                    |
+| `disable_path_apps`                  | boolean                                                                                  | false    |              |                                                                    |
+| `disable_session_expiry_refresh`     | boolean                                                                                  | false    |              |                                                                    |
+| `experiments`                        | array of string                                                                          | false    |              |                                                                    |
+| `git_auth`                           | [bigcli.Object-array_codersdk_GitAuthConfig](#bigcliobject-array_codersdk_gitauthconfig) | false    |              |                                                                    |
+| `http_address`                       | string                                                                                   | false    |              | Http address is a string because it may be set to zero to disable. |
+| `in_memory_database`                 | boolean                                                                                  | false    |              |                                                                    |
+| `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                         | false    |              |                                                                    |
+| `max_session_expiry`                 | integer                                                                                  | false    |              |                                                                    |
+| `max_token_lifetime`                 | integer                                                                                  | false    |              |                                                                    |
+| `metrics_cache_refresh_interval`     | integer                                                                                  | false    |              |                                                                    |
+| `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                           | false    |              |                                                                    |
+| `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                               | false    |              |                                                                    |
+| `pg_connection_url`                  | string                                                                                   | false    |              |                                                                    |
+| `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                             | false    |              |                                                                    |
+| `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                   | false    |              |                                                                    |
+| `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                 | false    |              |                                                                    |
+| `proxy_trusted_headers`              | array of string                                                                          | false    |              |                                                                    |
+| `proxy_trusted_origins`              | array of string                                                                          | false    |              |                                                                    |
+| `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                     | false    |              |                                                                    |
+| `redirect_to_access_url`             | boolean                                                                                  | false    |              |                                                                    |
+| `scim_api_key`                       | string                                                                                   | false    |              |                                                                    |
+| `secure_auth_cookie`                 | boolean                                                                                  | false    |              |                                                                    |
+| `ssh_keygen_algorithm`               | string                                                                                   | false    |              |                                                                    |
+| `strict_transport_security`          | integer                                                                                  | false    |              |                                                                    |
+| `strict_transport_security_options`  | array of string                                                                          | false    |              |                                                                    |
+| `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                         | false    |              |                                                                    |
+| `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                         | false    |              |                                                                    |
+| `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                     | false    |              |                                                                    |
+| `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                 | false    |              |                                                                    |
+| `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                             | false    |              |                                                                    |
+| `update_check`                       | boolean                                                                                  | false    |              |                                                                    |
+| `verbose`                            | boolean                                                                                  | false    |              |                                                                    |
+| `wildcard_access_url`                | [bigcli.URL](#bigcliurl)                                                                 | false    |              |                                                                    |
+| `write_config`                       | boolean                                                                                  | false    |              |                                                                    |
 
 ## codersdk.DeploymentConfigAndOptions
 
@@ -1952,10 +1949,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
         }
       ]
     },
-    "http_address": {
-      "host": "string",
-      "port": "string"
-    },
+    "http_address": "string",
     "in_memory_database": true,
     "logging": {
       "human": "string",
