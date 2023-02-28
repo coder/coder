@@ -64,14 +64,14 @@ func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(
 			return xerrors.Errorf("parse claims: %w", err)
 		}
 		id, err := uuid.Parse(claims.ID)
+		if err != nil {
+			return xerrors.Errorf("parse uuid: %w", err)
+		}
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: database.Now(),
 			JWT:        string(raw),
 			Exp:        expTime,
-			Uuid: uuid.NullUUID{
-				UUID:  id,
-				Valid: err == nil,
-			},
+			UUID:       id,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert license: %w", err)

@@ -456,6 +456,8 @@ func resourceTypeFromString(resourceTypeString string) string {
 		return resourceTypeString
 	case codersdk.ResourceTypeGroup:
 		return resourceTypeString
+	case codersdk.ResourceTypeLicense:
+		return resourceTypeString
 	}
 	return ""
 }

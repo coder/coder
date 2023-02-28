@@ -18,9 +18,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -57,7 +57,8 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+	//nolint:gocritic // In order to login, we need to get the user first!
+	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 		Email: loginWithPassword.Email,
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -89,19 +90,10 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	// If password authentication is disabled and the user does not have the
 	// owner role, block the request.
 	if api.DeploymentConfig.DisablePasswordAuth.Value {
-		permitted := false
-		for _, role := range user.RBACRoles {
-			if role == rbac.RoleOwner() {
-				permitted = true
-				break
-			}
-		}
-		if !permitted {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: "Password authentication is disabled. Only administrators can sign in with password authentication.",
-			})
-			return
-		}
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Password authentication is disabled.",
+		})
+		return
 	}
 
 	if user.LoginType != database.LoginTypePassword {
@@ -111,15 +103,32 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//nolint:gocritic // System needs to fetch user roles in order to login user.
+	roles, err := api.Database.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+		})
+		return
+	}
+
 	// If the user logged into a suspended account, reject the login request.
-	if user.Status != database.UserStatusActive {
+	if roles.Status != database.UserStatusActive {
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Your account is suspended. Contact an admin to reactivate your account.",
 		})
 		return
 	}
 
-	cookie, key, err := api.createAPIKey(ctx, createAPIKeyParams{
+	userSubj := rbac.Subject{
+		ID:     user.ID.String(),
+		Roles:  rbac.RoleNames(roles.Roles),
+		Groups: roles.Groups,
+		Scope:  rbac.ScopeAll,
+	}
+
+	//nolint:gocritic // Creating the API key as the user instead of as system.
+	cookie, key, err := api.createAPIKey(dbauthz.As(ctx, userSubj), createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  database.LoginTypePassword,
 		RemoteAddr: r.RemoteAddr,
@@ -765,7 +774,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		// with OIDC for the first time.
 		if user.ID == uuid.Nil {
 			var organizationID uuid.UUID
-			organizations, _ := tx.GetOrganizations(ctx)
+			//nolint:gocritic
+			organizations, _ := tx.GetOrganizations(dbauthz.AsSystemRestricted(ctx))
 			if len(organizations) > 0 {
 				// Add the user to the first organization. Once multi-organization
 				// support is added, we should enable a configuration map of user
@@ -773,7 +783,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				organizationID = organizations[0].ID
 			}
 
-			_, err := tx.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+			//nolint:gocritic
+			_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 				Username: params.Username,
 			})
 			if err == nil {
@@ -786,7 +797,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 
 					params.Username = httpapi.UsernameFrom(alternate)
 
-					_, err := tx.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+					//nolint:gocritic
+					_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 						Username: params.Username,
 					})
 					if xerrors.Is(err, sql.ErrNoRows) {
@@ -805,7 +817,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				}
 			}
 
-			user, _, err = api.CreateUser(ctx, tx, CreateUserRequest{
+			//nolint:gocritic
+			user, _, err = api.CreateUser(dbauthz.AsSystemRestricted(ctx), tx, CreateUserRequest{
 				CreateUserRequest: codersdk.CreateUserRequest{
 					Email:          params.Email,
 					Username:       params.Username,
@@ -819,7 +832,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		if link.UserID == uuid.Nil {
-			link, err = tx.InsertUserLink(ctx, database.InsertUserLinkParams{
+			//nolint:gocritic
+			link, err = tx.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
 				UserID:            user.ID,
 				LoginType:         params.LoginType,
 				LinkedID:          params.LinkedID,
@@ -833,7 +847,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		if link.UserID != uuid.Nil {
-			link, err = tx.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+			//nolint:gocritic
+			link, err = tx.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
 				UserID:            user.ID,
 				LoginType:         params.LoginType,
 				OAuthAccessToken:  params.State.Token.AccessToken,
@@ -847,7 +862,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 
 		// Ensure groups are correct.
 		if len(params.Groups) > 0 {
-			err := api.Options.SetUserGroups(ctx, tx, user.ID, params.Groups)
+			//nolint:gocritic
+			err := api.Options.SetUserGroups(dbauthz.AsSystemRestricted(ctx), tx, user.ID, params.Groups)
 			if err != nil {
 				return xerrors.Errorf("set user groups: %w", err)
 			}
@@ -880,7 +896,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			// In such cases in the current implementation this user can now no
 			// longer sign in until an administrator finds the offending built-in
 			// user and changes their username.
-			user, err = tx.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
+			//nolint:gocritic
+			user, err = tx.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
 				ID:        user.ID,
 				Email:     user.Email,
 				Username:  user.Username,
@@ -898,7 +915,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		return nil, database.APIKey{}, xerrors.Errorf("in tx: %w", err)
 	}
 
-	cookie, key, err := api.createAPIKey(ctx, createAPIKeyParams{
+	//nolint:gocritic
+	cookie, key, err := api.createAPIKey(dbauthz.AsSystemRestricted(ctx), createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  params.LoginType,
 		RemoteAddr: r.RemoteAddr,

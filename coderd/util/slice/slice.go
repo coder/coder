@@ -1,10 +1,5 @@
 package slice
 
-// New is a convenience method for creating []T.
-func New[T any](items ...T) []T {
-	return items
-}
-
 // SameElements returns true if the 2 lists have the same elements in any
 // order.
 func SameElements[T comparable](a []T, b []T) bool {
@@ -66,4 +61,9 @@ func OverlapCompare[T any](a []T, b []T, equal func(a, b T) bool) bool {
 		}
 	}
 	return false
+}
+
+// New is a convenience method for creating []T.
+func New[T any](items ...T) []T {
+	return items
 }

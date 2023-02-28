@@ -23,6 +23,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/tracing"
@@ -346,7 +347,8 @@ func (api *API) handleWorkspaceSubdomainAppLogout(rw http.ResponseWriter, r *htt
 			// different auth formats, and tricks this endpoint into deleting an
 			// unchecked API key, we validate that the secret matches the secret
 			// we store in the database.
-			apiKey, err := api.Database.GetAPIKeyByID(ctx, id)
+			//nolint:gocritic // needed for workspace app logout
+			apiKey, err := api.Database.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), id)
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Failed to lookup API key.",
@@ -365,7 +367,8 @@ func (api *API) handleWorkspaceSubdomainAppLogout(rw http.ResponseWriter, r *htt
 					})
 					return
 				}
-				err = api.Database.DeleteAPIKeyByID(ctx, id)
+				//nolint:gocritic // needed for workspace app logout
+				err = api.Database.DeleteAPIKeyByID(dbauthz.AsSystemRestricted(ctx), id)
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 						Message: "Failed to delete API key.",
@@ -664,7 +667,8 @@ func decryptAPIKey(ctx context.Context, db database.Store, encryptedAPIKey strin
 
 	// Lookup the API key so we can decrypt it.
 	keyID := object.Header.KeyID
-	key, err := db.GetAPIKeyByID(ctx, keyID)
+	//nolint:gocritic // needed to check API key
+	key, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), keyID)
 	if err != nil {
 		return database.APIKey{}, "", xerrors.Errorf("get API key by key ID: %w", err)
 	}

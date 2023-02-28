@@ -1,13 +1,13 @@
 import { useAuth } from "components/AuthProvider/AuthProvider"
-import { selectOrgId } from "../xServices/auth/authSelectors"
+import { isAuthenticated } from "xServices/auth/authXService"
 
 export const useOrganizationId = (): string => {
   const [authState] = useAuth()
-  const organizationId = selectOrgId(authState)
+  const { data } = authState.context
 
-  if (!organizationId) {
-    throw new Error("No organization ID found")
+  if (isAuthenticated(data)) {
+    return data.user.organization_ids[0]
   }
 
-  return organizationId
+  throw new Error("User is not authenticated")
 }

@@ -12,6 +12,8 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/provisionerdserver"
 )
 
 // Executor automatically starts or stops workspaces.
@@ -33,7 +35,8 @@ type Stats struct {
 // New returns a new autobuild executor.
 func New(ctx context.Context, db database.Store, log slog.Logger, tick <-chan time.Time) *Executor {
 	le := &Executor{
-		ctx:  ctx,
+		//nolint:gocritic // Autostart has a limited set of permissions.
+		ctx:  dbauthz.AsAutostart(ctx),
 		db:   db,
 		tick: tick,
 		log:  log,
@@ -247,10 +250,8 @@ func build(ctx context.Context, store database.Store, workspace database.Workspa
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
 	workspaceBuildID := uuid.New()
-	input, err := json.Marshal(struct {
-		WorkspaceBuildID string `json:"workspace_build_id"`
-	}{
-		WorkspaceBuildID: workspaceBuildID.String(),
+	input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+		WorkspaceBuildID: workspaceBuildID,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal provision job: %w", err)

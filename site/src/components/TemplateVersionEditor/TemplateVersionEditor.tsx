@@ -2,9 +2,9 @@ import Button from "@material-ui/core/Button"
 import IconButton from "@material-ui/core/IconButton"
 import { makeStyles, Theme } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
-import CreateIcon from "@material-ui/icons/AddBox"
+import CreateIcon from "@material-ui/icons/AddOutlined"
 import BuildIcon from "@material-ui/icons/BuildOutlined"
-import PreviewIcon from "@material-ui/icons/Visibility"
+import PreviewIcon from "@material-ui/icons/VisibilityOutlined"
 import {
   ProvisionerJobLog,
   Template,
@@ -16,49 +16,60 @@ import { AvatarData } from "components/AvatarData/AvatarData"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import { FC, useCallback, useEffect, useRef, useState } from "react"
-import { dashboardContentBottomPadding, navHeight } from "theme/constants"
-import { TemplateVersionFiles } from "util/templateVersion"
+import { navHeight, dashboardContentBottomPadding } from "theme/constants"
+import {
+  existsFile,
+  FileTree,
+  getFileContent,
+  isFolder,
+  removeFile,
+  setFile,
+  traverse,
+} from "util/filetree"
 import {
   CreateFileDialog,
   DeleteFileDialog,
   RenameFileDialog,
 } from "./FileDialog"
-import { FileTree } from "./FileTree"
+import { FileTreeView } from "./FileTreeView"
 import { MonacoEditor } from "./MonacoEditor"
 import {
   getStatus,
   TemplateVersionStatusBadge,
 } from "./TemplateVersionStatusBadge"
 
-interface File {
-  path: string
-  content?: string
-  children: Record<string, File>
-}
-
 export interface TemplateVersionEditorProps {
   template: Template
   templateVersion: TemplateVersion
-  initialFiles: TemplateVersionFiles
-
+  defaultFileTree: FileTree
   buildLogs?: ProvisionerJobLog[]
   resources?: WorkspaceResource[]
-
   disablePreview: boolean
   disableUpdate: boolean
-
-  onPreview: (files: TemplateVersionFiles) => void
+  onPreview: (files: FileTree) => void
   onUpdate: () => void
 }
 
-const topbarHeight = navHeight
+const topbarHeight = 80
+
+const findInitialFile = (fileTree: FileTree): string | undefined => {
+  let initialFile: string | undefined
+
+  traverse(fileTree, (content, filename, path) => {
+    if (filename.endsWith(".tf")) {
+      initialFile = path
+    }
+  })
+
+  return initialFile
+}
 
 export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   disablePreview,
   disableUpdate,
   template,
   templateVersion,
-  initialFiles,
+  defaultFileTree,
   onPreview,
   onUpdate,
   buildLogs,
@@ -69,29 +80,19 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     // This is for Storybook!
     return resources ? 1 : 0
   })
-  const [files, setFiles] = useState(initialFiles)
+  const [fileTree, setFileTree] = useState(defaultFileTree)
   const [createFileOpen, setCreateFileOpen] = useState(false)
-  const [deleteFileOpen, setDeleteFileOpen] = useState<File>()
-  const [renameFileOpen, setRenameFileOpen] = useState<File>()
-  const [activeFile, setActiveFile] = useState<File | undefined>(() => {
-    const fileKeys = Object.keys(initialFiles)
-    for (let i = 0; i < fileKeys.length; i++) {
-      // Open a Terraform file by default!
-      if (fileKeys[i].endsWith(".tf")) {
-        return {
-          path: fileKeys[i],
-          content: initialFiles[fileKeys[i]],
-          children: {},
-        }
-      }
-    }
-  })
+  const [deleteFileOpen, setDeleteFileOpen] = useState<string>()
+  const [renameFileOpen, setRenameFileOpen] = useState<string>()
+  const [activePath, setActivePath] = useState<string | undefined>(() =>
+    findInitialFile(fileTree),
+  )
 
   const triggerPreview = useCallback(() => {
-    onPreview(files)
+    onPreview(fileTree)
     // Switch to the build log!
     setSelectedTab(0)
-  }, [files, onPreview])
+  }, [fileTree, onPreview])
 
   // Stop ctrl+s from saving files and make ctrl+enter trigger a preview.
   useEffect(() => {
@@ -114,7 +115,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     return () => {
       document.removeEventListener("keydown", keyListener)
     }
-  }, [files, triggerPreview])
+  }, [triggerPreview])
 
   // Automatically switch to the template preview tab when the build succeeds.
   const previousVersion = useRef<TemplateVersion>()
@@ -137,6 +138,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   const hasIcon = template.icon && template.icon !== ""
   const templateVersionSucceeded = templateVersion.job.status === "succeeded"
   const showBuildLogs = Boolean(buildLogs)
+  const editorValue = getFileContent(activePath ?? "", fileTree) as string
+
   useEffect(() => {
     window.dispatchEvent(new Event("resize"))
   }, [showBuildLogs])
@@ -158,28 +161,26 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               )
             }
           />
-          <div>Used By: {template.active_user_count} developers</div>
         </div>
 
         <div className={styles.topbarSides}>
           <div className={styles.buildStatus}>
-            Build Status:
             <TemplateVersionStatusBadge version={templateVersion} />
           </div>
 
           <Button
+            title="Build template (Ctrl + Enter)"
             size="small"
             variant="outlined"
-            color="primary"
             disabled={disablePreview}
             onClick={() => {
               triggerPreview()
             }}
           >
-            Build (Ctrl + Enter)
+            Build template
           </Button>
 
-          <Tooltip
+          <Button
             title={
               dirty
                 ? "You have edited files! Run another build before updating."
@@ -187,28 +188,19 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 ? "Something"
                 : ""
             }
+            size="small"
+            disabled={dirty || disableUpdate}
+            onClick={onUpdate}
           >
-            <span>
-              <Button
-                size="small"
-                variant="contained"
-                color="primary"
-                disabled={dirty || disableUpdate}
-                onClick={() => {
-                  onUpdate()
-                }}
-              >
-                Publish New Version
-              </Button>
-            </span>
-          </Tooltip>
+            Publish version
+          </Button>
         </div>
       </div>
 
       <div className={styles.sidebarAndEditor}>
         <div className={styles.sidebar}>
           <div className={styles.sidebarTitle}>
-            Template Editor
+            Template files
             <div className={styles.sidebarActions}>
               <Tooltip title="Create File" placement="top">
                 <IconButton
@@ -228,17 +220,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               onClose={() => {
                 setCreateFileOpen(false)
               }}
-              checkExists={(path) => Boolean(files[path])}
+              checkExists={(path) => existsFile(path, fileTree)}
               onConfirm={(path) => {
-                setFiles({
-                  ...files,
-                  [path]: "",
-                })
-                setActiveFile({
-                  path,
-                  content: "",
-                  children: {},
-                })
+                setFileTree((fileTree) => setFile(path, "", fileTree))
+                setActivePath(path)
                 setCreateFileOpen(false)
                 setDirty(true)
               }}
@@ -248,64 +233,69 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 if (!deleteFileOpen) {
                   throw new Error("delete file must be set")
                 }
-                const deleted = { ...files }
-                delete deleted[deleteFileOpen.path]
-                setFiles(deleted)
+                setFileTree((fileTree) => removeFile(deleteFileOpen, fileTree))
                 setDeleteFileOpen(undefined)
-                if (activeFile?.path === deleteFileOpen.path) {
-                  setActiveFile(undefined)
+                if (activePath === deleteFileOpen) {
+                  setActivePath(undefined)
                 }
                 setDirty(true)
               }}
               open={Boolean(deleteFileOpen)}
               onClose={() => setDeleteFileOpen(undefined)}
-              filename={deleteFileOpen?.path || ""}
+              filename={deleteFileOpen || ""}
             />
             <RenameFileDialog
               open={Boolean(renameFileOpen)}
               onClose={() => {
                 setRenameFileOpen(undefined)
               }}
-              filename={renameFileOpen?.path || ""}
-              checkExists={(path) => Boolean(files[path])}
+              filename={renameFileOpen || ""}
+              checkExists={(path) => existsFile(path, fileTree)}
               onConfirm={(newPath) => {
                 if (!renameFileOpen) {
                   return
                 }
-                const renamed = { ...files }
-                renamed[newPath] = renamed[renameFileOpen.path]
-                delete renamed[renameFileOpen.path]
-                setFiles(renamed)
-                renameFileOpen.path = newPath
-                setActiveFile(renameFileOpen)
+                setFileTree((fileTree) => {
+                  fileTree = setFile(
+                    newPath,
+                    getFileContent(renameFileOpen, fileTree) as string,
+                    fileTree,
+                  )
+                  fileTree = removeFile(renameFileOpen, fileTree)
+                  return fileTree
+                })
+                setActivePath(newPath)
                 setRenameFileOpen(undefined)
                 setDirty(true)
               }}
             />
           </div>
-          <FileTree
-            files={files}
+          <FileTreeView
+            fileTree={fileTree}
             onDelete={(file) => setDeleteFileOpen(file)}
-            onSelect={(file) => setActiveFile(file)}
+            onSelect={(filePath) => {
+              if (!isFolder(filePath, fileTree)) {
+                setActivePath(filePath)
+              }
+            }}
             onRename={(file) => setRenameFileOpen(file)}
-            activeFile={activeFile}
+            activePath={activePath}
           />
         </div>
 
         <div className={styles.editorPane}>
           <div className={styles.editor} data-chromatic="ignore">
-            {activeFile ? (
+            {activePath ? (
               <MonacoEditor
-                value={activeFile?.content}
-                path={activeFile?.path}
+                value={editorValue}
+                path={activePath}
                 onChange={(value) => {
-                  if (!activeFile) {
+                  if (!activePath) {
                     return
                   }
-                  setFiles({
-                    ...files,
-                    [activeFile.path]: value,
-                  })
+                  setFileTree((fileTree) =>
+                    setFile(activePath, value, fileTree),
+                  )
                   setDirty(true)
                 }}
               />
@@ -412,11 +402,12 @@ const useStyles = makeStyles<
     alignItems: "center",
     justifyContent: "space-between",
     height: topbarHeight,
+    background: theme.palette.background.paper,
   },
   topbarSides: {
     display: "flex",
     alignItems: "center",
-    gap: 16,
+    gap: theme.spacing(2),
   },
   buildStatus: {
     display: "flex",
@@ -429,26 +420,30 @@ const useStyles = makeStyles<
   },
   sidebar: {
     minWidth: 256,
+    backgroundColor: theme.palette.background.paper,
+    borderRight: `1px solid ${theme.palette.divider}`,
   },
   sidebarTitle: {
-    fontSize: 12,
+    fontSize: 10,
     textTransform: "uppercase",
-    padding: "8px 16px",
-    color: theme.palette.text.hint,
+    padding: theme.spacing(1, 2),
+    color: theme.palette.text.primary,
+    fontWeight: 500,
+    letterSpacing: "0.5px",
     display: "flex",
     alignItems: "center",
   },
   sidebarActions: {
     marginLeft: "auto",
     "& svg": {
-      fill: theme.palette.text.hint,
+      fill: theme.palette.text.primary,
     },
   },
   editorPane: {
     display: "grid",
     width: "100%",
     gridTemplateColumns: (props) =>
-      props.showBuildLogs ? "0.6fr 0.4fr" : "1fr 0fr",
+      props.showBuildLogs ? "1fr 1fr" : "1fr 0fr",
     height: `calc(100vh - ${navHeight + topbarHeight}px)`,
     overflow: "hidden",
   },
@@ -463,6 +458,8 @@ const useStyles = makeStyles<
     overflowY: "auto",
   },
   panel: {
+    padding: theme.spacing(1),
+
     "&.hidden": {
       display: "none",
     },
@@ -481,26 +478,42 @@ const useStyles = makeStyles<
   },
   tab: {
     cursor: "pointer",
-    padding: "8px 12px",
-    fontSize: 14,
+    padding: theme.spacing(1.5),
+    fontSize: 10,
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    fontWeight: 600,
     background: "transparent",
     fontFamily: "inherit",
     border: 0,
-    color: theme.palette.text.hint,
+    color: theme.palette.text.secondary,
     transition: "150ms ease all",
     display: "flex",
     gap: 8,
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
 
     "& svg": {
-      maxWidth: 16,
-      maxHeight: 16,
+      maxWidth: 12,
+      maxHeight: 12,
     },
 
     "&.active": {
-      color: "white",
-      background: theme.palette.background.paperLight,
+      color: theme.palette.text.primary,
+      "&:after": {
+        content: '""',
+        display: "block",
+        width: "100%",
+        height: 1,
+        backgroundColor: theme.palette.text.primary,
+        bottom: -1,
+        position: "absolute",
+      },
+    },
+
+    "&:hover": {
+      color: theme.palette.text.primary,
     },
   },
   tabBar: {

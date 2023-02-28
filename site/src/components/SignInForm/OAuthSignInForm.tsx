@@ -9,7 +9,7 @@ import { FC } from "react"
 import { makeStyles } from "@material-ui/core/styles"
 
 type OAuthSignInFormProps = {
-  isLoading: boolean
+  isSigningIn: boolean
   redirectTo: string
   authMethods?: AuthMethods
 }
@@ -22,7 +22,7 @@ const useStyles = makeStyles((theme) => ({
 }))
 
 export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
-  isLoading,
+  isSigningIn,
   redirectTo,
   authMethods,
 }) => {
@@ -39,10 +39,10 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
         >
           <Button
             startIcon={<GitHubIcon className={styles.buttonIcon} />}
-            disabled={isLoading}
+            disabled={isSigningIn}
             fullWidth
             type="submit"
-            variant="contained"
+            variant="outlined"
           >
             {Language.githubSignIn}
           </Button>
@@ -68,10 +68,10 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
                 <KeyIcon className={styles.buttonIcon} />
               )
             }
-            disabled={isLoading}
+            disabled={isSigningIn}
             fullWidth
             type="submit"
-            variant="contained"
+            variant="outlined"
           >
             {authMethods.oidc.signInText || Language.oidcSignIn}
           </Button>

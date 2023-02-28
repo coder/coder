@@ -56,7 +56,7 @@ func SetupConfig(t *testing.T, client *codersdk.Client, root config.Root) {
 func AppSigningKeyPath(t *testing.T) string {
 	tmpDir := t.TempDir()
 	file := filepath.Join(tmpDir, "app-signing-key.pem")
-	err := os.WriteFile(file, []byte(coderdtest.TestAppSigningKey), 0600)
+	err := os.WriteFile(file, []byte(coderdtest.TestAppSigningKey), 0o600)
 	require.NoError(t, err)
 
 	return file
@@ -90,7 +90,7 @@ func extractTar(t *testing.T, data []byte, directory string) {
 		path := filepath.Join(directory, header.Name)
 		mode := header.FileInfo().Mode()
 		if mode == 0 {
-			mode = 0600
+			mode = 0o600
 		}
 		switch header.Typeflag {
 		case tar.TypeDir:

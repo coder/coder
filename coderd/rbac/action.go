@@ -9,3 +9,8 @@ const (
 	ActionUpdate Action = "update"
 	ActionDelete Action = "delete"
 )
+
+// AllActions is a helper function to return all the possible actions types.
+func AllActions() []Action {
+	return []Action{ActionCreate, ActionRead, ActionUpdate, ActionDelete}
+}

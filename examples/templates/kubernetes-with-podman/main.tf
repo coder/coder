@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.5.3"
+      version = "~> 0.6.12"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -26,14 +26,44 @@ variable "os" {
   default = "ubuntu"
 }
 
+variable "cpu" {
+  description = "CPU (__ cores)"
+  default     = 2
+  validation {
+    condition = contains([
+      "2",
+      "4",
+      "6",
+      "8"
+    ], var.cpu)
+    error_message = "Invalid cpu!"
+  }
+}
+
+variable "memory" {
+  description = "Memory (__ GB)"
+  default     = 2
+  validation {
+    condition = contains([
+      "2",
+      "4",
+      "6",
+      "8"
+    ], var.memory)
+    error_message = "Invalid memory!"
+  }
+}
+
 resource "coder_agent" "dev" {
   os             = "linux"
   arch           = "amd64"
   dir            = "/home/podman"
   startup_script = <<EOF
     #!/bin/sh
-    curl -fsSL https://code-server.dev/install.sh | sh
-    code-server --auth none --port 13337 &
+
+    # install and start code-server
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
+    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
 
     # Run once to avoid unnecessary warning: "/" is not a shared mount
     podman ps
@@ -78,10 +108,17 @@ resource "kubernetes_pod" "main" {
         run_as_user = "1000"
       }
       resources {
+        requests = {
+          "cpu"    = "250m"
+          "memory" = "500Mi"
+        }
         limits = {
           # Acquire a FUSE device, powered by smarter-device-manager
           "github.com/fuse" : 1
+          cpu    = "${var.cpu}"
+          memory = "${var.memory}Gi"
         }
+
       }
       env {
         name  = "CODER_AGENT_TOKEN"

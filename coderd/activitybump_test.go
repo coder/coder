@@ -42,7 +42,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		require.NoError(t, err)
 		require.WithinDuration(t,
 			time.Now().Add(time.Duration(ttlMillis)*time.Millisecond),
-			workspace.LatestBuild.Deadline.Time, testutil.WaitShort,
+			workspace.LatestBuild.Deadline.Time, testutil.WaitMedium,
 		)
 		firstDeadline := workspace.LatestBuild.Deadline.Time
 

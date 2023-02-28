@@ -374,6 +374,20 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:  "secure-auth-cookie",
 		},
+		StrictTransportSecurity: &codersdk.DeploymentConfigField[int]{
+			Name: "Strict-Transport-Security",
+			Usage: "Controls if the 'Strict-Transport-Security' header is set on all static file responses. " +
+				"This header should only be set if the server is accessed via HTTPS. This value is the MaxAge in seconds of " +
+				"the header.",
+			Default: 0,
+			Flag:    "strict-transport-security",
+		},
+		StrictTransportSecurityOptions: &codersdk.DeploymentConfigField[[]string]{
+			Name: "Strict-Transport-Security Options",
+			Usage: "Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. " +
+				"The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.",
+			Flag: "strict-transport-security-options",
+		},
 		SSHKeygenAlgorithm: &codersdk.DeploymentConfigField[string]{
 			Name:    "SSH Keygen Algorithm",
 			Usage:   "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
@@ -563,6 +577,15 @@ func newConfig() *codersdk.DeploymentConfig {
 			Default: "",
 			Hidden:  true,
 		},
+		Support: &codersdk.SupportConfig{
+			Links: &codersdk.DeploymentConfigField[[]codersdk.LinkConfig]{
+				Name:       "Support links",
+				Usage:      "Use custom support links",
+				Flag:       "support-links",
+				Default:    []codersdk.LinkConfig{},
+				Enterprise: true,
+			},
+		},
 	}
 }
 
@@ -641,6 +664,10 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 		case []codersdk.GitAuthConfig:
 			// Do not bind to CODER_GITAUTH, instead bind to CODER_GITAUTH_0_*, etc.
 			values := readSliceFromViper[codersdk.GitAuthConfig](vip, prefix, value)
+			val.FieldByName("Value").Set(reflect.ValueOf(values))
+		case []codersdk.LinkConfig:
+			// Do not bind to CODER_SUPPORT_LINKS, instead bind to CODER_SUPPORT_LINKS_0_*, etc.
+			values := readSliceFromViper[codersdk.LinkConfig](vip, prefix, value)
 			val.FieldByName("Value").Set(reflect.ValueOf(values))
 		default:
 			panic(fmt.Sprintf("unsupported type %T", value))
@@ -817,6 +844,8 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 			_ = flagset.DurationP(flg, shorthand, vip.GetDuration(prefix), usage)
 		case []string:
 			_ = flagset.StringSliceP(flg, shorthand, vip.GetStringSlice(prefix), usage)
+		case []codersdk.LinkConfig:
+			// Ignore this one!
 		case []codersdk.GitAuthConfig:
 			// Ignore this one!
 		default:

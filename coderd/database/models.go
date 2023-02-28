@@ -883,6 +883,7 @@ const (
 	ResourceTypeApiKey          ResourceType = "api_key"
 	ResourceTypeGroup           ResourceType = "group"
 	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
+	ResourceTypeLicense         ResourceType = "license"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -930,7 +931,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeGitSshKey,
 		ResourceTypeApiKey,
 		ResourceTypeGroup,
-		ResourceTypeWorkspaceBuild:
+		ResourceTypeWorkspaceBuild,
+		ResourceTypeLicense:
 		return true
 	}
 	return false
@@ -947,6 +949,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeApiKey,
 		ResourceTypeGroup,
 		ResourceTypeWorkspaceBuild,
+		ResourceTypeLicense,
 	}
 }
 
@@ -1288,8 +1291,8 @@ type License struct {
 	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
 	JWT        string    `db:"jwt" json:"jwt"`
 	// exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.
-	Exp  time.Time     `db:"exp" json:"exp"`
-	Uuid uuid.NullUUID `db:"uuid" json:"uuid"`
+	Exp  time.Time `db:"exp" json:"exp"`
+	UUID uuid.UUID `db:"uuid" json:"uuid"`
 }
 
 type Organization struct {
@@ -1430,6 +1433,8 @@ type TemplateVersion struct {
 	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
+	// IDs of Git auth providers for a specific template version
+	GitAuthProviders []string `db:"git_auth_providers" json:"git_auth_providers"`
 }
 
 type TemplateVersionParameter struct {
@@ -1458,6 +1463,24 @@ type TemplateVersionParameter struct {
 	ValidationError string `db:"validation_error" json:"validation_error"`
 	// Validation: consecutive values preserve the monotonic order
 	ValidationMonotonic string `db:"validation_monotonic" json:"validation_monotonic"`
+}
+
+type TemplateVersionVariable struct {
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	// Variable name
+	Name string `db:"name" json:"name"`
+	// Variable description
+	Description string `db:"description" json:"description"`
+	// Variable type
+	Type string `db:"type" json:"type"`
+	// Variable value
+	Value string `db:"value" json:"value"`
+	// Variable default value
+	DefaultValue string `db:"default_value" json:"default_value"`
+	// Required variables needs a default value or a value provided by template admin
+	Required bool `db:"required" json:"required"`
+	// Sensitive variables have their values redacted in logs or site UI
+	Sensitive bool `db:"sensitive" json:"sensitive"`
 }
 
 type User struct {

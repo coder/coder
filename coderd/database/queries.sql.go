@@ -249,6 +249,50 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginT
 	return items, nil
 }
 
+const getAPIKeysByUserID = `-- name: GetAPIKeysByUserID :many
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope FROM api_keys WHERE login_type = $1 AND user_id = $2
+`
+
+type GetAPIKeysByUserIDParams struct {
+	LoginType LoginType `db:"login_type" json:"login_type"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAPIKeysByUserID, arg.LoginType, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []APIKey
+	for rows.Next() {
+		var i APIKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.HashedSecret,
+			&i.UserID,
+			&i.LastUsed,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LoginType,
+			&i.LifetimeSeconds,
+			&i.IPAddress,
+			&i.Scope,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAPIKeysLastUsedAfter = `-- name: GetAPIKeysLastUsedAfter :many
 SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope FROM api_keys WHERE last_used > $1
 `
@@ -836,13 +880,13 @@ func (q *sqlQuerier) InsertGitAuthLink(ctx context.Context, arg InsertGitAuthLin
 	return i, err
 }
 
-const updateGitAuthLink = `-- name: UpdateGitAuthLink :exec
+const updateGitAuthLink = `-- name: UpdateGitAuthLink :one
 UPDATE git_auth_links SET
     updated_at = $3,
     oauth_access_token = $4,
     oauth_refresh_token = $5,
     oauth_expiry = $6
-WHERE provider_id = $1 AND user_id = $2
+WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry
 `
 
 type UpdateGitAuthLinkParams struct {
@@ -854,8 +898,8 @@ type UpdateGitAuthLinkParams struct {
 	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
 }
 
-func (q *sqlQuerier) UpdateGitAuthLink(ctx context.Context, arg UpdateGitAuthLinkParams) error {
-	_, err := q.db.ExecContext(ctx, updateGitAuthLink,
+func (q *sqlQuerier) UpdateGitAuthLink(ctx context.Context, arg UpdateGitAuthLinkParams) (GitAuthLink, error) {
+	row := q.db.QueryRowContext(ctx, updateGitAuthLink,
 		arg.ProviderID,
 		arg.UserID,
 		arg.UpdatedAt,
@@ -863,7 +907,17 @@ func (q *sqlQuerier) UpdateGitAuthLink(ctx context.Context, arg UpdateGitAuthLin
 		arg.OAuthRefreshToken,
 		arg.OAuthExpiry,
 	)
-	return err
+	var i GitAuthLink
+	err := row.Scan(
+		&i.ProviderID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthExpiry,
+	)
+	return i, err
 }
 
 const deleteGitSSHKey = `-- name: DeleteGitSSHKey :exec
@@ -1343,6 +1397,30 @@ func (q *sqlQuerier) DeleteLicense(ctx context.Context, id int32) (int32, error)
 	return id, err
 }
 
+const getLicenseByID = `-- name: GetLicenseByID :one
+SELECT
+	id, uploaded_at, jwt, exp, uuid
+FROM
+	licenses
+WHERE
+	id = $1
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetLicenseByID(ctx context.Context, id int32) (License, error) {
+	row := q.db.QueryRowContext(ctx, getLicenseByID, id)
+	var i License
+	err := row.Scan(
+		&i.ID,
+		&i.UploadedAt,
+		&i.JWT,
+		&i.Exp,
+		&i.UUID,
+	)
+	return i, err
+}
+
 const getLicenses = `-- name: GetLicenses :many
 SELECT id, uploaded_at, jwt, exp, uuid
 FROM licenses
@@ -1363,7 +1441,7 @@ func (q *sqlQuerier) GetLicenses(ctx context.Context) ([]License, error) {
 			&i.UploadedAt,
 			&i.JWT,
 			&i.Exp,
-			&i.Uuid,
+			&i.UUID,
 		); err != nil {
 			return nil, err
 		}
@@ -1399,7 +1477,7 @@ func (q *sqlQuerier) GetUnexpiredLicenses(ctx context.Context) ([]License, error
 			&i.UploadedAt,
 			&i.JWT,
 			&i.Exp,
-			&i.Uuid,
+			&i.UUID,
 		); err != nil {
 			return nil, err
 		}
@@ -1427,10 +1505,10 @@ VALUES
 `
 
 type InsertLicenseParams struct {
-	UploadedAt time.Time     `db:"uploaded_at" json:"uploaded_at"`
-	JWT        string        `db:"jwt" json:"jwt"`
-	Exp        time.Time     `db:"exp" json:"exp"`
-	Uuid       uuid.NullUUID `db:"uuid" json:"uuid"`
+	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
+	JWT        string    `db:"jwt" json:"jwt"`
+	Exp        time.Time `db:"exp" json:"exp"`
+	UUID       uuid.UUID `db:"uuid" json:"uuid"`
 }
 
 func (q *sqlQuerier) InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error) {
@@ -1438,7 +1516,7 @@ func (q *sqlQuerier) InsertLicense(ctx context.Context, arg InsertLicenseParams)
 		arg.UploadedAt,
 		arg.JWT,
 		arg.Exp,
-		arg.Uuid,
+		arg.UUID,
 	)
 	var i License
 	err := row.Scan(
@@ -1446,7 +1524,7 @@ func (q *sqlQuerier) InsertLicense(ctx context.Context, arg InsertLicenseParams)
 		&i.UploadedAt,
 		&i.JWT,
 		&i.Exp,
-		&i.Uuid,
+		&i.UUID,
 	)
 	return i, err
 }
@@ -3699,7 +3777,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 FROM
 	template_versions
 WHERE
@@ -3733,13 +3811,14 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
+		pq.Array(&i.GitAuthProviders),
 	)
 	return i, err
 }
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 FROM
 	template_versions
 WHERE
@@ -3759,13 +3838,14 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
+		pq.Array(&i.GitAuthProviders),
 	)
 	return i, err
 }
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 FROM
 	template_versions
 WHERE
@@ -3785,13 +3865,14 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
+		pq.Array(&i.GitAuthProviders),
 	)
 	return i, err
 }
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 FROM
 	template_versions
 WHERE
@@ -3817,13 +3898,14 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
+		pq.Array(&i.GitAuthProviders),
 	)
 	return i, err
 }
 
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 FROM
 	template_versions
 WHERE
@@ -3849,6 +3931,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
+			pq.Array(&i.GitAuthProviders),
 		); err != nil {
 			return nil, err
 		}
@@ -3865,7 +3948,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 FROM
 	template_versions
 WHERE
@@ -3929,6 +4012,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
+			pq.Array(&i.GitAuthProviders),
 		); err != nil {
 			return nil, err
 		}
@@ -3944,7 +4028,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by FROM template_versions WHERE created_at > $1
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers FROM template_versions WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
@@ -3966,6 +4050,7 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
+			pq.Array(&i.GitAuthProviders),
 		); err != nil {
 			return nil, err
 		}
@@ -3994,7 +4079,7 @@ INSERT INTO
 		created_by
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by
+	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 `
 
 type InsertTemplateVersionParams struct {
@@ -4032,6 +4117,7 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
+		pq.Array(&i.GitAuthProviders),
 	)
 	return i, err
 }
@@ -4076,6 +4162,124 @@ type UpdateTemplateVersionDescriptionByJobIDParams struct {
 func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateTemplateVersionDescriptionByJobID, arg.JobID, arg.Readme, arg.UpdatedAt)
 	return err
+}
+
+const updateTemplateVersionGitAuthProvidersByJobID = `-- name: UpdateTemplateVersionGitAuthProvidersByJobID :exec
+UPDATE
+	template_versions
+SET
+	git_auth_providers = $2,
+	updated_at = $3
+WHERE
+	job_id = $1
+`
+
+type UpdateTemplateVersionGitAuthProvidersByJobIDParams struct {
+	JobID            uuid.UUID `db:"job_id" json:"job_id"`
+	GitAuthProviders []string  `db:"git_auth_providers" json:"git_auth_providers"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionGitAuthProvidersByJobIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionGitAuthProvidersByJobID, arg.JobID, pq.Array(arg.GitAuthProviders), arg.UpdatedAt)
+	return err
+}
+
+const getTemplateVersionVariables = `-- name: GetTemplateVersionVariables :many
+SELECT template_version_id, name, description, type, value, default_value, required, sensitive FROM template_version_variables WHERE template_version_id = $1
+`
+
+func (q *sqlQuerier) GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionVariable, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateVersionVariables, templateVersionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TemplateVersionVariable
+	for rows.Next() {
+		var i TemplateVersionVariable
+		if err := rows.Scan(
+			&i.TemplateVersionID,
+			&i.Name,
+			&i.Description,
+			&i.Type,
+			&i.Value,
+			&i.DefaultValue,
+			&i.Required,
+			&i.Sensitive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertTemplateVersionVariable = `-- name: InsertTemplateVersionVariable :one
+INSERT INTO
+    template_version_variables (
+        template_version_id,
+        name,
+        description,
+        type,
+        value,
+        default_value,
+        required,
+        sensitive
+    )
+VALUES
+    (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        $7,
+        $8
+    ) RETURNING template_version_id, name, description, type, value, default_value, required, sensitive
+`
+
+type InsertTemplateVersionVariableParams struct {
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	Name              string    `db:"name" json:"name"`
+	Description       string    `db:"description" json:"description"`
+	Type              string    `db:"type" json:"type"`
+	Value             string    `db:"value" json:"value"`
+	DefaultValue      string    `db:"default_value" json:"default_value"`
+	Required          bool      `db:"required" json:"required"`
+	Sensitive         bool      `db:"sensitive" json:"sensitive"`
+}
+
+func (q *sqlQuerier) InsertTemplateVersionVariable(ctx context.Context, arg InsertTemplateVersionVariableParams) (TemplateVersionVariable, error) {
+	row := q.db.QueryRowContext(ctx, insertTemplateVersionVariable,
+		arg.TemplateVersionID,
+		arg.Name,
+		arg.Description,
+		arg.Type,
+		arg.Value,
+		arg.DefaultValue,
+		arg.Required,
+		arg.Sensitive,
+	)
+	var i TemplateVersionVariable
+	err := row.Scan(
+		&i.TemplateVersionID,
+		&i.Name,
+		&i.Description,
+		&i.Type,
+		&i.Value,
+		&i.DefaultValue,
+		&i.Required,
+		&i.Sensitive,
+	)
+	return i, err
 }
 
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
@@ -6548,6 +6752,62 @@ type GetWorkspaceByOwnerIDAndNameParams struct {
 
 func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceByOwnerIDAndName, arg.OwnerID, arg.Deleted, arg.Name)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.TemplateID,
+		&i.Deleted,
+		&i.Name,
+		&i.AutostartSchedule,
+		&i.Ttl,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const getWorkspaceByWorkspaceAppID = `-- name: GetWorkspaceByWorkspaceAppID :one
+SELECT
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
+FROM
+	workspaces
+WHERE
+		workspaces.id = (
+		SELECT
+			workspace_id
+		FROM
+			workspace_builds
+		WHERE
+				workspace_builds.job_id = (
+				SELECT
+					job_id
+				FROM
+					workspace_resources
+				WHERE
+						workspace_resources.id = (
+						SELECT
+							resource_id
+						FROM
+							workspace_agents
+						WHERE
+								workspace_agents.id = (
+								SELECT
+									agent_id
+								FROM
+									workspace_apps
+								WHERE
+									workspace_apps.id = $1
+								)
+					)
+			)
+	)
+`
+
+func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceByWorkspaceAppID, workspaceAppID)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,

@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -104,6 +105,7 @@ type Options struct {
 	OIDCConfig                     *OIDCConfig
 	PrometheusRegistry             *prometheus.Registry
 	SecureAuthCookie               bool
+	StrictTransportSecurityCfg     httpmw.HSTSConfig
 	SSHKeygenAlgorithm             gitsshkey.Algorithm
 	Telemetry                      telemetry.Reporter
 	TracerProvider                 trace.TracerProvider
@@ -159,13 +161,6 @@ func New(options *Options) *API {
 		options = &Options{}
 	}
 	experiments := initExperiments(options.Logger, options.DeploymentConfig.Experiments.Value, options.DeploymentConfig.Experimental.Value)
-	// TODO: remove this once we promote authz_querier out of experiments.
-	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
-		panic("Coming soon!")
-		// if _, ok := (options.Database).(*authzquery.AuthzQuerier); !ok {
-		// 	options.Database = authzquery.NewAuthzQuerier(options.Database, options.Authorizer)
-		// }
-	}
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
@@ -195,7 +190,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.Authorizer == nil {
-		options.Authorizer = rbac.NewAuthorizer(options.PrometheusRegistry)
+		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator()
@@ -205,6 +200,14 @@ func New(options *Options) *API {
 	}
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
+	}
+	// TODO: remove this once we promote authz_querier out of experiments.
+	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
+		options.Database = dbauthz.New(
+			options.Database,
+			options.Authorizer,
+			options.Logger.Named("authz_querier"),
+		)
 	}
 	if options.SetUserGroups == nil {
 		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
@@ -225,12 +228,22 @@ func New(options *Options) *API {
 		options.MetricsCacheRefreshInterval,
 	)
 
+	staticHandler := site.Handler(site.FS(), binFS, binHashes)
+	// Static file handler must be wrapped with HSTS handler if the
+	// StrictTransportSecurityAge is set. We only need to set this header on
+	// static files since it only affects browsers.
+	staticHandler = httpmw.HSTS(staticHandler, options.StrictTransportSecurityCfg)
+
 	r := chi.NewRouter()
+	ctx, cancel := context.WithCancel(context.Background())
 	api := &API{
+		ctx:    ctx,
+		cancel: cancel,
+
 		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
-		siteHandler: site.Handler(site.FS(), binFS, binHashes),
+		siteHandler: staticHandler,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -279,6 +292,7 @@ func New(options *Options) *API {
 		tracing.StatusWriterMiddleware,
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
+		httpmw.AttachAuthzCache,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
 		httpmw.Prometheus(options.PrometheusRegistry),
@@ -291,6 +305,16 @@ func New(options *Options) *API {
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Add("X-Coder-Build-Version", buildinfo.Version())
+				next.ServeHTTP(w, r)
+			})
+		},
+		// This header stops a browser from trying to MIME-sniff the content type and
+		// forces it to stick with the declared content-type. This is the only valid
+		// value for this header.
+		// See: https://github.com/coder/security/issues/12
+		func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Add("X-Content-Type-Options", "nosniff")
 				next.ServeHTTP(w, r)
 			})
 		},
@@ -436,6 +460,8 @@ func New(options *Options) *API {
 			r.Get("/schema", api.templateVersionSchema)
 			r.Get("/parameters", api.templateVersionParameters)
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
+			r.Get("/gitauth", api.templateVersionGitAuth)
+			r.Get("/variables", api.templateVersionVariables)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
 			r.Route("/dry-run", func(r chi.Router) {
@@ -644,6 +670,11 @@ func New(options *Options) *API {
 }
 
 type API struct {
+	// ctx is canceled immediately on shutdown, it can be used to abort
+	// interruptible tasks.
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	*Options
 	// ID is a uniquely generated ID on initialization.
 	// This is used to associate objects with a specific
@@ -678,6 +709,8 @@ type API struct {
 
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
+	api.cancel()
+
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Wait()
 	api.WebsocketWaitMutex.Unlock()
@@ -744,12 +777,18 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}
 
 	mux := drpcmux.New()
+
+	gitAuthProviders := make([]string, 0, len(api.GitAuthConfigs))
+	for _, cfg := range api.GitAuthConfigs {
+		gitAuthProviders = append(gitAuthProviders, cfg.ID)
+	}
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
 		AccessURL:          api.AccessURL,
 		ID:                 daemon.ID,
 		Database:           api.Database,
 		Pubsub:             api.Pubsub,
 		Provisioners:       daemon.Provisioners,
+		GitAuthProviders:   gitAuthProviders,
 		Telemetry:          api.Telemetry,
 		Tags:               tags,
 		QuotaCommitter:     &api.QuotaCommitter,

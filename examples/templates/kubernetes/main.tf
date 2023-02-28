@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.10"
+      version = "~> 0.6.12"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -29,6 +29,34 @@ variable "namespace" {
   type        = string
   sensitive   = true
   description = "The Kubernetes namespace to create workspaces in (must exist prior to creating workspaces)"
+}
+
+variable "cpu" {
+  description = "CPU (__ cores)"
+  default     = 2
+  validation {
+    condition = contains([
+      "2",
+      "4",
+      "6",
+      "8"
+    ], var.cpu)
+    error_message = "Invalid cpu!"
+  }
+}
+
+variable "memory" {
+  description = "Memory (__ GB)"
+  default     = 2
+  validation {
+    condition = contains([
+      "2",
+      "4",
+      "6",
+      "8"
+    ], var.memory)
+    error_message = "Invalid memory!"
+  }
 }
 
 variable "home_disk_size" {
@@ -58,8 +86,8 @@ resource "coder_agent" "main" {
     set -e
 
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s
-    code-server --auth none --port 13337 &
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
+    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
 }
 
@@ -146,6 +174,16 @@ resource "kubernetes_pod" "main" {
       env {
         name  = "CODER_AGENT_TOKEN"
         value = coder_agent.main.token
+      }
+      resources {
+        requests = {
+          "cpu"    = "250m"
+          "memory" = "512Mi"
+        }
+        limits = {
+          "cpu"    = "${var.cpu}"
+          "memory" = "${var.memory}Gi"
+        }
       }
       volume_mount {
         mount_path = "/home/coder"

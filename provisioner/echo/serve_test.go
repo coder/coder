@@ -127,7 +127,7 @@ func unpackTar(t *testing.T, fs afero.Fs, data []byte) string {
 		}
 		// #nosec
 		path := filepath.Join(directory, header.Name)
-		file, err := fs.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
+		file, err := fs.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 		require.NoError(t, err)
 		_, err = io.CopyN(file, reader, 1<<20)
 		require.ErrorIs(t, err, io.EOF)

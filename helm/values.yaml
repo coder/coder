@@ -58,16 +58,15 @@ coder:
     # runs as an unprivileged user. If setting runAsUser to 0 (root), this
     # will need to be set to false.
     runAsNonRoot: true
-    # coder.securityContext.runAsUser -- Sets the user id of the pod.
+    # coder.securityContext.runAsUser -- Sets the user id of the container.
     # For security reasons, we recommend using a non-root user.
     runAsUser: 1000
-    # coder.securityContext.runAsGroup -- Sets the group id of the pod.
+    # coder.securityContext.runAsGroup -- Sets the group id of the container.
     # For security reasons, we recommend using a non-root group.
     runAsGroup: 1000
     # coder.securityContext.readOnlyRootFilesystem -- Mounts the container's
-    # root filesystem as read-only. It is recommended to leave this setting
-    # enabled in production. This will override the same setting in the pod
-    readOnlyRootFilesystem: true
+    # root filesystem as read-only.
+    readOnlyRootFilesystem: null
     # coder.securityContext.seccompProfile -- Sets the seccomp profile for
     # the coder container.
     seccompProfile:
@@ -207,12 +206,14 @@ coder:
     # coder.ingress.className -- The name of the Ingress class to use.
     className: ""
     # coder.ingress.host -- The hostname to match on.
+    # Be sure to also set CODER_ACCESS_URL within coder.env[]
     host: ""
     # coder.ingress.wildcardHost -- The wildcard hostname to match on. Should be
     # in the form "*.example.com" or "*-suffix.example.com". If you are using a
     # suffix after the wildcard, the suffix will be stripped from the created
     # ingress to ensure that it is a legal ingress host. Optional if not using
     # applications over subdomains.
+    # Be sure to also set CODER_WILDCARD_ACCESS_URL within coder.env[]
     wildcardHost: ""
     # coder.ingress.annotations -- The ingress annotations.
     annotations: {}

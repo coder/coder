@@ -47,7 +47,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.Options.Authorizer == nil {
-		options.Options.Authorizer = rbac.NewAuthorizer(options.PrometheusRegistry)
+		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
@@ -144,7 +144,9 @@ func New(ctx context.Context, options *Options) (*API, error) {
 
 	if len(options.SCIMAPIKey) != 0 {
 		api.AGPL.RootHandler.Route("/scim/v2", func(r chi.Router) {
-			r.Use(api.scimEnabledMW)
+			r.Use(
+				api.scimEnabledMW,
+			)
 			r.Post("/Users", api.scimPostUser)
 			r.Route("/Users", func(r chi.Router) {
 				r.Get("/", api.scimGetUsers)
@@ -240,18 +242,34 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	api.entitlementsMu.Lock()
 	defer api.entitlementsMu.Unlock()
 
-	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.Keys, map[codersdk.FeatureName]bool{
-		codersdk.FeatureAuditLog:                   api.AuditLogging,
-		codersdk.FeatureBrowserOnly:                api.BrowserOnly,
-		codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
-		codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
-		codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
-		codersdk.FeatureTemplateRBAC:               api.RBAC,
-		codersdk.FeatureExternalProvisionerDaemons: true,
-	})
+	entitlements, err := license.Entitlements(
+		ctx, api.Database,
+		api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.Keys, map[codersdk.FeatureName]bool{
+			codersdk.FeatureAuditLog:                   api.AuditLogging,
+			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
+			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
+			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
+			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
+			codersdk.FeatureTemplateRBAC:               api.RBAC,
+			codersdk.FeatureExternalProvisionerDaemons: true,
+		})
 	if err != nil {
 		return err
 	}
+
+	if entitlements.RequireTelemetry && !api.DeploymentConfig.Telemetry.Enable.Value {
+		// We can't fail because then the user couldn't remove the offending
+		// license w/o a restart.
+		//
+		// We don't simply append to entitlement.Errors since we don't want any
+		// enterprise features enabled.
+		api.entitlements.Errors = []string{
+			"License requires telemetry but telemetry is disabled",
+		}
+		api.Logger.Error(ctx, "license requires telemetry enabled")
+		return nil
+	}
+
 	entitlements.Experimental = api.DeploymentConfig.Experimental.Value || len(api.AGPL.Experiments) != 0
 
 	featureChanged := func(featureName codersdk.FeatureName) (changed bool, enabled bool) {

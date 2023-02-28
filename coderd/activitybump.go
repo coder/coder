@@ -15,10 +15,10 @@ import (
 
 // activityBumpWorkspace automatically bumps the workspace's auto-off timer
 // if it is set to expire soon.
-func activityBumpWorkspace(log slog.Logger, db database.Store, workspaceID uuid.UUID) {
+func activityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Store, workspaceID uuid.UUID) {
 	// We set a short timeout so if the app is under load, these
 	// low priority operations fail first.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 	defer cancel()
 
 	err := db.InTx(func(s database.Store) error {
@@ -82,9 +82,12 @@ func activityBumpWorkspace(log slog.Logger, db database.Store, workspaceID uuid.
 		return nil
 	}, nil)
 	if err != nil {
-		log.Error(ctx, "bump failed", slog.Error(err),
-			slog.F("workspace_id", workspaceID),
-		)
+		if !xerrors.Is(err, context.Canceled) {
+			// Bump will fail if the context is canceled, but this is ok.
+			log.Error(ctx, "bump failed", slog.Error(err),
+				slog.F("workspace_id", workspaceID),
+			)
+		}
 		return
 	}
 

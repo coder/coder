@@ -26,6 +26,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -403,6 +404,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 }
 
 func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+	ctx := r.Context()
 	clientConn, serverConn := net.Pipe()
 
 	derpMap := api.DERPMap.Clone()
@@ -446,36 +448,38 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 		Logger:    api.Logger.Named("tailnet"),
 	})
 	if err != nil {
+		_ = clientConn.Close()
+		_ = serverConn.Close()
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
 
 	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		err := conn.RemoveAllPeers()
-		if err != nil {
-			return xerrors.Errorf("remove all peers: %w", err)
-		}
-
-		err = conn.UpdateNodes(node)
+		err = conn.UpdateNodes(node, true)
 		if err != nil {
 			return xerrors.Errorf("update nodes: %w", err)
 		}
 		return nil
 	})
 	conn.SetNodeCallback(sendNodes)
-	go func() {
-		err := (*api.TailnetCoordinator.Load()).ServeClient(serverConn, uuid.New(), agentID)
-		if err != nil {
-			api.Logger.Warn(r.Context(), "tailnet coordinator client error", slog.Error(err))
-			_ = conn.Close()
-		}
-	}()
-	return &codersdk.WorkspaceAgentConn{
+	agentConn := &codersdk.WorkspaceAgentConn{
 		Conn: conn,
 		CloseFunc: func() {
 			_ = clientConn.Close()
 			_ = serverConn.Close()
 		},
-	}, nil
+	}
+	go func() {
+		err := (*api.TailnetCoordinator.Load()).ServeClient(serverConn, uuid.New(), agentID)
+		if err != nil {
+			api.Logger.Warn(r.Context(), "tailnet coordinator client error", slog.Error(err))
+			_ = agentConn.Close()
+		}
+	}()
+	if !agentConn.AwaitReachable(ctx) {
+		_ = agentConn.Close()
+		return nil, xerrors.Errorf("agent not reachable")
+	}
+	return agentConn, nil
 }
 
 // @Summary Get connection info for workspace agent
@@ -601,7 +605,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		Valid: true,
 	}
 	disconnectedAt := workspaceAgent.DisconnectedAt
-	updateConnectionTimes := func() error {
+	updateConnectionTimes := func(ctx context.Context) error {
 		err = api.Database.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
 			ID:               workspaceAgent.ID,
 			FirstConnectedAt: firstConnectedAt,
@@ -620,15 +624,40 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	}
 
 	defer func() {
+		// If connection closed then context will be canceled, try to
+		// ensure our final update is sent. By waiting at most the agent
+		// inactive disconnect timeout we ensure that we don't block but
+		// also guarantee that the agent will be considered disconnected
+		// by normal status check.
+		//
+		// Use a system context as the agent has disconnected and that token
+		// may no longer be valid.
+		//nolint:gocritic
+		ctx, cancel := context.WithTimeout(dbauthz.AsSystemRestricted(api.ctx), api.AgentInactiveDisconnectTimeout)
+		defer cancel()
+
 		disconnectedAt = sql.NullTime{
 			Time:  database.Now(),
 			Valid: true,
 		}
-		_ = updateConnectionTimes()
-		_ = api.Pubsub.Publish(watchWorkspaceChannel(build.WorkspaceID), []byte{})
+		err := updateConnectionTimes(ctx)
+		if err != nil {
+			// This is a bug with unit tests that cancel the app context and
+			// cause this error log to be generated. We should fix the unit tests
+			// as this is a valid log.
+			//
+			// The pq error occurs when the server is shutting down.
+			if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
+				api.Logger.Error(ctx, "failed to update agent disconnect time",
+					slog.Error(err),
+					slog.F("workspace", build.WorkspaceID),
+				)
+			}
+		}
+		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 	}()
 
-	err = updateConnectionTimes()
+	err = updateConnectionTimes(ctx)
 	if err != nil {
 		_ = conn.Close(websocket.StatusGoingAway, err.Error())
 		return
@@ -668,7 +697,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			Time:  database.Now(),
 			Valid: true,
 		}
-		err = updateConnectionTimes()
+		err = updateConnectionTimes(ctx)
 		if err != nil {
 			_ = conn.Close(websocket.StatusGoingAway, err.Error())
 			return
@@ -724,10 +753,13 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		})
 		return
 	}
+	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+	defer wsNetConn.Close()
+
 	go httpapi.Heartbeat(ctx, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	err = (*api.TailnetCoordinator.Load()).ServeClient(websocket.NetConn(ctx, conn, websocket.MessageBinary), uuid.New(), workspaceAgent.ID)
+	err = (*api.TailnetCoordinator.Load()).ServeClient(wsNetConn, uuid.New(), workspaceAgent.ID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
@@ -899,7 +931,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		slog.F("payload", req),
 	)
 
-	activityBumpWorkspace(api.Logger.Named("activity_bump"), api.Database, workspace.ID)
+	activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID)
 
 	payload, err := json.Marshal(req)
 	if err != nil {
@@ -1281,13 +1313,28 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// If the token is expired and refresh is disabled, we prompt
-	// the user to authenticate again.
-	if gitAuthConfig.NoRefresh && gitAuthLink.OAuthExpiry.Before(database.Now()) {
+	gitAuthLink, updated, err := refreshGitToken(ctx, api.Database, workspace.OwnerID, gitAuthConfig, gitAuthLink)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to refresh git auth token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !updated {
 		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
 			URL: redirectURL.String(),
 		})
 		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, gitAuthLink.OAuthAccessToken))
+}
+
+func refreshGitToken(ctx context.Context, db database.Store, owner uuid.UUID, gitAuthConfig *gitauth.Config, gitAuthLink database.GitAuthLink) (database.GitAuthLink, bool, error) {
+	// If the token is expired and refresh is disabled, we prompt
+	// the user to authenticate again.
+	if gitAuthConfig.NoRefresh && gitAuthLink.OAuthExpiry.Before(database.Now()) {
+		return gitAuthLink, false, nil
 	}
 
 	token, err := gitAuthConfig.TokenSource(ctx, &oauth2.Token{
@@ -1296,49 +1343,35 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		Expiry:       gitAuthLink.OAuthExpiry,
 	}).Token()
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
-			URL: redirectURL.String(),
-		})
-		return
+		return gitAuthLink, false, nil
 	}
 
 	if gitAuthConfig.ValidateURL != "" {
 		valid, err := validateGitToken(ctx, gitAuthConfig.ValidateURL, token.AccessToken)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate Git authentication token.",
-				Detail:  err.Error(),
-			})
-			return
+			return gitAuthLink, false, xerrors.Errorf("validate git auth token: %w", err)
 		}
 		if !valid {
 			// The token is no longer valid!
-			httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
-				URL: redirectURL.String(),
-			})
-			return
+			return gitAuthLink, false, nil
 		}
 	}
 
 	if token.AccessToken != gitAuthLink.OAuthAccessToken {
 		// Update it
-		err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
+		gitAuthLink, err = db.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
 			ProviderID:        gitAuthConfig.ID,
-			UserID:            workspace.OwnerID,
+			UserID:            owner,
 			UpdatedAt:         database.Now(),
 			OAuthAccessToken:  token.AccessToken,
 			OAuthRefreshToken: token.RefreshToken,
 			OAuthExpiry:       token.Expiry,
 		})
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to update git auth link.",
-				Detail:  err.Error(),
-			})
-			return
+			return gitAuthLink, false, xerrors.Errorf("update git auth link: %w", err)
 		}
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, token.AccessToken))
+	return gitAuthLink, true, nil
 }
 
 // validateGitToken ensures the git token provided is valid
@@ -1360,7 +1393,7 @@ func validateGitToken(ctx context.Context, validateURL, token string) (bool, err
 	}
 	if res.StatusCode != http.StatusOK {
 		data, _ := io.ReadAll(res.Body)
-		return false, xerrors.Errorf("git token validation failed: status %d: body: %s", res.StatusCode, data)
+		return false, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
 	}
 	return true, nil
 }
@@ -1427,7 +1460,7 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 				return
 			}
 		} else {
-			err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
+			_, err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
 				ProviderID:        gitAuthConfig.ID,
 				UserID:            apiKey.UserID,
 				UpdatedAt:         database.Now(),
@@ -1453,8 +1486,12 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 			return
 		}
 
+		redirect := state.Redirect
+		if redirect == "" {
+			redirect = "/gitauth"
+		}
 		// This is a nicely rendered screen on the frontend
-		http.Redirect(rw, r, "/gitauth", http.StatusTemporaryRedirect)
+		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 	}
 }
 

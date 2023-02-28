@@ -121,7 +121,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
           </div>
           <LoadingButton
             fullWidth
-            variant="contained"
+            variant="outlined"
             loading={isLoading}
             type="submit"
           >

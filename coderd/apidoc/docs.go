@@ -93,7 +93,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.AppearanceConfig"
+                            "$ref": "#/definitions/codersdk.UpdateAppearanceConfig"
                         }
                     }
                 ],
@@ -101,7 +101,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.AppearanceConfig"
+                            "$ref": "#/definitions/codersdk.UpdateAppearanceConfig"
                         }
                     }
                 }
@@ -2485,6 +2485,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/gitauth": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get git auth by template version",
+                "operationId": "get-git-auth-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.TemplateVersionGitAuth"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/logs": {
             "get": {
                 "security": [
@@ -2687,6 +2725,44 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/codersdk.ParameterSchema"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/templateversions/{templateversion}/variables": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template variables by template version",
+                "operationId": "get-template-variables-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.TemplateVersionVariable"
                             }
                         }
                     }
@@ -5341,6 +5417,12 @@ const docTemplate = `{
                 },
                 "service_banner": {
                     "$ref": "#/definitions/codersdk.ServiceBannerConfig"
+                },
+                "support_links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.LinkConfig"
+                    }
                 }
             }
         },
@@ -5753,6 +5835,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
                     }
                 },
+                "user_variable_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.VariableValue"
+                    }
+                },
                 "workspace_name": {
                     "type": "string"
                 }
@@ -6149,6 +6237,15 @@ const docTemplate = `{
                 "ssh_keygen_algorithm": {
                     "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
                 },
+                "strict_transport_security": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
+                },
+                "strict_transport_security_options": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                },
+                "support": {
+                    "$ref": "#/definitions/codersdk.SupportConfig"
+                },
                 "swagger": {
                     "$ref": "#/definitions/codersdk.SwaggerConfig"
                 },
@@ -6203,6 +6300,44 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.GitAuthConfig"
+                    }
+                }
+            }
+        },
+        "codersdk.DeploymentConfigField-array_codersdk_LinkConfig": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.LinkConfig"
+                    }
+                },
+                "enterprise": {
+                    "type": "boolean"
+                },
+                "flag": {
+                    "type": "string"
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "boolean"
+                },
+                "shorthand": {
+                    "type": "string"
+                },
+                "usage": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.LinkConfig"
                     }
                 }
             }
@@ -6419,6 +6554,9 @@ const docTemplate = `{
                 "has_license": {
                     "type": "boolean"
                 },
+                "require_telemetry": {
+                    "type": "boolean"
+                },
                 "trial": {
                     "type": "boolean"
                 },
@@ -6515,6 +6653,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GitProvider": {
+            "type": "string",
+            "enum": [
+                "azure-devops",
+                "github",
+                "gitlab",
+                "bitbucket"
+            ],
+            "x-enum-varnames": [
+                "GitProviderAzureDevops",
+                "GitProviderGitHub",
+                "GitProviderGitLab",
+                "GitProviderBitBucket"
+            ]
+        },
         "codersdk.GitSSHKey": {
             "type": "object",
             "properties": {
@@ -6598,6 +6751,20 @@ const docTemplate = `{
                 "uuid": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.LinkConfig": {
+            "type": "object",
+            "properties": {
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "string"
                 }
             }
         },
@@ -7252,7 +7419,8 @@ const docTemplate = `{
                 "workspace_build",
                 "git_ssh_key",
                 "api_key",
-                "group"
+                "group",
+                "license"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -7262,7 +7430,8 @@ const docTemplate = `{
                 "ResourceTypeWorkspaceBuild",
                 "ResourceTypeGitSSHKey",
                 "ResourceTypeAPIKey",
-                "ResourceTypeGroup"
+                "ResourceTypeGroup",
+                "ResourceTypeLicense"
             ]
         },
         "codersdk.Response": {
@@ -7307,6 +7476,14 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.SupportConfig": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_codersdk_LinkConfig"
                 }
             }
         },
@@ -7596,6 +7773,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateVersionGitAuth": {
+            "type": "object",
+            "properties": {
+                "authenticate_url": {
+                    "type": "string"
+                },
+                "authenticated": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.GitProvider"
+                }
+            }
+        },
         "codersdk.TemplateVersionParameter": {
             "type": "object",
             "properties": {
@@ -7673,6 +7867,37 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateVersionVariable": {
+            "type": "object",
+            "properties": {
+                "default_value": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "sensitive": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "string",
+                        "number",
+                        "bool"
+                    ]
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TraceConfig": {
             "type": "object",
             "properties": {
@@ -7709,6 +7934,17 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UpdateAppearanceConfig": {
+            "type": "object",
+            "properties": {
+                "logo_url": {
+                    "type": "string"
+                },
+                "service_banner": {
+                    "$ref": "#/definitions/codersdk.ServiceBannerConfig"
                 }
             }
         },
@@ -7909,6 +8145,17 @@ const docTemplate = `{
                 "MonotonicOrderIncreasing",
                 "MonotonicOrderDecreasing"
             ]
+        },
+        "codersdk.VariableValue": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.Workspace": {
             "type": "object",

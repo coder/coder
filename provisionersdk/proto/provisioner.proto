@@ -52,6 +52,16 @@ message ParameterSchema {
     string validation_condition = 11;
 }
 
+// TemplateVariable represents a Terraform variable.
+message TemplateVariable {
+    string name = 1;
+    string description = 2;
+    string type = 3;
+    string default_value = 4;
+    bool required = 5;
+    bool sensitive = 6;
+}
+
 // RichParameterOption represents a singular option that a parameter may expose.
 message RichParameterOption {
     string name = 1;
@@ -82,6 +92,13 @@ message RichParameterValue {
     string value = 2;
 }
 
+// VariableValue holds the key/value mapping of a Terraform variable.
+message VariableValue {
+    string name = 1;
+    string value = 2;
+	bool sensitive = 3;
+}
+
 // LogLevel represents severity of the log.
 enum LogLevel {
     TRACE = 0;
@@ -99,6 +116,11 @@ message Log {
 
 message InstanceIdentityAuth {
     string instance_id = 1;
+}
+
+message GitAuthProvider {
+	string id = 1;
+	string access_token = 2;
 }
 
 // Agent represents a running agent on the workspace.
@@ -175,6 +197,7 @@ message Parse {
         string directory = 1;
     }
     message Complete {
+        repeated TemplateVariable template_variables = 1;
         repeated ParameterSchema parameter_schemas = 2;
     }
     message Response {
@@ -202,6 +225,8 @@ message Provision {
         string workspace_id = 5;
         string workspace_owner_id = 6;
         string workspace_owner_email = 7;
+        string template_name = 8;
+        string template_version = 9;
     }
 
     // Config represents execution configuration shared by both Plan and
@@ -215,7 +240,9 @@ message Provision {
     message Plan {
         Config config = 1;
         repeated ParameterValue parameter_values = 2;
-		repeated RichParameterValue rich_parameter_values = 3;
+        repeated RichParameterValue rich_parameter_values = 3;
+        repeated VariableValue variable_values = 4;
+        repeated GitAuthProvider git_auth_providers = 5;
     }
 
     message Apply {
@@ -236,7 +263,8 @@ message Provision {
         string error = 2;
         repeated Resource resources = 3;
 		repeated RichParameter parameters = 4;
-		bytes plan = 5;
+		repeated string git_auth_providers = 5;
+		bytes plan = 6;
     }
     message Response {
         oneof type {

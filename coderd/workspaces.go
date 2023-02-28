@@ -371,6 +371,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// TODO: This should be a system call as the actor might not be able to
+	// read other workspaces. Ideally we check the error on create and look for
+	// a postgres conflict error.
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
 		OwnerID: user.ID,
 		Name:    createWorkspace.Name,
@@ -458,7 +461,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	tags := provisionerdserver.MutateTags(user.ID, templateVersionJob.Tags)
-
 	var (
 		provisionerJob database.ProvisionerJob
 		workspaceBuild database.WorkspaceBuild

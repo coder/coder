@@ -868,6 +868,53 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
     "usage": "string",
     "value": "string"
   },
+  "strict_transport_security": {
+    "default": 0,
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": 0
+  },
+  "strict_transport_security_options": {
+    "default": ["string"],
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": ["string"]
+  },
+  "support": {
+    "links": {
+      "default": [
+        {
+          "icon": "string",
+          "name": "string",
+          "target": "string"
+        }
+      ],
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": [
+        {
+          "icon": "string",
+          "name": "string",
+          "target": "string"
+        }
+      ]
+    }
+  },
   "swagger": {
     "enable": {
       "default": true,

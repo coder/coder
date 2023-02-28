@@ -2,7 +2,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.10"
+      version = "~> 0.6.12"
+    }
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.55"
     }
   }
 }
@@ -83,8 +87,8 @@ resource "coder_agent" "main" {
     set -e
 
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
-    code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
+    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
 }
 

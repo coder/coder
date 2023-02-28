@@ -2,7 +2,7 @@ import { Story } from "@storybook/react"
 import {
   MockTemplate,
   MockTemplateVersion,
-  MockTemplateVersionFiles,
+  MockTemplateVersionFileTree,
   MockWorkspaceBuildLogs,
   MockWorkspaceResource,
   MockWorkspaceResource2,
@@ -29,7 +29,7 @@ export const Example = Template.bind({})
 Example.args = {
   template: MockTemplate,
   templateVersion: MockTemplateVersion,
-  initialFiles: MockTemplateVersionFiles,
+  defaultFileTree: MockTemplateVersionFileTree,
 }
 
 export const Logs = Template.bind({})
@@ -37,7 +37,7 @@ export const Logs = Template.bind({})
 Logs.args = {
   template: MockTemplate,
   templateVersion: MockTemplateVersion,
-  initialFiles: MockTemplateVersionFiles,
+  defaultFileTree: MockTemplateVersionFileTree,
   buildLogs: MockWorkspaceBuildLogs,
 }
 
@@ -46,7 +46,7 @@ export const Resources = Template.bind({})
 Resources.args = {
   template: MockTemplate,
   templateVersion: MockTemplateVersion,
-  initialFiles: MockTemplateVersionFiles,
+  defaultFileTree: MockTemplateVersionFileTree,
   buildLogs: MockWorkspaceBuildLogs,
   resources: [
     MockWorkspaceResource,

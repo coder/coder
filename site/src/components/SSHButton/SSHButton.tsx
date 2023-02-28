@@ -34,6 +34,7 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
   return (
     <>
       <Button
+        className={styles.button}
         startIcon={<CloudIcon />}
         size="small"
         ref={anchorRef}
@@ -121,5 +122,14 @@ const useStyles = makeStyles((theme) => ({
 
   textHelper: {
     fontWeight: 400,
+  },
+
+  button: {
+    whiteSpace: "nowrap",
+    backgroundColor: theme.palette.background.default,
+
+    "&:hover": {
+      backgroundColor: `${theme.palette.background.default} !important`,
+    },
   },
 }))

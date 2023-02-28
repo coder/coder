@@ -15,6 +15,24 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+var DefaultSupportLinks = []codersdk.LinkConfig{
+	{
+		Name:   "Documentation",
+		Target: "https://coder.com/docs/coder-oss",
+		Icon:   "docs",
+	},
+	{
+		Name:   "Report a bug",
+		Target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body={CODER_BUILD_INFO}",
+		Icon:   "bug",
+	},
+	{
+		Name:   "Join the Coder Discord",
+		Target: "https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer",
+		Icon:   "chat",
+	},
+}
+
 // @Summary Get appearance
 // @ID get-appearance
 // @Security CoderSessionToken
@@ -30,7 +48,9 @@ func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if !isEntitled {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AppearanceConfig{})
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.AppearanceConfig{
+			SupportLinks: DefaultSupportLinks,
+		})
 		return
 	}
 
@@ -67,6 +87,12 @@ func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if len(api.DeploymentConfig.Support.Links.Value) == 0 {
+		cfg.SupportLinks = DefaultSupportLinks
+	} else {
+		cfg.SupportLinks = api.DeploymentConfig.Support.Links.Value
+	}
+
 	httpapi.Write(r.Context(), rw, http.StatusOK, cfg)
 }
 
@@ -87,8 +113,8 @@ func validateHexColor(color string) error {
 // @Accept json
 // @Produce json
 // @Tags Enterprise
-// @Param request body codersdk.AppearanceConfig true "Update appearance request"
-// @Success 200 {object} codersdk.AppearanceConfig
+// @Param request body codersdk.UpdateAppearanceConfig true "Update appearance request"
+// @Success 200 {object} codersdk.UpdateAppearanceConfig
 // @Router /appearance [put]
 func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -100,7 +126,7 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var appearance codersdk.AppearanceConfig
+	var appearance codersdk.UpdateAppearanceConfig
 	if !httpapi.Read(ctx, rw, r, &appearance) {
 		return
 	}

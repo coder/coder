@@ -116,6 +116,26 @@ WithOIDC.args = {
   },
 }
 
+export const WithOIDCWithoutPassword = Template.bind({})
+WithOIDCWithoutPassword.args = {
+  ...SignedOut.args,
+  authMethods: {
+    password: { enabled: false },
+    github: { enabled: false },
+    oidc: { enabled: true, signInText: "", iconUrl: "" },
+  },
+}
+
+export const WithoutAny = Template.bind({})
+WithoutAny.args = {
+  ...SignedOut.args,
+  authMethods: {
+    password: { enabled: false },
+    github: { enabled: false },
+    oidc: { enabled: false, signInText: "", iconUrl: "" },
+  },
+}
+
 export const WithGithubAndOIDC = Template.bind({})
 WithGithubAndOIDC.args = {
   ...SignedOut.args,

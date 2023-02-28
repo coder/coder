@@ -34,6 +34,7 @@ export interface AppHostResponse {
 export interface AppearanceConfig {
   readonly logo_url: string
   readonly service_banner: ServiceBannerConfig
+  readonly support_links?: LinkConfig[]
 }
 
 // From codersdk/roles.go
@@ -187,6 +188,7 @@ export interface CreateTemplateVersionDryRunRequest {
   readonly workspace_name: string
   readonly parameter_values: CreateParameterRequest[]
   readonly rich_parameter_values: WorkspaceBuildParameter[]
+  readonly user_variable_values?: VariableValue[]
 }
 
 // From codersdk/organizations.go
@@ -199,6 +201,7 @@ export interface CreateTemplateVersionRequest {
   readonly provisioner: ProvisionerType
   readonly tags: Record<string, string>
   readonly parameter_values?: CreateParameterRequest[]
+  readonly user_variable_values?: VariableValue[]
 }
 
 // From codersdk/audit.go
@@ -309,6 +312,8 @@ export interface DeploymentConfig {
   readonly tls: TLSConfig
   readonly trace: TraceConfig
   readonly secure_auth_cookie: DeploymentConfigField<boolean>
+  readonly strict_transport_security: DeploymentConfigField<number>
+  readonly strict_transport_security_options: DeploymentConfigField<string[]>
   readonly ssh_keygen_algorithm: DeploymentConfigField<string>
   readonly metrics_cache_refresh_interval: DeploymentConfigField<number>
   readonly agent_stat_refresh_interval: DeploymentConfigField<number>
@@ -331,6 +336,7 @@ export interface DeploymentConfig {
   readonly insecure_app_signing_key_file: DeploymentConfigField<string>
   readonly address: DeploymentConfigField<string>
   readonly experimental: DeploymentConfigField<boolean>
+  readonly support: SupportConfig
 }
 
 // From codersdk/deployment.go
@@ -358,6 +364,7 @@ export interface Entitlements {
   readonly errors: string[]
   readonly has_license: boolean
   readonly trial: boolean
+  readonly require_telemetry: boolean
   readonly experimental: boolean
 }
 
@@ -428,6 +435,13 @@ export interface License {
   readonly uploaded_at: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly claims: Record<string, any>
+}
+
+// From codersdk/deployment.go
+export interface LinkConfig {
+  readonly name: string
+  readonly target: string
+  readonly icon: string
 }
 
 // From codersdk/deployment.go
@@ -654,6 +668,11 @@ export interface ServiceBannerConfig {
 }
 
 // From codersdk/deployment.go
+export interface SupportConfig {
+  readonly links: DeploymentConfigField<LinkConfig[]>
+}
+
+// From codersdk/deployment.go
 export interface SwaggerConfig {
   readonly enable: DeploymentConfigField<boolean>
 }
@@ -751,6 +770,14 @@ export interface TemplateVersion {
 }
 
 // From codersdk/templateversions.go
+export interface TemplateVersionGitAuth {
+  readonly id: string
+  readonly type: GitProvider
+  readonly authenticate_url: string
+  readonly authenticated: boolean
+}
+
+// From codersdk/templateversions.go
 export interface TemplateVersionParameter {
   readonly name: string
   readonly description: string
@@ -775,9 +802,25 @@ export interface TemplateVersionParameterOption {
   readonly icon: string
 }
 
+// From codersdk/templateversions.go
+export interface TemplateVersionVariable {
+  readonly name: string
+  readonly description: string
+  readonly type: string
+  readonly value: string
+  readonly default_value: string
+  readonly required: boolean
+  readonly sensitive: boolean
+}
+
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string
+}
+
+// From codersdk/apikey.go
+export interface TokensFilter {
+  readonly include_all: boolean
 }
 
 // From codersdk/deployment.go
@@ -796,6 +839,12 @@ export interface TransitionStats {
 // From codersdk/templates.go
 export interface UpdateActiveTemplateVersion {
   readonly id: string
+}
+
+// From codersdk/deployment.go
+export interface UpdateAppearanceConfig {
+  readonly logo_url: string
+  readonly service_banner: ServiceBannerConfig
 }
 
 // From codersdk/updatecheck.go
@@ -885,6 +934,12 @@ export interface UsersRequest extends Pagination {
 export interface ValidationError {
   readonly field: string
   readonly detail: string
+}
+
+// From codersdk/organizations.go
+export interface VariableValue {
+  readonly name: string
+  readonly value: string
 }
 
 // From codersdk/workspaces.go
@@ -1112,6 +1167,15 @@ export const FeatureNames: FeatureName[] = [
   "user_limit",
 ]
 
+// From codersdk/workspaceagents.go
+export type GitProvider = "azure-devops" | "bitbucket" | "github" | "gitlab"
+export const GitProviders: GitProvider[] = [
+  "azure-devops",
+  "bitbucket",
+  "github",
+  "gitlab",
+]
+
 // From codersdk/provisionerdaemons.go
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
 export const LogLevels: LogLevel[] = ["debug", "error", "info", "trace", "warn"]
@@ -1181,6 +1245,7 @@ export type ResourceType =
   | "api_key"
   | "git_ssh_key"
   | "group"
+  | "license"
   | "template"
   | "template_version"
   | "user"
@@ -1190,6 +1255,7 @@ export const ResourceTypes: ResourceType[] = [
   "api_key",
   "git_ssh_key",
   "group",
+  "license",
   "template",
   "template_version",
   "user",
@@ -1303,4 +1369,10 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
 ]
 
 // From codersdk/deployment.go
-export type Flaggable = string | number | boolean | string[] | GitAuthConfig[]
+export type Flaggable =
+  | string
+  | number
+  | boolean
+  | string[]
+  | GitAuthConfig[]
+  | LinkConfig[]

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"tailscale.com/hostinfo"
 	"tailscale.com/ipn/ipnstate"
+	"tailscale.com/net/connstats"
 	"tailscale.com/net/dns"
 	"tailscale.com/net/netns"
 	"tailscale.com/net/tsdial"
@@ -55,15 +57,10 @@ type Options struct {
 	// If so, only DERPs can establish connections.
 	BlockEndpoints bool
 	Logger         slog.Logger
-
-	// EnableTrafficStats enables per-connection traffic statistics.
-	// ExtractTrafficStats must be called to reset the counters and be
-	// periodically called while enabled to avoid unbounded memory use.
-	EnableTrafficStats bool
 }
 
 // NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
-func NewConn(options *Options) (*Conn, error) {
+func NewConn(options *Options) (conn *Conn, err error) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -73,6 +70,7 @@ func NewConn(options *Options) (*Conn, error) {
 	if options.DERPMap == nil {
 		return nil, xerrors.New("DERPMap must be provided")
 	}
+
 	nodePrivateKey := key.NewNode()
 	nodePublicKey := nodePrivateKey.Public()
 
@@ -125,9 +123,14 @@ func NewConn(options *Options) (*Conn, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("create wireguard link monitor: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			wireguardMonitor.Close()
+		}
+	}()
 
 	dialer := &tsdial.Dialer{
-		Logf: Logger(options.Logger),
+		Logf: Logger(options.Logger.Named("tsdial")),
 	}
 	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(options.Logger.Named("wgengine")), wgengine.Config{
 		LinkMonitor: wireguardMonitor,
@@ -136,6 +139,11 @@ func NewConn(options *Options) (*Conn, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			wireguardEngine.Close()
+		}
+	}()
 	dialer.UseNetstackForIP = func(ip netip.Addr) bool {
 		_, ok := wireguardEngine.PeerForIP(ip)
 		return ok
@@ -151,7 +159,6 @@ func NewConn(options *Options) (*Conn, error) {
 	if !ok {
 		return nil, xerrors.New("get wireguard internals")
 	}
-	tunDevice.SetStatisticsEnabled(options.EnableTrafficStats)
 
 	// Update the keys for the magic connection!
 	err = magicConn.SetPrivateKey(nodePrivateKey)
@@ -169,13 +176,10 @@ func NewConn(options *Options) (*Conn, error) {
 		return netStack.DialContextTCP(ctx, dst)
 	}
 	netStack.ProcessLocalIPs = true
-	err = netStack.Start()
-	if err != nil {
-		return nil, xerrors.Errorf("start netstack: %w", err)
-	}
 	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
 	wireguardEngine.SetDERPMap(options.DERPMap)
 	netMapCopy := *netMap
+	options.Logger.Debug(context.Background(), "updating network map")
 	wireguardEngine.SetNetworkMap(&netMapCopy)
 
 	localIPSet := netipx.IPSetBuilder{}
@@ -206,6 +210,11 @@ func NewConn(options *Options) (*Conn, error) {
 		},
 		wireguardEngine: wireguardEngine,
 	}
+	defer func() {
+		if err != nil {
+			_ = server.Close()
+		}
+	}()
 	wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
 		server.logger.Debug(context.Background(), "wireguard status", slog.F("status", s), slog.F("err", err))
 		if err != nil {
@@ -218,32 +227,33 @@ func NewConn(options *Options) (*Conn, error) {
 			return
 		}
 		server.lastStatus = s.AsOf
-		server.lastEndpoints = make([]string, 0, len(s.LocalAddrs))
-		for _, addr := range s.LocalAddrs {
-			server.lastEndpoints = append(server.lastEndpoints, addr.Addr.String())
+		if endpointsEqual(s.LocalAddrs, server.lastEndpoints) {
+			// No need to update the node if nothing changed!
+			server.lastMutex.Unlock()
+			return
 		}
+		server.lastEndpoints = append([]tailcfg.Endpoint{}, s.LocalAddrs...)
 		server.lastMutex.Unlock()
 		server.sendNode()
 	})
 	wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
 		server.logger.Debug(context.Background(), "netinfo callback", slog.F("netinfo", ni))
-		// If the lastMutex is blocked, it's possible that
-		// multiple NetInfo callbacks occur at the same time.
-		//
-		// We need to ensure only the latest is sent!
-		asOf := time.Now()
 		server.lastMutex.Lock()
-		if asOf.Before(server.lastNetInfo) {
+		if reflect.DeepEqual(server.lastNetInfo, ni) {
 			server.lastMutex.Unlock()
 			return
 		}
-		server.lastNetInfo = asOf
-		server.lastPreferredDERP = ni.PreferredDERP
-		server.lastDERPLatency = ni.DERPLatency
+		server.lastNetInfo = ni.Clone()
 		server.lastMutex.Unlock()
 		server.sendNode()
 	})
 	netStack.ForwardTCPIn = server.forwardTCP
+
+	err = netStack.Start(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("start netstack: %w", err)
+	}
+
 	return server, nil
 }
 
@@ -289,12 +299,12 @@ type Conn struct {
 	nodeChanged bool
 	// It's only possible to store these values via status functions,
 	// so the values must be stored for retrieval later on.
-	lastStatus        time.Time
-	lastNetInfo       time.Time
-	lastEndpoints     []string
-	lastPreferredDERP int
-	lastDERPLatency   map[string]float64
-	nodeCallback      func(node *Node)
+	lastStatus    time.Time
+	lastEndpoints []tailcfg.Endpoint
+	lastNetInfo   *tailcfg.NetInfo
+	nodeCallback  func(node *Node)
+
+	trafficStats *connstats.Statistics
 }
 
 // SetForwardTCPCallback is called every time a TCP connection is initiated inbound.
@@ -320,9 +330,11 @@ func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.logger.Debug(context.Background(), "updating derp map", slog.F("derp_map", derpMap))
-	c.netMap.DERPMap = derpMap
-	c.wireguardEngine.SetNetworkMap(c.netMap)
 	c.wireguardEngine.SetDERPMap(derpMap)
+	c.netMap.DERPMap = derpMap
+	netMapCopy := *c.netMap
+	c.logger.Debug(context.Background(), "updating network map")
+	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 }
 
 func (c *Conn) RemoveAllPeers() error {
@@ -332,6 +344,7 @@ func (c *Conn) RemoveAllPeers() error {
 	c.netMap.Peers = []*tailcfg.Node{}
 	c.peerMap = map[tailcfg.NodeID]*tailcfg.Node{}
 	netMapCopy := *c.netMap
+	c.logger.Debug(context.Background(), "updating network map")
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
@@ -351,11 +364,18 @@ func (c *Conn) RemoveAllPeers() error {
 }
 
 // UpdateNodes connects with a set of peers. This can be constantly updated,
-// and peers will continually be reconnected as necessary.
-func (c *Conn) UpdateNodes(nodes []*Node) error {
+// and peers will continually be reconnected as necessary. If replacePeers is
+// true, all peers will be removed before adding the new ones.
+//
+//nolint:revive // Complains about replacePeers.
+func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	status := c.Status()
+	if replacePeers {
+		c.netMap.Peers = []*tailcfg.Node{}
+		c.peerMap = map[tailcfg.NodeID]*tailcfg.Node{}
+	}
 	for _, peer := range c.netMap.Peers {
 		peerStatus, ok := status.Peer[peer.Key]
 		if !ok {
@@ -375,6 +395,11 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 		delete(c.peerMap, peer.ID)
 	}
 	for _, node := range nodes {
+		// If no preferred DERP is provided, we can't reach the node.
+		if node.PreferredDERP == 0 {
+			c.logger.Debug(context.Background(), "no preferred DERP, skipping node", slog.F("node", node))
+			continue
+		}
 		c.logger.Debug(context.Background(), "adding node", slog.F("node", node))
 
 		peerStatus, ok := status.Peer[node.Key]
@@ -393,10 +418,6 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 			// reason. TODO: @kylecarbs debug this!
 			KeepAlive: ok && peerStatus.Active,
 		}
-		// If no preferred DERP is provided, don't set an IP!
-		if node.PreferredDERP == 0 {
-			peerNode.DERP = ""
-		}
 		if c.blockEndpoints {
 			peerNode.Endpoints = nil
 		}
@@ -407,6 +428,7 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 		c.netMap.Peers = append(c.netMap.Peers, peer.Clone())
 	}
 	netMapCopy := *c.netMap
+	c.logger.Debug(context.Background(), "updating network map")
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
@@ -427,14 +449,14 @@ func (c *Conn) UpdateNodes(nodes []*Node) error {
 
 // Status returns the current ipnstate of a connection.
 func (c *Conn) Status() *ipnstate.Status {
-	sb := &ipnstate.StatusBuilder{}
+	sb := &ipnstate.StatusBuilder{WantPeers: true}
 	c.wireguardEngine.UpdateStatus(sb)
 	return sb.Status()
 }
 
 // Ping sends a Disco ping to the Wireguard engine.
 // The bool returned is true if the ping was performed P2P.
-func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, bool, error) {
+func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, bool, *ipnstate.PingResult, error) {
 	errCh := make(chan error, 1)
 	prChan := make(chan *ipnstate.PingResult, 1)
 	go c.wireguardEngine.Ping(ip, tailcfg.PingDisco, func(pr *ipnstate.PingResult) {
@@ -446,11 +468,11 @@ func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, bool, er
 	})
 	select {
 	case err := <-errCh:
-		return 0, false, err
+		return 0, false, nil, err
 	case <-ctx.Done():
-		return 0, false, ctx.Err()
+		return 0, false, nil, ctx.Err()
 	case pr := <-prChan:
-		return time.Duration(pr.LatencySeconds * float64(time.Second)), pr.Endpoint != "", nil
+		return time.Duration(pr.LatencySeconds * float64(time.Second)), pr.Endpoint != "", pr, nil
 	}
 }
 
@@ -479,7 +501,7 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 		defer cancel()
 
-		_, _, err := c.Ping(ctx, ip)
+		_, _, _, err := c.Ping(ctx, ip)
 		if err == nil {
 			completed()
 		}
@@ -527,17 +549,35 @@ func (c *Conn) Close() error {
 	default:
 	}
 	close(c.closed)
+	c.mutex.Unlock()
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	if c.trafficStats != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = c.trafficStats.Shutdown(ctx)
+		}()
+	}
+
+	_ = c.netStack.Close()
+	c.dialCancel()
+	_ = c.wireguardMonitor.Close()
+	_ = c.dialer.Close()
+	// Stops internals, e.g. tunDevice, magicConn and dnsManager.
+	c.wireguardEngine.Close()
+
+	c.mutex.Lock()
 	for _, l := range c.listeners {
 		_ = l.closeNoLock()
 	}
+	c.listeners = nil
 	c.mutex.Unlock()
-	c.dialCancel()
-	_ = c.dialer.Close()
-	_ = c.magicConn.Close()
-	_ = c.netStack.Close()
-	_ = c.wireguardMonitor.Close()
-	_ = c.tunDevice.Close()
-	c.wireguardEngine.Close()
+
 	return nil
 }
 
@@ -586,6 +626,17 @@ func (c *Conn) Node() *Node {
 }
 
 func (c *Conn) selfNode() *Node {
+	endpoints := make([]string, 0, len(c.lastEndpoints))
+	for _, addr := range c.lastEndpoints {
+		endpoints = append(endpoints, addr.Addr.String())
+	}
+	var preferredDERP int
+	var derpLatency map[string]float64
+	if c.lastNetInfo != nil {
+		preferredDERP = c.lastNetInfo.PreferredDERP
+		derpLatency = c.lastNetInfo.DERPLatency
+	}
+
 	node := &Node{
 		ID:            c.netMap.SelfNode.ID,
 		AsOf:          database.Now(),
@@ -593,9 +644,9 @@ func (c *Conn) selfNode() *Node {
 		Addresses:     c.netMap.SelfNode.Addresses,
 		AllowedIPs:    c.netMap.SelfNode.AllowedIPs,
 		DiscoKey:      c.magicConn.DiscoPublicKey(),
-		Endpoints:     c.lastEndpoints,
-		PreferredDERP: c.lastPreferredDERP,
-		DERPLatency:   c.lastDERPLatency,
+		Endpoints:     endpoints,
+		PreferredDERP: preferredDERP,
+		DERPLatency:   derpLatency,
 	}
 	if c.blockEndpoints {
 		node.Endpoints = nil
@@ -701,11 +752,33 @@ func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
 	c.logger.Debug(c.dialContext, "forwarded connection closed", slog.F("local_addr", dialAddrStr))
 }
 
-// ExtractTrafficStats extracts and resets the counters for all active
-// connections. It must be called periodically otherwise the memory used is
-// unbounded. EnableTrafficStats must be true when calling NewConn.
-func (c *Conn) ExtractTrafficStats() map[netlogtype.Connection]netlogtype.Counts {
-	return c.tunDevice.ExtractStatistics()
+// SetConnStatsCallback sets a callback to be called after maxPeriod or
+// maxConns, whichever comes first. Multiple calls overwrites the callback.
+func (c *Conn) SetConnStatsCallback(maxPeriod time.Duration, maxConns int, dump func(start, end time.Time, virtual, physical map[netlogtype.Connection]netlogtype.Counts)) {
+	connStats := connstats.NewStatistics(maxPeriod, maxConns, dump)
+
+	shutdown := func(s *connstats.Statistics) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = s.Shutdown(ctx)
+	}
+
+	c.mutex.Lock()
+	if c.isClosed() {
+		c.mutex.Unlock()
+		shutdown(connStats)
+		return
+	}
+	old := c.trafficStats
+	c.trafficStats = connStats
+	c.mutex.Unlock()
+
+	// Make sure to shutdown the old callback.
+	if old != nil {
+		shutdown(old)
+	}
+
+	c.tunDevice.SetStatistics(connStats)
 }
 
 type listenKey struct {
@@ -755,6 +828,19 @@ func (a addr) String() string  { return a.ln.addr }
 // Logger converts the Tailscale logging function to use slog.
 func Logger(logger slog.Logger) tslogger.Logf {
 	return tslogger.Logf(func(format string, args ...any) {
+		slog.Helper()
 		logger.Debug(context.Background(), fmt.Sprintf(format, args...))
 	})
+}
+
+func endpointsEqual(x, y []tailcfg.Endpoint) bool {
+	if len(x) != len(y) {
+		return false
+	}
+	for i := range x {
+		if x[i] != y[i] {
+			return false
+		}
+	}
+	return true
 }

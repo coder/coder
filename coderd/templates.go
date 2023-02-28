@@ -82,6 +82,10 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: This just returns the workspaces a user can view. We should use
+	// a system function to get all workspaces that use this template.
+	// This data should never be exposed to the user aside from a non-zero count.
+	// Or we move this into a postgres constraint.
 	workspaces, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
 		TemplateIds: []uuid.UUID{template.ID},
 	})

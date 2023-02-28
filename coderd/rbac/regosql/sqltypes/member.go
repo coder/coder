@@ -16,9 +16,11 @@ type SupportsContainedIn interface {
 	ContainedInSQL(cfg *SQLGenerator, other Node) (string, error)
 }
 
-var _ BooleanNode = memberOf{}
-var _ Node = memberOf{}
-var _ SupportsEquality = memberOf{}
+var (
+	_ BooleanNode      = memberOf{}
+	_ Node             = memberOf{}
+	_ SupportsEquality = memberOf{}
+)
 
 type memberOf struct {
 	Needle   Node

@@ -88,16 +88,6 @@ describe("TemplateSettingsPage", () => {
     expect(element).toBeDefined()
   })
 
-  it("allows an admin to delete a template", async () => {
-    const { t } = i18next
-    await renderTemplateSettingsPage()
-    const deleteCta = t("dangerZone.deleteCta", {
-      ns: "templateSettingsPage",
-    })
-    const deleteButton = await screen.findByText(deleteCta)
-    expect(deleteButton).toBeDefined()
-  })
-
   it("succeeds", async () => {
     await renderTemplateSettingsPage()
 

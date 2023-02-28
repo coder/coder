@@ -157,6 +157,12 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 					60 * 60, // 1hr
 				},
 			}, []string{"provisioner", "status"}),
+			WorkspaceBuilds: auto.NewCounterVec(prometheus.CounterOpts{
+				Namespace: "coderd",
+				Subsystem: "", // Explicitly empty to make this a top-level metric.
+				Name:      "workspace_builds_total",
+				Help:      "The number of workspaces started, updated, or deleted.",
+			}, []string{"workspace_owner", "workspace_name", "template_name", "template_version", "workspace_transition", "status"}),
 		},
 	}
 }
@@ -166,6 +172,11 @@ func (p *Server) connect(ctx context.Context) {
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+		// It's possible for the provisioner daemon to be shut down
+		// before the wait is complete!
+		if p.isClosed() {
+			return
+		}
 		client, err := p.clientDialer(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
@@ -177,7 +188,17 @@ func (p *Server) connect(ctx context.Context) {
 			p.opts.Logger.Warn(context.Background(), "failed to dial", slog.Error(err))
 			continue
 		}
+		// Ensure connection is not left hanging during a race between
+		// close and dial succeeding.
+		p.mutex.Lock()
+		if p.isClosed() {
+			client.DRPCConn().Close()
+			p.mutex.Unlock()
+			break
+		}
 		p.clientValue.Store(client)
+		p.mutex.Unlock()
+
 		p.opts.Logger.Debug(context.Background(), "connected")
 		break
 	}
@@ -329,7 +350,23 @@ func (p *Server) acquireJob(ctx context.Context) {
 	))
 	defer span.End()
 
+	fields := []slog.Field{
+		slog.F("initiator_username", job.UserName),
+		slog.F("provisioner", job.Provisioner),
+		slog.F("job_id", job.JobId),
+	}
+
 	if build := job.GetWorkspaceBuild(); build != nil {
+		fields = append(fields,
+			slog.F("workspace_transition", build.Metadata.WorkspaceTransition.String()),
+			slog.F("workspace_owner", build.Metadata.WorkspaceOwner),
+			slog.F("template_name", build.Metadata.TemplateName),
+			slog.F("template_version", build.Metadata.TemplateVersion),
+			slog.F("workspace_build_id", build.WorkspaceBuildId),
+			slog.F("workspace_id", build.Metadata.WorkspaceId),
+			slog.F("workspace_name", build.WorkspaceName),
+		)
+
 		span.SetAttributes(
 			attribute.String("workspace_build_id", build.WorkspaceBuildId),
 			attribute.String("workspace_id", build.Metadata.WorkspaceId),
@@ -340,11 +377,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 		)
 	}
 
-	p.opts.Logger.Info(ctx, "acquired job",
-		slog.F("initiator_username", job.UserName),
-		slog.F("provisioner", job.Provisioner),
-		slog.F("job_id", job.JobId),
-	)
+	p.opts.Logger.Info(ctx, "acquired job", fields...)
 
 	provisioner, ok := p.opts.Provisioners[job.Provisioner]
 	if !ok {
@@ -390,7 +423,8 @@ func retryable(err error) bool {
 // is not retryable() or the context expires.
 func (p *Server) clientDoWithRetries(
 	ctx context.Context, f func(context.Context, proto.DRPCProvisionerDaemonClient) (any, error)) (
-	any, error) {
+	any, error,
+) {
 	for retrier := retry.New(25*time.Millisecond, 5*time.Second); retrier.Wait(ctx); {
 		client, ok := p.client()
 		if !ok {
@@ -519,6 +553,10 @@ func (p *Server) closeWithError(err error) error {
 	p.closeCancel()
 
 	p.opts.Logger.Debug(context.Background(), "closing server with error", slog.Error(err))
+
+	if c, ok := p.clientValue.Load().(proto.DRPCProvisionerDaemonClient); ok {
+		_ = c.DRPCConn().Close()
+	}
 
 	return err
 }

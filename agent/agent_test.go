@@ -22,10 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/xerrors"
-	"tailscale.com/net/speedtest"
-	"tailscale.com/tailcfg"
-
 	scp "github.com/bramvdbogaerde/go-scp"
 	"github.com/google/uuid"
 	"github.com/pion/udp"
@@ -37,6 +33,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
+	"golang.org/x/xerrors"
+	"tailscale.com/net/speedtest"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -52,6 +51,8 @@ import (
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
+
+// NOTE: These tests only work when your default shell is bash for some reason.
 
 func TestAgent_Stats_SSH(t *testing.T) {
 	t.Parallel()
@@ -1153,17 +1154,16 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 	closer := agent.New(agent.Options{
 		Client:                 c,
 		Filesystem:             fs,
-		Logger:                 slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		ReconnectingPTYTimeout: ptyTimeout,
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()
 	})
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:          []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:            metadata.DERPMap,
-		Logger:             slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
-		EnableTrafficStats: true,
+		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		DERPMap:   metadata.DERPMap,
+		Logger:    slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
 	})
 	require.NoError(t, err)
 	clientConn, serverConn := net.Pipe()
@@ -1179,12 +1179,21 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 		coordinator.ServeClient(serverConn, uuid.New(), agentID)
 	}()
 	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		return conn.UpdateNodes(node)
+		return conn.UpdateNodes(node, false)
 	})
 	conn.SetNodeCallback(sendNode)
-	return &codersdk.WorkspaceAgentConn{
+	agentConn := &codersdk.WorkspaceAgentConn{
 		Conn: conn,
-	}, c, statsCh, fs
+	}
+	t.Cleanup(func() {
+		_ = agentConn.Close()
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+	if !agentConn.AwaitReachable(ctx) {
+		t.Fatal("agent not reachable")
+	}
+	return agentConn, c, statsCh, fs
 }
 
 var dialTestPayload = []byte("dean-was-here123")
@@ -1251,28 +1260,27 @@ func (c *client) Listen(_ context.Context) (net.Conn, error) {
 	return clientConn, nil
 }
 
-func (c *client) ReportStats(ctx context.Context, _ slog.Logger, stats func() *agentsdk.Stats) (io.Closer, error) {
+func (c *client) ReportStats(ctx context.Context, _ slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error) {
 	doneCh := make(chan struct{})
 	ctx, cancel := context.WithCancel(ctx)
 
 	go func() {
 		defer close(doneCh)
 
-		t := time.NewTicker(500 * time.Millisecond)
-		defer t.Stop()
+		setInterval(500 * time.Millisecond)
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-t.C:
-			}
-			select {
-			case c.statsChan <- stats():
-			case <-ctx.Done():
-				return
-			default:
-				// We don't want to send old stats.
-				continue
+			case stat := <-statsChan:
+				select {
+				case c.statsChan <- stat:
+				case <-ctx.Done():
+					return
+				default:
+					// We don't want to send old stats.
+					continue
+				}
 			}
 		}
 	}()

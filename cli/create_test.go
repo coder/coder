@@ -3,15 +3,21 @@ package cli_test
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/url"
 	"os"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -351,7 +357,8 @@ func TestCreateWithRichParameters(t *testing.T) {
 						},
 					},
 				},
-			}},
+			},
+		},
 		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{},
@@ -475,7 +482,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 							Parameters: richParameters,
 						},
 					},
-				}},
+				},
+			},
 			ProvisionApply: []*proto.Provision_Response{
 				{
 					Type: &proto.Provision_Response_Complete{
@@ -601,6 +609,61 @@ func TestCreateValidateRichParameters(t *testing.T) {
 	})
 }
 
+func TestCreateWithGitAuth(t *testing.T) {
+	t.Parallel()
+	echoResponses := &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						GitAuthProviders: []string{"github"},
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		}},
+	}
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		GitAuthConfigs: []*gitauth.Config{{
+			OAuth2Config: &oauth2Config{},
+			ID:           "github",
+			Regex:        regexp.MustCompile(`github\.com`),
+			Type:         codersdk.GitProviderGitHub,
+		}},
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
+	clitest.SetupConfig(t, client, root)
+	doneChan := make(chan struct{})
+	pty := ptytest.New(t)
+	cmd.SetIn(pty.Input())
+	cmd.SetOut(pty.Output())
+	go func() {
+		defer close(doneChan)
+		err := cmd.Execute()
+		assert.NoError(t, err)
+	}()
+
+	pty.ExpectMatch("You must authenticate with GitHub to create a workspace")
+	resp := coderdtest.RequestGitAuthCallback(t, "github", client)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	pty.ExpectMatch("Confirm create?")
+	pty.WriteLine("yes")
+	<-doneChan
+}
+
 func createTestParseResponseWithDefault(defaultValue string) []*proto.Parse_Response {
 	return []*proto.Parse_Response{{
 		Type: &proto.Parse_Response_Complete{
@@ -635,4 +698,32 @@ func createTestParseResponseWithDefault(defaultValue string) []*proto.Parse_Resp
 			},
 		},
 	}}
+}
+
+type oauth2Config struct{}
+
+func (*oauth2Config) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
+	return "/?state=" + url.QueryEscape(state)
+}
+
+func (*oauth2Config) Exchange(context.Context, string, ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	return &oauth2.Token{
+		AccessToken:  "token",
+		RefreshToken: "refresh",
+		Expiry:       database.Now().Add(time.Hour),
+	}, nil
+}
+
+func (*oauth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
+	return &oauth2TokenSource{}
+}
+
+type oauth2TokenSource struct{}
+
+func (*oauth2TokenSource) Token() (*oauth2.Token, error) {
+	return &oauth2.Token{
+		AccessToken:  "token",
+		RefreshToken: "refresh",
+		Expiry:       database.Now().Add(time.Hour),
+	}, nil
 }
