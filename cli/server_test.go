@@ -802,15 +802,19 @@ func TestServer(t *testing.T) {
 		pty := ptytest.New(t)
 		root.SetOutput(pty.Output())
 		root.SetErr(pty.Output())
-		errC := make(chan error, 1)
+		serverClose := make(chan struct{}, 1)
 		go func() {
-			errC <- root.ExecuteContext(ctx)
+			err := root.ExecuteContext(ctx)
+			if err != nil {
+				t.Error(err)
+			}
+			close(serverClose)
 		}()
 
 		pty.ExpectMatch("Started HTTP listener at http://[::]:")
 
 		cancelFunc()
-		require.NoError(t, <-errC)
+		<-serverClose
 	})
 
 	t.Run("NoAddress", func(t *testing.T) {
@@ -821,13 +825,13 @@ func TestServer(t *testing.T) {
 		root, _ := clitest.New(t,
 			"server",
 			"--in-memory",
-			"--http-address", "",
+			"--http-address", ":80",
 			"--tls-enable=false",
 			"--tls-address", "",
 		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "TLS is disabled. Enable with --tls-enable or specify a HTTP address")
+		require.ErrorContains(t, err, "tls-address")
 	})
 
 	t.Run("NoTLSAddress", func(t *testing.T) {

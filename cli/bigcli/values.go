@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -191,6 +192,9 @@ type HostPort struct {
 }
 
 func (hp *HostPort) Set(v string) error {
+	if v == "" {
+		return xerrors.Errorf("must not be empty")
+	}
 	var err error
 	hp.Host, hp.Port, err = net.SplitHostPort(v)
 	return err
@@ -200,7 +204,9 @@ func (hp *HostPort) String() string {
 	if hp.Host == "" && hp.Port == "" {
 		return ""
 	}
-	return hp.Host + ":" + hp.Port
+	// Warning: net.JoinHostPort must be used over concatenation to support
+	// IPv6 addresses.
+	return net.JoinHostPort(hp.Host, hp.Port)
 }
 
 func (hp *HostPort) MarshalJSON() ([]byte, error) {
