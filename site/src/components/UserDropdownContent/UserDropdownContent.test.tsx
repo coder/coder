@@ -1,5 +1,9 @@
 import { screen } from "@testing-library/react"
-import { MockBuildInfo, MockUser } from "../../testHelpers/entities"
+import {
+  MockBuildInfo,
+  MockSupportLinks,
+  MockUser,
+} from "../../testHelpers/entities"
 import { render } from "../../testHelpers/renderHelpers"
 import { Language, UserDropdownContent } from "./UserDropdownContent"
 
@@ -21,16 +25,23 @@ describe("UserDropdownContent", () => {
       <UserDropdownContent
         user={MockUser}
         buildInfo={MockBuildInfo}
+        supportLinks={MockSupportLinks}
         onSignOut={jest.fn()}
         onPopoverClose={jest.fn()}
       />,
     )
     expect(screen.getByText(Language.accountLabel)).toBeDefined()
-    expect(screen.getByText(Language.docsLabel)).toBeDefined()
     expect(screen.getByText(Language.signOutLabel)).toBeDefined()
-    expect(screen.getByText(Language.bugLabel)).toBeDefined()
-    expect(screen.getByText(Language.discordLabel)).toBeDefined()
     expect(screen.getByText(Language.copyrightText)).toBeDefined()
+    expect(screen.getByText(MockSupportLinks[0].name)).toBeDefined()
+    expect(screen.getByText(MockSupportLinks[1].name)).toBeDefined()
+    expect(screen.getByText(MockSupportLinks[2].name)).toBeDefined()
+    expect(
+      screen.getByText(MockSupportLinks[2].name).closest("a"),
+    ).toHaveAttribute(
+      "href",
+      "https://github.com/coder/coder/issues/new?labels=needs+grooming&body=Version%3A%20%5B%60v99.999.9999%2Bc9cdf14%60%5D(file%3A%2F%2F%2Fmock-url)",
+    )
     expect(screen.getByText(MockBuildInfo.version)).toBeDefined()
   })
 

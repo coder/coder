@@ -69,6 +69,7 @@ message CompletedJob {
         repeated provisioner.Resource start_resources = 1;
         repeated provisioner.Resource stop_resources = 2;
         repeated provisioner.RichParameter rich_parameters = 3;
+        repeated string git_auth_providers = 4;
     }
     message TemplateDryRun {
         repeated provisioner.Resource resources = 1;

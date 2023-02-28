@@ -418,8 +418,11 @@ CREATE TABLE template_versions (
     name character varying(64) NOT NULL,
     readme character varying(1048576) NOT NULL,
     job_id uuid NOT NULL,
-    created_by uuid NOT NULL
+    created_by uuid NOT NULL,
+    git_auth_providers text[]
 );
+
+COMMENT ON COLUMN template_versions.git_auth_providers IS 'IDs of Git auth providers for a specific template version';
 
 CREATE TABLE templates (
     id uuid NOT NULL,

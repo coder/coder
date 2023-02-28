@@ -1434,6 +1434,8 @@ type TemplateVersion struct {
 	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
+	// IDs of Git auth providers for a specific template version
+	GitAuthProviders []string `db:"git_auth_providers" json:"git_auth_providers"`
 }
 
 type TemplateVersionParameter struct {

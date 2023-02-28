@@ -6,7 +6,7 @@ import { RichParameterInput } from "components/RichParameterInput/RichParameterI
 import { Stack } from "components/Stack/Stack"
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
-import { FC, useState } from "react"
+import { FC, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "util/formUtils"
 import * as Yup from "yup"
@@ -15,10 +15,12 @@ import { makeStyles } from "@material-ui/core/styles"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 import { SelectedTemplate } from "./SelectedTemplate"
 import { Loader } from "components/Loader/Loader"
+import { GitAuth } from "components/GitAuth/GitAuth"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
   GET_TEMPLATE_SCHEMA_ERROR = "getTemplateSchemaError",
+  GET_TEMPLATE_GITAUTH_ERROR = "getTemplateGitAuthError",
   CREATE_WORKSPACE_ERROR = "createWorkspaceError",
 }
 
@@ -32,6 +34,7 @@ export interface CreateWorkspacePageViewProps {
   selectedTemplate?: TypesGen.Template
   templateParameters?: TypesGen.TemplateVersionParameter[]
   templateSchema?: TypesGen.ParameterSchema[]
+  templateGitAuth?: TypesGen.TemplateVersionGitAuth[]
   createWorkspaceErrors: Partial<Record<CreateWorkspaceErrors, Error | unknown>>
   canCreateForUser?: boolean
   owner: TypesGen.User | null
@@ -55,6 +58,15 @@ export const CreateWorkspacePageView: FC<
     props.templateParameters,
     props.defaultParameterValues,
   )
+  const [gitAuthErrors, setGitAuthErrors] = useState<Record<string, string>>({})
+  useEffect(() => {
+    // templateGitAuth is refreshed automatically using a BroadcastChannel
+    // which may change the `authenticated` property.
+    //
+    // If the provider becomes authenticated, we want the error message
+    // to disappear.
+    setGitAuthErrors({})
+  }, [props.templateGitAuth])
 
   const { t } = useTranslation("createWorkspacePage")
 
@@ -75,6 +87,20 @@ export const CreateWorkspacePageView: FC<
       enableReinitialize: true,
       initialTouched: props.initialTouched,
       onSubmit: (request) => {
+        for (let i = 0; i < (props.templateGitAuth?.length || 0); i++) {
+          const auth = props.templateGitAuth?.[i]
+          if (!auth) {
+            continue
+          }
+          if (!auth.authenticated) {
+            setGitAuthErrors({
+              [auth.id]: "You must authenticate to create a workspace!",
+            })
+            form.setSubmitting(false)
+            return
+          }
+        }
+
         if (!props.templateSchema) {
           throw new Error("No template schema loaded")
         }
@@ -138,6 +164,20 @@ export const CreateWorkspacePageView: FC<
             error={
               props.createWorkspaceErrors[
                 CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR
+              ]
+            }
+          />
+        )}
+        {Boolean(
+          props.createWorkspaceErrors[
+            CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
+          ],
+        ) && (
+          <AlertBanner
+            severity="error"
+            error={
+              props.createWorkspaceErrors[
+                CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR
               ]
             }
           />
@@ -216,6 +256,37 @@ export const CreateWorkspacePageView: FC<
                   onChange={props.setOwner}
                   label={t("ownerLabel")}
                 />
+              </Stack>
+            </div>
+          )}
+
+          {/* Template git auth */}
+          {props.templateGitAuth && props.templateGitAuth.length > 0 && (
+            <div className={styles.formSection}>
+              <div className={styles.formSectionInfo}>
+                <h2 className={styles.formSectionInfoTitle}>
+                  Git Authentication
+                </h2>
+                <p className={styles.formSectionInfoDescription}>
+                  This template requires authentication to automatically perform
+                  Git operations on create.
+                </p>
+              </div>
+
+              <Stack
+                direction="column"
+                spacing={2}
+                className={styles.formSectionFields}
+              >
+                {props.templateGitAuth.map((auth, index) => (
+                  <GitAuth
+                    key={index}
+                    authenticateURL={auth.authenticate_url}
+                    authenticated={auth.authenticated}
+                    type={auth.type}
+                    error={gitAuthErrors[auth.id]}
+                  />
+                ))}
               </Stack>
             </div>
           )}

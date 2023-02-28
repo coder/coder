@@ -223,6 +223,29 @@ func TestConfig(t *testing.T) {
 			}}, config.GitAuth.Value)
 		},
 	}, {
+		Name: "Support links",
+		Env: map[string]string{
+			"CODER_SUPPORT_LINKS_0_NAME":   "First link",
+			"CODER_SUPPORT_LINKS_0_TARGET": "http://target-link-1",
+			"CODER_SUPPORT_LINKS_0_ICON":   "bug",
+
+			"CODER_SUPPORT_LINKS_1_NAME":   "Second link",
+			"CODER_SUPPORT_LINKS_1_TARGET": "http://target-link-2",
+			"CODER_SUPPORT_LINKS_1_ICON":   "chat",
+		},
+		Valid: func(config *codersdk.DeploymentConfig) {
+			require.Len(t, config.Support.Links.Value, 2)
+			require.Equal(t, []codersdk.LinkConfig{{
+				Name:   "First link",
+				Target: "http://target-link-1",
+				Icon:   "bug",
+			}, {
+				Name:   "Second link",
+				Target: "http://target-link-2",
+				Icon:   "chat",
+			}}, config.Support.Links.Value)
+		},
+	}, {
 		Name: "Wrong env must not break default values",
 		Env: map[string]string{
 			"CODER_PROMETHEUS_ENABLE": "true",
