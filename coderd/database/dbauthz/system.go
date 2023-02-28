@@ -54,7 +54,7 @@ func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) 
 // The workspace is already fetched.
 // TODO: Find a way to replace this with proper authz.
 func (q *querier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
-	return q.GetTemplateVersionsByIDs(ctx, ids)
+	return q.db.GetTemplateVersionsByIDs(ctx, ids)
 }
 
 // GetWorkspaceResourcesByJobIDs is only used for workspace build data.
