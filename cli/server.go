@@ -1324,7 +1324,11 @@ func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, er
 		certFile, keyFile := tlsCertFiles[i], tlsKeyFiles[i]
 		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		if err != nil {
-			return nil, xerrors.Errorf("load TLS key pair %d (%q, %q): %w", i, certFile, keyFile, err)
+			return nil, xerrors.Errorf(
+				"load TLS key pair %d (%q, %q): %w\ncertFiles: %+v\nkeyFiles: %+v",
+				i, certFile, keyFile, err,
+				tlsCertFiles, tlsKeyFiles,
+			)
 		}
 
 		certs[i] = cert

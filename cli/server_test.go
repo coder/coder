@@ -384,6 +384,7 @@ func TestServer(t *testing.T) {
 				root, _ := clitest.New(t, args...)
 				err := root.ExecuteContext(ctx)
 				require.Error(t, err)
+				t.Logf("args: %v", args)
 				require.ErrorContains(t, err, c.errContains)
 			})
 		}

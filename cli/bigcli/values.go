@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 )
@@ -97,7 +98,23 @@ func (String) Type() string {
 	return "string"
 }
 
+var _ pflag.SliceValue = &Strings{}
+
 type Strings []string
+
+func (s *Strings) Append(v string) error {
+	*s = append(*s, v)
+	return nil
+}
+
+func (s *Strings) Replace(vals []string) error {
+	*s = vals
+	return nil
+}
+
+func (s *Strings) GetSlice() []string {
+	return *s
+}
 
 func (s *Strings) Set(v string) error {
 	*s = strings.Split(v, ",")
