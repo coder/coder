@@ -1317,11 +1317,7 @@ func (q *querier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.U
 		if err != nil {
 			return nil, err
 		}
-		workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
-		if err != nil {
-			return nil, err
-		}
-		obj = workspace
+		obj = build
 	default:
 		return nil, xerrors.Errorf("unknown job type: %s", job.Type)
 	}
@@ -1362,12 +1358,7 @@ func (q *querier) InsertWorkspaceBuildParameters(ctx context.Context, arg databa
 		return err
 	}
 
-	workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
-	if err != nil {
-		return err
-	}
-
-	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, build)
 	if err != nil {
 		return err
 	}
@@ -1431,11 +1422,7 @@ func (q *querier) UpdateWorkspaceBuildByID(ctx context.Context, arg database.Upd
 		return database.WorkspaceBuildThin{}, err
 	}
 
-	workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
-	if err != nil {
-		return database.WorkspaceBuildThin{}, err
-	}
-	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace.RBACObject())
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, build)
 	if err != nil {
 		return database.WorkspaceBuildThin{}, err
 	}
