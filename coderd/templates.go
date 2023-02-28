@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -82,11 +83,10 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: This just returns the workspaces a user can view. We should use
-	// a system function to get all workspaces that use this template.
-	// This data should never be exposed to the user aside from a non-zero count.
-	// Or we move this into a postgres constraint.
-	workspaces, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
+	// This is just to get the workspace count, so we use a system context to
+	// return ALL workspaces. Not just workspaces the user can view.
+	// nolint:gocritic
+	workspaces, err := api.Database.GetWorkspaces(dbauthz.AsSystemRestricted(ctx), database.GetWorkspacesParams{
 		TemplateIds: []uuid.UUID{template.ID},
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
