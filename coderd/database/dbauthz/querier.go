@@ -1143,17 +1143,7 @@ func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, work
 }
 
 func (q *querier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
-	// This is not ideal as not all builds will be returned if the workspace cannot be read.
-	// This should probably be handled differently? Maybe join workspace builds with workspace
-	// ownership properties and filter on that.
-	for _, id := range ids {
-		_, err := q.GetWorkspaceByID(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return q.db.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, ids)
+	return fetchWithPostFilter(q.auth, q.db.GetLatestWorkspaceBuildsByWorkspaceIDs)(ctx, ids)
 }
 
 func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
@@ -1255,10 +1245,19 @@ func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuil
 }
 
 func (q *querier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg database.GetWorkspaceBuildsByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
-	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
+	builds, err := q.db.GetWorkspaceBuildsByWorkspaceID(ctx, arg)
+	if err != nil {
 		return nil, err
 	}
-	return q.db.GetWorkspaceBuildsByWorkspaceID(ctx, arg)
+	if len(builds) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	// All builds come from the same workspace, so we only need to check the first one.
+	err = q.authorizeContext(ctx, rbac.ActionRead, builds[0])
+	if err != nil {
+		return nil, err
+	}
+	return builds, nil
 }
 
 func (q *querier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
