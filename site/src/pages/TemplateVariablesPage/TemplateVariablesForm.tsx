@@ -16,6 +16,7 @@ import {
   HorizontalForm,
   FormFooter,
 } from "components/HorizontalForm/HorizontalForm"
+import { TemplateVariableField } from "components/TemplateVariableField/TemplateVariableField"
 
 export const getValidationSchema = (): Yup.AnyObjectSchema => Yup.object()
 
@@ -73,13 +74,16 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
           description={templateVariable.description}
         >
           <FormFields>
-            <TextField
+            <TemplateVariableField
               {...getFieldHelpers("user_variable_values[" + index + "].value")}
+              templateVersionVariable={templateVariable}
               disabled={isSubmitting}
-              autoFocus
-              fullWidth
-              label={templateVariable.name}
-              variant="outlined"
+              onChange={(value) => {
+                form.setFieldValue("rich_parameter_values." + index, {
+                  name: templateVariable.name,
+                  value: value,
+                })
+              }}
             />
           </FormFields>
         </FormSection>
