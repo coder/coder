@@ -117,6 +117,7 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 
 // DeploymentConfig is the central configuration for the coder server.
 type DeploymentConfig struct {
+	Verbose                         bigcli.Bool                    `json:"verbose,omitempty"`
 	AccessURL                       bigcli.URL                     `json:"access_url,omitempty"`
 	WildcardAccessURL               bigcli.URL                     `json:"wildcard_access_url,omitempty"`
 	RedirectToAccessURL             bigcli.Bool                    `json:"redirect_to_access_url,omitempty"`
@@ -903,6 +904,16 @@ func (c *DeploymentConfig) ConfigOptions() bigcli.OptionSet {
 			Hidden:  true,
 		},
 		// Logging settings
+		{
+			Name:          "Verbose",
+			Description:   "Output debug-level logs.",
+			Flag:          "verbose",
+			FlagShorthand: "v",
+			Default:       "false",
+			Value:         &c.Verbose,
+			Group:         &DeploymentGroupIntrospectionLogging,
+			YAML:          "verbose",
+		},
 		{
 			Name:        "Human Log Location",
 			Description: "Output human-readable logs to a given file.",

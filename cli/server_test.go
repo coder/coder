@@ -847,7 +847,7 @@ func TestServer(t *testing.T) {
 		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "TLS address must be set if TLS is enabled")
+		require.ErrorContains(t, err, "must not be empty")
 	})
 
 	// DeprecatedAddress is a test for the deprecated --address flag. If
@@ -1233,17 +1233,12 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-human", fiName,
 			)
-			serverErr := make(chan error, 1)
-			go func() {
-				serverErr <- root.ExecuteContext(ctx)
-			}()
+			clitest.Start(ctx, t, root)
 
 			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fiName)
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitShort, testutil.IntervalFast)
-			cancelFunc()
-			<-serverErr
 		})
 
 		t.Run("Human", func(t *testing.T) {
@@ -1261,17 +1256,12 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-human", fi,
 			)
-			serverErr := make(chan error, 1)
-			go func() {
-				serverErr <- root.ExecuteContext(ctx)
-			}()
+			clitest.Start(ctx, t, root)
 
 			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fi)
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitShort, testutil.IntervalFast)
-			cancelFunc()
-			<-serverErr
 		})
 
 		t.Run("JSON", func(t *testing.T) {
@@ -1289,17 +1279,12 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-json", fi,
 			)
-			serverErr := make(chan error, 1)
-			go func() {
-				serverErr <- root.ExecuteContext(ctx)
-			}()
+			clitest.Start(ctx, t, root)
 
 			assert.Eventually(t, func() bool {
 				stat, err := os.Stat(fi)
 				return err == nil && stat.Size() > 0
 			}, testutil.WaitShort, testutil.IntervalFast)
-			cancelFunc()
-			<-serverErr
 		})
 
 		t.Run("Stackdriver", func(t *testing.T) {

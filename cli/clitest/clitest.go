@@ -3,6 +3,7 @@ package clitest
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"io/ioutil"
@@ -97,4 +98,29 @@ func extractTar(t *testing.T, data []byte, directory string) {
 			require.NoError(t, err)
 		}
 	}
+}
+
+// Start runs the command in a goroutine and cleans it up when
+// the test completed.
+func Start(ctx context.Context, t *testing.T, cmd *cobra.Command) {
+	t.Helper()
+
+	closeCh := make(chan struct{})
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	go func() {
+		defer cancel()
+		defer close(closeCh)
+		err := cmd.ExecuteContext(ctx)
+		if err != nil {
+			t.Error("command failed", err)
+		}
+	}()
+
+	// Don't exit test routine until server is done.
+	t.Cleanup(func() {
+		cancel()
+		<-closeCh
+	})
 }
