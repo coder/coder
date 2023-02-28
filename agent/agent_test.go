@@ -73,7 +73,7 @@ func TestAgent_Stats_SSH(t *testing.T) {
 	require.Eventuallyf(t, func() bool {
 		var ok bool
 		s, ok = <-stats
-		return ok && s.NumConns > 0 && s.RxBytes > 0 && s.TxBytes > 0
+		return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0
 	}, testutil.WaitLong, testutil.IntervalFast,
 		"never saw stats: %+v", s,
 	)
@@ -102,7 +102,7 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 	require.Eventuallyf(t, func() bool {
 		var ok bool
 		s, ok = <-stats
-		return ok && s.NumConns > 0 && s.RxBytes > 0 && s.TxBytes > 0
+		return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0
 	}, testutil.WaitLong, testutil.IntervalFast,
 		"never saw stats: %+v", s,
 	)

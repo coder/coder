@@ -60,6 +60,7 @@ func New() database.Store {
 			provisionerJobs:           make([]database.ProvisionerJob, 0),
 			templateVersions:          make([]database.TemplateVersion, 0),
 			templates:                 make([]database.Template, 0),
+			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
 			workspaceBuilds:           make([]database.WorkspaceBuildThin, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
@@ -98,7 +99,7 @@ type data struct {
 	userLinks           []database.UserLink
 
 	// New tables
-	agentStats                []database.AgentStat
+	workspaceAgentStats       []database.WorkspaceAgentStat
 	auditLogs                 []database.AuditLog
 	files                     []database.File
 	gitAuthLinks              []database.GitAuthLink
@@ -258,29 +259,34 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
-func (*fakeQuerier) DeleteOldAgentStats(_ context.Context) error {
+func (*fakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	// no-op
 	return nil
 }
 
-func (q *fakeQuerier) InsertAgentStat(_ context.Context, p database.InsertAgentStatParams) (database.AgentStat, error) {
+func (q *fakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
 	if err := validateDatabaseType(p); err != nil {
-		return database.AgentStat{}, err
+		return database.WorkspaceAgentStat{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	stat := database.AgentStat{
-		ID:          p.ID,
-		CreatedAt:   p.CreatedAt,
-		WorkspaceID: p.WorkspaceID,
-		AgentID:     p.AgentID,
-		UserID:      p.UserID,
-		Payload:     p.Payload,
-		TemplateID:  p.TemplateID,
+	stat := database.WorkspaceAgentStat{
+		ID:                 p.ID,
+		CreatedAt:          p.CreatedAt,
+		WorkspaceID:        p.WorkspaceID,
+		AgentID:            p.AgentID,
+		UserID:             p.UserID,
+		ConnectionsByProto: p.ConnectionsByProto,
+		ConnectionCount:    p.ConnectionCount,
+		RxPackets:          p.RxPackets,
+		RxBytes:            p.RxBytes,
+		TxPackets:          p.TxPackets,
+		TxBytes:            p.TxBytes,
+		TemplateID:         p.TemplateID,
 	}
-	q.agentStats = append(q.agentStats, stat)
+	q.workspaceAgentStats = append(q.workspaceAgentStats, stat)
 	return stat, nil
 }
 
@@ -290,7 +296,7 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 
 	seens := make(map[time.Time]map[uuid.UUID]struct{})
 
-	for _, as := range q.agentStats {
+	for _, as := range q.workspaceAgentStats {
 		if as.TemplateID != templateID {
 			continue
 		}
@@ -330,7 +336,7 @@ func (q *fakeQuerier) GetDeploymentDAUs(_ context.Context) ([]database.GetDeploy
 
 	seens := make(map[time.Time]map[uuid.UUID]struct{})
 
-	for _, as := range q.agentStats {
+	for _, as := range q.workspaceAgentStats {
 		date := as.CreatedAt.Truncate(time.Hour * 24)
 
 		dateEntry := seens[date]
@@ -1208,7 +1214,7 @@ func (q *fakeQuerier) GetWorkspaceByAgentID(_ context.Context, agentID uuid.UUID
 		return database.Workspace{}, sql.ErrNoRows
 	}
 
-	var build database.WorkspaceBuildThin
+	var build database.WorkspaceBuild
 	for _, _build := range q.workspaceBuilds {
 		if _build.JobID == resource.JobID {
 			build = _build
@@ -1322,28 +1328,13 @@ func (q *fakeQuerier) GetWorkspaceAppsByAgentIDs(_ context.Context, ids []uuid.U
 	return apps, nil
 }
 
-// expandWorkspaceThins must be called from a locked context.
-func (q *fakeQuerier) expandWorkspaceThins(thins []database.WorkspaceBuildThin) []database.WorkspaceBuild {
-	cpy := make([]database.WorkspaceBuild, 0, len(thins))
-	for _, thin := range thins {
-		cpy = append(cpy, q.expandWorkspaceThin(thin))
-	}
-	return cpy
-}
-
-// expandWorkspaceThin must be called from a locked context.
-func (q *fakeQuerier) expandWorkspaceThin(thin database.WorkspaceBuildThin) database.WorkspaceBuild {
-	w, _ := q.GetWorkspaceByID(context.Background(), thin.WorkspaceID)
-	return thin.Expand(w.OrganizationID, w.OwnerID)
-}
-
 func (q *fakeQuerier) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	for _, history := range q.workspaceBuilds {
 		if history.ID == id {
-			return q.expandWorkspaceThin(history), nil
+			return history, nil
 		}
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
@@ -1355,7 +1346,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUI
 
 	for _, build := range q.workspaceBuilds {
 		if build.JobID == jobID {
-			return q.expandWorkspaceThin(build), nil
+			return build, nil
 		}
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
@@ -1365,7 +1356,7 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, wo
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	var row database.WorkspaceBuildThin
+	var row database.WorkspaceBuild
 	var buildNum int32 = -1
 	for _, workspaceBuild := range q.workspaceBuilds {
 		if workspaceBuild.WorkspaceID == workspaceID && workspaceBuild.BuildNumber > buildNum {
@@ -1376,14 +1367,14 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, wo
 	if buildNum == -1 {
 		return database.WorkspaceBuild{}, sql.ErrNoRows
 	}
-	return q.expandWorkspaceThin(row), nil
+	return row, nil
 }
 
 func (q *fakeQuerier) GetLatestWorkspaceBuilds(_ context.Context) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	builds := make(map[uuid.UUID]database.WorkspaceBuildThin)
+	builds := make(map[uuid.UUID]database.WorkspaceBuild)
 	buildNumbers := make(map[uuid.UUID]int32)
 	for _, workspaceBuild := range q.workspaceBuilds {
 		id := workspaceBuild.WorkspaceID
@@ -1396,7 +1387,7 @@ func (q *fakeQuerier) GetLatestWorkspaceBuilds(_ context.Context) ([]database.Wo
 	for i, n := range buildNumbers {
 		if n > 0 {
 			b := builds[i]
-			returnBuilds = append(returnBuilds, q.expandWorkspaceThin(b))
+			returnBuilds = append(returnBuilds, b)
 		}
 	}
 	if len(returnBuilds) == 0 {
@@ -1409,7 +1400,7 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	builds := make(map[uuid.UUID]database.WorkspaceBuildThin)
+	builds := make(map[uuid.UUID]database.WorkspaceBuild)
 	buildNumbers := make(map[uuid.UUID]int32)
 	for _, workspaceBuild := range q.workspaceBuilds {
 		for _, id := range ids {
@@ -1423,7 +1414,7 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 	for i, n := range buildNumbers {
 		if n > 0 {
 			b := builds[i]
-			returnBuilds = append(returnBuilds, q.expandWorkspaceThin(b))
+			returnBuilds = append(returnBuilds, b)
 		}
 	}
 	if len(returnBuilds) == 0 {
@@ -1442,7 +1433,7 @@ func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	history := make([]database.WorkspaceBuildThin, 0)
+	history := make([]database.WorkspaceBuild, 0)
 	for _, workspaceBuild := range q.workspaceBuilds {
 		if workspaceBuild.CreatedAt.Before(params.Since) {
 			continue
@@ -1453,7 +1444,7 @@ func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
 	}
 
 	// Order by build_number
-	slices.SortFunc(history, func(a, b database.WorkspaceBuildThin) bool {
+	slices.SortFunc(history, func(a, b database.WorkspaceBuild) bool {
 		// use greater than since we want descending order
 		return a.BuildNumber > b.BuildNumber
 	})
@@ -1492,7 +1483,7 @@ func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
 	if len(history) == 0 {
 		return nil, sql.ErrNoRows
 	}
-	return q.expandWorkspaceThins(history), nil
+	return history, nil
 }
 
 func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.WorkspaceBuild, error) {
@@ -1510,7 +1501,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(_ context.Con
 		if workspaceBuild.BuildNumber != arg.BuildNumber {
 			continue
 		}
-		return q.expandWorkspaceThin(workspaceBuild), nil
+		return workspaceBuild, nil
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
@@ -1536,7 +1527,7 @@ func (q *fakeQuerier) GetWorkspaceBuildsCreatedAfter(_ context.Context, after ti
 	workspaceBuilds := make([]database.WorkspaceBuild, 0)
 	for _, workspaceBuild := range q.workspaceBuilds {
 		if workspaceBuild.CreatedAt.After(after) {
-			workspaceBuilds = append(workspaceBuilds, q.expandWorkspaceThin(workspaceBuild))
+			workspaceBuilds = append(workspaceBuilds, workspaceBuild)
 		}
 	}
 	return workspaceBuilds, nil
@@ -3073,15 +3064,15 @@ func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWork
 	return workspace, nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuildThin, error) {
+func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.WorkspaceBuildThin{}, err
+		return database.WorkspaceBuild{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	workspaceBuild := database.WorkspaceBuildThin{
+	workspaceBuild := database.WorkspaceBuild{
 		ID:                arg.ID,
 		CreatedAt:         arg.CreatedAt,
 		UpdatedAt:         arg.UpdatedAt,
@@ -3505,9 +3496,9 @@ func (q *fakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuildThin, error) {
+func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.WorkspaceBuildThin{}, err
+		return database.WorkspaceBuild{}, err
 	}
 
 	q.mutex.Lock()
@@ -3523,12 +3514,12 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 		q.workspaceBuilds[index] = workspaceBuild
 		return workspaceBuild, nil
 	}
-	return database.WorkspaceBuildThin{}, sql.ErrNoRows
+	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuildThin, error) {
+func (q *fakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.WorkspaceBuildThin{}, err
+		return database.WorkspaceBuild{}, err
 	}
 
 	q.mutex.Lock()
@@ -3542,7 +3533,7 @@ func (q *fakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg databa
 		q.workspaceBuilds[index] = workspaceBuild
 		return workspaceBuild, nil
 	}
-	return database.WorkspaceBuildThin{}, sql.ErrNoRows
+	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
@@ -4380,7 +4371,7 @@ func (q *fakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUI
 			continue
 		}
 
-		var lastBuild database.WorkspaceBuildThin
+		var lastBuild database.WorkspaceBuild
 		for _, build := range q.workspaceBuilds {
 			if build.WorkspaceID != workspace.ID {
 				continue
