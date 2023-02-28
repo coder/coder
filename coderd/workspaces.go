@@ -528,7 +528,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
-		workspaceBuild, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+		workspaceBuildThin, err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 			ID:                workspaceBuildID,
 			CreatedAt:         now,
 			UpdatedAt:         now,
@@ -544,6 +544,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
 		}
+		workspaceBuild = workspaceBuildThin.WithWorkspace(workspace)
 
 		names := make([]string, 0, len(createWorkspace.RichParameterValues))
 		values := make([]string, 0, len(createWorkspace.RichParameterValues))

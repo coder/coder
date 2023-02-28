@@ -55,7 +55,7 @@ type sqlcQuerier interface {
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
-	GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuildThin, error)
+	GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error)
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)

@@ -4,6 +4,8 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/coderd/rbac"
 )
 
@@ -72,6 +74,12 @@ func (v TemplateVersion) RBACObjectNoTemplate() rbac.Object {
 func (g Group) RBACObject() rbac.Object {
 	return rbac.ResourceGroup.WithID(g.ID).
 		InOrg(g.OrganizationID)
+}
+
+func (b WorkspaceBuild) RBACObject() rbac.Object {
+	return rbac.ResourceWorkspace.WithID(b.WorkspaceID).
+		InOrg(b.OrganizationID).
+		WithOwner(b.WorkspaceOwnerID.String())
 }
 
 func (w Workspace) RBACObject() rbac.Object {
@@ -154,6 +162,48 @@ func (u UserLink) RBACObject() rbac.Object {
 
 func (l License) RBACObject() rbac.Object {
 	return rbac.ResourceLicense.WithIDString(strconv.FormatInt(int64(l.ID), 10))
+}
+
+func (b WorkspaceBuild) ToThin() WorkspaceBuildThin {
+	return WorkspaceBuildThin{
+		ID:                b.ID,
+		CreatedAt:         b.CreatedAt,
+		UpdatedAt:         b.UpdatedAt,
+		WorkspaceID:       b.WorkspaceID,
+		TemplateVersionID: b.TemplateVersionID,
+		BuildNumber:       b.BuildNumber,
+		Transition:        b.Transition,
+		InitiatorID:       b.InitiatorID,
+		ProvisionerState:  b.ProvisionerState,
+		JobID:             b.JobID,
+		Deadline:          b.Deadline,
+		Reason:            b.Reason,
+		DailyCost:         b.DailyCost,
+	}
+}
+
+func (b WorkspaceBuildThin) WithWorkspace(workspace Workspace) WorkspaceBuild {
+	return b.Expand(workspace.OrganizationID, workspace.OwnerID)
+}
+
+func (b WorkspaceBuildThin) Expand(orgID, ownerID uuid.UUID) WorkspaceBuild {
+	return WorkspaceBuild{
+		ID:                b.ID,
+		CreatedAt:         b.CreatedAt,
+		UpdatedAt:         b.UpdatedAt,
+		WorkspaceID:       b.WorkspaceID,
+		TemplateVersionID: b.TemplateVersionID,
+		BuildNumber:       b.BuildNumber,
+		Transition:        b.Transition,
+		InitiatorID:       b.InitiatorID,
+		ProvisionerState:  b.ProvisionerState,
+		JobID:             b.JobID,
+		Deadline:          b.Deadline,
+		Reason:            b.Reason,
+		DailyCost:         b.DailyCost,
+		OrganizationID:    orgID,
+		WorkspaceOwnerID:  ownerID,
+	}
 }
 
 func ConvertUserRows(rows []GetUsersRow) []User {

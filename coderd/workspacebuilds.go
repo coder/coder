@@ -584,7 +584,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
 
-		workspaceBuild, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+		thinBuild, err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 			ID:                workspaceBuildID,
 			CreatedAt:         database.Now(),
 			UpdatedAt:         database.Now(),
@@ -600,6 +600,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
 		}
+
+		// Assign owning fields.
+		workspaceBuild = thinBuild.WithWorkspace(workspace)
 
 		names := make([]string, 0, len(parameters))
 		values := make([]string, 0, len(parameters))

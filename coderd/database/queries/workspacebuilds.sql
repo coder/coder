@@ -36,8 +36,8 @@ SELECT
 FROM
 	workspace_builds_rbac
 WHERE
-	workspace_builds.workspace_id = $1
-	AND workspace_builds.created_at > @since
+	workspace_builds_rbac.workspace_id = $1
+	AND workspace_builds_rbac.created_at > @since
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
@@ -102,7 +102,7 @@ FROM (
         workspace_id
 ) m
 JOIN
-    workspace_builds wb
+    workspace_builds_rbac wb
 ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number;
 
 -- name: InsertWorkspaceBuild :one

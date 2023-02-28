@@ -1179,10 +1179,7 @@ func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesP
 }
 
 func (q *querier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
-	if _, err := q.GetWorkspaceByID(ctx, workspaceID); err != nil {
-		return database.WorkspaceBuild{}, err
-	}
-	return q.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
+	return fetch(q.log, q.auth, q.db.GetLatestWorkspaceBuildByWorkspaceID)(ctx, workspaceID)
 }
 
 func (q *querier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
@@ -1320,34 +1317,15 @@ func (q *querier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUI
 }
 
 func (q *querier) GetWorkspaceBuildByID(ctx context.Context, buildID uuid.UUID) (database.WorkspaceBuild, error) {
-	build, err := q.db.GetWorkspaceBuildByID(ctx, buildID)
-	if err != nil {
-		return database.WorkspaceBuild{}, err
-	}
-	if _, err := q.GetWorkspaceByID(ctx, build.WorkspaceID); err != nil {
-		return database.WorkspaceBuild{}, err
-	}
-	return build, nil
+	return fetch(q.log, q.auth, q.db.GetWorkspaceBuildByID)(ctx, buildID)
 }
 
 func (q *querier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
-	build, err := q.db.GetWorkspaceBuildByJobID(ctx, jobID)
-	if err != nil {
-		return database.WorkspaceBuild{}, err
-	}
-	// Authorized fetch
-	_, err = q.GetWorkspaceByID(ctx, build.WorkspaceID)
-	if err != nil {
-		return database.WorkspaceBuild{}, err
-	}
-	return build, nil
+	return fetch(q.log, q.auth, q.db.GetWorkspaceBuildByJobID)(ctx, jobID)
 }
 
 func (q *querier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.WorkspaceBuild, error) {
-	if _, err := q.GetWorkspaceByID(ctx, arg.WorkspaceID); err != nil {
-		return database.WorkspaceBuild{}, err
-	}
-	return q.db.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, arg)
+	return fetch(q.log, q.auth, q.db.GetWorkspaceBuildByWorkspaceIDAndBuildNumber)(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
@@ -1475,10 +1453,10 @@ func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorksp
 	return insert(q.log, q.auth, obj, q.db.InsertWorkspace)(ctx, arg)
 }
 
-func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
+func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuildThin, error) {
 	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
-		return database.WorkspaceBuild{}, err
+		return database.WorkspaceBuildThin{}, err
 	}
 
 	var action rbac.Action = rbac.ActionUpdate
@@ -1487,7 +1465,7 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 	}
 
 	if err = q.authorizeContext(ctx, action, w); err != nil {
-		return database.WorkspaceBuild{}, err
+		return database.WorkspaceBuildThin{}, err
 	}
 
 	return q.db.InsertWorkspaceBuild(ctx, arg)
@@ -1563,19 +1541,19 @@ func (q *querier) UpdateWorkspaceAutostart(ctx context.Context, arg database.Upd
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceAutostart)(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspaceBuildByID(ctx context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
+func (q *querier) UpdateWorkspaceBuildByID(ctx context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuildThin, error) {
 	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.ID)
 	if err != nil {
-		return database.WorkspaceBuild{}, err
+		return database.WorkspaceBuildThin{}, err
 	}
 
 	workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
 	if err != nil {
-		return database.WorkspaceBuild{}, err
+		return database.WorkspaceBuildThin{}, err
 	}
 	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace.RBACObject())
 	if err != nil {
-		return database.WorkspaceBuild{}, err
+		return database.WorkspaceBuildThin{}, err
 	}
 
 	return q.db.UpdateWorkspaceBuildByID(ctx, arg)

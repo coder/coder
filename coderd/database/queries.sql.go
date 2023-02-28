@@ -5765,15 +5765,15 @@ func (q *sqlQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg Ins
 
 const getLatestWorkspaceBuildByWorkspaceID = `-- name: GetLatestWorkspaceBuildByWorkspaceID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, organization_id, workspace_owner_id
+    id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, organization_id, workspace_owner_id
 FROM
-	workspace_builds_rbac
+    workspace_builds_rbac
 WHERE
-	workspace_id = $1
+    workspace_id = $1
 ORDER BY
     build_number desc
 LIMIT
-	1
+    1
 `
 
 func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error) {
@@ -5800,7 +5800,7 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 }
 
 const getLatestWorkspaceBuilds = `-- name: GetLatestWorkspaceBuilds :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.organization_id, wb.workspace_owner_id
 FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
@@ -5810,19 +5810,19 @@ FROM (
         workspace_id
 ) m
 JOIN
-    workspace_builds wb
+    workspace_builds_rbac wb
 ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
 `
 
-func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuildThin, error) {
+func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error) {
 	rows, err := q.db.QueryContext(ctx, getLatestWorkspaceBuilds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []WorkspaceBuildThin
+	var items []WorkspaceBuild
 	for rows.Next() {
-		var i WorkspaceBuildThin
+		var i WorkspaceBuild
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -5837,6 +5837,8 @@ func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceB
 			&i.Deadline,
 			&i.Reason,
 			&i.DailyCost,
+			&i.OrganizationID,
+			&i.WorkspaceOwnerID,
 		); err != nil {
 			return nil, err
 		}
@@ -5857,14 +5859,14 @@ FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
     FROM
-		workspace_builds
+        workspace_builds
     WHERE
         workspace_id = ANY($1 :: uuid [ ])
     GROUP BY
         workspace_id
 ) m
 JOIN
-	 workspace_builds_rbac wb
+    workspace_builds_rbac wb
 ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
 `
 
@@ -6019,9 +6021,9 @@ SELECT
 FROM
 	workspace_builds_rbac
 WHERE
-	workspace_builds.workspace_id = $1
-	AND workspace_builds.created_at > $2
-    AND CASE
+	workspace_builds_rbac.workspace_id = $1
+	AND workspace_builds_rbac.created_at > $2
+	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.

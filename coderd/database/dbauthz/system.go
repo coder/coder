@@ -112,7 +112,7 @@ func (q *querier) GetDeploymentDAUs(ctx context.Context) ([]database.GetDeployme
 }
 
 // UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.
-func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
+func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuildThin, error) {
 	return q.db.UpdateWorkspaceBuildCostByID(ctx, arg)
 }
 
