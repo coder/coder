@@ -948,11 +948,11 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		UserID:             workspace.OwnerID,
 		TemplateID:         workspace.TemplateID,
 		ConnectionsByProto: payload,
-		ConnectionCount:    int32(req.ConnectionCount),
-		RxPackets:          int32(req.RxPackets),
-		RxBytes:            int32(req.RxBytes),
-		TxPackets:          int32(req.TxPackets),
-		TxBytes:            int32(req.TxBytes),
+		ConnectionCount:    req.ConnectionCount,
+		RxPackets:          req.RxPackets,
+		RxBytes:            req.RxBytes,
+		TxPackets:          req.TxPackets,
+		TxBytes:            req.TxBytes,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

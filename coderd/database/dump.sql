@@ -470,11 +470,11 @@ CREATE TABLE workspace_agent_stats (
     workspace_id uuid NOT NULL,
     template_id uuid NOT NULL,
     connections_by_proto jsonb DEFAULT '{}'::jsonb NOT NULL,
-    connection_count integer DEFAULT 0 NOT NULL,
-    rx_packets integer DEFAULT 0 NOT NULL,
-    rx_bytes integer DEFAULT 0 NOT NULL,
-    tx_packets integer DEFAULT 0 NOT NULL,
-    tx_bytes integer DEFAULT 0 NOT NULL
+    connection_count bigint DEFAULT 0 NOT NULL,
+    rx_packets bigint DEFAULT 0 NOT NULL,
+    rx_bytes bigint DEFAULT 0 NOT NULL,
+    tx_packets bigint DEFAULT 0 NOT NULL,
+    tx_bytes bigint DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE workspace_agents (

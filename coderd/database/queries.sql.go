@@ -5430,11 +5430,11 @@ type InsertWorkspaceAgentStatParams struct {
 	TemplateID         uuid.UUID       `db:"template_id" json:"template_id"`
 	AgentID            uuid.UUID       `db:"agent_id" json:"agent_id"`
 	ConnectionsByProto json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
-	ConnectionCount    int32           `db:"connection_count" json:"connection_count"`
-	RxPackets          int32           `db:"rx_packets" json:"rx_packets"`
-	RxBytes            int32           `db:"rx_bytes" json:"rx_bytes"`
-	TxPackets          int32           `db:"tx_packets" json:"tx_packets"`
-	TxBytes            int32           `db:"tx_bytes" json:"tx_bytes"`
+	ConnectionCount    int64           `db:"connection_count" json:"connection_count"`
+	RxPackets          int64           `db:"rx_packets" json:"rx_packets"`
+	RxBytes            int64           `db:"rx_bytes" json:"rx_bytes"`
+	TxPackets          int64           `db:"tx_packets" json:"tx_packets"`
+	TxBytes            int64           `db:"tx_bytes" json:"tx_bytes"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWorkspaceAgentStatParams) (WorkspaceAgentStat, error) {
