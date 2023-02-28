@@ -291,6 +291,10 @@ flags, and YAML configuration. The precedence is as follows:
 				return xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
 			}
 
+			if cfg.AccessURL.String() != "" && cfg.AccessURL.Scheme == "" {
+				return xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
+			}
+
 			// Disable rate limits if the `--dangerous-disable-rate-limits` flag
 			// was specified.
 			loginRateLimit := 60
