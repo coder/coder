@@ -14,22 +14,28 @@ export const TemplateVariablesPage: FC = () => {
     template: string
   }
   const organizationId = useOrganizationId()
-
+  const navigate = useNavigate()
   const [state, send] = useMachine(templateVariablesMachine, {
     context: {
       organizationId,
       templateName,
     },
+    actions: {
+      onUpdateTemplate: () => {
+        navigate(`/templates/${templateName}`)
+      },
+    },
   })
   const {
+    activeTemplateVersion,
     templateVariables,
     getTemplateError,
+    getActiveTemplateVersionError,
     getTemplateVariablesError,
-    // FIXME saveTemplateVariablesError,
+    updateTemplateError,
   } = state.context
 
   const { t } = useTranslation("templateVariablesPage")
-  const navigate = useNavigate()
   return (
     <>
       <Helmet>
@@ -38,20 +44,21 @@ export const TemplateVariablesPage: FC = () => {
 
       <TemplateVariablesPageView
         isSubmitting={state.hasTag("submitting")}
+        templateVersion={activeTemplateVersion}
         templateVariables={templateVariables}
         errors={{
           getTemplateError,
+          getActiveTemplateVersionError,
           getTemplateVariablesError,
-          // FIXME saveTemplateVariablesError,
+          updateTemplateError,
         }}
         onCancel={() => {
           navigate(`/templates/${templateName}`)
         }}
-        onSubmit={(templateVariables) => {
-          send({ type: "UPDATE_TEMPLATE", templateVariables })
+        onSubmit={(formData) => {
+          send({ type: "UPDATE_TEMPLATE_EVENT", request: formData })
         }}
       />
-
     </>
   )
 }

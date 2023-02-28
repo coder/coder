@@ -1,11 +1,13 @@
 import TextField from "@material-ui/core/TextField"
-import { CreateTemplateVersionRequest, Template, TemplateVersionVariable } from "api/typesGenerated"
+import {
+  CreateTemplateVersionRequest,
+  TemplateVersion,
+  TemplateVersionVariable,
+  VariableValue,
+} from "api/typesGenerated"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
-import {
-  getFormHelpers,
-  onChangeTrimmed,
-} from "util/formUtils"
+import { getFormHelpers, onChangeTrimmed } from "util/formUtils"
 import * as Yup from "yup"
 import { useTranslation } from "react-i18next"
 import { LazyIconField } from "components/IconField/LazyIconField"
@@ -19,11 +21,10 @@ import { Stack } from "components/Stack/Stack"
 import Checkbox from "@material-ui/core/Checkbox"
 import { makeStyles } from "@material-ui/core/styles"
 
-export const getValidationSchema = (): Yup.AnyObjectSchema =>
-  Yup.object()
+export const getValidationSchema = (): Yup.AnyObjectSchema => Yup.object()
 
 export interface TemplateVariablesForm {
-  template: Template
+  templateVersion: TemplateVersion
   templateVariables: TemplateVersionVariable[]
   onSubmit: (data: CreateTemplateVersionRequest) => void
   onCancel: () => void
@@ -34,7 +35,7 @@ export interface TemplateVariablesForm {
 }
 
 export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
-  template,
+  templateVersion,
   templateVariables,
   onSubmit,
   onCancel,
@@ -46,13 +47,22 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
   const form: FormikContextType<CreateTemplateVersionRequest> =
     useFormik<CreateTemplateVersionRequest>({
       initialValues: {
-        name: template.name,
+        template_id: templateVersion.template_id,
+        provisioner: "terraform",
+        storage_method: "file",
+        tags: {},
+        // FIXME file_id: null,
+        user_variable_values:
+          selectInitialUserVariableValues(templateVariables),
       },
       validationSchema,
       onSubmit: onSubmit,
       initialTouched,
     })
-  const getFieldHelpers = getFormHelpers<CreateTemplateVersionRequest>(form, error)
+  const getFieldHelpers = getFormHelpers<CreateTemplateVersionRequest>(
+    form,
+    error,
+  )
   const { t } = useTranslation("TemplateVariablesPage")
   const styles = useStyles()
 
@@ -118,9 +128,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
         description={t("schedule.description")}
       >
         <TextField
-          {...getFieldHelpers(
-            "default_ttl_ms",
-          )}
+          {...getFieldHelpers("default_ttl_ms")}
           disabled={isSubmitting}
           fullWidth
           inputProps={{ min: 0, step: 1 }}
@@ -153,7 +161,6 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
                 className={styles.optionText}
               >
                 {t("allowUserCancelWorkspaceJobsLabel")}
-
               </Stack>
               <span className={styles.optionHelperText}>
                 {t("allowUsersCancelHelperText")}
@@ -179,3 +186,26 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
   },
 }))
+
+export const selectInitialUserVariableValues = (
+  templateVariables: TemplateVersionVariable[],
+): VariableValue[] => {
+  const defaults: VariableValue[] = []
+  templateVariables.forEach((templateVariable) => {
+    if (
+      templateVariable.value === "" &&
+      templateVariable.default_value !== ""
+    ) {
+      defaults.push({
+        name: templateVariable.name,
+        value: templateVariable.default_value,
+      })
+      return
+    }
+    defaults.push({
+      name: templateVariable.name,
+      value: templateVariable.value,
+    })
+  })
+  return defaults
+}

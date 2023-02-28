@@ -1,4 +1,8 @@
-import { Template, TemplateVersionVariable, UpdateTemplateMeta } from "api/typesGenerated"
+import {
+  CreateTemplateVersionRequest,
+  TemplateVersion,
+  TemplateVersionVariable,
+} from "api/typesGenerated"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Loader } from "components/Loader/Loader"
 import { ComponentProps, FC } from "react"
@@ -9,20 +13,24 @@ import { useTranslation } from "react-i18next"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 
 export interface TemplateVariablesPageViewProps {
-  template?: Template
+  templateVersion?: TemplateVersion
   templateVariables?: TemplateVersionVariable[]
-  onSubmit: (data: UpdateTemplateMeta) => void
+  onSubmit: (data: CreateTemplateVersionRequest) => void
   onCancel: () => void
   isSubmitting: boolean
   errors?: {
     getTemplateError?: unknown
+    getActiveTemplateVersionError?: unknown
     getTemplateVariablesError?: unknown
+    updateTemplateError?: unknown
   }
-  initialTouched?: ComponentProps<typeof TemplateVariablesForm>["initialTouched"]
+  initialTouched?: ComponentProps<
+    typeof TemplateVariablesForm
+  >["initialTouched"]
 }
 
 export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
-  template,
+  templateVersion,
   templateVariables,
   onCancel,
   onSubmit,
@@ -31,7 +39,11 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
   initialTouched,
 }) => {
   const classes = useStyles()
-  const isLoading = !template && !errors.getTemplateError && !errors.getTemplateVariablesError
+  const isLoading =
+    !templateVersion &&
+    !templateVariables &&
+    !errors.getTemplateError &&
+    !errors.getTemplateVariablesError
   const { t } = useTranslation("TemplateVariablesPage")
 
   return (
@@ -42,16 +54,16 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
         </Stack>
       )}
       {isLoading && <Loader />}
-      {template && templateVariables && (
+      {templateVersion && templateVariables && (
         <>
           <TemplateVariablesForm
             initialTouched={initialTouched}
             isSubmitting={isSubmitting}
-            template={template}
+            templateVersion={templateVersion}
             templateVariables={templateVariables}
             onSubmit={onSubmit}
             onCancel={onCancel}
-            // TODO error={errors.saveTemplateVariablesError}
+            error={errors.updateTemplateError}
           />
         </>
       )}
