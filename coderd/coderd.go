@@ -284,6 +284,9 @@ func New(options *Options) *API {
 	// replicas or instances of this middleware.
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
 
+	derpHandler := derphttp.Handler(api.DERPServer)
+	derpHandler, api.derpCloseFunc = tailnet.AddWebsocketSupport(api.DERPServer, derpHandler)
+
 	r.Use(
 		httpmw.Recover(api.Logger),
 		tracing.StatusWriterMiddleware,
@@ -363,7 +366,7 @@ func New(options *Options) *API {
 	r.Route("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}", apps)
 	r.Route("/@{user}/{workspace_and_agent}/apps/{workspaceapp}", apps)
 	r.Route("/derp", func(r chi.Router) {
-		r.Get("/", derphttp.Handler(api.DERPServer).ServeHTTP)
+		r.Get("/", derpHandler.ServeHTTP)
 		// This is used when UDP is blocked, and latency must be checked via HTTP(s).
 		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -726,6 +729,7 @@ type API struct {
 
 	WebsocketWaitMutex sync.Mutex
 	WebsocketWaitGroup sync.WaitGroup
+	derpCloseFunc      func()
 
 	metricsCache        *metricscache.Cache
 	workspaceAgentCache *wsconncache.Cache
@@ -739,6 +743,7 @@ type API struct {
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
 	api.cancel()
+	api.derpCloseFunc()
 
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Wait()
