@@ -676,7 +676,6 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
     if (axios.isAxiosError(ex) && ex.response?.status === 404) {
       return {
         errors: [],
-        experimental: false,
         features: withDefaultFeatures({}),
         has_license: false,
         require_telemetry: false,

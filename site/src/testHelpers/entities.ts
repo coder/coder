@@ -1137,7 +1137,6 @@ export const MockEntitlements: TypesGen.Entitlements = {
   warnings: [],
   has_license: false,
   features: withDefaultFeatures({}),
-  experimental: false,
   require_telemetry: false,
   trial: false,
 }
@@ -1146,7 +1145,6 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
   errors: [],
   warnings: ["You are over your active user limit.", "And another thing."],
   has_license: true,
-  experimental: false,
   trial: false,
   require_telemetry: false,
   features: withDefaultFeatures({
@@ -1171,7 +1169,6 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   errors: [],
   warnings: [],
   has_license: true,
-  experimental: false,
   require_telemetry: false,
   trial: false,
   features: withDefaultFeatures({
