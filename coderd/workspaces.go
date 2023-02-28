@@ -1296,6 +1296,7 @@ func workspaceSearchQuery(query string, page codersdk.Pagination, agentInactiveD
 	return filter, parser.Errors
 }
 
+
 // splitQueryParameterByDelimiter takes a query string and splits it into the individual elements
 // of the query. Each element is separated by a delimiter. All quoted strings are
 // kept as a single element.
