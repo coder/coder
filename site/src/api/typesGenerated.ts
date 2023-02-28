@@ -13,6 +13,11 @@ export interface APIKey {
   readonly lifetime_seconds: number
 }
 
+// From codersdk/apikey.go
+export interface APIKeyWithOwner extends APIKey {
+  readonly username: string
+}
+
 // From codersdk/licenses.go
 export interface AddLicenseRequest {
   readonly license: string
@@ -134,11 +139,6 @@ export interface ComputedParameter extends Parameter {
   readonly source_value: string
   readonly schema_id: string
   readonly default_source_value: boolean
-}
-
-// From codersdk/apikey.go
-export interface ConvertedAPIKey extends APIKey {
-  readonly username: string
 }
 
 // From codersdk/users.go

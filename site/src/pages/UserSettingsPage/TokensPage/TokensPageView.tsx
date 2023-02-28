@@ -15,7 +15,7 @@ import { FC } from "react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import IconButton from "@material-ui/core/IconButton/IconButton"
 import { useTranslation } from "react-i18next"
-import { ConvertedAPIKey } from "api/typesGenerated"
+import { APIKeyWithOwner } from "api/typesGenerated"
 
 const lastUsedOrNever = (lastUsed: string) => {
   const t = dayjs(lastUsed)
@@ -24,7 +24,7 @@ const lastUsedOrNever = (lastUsed: string) => {
 }
 
 export interface TokensPageViewProps {
-  tokens?: ConvertedAPIKey[]
+  tokens?: APIKeyWithOwner[]
   viewAllTokens: boolean
   getTokensError?: Error | unknown
   isLoading: boolean

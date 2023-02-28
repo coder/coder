@@ -216,18 +216,29 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var apiKeys []codersdk.ConvertedAPIKey
+	var userIds []uuid.UUID
 	for _, key := range keys {
-		user, err := api.Database.GetUserByID(ctx, key.UserID)
-		if err != nil {
-			apiKeys = append(apiKeys, codersdk.ConvertedAPIKey{
-				APIKey:   convertAPIKey(key),
-				Username: "",
-			})
-		} else {
-			apiKeys = append(apiKeys, codersdk.ConvertedAPIKey{
+		userIds = append(userIds, key.UserID)
+	}
+	fmt.Println("userIds", userIds)
+
+	users, _ := api.Database.GetUsersByIDs(ctx, userIds)
+	usersByID := map[uuid.UUID]database.User{}
+	for _, user := range users {
+		usersByID[user.ID] = user
+	}
+
+	var apiKeys []codersdk.APIKeyWithOwner
+	for _, key := range keys {
+		if user, exists := usersByID[key.UserID]; exists {
+			apiKeys = append(apiKeys, codersdk.APIKeyWithOwner{
 				APIKey:   convertAPIKey(key),
 				Username: user.Username,
+			})
+		} else {
+			apiKeys = append(apiKeys, codersdk.APIKeyWithOwner{
+				APIKey:   convertAPIKey(key),
+				Username: "",
 			})
 		}
 	}
