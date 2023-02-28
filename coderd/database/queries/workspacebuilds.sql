@@ -2,7 +2,7 @@
 SELECT
 	*
 FROM
-	workspace_builds
+	workspace_builds_rbac
 WHERE
 	id = $1
 LIMIT
@@ -12,20 +12,20 @@ LIMIT
 SELECT
 	*
 FROM
-	workspace_builds
+	workspace_builds_rbac
 WHERE
 	job_id = $1
 LIMIT
 	1;
 
 -- name: GetWorkspaceBuildsCreatedAfter :many
-SELECT * FROM workspace_builds WHERE created_at > $1;
+SELECT * FROM workspace_builds_rbac WHERE created_at > $1;
 
 -- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
 SELECT
 	*
 FROM
-	workspace_builds
+	workspace_builds_rbac
 WHERE
 	workspace_id = $1
 	AND build_number = $2;
@@ -34,11 +34,11 @@ WHERE
 SELECT
 	*
 FROM
-	workspace_builds
+	workspace_builds_rbac
 WHERE
 	workspace_builds.workspace_id = $1
 	AND workspace_builds.created_at > @since
-    AND CASE
+	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
@@ -65,15 +65,15 @@ LIMIT
 
 -- name: GetLatestWorkspaceBuildByWorkspaceID :one
 SELECT
-	*
+    *
 FROM
-	workspace_builds
+    workspace_builds_rbac
 WHERE
-	workspace_id = $1
+    workspace_id = $1
 ORDER BY
     build_number desc
 LIMIT
-	1;
+    1;
 
 -- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
 SELECT wb.*
@@ -88,7 +88,7 @@ FROM (
         workspace_id
 ) m
 JOIN
-    workspace_builds wb
+    workspace_builds_rbac wb
 ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number;
 
 -- name: GetLatestWorkspaceBuilds :many
