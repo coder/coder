@@ -1793,6 +1793,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "honeycomb_api_key": "string"
   },
   "update_check": true,
+  "verbose": true,
   "wildcard_access_url": {
     "forceQuery": true,
     "fragment": "string",
@@ -1857,6 +1858,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                 | false    |              |                                                 |
 | `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                             | false    |              |                                                 |
 | `update_check`                       | boolean                                                                                  | false    |              |                                                 |
+| `verbose`                            | boolean                                                                                  | false    |              |                                                 |
 | `wildcard_access_url`                | [bigcli.URL](#bigcliurl)                                                                 | false    |              |                                                 |
 | `write_config`                       | boolean                                                                                  | false    |              |                                                 |
 
@@ -2083,6 +2085,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "honeycomb_api_key": "string"
     },
     "update_check": true,
+    "verbose": true,
     "wildcard_access_url": {
       "forceQuery": true,
       "fragment": "string",
@@ -2184,7 +2187,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "errors": ["string"],
-  "experimental": true,
   "features": {
     "property1": {
       "actual": 0,
@@ -2208,16 +2210,15 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name                | Type                                 | Required | Restrictions | Description                           |
-| ------------------- | ------------------------------------ | -------- | ------------ | ------------------------------------- |
-| `errors`            | array of string                      | false    |              |                                       |
-| `experimental`      | boolean                              | false    |              | Experimental use Experiments instead. |
-| `features`          | object                               | false    |              |                                       |
-| » `[any property]`  | [codersdk.Feature](#codersdkfeature) | false    |              |                                       |
-| `has_license`       | boolean                              | false    |              |                                       |
-| `require_telemetry` | boolean                              | false    |              |                                       |
-| `trial`             | boolean                              | false    |              |                                       |
-| `warnings`          | array of string                      | false    |              |                                       |
+| Name                | Type                                 | Required | Restrictions | Description |
+| ------------------- | ------------------------------------ | -------- | ------------ | ----------- |
+| `errors`            | array of string                      | false    |              |             |
+| `features`          | object                               | false    |              |             |
+| » `[any property]`  | [codersdk.Feature](#codersdkfeature) | false    |              |             |
+| `has_license`       | boolean                              | false    |              |             |
+| `require_telemetry` | boolean                              | false    |              |             |
+| `trial`             | boolean                              | false    |              |             |
+| `warnings`          | array of string                      | false    |              |             |
 
 ## codersdk.Experiment
 

@@ -302,6 +302,7 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
       "honeycomb_api_key": "string"
     },
     "update_check": true,
+    "verbose": true,
     "wildcard_access_url": {
       "forceQuery": true,
       "fragment": "string",

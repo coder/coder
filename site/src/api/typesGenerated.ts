@@ -301,6 +301,8 @@ export interface DangerousConfig {
 
 // From codersdk/deployment.go
 export interface DeploymentConfig {
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
+  readonly verbose?: boolean
   readonly access_url?: string
   readonly wildcard_access_url?: string
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
@@ -392,7 +394,6 @@ export interface Entitlements {
   readonly has_license: boolean
   readonly trial: boolean
   readonly require_telemetry: boolean
-  readonly experimental: boolean
 }
 
 // From codersdk/deployment.go

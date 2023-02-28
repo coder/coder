@@ -6438,6 +6438,9 @@ const docTemplate = `{
                 "update_check": {
                     "type": "boolean"
                 },
+                "verbose": {
+                    "type": "boolean"
+                },
                 "wildcard_access_url": {
                     "$ref": "#/definitions/bigcli.URL"
                 },
@@ -6492,10 +6495,6 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
-                },
-                "experimental": {
-                    "description": "DEPRECATED: use Experiments instead.",
-                    "type": "boolean"
                 },
                 "features": {
                     "type": "object",
