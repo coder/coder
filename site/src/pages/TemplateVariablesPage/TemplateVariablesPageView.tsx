@@ -44,7 +44,7 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
     !templateVariables &&
     !errors.getTemplateError &&
     !errors.getTemplateVariablesError
-  const { t } = useTranslation("TemplateVariablesPage")
+  const { t } = useTranslation("templateVariablesPage")
 
   return (
     <FullPageHorizontalForm title={t("title")} onCancel={onCancel}>
