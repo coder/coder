@@ -34,6 +34,24 @@ func TestOptionSet_ParseFlags(t *testing.T) {
 		require.EqualValues(t, "f", workspaceName)
 	})
 
+	t.Run("Strings", func(t *testing.T) {
+		t.Parallel()
+
+		var names bigcli.Strings
+
+		os := bigcli.OptionSet{
+			bigcli.Option{
+				Name:          "name",
+				Value:         &names,
+				FlagShorthand: "n",
+			},
+		}
+
+		err := os.FlagSet().Parse([]string{"--name", "foo", "--name", "bar"})
+		require.NoError(t, err)
+		require.EqualValues(t, []string{"foo", "bar"}, names)
+	})
+
 	t.Run("ExtraFlags", func(t *testing.T) {
 		t.Parallel()
 

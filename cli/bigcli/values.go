@@ -1,6 +1,7 @@
 package bigcli
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -116,13 +117,30 @@ func (s *Strings) GetSlice() []string {
 	return *s
 }
 
+func readAsCSV(v string) ([]string, error) {
+	return csv.NewReader(strings.NewReader(v)).Read()
+}
+
+func writeAsCSV(vals []string) string {
+	var sb strings.Builder
+	err := csv.NewWriter(&sb).Write(vals)
+	if err != nil {
+		return fmt.Sprintf("error: %s", err)
+	}
+	return sb.String()
+}
+
 func (s *Strings) Set(v string) error {
-	*s = strings.Split(v, ",")
+	ss, err := readAsCSV(v)
+	if err != nil {
+		return err
+	}
+	*s = append(*s, ss...)
 	return nil
 }
 
 func (s Strings) String() string {
-	return strings.Join(s, ",")
+	return writeAsCSV([]string(s))
 }
 
 func (s Strings) Value() []string {
