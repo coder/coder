@@ -201,7 +201,7 @@ jobs:
           # available immediately
           for i in {1..10}; do
             rc=0
-            raw_manifest=$(docker manifest inspect ghcr.io/coder/coder-base:latest || rc=$?)
+            raw_manifests=$(docker manifest inspect "${{ steps.image-base-tag.outputs.tag }}") || rc=$?
             if [[ "$rc" -eq 0 ]]; then
               break
             fi
@@ -209,11 +209,12 @@ jobs:
               echo "Failed to pull manifests after 10 retries"
               exit 1
             fi
+            echo "Failed to pull manifests, retrying in 5 seconds"
             sleep 5
           done
 
           manifests=$(
-            echo "$raw_manifest" | \
+            echo "$raw_manifests" | \
               jq -r '.manifests[].platform | .os + "/" + .architecture + (if .variant then "/" + .variant else "" end)'
           )
 
