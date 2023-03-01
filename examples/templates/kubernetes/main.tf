@@ -38,19 +38,19 @@ data "coder_parameter" "cpu" {
   icon    = "/icon/memory.svg"
   mutable = true
   option {
-    name  = "2"
+    name  = "2 Cores"
     value = "2"
   }
   option {
-    name  = "4"
+    name  = "4 Cores"
     value = "4"
   }
   option {
-    name  = "6"
+    name  = "6 Cores"
     value = "6"
   }
   option {
-    name  = "8"
+    name  = "8 Cores"
     value = "8"
   }
 }
@@ -61,19 +61,19 @@ data "coder_parameter" "memory" {
   icon    = "/icon/memory.svg"
   mutable = true
   option {
-    name  = "2"
+    name  = "2 GB"
     value = "2"
   }
   option {
-    name  = "4"
+    name  = "4 GB"
     value = "4"
   }
   option {
-    name  = "6"
+    name  = "6 GB"
     value = "6"
   }
   option {
-    name  = "8"
+    name  = "8 GB"
     value = "8"
   }
 }
@@ -85,6 +85,7 @@ data "coder_parameter" "home_disk_size" {
   mutable = false
   validation {
     min = 1
+    max = 99999
   }
 }
 

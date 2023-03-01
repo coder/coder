@@ -23,10 +23,12 @@ data "coder_parameter" "os" {
   option {
     name  = "Ubuntu"
     value = "ubuntu"
+    icon  = "/icon/ubuntu.svg"
   }
   option {
     name  = "Fedora"
     value = "fedora"
+    icon  = "/icon/fedora.svg"
   }
 }
 
@@ -34,19 +36,19 @@ data "coder_parameter" "cpu" {
   name    = "CPU (cores)"
   default = "2"
   option {
-    name  = "2"
+    name  = "2 Cores"
     value = "2"
   }
   option {
-    name  = "4"
+    name  = "4 Cores"
     value = "4"
   }
   option {
-    name  = "6"
+    name  = "6 Cores"
     value = "6"
   }
   option {
-    name  = "8"
+    name  = "8 Cores"
     value = "8"
   }
 }
@@ -55,19 +57,19 @@ data "coder_parameter" "memory" {
   name    = "Memory (GB)"
   default = "2"
   option {
-    name  = "2"
+    name  = "2 GB"
     value = "2"
   }
   option {
-    name  = "4"
+    name  = "4 GB"
     value = "4"
   }
   option {
-    name  = "6"
+    name  = "6 GB"
     value = "6"
   }
   option {
-    name  = "8"
+    name  = "8 GB"
     value = "8"
   }
 }
@@ -91,10 +93,11 @@ resource "coder_agent" "dev" {
 
 # code-server
 resource "coder_app" "code-server" {
-  agent_id = coder_agent.dev.id
-  name     = "code-server"
-  icon     = "/icon/code.svg"
-  url      = "http://localhost:13337"
+  agent_id     = coder_agent.dev.id
+  display_name = "Code Server"
+  slug         = "code-server"
+  icon         = "/icon/code.svg"
+  url          = "http://localhost:13337"
 }
 
 resource "kubernetes_pod" "main" {
