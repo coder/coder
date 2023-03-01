@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.12"
+      version = "~> 0.6.14"
     }
     aws = {
       source  = "hashicorp/aws"
@@ -15,6 +15,7 @@ variable "ecs-cluster" {
   description = "Input the ECS cluster ARN to host the workspace"
   default     = ""
 }
+
 variable "cpu" {
   default = "1024"
 }

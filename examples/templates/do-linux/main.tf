@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.12"
+      version = "~> 0.6.14"
     }
     digitalocean = {
       source  = "digitalocean/digitalocean"
@@ -11,77 +11,205 @@ terraform {
   }
 }
 
-variable "step1_do_project_id" {
-  type        = string
+
+
+data "coder_parameter" "step1_do_project_id" {
+  name        = "Enter project ID"
   description = <<-EOF
     Enter project ID
 
       $ doctl projects list
   EOF
-  sensitive   = true
-
+  type        = "string"
+  default     = "0"
+  mutable     = false
   validation {
-    condition     = length(var.step1_do_project_id) == 36
-    error_message = "Invalid Digital Ocean Project ID."
+    # make sure length of alphanumeric string is 36
+    regex = "^[a-zA-Z0-9]{36}$"
+    error = "Invalid Digital Ocean Project ID."
   }
 }
 
-variable "step2_do_admin_ssh_key" {
-  type        = number
+data "coder_parameter" "step2_do_admin_ssh_key" {
+  name        = "Enter admin SSH key ID (some Droplet images require an SSH key to be set):"
   description = <<-EOF
-    Enter admin SSH key ID (some Droplet images require an SSH key to be set):
-
     Can be set to "0" for no key.
 
     Note: Setting this to zero will break Fedora images and notify root passwords via email.
 
       $ doctl compute ssh-key list
   EOF
-  sensitive   = true
-
+  type        = "number"
+  default     = "0"
+  mutable     = false
   validation {
-    condition     = var.step2_do_admin_ssh_key >= 0
-    error_message = "Invalid Digital Ocean SSH key ID, a number is required."
+    min   = 0
+    error = "Invalid Digital Ocean SSH key ID, a number is required."
   }
 }
 
-variable "droplet_image" {
-  type        = string
-  description = "Which Droplet image would you like to use for your workspace?"
-  default     = "ubuntu-22-04-x64"
-  validation {
-    condition     = contains(["ubuntu-22-04-x64", "ubuntu-20-04-x64", "fedora-36-x64", "fedora-35-x64", "debian-11-x64", "debian-10-x64", "centos-stream-9-x64", "centos-stream-8-x64", "rockylinux-8-x64", "rockylinux-8-4-x64"], var.droplet_image)
-    error_message = "Value must be ubuntu-22-04-x64, ubuntu-20-04-x64, fedora-36-x64, fedora-35-x64, debian-11-x64, debian-10-x64, centos-stream-9-x64, centos-stream-8-x64, rockylinux-8-x64 or rockylinux-8-4-x64."
+data "coder_parameter" "droplet_image" {
+  name    = "Which Droplet image would you like to use for your workspace?"
+  default = "ubuntu-22-04-x64"
+  type    = "string"
+  mutable = false
+  option {
+    name  = "Ubuntu 22.04"
+    value = "ubuntu-22-04-x64"
+  }
+  option {
+    name  = "Ubuntu 20.04"
+    value = "ubuntu-20-04-x64"
+  }
+  option {
+    name  = "Fedora 36"
+    value = "fedora-36-x64"
+  }
+  option {
+    name  = "Fedora 35"
+    value = "fedora-35-x64"
+  }
+  option {
+    name  = "Debian 11"
+    value = "debian-11-x64"
+  }
+  option {
+    name  = "Debian 10"
+    value = "debian-10-x64"
+  }
+  option {
+    name  = "CentOS Stream 9"
+    value = "centos-stream-9-x64"
+  }
+  option {
+    name  = "CentOS Stream 8"
+    value = "centos-stream-8-x64"
+  }
+  option {
+    name  = "Rocky Linux 8"
+    value = "rockylinux-8-x64"
+  }
+  option {
+    name  = "Rocky Linux 8.4"
+    value = "rockylinux-8-4-x64"
   }
 }
 
-variable "droplet_size" {
-  type        = string
-  description = "Which Droplet configuration would you like to use?"
-  default     = "s-1vcpu-1gb"
-  validation {
-    condition     = contains(["s-1vcpu-1gb", "s-1vcpu-2gb", "s-2vcpu-2gb", "s-2vcpu-4gb", "s-4vcpu-8gb", "s-8vcpu-16gb"], var.droplet_size)
-    error_message = "Value must be s-1vcpu-1gb, s-1vcpu-2gb, s-2vcpu-2gb, s-2vcpu-4gb, s-4vcpu-8gb or s-8vcpu-16gb."
+data "coder_parameter" "droplet_size" {
+  name    = "Which Droplet configuration would you like to use?"
+  default = "s-1vcpu-1gb"
+  type    = "string"
+  mutable = false
+  option {
+    name  = "s-1vcpu-1gb"
+    value = "s-1vcpu-1gb"
+  }
+  option {
+    name  = "s-1vcpu-2gb"
+    value = "s-1vcpu-2gb"
+  }
+  option {
+    name  = "s-2vcpu-2gb"
+    value = "s-2vcpu-2gb"
+  }
+  option {
+    name  = "s-2vcpu-4gb"
+    value = "s-2vcpu-4gb"
+  }
+  option {
+    name  = "s-4vcpu-8gb"
+    value = "s-4vcpu-8gb"
+  }
+  option {
+    name  = "s-8vcpu-16gb"
+    value = "s-8vcpu-16gb"
   }
 }
 
-variable "home_volume_size" {
-  type        = number
-  description = "How large would you like your home volume to be (in GB)?"
-  default     = 20
+
+data "coder_parameter" "home_volume_size" {
+  name        = "How large would you like your home volume to be (in GB)?"
+  description = "This volume will be mounted to /home/coder."
+  type        = "number"
+  default     = "20"
+  mutable     = false
   validation {
-    condition     = var.home_volume_size >= 1
-    error_message = "Value must be greater than or equal to 1."
+    min   = 1
+    error = "Value must be greater than or equal to 1."
   }
 }
 
-variable "region" {
-  type        = string
-  description = "Which region would you like to use?"
+data "coder_parameter" "region" {
+  name        = "Which region would you like to use?"
+  description = "This is the region where your workspace will be created."
+  icon        = "/emojis/1f30e.png"
+  type        = "string"
   default     = "ams3"
-  validation {
-    condition     = contains(["nyc1", "nyc2", "nyc3", "sfo1", "sfo2", "sfo3", "ams2", "ams3", "sgp1", "lon1", "fra1", "tor1", "blr1"], var.region)
-    error_message = "Value must be nyc1, nyc2, nyc3, sfo1, sfo2, sfo3, ams2, ams3, sgp1, lon1, fra1, tor1 or blr1."
+  mutable     = false
+  option {
+    name  = "New York 1"
+    value = "nyc1"
+    icon  = "/emojis/1f1fa_1f1f8.png"
+  }
+  option {
+    name  = "New York 2"
+    value = "nyc2"
+    icon  = "/emojis/1f1fa_1f1f8.png"
+  }
+  option {
+    name  = "New York 3"
+    value = "nyc3"
+    icon  = "/emojis/1f1fa_1f1f8.png"
+  }
+  option {
+    name  = "San Francisco 1"
+    value = "sfo1"
+    icon  = "/emojis/1f1fa_1f1f8.png"
+  }
+  option {
+    name  = "San Francisco 2"
+    value = "sfo2"
+    icon  = "/emojis/1f1fa_1f1f8.png"
+  }
+  option {
+    name  = "San Francisco 3"
+    value = "sfo3"
+    icon  = "/emojis/1f1fa_1f1f8.png"
+  }
+  option {
+    name  = "Amsterdam 2"
+    value = "ams2"
+    icon  = "/emojis/1f1f3_1f1f1.png"
+  }
+  option {
+    name  = "Amsterdam 3"
+    value = "ams3"
+    icon  = "/emojis/1f1f3_1f1f1.png"
+  }
+  option {
+    name  = "Singapore 1"
+    value = "sgp1"
+    icon  = "/emojis/1f1f8_1f1ec.png"
+  }
+  option {
+    name  = "London 1"
+    value = "lon1"
+    icon  = "/emojis/1f1ec_1f1e7.png"
+  }
+  option {
+    name  = "Frankfurt 1"
+    value = "fra1"
+    icon  = "/emojis/1f1e9_1f1ea.png"
+  }
+  option {
+    name  = "Toronto 1"
+    value = "tor1"
+    icon  = "/emojis/1f1e8_1f1e6.png"
+  }
+  option {
+    name  = "Bangalore 1"
+    value = "blr1"
+    icon  = "/emojis/1f1ee_1f1f3.png"
   }
 }
 
@@ -161,5 +289,4 @@ resource "coder_metadata" "volume-info" {
     key   = "size"
     value = "${digitalocean_volume.home_volume.size} GiB"
   }
-
 }

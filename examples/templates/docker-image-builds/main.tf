@@ -3,11 +3,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.12"
+      version = "~> 0.6.14"
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 2.20.2"
+      version = "~> 3.0.1"
     }
   }
 }
@@ -53,23 +53,30 @@ resource "coder_app" "code-server" {
 
 }
 
-variable "docker_image" {
-  description = "What Docker image would you like to use for your workspace?"
+data "coder_parameter" "docker_image" {
+  name        = "What Docker image would you like to use for your workspace?"
+  description = "The Docker image will be used to build your workspace. You can choose from a list of pre-built images or provide your own."
   default     = "base"
-
-  # List of images available for the user to choose from.
-  # Delete this condition to give users free text input.
-  validation {
-    condition     = contains(["base", "java", "node"], var.docker_image)
-    error_message = "Invalid Docker image!"
+  icon        = "/emojis/1f4bf.png"
+  type        = "string"
+  mutable     = false
+  option {
+    name  = "Base"
+    value = "base"
+    icon  = "/icon/code.svg"
   }
-
-  # Prevents admin errors when the image is not found
-  validation {
-    condition     = fileexists("images/${var.docker_image}.Dockerfile")
-    error_message = "Invalid Docker image. The file does not exist in the images directory."
+  option {
+    name  = "Java"
+    value = "java"
+    icon  = "/icon/java.svg"
+  }
+  option {
+    name  = "Node"
+    value = "node"
+    icon  = "/icon/node.svg"
   }
 }
+
 
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.id}-home"
@@ -102,7 +109,7 @@ resource "docker_image" "coder_image" {
   name = "coder-base-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   build {
     path       = "./images/"
-    dockerfile = "${var.docker_image}.Dockerfile"
+    dockerfile = "${data.coder_parameter.docker_image.value}.Dockerfile"
     tag        = ["coder-${var.docker_image}:v0.1"]
   }
 
@@ -154,6 +161,6 @@ resource "coder_metadata" "container_info" {
 
   item {
     key   = "image"
-    value = var.docker_image
+    value = data.coder_parameter.docker_image.value
   }
 }

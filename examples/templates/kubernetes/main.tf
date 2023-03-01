@@ -2,18 +2,17 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.12"
+      version = "~> 0.6.14"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.12.1"
+      version = "~> 2.12"
     }
   }
 }
 
-variable "use_kubeconfig" {
-  type        = bool
-  sensitive   = true
+data "coder_parameter" "use_kubeconfig" {
+  name        = "Use host kubeconfig? (true/false)"
   description = <<-EOF
   Use host kubeconfig? (true/false)
 
@@ -23,55 +22,73 @@ variable "use_kubeconfig" {
   Set this to true if the Coder host is running outside the Kubernetes cluster
   for workspaces.  A valid "~/.kube/config" must be present on the Coder host.
   EOF
+  type        = "bool"
+  default     = "false"
+  mutable     = false
 }
 
-variable "namespace" {
-  type        = string
-  sensitive   = true
-  description = "The Kubernetes namespace to create workspaces in (must exist prior to creating workspaces)"
+data "coder_parameter" "namespace" {
+  name    = "The Kubernetes namespace to create workspaces in (must exist prior to creating workspaces)"
+  mutable = false
 }
 
-variable "cpu" {
-  description = "CPU (__ cores)"
-  default     = 2
-  validation {
-    condition = contains([
-      "2",
-      "4",
-      "6",
-      "8"
-    ], var.cpu)
-    error_message = "Invalid cpu!"
+data "coder_parameter" "cpu" {
+  name    = "CPU (cores)"
+  default = "2"
+  icon = 
+  mutable = true
+  option {
+    name  = "2"
+    value = "2"
+  }
+  option {
+    name  = "4"
+    value = "4"
+  }
+  option {
+    name  = "6"
+    value = "6"
+  }
+  option {
+    name  = "8"
+    value = "8"
   }
 }
 
-variable "memory" {
-  description = "Memory (__ GB)"
-  default     = 2
-  validation {
-    condition = contains([
-      "2",
-      "4",
-      "6",
-      "8"
-    ], var.memory)
-    error_message = "Invalid memory!"
+data "coder_parameter" "memory" {
+  name    = "Memory (GB)"
+  default = "2"
+  mutable = true
+  option {
+    name  = "2"
+    value = "2"
+  }
+  option {
+    name  = "4"
+    value = "4"
+  }
+  option {
+    name  = "6"
+    value = "6"
+  }
+  option {
+    name  = "8"
+    value = "8"
   }
 }
 
-variable "home_disk_size" {
-  type        = number
-  description = "How large would you like your home volume to be (in GB)?"
-  default     = 10
+data "coder_parameter" "home_disk_size" {
+  name    = "Home Disk Size (GB)"
+  default = "10"
+  mutable = false
   validation {
-    condition     = var.home_disk_size >= 1
-    error_message = "Value must be greater than or equal to 1."
+    min = 1
   }
 }
 
 provider "kubernetes" {
   # Authenticate via ~/.kube/config or a Coder-specific ServiceAccount, depending on admin preferences
-  config_path = var.use_kubeconfig == true ? "~/.kube/config" : null
+  config_path = "data.coder_parameter.use_kubeconfig.value" == "true" ? "~/.kube/config" : null
 }
 
 data "coder_workspace" "me" {}
@@ -111,7 +128,7 @@ resource "coder_app" "code-server" {
 resource "kubernetes_persistent_volume_claim" "home" {
   metadata {
     name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-home"
-    namespace = var.namespace
+    namespace = data.coder_parameter.namespace.value
     labels = {
       "app.kubernetes.io/name"     = "coder-pvc"
       "app.kubernetes.io/instance" = "coder-pvc-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
@@ -132,7 +149,7 @@ resource "kubernetes_persistent_volume_claim" "home" {
     access_modes = ["ReadWriteOnce"]
     resources {
       requests = {
-        storage = "${var.home_disk_size}Gi"
+        storage = "${data.coder_parameter.home_disk_size.value}Gi"
       }
     }
   }
@@ -142,7 +159,7 @@ resource "kubernetes_pod" "main" {
   count = data.coder_workspace.me.start_count
   metadata {
     name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
-    namespace = var.namespace
+    namespace = data.coder_parameter.namespace.value
     labels = {
       "app.kubernetes.io/name"     = "coder-workspace"
       "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
@@ -181,8 +198,8 @@ resource "kubernetes_pod" "main" {
           "memory" = "512Mi"
         }
         limits = {
-          "cpu"    = "${var.cpu}"
-          "memory" = "${var.memory}Gi"
+          "cpu"    = "${data.coder_parameter.cpu.value}"
+          "memory" = "${data.coder_parameter.memory.value}Gi"
         }
       }
       volume_mount {
