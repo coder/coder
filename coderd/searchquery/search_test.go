@@ -143,7 +143,7 @@ func TestSearchWorkspace(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			values, errs := searchquery.Workspace(c.Query, codersdk.Pagination{}, 0)
+			values, errs := searchquery.Workspaces(c.Query, codersdk.Pagination{}, 0)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
@@ -162,7 +162,7 @@ func TestSearchWorkspace(t *testing.T) {
 
 		query := ``
 		timeout := 1337 * time.Second
-		values, errs := searchquery.Workspace(query, codersdk.Pagination{}, timeout)
+		values, errs := searchquery.Workspaces(query, codersdk.Pagination{}, timeout)
 		require.Empty(t, errs)
 		require.Equal(t, int64(timeout.Seconds()), values.AgentInactiveDisconnectTimeoutSeconds)
 	})
@@ -203,7 +203,7 @@ func TestSearchAudit(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			values, errs := searchquery.Audit(c.Query)
+			values, errs := searchquery.AuditLogs(c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
@@ -228,9 +228,12 @@ func TestSearchUsers(t *testing.T) {
 		ExpectedErrorContains string
 	}{
 		{
-			Name:     "Empty",
-			Query:    "",
-			Expected: database.GetUsersParams{},
+			Name:  "Empty",
+			Query: "",
+			Expected: database.GetUsersParams{
+				Status:   []database.UserStatus{},
+				RbacRole: []string{},
+			},
 		},
 		{
 			Name:  "Username",
@@ -320,14 +323,6 @@ func TestSearchUsers(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			values, errs := searchquery.Users(c.Query)
-			if c.Expected.Status == nil {
-				// This is a workaround for the fact that nil != len(0)
-				c.Expected.Status = []database.UserStatus{}
-			}
-			if c.Expected.RbacRole == nil {
-				// This is a workaround for the fact that nil != len(0)
-				c.Expected.RbacRole = []string{}
-			}
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder

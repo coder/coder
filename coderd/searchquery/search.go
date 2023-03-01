@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func Audit(query string) (database.GetAuditLogsOffsetParams, []codersdk.ValidationError) {
+func AuditLogs(query string) (database.GetAuditLogsOffsetParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
@@ -63,7 +63,7 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	return filter, parser.Errors
 }
 
-func Workspace(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
 		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 

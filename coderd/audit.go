@@ -48,7 +48,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.Audit(queryStr)
+	filter, errs := searchquery.AuditLogs(queryStr)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid audit search query.",

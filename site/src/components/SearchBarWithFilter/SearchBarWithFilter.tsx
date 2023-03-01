@@ -12,7 +12,7 @@ import { useCallback, useRef, useState } from "react"
 import { getValidationErrorMessage } from "../../api/errors"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
 import { Stack } from "../Stack/Stack"
-import { combineClasses } from "../../util/combineClasses"
+import { combineClasses } from "util/combineClasses"
 
 export const Language = {
   filterName: "Filters",
@@ -145,11 +145,7 @@ export const SearchBarWithFilter: React.FC<
         ) : null}
       </Stack>
       {errorMessage && (
-        <Stack
-          className={combineClasses([styles.errorRoot, styles.newlineStyle])}
-        >
-          {errorMessage}
-        </Stack>
+        <Stack className={styles.errorRoot}>{errorMessage}</Stack>
       )}
     </Stack>
   )
@@ -181,6 +177,7 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   },
   errorRoot: {
     color: theme.palette.error.main,
+    whiteSpace: "pre-wrap",
   },
   inputStyles: {
     height: "100%",
@@ -204,8 +201,5 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   },
   searchIcon: {
     color: theme.palette.text.secondary,
-  },
-  newlineStyle: {
-    whiteSpace: "pre-wrap",
   },
 }))

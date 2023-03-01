@@ -124,7 +124,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.Workspace(queryStr, page, api.AgentInactiveDisconnectTimeout)
+	filter, errs := searchquery.Workspaces(queryStr, page, api.AgentInactiveDisconnectTimeout)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
