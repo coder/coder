@@ -91,7 +91,6 @@ func TestCustomSupportLinks(t *testing.T) {
 		},
 	}
 	cfg := coderdtest.DeploymentConfig(t)
-	cfg.Support = new(codersdk.SupportConfig)
 	cfg.Support.Links = bigcli.Object[[]codersdk.LinkConfig]{
 		Value: supportLinks,
 	}

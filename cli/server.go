@@ -1,5 +1,3 @@
-//go:build !slim
-
 package cli
 
 import (
@@ -165,7 +163,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
 
-			cfg := codersdk.NewDeploymentConfig()
+			cfg := &codersdk.DeploymentValues{}
 			cliOpts := cfg.Options()
 			var configDir bigcli.String
 			// This is a hack to get around the fact that the Cobra-defined

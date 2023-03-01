@@ -121,19 +121,19 @@ type DeploymentValues struct {
 	// HTTPAddress is a string because it may be set to zero to disable.
 	HTTPAddress                     bigcli.String                  `json:"http_address,omitempty" typescript:",notnull"`
 	AutobuildPollInterval           bigcli.Duration                `json:"autobuild_poll_interval,omitempty"`
-	DERP                            *DERP                          `json:"derp,omitempty" typescript:",notnull"`
-	Prometheus                      *PrometheusConfig              `json:"prometheus,omitempty" typescript:",notnull"`
-	Pprof                           *PprofConfig                   `json:"pprof,omitempty" typescript:",notnull"`
+	DERP                            DERP                           `json:"derp,omitempty" typescript:",notnull"`
+	Prometheus                      PrometheusConfig               `json:"prometheus,omitempty" typescript:",notnull"`
+	Pprof                           PprofConfig                    `json:"pprof,omitempty" typescript:",notnull"`
 	ProxyTrustedHeaders             bigcli.Strings                 `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
 	ProxyTrustedOrigins             bigcli.Strings                 `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
 	CacheDir                        bigcli.String                  `json:"cache_directory,omitempty" typescript:",notnull"`
 	InMemoryDatabase                bigcli.Bool                    `json:"in_memory_database,omitempty" typescript:",notnull"`
 	PostgresURL                     bigcli.String                  `json:"pg_connection_url,omitempty" typescript:",notnull"`
-	OAuth2                          *OAuth2Config                  `json:"oauth2,omitempty" typescript:",notnull"`
-	OIDC                            *OIDCConfig                    `json:"oidc,omitempty" typescript:",notnull"`
-	Telemetry                       *TelemetryConfig               `json:"telemetry,omitempty" typescript:",notnull"`
-	TLS                             *TLSConfig                     `json:"tls,omitempty" typescript:",notnull"`
-	Trace                           *TraceConfig                   `json:"trace,omitempty" typescript:",notnull"`
+	OAuth2                          OAuth2Config                   `json:"oauth2,omitempty" typescript:",notnull"`
+	OIDC                            OIDCConfig                     `json:"oidc,omitempty" typescript:",notnull"`
+	Telemetry                       TelemetryConfig                `json:"telemetry,omitempty" typescript:",notnull"`
+	TLS                             TLSConfig                      `json:"tls,omitempty" typescript:",notnull"`
+	Trace                           TraceConfig                    `json:"trace,omitempty" typescript:",notnull"`
 	SecureAuthCookie                bigcli.Bool                    `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
 	StrictTransportSecurity         bigcli.Int64                   `json:"strict_transport_security,omitempty" typescript:",notnull"`
 	StrictTransportSecurityOptions  bigcli.Strings                 `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
@@ -144,19 +144,19 @@ type DeploymentValues struct {
 	AuditLogging                    bigcli.Bool                    `json:"audit_logging,omitempty" typescript:",notnull"`
 	BrowserOnly                     bigcli.Bool                    `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                      bigcli.String                  `json:"scim_api_key,omitempty" typescript:",notnull"`
-	Provisioner                     *ProvisionerConfig             `json:"provisioner,omitempty" typescript:",notnull"`
-	RateLimit                       *RateLimitConfig               `json:"rate_limit,omitempty" typescript:",notnull"`
+	Provisioner                     ProvisionerConfig              `json:"provisioner,omitempty" typescript:",notnull"`
+	RateLimit                       RateLimitConfig                `json:"rate_limit,omitempty" typescript:",notnull"`
 	Experiments                     bigcli.Strings                 `json:"experiments,omitempty" typescript:",notnull"`
 	UpdateCheck                     bigcli.Bool                    `json:"update_check,omitempty" typescript:",notnull"`
 	MaxTokenLifetime                bigcli.Duration                `json:"max_token_lifetime,omitempty" typescript:",notnull"`
-	Swagger                         *SwaggerConfig                 `json:"swagger,omitempty" typescript:",notnull"`
-	Logging                         *LoggingConfig                 `json:"logging,omitempty" typescript:",notnull"`
-	Dangerous                       *DangerousConfig               `json:"dangerous,omitempty" typescript:",notnull"`
+	Swagger                         SwaggerConfig                  `json:"swagger,omitempty" typescript:",notnull"`
+	Logging                         LoggingConfig                  `json:"logging,omitempty" typescript:",notnull"`
+	Dangerous                       DangerousConfig                `json:"dangerous,omitempty" typescript:",notnull"`
 	DisablePathApps                 bigcli.Bool                    `json:"disable_path_apps,omitempty" typescript:",notnull"`
 	SessionDuration                 bigcli.Duration                `json:"max_session_expiry,omitempty" typescript:",notnull"`
 	DisableSessionExpiryRefresh     bigcli.Bool                    `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
 	DisablePasswordAuth             bigcli.Bool                    `json:"disable_password_auth,omitempty" typescript:",notnull"`
-	Support                         *SupportConfig                 `json:"support,omitempty" typescript:",notnull"`
+	Support                         SupportConfig                  `json:"support,omitempty" typescript:",notnull"`
 	GitAuthProviders                bigcli.Object[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
 
 	Config      bigcli.String `json:"config,omitempty" typescript:",notnull"`
@@ -1276,32 +1276,6 @@ type SupportConfig struct {
 	Links bigcli.Object[[]LinkConfig] `json:"links" typescript:",notnull"`
 }
 
-// NewDeploymentConfig returns a new DeploymentConfig without
-// nil values.
-func NewDeploymentConfig() *DeploymentValues {
-	return &DeploymentValues{
-		TLS:         &TLSConfig{},
-		Logging:     &LoggingConfig{},
-		Provisioner: &ProvisionerConfig{},
-		RateLimit:   &RateLimitConfig{},
-		Dangerous:   &DangerousConfig{},
-		Trace:       &TraceConfig{},
-		Telemetry:   &TelemetryConfig{},
-		OIDC:        &OIDCConfig{},
-		OAuth2: &OAuth2Config{
-			Github: &OAuth2GithubConfig{},
-		},
-		Pprof:      &PprofConfig{},
-		Prometheus: &PrometheusConfig{},
-		DERP: &DERP{
-			Server: &DERPServerConfig{},
-			Config: &DERPConfig{},
-		},
-		Swagger: &SwaggerConfig{},
-		Support: &SupportConfig{},
-	}
-}
-
 type LinkConfig struct {
 	Name   string `json:"name" yaml:"name"`
 	Target string `json:"target" yaml:"target"`
@@ -1363,7 +1337,7 @@ func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentValuesAndOpti
 		return nil, xerrors.Errorf("read response: %w", err)
 	}
 
-	conf := NewDeploymentConfig()
+	conf := &DeploymentValues{}
 	resp := &DeploymentValuesAndOptions{
 		Config:  conf,
 		Options: conf.Options(),

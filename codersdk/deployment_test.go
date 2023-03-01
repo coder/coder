@@ -64,7 +64,7 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		},
 	}
 
-	set := codersdk.NewDeploymentConfig().Options()
+	set := (&codersdk.DeploymentValues{}).Options()
 	for _, opt := range set {
 		// These are generally for development, so their configurability is
 		// not relevant.

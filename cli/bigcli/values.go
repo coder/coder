@@ -15,12 +15,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// YAMLer describes a value with special YAML-encoding behavior.
-type YAMLer interface {
-	ToYAML() (*yaml.Node, error)
-	FromYAML(*yaml.Node) error
-}
-
 // NoOptDefValuer describes behavior when no
 // option is passed into the flag.
 //
