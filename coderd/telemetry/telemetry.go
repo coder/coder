@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/coder/coderd/database/dbauthz"
+
 	"github.com/elastic/go-sysinfo"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
@@ -287,7 +289,9 @@ func (r *remoteReporter) deployment() error {
 // createSnapshot collects a full snapshot from the database.
 func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	var (
-		ctx = r.ctx
+		// Requires read access to all resources.
+		//nolint:gocritic
+		ctx = dbauthz.AsSystemRestricted(r.ctx)
 		// For resources that grow in size very quickly (like workspace builds),
 		// we only report events that occurred within the past hour.
 		createdAfter = database.Now().Add(-1 * time.Hour)
