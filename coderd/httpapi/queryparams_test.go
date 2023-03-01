@@ -43,12 +43,12 @@ func TestParseQueryParams(t *testing.T) {
 			{
 				QueryParam:            "invalid_id",
 				Value:                 "bogus",
-				ExpectedErrorContains: "must be a valid uuid",
+				ExpectedErrorContains: "invalid UUID length",
 			},
 			{
 				QueryParam:            "long_id",
 				Value:                 "afe39fbf-0f52-4a62-b0cc-58670145d773-123",
-				ExpectedErrorContains: "must be a valid uuid",
+				ExpectedErrorContains: "invalid UUID length",
 			},
 			{
 				QueryParam: "no_value",

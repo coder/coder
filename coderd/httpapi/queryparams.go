@@ -5,12 +5,13 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/coder/coder/codersdk"
-
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/codersdk"
 )
 
 // QueryParamParser is a helper for parsing all query params and gathering all
@@ -82,30 +83,15 @@ func (p *QueryParamParser) UUID(vals url.Values, def uuid.UUID, queryParam strin
 }
 
 func (p *QueryParamParser) UUIDs(vals url.Values, def []uuid.UUID, queryParam string) []uuid.UUID {
-	v, err := parseQueryParam(p, vals, func(v string) ([]uuid.UUID, error) {
-		var badValues []string
-		strs := strings.Split(v, ",")
-		ids := make([]uuid.UUID, 0, len(strs))
-		for _, s := range strs {
-			id, err := uuid.Parse(strings.TrimSpace(s))
-			if err != nil {
-				badValues = append(badValues, v)
-				continue
-			}
-			ids = append(ids, id)
-		}
+	return ParseCustomList(p, vals, def, queryParam, func(v string) (uuid.UUID, error) {
+		return uuid.Parse(strings.TrimSpace(v))
+	})
+}
 
-		if len(badValues) > 0 {
-			return []uuid.UUID{}, xerrors.Errorf("%s", strings.Join(badValues, ","))
-		}
-		return ids, nil
+func (p *QueryParamParser) Time(vals url.Values, def time.Time, queryParam string, format string) time.Time {
+	v, _ := parseQueryParam(p, vals, func(v string) (time.Time, error) {
+		return time.Parse(queryParam, format)
 	}, def, queryParam)
-	if err != nil {
-		p.Errors = append(p.Errors, codersdk.ValidationError{
-			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q has invalid uuids: %q", queryParam, err.Error()),
-		})
-	}
 	return v
 }
 
@@ -117,13 +103,28 @@ func (p *QueryParamParser) String(vals url.Values, def string, queryParam string
 }
 
 func (p *QueryParamParser) Strings(vals url.Values, def []string, queryParam string) []string {
-	v, _ := parseQueryParam(p, vals, func(v string) ([]string, error) {
-		if v == "" {
-			return []string{}, nil
-		}
-		return strings.Split(v, ","), nil
-	}, def, queryParam)
-	return v
+	return ParseCustomList(p, vals, def, queryParam, func(v string) (string, error) {
+		return v, nil
+	})
+}
+
+// ValidEnum parses enum query params. Add more to the list as needed.
+type ValidEnum interface {
+	database.ResourceType | database.AuditAction | database.BuildReason | database.UserStatus
+
+	// Valid is required on the enum type to be used with ParseEnum.
+	Valid() bool
+}
+
+// ParseEnum is a function that can be passed into ParseCustom that handles enum
+// validation.
+func ParseEnum[T ValidEnum](term string) (T, error) {
+	enum := T(term)
+	if enum.Valid() {
+		return enum, nil
+	}
+	var empty T
+	return empty, xerrors.Errorf("%q is not a valid value", term)
 }
 
 // ParseCustom has to be a function, not a method on QueryParamParser because generics
@@ -134,6 +135,35 @@ func ParseCustom[T any](parser *QueryParamParser, vals url.Values, def T, queryP
 		parser.Errors = append(parser.Errors, codersdk.ValidationError{
 			Field:  queryParam,
 			Detail: fmt.Sprintf("Query param %q has invalid value: %s", queryParam, err.Error()),
+		})
+	}
+	return v
+}
+
+// ParseCustomList is a function that handles csv query params.
+func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, queryParam string, parseFunc func(v string) (T, error)) []T {
+	v, err := parseQueryParam(parser, vals, func(v string) ([]T, error) {
+		terms := strings.Split(v, ",")
+		var badValues []string
+		var output []T
+		for _, s := range terms {
+			good, err := parseFunc(s)
+			if err != nil {
+				badValues = append(badValues, s)
+				continue
+			}
+			output = append(output, good)
+		}
+		if len(badValues) > 0 {
+			return []T{}, xerrors.Errorf("%s", strings.Join(badValues, ","))
+		}
+
+		return output, nil
+	}, def, queryParam)
+	if err != nil {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q has invalid values: %s", queryParam, err.Error()),
 		})
 	}
 	return v
