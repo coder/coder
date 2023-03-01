@@ -787,6 +787,16 @@ export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
     validation_monotonic: "decreasing",
   }
 
+export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
+  name: "first_variable",
+  description: "This is first variable",
+  type: "string",
+  value: "",
+  default_value: "abc",
+  required: false,
+  sensitive: false,
+}
+
 // requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",

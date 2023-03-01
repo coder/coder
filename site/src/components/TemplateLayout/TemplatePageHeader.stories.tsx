@@ -1,5 +1,8 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import { MockTemplate } from "testHelpers/entities"
+import {
+  MockTemplate,
+  MockTemplateVersionVariable1,
+} from "testHelpers/entities"
 import {
   TemplatePageHeader,
   TemplatePageHeaderProps,
@@ -32,4 +35,9 @@ CanNotUpdate.args = {
   permissions: {
     canUpdateTemplate: false,
   },
+}
+
+export const WithVariables = Template.bind({})
+WithVariables.args = {
+  templateVersionVariables: [MockTemplateVersionVariable1],
 }
