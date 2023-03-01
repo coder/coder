@@ -195,10 +195,25 @@ jobs:
           tags: |
             ${{ steps.image-base-tag.outputs.tag }}
 
-      - name: Verify that base images are pushed properly
+      - name: Verify that images are pushed properly
         run: |
+          # retry 10 times with a 5 second delay as the images may not be
+          # available immediately
+          for i in {1..10}; do
+            rc=0
+            raw_manifest=$(docker manifest inspect ghcr.io/coder/coder-base:latest || rc=$?)
+            if [[ "$rc" -eq 0 ]]; then
+              break
+            fi
+            if [[ "$i" -eq 10 ]]; then
+              echo "Failed to pull manifests after 10 retries"
+              exit 1
+            fi
+            sleep 5
+          done
+
           manifests=$(
-            docker manifest inspect "${{ steps.image-base-tag.outputs.tag }}" | \
+            echo "$raw_manifest" | \
               jq -r '.manifests[].platform | .os + "/" + .architecture + (if .variant then "/" + .variant else "" end)'
           )
 
