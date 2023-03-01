@@ -19,7 +19,7 @@ func Audit(query string) (database.GetAuditLogsOffsetParams, []codersdk.Validati
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
-		values.Set("resource_type", term)
+		values.Add("resource_type", term)
 		return nil
 	})
 	if len(errors) > 0 {
@@ -46,7 +46,7 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
-		values.Set("search", term)
+		values.Add("search", term)
 		return nil
 	})
 	if len(errors) > 0 {
@@ -82,10 +82,10 @@ func Workspace(query string, page codersdk.Pagination, agentInactiveDisconnectTi
 		parts := splitQueryParameterByDelimiter(term, '/', false)
 		switch len(parts) {
 		case 1:
-			values.Set("name", parts[0])
+			values.Add("name", parts[0])
 		case 2:
-			values.Set("owner", parts[0])
-			values.Set("name", parts[1])
+			values.Add("owner", parts[0])
+			values.Add("name", parts[1])
 		default:
 			return xerrors.Errorf("Query element %q can only contain 1 '/'", term)
 		}
@@ -124,7 +124,7 @@ func searchTerms(query string, defaultKey func(term string, values url.Values) e
 				}
 			}
 		case 2:
-			searchValues.Set(strings.ToLower(parts[0]), parts[1])
+			searchValues.Add(strings.ToLower(parts[0]), parts[1])
 		default:
 			return nil, []codersdk.ValidationError{
 				{
@@ -134,6 +134,18 @@ func searchTerms(query string, defaultKey func(term string, values url.Values) e
 			}
 		}
 	}
+
+	for k := range searchValues {
+		if len(searchValues[k]) > 1 {
+			return nil, []codersdk.ValidationError{
+				{
+					Field:  "q",
+					Detail: fmt.Sprintf("Query parameter %q provided more than once, found %d times", k, len(searchValues[k])),
+				},
+			}
+		}
+	}
+
 	return searchValues, nil
 }
 

@@ -23,13 +23,13 @@ type QueryParamParser struct {
 	Errors []codersdk.ValidationError
 	// Parsed is a map of all query params that were parsed. This is useful
 	// for checking if extra query params were passed in.
-	Parsed map[string]bool
+	Parsed map[string]int
 }
 
 func NewQueryParamParser() *QueryParamParser {
 	return &QueryParamParser{
 		Errors: []codersdk.ValidationError{},
-		Parsed: map[string]bool{},
+		Parsed: map[string]int{},
 	}
 }
 
@@ -48,12 +48,7 @@ func (p *QueryParamParser) ErrorExcessParams(values url.Values) {
 }
 
 func (p *QueryParamParser) addParsed(key string) {
-	p.Parsed[key] = true
-}
-
-func (p *QueryParamParser) hasParsed(key string) bool {
-	_, ok := p.Parsed[key]
-	return ok
+	p.Parsed[key]++
 }
 
 func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int {
@@ -94,13 +89,13 @@ func (p *QueryParamParser) UUIDs(vals url.Values, def []uuid.UUID, queryParam st
 }
 
 func (p *QueryParamParser) Time(vals url.Values, def time.Time, queryParam string, format string) time.Time {
-	v, err := parseQueryParam(p, vals, func(v string) (time.Time, error) {
-		return time.Parse(queryParam, format)
+	v, err := parseQueryParam(p, vals, func(term string) (time.Time, error) {
+		return time.Parse(format, term)
 	}, def, queryParam)
 	if err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q must be a valid date format (%s)", queryParam, format),
+			Detail: fmt.Sprintf("Query param %q must be a valid date format (%s): %s", queryParam, format, err.Error()),
 		})
 	}
 	return v
@@ -182,13 +177,11 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 }
 
 func parseQueryParam[T any](parser *QueryParamParser, vals url.Values, parse func(v string) (T, error), def T, queryParam string) (T, error) {
-	if parser.hasParsed(queryParam) {
-		return def, xerrors.Errorf("query param %q provided more than once", queryParam)
-	}
 	parser.addParsed(queryParam)
 	if !vals.Has(queryParam) || vals.Get(queryParam) == "" {
 		return def, nil
 	}
+
 	str := vals.Get(queryParam)
 	return parse(str)
 }

@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
+
+	"github.com/coder/coder/coderd/database"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -25,6 +28,51 @@ type queryParamTestCase[T any] struct {
 
 func TestParseQueryParams(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Enum", func(t *testing.T) {
+		t.Parallel()
+
+		expParams := []queryParamTestCase[database.ResourceType]{
+			{
+				QueryParam: "resource_type",
+				Value:      string(database.ResourceTypeWorkspace),
+				Expected:   database.ResourceTypeWorkspace,
+			},
+			{
+				QueryParam:            "bad_type",
+				Value:                 "foo",
+				ExpectedErrorContains: "not a valid value",
+			},
+		}
+
+		parser := httpapi.NewQueryParamParser()
+		testQueryParams(t, expParams, parser, func(vals url.Values, def database.ResourceType, queryParam string) database.ResourceType {
+			return httpapi.ParseCustom(parser, vals, def, queryParam, httpapi.ParseEnum[database.ResourceType])
+		})
+	})
+
+	t.Run("Time", func(t *testing.T) {
+		t.Parallel()
+		const layout = "2006-01-02"
+
+		expParams := []queryParamTestCase[time.Time]{
+			{
+				QueryParam: "date",
+				Value:      "2010-01-01",
+				Expected:   must(time.Parse(layout, "2010-01-01")),
+			},
+			{
+				QueryParam:            "bad_date",
+				Value:                 "2010",
+				ExpectedErrorContains: "must be a valid date format",
+			},
+		}
+
+		parser := httpapi.NewQueryParamParser()
+		testQueryParams(t, expParams, parser, func(vals url.Values, def time.Time, queryParam string) time.Time {
+			return parser.Time(vals, time.Time{}, queryParam, layout)
+		})
+	})
 
 	t.Run("UUID", func(t *testing.T) {
 		t.Parallel()
@@ -187,8 +235,8 @@ func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], par
 	for _, c := range testCases {
 		// !! Do not run these in parallel !!
 		t.Run(c.QueryParam, func(t *testing.T) {
-			v := parse(v, c.Default, c.QueryParam)
-			require.Equal(t, c.Expected, v, fmt.Sprintf("param=%q value=%q", c.QueryParam, c.Value))
+			value := parse(v, c.Default, c.QueryParam)
+			require.Equal(t, c.Expected, value, fmt.Sprintf("param=%q value=%q", c.QueryParam, c.Value))
 			if c.ExpectedErrorContains != "" {
 				errors := parser.Errors
 				require.True(t, len(errors) > 0, "error exist")
@@ -198,4 +246,11 @@ func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], par
 			}
 		})
 	}
+}
+
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }
