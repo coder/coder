@@ -1,7 +1,7 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import dayjs from "dayjs"
 import * as Types from "./types"
-import { DeploymentConfigAndOptions } from "./types"
+import { DeploymentConfig } from "./types"
 import * as TypesGen from "./typesGenerated"
 
 export const hardCodedCSRFCookie = (): string => {
@@ -797,11 +797,10 @@ export const getAgentListeningPorts = async (
   return response.data
 }
 
-export const getDeploymentConfig =
-  async (): Promise<DeploymentConfigAndOptions> => {
-    const response = await axios.get(`/api/v2/config/deployment`)
-    return response.data
-  }
+export const getDeploymentValues = async (): Promise<DeploymentConfig> => {
+  const response = await axios.get(`/api/v2/config/deployment`)
+  return response.data
+}
 
 export const getReplicas = async (): Promise<TypesGen.Replica[]> => {
   const response = await axios.get(`/api/v2/replicas`)

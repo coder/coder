@@ -1,4 +1,4 @@
-import { DeploymentConfig } from "./typesGenerated"
+import { DeploymentValues } from "./typesGenerated"
 
 export interface UserAgent {
   readonly browser: string
@@ -34,7 +34,7 @@ export interface DeploymentOption {
   readonly group?: DeploymentGroup
 }
 
-export type DeploymentConfigAndOptions = {
-  readonly config: DeploymentConfig
+export type DeploymentConfig = {
+  readonly config: DeploymentValues
   readonly options: DeploymentOption[]
 }

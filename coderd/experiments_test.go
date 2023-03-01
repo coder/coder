@@ -16,9 +16,9 @@ func Test_Experiments(t *testing.T) {
 	t.Parallel()
 	t.Run("empty", func(t *testing.T) {
 		t.Parallel()
-		cfg := coderdtest.DeploymentConfig(t)
+		cfg := coderdtest.DeploymentValues(t)
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: cfg,
+			DeploymentValues: cfg,
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -34,10 +34,10 @@ func Test_Experiments(t *testing.T) {
 
 	t.Run("multiple features", func(t *testing.T) {
 		t.Parallel()
-		cfg := coderdtest.DeploymentConfig(t)
+		cfg := coderdtest.DeploymentValues(t)
 		cfg.Experiments = []string{"foo", "BAR"}
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: cfg,
+			DeploymentValues: cfg,
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -56,10 +56,10 @@ func Test_Experiments(t *testing.T) {
 
 	t.Run("wildcard", func(t *testing.T) {
 		t.Parallel()
-		cfg := coderdtest.DeploymentConfig(t)
+		cfg := coderdtest.DeploymentValues(t)
 		cfg.Experiments = []string{"*"}
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: cfg,
+			DeploymentValues: cfg,
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -78,10 +78,10 @@ func Test_Experiments(t *testing.T) {
 
 	t.Run("alternate wildcard with manual opt-in", func(t *testing.T) {
 		t.Parallel()
-		cfg := coderdtest.DeploymentConfig(t)
+		cfg := coderdtest.DeploymentValues(t)
 		cfg.Experiments = []string{"*", "dAnGeR"}
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: cfg,
+			DeploymentValues: cfg,
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -101,10 +101,10 @@ func Test_Experiments(t *testing.T) {
 
 	t.Run("Unauthorized", func(t *testing.T) {
 		t.Parallel()
-		cfg := coderdtest.DeploymentConfig(t)
+		cfg := coderdtest.DeploymentValues(t)
 		cfg.Experiments = []string{"*"}
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: cfg,
+			DeploymentValues: cfg,
 		})
 		// Explicitly omit creating a user so we're unauthorized.
 		// _ = coderdtest.CreateFirstUser(t, client)

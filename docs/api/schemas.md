@@ -471,20 +471,20 @@
 
 ### Properties
 
-| Name             | Type                                     | Required | Restrictions | Description                                                                                                                                |
-| ---------------- | ---------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `annotations`    | [bigcli.Annotations](#bigcliannotations) | false    |              | Annotations enable extensions to bigcli higher up in the stack. It's useful for help formatting and documentation generation.              |
-| `default`        | string                                   | false    |              | Default is parsed into Value if set.                                                                                                       |
-| `description`    | string                                   | false    |              |                                                                                                                                            |
-| `env`            | string                                   | false    |              | If unset, Env defaults to the upper-case, snake-case version of Name. Use special value "Disable" to disable environment variable support. |
-| `flag`           | string                                   | false    |              | If unset, Flag defaults to the kebab-case version of Name. Use sentinel value `Disable` to disable flag support.                           |
-| `flag_shorthand` | string                                   | false    |              |                                                                                                                                            |
-| `group`          | [bigcli.Group](#bigcligroup)             | false    |              | Group is a group hierarchy that helps organize this option in help, configs and other documentation.                                       |
-| `hidden`         | boolean                                  | false    |              |                                                                                                                                            |
-| `name`           | string                                   | false    |              |                                                                                                                                            |
-| `use_instead`    | array of [bigcli.Option](#bigclioption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning.             |
-| `value`          | any                                      | false    |              | Value includes the types listed in values.go.                                                                                              |
-| `yaml`           | string                                   | false    |              | Unlike Flag and Env, we do not infer YAML name because we want to provide the strongest compatibility guarantee for YAML configs.          |
+| Name             | Type                                     | Required | Restrictions | Description                                                                                                                    |
+| ---------------- | ---------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `annotations`    | [bigcli.Annotations](#bigcliannotations) | false    |              | Annotations enable extensions to bigcli higher up in the stack. It's useful for help formatting and documentation generation.  |
+| `default`        | string                                   | false    |              | Default is parsed into Value if set.                                                                                           |
+| `description`    | string                                   | false    |              |                                                                                                                                |
+| `env`            | string                                   | false    |              | Env is the environment variable used to configure this option. If unset, environment configuring is disabled.                  |
+| `flag`           | string                                   | false    |              | Flag is the long name of the flag used to configure this option. If unset, flag configuring is disabled.                       |
+| `flag_shorthand` | string                                   | false    |              | Flag shorthand is the one-character shorthand for the flag. If unset, no shorthand is used.                                    |
+| `group`          | [bigcli.Group](#bigcligroup)             | false    |              | Group is a group hierarchy that helps organize this option in help, configs and other documentation.                           |
+| `hidden`         | boolean                                  | false    |              |                                                                                                                                |
+| `name`           | string                                   | false    |              |                                                                                                                                |
+| `use_instead`    | array of [bigcli.Option](#bigclioption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning. |
+| `value`          | any                                      | false    |              | Value includes the types listed in values.go.                                                                                  |
+| `yaml`           | string                                   | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                    |
 
 ## bigcli.URL
 
@@ -1575,6 +1575,307 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
+  "config": {
+    "access_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
+    "address": {
+      "host": "string",
+      "port": "string"
+    },
+    "agent_fallback_troubleshooting_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
+    "agent_stat_refresh_interval": 0,
+    "audit_logging": true,
+    "autobuild_poll_interval": 0,
+    "browser_only": true,
+    "cache_directory": "string",
+    "config": "string",
+    "dangerous": {
+      "allow_path_app_sharing": true,
+      "allow_path_app_site_owner_access": true
+    },
+    "derp": {
+      "config": {
+        "path": "string",
+        "url": "string"
+      },
+      "server": {
+        "enable": true,
+        "region_code": "string",
+        "region_id": 0,
+        "region_name": "string",
+        "relay_url": {
+          "forceQuery": true,
+          "fragment": "string",
+          "host": "string",
+          "omitHost": true,
+          "opaque": "string",
+          "path": "string",
+          "rawFragment": "string",
+          "rawPath": "string",
+          "rawQuery": "string",
+          "scheme": "string",
+          "user": {}
+        },
+        "stun_addresses": ["string"]
+      }
+    },
+    "disable_password_auth": true,
+    "disable_path_apps": true,
+    "disable_session_expiry_refresh": true,
+    "experiments": ["string"],
+    "git_auth": {
+      "value": [
+        {
+          "auth_url": "string",
+          "client_id": "string",
+          "id": "string",
+          "no_refresh": true,
+          "regex": "string",
+          "scopes": ["string"],
+          "token_url": "string",
+          "type": "string",
+          "validate_url": "string"
+        }
+      ]
+    },
+    "http_address": "string",
+    "in_memory_database": true,
+    "logging": {
+      "human": "string",
+      "json": "string",
+      "stackdriver": "string"
+    },
+    "max_session_expiry": 0,
+    "max_token_lifetime": 0,
+    "metrics_cache_refresh_interval": 0,
+    "oauth2": {
+      "github": {
+        "allow_everyone": true,
+        "allow_signups": true,
+        "allowed_orgs": ["string"],
+        "allowed_teams": ["string"],
+        "client_id": "string",
+        "client_secret": "string",
+        "enterprise_base_url": "string"
+      }
+    },
+    "oidc": {
+      "allow_signups": true,
+      "client_id": "string",
+      "client_secret": "string",
+      "email_domain": ["string"],
+      "icon_url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      },
+      "ignore_email_verified": true,
+      "issuer_url": "string",
+      "scopes": ["string"],
+      "sign_in_text": "string",
+      "username_field": "string"
+    },
+    "pg_connection_url": "string",
+    "pprof": {
+      "address": {
+        "host": "string",
+        "port": "string"
+      },
+      "enable": true
+    },
+    "prometheus": {
+      "address": {
+        "host": "string",
+        "port": "string"
+      },
+      "enable": true
+    },
+    "provisioner": {
+      "daemon_poll_interval": 0,
+      "daemon_poll_jitter": 0,
+      "daemons": 0,
+      "force_cancel_interval": 0
+    },
+    "proxy_trusted_headers": ["string"],
+    "proxy_trusted_origins": ["string"],
+    "rate_limit": {
+      "api": 0,
+      "disable_all": true
+    },
+    "redirect_to_access_url": true,
+    "scim_api_key": "string",
+    "secure_auth_cookie": true,
+    "ssh_keygen_algorithm": "string",
+    "strict_transport_security": 0,
+    "strict_transport_security_options": ["string"],
+    "support": {
+      "links": {
+        "value": [
+          {
+            "icon": "string",
+            "name": "string",
+            "target": "string"
+          }
+        ]
+      }
+    },
+    "swagger": {
+      "enable": true
+    },
+    "telemetry": {
+      "enable": true,
+      "trace": true,
+      "url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      }
+    },
+    "tls": {
+      "address": {
+        "host": "string",
+        "port": "string"
+      },
+      "cert_file": ["string"],
+      "client_auth": "string",
+      "client_ca_file": "string",
+      "client_cert_file": "string",
+      "client_key_file": "string",
+      "enable": true,
+      "key_file": ["string"],
+      "min_version": "string",
+      "redirect_http": true
+    },
+    "trace": {
+      "capture_logs": true,
+      "enable": true,
+      "honeycomb_api_key": "string"
+    },
+    "update_check": true,
+    "verbose": true,
+    "wildcard_access_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
+    "write_config": true
+  },
+  "options": [
+    {
+      "annotations": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "default": "string",
+      "description": "string",
+      "env": "string",
+      "flag": "string",
+      "flag_shorthand": "string",
+      "group": {
+        "children": [
+          {
+            "children": [],
+            "description": "string",
+            "name": "string",
+            "parent": {}
+          }
+        ],
+        "description": "string",
+        "name": "string",
+        "parent": {
+          "children": [{}],
+          "description": "string",
+          "name": "string",
+          "parent": {}
+        }
+      },
+      "hidden": true,
+      "name": "string",
+      "use_instead": [{}],
+      "value": null,
+      "yaml": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                   | Required | Restrictions | Description |
+| --------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
+| `config`  | [codersdk.DeploymentValues](#codersdkdeploymentvalues) | false    |              |             |
+| `options` | array of [bigcli.Option](#bigclioption)                | false    |              |             |
+
+## codersdk.DeploymentDAUsResponse
+
+```json
+{
+  "entries": [
+    {
+      "amount": 0,
+      "date": "2019-08-24T14:15:22Z"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                            | Required | Restrictions | Description |
+| --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
+| `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
+
+## codersdk.DeploymentValues
+
+```json
+{
   "access_url": {
     "forceQuery": true,
     "fragment": "string",
@@ -1858,307 +2159,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `verbose`                            | boolean                                                                                  | false    |              |                                                                    |
 | `wildcard_access_url`                | [bigcli.URL](#bigcliurl)                                                                 | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                  | false    |              |                                                                    |
-
-## codersdk.DeploymentConfigAndOptions
-
-```json
-{
-  "config": {
-    "access_url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    },
-    "address": {
-      "host": "string",
-      "port": "string"
-    },
-    "agent_fallback_troubleshooting_url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    },
-    "agent_stat_refresh_interval": 0,
-    "audit_logging": true,
-    "autobuild_poll_interval": 0,
-    "browser_only": true,
-    "cache_directory": "string",
-    "config": "string",
-    "dangerous": {
-      "allow_path_app_sharing": true,
-      "allow_path_app_site_owner_access": true
-    },
-    "derp": {
-      "config": {
-        "path": "string",
-        "url": "string"
-      },
-      "server": {
-        "enable": true,
-        "region_code": "string",
-        "region_id": 0,
-        "region_name": "string",
-        "relay_url": {
-          "forceQuery": true,
-          "fragment": "string",
-          "host": "string",
-          "omitHost": true,
-          "opaque": "string",
-          "path": "string",
-          "rawFragment": "string",
-          "rawPath": "string",
-          "rawQuery": "string",
-          "scheme": "string",
-          "user": {}
-        },
-        "stun_addresses": ["string"]
-      }
-    },
-    "disable_password_auth": true,
-    "disable_path_apps": true,
-    "disable_session_expiry_refresh": true,
-    "experiments": ["string"],
-    "git_auth": {
-      "value": [
-        {
-          "auth_url": "string",
-          "client_id": "string",
-          "id": "string",
-          "no_refresh": true,
-          "regex": "string",
-          "scopes": ["string"],
-          "token_url": "string",
-          "type": "string",
-          "validate_url": "string"
-        }
-      ]
-    },
-    "http_address": "string",
-    "in_memory_database": true,
-    "logging": {
-      "human": "string",
-      "json": "string",
-      "stackdriver": "string"
-    },
-    "max_session_expiry": 0,
-    "max_token_lifetime": 0,
-    "metrics_cache_refresh_interval": 0,
-    "oauth2": {
-      "github": {
-        "allow_everyone": true,
-        "allow_signups": true,
-        "allowed_orgs": ["string"],
-        "allowed_teams": ["string"],
-        "client_id": "string",
-        "client_secret": "string",
-        "enterprise_base_url": "string"
-      }
-    },
-    "oidc": {
-      "allow_signups": true,
-      "client_id": "string",
-      "client_secret": "string",
-      "email_domain": ["string"],
-      "icon_url": {
-        "forceQuery": true,
-        "fragment": "string",
-        "host": "string",
-        "omitHost": true,
-        "opaque": "string",
-        "path": "string",
-        "rawFragment": "string",
-        "rawPath": "string",
-        "rawQuery": "string",
-        "scheme": "string",
-        "user": {}
-      },
-      "ignore_email_verified": true,
-      "issuer_url": "string",
-      "scopes": ["string"],
-      "sign_in_text": "string",
-      "username_field": "string"
-    },
-    "pg_connection_url": "string",
-    "pprof": {
-      "address": {
-        "host": "string",
-        "port": "string"
-      },
-      "enable": true
-    },
-    "prometheus": {
-      "address": {
-        "host": "string",
-        "port": "string"
-      },
-      "enable": true
-    },
-    "provisioner": {
-      "daemon_poll_interval": 0,
-      "daemon_poll_jitter": 0,
-      "daemons": 0,
-      "force_cancel_interval": 0
-    },
-    "proxy_trusted_headers": ["string"],
-    "proxy_trusted_origins": ["string"],
-    "rate_limit": {
-      "api": 0,
-      "disable_all": true
-    },
-    "redirect_to_access_url": true,
-    "scim_api_key": "string",
-    "secure_auth_cookie": true,
-    "ssh_keygen_algorithm": "string",
-    "strict_transport_security": 0,
-    "strict_transport_security_options": ["string"],
-    "support": {
-      "links": {
-        "value": [
-          {
-            "icon": "string",
-            "name": "string",
-            "target": "string"
-          }
-        ]
-      }
-    },
-    "swagger": {
-      "enable": true
-    },
-    "telemetry": {
-      "enable": true,
-      "trace": true,
-      "url": {
-        "forceQuery": true,
-        "fragment": "string",
-        "host": "string",
-        "omitHost": true,
-        "opaque": "string",
-        "path": "string",
-        "rawFragment": "string",
-        "rawPath": "string",
-        "rawQuery": "string",
-        "scheme": "string",
-        "user": {}
-      }
-    },
-    "tls": {
-      "address": {
-        "host": "string",
-        "port": "string"
-      },
-      "cert_file": ["string"],
-      "client_auth": "string",
-      "client_ca_file": "string",
-      "client_cert_file": "string",
-      "client_key_file": "string",
-      "enable": true,
-      "key_file": ["string"],
-      "min_version": "string",
-      "redirect_http": true
-    },
-    "trace": {
-      "capture_logs": true,
-      "enable": true,
-      "honeycomb_api_key": "string"
-    },
-    "update_check": true,
-    "verbose": true,
-    "wildcard_access_url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    },
-    "write_config": true
-  },
-  "options": [
-    {
-      "annotations": {
-        "property1": "string",
-        "property2": "string"
-      },
-      "default": "string",
-      "description": "string",
-      "env": "string",
-      "flag": "string",
-      "flag_shorthand": "string",
-      "group": {
-        "children": [
-          {
-            "children": [],
-            "description": "string",
-            "name": "string",
-            "parent": {}
-          }
-        ],
-        "description": "string",
-        "name": "string",
-        "parent": {
-          "children": [{}],
-          "description": "string",
-          "name": "string",
-          "parent": {}
-        }
-      },
-      "hidden": true,
-      "name": "string",
-      "use_instead": [{}],
-      "value": null,
-      "yaml": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name      | Type                                                   | Required | Restrictions | Description |
-| --------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
-| `config`  | [codersdk.DeploymentConfig](#codersdkdeploymentconfig) | false    |              |             |
-| `options` | array of [bigcli.Option](#bigclioption)                | false    |              |             |
-
-## codersdk.DeploymentDAUsResponse
-
-```json
-{
-  "entries": [
-    {
-      "amount": 0,
-      "date": "2019-08-24T14:15:22Z"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name      | Type                                            | Required | Restrictions | Description |
-| --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
-| `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
 
 ## codersdk.Entitlement
 

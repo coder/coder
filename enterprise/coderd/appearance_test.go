@@ -90,14 +90,14 @@ func TestCustomSupportLinks(t *testing.T) {
 			Icon:   "bug",
 		},
 	}
-	cfg := coderdtest.DeploymentConfig(t)
+	cfg := coderdtest.DeploymentValues(t)
 	cfg.Support.Links = bigcli.Object[[]codersdk.LinkConfig]{
 		Value: supportLinks,
 	}
 
 	client := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			DeploymentConfig: cfg,
+			DeploymentValues: cfg,
 		},
 	})
 	coderdtest.CreateFirstUser(t, client)

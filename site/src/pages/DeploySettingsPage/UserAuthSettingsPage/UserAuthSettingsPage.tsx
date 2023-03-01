@@ -5,7 +5,7 @@ import { pageTitle } from "util/page"
 import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView"
 
 const UserAuthSettingsPage: FC = () => {
-  const { deploymentConfig: deploymentConfig } = useDeploySettings()
+  const { deploymentValues: deploymentValues } = useDeploySettings()
 
   return (
     <>
@@ -13,7 +13,7 @@ const UserAuthSettingsPage: FC = () => {
         <title>{pageTitle("User Authentication Settings")}</title>
       </Helmet>
 
-      <UserAuthSettingsPageView options={deploymentConfig.options} />
+      <UserAuthSettingsPageView options={deploymentValues.options} />
     </>
   )
 }

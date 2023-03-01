@@ -5,13 +5,13 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import { DeploymentConfig, GitAuthConfig } from "api/typesGenerated"
+import { DeploymentValues, GitAuthConfig } from "api/typesGenerated"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges"
 import { Header } from "components/DeploySettingsLayout/Header"
 
 export type GitAuthSettingsPageViewProps = {
-  config: DeploymentConfig
+  config: DeploymentValues
 }
 
 export const GitAuthSettingsPageView = ({

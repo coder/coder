@@ -383,13 +383,13 @@ when required by your organization's security policy.`,
 	}
 )
 
-// DeploymentValuesAndOptions is the response type to the
-// GetDeploymentConfig endpoint.
+// DeploymentConfig is the response type to the
+// GetDeploymentValues endpoint.
 //
-// @typescript-ignore DeploymentValuesAndOptions
+// @typescript-ignore DeploymentConfig
 // apitypings doesn't know how to generate the OptionSet... yet.
-type DeploymentValuesAndOptions struct {
-	Config  *DeploymentValues `json:"config,omitempty"`
+type DeploymentConfig struct {
+	Values  *DeploymentValues `json:"config,omitempty"`
 	Options bigcli.OptionSet  `json:"options,omitempty"`
 }
 
@@ -1320,8 +1320,8 @@ func (c *DeploymentValues) Scrub() (*DeploymentValues, error) {
 	return &ff, nil
 }
 
-// DeploymentConfig returns the deployment config for the coder server.
-func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentValuesAndOptions, error) {
+// DeploymentValues returns the deployment config for the coder server.
+func (c *Client) DeploymentValues(ctx context.Context) (*DeploymentConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/config/deployment", nil)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
@@ -1338,8 +1338,8 @@ func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentValuesAndOpti
 	}
 
 	conf := &DeploymentValues{}
-	resp := &DeploymentValuesAndOptions{
-		Config:  conf,
+	resp := &DeploymentConfig{
+		Values:  conf,
 		Options: conf.Options(),
 	}
 

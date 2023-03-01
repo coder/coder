@@ -303,10 +303,10 @@ func (s *MethodTestSuite) TestLicense() {
 			Asserts(rbac.ResourceLicense, rbac.ActionCreate)
 	}))
 	s.Run("InsertOrUpdateLogoURL", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, rbac.ActionCreate)
+		check.Args("value").Asserts(rbac.ResourceDeploymentValues, rbac.ActionCreate)
 	}))
 	s.Run("InsertOrUpdateServiceBanner", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, rbac.ActionCreate)
+		check.Args("value").Asserts(rbac.ResourceDeploymentValues, rbac.ActionCreate)
 	}))
 	s.Run("GetLicenseByID", s.Subtest(func(db database.Store, check *expects) {
 		l, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{

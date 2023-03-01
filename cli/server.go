@@ -681,7 +681,7 @@ flags, and YAML configuration. The precedence is as follows:
 				Telemetry:                   telemetry.NewNoop(),
 				MetricsCacheRefreshInterval: cfg.MetricsCacheRefreshInterval.Value(),
 				AgentStatsRefreshInterval:   cfg.AgentStatRefreshInterval.Value(),
-				DeploymentConfig:            cfg,
+				DeploymentValues:            cfg,
 				PrometheusRegistry:          prometheus.NewRegistry(),
 				APIRateLimit:                int(cfg.RateLimit.API.Value()),
 				LoginRateLimit:              loginRateLimit,

@@ -257,7 +257,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		return err
 	}
 
-	if entitlements.RequireTelemetry && !api.DeploymentConfig.Telemetry.Enable.Value() {
+	if entitlements.RequireTelemetry && !api.DeploymentValues.Telemetry.Enable.Value() {
 		// We can't fail because then the user couldn't remove the offending
 		// license w/o a restart.
 		//

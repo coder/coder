@@ -300,7 +300,12 @@ export interface DangerousConfig {
 }
 
 // From codersdk/deployment.go
-export interface DeploymentConfig {
+export interface DeploymentDAUsResponse {
+  readonly entries: DAUEntry[]
+}
+
+// From codersdk/deployment.go
+export interface DeploymentValues {
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
   readonly verbose?: boolean
   readonly access_url?: string
@@ -378,11 +383,6 @@ export interface DeploymentConfig {
   // Named type "github.com/coder/coder/cli/bigcli.HostPort" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly address?: any
-}
-
-// From codersdk/deployment.go
-export interface DeploymentDAUsResponse {
-  readonly entries: DAUEntry[]
 }
 
 // From codersdk/deployment.go

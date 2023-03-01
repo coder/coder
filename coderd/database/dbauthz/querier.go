@@ -275,14 +275,14 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 }
 
 func (q *querier) InsertOrUpdateLogoURL(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
 		return err
 	}
 	return q.db.InsertOrUpdateLogoURL(ctx, value)
 }
 
 func (q *querier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
 		return err
 	}
 	return q.db.InsertOrUpdateServiceBanner(ctx, value)

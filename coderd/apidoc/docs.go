@@ -323,7 +323,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.DeploymentConfigAndOptions"
+                            "$ref": "#/definitions/codersdk.DeploymentConfig"
                         }
                     }
                 }
@@ -5317,14 +5317,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "env": {
-                    "description": "If unset, Env defaults to the upper-case, snake-case version of Name.\nUse special value \"Disable\" to disable environment variable support.",
+                    "description": "Env is the environment variable used to configure this option. If unset,\nenvironment configuring is disabled.",
                     "type": "string"
                 },
                 "flag": {
-                    "description": "If unset, Flag defaults to the kebab-case version of Name.\nUse sentinel value ` + "`" + `Disable` + "`" + ` to disable flag support.",
+                    "description": "Flag is the long name of the flag used to configure this option. If unset,\nflag configuring is disabled.",
                     "type": "string"
                 },
                 "flag_shorthand": {
+                    "description": "FlagShorthand is the one-character shorthand for the flag. If unset, no\nshorthand is used.",
                     "type": "string"
                 },
                 "group": {
@@ -5352,7 +5353,7 @@ const docTemplate = `{
                     "description": "Value includes the types listed in values.go."
                 },
                 "yaml": {
-                    "description": "Unlike Flag and Env, we do not infer YAML name because we want to provide\nthe strongest compatibility guarantee for YAML configs.",
+                    "description": "YAML is the YAML key used to configure this option. If unset, YAML\nconfiguring is disabled.",
                     "type": "string"
                 }
             }
@@ -6292,6 +6293,31 @@ const docTemplate = `{
         "codersdk.DeploymentConfig": {
             "type": "object",
             "properties": {
+                "config": {
+                    "$ref": "#/definitions/codersdk.DeploymentValues"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/bigcli.Option"
+                    }
+                }
+            }
+        },
+        "codersdk.DeploymentDAUsResponse": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DAUEntry"
+                    }
+                }
+            }
+        },
+        "codersdk.DeploymentValues": {
+            "type": "object",
+            "properties": {
                 "access_url": {
                     "$ref": "#/definitions/bigcli.URL"
                 },
@@ -6447,31 +6473,6 @@ const docTemplate = `{
                 },
                 "write_config": {
                     "type": "boolean"
-                }
-            }
-        },
-        "codersdk.DeploymentConfigAndOptions": {
-            "type": "object",
-            "properties": {
-                "config": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfig"
-                },
-                "options": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/bigcli.Option"
-                    }
-                }
-            }
-        },
-        "codersdk.DeploymentDAUsResponse": {
-            "type": "object",
-            "properties": {
-                "entries": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.DAUEntry"
-                    }
                 }
             }
         },

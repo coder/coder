@@ -97,7 +97,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	workspace := httpmw.WorkspaceParam(r)
 	agent := httpmw.WorkspaceAgentParam(r)
 
-	if api.DeploymentConfig.DisablePathApps {
+	if api.DeploymentValues.DisablePathApps {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusUnauthorized,
 			Title:        "Unauthorized",
@@ -452,7 +452,7 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, accessMethod workspaceApp
 	//
 	// Site owners are blocked from accessing path-based apps unless the
 	// Dangerous.AllowPathAppSiteOwnerAccess flag is enabled in the check below.
-	if isPathApp && !api.DeploymentConfig.Dangerous.AllowPathAppSharing.Value() {
+	if isPathApp && !api.DeploymentValues.Dangerous.AllowPathAppSharing.Value() {
 		sharingLevel = database.AppSharingLevelOwner
 	}
 
@@ -474,7 +474,7 @@ func (api *API) authorizeWorkspaceApp(r *http.Request, accessMethod workspaceApp
 	if isPathApp &&
 		sharingLevel == database.AppSharingLevelOwner &&
 		workspace.OwnerID.String() != roles.Actor.ID &&
-		!api.DeploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value() {
+		!api.DeploymentValues.Dangerous.AllowPathAppSiteOwnerAccess.Value() {
 
 		return false, nil
 	}
@@ -742,9 +742,9 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	// the current session.
 	exp := apiKey.ExpiresAt
 	lifetimeSeconds := apiKey.LifetimeSeconds
-	if exp.IsZero() || time.Until(exp) > api.DeploymentConfig.SessionDuration.Value() {
-		exp = database.Now().Add(api.DeploymentConfig.SessionDuration.Value())
-		lifetimeSeconds = int64(api.DeploymentConfig.SessionDuration.Value().Seconds())
+	if exp.IsZero() || time.Until(exp) > api.DeploymentValues.SessionDuration.Value() {
+		exp = database.Now().Add(api.DeploymentValues.SessionDuration.Value())
+		lifetimeSeconds = int64(api.DeploymentValues.SessionDuration.Value().Seconds())
 	}
 	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:          apiKey.UserID,

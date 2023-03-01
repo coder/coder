@@ -95,10 +95,10 @@ func TestTokenMaxLifetime(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	dc := coderdtest.DeploymentConfig(t)
+	dc := coderdtest.DeploymentValues(t)
 	dc.MaxTokenLifetime = bigcli.Duration(time.Hour * 24 * 7)
 	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentConfig: dc,
+		DeploymentValues: dc,
 	})
 	_ = coderdtest.CreateFirstUser(t, client)
 
@@ -120,11 +120,11 @@ func TestSessionExpiry(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	dc := coderdtest.DeploymentConfig(t)
+	dc := coderdtest.DeploymentValues(t)
 
 	db, pubsub := dbtestutil.NewDB(t)
 	adminClient := coderdtest.New(t, &coderdtest.Options{
-		DeploymentConfig: dc,
+		DeploymentValues: dc,
 		Database:         db,
 		Pubsub:           pubsub,
 	})

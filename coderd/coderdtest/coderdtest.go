@@ -108,7 +108,7 @@ type Options struct {
 	IncludeProvisionerDaemon    bool
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
-	DeploymentConfig            *codersdk.DeploymentValues
+	DeploymentValues            *codersdk.DeploymentValues
 
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
@@ -186,8 +186,8 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 		}
 		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	}
-	if options.DeploymentConfig == nil {
-		options.DeploymentConfig = DeploymentConfig(t)
+	if options.DeploymentValues == nil {
+		options.DeploymentValues = DeploymentValues(t)
 	}
 
 	// If no ratelimits are set, disable all rate limiting for tests.
@@ -321,7 +321,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			},
 			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
-			DeploymentConfig:            options.DeploymentConfig,
+			DeploymentValues:            options.DeploymentValues,
 			UpdateCheckOptions:          options.UpdateCheckOptions,
 			SwaggerEndpoint:             options.SwaggerEndpoint,
 		}
@@ -1056,8 +1056,8 @@ sz9Di8sGIaUbLZI2rd0CQQCzlVwEtRtoNCyMJTTrkgUuNufLP19RZ5FpyXxBO5/u
 QastnN77KfUwdj3SJt44U/uh1jAIv4oSLBr8HYUkbnI8
 -----END RSA PRIVATE KEY-----`
 
-func DeploymentConfig(t *testing.T) *codersdk.DeploymentValues {
-	cfg := codersdk.NewDeploymentConfig()
+func DeploymentValues(t *testing.T) *codersdk.DeploymentValues {
+	cfg := codersdk.NewDeploymentValues()
 	err := cfg.Options().SetDefaults()
 	require.NoError(t, err)
 	return cfg

@@ -1114,7 +1114,7 @@ func (api *API) convertWorkspaceBuild(
 			apps := appsByAgentID[agent.ID]
 			apiAgent, err := convertWorkspaceAgent(
 				api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(apps), api.AgentInactiveDisconnectTimeout,
-				api.DeploymentConfig.AgentFallbackTroubleshootingURL.String(),
+				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent: %w", err)

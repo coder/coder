@@ -13,15 +13,15 @@ import (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags General
-// @Success 200 {object} codersdk.DeploymentConfigAndOptions
+// @Success 200 {object} codersdk.DeploymentConfig
 // @Router /config/deployment [get]
-func (api *API) deploymentConfig(rw http.ResponseWriter, r *http.Request) {
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentConfig) {
+func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
 		httpapi.Forbidden(rw)
 		return
 	}
 
-	scrubbedConfig, err := api.DeploymentConfig.Scrub()
+	scrubbedConfig, err := api.DeploymentValues.Scrub()
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -29,8 +29,8 @@ func (api *API) deploymentConfig(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(
 		r.Context(), rw, http.StatusOK,
-		codersdk.DeploymentValuesAndOptions{
-			Config:  scrubbedConfig,
+		codersdk.DeploymentConfig{
+			Values:  scrubbedConfig,
 			Options: scrubbedConfig.Options(),
 		},
 	)

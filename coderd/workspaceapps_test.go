@@ -151,13 +151,13 @@ func setupProxyTest(t *testing.T, opts *setupProxyTestOpts) (*codersdk.Client, c
 	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
 	require.True(t, ok)
 
-	deploymentConfig := coderdtest.DeploymentConfig(t)
-	deploymentConfig.DisablePathApps = bigcli.Bool(opts.DisablePathApps)
-	deploymentConfig.Dangerous.AllowPathAppSharing = bigcli.Bool(opts.DangerousAllowPathAppSharing)
-	deploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess = bigcli.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.DisablePathApps = bigcli.Bool(opts.DisablePathApps)
+	deploymentValues.Dangerous.AllowPathAppSharing = bigcli.Bool(opts.DangerousAllowPathAppSharing)
+	deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = bigcli.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentConfig:            deploymentConfig,
+		DeploymentValues:            deploymentValues,
 		AppHostname:                 opts.AppHost,
 		IncludeProvisionerDaemon:    true,
 		AgentStatsRefreshInterval:   time.Millisecond * 100,
@@ -290,11 +290,11 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	t.Run("Disabled", func(t *testing.T) {
 		t.Parallel()
 
-		deploymentConfig := coderdtest.DeploymentConfig(t)
-		deploymentConfig.DisablePathApps = true
+		deploymentValues := coderdtest.DeploymentValues(t)
+		deploymentValues.DisablePathApps = true
 
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig:            deploymentConfig,
+			DeploymentValues:            deploymentValues,
 			IncludeProvisionerDaemon:    true,
 			AgentStatsRefreshInterval:   time.Millisecond * 100,
 			MetricsCacheRefreshInterval: time.Millisecond * 100,
@@ -1315,11 +1315,11 @@ func TestAppSharing(t *testing.T) {
 		siteOwnerCanAccess := !isPathApp || siteOwnerPathAppAccessEnabled
 		siteOwnerCanAccessShared := siteOwnerCanAccess || pathAppSharingEnabled
 
-		deploymentConfig, err := ownerClient.DeploymentConfig(context.Background())
+		deploymentValues, err := ownerClient.DeploymentValues(context.Background())
 		require.NoError(t, err)
 
-		assert.Equal(t, pathAppSharingEnabled, deploymentConfig.Config.Dangerous.AllowPathAppSharing.Value())
-		assert.Equal(t, siteOwnerPathAppAccessEnabled, deploymentConfig.Config.Dangerous.AllowPathAppSiteOwnerAccess.Value())
+		assert.Equal(t, pathAppSharingEnabled, deploymentValues.Values.Dangerous.AllowPathAppSharing.Value())
+		assert.Equal(t, siteOwnerPathAppAccessEnabled, deploymentValues.Values.Dangerous.AllowPathAppSiteOwnerAccess.Value())
 
 		t.Run("LevelOwner", func(t *testing.T) {
 			t.Parallel()

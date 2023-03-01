@@ -356,9 +356,9 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                               |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentConfigAndOptions](schemas.md#codersdkdeploymentconfigandoptions) |
+| Status | Meaning                                                 | Description | Schema                                                           |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentConfig](schemas.md#codersdkdeploymentconfig) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

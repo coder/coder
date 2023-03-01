@@ -48,7 +48,7 @@ func (r Root) PostgresPort() File {
 	return File(filepath.Join(r.PostgresPath(), "port"))
 }
 
-func (r Root) DeploymentConfigPath() string {
+func (r Root) DeploymentValuesPath() string {
 	return filepath.Join(string(r), "server.yaml")
 }
 

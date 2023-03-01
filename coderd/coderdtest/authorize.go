@@ -786,7 +786,7 @@ func randomRBACType() string {
 		rbac.ResourceOrganizationMember.Type,
 		rbac.ResourceWildcard.Type,
 		rbac.ResourceLicense.Type,
-		rbac.ResourceDeploymentConfig.Type,
+		rbac.ResourceDeploymentValues.Type,
 		rbac.ResourceReplicas.Type,
 		rbac.ResourceDebugInfo.Type,
 	}

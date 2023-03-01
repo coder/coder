@@ -142,8 +142,8 @@ var (
 		Type: "license",
 	}
 
-	// ResourceDeploymentConfig
-	ResourceDeploymentConfig = Object{
+	// ResourceDeploymentValues
+	ResourceDeploymentValues = Object{
 		Type: "deployment_config",
 	}
 

@@ -187,9 +187,9 @@ func TestPostLogin(t *testing.T) {
 	t.Run("DisabledPasswordAuth", func(t *testing.T) {
 		t.Parallel()
 
-		dc := coderdtest.DeploymentConfig(t)
+		dc := coderdtest.DeploymentValues(t)
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: dc,
+			DeploymentValues: dc,
 		})
 
 		first := coderdtest.CreateFirstUser(t, client)
