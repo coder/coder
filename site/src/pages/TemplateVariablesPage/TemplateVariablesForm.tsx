@@ -59,7 +59,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
           templateVariables,
         ),
       }),
-      onSubmit: onSubmit,
+      onSubmit,
       initialTouched,
     })
   const getFieldHelpers = getFormHelpers<CreateTemplateVersionRequest>(
@@ -120,6 +120,15 @@ export const selectInitialUserVariableValues = (
 ): VariableValue[] => {
   const defaults: VariableValue[] = []
   templateVariables.forEach((templateVariable) => {
+    // Boolean variables must be always either "true" or "false"
+    if (templateVariable.type === "bool" && templateVariable.value === "") {
+      defaults.push({
+        name: templateVariable.name,
+        value: templateVariable.default_value,
+      })
+      return
+    }
+
     if (templateVariable.sensitive) {
       defaults.push({
         name: templateVariable.name,

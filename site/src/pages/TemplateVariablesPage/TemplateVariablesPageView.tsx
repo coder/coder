@@ -43,10 +43,10 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
     !templateVersion &&
     !templateVariables &&
     !errors.getTemplateError &&
-    !errors.getTemplateVariablesError
+    !errors.getTemplateVariablesError &&
+    !errors.updateTemplateError
   const { t } = useTranslation("templateVariablesPage")
 
-  // TODO stack alert banners
   return (
     <FullPageHorizontalForm title={t("title")} onCancel={onCancel}>
       {Boolean(errors.getTemplateError) && (
@@ -68,6 +68,11 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
             severity="error"
             error={errors.getTemplateVariablesError}
           />
+        </Stack>
+      )}
+      {Boolean(errors.updateTemplateError) && (
+        <Stack className={classes.errorContainer}>
+          <AlertBanner severity="error" error={errors.updateTemplateError} />
         </Stack>
       )}
       {isLoading && <Loader />}
