@@ -1,7 +1,6 @@
 package azureidentity_test
 
 import (
-	"context"
 	"crypto/x509"
 	"testing"
 	"time"
@@ -19,7 +18,7 @@ func TestValidate(t *testing.T) {
 	t.Parallel()
 	ct, err := time.Parse(time.RFC3339, "2023-02-01T00:00:00Z")
 	require.NoError(t, err)
-	vm, err := azureidentity.Validate(context.Background(), signature, x509.VerifyOptions{
+	vm, err := azureidentity.Validate(signature, x509.VerifyOptions{
 		CurrentTime: ct,
 	})
 	require.NoError(t, err)
