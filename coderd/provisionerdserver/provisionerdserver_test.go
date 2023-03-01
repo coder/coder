@@ -836,12 +836,12 @@ func TestCompleteJob(t *testing.T) {
 				expectedMaxTTL:     0,
 			},
 			{
-				name:               "TemplateDefaultTTL",
+				name:               "TemplateDefaultTTLIgnored",
 				templateDefaultTTL: time.Hour,
 				templateMaxTTL:     0,
 				workspaceTTL:       0,
 				transition:         database.WorkspaceTransitionStart,
-				expectedTTL:        time.Hour,
+				expectedTTL:        0,
 				expectedMaxTTL:     0,
 			},
 			{

@@ -54,11 +54,13 @@ func TestTemplates(t *testing.T) {
 		workspace2 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = &workspace2TTL
 		})
-		workspace3 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.TTLMillis = nil
-		})
-
+		workspace3 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		// To unset TTL you have to update, as setting a nil TTL on create
+		// copies the template default TTL.
 		ctx, _ := testutil.Context(t)
+		err := client.UpdateWorkspaceTTL(ctx, workspace3.ID, codersdk.UpdateWorkspaceTTLRequest{
+			TTLMillis: nil,
+		})
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:                         template.Name,

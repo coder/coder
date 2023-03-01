@@ -273,15 +273,13 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("insert template: %s", err)
 		}
 
-		if defaultTTL != 0 || maxTTL != 0 {
-			dbTemplate, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, dbTemplate, provisionerdserver.TemplateScheduleOptions{
-				UserSchedulingEnabled: true,
-				DefaultTTL:            defaultTTL,
-				MaxTTL:                maxTTL,
-			})
-			if err != nil {
-				return xerrors.Errorf("set template schedule options: %s", err)
-			}
+		dbTemplate, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, dbTemplate, provisionerdserver.TemplateScheduleOptions{
+			UserSchedulingEnabled: true,
+			DefaultTTL:            defaultTTL,
+			MaxTTL:                maxTTL,
+		})
+		if err != nil {
+			return xerrors.Errorf("set template schedule options: %s", err)
 		}
 
 		templateAudit.New = dbTemplate

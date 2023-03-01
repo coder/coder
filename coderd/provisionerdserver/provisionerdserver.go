@@ -917,9 +917,6 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				// The user is not permitted to set their own TTL.
 				deadline = time.Time{}
 			}
-			if deadline.IsZero() && templateSchedule.DefaultTTL > 0 {
-				deadline = now.Add(templateSchedule.DefaultTTL)
-			}
 			if templateSchedule.MaxTTL > 0 {
 				maxDeadline = now.Add(templateSchedule.MaxTTL)
 
