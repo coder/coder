@@ -220,7 +220,6 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	for _, key := range keys {
 		userIds = append(userIds, key.UserID)
 	}
-	fmt.Println("userIds", userIds)
 
 	users, _ := api.Database.GetUsersByIDs(ctx, userIds)
 	usersByID := map[uuid.UUID]database.User{}
