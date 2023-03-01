@@ -38,6 +38,7 @@ func Audit(query string) (database.GetAuditLogsOffsetParams, []codersdk.Validati
 		Action:       string(httpapi.ParseCustom(parser, values, "", "action", httpapi.ParseEnum[database.ResourceType])),
 		BuildReason:  string(httpapi.ParseCustom(parser, values, "", "build_reason", httpapi.ParseEnum[database.ResourceType])),
 	}
+	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
 }
 
@@ -98,7 +99,7 @@ func Workspace(query string, page codersdk.Pagination, agentInactiveDisconnectTi
 	filter.OwnerUsername = parser.String(values, "", "owner")
 	filter.TemplateName = parser.String(values, "", "template")
 	filter.Name = parser.String(values, "", "name")
-	filter.Status = parser.String(values, "", "status")
+	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
 	filter.HasAgent = parser.String(values, "", "has-agent")
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors

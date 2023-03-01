@@ -95,6 +95,7 @@ export const WorkspacesPageView: FC<
           filter={filter}
           onFilter={onFilter}
           presetFilters={presetFilters}
+          error={error}
         />
       </Stack>
       <WorkspacesTable
