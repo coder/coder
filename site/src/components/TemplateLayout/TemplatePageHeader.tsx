@@ -101,7 +101,12 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
                 onClick={deleteTemplate.openDeleteConfirmation}
               />
               <TemplateSettingsButton templateName={template.name} />
-              <Maybe condition={templateVersionVariables && templateVersionVariables.length > 0}>
+              <Maybe
+                condition={
+                  templateVersionVariables &&
+                  templateVersionVariables.length > 0
+                }
+              >
                 <TemplateVariablesButton templateName={template.name} />
               </Maybe>
             </Maybe>
