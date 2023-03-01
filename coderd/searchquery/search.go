@@ -35,8 +35,8 @@ func AuditLogs(query string) (database.GetAuditLogsOffsetParams, []codersdk.Vali
 		DateFrom:     parser.Time(values, time.Time{}, "date_from", dateLayout),
 		DateTo:       parser.Time(values, time.Time{}, "date_to", dateLayout),
 		ResourceType: string(httpapi.ParseCustom(parser, values, "", "resource_type", httpapi.ParseEnum[database.ResourceType])),
-		Action:       string(httpapi.ParseCustom(parser, values, "", "action", httpapi.ParseEnum[database.ResourceType])),
-		BuildReason:  string(httpapi.ParseCustom(parser, values, "", "build_reason", httpapi.ParseEnum[database.ResourceType])),
+		Action:       string(httpapi.ParseCustom(parser, values, "", "action", httpapi.ParseEnum[database.AuditAction])),
+		BuildReason:  string(httpapi.ParseCustom(parser, values, "", "build_reason", httpapi.ParseEnum[database.BuildReason])),
 	}
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
@@ -113,6 +113,14 @@ func searchTerms(query string, defaultKey func(term string, values url.Values) e
 	// dropped.
 	elements := splitQueryParameterByDelimiter(query, ' ', true)
 	for _, element := range elements {
+		if strings.HasPrefix(element, ":") || strings.HasSuffix(element, ":") {
+			return nil, []codersdk.ValidationError{
+				{
+					Field:  "q",
+					Detail: fmt.Sprintf("Query element %q cannot start or end with ':'", element),
+				},
+			}
+		}
 		parts := splitQueryParameterByDelimiter(element, ':', false)
 		switch len(parts) {
 		case 1:

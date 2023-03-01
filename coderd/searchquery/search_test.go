@@ -118,6 +118,11 @@ func TestSearchWorkspace(t *testing.T) {
 
 		// Failures
 		{
+			Name:                  "NoPrefix",
+			Query:                 `:foo`,
+			ExpectedErrorContains: "cannot start or end",
+		},
+		{
 			Name:                  "Double",
 			Query:                 `name:foo name:bar`,
 			ExpectedErrorContains: "provided more than once",
