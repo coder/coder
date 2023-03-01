@@ -792,89 +792,226 @@ func TestCompleteJob(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, job.Error.Valid)
 	})
+
 	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
-		srv := setup(t, false)
 
-		user := dbgen.User(t, srv.Database, database.User{})
-		template := dbgen.Template(t, srv.Database, database.Template{
-			Name:        "template",
-			Provisioner: database.ProvisionerTypeEcho,
-		})
-		file := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
-		workspace, err := srv.Database.InsertWorkspace(ctx, database.InsertWorkspaceParams{
-			ID:         uuid.New(),
-			TemplateID: template.ID,
-		})
-		version := dbgen.TemplateVersion(t, srv.Database, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{
-				UUID:  template.ID,
-				Valid: true,
+		cases := []struct {
+			name               string
+			templateDefaultTTL time.Duration
+			templateMaxTTL     time.Duration
+			workspaceTTL       time.Duration
+			transition         database.WorkspaceTransition
+			// The TTL is actually a deadline time on the workspace_build row,
+			// so during the test this will be compared to be within 15 seconds
+			// of the expected value.
+			expectedTTL    time.Duration
+			expectedMaxTTL time.Duration
+		}{
+			{
+				name:               "OK",
+				templateDefaultTTL: 0,
+				templateMaxTTL:     0,
+				workspaceTTL:       0,
+				transition:         database.WorkspaceTransitionStart,
+				expectedTTL:        0,
+				expectedMaxTTL:     0,
 			},
-			JobID: uuid.New(),
-		})
-		require.NoError(t, err)
-		build, err := srv.Database.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
-			ID:                uuid.New(),
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: version.ID,
-			Transition:        database.WorkspaceTransitionDelete,
-			Reason:            database.BuildReasonInitiator,
-		})
-		require.NoError(t, err)
-		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-			ID:            uuid.New(),
-			FileID:        file.ID,
-			Provisioner:   database.ProvisionerTypeEcho,
-			Type:          database.ProvisionerJobTypeWorkspaceBuild,
-			StorageMethod: database.ProvisionerStorageMethodFile,
-			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-				WorkspaceBuildID: build.ID,
-			})),
-		})
-		require.NoError(t, err)
-		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-			WorkerID: uuid.NullUUID{
-				UUID:  srv.ID,
-				Valid: true,
+			{
+				name:               "Delete",
+				templateDefaultTTL: 0,
+				templateMaxTTL:     0,
+				workspaceTTL:       0,
+				transition:         database.WorkspaceTransitionDelete,
+				expectedTTL:        0,
+				expectedMaxTTL:     0,
 			},
-			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
-		})
-		require.NoError(t, err)
-
-		publishedWorkspace := make(chan struct{})
-		closeWorkspaceSubscribe, err := srv.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), func(_ context.Context, _ []byte) {
-			close(publishedWorkspace)
-		})
-		require.NoError(t, err)
-		defer closeWorkspaceSubscribe()
-		publishedLogs := make(chan struct{})
-		closeLogsSubscribe, err := srv.Pubsub.Subscribe(provisionerdserver.ProvisionerJobLogsNotifyChannel(job.ID), func(_ context.Context, _ []byte) {
-			close(publishedLogs)
-		})
-		require.NoError(t, err)
-		defer closeLogsSubscribe()
-
-		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
-			JobId: job.ID.String(),
-			Type: &proto.CompletedJob_WorkspaceBuild_{
-				WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
-					State: []byte{},
-					Resources: []*sdkproto.Resource{{
-						Name: "example",
-						Type: "aws_instance",
-					}},
-				},
+			{
+				name:               "WorkspaceTTL",
+				templateDefaultTTL: 0,
+				templateMaxTTL:     0,
+				workspaceTTL:       time.Hour,
+				transition:         database.WorkspaceTransitionStart,
+				expectedTTL:        time.Hour,
+				expectedMaxTTL:     0,
 			},
-		})
-		require.NoError(t, err)
+			{
+				name:               "TemplateDefaultTTL",
+				templateDefaultTTL: time.Hour,
+				templateMaxTTL:     0,
+				workspaceTTL:       0,
+				transition:         database.WorkspaceTransitionStart,
+				expectedTTL:        time.Hour,
+				expectedMaxTTL:     0,
+			},
+			{
+				name:               "WorkspaceTTLOverridesTemplateDefaultTTL",
+				templateDefaultTTL: 2 * time.Hour,
+				templateMaxTTL:     0,
+				workspaceTTL:       time.Hour,
+				transition:         database.WorkspaceTransitionStart,
+				expectedTTL:        time.Hour,
+				expectedMaxTTL:     0,
+			},
+			{
+				name:               "TemplateMaxTTL",
+				templateDefaultTTL: 0,
+				templateMaxTTL:     time.Hour,
+				workspaceTTL:       0,
+				transition:         database.WorkspaceTransitionStart,
+				expectedTTL:        time.Hour,
+				expectedMaxTTL:     time.Hour,
+			},
+			{
+				name:               "TemplateMaxTTLOverridesWorkspaceTTL",
+				templateDefaultTTL: 0,
+				templateMaxTTL:     2 * time.Hour,
+				workspaceTTL:       3 * time.Hour,
+				transition:         database.WorkspaceTransitionStart,
+				expectedTTL:        2 * time.Hour,
+				expectedMaxTTL:     2 * time.Hour,
+			},
+			{
+				name:               "TemplateMaxTTLOverridesTemplateDefaultTTL",
+				templateDefaultTTL: 3 * time.Hour,
+				templateMaxTTL:     2 * time.Hour,
+				workspaceTTL:       0,
+				transition:         database.WorkspaceTransitionStart,
+				expectedTTL:        2 * time.Hour,
+				expectedMaxTTL:     2 * time.Hour,
+			},
+		}
 
-		<-publishedWorkspace
-		<-publishedLogs
+		for _, c := range cases {
+			c := c
 
-		workspace, err = srv.Database.GetWorkspaceByID(ctx, workspace.ID)
-		require.NoError(t, err)
-		require.True(t, workspace.Deleted)
+			t.Run(c.name, func(t *testing.T) {
+				t.Parallel()
+
+				srv := setup(t, false)
+
+				var store provisionerdserver.TemplateScheduleStore = mockTemplateScheduleStore{
+					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error) {
+						return provisionerdserver.TemplateScheduleOptions{
+							UserSchedulingEnabled: true,
+							DefaultTTL:            c.templateDefaultTTL,
+							MaxTTL:                c.templateMaxTTL,
+						}, nil
+					},
+				}
+				srv.TemplateScheduleStore.Store(&store)
+
+				user := dbgen.User(t, srv.Database, database.User{})
+				template := dbgen.Template(t, srv.Database, database.Template{
+					Name:        "template",
+					Provisioner: database.ProvisionerTypeEcho,
+				})
+				template, err := srv.Database.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+					ID:         template.ID,
+					UpdatedAt:  database.Now(),
+					DefaultTTL: int64(c.templateDefaultTTL),
+					MaxTTL:     int64(c.templateMaxTTL),
+				})
+				require.NoError(t, err)
+				file := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+				workspaceTTL := sql.NullInt64{}
+				if c.workspaceTTL != 0 {
+					workspaceTTL = sql.NullInt64{
+						Int64: int64(c.workspaceTTL),
+						Valid: true,
+					}
+				}
+				workspace, err := srv.Database.InsertWorkspace(ctx, database.InsertWorkspaceParams{
+					ID:         uuid.New(),
+					TemplateID: template.ID,
+					Ttl:        workspaceTTL,
+				})
+				version := dbgen.TemplateVersion(t, srv.Database, database.TemplateVersion{
+					TemplateID: uuid.NullUUID{
+						UUID:  template.ID,
+						Valid: true,
+					},
+					JobID: uuid.New(),
+				})
+				require.NoError(t, err)
+				build, err := srv.Database.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+					ID:                uuid.New(),
+					WorkspaceID:       workspace.ID,
+					TemplateVersionID: version.ID,
+					Transition:        c.transition,
+					Reason:            database.BuildReasonInitiator,
+				})
+				require.NoError(t, err)
+				job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+					ID:            uuid.New(),
+					FileID:        file.ID,
+					Provisioner:   database.ProvisionerTypeEcho,
+					Type:          database.ProvisionerJobTypeWorkspaceBuild,
+					StorageMethod: database.ProvisionerStorageMethodFile,
+					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+						WorkspaceBuildID: build.ID,
+					})),
+				})
+				require.NoError(t, err)
+				_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+					WorkerID: uuid.NullUUID{
+						UUID:  srv.ID,
+						Valid: true,
+					},
+					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+				})
+				require.NoError(t, err)
+
+				publishedWorkspace := make(chan struct{})
+				closeWorkspaceSubscribe, err := srv.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), func(_ context.Context, _ []byte) {
+					close(publishedWorkspace)
+				})
+				require.NoError(t, err)
+				defer closeWorkspaceSubscribe()
+				publishedLogs := make(chan struct{})
+				closeLogsSubscribe, err := srv.Pubsub.Subscribe(provisionerdserver.ProvisionerJobLogsNotifyChannel(job.ID), func(_ context.Context, _ []byte) {
+					close(publishedLogs)
+				})
+				require.NoError(t, err)
+				defer closeLogsSubscribe()
+
+				_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+					JobId: job.ID.String(),
+					Type: &proto.CompletedJob_WorkspaceBuild_{
+						WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+							State: []byte{},
+							Resources: []*sdkproto.Resource{{
+								Name: "example",
+								Type: "aws_instance",
+							}},
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				<-publishedWorkspace
+				<-publishedLogs
+
+				workspace, err = srv.Database.GetWorkspaceByID(ctx, workspace.ID)
+				require.NoError(t, err)
+				require.Equal(t, c.transition == database.WorkspaceTransitionDelete, workspace.Deleted)
+
+				workspaceBuild, err := srv.Database.GetWorkspaceBuildByID(ctx, build.ID)
+				require.NoError(t, err)
+
+				if c.expectedTTL == 0 {
+					require.True(t, workspaceBuild.Deadline.IsZero())
+				} else {
+					require.WithinDuration(t, time.Now().Add(c.expectedTTL), workspaceBuild.Deadline, 15*time.Second, "deadline does not match expected")
+				}
+				if c.expectedMaxTTL == 0 {
+					require.True(t, workspaceBuild.MaxDeadline.IsZero())
+				} else {
+					require.WithinDuration(t, time.Now().Add(c.expectedMaxTTL), workspaceBuild.MaxDeadline, 15*time.Second, "max deadline does not match expected")
+					require.GreaterOrEqual(t, workspaceBuild.MaxDeadline.Unix(), workspaceBuild.Deadline.Unix(), "max deadline is smaller than deadline")
+				}
+			})
+		}
 	})
 
 	t.Run("TemplateDryRun", func(t *testing.T) {
@@ -1027,4 +1164,18 @@ func must[T any](value T, err error) T {
 		panic(err)
 	}
 	return value
+}
+
+type mockTemplateScheduleStore struct {
+	GetFn func(ctx context.Context, db database.Store, id uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error)
+}
+
+var _ provisionerdserver.TemplateScheduleStore = mockTemplateScheduleStore{}
+
+func (mockTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, opts provisionerdserver.TemplateScheduleOptions) (database.Template, error) {
+	return provisionerdserver.NewAGPLTemplateScheduleStore().SetTemplateScheduleOptions(ctx, db, template, opts)
+}
+
+func (m mockTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, id uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error) {
+	return m.GetFn(ctx, db, id)
 }

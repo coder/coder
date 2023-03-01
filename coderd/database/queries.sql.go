@@ -7281,3 +7281,28 @@ func (q *sqlQuerier) UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspace
 	_, err := q.db.ExecContext(ctx, updateWorkspaceTTL, arg.ID, arg.Ttl)
 	return err
 }
+
+const updateWorkspaceTTLToBeWithinTemplateMax = `-- name: UpdateWorkspaceTTLToBeWithinTemplateMax :exec
+UPDATE
+	workspaces
+SET
+	ttl = LEAST(ttl, $1::bigint)
+WHERE
+	template_id = $2
+	-- LEAST() does not pick NULL, so filter it out as we don't want to set a
+	-- TTL on the workspace if it's unset.
+	--
+	-- During build time, the template max TTL will still be used if the
+	-- workspace TTL is NULL.
+	AND ttl IS NOT NULL
+`
+
+type UpdateWorkspaceTTLToBeWithinTemplateMaxParams struct {
+	TemplateMaxTTL int64     `db:"template_max_ttl" json:"template_max_ttl"`
+	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceTTLToBeWithinTemplateMax(ctx context.Context, arg UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceTTLToBeWithinTemplateMax, arg.TemplateMaxTTL, arg.TemplateID)
+	return err
+}

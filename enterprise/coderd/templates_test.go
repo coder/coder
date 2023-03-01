@@ -28,7 +28,11 @@ func TestTemplates(t *testing.T) {
 	t.Run("SetMaxTTL", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdenttest.New(t, nil)
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+		})
 		user := coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			Features: license.Features{
@@ -37,8 +41,22 @@ func TestTemplates(t *testing.T) {
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		require.EqualValues(t, 0, template.MaxTTLMillis)
+
+		// Create some workspaces to test propagation to user-defined TTLs.
+		workspace1 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			ttl := (24 * time.Hour).Milliseconds()
+			cwr.TTLMillis = &ttl
+		})
+		workspace2TTL := (1 * time.Hour).Milliseconds()
+		workspace2 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TTLMillis = &workspace2TTL
+		})
+		workspace3 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TTLMillis = nil
+		})
 
 		ctx, _ := testutil.Context(t)
 
@@ -57,6 +75,19 @@ func TestTemplates(t *testing.T) {
 		template, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		require.Equal(t, 2*time.Hour, time.Duration(template.MaxTTLMillis)*time.Millisecond)
+
+		// Verify that only the first workspace has been updated.
+		workspace1, err = client.Workspace(ctx, workspace1.ID)
+		require.NoError(t, err)
+		require.Equal(t, &template.MaxTTLMillis, workspace1.TTLMillis)
+
+		workspace2, err = client.Workspace(ctx, workspace2.ID)
+		require.NoError(t, err)
+		require.Equal(t, &workspace2TTL, workspace2.TTLMillis)
+
+		workspace3, err = client.Workspace(ctx, workspace3.ID)
+		require.NoError(t, err)
+		require.Nil(t, workspace3.TTLMillis)
 	})
 
 	t.Run("CreateUpdateWorkspaceMaxTTL", func(t *testing.T) {
