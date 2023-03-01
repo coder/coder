@@ -130,7 +130,7 @@ jobs:
           category: "Trivy"
 
       - name: Upload Trivy scan results as an artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: trivy
           path: trivy-results.sarif
