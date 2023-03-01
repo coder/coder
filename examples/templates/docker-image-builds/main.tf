@@ -108,9 +108,9 @@ resource "docker_volume" "home_volume" {
 resource "docker_image" "coder_image" {
   name = "coder-base-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   build {
-    path       = "./images/"
+    context    = "./images/"
     dockerfile = "${data.coder_parameter.docker_image.value}.Dockerfile"
-    tag        = ["coder-${var.docker_image}:v0.1"]
+    tag        = ["coder-${data.coder_parameter.docker_image.value}:v0.1"]
   }
 
   # Keep alive for other workspaces to use upon deletion
@@ -119,7 +119,7 @@ resource "docker_image" "coder_image" {
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = docker_image.coder_image.latest
+  image = docker_image.coder_image.image_id
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
