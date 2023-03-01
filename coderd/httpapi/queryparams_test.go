@@ -7,11 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/database"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 )
 
@@ -48,6 +47,23 @@ func TestParseQueryParams(t *testing.T) {
 		parser := httpapi.NewQueryParamParser()
 		testQueryParams(t, expParams, parser, func(vals url.Values, def database.ResourceType, queryParam string) database.ResourceType {
 			return httpapi.ParseCustom(parser, vals, def, queryParam, httpapi.ParseEnum[database.ResourceType])
+		})
+	})
+
+	t.Run("EnumList", func(t *testing.T) {
+		t.Parallel()
+
+		expParams := []queryParamTestCase[[]database.ResourceType]{
+			{
+				QueryParam: "resource_type",
+				Value:      fmt.Sprintf("%s,%s", database.ResourceTypeWorkspace, database.ResourceTypeApiKey),
+				Expected:   []database.ResourceType{database.ResourceTypeWorkspace, database.ResourceTypeApiKey},
+			},
+		}
+
+		parser := httpapi.NewQueryParamParser()
+		testQueryParams(t, expParams, parser, func(vals url.Values, def []database.ResourceType, queryParam string) []database.ResourceType {
+			return httpapi.ParseCustomList(parser, vals, def, queryParam, httpapi.ParseEnum[database.ResourceType])
 		})
 	})
 

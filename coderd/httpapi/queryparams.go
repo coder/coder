@@ -23,13 +23,13 @@ type QueryParamParser struct {
 	Errors []codersdk.ValidationError
 	// Parsed is a map of all query params that were parsed. This is useful
 	// for checking if extra query params were passed in.
-	Parsed map[string]int
+	Parsed map[string]bool
 }
 
 func NewQueryParamParser() *QueryParamParser {
 	return &QueryParamParser{
 		Errors: []codersdk.ValidationError{},
-		Parsed: map[string]int{},
+		Parsed: map[string]bool{},
 	}
 }
 
@@ -48,7 +48,7 @@ func (p *QueryParamParser) ErrorExcessParams(values url.Values) {
 }
 
 func (p *QueryParamParser) addParsed(key string) {
-	p.Parsed[key]++
+	p.Parsed[key] = true
 }
 
 func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int {
