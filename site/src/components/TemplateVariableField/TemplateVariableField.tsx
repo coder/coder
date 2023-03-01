@@ -50,8 +50,6 @@ export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
     )
   }
 
-  // TODO Sensitive
-  // TODO Required
   return (
     <TextField
       {...props}

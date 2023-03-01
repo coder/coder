@@ -54,6 +54,16 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
           <AlertBanner severity="error" error={errors.getTemplateError} />
         </Stack>
       )}
+      {Boolean(errors.getActiveTemplateVersionError) && (
+        <Stack className={classes.errorContainer}>
+          <AlertBanner severity="error" error={errors.getActiveTemplateVersionError} />
+        </Stack>
+      )}
+      {Boolean(errors.getTemplateVariablesError) && (
+        <Stack className={classes.errorContainer}>
+          <AlertBanner severity="error" error={errors.getTemplateVariablesError} />
+        </Stack>
+      )}
       {isLoading && <Loader />}
       {templateVersion && templateVariables && (
         <TemplateVariablesForm
