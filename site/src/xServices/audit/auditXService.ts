@@ -1,5 +1,5 @@
 import { getAuditLogs } from "api/api"
-import { getErrorMessage, isApiError } from "api/errors"
+import { getErrorMessage } from "api/errors"
 import { AuditLog, AuditLogResponse } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
 import { getPaginationData } from "components/PaginationWidget/utils"
