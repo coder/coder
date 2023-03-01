@@ -195,6 +195,19 @@ jobs:
           tags: |
             ${{ steps.image-base-tag.outputs.tag }}
 
+      - name: Verify that base images are pushed properly
+        run: |
+          manifests=$(
+            docker manifest inspect "${{ steps.image-base-tag.outputs.tag }}" | \
+              jq -r '.manifests[].platform | .os + "/" + .architecture + (if .variant then "/" + .variant else "" end)'
+          )
+
+          # Verify all 3 platforms are present.
+          set -euxo pipefail
+          echo "$manifests" | grep -q linux/amd64
+          echo "$manifests" | grep -q linux/arm64
+          echo "$manifests" | grep -q linux/arm/v7
+
       - name: Build Linux Docker images
         run: |
           set -euxo pipefail

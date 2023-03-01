@@ -59,3 +59,16 @@ jobs:
           push: true
           tags: |
             ghcr.io/coder/coder-base:latest
+
+      - name: Verify that images are pushed properly
+        run: |
+          manifests=$(
+            docker manifest inspect ghcr.io/coder/coder-base:latest | \
+              jq -r '.manifests[].platform | .os + "/" + .architecture + (if .variant then "/" + .variant else "" end)'
+          )
+
+          # Verify all 3 platforms are present.
+          set -euxo pipefail
+          echo "$manifests" | grep -q linux/amd64
+          echo "$manifests" | grep -q linux/arm64
+          echo "$manifests" | grep -q linux/arm/v7
