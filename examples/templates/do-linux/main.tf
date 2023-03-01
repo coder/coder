@@ -56,42 +56,52 @@ data "coder_parameter" "droplet_image" {
   option {
     name  = "Ubuntu 22.04"
     value = "ubuntu-22-04-x64"
+    icon  = "/icon/ubuntu.svg"
   }
   option {
     name  = "Ubuntu 20.04"
     value = "ubuntu-20-04-x64"
+    icon  = "/icon/ubuntu.svg"
   }
   option {
     name  = "Fedora 36"
     value = "fedora-36-x64"
+    icon  = "/icon/fedora.svg"
   }
   option {
     name  = "Fedora 35"
     value = "fedora-35-x64"
+    icon  = "/icon/fedora.svg"
   }
   option {
     name  = "Debian 11"
     value = "debian-11-x64"
+    icon  = "/icon/debian.svg"
   }
   option {
     name  = "Debian 10"
     value = "debian-10-x64"
+    icon  = "/icon/debian.svg"
   }
   option {
     name  = "CentOS Stream 9"
     value = "centos-stream-9-x64"
+    icon  = "/icon/centos.svg"
   }
   option {
     name  = "CentOS Stream 8"
     value = "centos-stream-8-x64"
+    icon  = "/icon/centos.svg"
   }
   option {
     name  = "Rocky Linux 8"
     value = "rockylinux-8-x64"
+    icon  = "/icon/rockylinux.svg"
   }
   option {
     name  = "Rocky Linux 8.4"
     value = "rockylinux-8-4-x64"
+    icon  = "/icon/rockylinux.svg"
   }
 }
 
@@ -99,29 +109,30 @@ data "coder_parameter" "droplet_size" {
   name    = "Which Droplet configuration would you like to use?"
   default = "s-1vcpu-1gb"
   type    = "string"
+  icon    = "/icon/memory.svg"
   mutable = false
   option {
-    name  = "s-1vcpu-1gb"
+    name  = "1 core / 1 GB RAM"
     value = "s-1vcpu-1gb"
   }
   option {
-    name  = "s-1vcpu-2gb"
+    name  = "1 core / 2 GB RAM"
     value = "s-1vcpu-2gb"
   }
   option {
-    name  = "s-2vcpu-2gb"
+    name  = "2 cores / 2 GB RAM"
     value = "s-2vcpu-2gb"
   }
   option {
-    name  = "s-2vcpu-4gb"
+    name  = "2 cores / 4 GB RAM"
     value = "s-2vcpu-4gb"
   }
   option {
-    name  = "s-4vcpu-8gb"
+    name  = "4 cores / 8 GB RAM"
     value = "s-4vcpu-8gb"
   }
   option {
-    name  = "s-8vcpu-16gb"
+    name  = "8 cores / 16 GB RAM"
     value = "s-8vcpu-16gb"
   }
 }
