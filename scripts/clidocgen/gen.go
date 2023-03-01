@@ -140,14 +140,19 @@ func fmtDocFilename(cmd *cobra.Command) string {
 	return fmt.Sprintf("%s.md", name)
 }
 
-func generateDocsTree(rootCmd *cobra.Command, basePath string) error {
-	if rootCmd.Hidden {
+func generateDocsTree(cmd *cobra.Command, basePath string) error {
+	if cmd.Hidden {
+		return nil
+	}
+
+	if cmd.Name() == "server" {
+		// The server command is now managed by bigcli and needs a new generator.
 		return nil
 	}
 
 	// Write out root.
 	fi, err := os.OpenFile(
-		filepath.Join(basePath, fmtDocFilename(rootCmd)),
+		filepath.Join(basePath, fmtDocFilename(cmd)),
 		os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644,
 	)
 	if err != nil {
@@ -155,15 +160,15 @@ func generateDocsTree(rootCmd *cobra.Command, basePath string) error {
 	}
 	defer fi.Close()
 
-	err = writeCommand(fi, rootCmd)
+	err = writeCommand(fi, cmd)
 	if err != nil {
 		return err
 	}
 
-	flog.Info("Generated docs for %q at %v", fullCommandName(rootCmd), fi.Name())
+	flog.Info("Generated docs for %q at %v", fullCommandName(cmd), fi.Name())
 
 	// Recursively generate docs.
-	for _, subcommand := range rootCmd.Commands() {
+	for _, subcommand := range cmd.Commands() {
 		err = generateDocsTree(subcommand, basePath)
 		if err != nil {
 			return err
