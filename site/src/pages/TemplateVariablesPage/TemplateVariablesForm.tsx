@@ -49,8 +49,8 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
         template_id: templateVersion.template_id,
         provisioner: "terraform",
         storage_method: "file",
-        tags: {},
-        // FIXME file_id: null,
+        tags: templateVersion.job.tags,
+        file_id: templateVersion.job.file_id,
         user_variable_values: initialUserVariableValues,
       },
       validationSchema: Yup.object({
@@ -144,7 +144,7 @@ export const selectInitialUserVariableValues = (
   return defaults
 }
 
-export const ValidationSchemaForTemplateVariables = (
+const ValidationSchemaForTemplateVariables = (
   ns: string,
   templateVariables: TemplateVersionVariable[],
 ): Yup.AnySchema => {
@@ -159,6 +159,11 @@ export const ValidationSchemaForTemplateVariables = (
           const templateVariable = templateVariables.find(
             (variable) => variable.name === name,
           )
+          if (templateVariable && templateVariable.sensitive) {
+            // It's possible that the secret is already stored in database,
+            // so we can't properly verify the "required" condition.
+            return true
+          }
           if (templateVariable && templateVariable.required) {
             if (!val || val.length === 0) {
               return ctx.createError({

@@ -155,7 +155,9 @@ export const templateVariablesMachine = createMachine(
         }
         return getTemplateVersionVariables(template.active_version_id)
       },
-      updateTemplate: (context) => {},
+      updateTemplate: (context) => {
+        console.log(context.createTemplateVersionRequest)
+      },
     },
     actions: {
       assignTemplate: assign({

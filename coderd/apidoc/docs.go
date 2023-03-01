@@ -1473,7 +1473,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.CreateTemplateVersionDryRunRequest"
+                            "$ref": "#/definitions/codersdk.CreateTemplateVersionRequest"
                         }
                     }
                 ],
@@ -5808,6 +5808,66 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateTemplateVersionRequest": {
+            "type": "object",
+            "required": [
+                "provisioner",
+                "storage_method"
+            ],
+            "properties": {
+                "example_id": {
+                    "type": "string"
+                },
+                "file_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameter_values": {
+                    "description": "ParameterValues allows for additional parameters to be provided\nduring the dry-run provision stage.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
+                    }
+                },
+                "provisioner": {
+                    "type": "string",
+                    "enum": [
+                        "terraform",
+                        "echo"
+                    ]
+                },
+                "storage_method": {
+                    "enum": [
+                        "file"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerStorageMethod"
+                        }
+                    ]
+                },
+                "tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "template_id": {
+                    "description": "TemplateID optionally associates a version with a template.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "user_variable_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.VariableValue"
+                    }
+                }
+            }
+        },
         "codersdk.CreateTestAuditLogRequest": {
             "type": "object",
             "properties": {
@@ -7293,6 +7353,15 @@ const docTemplate = `{
                 "ProvisionerJobCanceling",
                 "ProvisionerJobCanceled",
                 "ProvisionerJobFailed"
+            ]
+        },
+        "codersdk.ProvisionerStorageMethod": {
+            "type": "string",
+            "enum": [
+                "file"
+            ],
+            "x-enum-varnames": [
+                "ProvisionerStorageMethodFile"
             ]
         },
         "codersdk.PutExtendWorkspaceRequest": {

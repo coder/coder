@@ -1027,6 +1027,61 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `user_variable_values`  | array of [codersdk.VariableValue](#codersdkvariablevalue)                     | false    |              |                                                                                    |
 | `workspace_name`        | string                                                                        | false    |              |                                                                                    |
 
+## codersdk.CreateTemplateVersionRequest
+
+```json
+{
+  "example_id": "string",
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "name": "string",
+  "parameter_values": [
+    {
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
+      "destination_scheme": "none",
+      "name": "string",
+      "source_scheme": "none",
+      "source_value": "string"
+    }
+  ],
+  "provisioner": "terraform",
+  "storage_method": "file",
+  "tags": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "user_variable_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                          |
+| ---------------------- | --------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------- |
+| `example_id`           | string                                                                      | false    |              |                                                                                                      |
+| `file_id`              | string                                                                      | false    |              |                                                                                                      |
+| `name`                 | string                                                                      | false    |              |                                                                                                      |
+| `parameter_values`     | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values allows for additional parameters to be provided during the dry-run provision stage. |
+| `provisioner`          | string                                                                      | true     |              |                                                                                                      |
+| `storage_method`       | [codersdk.ProvisionerStorageMethod](#codersdkprovisionerstoragemethod)      | true     |              |                                                                                                      |
+| `tags`                 | object                                                                      | false    |              |                                                                                                      |
+| » `[any property]`     | string                                                                      | false    |              |                                                                                                      |
+| `template_id`          | string                                                                      | false    |              | Template ID optionally associates a version with a template.                                         |
+| `user_variable_values` | array of [codersdk.VariableValue](#codersdkvariablevalue)                   | false    |              |                                                                                                      |
+
+#### Enumerated Values
+
+| Property         | Value       |
+| ---------------- | ----------- |
+| `provisioner`    | `terraform` |
+| `provisioner`    | `echo`      |
+| `storage_method` | `file`      |
+
 ## codersdk.CreateTestAuditLogRequest
 
 ```json
@@ -4058,6 +4113,20 @@ Parameter represents a set value for the scope.
 | `canceling` |
 | `canceled`  |
 | `failed`    |
+
+## codersdk.ProvisionerStorageMethod
+
+```json
+"file"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value  |
+| ------ |
+| `file` |
 
 ## codersdk.PutExtendWorkspaceRequest
 
