@@ -4370,13 +4370,13 @@ func (q *fakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUI
 			continue
 		}
 
-		var lastBuild database.WorkspaceBuild
+		var lastBuild database.WorkspaceBuildThin
 		for _, build := range q.workspaceBuilds {
 			if build.WorkspaceID != workspace.ID {
 				continue
 			}
 			if build.CreatedAt.After(lastBuild.CreatedAt) {
-				lastBuild = q.expandWorkspaceThin(build)
+				lastBuild = build
 			}
 		}
 		sum += int64(lastBuild.DailyCost)
