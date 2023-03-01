@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
@@ -99,16 +98,14 @@ type tokenListRow struct {
 	Owner     string    `json:"-" table:"owner"`
 }
 
-func tokenListRowFromToken(token codersdk.APIKey, usersByID map[uuid.UUID]codersdk.User) tokenListRow {
-	user := usersByID[token.UserID]
-
+func tokenListRowFromToken(token codersdk.APIKeyWithOwner) tokenListRow {
 	return tokenListRow{
-		APIKey:    token,
+		APIKey:    token.APIKey,
 		ID:        token.ID,
 		LastUsed:  token.LastUsed,
 		ExpiresAt: token.ExpiresAt,
 		CreatedAt: token.CreatedAt,
-		Owner:     user.Username,
+		Owner:     token.Username,
 	}
 }
 
@@ -150,20 +147,10 @@ func listTokens() *cobra.Command {
 				))
 			}
 
-			userRes, err := client.Users(cmd.Context(), codersdk.UsersRequest{})
-			if err != nil {
-				return err
-			}
-
-			usersByID := map[uuid.UUID]codersdk.User{}
-			for _, user := range userRes.Users {
-				usersByID[user.ID] = user
-			}
-
 			displayTokens = make([]tokenListRow, len(tokens))
 
 			for i, token := range tokens {
-				displayTokens[i] = tokenListRowFromToken(token, usersByID)
+				displayTokens[i] = tokenListRowFromToken(token)
 			}
 
 			out, err := formatter.Format(cmd.Context(), displayTokens)
