@@ -92,7 +92,7 @@ type TokensFilter struct {
 	IncludeAll bool `json:"include_all"`
 }
 
-type ConvertedAPIKey struct {
+type APIKeyWithOwner struct {
 	APIKey
 	Username string `json:"username"`
 }
@@ -108,7 +108,7 @@ func (f TokensFilter) asRequestOption() RequestOption {
 }
 
 // Tokens list machine API keys.
-func (c *Client) Tokens(ctx context.Context, userID string, filter TokensFilter) ([]ConvertedAPIKey, error) {
+func (c *Client) Tokens(ctx context.Context, userID string, filter TokensFilter) ([]APIKeyWithOwner, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), nil, filter.asRequestOption())
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func (c *Client) Tokens(ctx context.Context, userID string, filter TokensFilter)
 	if res.StatusCode > http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-	apiKey := []ConvertedAPIKey{}
+	apiKey := []APIKeyWithOwner{}
 	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
 }
 

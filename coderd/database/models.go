@@ -1219,16 +1219,6 @@ type APIKey struct {
 	TokenName       string      `db:"token_name" json:"token_name"`
 }
 
-type AgentStat struct {
-	ID          uuid.UUID       `db:"id" json:"id"`
-	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
-	UserID      uuid.UUID       `db:"user_id" json:"user_id"`
-	AgentID     uuid.UUID       `db:"agent_id" json:"agent_id"`
-	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	TemplateID  uuid.UUID       `db:"template_id" json:"template_id"`
-	Payload     json.RawMessage `db:"payload" json:"payload"`
-}
-
 type AuditLog struct {
 	ID               uuid.UUID       `db:"id" json:"id"`
 	Time             time.Time       `db:"time" json:"time"`
@@ -1557,6 +1547,21 @@ type WorkspaceAgent struct {
 	StartupScriptTimeoutSeconds int32 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
 	// The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder
 	ExpandedDirectory string `db:"expanded_directory" json:"expanded_directory"`
+}
+
+type WorkspaceAgentStat struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+	UserID             uuid.UUID       `db:"user_id" json:"user_id"`
+	AgentID            uuid.UUID       `db:"agent_id" json:"agent_id"`
+	WorkspaceID        uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	TemplateID         uuid.UUID       `db:"template_id" json:"template_id"`
+	ConnectionsByProto json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
+	ConnectionCount    int64           `db:"connection_count" json:"connection_count"`
+	RxPackets          int64           `db:"rx_packets" json:"rx_packets"`
+	RxBytes            int64           `db:"rx_bytes" json:"rx_bytes"`
+	TxPackets          int64           `db:"tx_packets" json:"tx_packets"`
+	TxBytes            int64           `db:"tx_bytes" json:"tx_bytes"`
 }
 
 type WorkspaceApp struct {

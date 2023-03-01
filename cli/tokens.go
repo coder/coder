@@ -104,7 +104,7 @@ type tokenListRow struct {
 	Owner     string    `json:"-" table:"owner"`
 }
 
-func tokenListRowFromToken(token codersdk.ConvertedAPIKey) tokenListRow {
+func tokenListRowFromToken(token codersdk.APIKeyWithOwner) tokenListRow {
 	return tokenListRow{
 		APIKey:    token.APIKey,
 		ID:        token.ID,

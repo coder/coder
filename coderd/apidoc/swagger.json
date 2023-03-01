@@ -4633,14 +4633,14 @@
       "type": "object",
       "properties": {
         "conns_by_proto": {
-          "description": "ConnsByProto is a count of connections by protocol.",
+          "description": "ConnectionsByProto is a count of connections by protocol.",
           "type": "object",
           "additionalProperties": {
             "type": "integer"
           }
         },
         "num_comms": {
-          "description": "NumConns is the number of connections received by an agent.",
+          "description": "ConnectionCount is the number of connections received by an agent.",
           "type": "integer"
         },
         "rx_bytes": {
