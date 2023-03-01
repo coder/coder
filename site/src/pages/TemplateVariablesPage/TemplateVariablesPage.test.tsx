@@ -1,7 +1,6 @@
 import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import {
-  history,
   MockTemplate,
   MockTemplateVersion2,
   MockTemplateVersion,
