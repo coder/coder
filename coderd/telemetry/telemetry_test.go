@@ -9,12 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -23,8 +20,10 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/telemetry"
 )
 

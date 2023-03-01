@@ -16,17 +16,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/coder/coderd/database/dbauthz"
-
 	"github.com/elastic/go-sysinfo"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 )
 
 const (
