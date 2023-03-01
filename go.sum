@@ -811,8 +811,8 @@ github.com/gogo/protobuf v1.3.0/go.mod h1:SlYgWuQ5SjCEi6WLHjHCa1yvBfUnHcTbrrZtXP
 github.com/gogo/protobuf v1.3.1/go.mod h1:SlYgWuQ5SjCEi6WLHjHCa1yvBfUnHcTbrrZtXPKa29o=
 github.com/gogo/protobuf v1.3.2 h1:Ov1cvc58UF3b5XjBnZv7+opcTcQFZebYjWzi34vdm4Q=
 github.com/gogo/protobuf v1.3.2/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
-github.com/gohugoio/hugo v0.109.0 h1:5QR77gymQad+ecpy0CQ0De7Plpo/ZhOQqftoKheXlK4=
-github.com/gohugoio/hugo v0.109.0/go.mod h1:Cn2FhzBMopBYE9yCl87nHiVqFTf2tmIRoluazbIc7/I=
+github.com/gohugoio/hugo v0.110.0 h1:FBBypy+UXD9BWaMReIZ+y2FSxFwlJCqoutVi7jKa90o=
+github.com/gohugoio/hugo v0.110.0/go.mod h1:Fn7vtWrDBSojvaHSft+KMHhl6aH2934CR2njI32i38k=
 github.com/golang-jwt/jwt v3.2.2+incompatible h1:IfV12K8xAKAnZqdXVzCZ+TOjboZ2keLg81eXfW3O+oY=
 github.com/golang-jwt/jwt v3.2.2+incompatible/go.mod h1:8pz2t5EyA70fFQQSrl6XZXzqecmYZeUEB8OUGHkxJ+I=
 github.com/golang-jwt/jwt/v4 v4.0.0/go.mod h1:/xlHOz8bRuivTWchD4jCa+NbatV+wEUSzwAxVc6locg=
