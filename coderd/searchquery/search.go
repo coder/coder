@@ -38,6 +38,9 @@ func AuditLogs(query string) (database.GetAuditLogsOffsetParams, []codersdk.Vali
 		Action:       string(httpapi.ParseCustom(parser, values, "", "action", httpapi.ParseEnum[database.AuditAction])),
 		BuildReason:  string(httpapi.ParseCustom(parser, values, "", "build_reason", httpapi.ParseEnum[database.BuildReason])),
 	}
+	if !filter.DateTo.IsZero() {
+		filter.DateTo = filter.DateTo.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+	}
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
 }
