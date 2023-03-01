@@ -29,9 +29,9 @@ func (api *API) deploymentConfig(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(
 		r.Context(), rw, http.StatusOK,
-		codersdk.DeploymentConfigAndOptions{
+		codersdk.DeploymentValuesAndOptions{
 			Config:  scrubbedConfig,
-			Options: scrubbedConfig.ConfigOptions(),
+			Options: scrubbedConfig.Options(),
 		},
 	)
 }

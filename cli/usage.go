@@ -45,15 +45,13 @@ var usageTemplate = template.Must(
 				return sb.String()
 			},
 			"envName": func(opt bigcli.Option) string {
-				n, ok := opt.EnvName()
-				if !ok {
+				if opt.Env == "" {
 					return ""
 				}
-				return envPrefix + n
+				return envPrefix + opt.Env
 			},
 			"flagName": func(opt bigcli.Option) string {
-				n, _ := opt.FlagName()
-				return n
+				return opt.Flag
 			},
 			"prettyHeader": func(s string) string {
 				return cliui.Styles.Bold.Render(s)

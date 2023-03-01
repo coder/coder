@@ -166,7 +166,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			defer cancel()
 
 			cfg := codersdk.NewDeploymentConfig()
-			cliOpts := cfg.ConfigOptions()
+			cliOpts := cfg.Options()
 			var configDir bigcli.String
 			// This is a hack to get around the fact that the Cobra-defined
 			// flags are not available.
@@ -1230,7 +1230,7 @@ func newProvisionerDaemon(
 	coderAPI *coderd.API,
 	metrics provisionerd.Metrics,
 	logger slog.Logger,
-	cfg *codersdk.DeploymentConfig,
+	cfg *codersdk.DeploymentValues,
 	cacheDir string,
 	errCh chan error,
 	dev bool,
@@ -1725,7 +1725,7 @@ func isLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentConfig) (slog.Logger, func(), error) {
+func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentValues) (slog.Logger, func(), error) {
 	var (
 		sinks   = []slog.Sink{}
 		closers = []func() error{}

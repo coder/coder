@@ -20,6 +20,7 @@ func TestOptionSet_ParseFlags(t *testing.T) {
 			bigcli.Option{
 				Name:          "Workspace Name",
 				Value:         &workspaceName,
+				Flag:          "workspace-name",
 				FlagShorthand: "n",
 			},
 		}
@@ -43,6 +44,7 @@ func TestOptionSet_ParseFlags(t *testing.T) {
 			bigcli.Option{
 				Name:          "name",
 				Value:         &names,
+				Flag:          "name",
 				FlagShorthand: "n",
 			},
 		}
@@ -81,6 +83,7 @@ func TestOptionSet_ParseEnv(t *testing.T) {
 			bigcli.Option{
 				Name:  "Workspace Name",
 				Value: &workspaceName,
+				Env:   "WORKSPACE_NAME",
 			},
 		}
 

@@ -2,36 +2,32 @@ package bigcli
 
 import (
 	"os"
-	"strings"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/iancoleman/strcase"
 	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/envparse"
 )
 
-// Disable is a sentinel value for Option.Flag, Option.Env, and Option.YAML to disable
-// features.
-const Disable = "-"
-
 // Option is a configuration option for a CLI application.
 type Option struct {
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
 
-	// If unset, Flag defaults to the kebab-case version of Name.
-	// Use sentinel value `Disable` to disable flag support.
-	Flag          string `json:"flag,omitempty"`
+	// Flag is the long name of the flag used to configure this option. If unset,
+	// flag configuring is disabled.
+	Flag string `json:"flag,omitempty"`
+	// FlagShorthand is the one-character shorthand for the flag. If unset, no
+	// shorthand is used.
 	FlagShorthand string `json:"flag_shorthand,omitempty"`
 
-	// If unset, Env defaults to the upper-case, snake-case version of Name.
-	// Use special value "Disable" to disable environment variable support.
+	// Env is the environment variable used to configure this option. If unset,
+	// environment configuring is disabled.
 	Env string `json:"env,omitempty"`
 
-	// Unlike Flag and Env, we do not infer YAML name because we want to provide
-	// the strongest compatibility guarantee for YAML configs.
+	// YAML is the YAML key used to configure this option. If unset, YAML
+	// configuring is disabled.
 	YAML string `json:"yaml,omitempty"`
 
 	// Default is parsed into Value if set.
@@ -54,32 +50,6 @@ type Option struct {
 	Hidden bool `json:"hidden,omitempty"`
 }
 
-// FlagName returns the flag name for the option.
-func (o *Option) FlagName() (string, bool) {
-	if o.Flag == Disable {
-		return "", false
-	}
-	if o.Flag == "" {
-		return strcase.ToKebab(o.Name), true
-	}
-	return o.Flag, true
-}
-
-// EnvName returns the environment variable name for the option.
-func (o *Option) EnvName() (string, bool) {
-	if o.Env == Disable {
-		return "", false
-	}
-	if o.Env != "" {
-		return o.Env, true
-	}
-	return strings.ToUpper(
-		strcase.ToSnake(
-			strings.ReplaceAll(o.Name, ":", ""),
-		),
-	), true
-}
-
 // OptionSet is a group of options that can be applied to a command.
 type OptionSet []Option
 
@@ -92,12 +62,9 @@ func (s *OptionSet) Add(opts ...Option) {
 func (s *OptionSet) FlagSet() *pflag.FlagSet {
 	fs := pflag.NewFlagSet("", pflag.ContinueOnError)
 	for _, opt := range *s {
-		flagName, ok := opt.FlagName()
-		if !ok {
+		if opt.Flag == "" {
 			continue
 		}
-
-		// HACK: allow omitting value for boolean flags.
 		var noOptDefValue string
 		{
 			no, ok := opt.Value.(NoOptDefValuer)
@@ -107,7 +74,7 @@ func (s *OptionSet) FlagSet() *pflag.FlagSet {
 		}
 
 		fs.AddFlag(&pflag.Flag{
-			Name:        flagName,
+			Name:        opt.Flag,
 			Shorthand:   opt.FlagShorthand,
 			Usage:       opt.Description,
 			Value:       opt.Value,
@@ -137,12 +104,11 @@ func (s *OptionSet) ParseEnv(globalPrefix string, environ []string) error {
 	}
 
 	for _, opt := range *s {
-		envName, ok := opt.EnvName()
-		if !ok {
+		if opt.Env == "" {
 			continue
 		}
 
-		envVal, ok := envs[envName]
+		envVal, ok := envs[opt.Env]
 		if !ok {
 			continue
 		}

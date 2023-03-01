@@ -129,7 +129,7 @@ type Options struct {
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	Experimental                bool
-	DeploymentConfig            *codersdk.DeploymentConfig
+	DeploymentConfig            *codersdk.DeploymentValues
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 
 	HTTPClient *http.Client

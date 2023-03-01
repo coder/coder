@@ -108,7 +108,7 @@ type Options struct {
 	IncludeProvisionerDaemon    bool
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
-	DeploymentConfig            *codersdk.DeploymentConfig
+	DeploymentConfig            *codersdk.DeploymentValues
 
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
@@ -1056,9 +1056,9 @@ sz9Di8sGIaUbLZI2rd0CQQCzlVwEtRtoNCyMJTTrkgUuNufLP19RZ5FpyXxBO5/u
 QastnN77KfUwdj3SJt44U/uh1jAIv4oSLBr8HYUkbnI8
 -----END RSA PRIVATE KEY-----`
 
-func DeploymentConfig(t *testing.T) *codersdk.DeploymentConfig {
+func DeploymentConfig(t *testing.T) *codersdk.DeploymentValues {
 	cfg := codersdk.NewDeploymentConfig()
-	err := cfg.ConfigOptions().SetDefaults()
+	err := cfg.Options().SetDefaults()
 	require.NoError(t, err)
 	return cfg
 }
