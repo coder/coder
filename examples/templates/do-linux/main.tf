@@ -43,8 +43,8 @@ data "coder_parameter" "step2_do_admin_ssh_key" {
   default     = "0"
   mutable     = false
   validation {
-    min   = 0
-    error = "Invalid Digital Ocean SSH key ID, a number is required."
+    min = 0
+    max = 999999
   }
 }
 
@@ -134,8 +134,8 @@ data "coder_parameter" "home_volume_size" {
   default     = "20"
   mutable     = false
   validation {
-    min   = 1
-    error = "Value must be greater than or equal to 1."
+    min = 1
+    max = 999999
   }
 }
 
@@ -229,9 +229,9 @@ resource "coder_agent" "main" {
 }
 
 resource "digitalocean_volume" "home_volume" {
-  region                   = var.region
+  region                   = data.coder_parameter.region.value
   name                     = "coder-${data.coder_workspace.me.id}-home"
-  size                     = var.home_volume_size
+  size                     = data.coder_parameter.home_volume_size.value
   initial_filesystem_type  = "ext4"
   initial_filesystem_label = "coder-home"
   # Protect the volume from being deleted due to changes in attributes.
@@ -241,11 +241,12 @@ resource "digitalocean_volume" "home_volume" {
 }
 
 resource "digitalocean_droplet" "workspace" {
-  region     = var.region
-  count      = data.coder_workspace.me.start_count
-  name       = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
-  image      = var.droplet_image
-  size       = var.droplet_size
+  region = data.coder_parameter.region.value
+  count  = data.coder_workspace.me.start_count
+  name   = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+  image  = data.coder_parameter.droplet_image.value
+  size   = data.coder_parameter.droplet_size.value
+
   volume_ids = [digitalocean_volume.home_volume.id]
   user_data = templatefile("cloud-config.yaml.tftpl", {
     username          = data.coder_workspace.me.owner
@@ -254,11 +255,11 @@ resource "digitalocean_droplet" "workspace" {
     coder_agent_token = coder_agent.main.token
   })
   # Required to provision Fedora.
-  ssh_keys = var.step2_do_admin_ssh_key > 0 ? [var.step2_do_admin_ssh_key] : []
+  ssh_keys = data.coder_parameter.step1_do_project_id.value > 0 ? [data.coder_parameter.step2_do_admin_ssh_key.value] : []
 }
 
 resource "digitalocean_project_resources" "project" {
-  project = var.step1_do_project_id
+  project = data.coder_parameter.step1_do_project_id.value
   # Workaround for terraform plan when using count.
   resources = length(digitalocean_droplet.workspace) > 0 ? [
     digitalocean_volume.home_volume.urn,
