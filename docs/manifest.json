@@ -298,6 +298,13 @@
           "description": "Learn what usage telemetry Coder collects",
           "path": "./admin/telemetry.md",
           "icon_path": "./images/icons/science.svg"
+        },
+        {
+          "title": "Support Links",
+          "description": "Learn how to configure Support Links",
+          "path": "./admin/support-links.md",
+          "icon_path": "./images/icons/link.svg",
+          "state": "enterprise"
         }
       ]
     },

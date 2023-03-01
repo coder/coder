@@ -73,7 +73,7 @@ func TestAgent_Stats_SSH(t *testing.T) {
 	require.Eventuallyf(t, func() bool {
 		var ok bool
 		s, ok = <-stats
-		return ok && s.NumConns > 0 && s.RxBytes > 0 && s.TxBytes > 0
+		return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0
 	}, testutil.WaitLong, testutil.IntervalFast,
 		"never saw stats: %+v", s,
 	)
@@ -102,7 +102,7 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 	require.Eventuallyf(t, func() bool {
 		var ok bool
 		s, ok = <-stats
-		return ok && s.NumConns > 0 && s.RxBytes > 0 && s.TxBytes > 0
+		return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0
 	}, testutil.WaitLong, testutil.IntervalFast,
 		"never saw stats: %+v", s,
 	)
@@ -1179,12 +1179,21 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 		coordinator.ServeClient(serverConn, uuid.New(), agentID)
 	}()
 	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		return conn.UpdateNodes(node)
+		return conn.UpdateNodes(node, false)
 	})
 	conn.SetNodeCallback(sendNode)
-	return &codersdk.WorkspaceAgentConn{
+	agentConn := &codersdk.WorkspaceAgentConn{
 		Conn: conn,
-	}, c, statsCh, fs
+	}
+	t.Cleanup(func() {
+		_ = agentConn.Close()
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+	if !agentConn.AwaitReachable(ctx) {
+		t.Fatal("agent not reachable")
+	}
+	return agentConn, c, statsCh, fs
 }
 
 var dialTestPayload = []byte("dean-was-here123")

@@ -156,7 +156,7 @@ func (a *agent) runLoop(ctx context.Context) {
 	go a.reportLifecycleLoop(ctx)
 
 	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-		a.logger.Info(ctx, "running loop")
+		a.logger.Info(ctx, "connecting to coderd")
 		err := a.run(ctx)
 		// Cancel after the run is complete to clean up any leaked resources!
 		if err == nil {
@@ -169,7 +169,7 @@ func (a *agent) runLoop(ctx context.Context) {
 			return
 		}
 		if errors.Is(err, io.EOF) {
-			a.logger.Info(ctx, "likely disconnected from coder", slog.Error(err))
+			a.logger.Info(ctx, "disconnected from coderd")
 			continue
 		}
 		a.logger.Warn(ctx, "run exited with error", slog.Error(err))
@@ -197,7 +197,7 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 				break
 			}
 
-			a.logger.Debug(ctx, "post lifecycle state", slog.F("state", state))
+			a.logger.Debug(ctx, "reporting lifecycle state", slog.F("state", state))
 
 			err := a.client.PostLifecycle(ctx, agentsdk.PostLifecycleRequest{
 				State: state,
@@ -242,7 +242,7 @@ func (a *agent) run(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
-	a.logger.Info(ctx, "fetched metadata")
+	a.logger.Info(ctx, "fetched metadata", slog.F("metadata", metadata))
 
 	// Expand the directory and send it back to coderd so external
 	// applications that rely on the directory can use it.
@@ -330,13 +330,10 @@ func (a *agent) run(ctx context.Context) error {
 	go NewWorkspaceAppHealthReporter(
 		a.logger, metadata.Apps, a.client.PostAppHealth)(appReporterCtx)
 
-	a.logger.Debug(ctx, "running tailnet with derpmap", slog.F("derpmap", metadata.DERPMap))
-
 	a.closeMutex.Lock()
 	network := a.network
 	a.closeMutex.Unlock()
 	if network == nil {
-		a.logger.Debug(ctx, "creating tailnet")
 		network, err = a.createTailnet(ctx, metadata.DERPMap)
 		if err != nil {
 			return xerrors.Errorf("create tailnet: %w", err)
@@ -385,10 +382,9 @@ func (a *agent) run(ctx context.Context) error {
 		network.SetDERPMap(metadata.DERPMap)
 	}
 
-	a.logger.Debug(ctx, "running coordinator")
+	a.logger.Debug(ctx, "running tailnet connection coordinator")
 	err = a.runCoordinator(ctx, network)
 	if err != nil {
-		a.logger.Debug(ctx, "coordinator exited", slog.Error(err))
 		return xerrors.Errorf("run coordinator: %w", err)
 	}
 	return nil
@@ -474,7 +470,9 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		for {
 			conn, err := reconnectingPTYListener.Accept()
 			if err != nil {
-				logger.Debug(ctx, "accept pty failed", slog.Error(err))
+				if !a.isClosed() {
+					logger.Debug(ctx, "accept pty failed", slog.Error(err))
+				}
 				break
 			}
 			wg.Add(1)
@@ -529,7 +527,9 @@ func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ 
 		for {
 			conn, err := speedtestListener.Accept()
 			if err != nil {
-				a.logger.Debug(ctx, "speedtest listener failed", slog.Error(err))
+				if !a.isClosed() {
+					a.logger.Debug(ctx, "speedtest listener failed", slog.Error(err))
+				}
 				break
 			}
 			wg.Add(1)
@@ -600,8 +600,10 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 		return err
 	}
 	defer coordinator.Close()
-	a.logger.Info(ctx, "connected to coordination server")
-	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, network.UpdateNodes)
+	a.logger.Info(ctx, "connected to coordination endpoint")
+	sendNodes, errChan := tailnet.ServeCoordinator(coordinator, func(nodes []*tailnet.Node) error {
+		return network.UpdateNodes(nodes, false)
+	})
 	network.SetNodeCallback(sendNodes)
 	select {
 	case <-ctx.Done():
@@ -644,7 +646,6 @@ func (a *agent) runStartupScript(ctx context.Context, script string) error {
 }
 
 func (a *agent) init(ctx context.Context) {
-	a.logger.Info(ctx, "generating host key")
 	// Clients' should ignore the host key when connecting.
 	// The agent needs to authenticate with coderd to SSH,
 	// so SSH authentication doesn't improve security.
@@ -766,12 +767,12 @@ func (a *agent) init(ctx context.Context) {
 
 func convertAgentStats(counts map[netlogtype.Connection]netlogtype.Counts) *agentsdk.Stats {
 	stats := &agentsdk.Stats{
-		ConnsByProto: map[string]int64{},
-		NumConns:     int64(len(counts)),
+		ConnectionsByProto: map[string]int64{},
+		ConnectionCount:    int64(len(counts)),
 	}
 
 	for conn, count := range counts {
-		stats.ConnsByProto[conn.Proto.String()]++
+		stats.ConnectionsByProto[conn.Proto.String()]++
 		stats.RxPackets += int64(count.RxPackets)
 		stats.RxBytes += int64(count.RxBytes)
 		stats.TxPackets += int64(count.TxPackets)

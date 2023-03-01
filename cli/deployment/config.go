@@ -570,6 +570,15 @@ func newConfig() *codersdk.DeploymentConfig {
 			Flag:    "disable-password-auth",
 			Default: false,
 		},
+		Support: &codersdk.SupportConfig{
+			Links: &codersdk.DeploymentConfigField[[]codersdk.LinkConfig]{
+				Name:       "Support links",
+				Usage:      "Use custom support links",
+				Flag:       "support-links",
+				Default:    []codersdk.LinkConfig{},
+				Enterprise: true,
+			},
+		},
 	}
 }
 
@@ -648,6 +657,10 @@ func setConfig(prefix string, vip *viper.Viper, target interface{}) {
 		case []codersdk.GitAuthConfig:
 			// Do not bind to CODER_GITAUTH, instead bind to CODER_GITAUTH_0_*, etc.
 			values := readSliceFromViper[codersdk.GitAuthConfig](vip, prefix, value)
+			val.FieldByName("Value").Set(reflect.ValueOf(values))
+		case []codersdk.LinkConfig:
+			// Do not bind to CODER_SUPPORT_LINKS, instead bind to CODER_SUPPORT_LINKS_0_*, etc.
+			values := readSliceFromViper[codersdk.LinkConfig](vip, prefix, value)
 			val.FieldByName("Value").Set(reflect.ValueOf(values))
 		default:
 			panic(fmt.Sprintf("unsupported type %T", value))
@@ -824,6 +837,8 @@ func setFlags(prefix string, flagset *pflag.FlagSet, vip *viper.Viper, target in
 			_ = flagset.DurationP(flg, shorthand, vip.GetDuration(prefix), usage)
 		case []string:
 			_ = flagset.StringSliceP(flg, shorthand, vip.GetStringSlice(prefix), usage)
+		case []codersdk.LinkConfig:
+			// Ignore this one!
 		case []codersdk.GitAuthConfig:
 			// Ignore this one!
 		default:

@@ -325,6 +325,16 @@ func New(options *Options) *API {
 				next.ServeHTTP(w, r)
 			})
 		},
+		// This header stops a browser from trying to MIME-sniff the content type and
+		// forces it to stick with the declared content-type. This is the only valid
+		// value for this header.
+		// See: https://github.com/coder/security/issues/12
+		func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Add("X-Content-Type-Options", "nosniff")
+				next.ServeHTTP(w, r)
+			})
+		},
 		httpmw.CSRF(options.SecureAuthCookie),
 	)
 
@@ -485,6 +495,7 @@ func New(options *Options) *API {
 			r.Get("/schema", api.templateVersionSchema)
 			r.Get("/parameters", api.templateVersionParameters)
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
+			r.Get("/gitauth", api.templateVersionGitAuth)
 			r.Get("/variables", api.templateVersionVariables)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
@@ -802,12 +813,18 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}
 
 	mux := drpcmux.New()
+
+	gitAuthProviders := make([]string, 0, len(api.GitAuthConfigs))
+	for _, cfg := range api.GitAuthConfigs {
+		gitAuthProviders = append(gitAuthProviders, cfg.ID)
+	}
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
 		AccessURL:             api.AccessURL,
 		ID:                    daemon.ID,
 		Database:              api.Database,
 		Pubsub:                api.Pubsub,
 		Provisioners:          daemon.Provisioners,
+		GitAuthProviders:      gitAuthProviders,
 		Telemetry:             api.Telemetry,
 		Tags:                  tags,
 		QuotaCommitter:        &api.QuotaCommitter,

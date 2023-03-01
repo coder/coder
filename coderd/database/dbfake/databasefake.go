@@ -40,7 +40,6 @@ func New() database.Store {
 		mutex: &sync.RWMutex{},
 		data: &data{
 			apiKeys:                   make([]database.APIKey, 0),
-			agentStats:                make([]database.AgentStat, 0),
 			organizationMembers:       make([]database.OrganizationMember, 0),
 			organizations:             make([]database.Organization, 0),
 			users:                     make([]database.User, 0),
@@ -60,6 +59,7 @@ func New() database.Store {
 			provisionerJobs:           make([]database.ProvisionerJob, 0),
 			templateVersions:          make([]database.TemplateVersion, 0),
 			templates:                 make([]database.Template, 0),
+			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
 			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
@@ -98,7 +98,7 @@ type data struct {
 	userLinks           []database.UserLink
 
 	// New tables
-	agentStats                []database.AgentStat
+	workspaceAgentStats       []database.WorkspaceAgentStat
 	auditLogs                 []database.AuditLog
 	files                     []database.File
 	gitAuthLinks              []database.GitAuthLink
@@ -258,29 +258,34 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
-func (*fakeQuerier) DeleteOldAgentStats(_ context.Context) error {
+func (*fakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	// no-op
 	return nil
 }
 
-func (q *fakeQuerier) InsertAgentStat(_ context.Context, p database.InsertAgentStatParams) (database.AgentStat, error) {
+func (q *fakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
 	if err := validateDatabaseType(p); err != nil {
-		return database.AgentStat{}, err
+		return database.WorkspaceAgentStat{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	stat := database.AgentStat{
-		ID:          p.ID,
-		CreatedAt:   p.CreatedAt,
-		WorkspaceID: p.WorkspaceID,
-		AgentID:     p.AgentID,
-		UserID:      p.UserID,
-		Payload:     p.Payload,
-		TemplateID:  p.TemplateID,
+	stat := database.WorkspaceAgentStat{
+		ID:                 p.ID,
+		CreatedAt:          p.CreatedAt,
+		WorkspaceID:        p.WorkspaceID,
+		AgentID:            p.AgentID,
+		UserID:             p.UserID,
+		ConnectionsByProto: p.ConnectionsByProto,
+		ConnectionCount:    p.ConnectionCount,
+		RxPackets:          p.RxPackets,
+		RxBytes:            p.RxBytes,
+		TxPackets:          p.TxPackets,
+		TxBytes:            p.TxBytes,
+		TemplateID:         p.TemplateID,
 	}
-	q.agentStats = append(q.agentStats, stat)
+	q.workspaceAgentStats = append(q.workspaceAgentStats, stat)
 	return stat, nil
 }
 
@@ -290,7 +295,7 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 
 	seens := make(map[time.Time]map[uuid.UUID]struct{})
 
-	for _, as := range q.agentStats {
+	for _, as := range q.workspaceAgentStats {
 		if as.TemplateID != templateID {
 			continue
 		}
@@ -330,7 +335,7 @@ func (q *fakeQuerier) GetDeploymentDAUs(_ context.Context) ([]database.GetDeploy
 
 	seens := make(map[time.Time]map[uuid.UUID]struct{})
 
-	for _, as := range q.agentStats {
+	for _, as := range q.workspaceAgentStats {
 		date := as.CreatedAt.Truncate(time.Hour * 24)
 
 		dateEntry := seens[date]
@@ -936,7 +941,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		if arg.TemplateName != "" {
-			template, err := q.GetTemplateByID(ctx, workspace.TemplateID)
+			template, err := q.getTemplateByIDNoLock(ctx, workspace.TemplateID)
 			if err == nil && !strings.EqualFold(arg.TemplateName, template.Name) {
 				continue
 			}
@@ -1617,10 +1622,14 @@ func (q *fakeQuerier) ParameterValues(_ context.Context, arg database.ParameterV
 	return parameterValues, nil
 }
 
-func (q *fakeQuerier) GetTemplateByID(_ context.Context, id uuid.UUID) (database.Template, error) {
+func (q *fakeQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	return q.getTemplateByIDNoLock(ctx, id)
+}
+
+func (q *fakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (database.Template, error) {
 	for _, template := range q.templates {
 		if template.ID == id {
 			return template, nil
@@ -3293,6 +3302,26 @@ func (q *fakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context,
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateTemplateVersionGitAuthProvidersByJobID(_ context.Context, arg database.UpdateTemplateVersionGitAuthProvidersByJobIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, templateVersion := range q.templateVersions {
+		if templateVersion.JobID != arg.JobID {
+			continue
+		}
+		templateVersion.GitAuthProviders = arg.GitAuthProviders
+		templateVersion.UpdatedAt = arg.UpdatedAt
+		q.templateVersions[index] = templateVersion
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -4307,9 +4336,9 @@ func (q *fakeQuerier) InsertGitAuthLink(_ context.Context, arg database.InsertGi
 	return gitAuthLink, nil
 }
 
-func (q *fakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGitAuthLinkParams) error {
+func (q *fakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return err
+		return database.GitAuthLink{}, err
 	}
 
 	q.mutex.Lock()
@@ -4326,8 +4355,10 @@ func (q *fakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGi
 		gitAuthLink.OAuthRefreshToken = arg.OAuthRefreshToken
 		gitAuthLink.OAuthExpiry = arg.OAuthExpiry
 		q.gitAuthLinks[index] = gitAuthLink
+
+		return gitAuthLink, nil
 	}
-	return nil
+	return database.GitAuthLink{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UUID) (int64, error) {
