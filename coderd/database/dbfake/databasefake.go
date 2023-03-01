@@ -2525,6 +2525,7 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 		LastUsed:        arg.LastUsed,
 		LoginType:       arg.LoginType,
 		Scope:           arg.Scope,
+		TokenName:       arg.TokenName,
 	}
 	q.apiKeys = append(q.apiKeys, key)
 	return key, nil
