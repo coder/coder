@@ -132,7 +132,6 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		UserID:     user.ID,
 		LoginType:  database.LoginTypePassword,
 		RemoteAddr: r.RemoteAddr,
-		TokenName:  namesgenerator.GetRandomName(1),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -921,7 +920,6 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		UserID:     user.ID,
 		LoginType:  params.LoginType,
 		RemoteAddr: r.RemoteAddr,
-		TokenName:  namesgenerator.GetRandomName(1),
 	})
 	if err != nil {
 		return nil, database.APIKey{}, xerrors.Errorf("create API key: %w", err)

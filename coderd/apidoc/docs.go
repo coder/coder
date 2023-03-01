@@ -3351,7 +3351,7 @@ const docTemplate = `{
                     "Users"
                 ],
                 "summary": "Get API key by token name",
-                "operationId": "get-api-key-by-name",
+                "operationId": "get-api-key-by-token-name",
                 "parameters": [
                     {
                         "type": "string",

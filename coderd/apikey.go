@@ -186,7 +186,7 @@ func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get API key by token name
-// @ID get-api-key-by-name
+// @ID get-api-key-by-token-name
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
