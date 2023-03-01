@@ -61,6 +61,7 @@ func TestTemplates(t *testing.T) {
 		err := client.UpdateWorkspaceTTL(ctx, workspace3.ID, codersdk.UpdateWorkspaceTTLRequest{
 			TTLMillis: nil,
 		})
+		require.NoError(t, err)
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:                         template.Name,
