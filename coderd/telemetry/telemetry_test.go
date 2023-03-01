@@ -9,6 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/rbac"
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -34,7 +38,6 @@ func TestTelemetry(t *testing.T) {
 		t.Parallel()
 
 		var err error
-
 		db := dbfake.New()
 
 		ctx := context.Background()
@@ -74,6 +77,9 @@ func TestTelemetry(t *testing.T) {
 			UUID:       uuid.New(),
 		})
 		assert.NoError(t, err)
+
+		// Ensure proper authorization context.
+		db = dbauthz.New(db, rbac.NewAuthorizer(prometheus.NewRegistry()), slog.Make())
 		_, snapshot := collectSnapshot(t, db)
 		require.Len(t, snapshot.ParameterSchemas, 1)
 		require.Len(t, snapshot.ProvisionerJobs, 1)
