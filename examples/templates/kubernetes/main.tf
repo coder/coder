@@ -35,7 +35,7 @@ data "coder_parameter" "namespace" {
 data "coder_parameter" "cpu" {
   name    = "CPU (cores)"
   default = "2"
-  icon = 
+  icon    = "/icon/memory.svg"
   mutable = true
   option {
     name  = "2"
@@ -58,6 +58,7 @@ data "coder_parameter" "cpu" {
 data "coder_parameter" "memory" {
   name    = "Memory (GB)"
   default = "2"
+  icon    = "/icon/memory.svg"
   mutable = true
   option {
     name  = "2"
@@ -80,6 +81,7 @@ data "coder_parameter" "memory" {
 data "coder_parameter" "home_disk_size" {
   name    = "Home Disk Size (GB)"
   default = "10"
+  icon    = "/emojis/1f4be.png"
   mutable = false
   validation {
     min = 1
