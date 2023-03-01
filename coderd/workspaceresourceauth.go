@@ -37,7 +37,7 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	instanceID, err := azureidentity.Validate(ctx, req.Signature, api.AzureCertificates)
+	instanceID, err := azureidentity.Validate(req.Signature, api.AzureCertificates)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Invalid Azure identity.",
