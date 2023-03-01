@@ -26,14 +26,14 @@ func Audit(query string) (database.GetAuditLogsOffsetParams, []codersdk.Validati
 		return database.GetAuditLogsOffsetParams{}, errors
 	}
 
-	const date_layout = "2006-01-02"
+	const dateLayout = "2006-01-02"
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetAuditLogsOffsetParams{
 		ResourceID:   parser.UUID(values, uuid.Nil, "resource_id"),
 		Username:     parser.String(values, "", "username"),
 		Email:        parser.String(values, "", "email"),
-		DateFrom:     parser.Time(values, time.Time{}, "date_from", date_layout),
-		DateTo:       parser.Time(values, time.Time{}, "date_to", date_layout),
+		DateFrom:     parser.Time(values, time.Time{}, "date_from", dateLayout),
+		DateTo:       parser.Time(values, time.Time{}, "date_to", dateLayout),
 		ResourceType: string(httpapi.ParseCustom(parser, values, "", "resource_type", httpapi.ParseEnum[database.ResourceType])),
 		Action:       string(httpapi.ParseCustom(parser, values, "", "action", httpapi.ParseEnum[database.ResourceType])),
 		BuildReason:  string(httpapi.ParseCustom(parser, values, "", "build_reason", httpapi.ParseEnum[database.ResourceType])),

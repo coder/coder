@@ -6,13 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/codersdk"
-
-	"github.com/coder/coder/coderd/searchquery"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/rbac"
-	"github.com/stretchr/testify/require"
+	"github.com/coder/coder/coderd/searchquery"
+	"github.com/coder/coder/codersdk"
 )
 
 func TestSearchWorkspace(t *testing.T) {
