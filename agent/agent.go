@@ -767,12 +767,12 @@ func (a *agent) init(ctx context.Context) {
 
 func convertAgentStats(counts map[netlogtype.Connection]netlogtype.Counts) *agentsdk.Stats {
 	stats := &agentsdk.Stats{
-		ConnsByProto: map[string]int64{},
-		NumConns:     int64(len(counts)),
+		ConnectionsByProto: map[string]int64{},
+		ConnectionCount:    int64(len(counts)),
 	}
 
 	for conn, count := range counts {
-		stats.ConnsByProto[conn.Proto.String()]++
+		stats.ConnectionsByProto[conn.Proto.String()]++
 		stats.RxPackets += int64(count.RxPackets)
 		stats.RxBytes += int64(count.RxBytes)
 		stats.TxPackets += int64(count.TxPackets)

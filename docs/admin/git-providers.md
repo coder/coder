@@ -74,7 +74,7 @@ CODER_GITAUTH_1_AUTH_URL="https://github.example.com/oauth/authorize"
 CODER_GITAUTH_1_TOKEN_URL="https://github.example.com/oauth/token"
 ```
 
-To support regex matching for paths (e.g. github.com/orgname), youll need to add this to the [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
+To support regex matching for paths (e.g. github.com/orgname), you'll need to add this to the [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
 
 ```console
 git config --global credential.useHttpPath true

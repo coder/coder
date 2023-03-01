@@ -145,7 +145,7 @@ func countUniqueUsers(rows []database.GetTemplateDAUsRow) int {
 func (c *Cache) refresh(ctx context.Context) error {
 	//nolint:gocritic // This is a system service.
 	ctx = dbauthz.AsSystemRestricted(ctx)
-	err := c.database.DeleteOldAgentStats(ctx)
+	err := c.database.DeleteOldWorkspaceAgentStats(ctx)
 	if err != nil {
 		return xerrors.Errorf("delete old stats: %w", err)
 	}

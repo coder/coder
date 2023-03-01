@@ -14,6 +14,56 @@ import (
 // to these objects. Might need a negative permission on the `Owner` role to
 // prevent owners.
 
+// GetWorkspaceAppsByAgentIDs
+// The workspace/job is already fetched.
+// TODO: This function should be removed/replaced with something with proper auth.
+func (q *querier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {
+	return q.db.GetWorkspaceAppsByAgentIDs(ctx, ids)
+}
+
+// GetWorkspaceAgentsByResourceIDs
+// The workspace/job is already fetched.
+// TODO: This function should be removed/replaced with something with proper auth.
+func (q *querier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
+	return q.db.GetWorkspaceAgentsByResourceIDs(ctx, ids)
+}
+
+// GetWorkspaceResourceMetadataByResourceIDs is only used for build data.
+// The workspace/job is already fetched.
+// TODO: This function should be removed/replaced with something with proper auth.
+func (q *querier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
+	return q.db.GetWorkspaceResourceMetadataByResourceIDs(ctx, ids)
+}
+
+// GetUsersByIDs is only used for usernames on workspace return data.
+// This function should be replaced by joining this data to the workspace query
+// itself.
+// TODO: This function should be removed/replaced with something with proper auth.
+// A SQL compiled filter is an option.
+func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
+	return q.db.GetUsersByIDs(ctx, ids)
+}
+
+func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
+	// TODO: This is missing authorization and is incorrect. This call is used by telemetry, and by 1 http route.
+	// That http handler should find a better way to fetch these jobs with easier rbac authz.
+	return q.db.GetProvisionerJobsByIDs(ctx, ids)
+}
+
+// GetTemplateVersionsByIDs is only used for workspace build data.
+// The workspace is already fetched.
+// TODO: Find a way to replace this with proper authz.
+func (q *querier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
+	return q.db.GetTemplateVersionsByIDs(ctx, ids)
+}
+
+// GetWorkspaceResourcesByJobIDs is only used for workspace build data.
+// The workspace is already fetched.
+// TODO: Find a way to replace this with proper authz.
+func (q *querier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResource, error) {
+	return q.db.GetWorkspaceResourcesByJobIDs(ctx, ids)
+}
+
 func (q *querier) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUserLinkedIDParams) (database.UserLink, error) {
 	return q.db.UpdateUserLinkedID(ctx, arg)
 }
@@ -147,8 +197,8 @@ func (q *querier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, 
 	return q.db.GetWorkspaceResourceMetadataCreatedAfter(ctx, createdAt)
 }
 
-func (q *querier) DeleteOldAgentStats(ctx context.Context) error {
-	return q.db.DeleteOldAgentStats(ctx)
+func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
+	return q.db.DeleteOldWorkspaceAgentStats(ctx)
 }
 
 func (q *querier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ParameterSchema, error) {
