@@ -66,7 +66,7 @@ jobs:
           # available immediately
           for i in {1..10}; do
             rc=0
-            raw_manifests=$(docker manifest inspect ghcr.io/coder/coder-base:latest) || rc=$?
+            raw_manifests=$(docker buildx imagetools inspect --raw ghcr.io/coder/coder-base:latest) || rc=$?
             if [[ "$rc" -eq 0 ]]; then
               break
             fi
