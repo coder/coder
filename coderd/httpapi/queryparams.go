@@ -89,9 +89,15 @@ func (p *QueryParamParser) UUIDs(vals url.Values, def []uuid.UUID, queryParam st
 }
 
 func (p *QueryParamParser) Time(vals url.Values, def time.Time, queryParam string, format string) time.Time {
-	v, _ := parseQueryParam(p, vals, func(v string) (time.Time, error) {
+	v, err := parseQueryParam(p, vals, func(v string) (time.Time, error) {
 		return time.Parse(queryParam, format)
 	}, def, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid date format (%s)", format, queryParam),
+		})
+	}
 	return v
 }
 

@@ -164,6 +164,57 @@ func TestSearchWorkspace(t *testing.T) {
 	})
 }
 
+func TestSearchAudit(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		Name                  string
+		Query                 string
+		Expected              database.GetAuditLogsOffsetParams
+		ExpectedErrorContains string
+	}{
+		{
+			Name:     "Empty",
+			Query:    "",
+			Expected: database.GetAuditLogsOffsetParams{},
+		},
+		// Failures
+		{
+			Name:                  "ExtraColon",
+			Query:                 `search:name:extra`,
+			ExpectedErrorContains: "can only contain 1 ':'",
+		},
+		{
+			Name:                  "ExtraKeys",
+			Query:                 `foo:bar`,
+			ExpectedErrorContains: `Query param "foo" is not a valid query param`,
+		},
+		{
+			Name:                  "Dates",
+			Query:                 "date_from:2006",
+			ExpectedErrorContains: "valid date format",
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			values, errs := searchquery.Audit(c.Query)
+			if c.ExpectedErrorContains != "" {
+				require.True(t, len(errs) > 0, "expect some errors")
+				var s strings.Builder
+				for _, err := range errs {
+					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+				}
+				require.Contains(t, s.String(), c.ExpectedErrorContains)
+			} else {
+				require.Len(t, errs, 0, "expected no error")
+				require.Equal(t, c.Expected, values, "expected values")
+			}
+		})
+	}
+}
+
 func TestSearchUsers(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
