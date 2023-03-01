@@ -23,7 +23,7 @@ import { Stack } from "components/Stack/Stack"
 import Checkbox from "@material-ui/core/Checkbox"
 import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
 import { makeStyles } from "@material-ui/core/styles"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
+import Link from "@material-ui/core/Link"
 
 const TTLHelperText = ({
   ttl,
@@ -81,6 +81,7 @@ export interface TemplateSettingsForm {
   onCancel: () => void
   isSubmitting: boolean
   error?: unknown
+  canSetMaxTTL: boolean
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>
 }
@@ -90,13 +91,11 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   onSubmit,
   onCancel,
   error,
+  canSetMaxTTL,
   isSubmitting,
   initialTouched,
 }) => {
-  const { entitlements } = useDashboard()
-  const canSetMaxTTL =
-    entitlements.features["advanced_template_scheduling"].enabled
-
+  const { t: commonT } = useTranslation("common")
   const validationSchema = getValidationSchema()
   const form: FormikContextType<UpdateTemplateMeta> =
     useFormik<UpdateTemplateMeta>({
@@ -193,39 +192,49 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         title={t("schedule.title")}
         description={t("schedule.description")}
       >
-        <TextField
-          {...getFieldHelpers(
-            "default_ttl_ms",
-            <TTLHelperText
-              translationName="defaultTTLHelperText"
-              ttl={form.values.default_ttl_ms}
-            />,
-          )}
-          disabled={isSubmitting}
-          fullWidth
-          inputProps={{ min: 0, step: 1 }}
-          label={t("defaultTtlLabel")}
-          variant="outlined"
-          type="number"
-        />
-
-        <Maybe condition={canSetMaxTTL}>
+        <Stack direction="row" className={styles.ttlFields}>
           <TextField
             {...getFieldHelpers(
-              "max_ttl_ms",
+              "default_ttl_ms",
               <TTLHelperText
-                translationName="maxTTLHelperText"
+                translationName="defaultTTLHelperText"
                 ttl={form.values.default_ttl_ms}
               />,
             )}
             disabled={isSubmitting}
             fullWidth
             inputProps={{ min: 0, step: 1 }}
+            label={t("defaultTtlLabel")}
+            variant="outlined"
+            type="number"
+          />
+
+          <TextField
+            {...getFieldHelpers(
+              "max_ttl_ms",
+              canSetMaxTTL ? (
+                <TTLHelperText
+                  translationName="maxTTLHelperText"
+                  ttl={form.values.max_ttl_ms}
+                />
+              ) : (
+                <>
+                  {commonT("licenseFieldTextHelper")}{" "}
+                  <Link href="https://coder.com/docs/v2/latest/enterprise">
+                    {commonT("learnMore")}
+                  </Link>
+                  .
+                </>
+              ),
+            )}
+            disabled={isSubmitting || !canSetMaxTTL}
+            fullWidth
+            inputProps={{ min: 0, step: 1 }}
             label={t("maxTtlLabel")}
             variant="outlined"
             type="number"
           />
-        </Maybe>
+        </Stack>
       </FormSection>
 
       <FormSection
@@ -280,5 +289,9 @@ const useStyles = makeStyles((theme) => ({
   optionHelperText: {
     fontSize: theme.spacing(1.5),
     color: theme.palette.text.secondary,
+  },
+
+  ttlFields: {
+    width: "100%",
   },
 }))

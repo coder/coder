@@ -17,7 +17,12 @@ import { useFormik } from "formik"
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
-import { nameValidator, getFormHelpers, onChangeTrimmed } from "util/formUtils"
+import {
+  nameValidator,
+  getFormHelpers,
+  onChangeTrimmed,
+  templateDisplayNameValidator,
+} from "util/formUtils"
 import { CreateTemplateData } from "xServices/createTemplate/createTemplateXService"
 import * as Yup from "yup"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
@@ -25,14 +30,60 @@ import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
 import { LazyIconField } from "components/IconField/LazyIconField"
 import { Maybe } from "components/Conditionals/Maybe"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
+import i18next from "i18next"
+import Link from "@material-ui/core/Link"
+
+const MAX_DESCRIPTION_CHAR_LIMIT = 128
+const MAX_TTL_DAYS = 7
+
+const TTLHelperText = ({
+  ttl,
+  translationName,
+}: {
+  ttl?: number
+  translationName: string
+}) => {
+  const { t } = useTranslation("createTemplatePage")
+  const count = typeof ttl !== "number" ? 0 : ttl
+  return (
+    // no helper text if ttl is negative - error will show once field is considered touched
+    <Maybe condition={count >= 0}>
+      <span>{t(translationName, { count })}</span>
+    </Maybe>
+  )
+}
 
 const validationSchema = Yup.object({
-  name: nameValidator("Name"),
-  display_name: Yup.string().optional(),
-  description: Yup.string().optional(),
+  name: nameValidator(
+    i18next.t("form.fields.name", { ns: "createTemplatePage" }),
+  ),
+  display_name: templateDisplayNameValidator(
+    i18next.t("form.fields.displayName", {
+      ns: "createTemplatePage",
+    }),
+  ),
+  description: Yup.string().max(
+    MAX_DESCRIPTION_CHAR_LIMIT,
+    i18next.t("form.error.descriptionMax", { ns: "createTemplatePage" }),
+  ),
   icon: Yup.string().optional(),
-  default_ttl_hours: Yup.number(),
-  max_ttl_hours: Yup.number(),
+  default_ttl_hours: Yup.number()
+    .integer()
+    .min(
+      0,
+      i18next.t("form.error.defaultTTLMin", { ns: "templateSettingsPage" }),
+    )
+    .max(
+      24 * MAX_TTL_DAYS /* 7 days in hours */,
+      i18next.t("form.error.defaultTTLMax", { ns: "templateSettingsPage" }),
+    ),
+  max_ttl_hours: Yup.number()
+    .integer()
+    .min(0, i18next.t("form.error.maxTTLMin", { ns: "templateSettingsPage" }))
+    .max(
+      24 * MAX_TTL_DAYS /* 7 days in hours */,
+      i18next.t("form.error.maxTTLMax", { ns: "templateSettingsPage" }),
+    ),
   allow_user_cancel_workspace_jobs: Yup.boolean(),
   parameter_values_by_name: Yup.object().optional(),
 })
@@ -110,6 +161,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   })
   const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, error)
   const { t } = useTranslation("createTemplatePage")
+  const { t: commonT } = useTranslation("common")
 
   return (
     <form onSubmit={form.handleSubmit}>
@@ -197,30 +249,47 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             </p>
           </div>
 
-          <Stack direction="column" className={styles.formSectionFields}>
+          <Stack direction="row" className={styles.ttlFields}>
             <TextField
-              {...getFieldHelpers("default_ttl_hours")}
+              {...getFieldHelpers(
+                "default_ttl_hours",
+                <TTLHelperText
+                  translationName="form.helperText.defaultTTLHelperText"
+                  ttl={form.values.default_ttl_hours}
+                />,
+              )}
               disabled={isSubmitting}
               onChange={onChangeTrimmed(form)}
               fullWidth
               label={t("form.fields.autoStop")}
               variant="outlined"
               type="number"
-              helperText={t("form.helperText.autoStop")}
             />
 
-            <Maybe condition={canSetMaxTTL}>
-              <TextField
-                {...getFieldHelpers("max_ttl_hours")}
-                disabled={isSubmitting}
-                onChange={onChangeTrimmed(form)}
-                fullWidth
-                label={t("form.fields.maxTTL")}
-                variant="outlined"
-                type="number"
-                helperText={t("form.helperText.maxTTL")}
-              />
-            </Maybe>
+            <TextField
+              {...getFieldHelpers(
+                "max_ttl_hours",
+                canSetMaxTTL ? (
+                  <TTLHelperText
+                    translationName="form.helperText.maxTTLHelperText"
+                    ttl={form.values.max_ttl_hours}
+                  />
+                ) : (
+                  <>
+                    {commonT("licenseFieldTextHelper")}{" "}
+                    <Link href="https://coder.com/docs/v2/latest/enterprise">
+                      {commonT("learnMore")}
+                    </Link>
+                    .
+                  </>
+                ),
+              )}
+              disabled={isSubmitting || !canSetMaxTTL}
+              fullWidth
+              label={t("form.fields.maxTTL")}
+              variant="outlined"
+              type="number"
+            />
           </Stack>
         </div>
 
@@ -344,6 +413,10 @@ const useStyles = makeStyles((theme) => ({
       flexDirection: "column",
       gap: theme.spacing(2),
     },
+  },
+
+  ttlFields: {
+    width: "100%",
   },
 
   formSectionInfo: {
