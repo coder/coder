@@ -21,7 +21,7 @@ func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scrubbedConfig, err := api.DeploymentValues.Scrub()
+	values, err := api.DeploymentValues.Scrub()
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -30,8 +30,8 @@ func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(
 		r.Context(), rw, http.StatusOK,
 		codersdk.DeploymentConfig{
-			Values:  scrubbedConfig,
-			Options: scrubbedConfig.Options(),
+			Values:  values,
+			Options: values.Options(),
 		},
 	)
 }

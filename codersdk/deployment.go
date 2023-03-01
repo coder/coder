@@ -112,7 +112,7 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 	return ent, json.NewDecoder(res.Body).Decode(&ent)
 }
 
-// DeploymentValues is the central configuration for the coder server.
+// DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             bigcli.Bool `json:"verbose,omitempty"`
 	AccessURL           bigcli.URL  `json:"access_url,omitempty"`
@@ -383,8 +383,7 @@ when required by your organization's security policy.`,
 	}
 )
 
-// DeploymentConfig is the response type to the
-// GetDeploymentValues endpoint.
+// DeploymentConfig contains both the deployment values and how they're set.
 //
 // @typescript-ignore DeploymentConfig
 // apitypings doesn't know how to generate the OptionSet... yet.
