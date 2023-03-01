@@ -13,7 +13,6 @@ import {
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
 import { delay } from "util/delay"
-import { template } from "lodash"
 import { Message } from "api/types"
 
 type TemplateVariablesContext = {
@@ -179,31 +178,31 @@ export const templateVariablesMachine = createMachine(
   },
   {
     services: {
-      getTemplate: (context) => {
-        const { organizationId, templateName } = context
+      getTemplate: ({ organizationId, templateName }) => {
         return getTemplateByName(organizationId, templateName)
       },
-      getActiveTemplateVersion: (context) => {
-        const { template } = context
+      getActiveTemplateVersion: ({ template }) => {
         if (!template) {
           throw new Error("No template selected")
         }
         return getTemplateVersion(template.active_version_id)
       },
-      getTemplateVariables: (context) => {
-        const { template } = context
+      getTemplateVariables: ({ template }) => {
         if (!template) {
           throw new Error("No template selected")
         }
         return getTemplateVersionVariables(template.active_version_id)
       },
-      createNewTemplateVersion: (context) => {
-        if (!context.createTemplateVersionRequest) {
+      createNewTemplateVersion: ({
+        organizationId,
+        createTemplateVersionRequest,
+      }) => {
+        if (!createTemplateVersionRequest) {
           throw new Error("Missing request body")
         }
         return createTemplateVersion(
-          context.organizationId,
-          context.createTemplateVersionRequest,
+          organizationId,
+          createTemplateVersionRequest,
         )
       },
       waitForJobToBeCompleted: async ({ newTemplateVersion }) => {
@@ -219,7 +218,7 @@ export const templateVariablesMachine = createMachine(
         }
         return newTemplateVersion
       },
-      updateTemplate: async ({ template, newTemplateVersion }) => {
+      updateTemplate: ({ template, newTemplateVersion }) => {
         if (!template) {
           throw new Error("No template selected")
         }
