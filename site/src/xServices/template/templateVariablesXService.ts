@@ -1,7 +1,9 @@
 import {
+  createTemplateVersion,
   getTemplateByName,
   getTemplateVersion,
   getTemplateVersionVariables,
+  updateActiveTemplateVersion,
 } from "api/api"
 import {
   CreateTemplateVersionRequest,
@@ -10,6 +12,9 @@ import {
   TemplateVersionVariable,
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
+import { delay } from "util/delay"
+import { template } from "lodash"
+import { Message } from "api/types"
 
 type TemplateVariablesContext = {
   organizationId: string
@@ -20,6 +25,7 @@ type TemplateVariablesContext = {
   templateVariables?: TemplateVersionVariable[]
 
   createTemplateVersionRequest?: CreateTemplateVersionRequest
+  newTemplateVersion?: TemplateVersion
 
   getTemplateError?: Error | unknown
   getActiveTemplateVersionError?: Error | unknown
@@ -29,7 +35,7 @@ type TemplateVariablesContext = {
 
 type UpdateTemplateEvent = {
   type: "UPDATE_TEMPLATE_EVENT"
-  request: CreateTemplateVersionRequest // FIXME
+  request: CreateTemplateVersionRequest
 }
 
 export const templateVariablesMachine = createMachine(
@@ -50,8 +56,14 @@ export const templateVariablesMachine = createMachine(
         getTemplateVariables: {
           data: TemplateVersionVariable[]
         }
+        createNewTemplateVersion: {
+          data: TemplateVersion
+        }
+        waitForJobToBeCompleted: {
+          data: TemplateVersion
+        }
         updateTemplate: {
-          data: CreateTemplateVersionRequest
+          data: Message
         }
       },
     },
@@ -109,17 +121,47 @@ export const templateVariablesMachine = createMachine(
         on: {
           UPDATE_TEMPLATE_EVENT: {
             actions: ["assignCreateTemplateVersionRequest"],
-            target: "updatingTemplate",
+            target: "creatingTemplateVersion",
           },
         },
       },
-      updatingTemplate: {
+      creatingTemplateVersion: {
         entry: "clearUpdateTemplateError",
+        invoke: {
+          src: "createNewTemplateVersion",
+          onDone: {
+            actions: ["assignNewTemplateVersion"],
+            target: "waitingForJobToBeCompleted",
+          },
+          onError: {
+            actions: ["assignUpdateTemplateError"],
+            target: "fillingParams",
+          },
+        },
+        tags: ["submitting"],
+      },
+      waitingForJobToBeCompleted: {
+        invoke: {
+          src: "waitForJobToBeCompleted",
+          onDone: [
+            {
+              actions: ["assignNewTemplateVersion"],
+              target: "updatingTemplate",
+            },
+          ],
+          onError: {
+            actions: ["assignUpdateTemplateError"],
+            target: "fillingParams",
+          },
+        },
+        tags: ["submitting"],
+      },
+      updatingTemplate: {
         invoke: {
           src: "updateTemplate",
           onDone: {
-            actions: ["onUpdateTemplate"],
             target: "updated",
+            actions: ["onUpdateTemplate"],
           },
           onError: {
             actions: ["assignUpdateTemplateError"],
@@ -155,8 +197,40 @@ export const templateVariablesMachine = createMachine(
         }
         return getTemplateVersionVariables(template.active_version_id)
       },
-      updateTemplate: (context) => {
-        console.log(context.createTemplateVersionRequest)
+      createNewTemplateVersion: (context) => {
+        if (!context.createTemplateVersionRequest) {
+          throw new Error("Missing request body")
+        }
+        return createTemplateVersion(
+          context.organizationId,
+          context.createTemplateVersionRequest,
+        )
+      },
+      waitForJobToBeCompleted: async ({ newTemplateVersion }) => {
+        if (!newTemplateVersion) {
+          throw new Error("Template version is undefined")
+        }
+
+        let status = newTemplateVersion.job.status
+        while (["pending", "running"].includes(status)) {
+          newTemplateVersion = await getTemplateVersion(newTemplateVersion.id)
+          status = newTemplateVersion.job.status
+          await delay(2_000)
+        }
+        return newTemplateVersion
+      },
+      updateTemplate: async ({ template, newTemplateVersion }) => {
+        if (!template) {
+          throw new Error("No template selected")
+        }
+
+        if (!newTemplateVersion) {
+          throw new Error("New template version is undefined")
+        }
+
+        return updateActiveTemplateVersion(template.id, {
+          id: newTemplateVersion.id,
+        })
       },
     },
     actions: {
@@ -171,6 +245,9 @@ export const templateVariablesMachine = createMachine(
       }),
       assignCreateTemplateVersionRequest: assign({
         createTemplateVersionRequest: (_, event) => event.request,
+      }),
+      assignNewTemplateVersion: assign({
+        newTemplateVersion: (_, event) => event.data,
       }),
       assignGetTemplateError: assign({
         getTemplateError: (_, event) => event.data,
