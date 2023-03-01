@@ -13,6 +13,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/coder/tailnet/tailnettest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -63,7 +64,7 @@ func TestTailnet(t *testing.T) {
 			assert.NoError(t, err)
 		})
 		require.True(t, w2.AwaitReachable(context.Background(), w1IP))
-		conn := make(chan struct{})
+		conn := make(chan struct{}, 1)
 		go func() {
 			listener, err := w1.Listen("tcp", ":35565")
 			assert.NoError(t, err)
@@ -98,6 +99,9 @@ func TestTailnet(t *testing.T) {
 
 	t.Run("ForcesWebSockets", func(t *testing.T) {
 		t.Parallel()
+		ctx, cancelFunc := testutil.Context(t)
+		defer cancelFunc()
+
 		w1IP := tailnet.IP()
 		derpMap := tailnettest.RunDERPOnlyWebSockets(t)
 		w1, err := tailnet.NewConn(&tailnet.Options{
@@ -127,8 +131,8 @@ func TestTailnet(t *testing.T) {
 			err := w1.UpdateNodes([]*tailnet.Node{node}, false)
 			assert.NoError(t, err)
 		})
-		require.True(t, w2.AwaitReachable(context.Background(), w1IP))
-		conn := make(chan struct{})
+		require.True(t, w2.AwaitReachable(ctx, w1IP))
+		conn := make(chan struct{}, 1)
 		go func() {
 			listener, err := w1.Listen("tcp", ":35565")
 			assert.NoError(t, err)
@@ -141,7 +145,7 @@ func TestTailnet(t *testing.T) {
 			conn <- struct{}{}
 		}()
 
-		nc, err := w2.DialContextTCP(context.Background(), netip.AddrPortFrom(w1IP, 35565))
+		nc, err := w2.DialContextTCP(ctx, netip.AddrPortFrom(w1IP, 35565))
 		require.NoError(t, err)
 		_ = nc.Close()
 		<-conn

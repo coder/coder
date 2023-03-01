@@ -13,11 +13,11 @@ import (
 	"tailscale.com/net/wsconn"
 )
 
-// DERPWebsocketSupport returns an http.Handler that upgrades
+// WithWebsocketSupport returns an http.Handler that upgrades
 // connections to the "derp" subprotocol to WebSockets and
 // passes them to the DERP server.
 // Taken from: https://github.com/tailscale/tailscale/blob/e3211ff88ba85435f70984cf67d9b353f3d650d8/cmd/derper/websocket.go#L21
-func AddWebsocketSupport(s *derp.Server, base http.Handler) (http.Handler, func()) {
+func WithWebsocketSupport(s *derp.Server, base http.Handler) (http.Handler, func()) {
 	var mu sync.Mutex
 	var waitGroup sync.WaitGroup
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -34,6 +34,10 @@ func AddWebsocketSupport(s *derp.Server, base http.Handler) (http.Handler, func(
 			}
 
 			mu.Lock()
+			if ctx.Err() != nil {
+				mu.Unlock()
+				return
+			}
 			waitGroup.Add(1)
 			mu.Unlock()
 			defer waitGroup.Done()
@@ -58,7 +62,7 @@ func AddWebsocketSupport(s *derp.Server, base http.Handler) (http.Handler, func(
 			}
 			wc := wsconn.NetConn(ctx, c, websocket.MessageBinary)
 			brw := bufio.NewReadWriter(bufio.NewReader(wc), bufio.NewWriter(wc))
-			s.Accept(r.Context(), wc, brw, r.RemoteAddr)
+			s.Accept(ctx, wc, brw, r.RemoteAddr)
 		}), func() {
 			cancelFunc()
 			mu.Lock()

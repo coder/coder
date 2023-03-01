@@ -72,7 +72,7 @@ func RunDERPOnlyWebSockets(t *testing.T) *tailcfg.DERPMap {
 	d := derp.NewServer(key.NewNode(), logf)
 	handler := derphttp.Handler(d)
 	var closeFunc func()
-	handler, closeFunc = tailnet.AddWebsocketSupport(d, handler)
+	handler, closeFunc = tailnet.WithWebsocketSupport(d, handler)
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/derp" {
 			handler.ServeHTTP(w, r)
@@ -91,8 +91,8 @@ func RunDERPOnlyWebSockets(t *testing.T) *tailcfg.DERPMap {
 	t.Cleanup(func() {
 		server.CloseClientConnections()
 		server.Close()
-		d.Close()
 		closeFunc()
+		d.Close()
 	})
 
 	tcpAddr, ok := server.Listener.Addr().(*net.TCPAddr)

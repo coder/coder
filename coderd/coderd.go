@@ -285,7 +285,7 @@ func New(options *Options) *API {
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
 
 	derpHandler := derphttp.Handler(api.DERPServer)
-	derpHandler, api.derpCloseFunc = tailnet.AddWebsocketSupport(api.DERPServer, derpHandler)
+	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
 
 	r.Use(
 		httpmw.Recover(api.Logger),
