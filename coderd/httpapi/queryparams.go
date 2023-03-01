@@ -51,6 +51,11 @@ func (p *QueryParamParser) addParsed(key string) {
 	p.Parsed[key] = true
 }
 
+func (p *QueryParamParser) hasParsed(key string) bool {
+	_, ok := p.Parsed[key]
+	return ok
+}
+
 func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int {
 	v, err := parseQueryParam(p, vals, strconv.Atoi, def, queryParam)
 	if err != nil {
@@ -95,7 +100,7 @@ func (p *QueryParamParser) Time(vals url.Values, def time.Time, queryParam strin
 	if err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
 			Field:  queryParam,
-			Detail: fmt.Sprintf("Query param %q must be a valid date format (%s)", format, queryParam),
+			Detail: fmt.Sprintf("Query param %q must be a valid date format (%s)", queryParam, format),
 		})
 	}
 	return v
@@ -177,6 +182,9 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 }
 
 func parseQueryParam[T any](parser *QueryParamParser, vals url.Values, parse func(v string) (T, error), def T, queryParam string) (T, error) {
+	if parser.hasParsed(queryParam) {
+		return def, xerrors.Errorf("query param %q provided more than once", queryParam)
+	}
 	parser.addParsed(queryParam)
 	if !vals.Has(queryParam) || vals.Get(queryParam) == "" {
 		return def, nil

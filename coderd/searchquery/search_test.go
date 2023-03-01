@@ -119,6 +119,11 @@ func TestSearchWorkspace(t *testing.T) {
 
 		// Failures
 		{
+			Name:                  "Double",
+			Query:                 `name:foo name:bar`,
+			ExpectedErrorContains: "provided more than once",
+		},
+		{
 			Name:                  "ExtraSlashes",
 			Query:                 `foo/bar/baz`,
 			ExpectedErrorContains: "can only contain 1 '/'",
