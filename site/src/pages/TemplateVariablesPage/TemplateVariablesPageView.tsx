@@ -11,6 +11,7 @@ import { Stack } from "components/Stack/Stack"
 import { makeStyles } from "@material-ui/core/styles"
 import { useTranslation } from "react-i18next"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
+import { GoBackButton } from "components/GoBackButton/GoBackButton"
 
 export interface TemplateVariablesPageViewProps {
   templateVersion?: TemplateVersion
@@ -57,7 +58,7 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
         </Stack>
       )}
       {isLoading && <Loader />}
-      {templateVersion && templateVariables && (
+      {templateVersion && templateVariables && templateVariables.length > 0 && (
         <TemplateVariablesForm
           initialTouched={initialTouched}
           isSubmitting={isSubmitting}
@@ -68,6 +69,14 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
           error={errors.updateTemplateError}
         />
       )}
+      {templateVariables && templateVariables.length === 0 && (
+        <div>
+          <AlertBanner severity="info" text={t("unusedVariablesNotice")} />
+          <div className={classes.goBackSection}>
+            <GoBackButton onClick={onCancel} />
+          </div>
+        </div>
+      )}
     </FullPageHorizontalForm>
   )
 }
@@ -75,5 +84,10 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
 const useStyles = makeStyles((theme) => ({
   errorContainer: {
     marginBottom: theme.spacing(2),
+  },
+  goBackSection: {
+    display: "flex",
+    width: "100%",
+    marginTop: 32,
   },
 }))

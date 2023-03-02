@@ -3,11 +3,7 @@ import DeleteOutlined from "@material-ui/icons/DeleteOutlined"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
 import CodeOutlined from "@material-ui/icons/CodeOutlined"
-import {
-  AuthorizationResponse,
-  Template,
-  TemplateVersionVariable,
-} from "api/typesGenerated"
+import { AuthorizationResponse, Template } from "api/typesGenerated"
 import { Avatar } from "components/Avatar/Avatar"
 import { Maybe } from "components/Conditionals/Maybe"
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"

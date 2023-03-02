@@ -173,4 +173,20 @@ describe("TemplateVariablesPage", () => {
     const validationError = await screen.findByText(validationRequiredField)
     expect(validationError).toBeDefined()
   })
+
+  it("no managed variables", async () => {
+    jest.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate)
+    jest
+      .spyOn(API, "getTemplateVersion")
+      .mockResolvedValueOnce(MockTemplateVersion)
+    jest.spyOn(API, "getTemplateVersionVariables").mockResolvedValueOnce([])
+
+    renderTemplateVariablesPage()
+
+    const element = await screen.findByText(pageTitleText)
+    expect(element).toBeDefined()
+
+    const goBackButton = await screen.findByText("Go back")
+    expect(goBackButton).toBeDefined()
+  })
 })
