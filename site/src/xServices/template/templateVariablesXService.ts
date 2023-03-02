@@ -26,9 +26,7 @@ type TemplateVariablesContext = {
   createTemplateVersionRequest?: CreateTemplateVersionRequest
   newTemplateVersion?: TemplateVersion
 
-  getTemplateError?: Error | unknown
-  getActiveTemplateVersionError?: Error | unknown
-  getTemplateVariablesError?: Error | unknown
+  getTemplateDataError?: Error | unknown
   updateTemplateError?: Error | unknown
 }
 
@@ -69,7 +67,7 @@ export const templateVariablesMachine = createMachine(
     initial: "gettingTemplate",
     states: {
       gettingTemplate: {
-        entry: "clearGetTemplateError",
+        entry: "clearGetTemplateDataError",
         invoke: {
           src: "getTemplate",
           onDone: [
@@ -79,13 +77,13 @@ export const templateVariablesMachine = createMachine(
             },
           ],
           onError: {
-            actions: ["assignGetTemplateError"],
+            actions: ["assignGetTemplateDataError"],
             target: "error",
           },
         },
       },
       gettingActiveTemplateVersion: {
-        entry: "clearGetActiveTemplateVersionError",
+        entry: "clearGetTemplateDataError",
         invoke: {
           src: "getActiveTemplateVersion",
           onDone: [
@@ -95,13 +93,13 @@ export const templateVariablesMachine = createMachine(
             },
           ],
           onError: {
-            actions: ["assignGetActiveTemplateVersionError"],
+            actions: ["assignGetTemplateDataError"],
             target: "error",
           },
         },
       },
       gettingTemplateVariables: {
-        entry: "clearGetTemplateVariablesError",
+        entry: "clearGetTemplateDataError",
         invoke: {
           src: "getTemplateVariables",
           onDone: [
@@ -111,7 +109,7 @@ export const templateVariablesMachine = createMachine(
             },
           ],
           onError: {
-            actions: ["assignGetTemplateVariablesError"],
+            actions: ["assignGetTemplateDataError"],
             target: "error",
           },
         },
@@ -133,7 +131,7 @@ export const templateVariablesMachine = createMachine(
             target: "waitingForJobToBeCompleted",
           },
           onError: {
-            actions: ["assignUpdateTemplateError"],
+            actions: ["assignGetTemplateDataError"],
             target: "fillingParams",
           },
         },
@@ -248,23 +246,11 @@ export const templateVariablesMachine = createMachine(
       assignNewTemplateVersion: assign({
         newTemplateVersion: (_, event) => event.data,
       }),
-      assignGetTemplateError: assign({
-        getTemplateError: (_, event) => event.data,
+      assignGetTemplateDataError: assign({
+        getTemplateDataError: (_, event) => event.data,
       }),
-      clearGetTemplateError: assign({
-        getTemplateError: (_) => undefined,
-      }),
-      assignGetTemplateVariablesError: assign({
-        getTemplateVariablesError: (_, event) => event.data,
-      }),
-      clearGetTemplateVariablesError: assign({
-        getTemplateVariablesError: (_) => undefined,
-      }),
-      assignGetActiveTemplateVersionError: assign({
-        getActiveTemplateVersionError: (_, event) => event.data,
-      }),
-      clearGetActiveTemplateVersionError: assign({
-        getActiveTemplateVersionError: (_) => undefined,
+      clearGetTemplateDataError: assign({
+        getTemplateDataError: (_) => undefined,
       }),
       assignUpdateTemplateError: assign({
         updateTemplateError: (_, event) => event.data,

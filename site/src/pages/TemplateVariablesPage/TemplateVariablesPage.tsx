@@ -34,9 +34,7 @@ export const TemplateVariablesPage: FC = () => {
   const {
     activeTemplateVersion,
     templateVariables,
-    getTemplateError,
-    getActiveTemplateVersionError,
-    getTemplateVariablesError,
+    getTemplateDataError,
     updateTemplateError,
   } = state.context
 
@@ -52,9 +50,7 @@ export const TemplateVariablesPage: FC = () => {
         templateVersion={activeTemplateVersion}
         templateVariables={templateVariables}
         errors={{
-          getTemplateError,
-          getActiveTemplateVersionError,
-          getTemplateVariablesError,
+          getTemplateDataError,
           updateTemplateError,
         }}
         onCancel={() => {

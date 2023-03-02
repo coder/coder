@@ -19,9 +19,7 @@ export interface TemplateVariablesPageViewProps {
   onCancel: () => void
   isSubmitting: boolean
   errors?: {
-    getTemplateError?: unknown
-    getActiveTemplateVersionError?: unknown
-    getTemplateVariablesError?: unknown
+    getTemplateDataError?: unknown
     updateTemplateError?: unknown
   }
   initialTouched?: ComponentProps<
@@ -42,32 +40,15 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
   const isLoading =
     !templateVersion &&
     !templateVariables &&
-    !errors.getTemplateError &&
-    !errors.getTemplateVariablesError &&
+    !errors.getTemplateDataError &&
     !errors.updateTemplateError
   const { t } = useTranslation("templateVariablesPage")
 
   return (
     <FullPageHorizontalForm title={t("title")} onCancel={onCancel}>
-      {Boolean(errors.getTemplateError) && (
+      {Boolean(errors.getTemplateDataError) && (
         <Stack className={classes.errorContainer}>
-          <AlertBanner severity="error" error={errors.getTemplateError} />
-        </Stack>
-      )}
-      {Boolean(errors.getActiveTemplateVersionError) && (
-        <Stack className={classes.errorContainer}>
-          <AlertBanner
-            severity="error"
-            error={errors.getActiveTemplateVersionError}
-          />
-        </Stack>
-      )}
-      {Boolean(errors.getTemplateVariablesError) && (
-        <Stack className={classes.errorContainer}>
-          <AlertBanner
-            severity="error"
-            error={errors.getTemplateVariablesError}
-          />
+          <AlertBanner severity="error" error={errors.getTemplateDataError} />
         </Stack>
       )}
       {Boolean(errors.updateTemplateError) && (
