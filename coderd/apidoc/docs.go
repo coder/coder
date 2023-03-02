@@ -1473,7 +1473,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.CreateTemplateVersionDryRunRequest"
+                            "$ref": "#/definitions/codersdk.CreateTemplateVersionRequest"
                         }
                     }
                 ],
@@ -5243,16 +5243,20 @@ const docTemplate = `{
         "agentsdk.Stats": {
             "type": "object",
             "properties": {
-                "conns_by_proto": {
+                "connection_count": {
+                    "description": "ConnectionCount is the number of connections received by an agent.",
+                    "type": "integer"
+                },
+                "connection_median_latency_ms": {
+                    "description": "ConnectionMedianLatencyMS is the median latency of all connections in milliseconds.",
+                    "type": "number"
+                },
+                "connections_by_proto": {
                     "description": "ConnectionsByProto is a count of connections by protocol.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "integer"
                     }
-                },
-                "num_comms": {
-                    "description": "ConnectionCount is the number of connections received by an agent.",
-                    "type": "integer"
                 },
                 "rx_bytes": {
                     "description": "RxBytes is the number of received bytes.",
@@ -5260,6 +5264,22 @@ const docTemplate = `{
                 },
                 "rx_packets": {
                     "description": "RxPackets is the number of received packets.",
+                    "type": "integer"
+                },
+                "session_count_jetbrains": {
+                    "description": "SessionCountJetBrains is the number of connections received by an agent\nthat are from our JetBrains extension.",
+                    "type": "integer"
+                },
+                "session_count_reconnecting_pty": {
+                    "description": "SessionCountReconnectingPTY is the number of connections received by an agent\nthat are from the reconnecting web terminal.",
+                    "type": "integer"
+                },
+                "session_count_ssh": {
+                    "description": "SessionCountSSH is the number of connections received by an agent\nthat are normal, non-tagged SSH sessions.",
+                    "type": "integer"
+                },
+                "session_count_vscode": {
+                    "description": "SessionCountVSCode is the number of connections received by an agent\nthat are from our VS Code extension.",
                     "type": "integer"
                 },
                 "tx_bytes": {
@@ -5889,6 +5909,66 @@ const docTemplate = `{
                 },
                 "workspace_name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateTemplateVersionRequest": {
+            "type": "object",
+            "required": [
+                "provisioner",
+                "storage_method"
+            ],
+            "properties": {
+                "example_id": {
+                    "type": "string"
+                },
+                "file_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameter_values": {
+                    "description": "ParameterValues allows for additional parameters to be provided\nduring the dry-run provision stage.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
+                    }
+                },
+                "provisioner": {
+                    "type": "string",
+                    "enum": [
+                        "terraform",
+                        "echo"
+                    ]
+                },
+                "storage_method": {
+                    "enum": [
+                        "file"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerStorageMethod"
+                        }
+                    ]
+                },
+                "tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "template_id": {
+                    "description": "TemplateID optionally associates a version with a template.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "user_variable_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.VariableValue"
+                    }
                 }
             }
         },
@@ -7395,6 +7475,15 @@ const docTemplate = `{
                 "ProvisionerJobCanceling",
                 "ProvisionerJobCanceled",
                 "ProvisionerJobFailed"
+            ]
+        },
+        "codersdk.ProvisionerStorageMethod": {
+            "type": "string",
+            "enum": [
+                "file"
+            ],
+            "x-enum-varnames": [
+                "ProvisionerStorageMethodFile"
             ]
         },
         "codersdk.PutExtendWorkspaceRequest": {

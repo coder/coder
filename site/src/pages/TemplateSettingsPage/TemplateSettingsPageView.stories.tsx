@@ -51,7 +51,7 @@ SaveTemplateSettingsError.args = {
     }),
   },
   initialTouched: {
-    name: true,
+    allow_user_cancel_workspace_jobs: true,
   },
   onSubmit: action("onSubmit"),
   onCancel: action("cancel"),
