@@ -368,6 +368,7 @@
   "lifetime_seconds": 0,
   "login_type": "password",
   "scope": "all",
+  "token_name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
@@ -384,6 +385,7 @@
 | `lifetime_seconds` | integer                                      | true     |              |             |
 | `login_type`       | [codersdk.LoginType](#codersdklogintype)     | true     |              |             |
 | `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope) | true     |              |             |
+| `token_name`       | string                                       | true     |              |             |
 | `updated_at`       | string                                       | true     |              |             |
 | `user_id`          | string                                       | true     |              |             |
 
@@ -1141,16 +1143,18 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "lifetime": 0,
-  "scope": "all"
+  "scope": "all",
+  "token_name": "string"
 }
 ```
 
 ### Properties
 
-| Name       | Type                                         | Required | Restrictions | Description |
-| ---------- | -------------------------------------------- | -------- | ------------ | ----------- |
-| `lifetime` | integer                                      | false    |              |             |
-| `scope`    | [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
+| Name         | Type                                         | Required | Restrictions | Description |
+| ------------ | -------------------------------------------- | -------- | ------------ | ----------- |
+| `lifetime`   | integer                                      | false    |              |             |
+| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
+| `token_name` | string                                       | false    |              |             |
 
 #### Enumerated Values
 
