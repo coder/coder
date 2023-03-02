@@ -38,3 +38,13 @@ func TestDeploymentConfig(t *testing.T) {
 	require.Empty(t, scrubbed.PostgresURL.Value)
 	require.Empty(t, scrubbed.SCIMAPIKey.Value)
 }
+
+func TestDeploymentStats(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	client := coderdtest.New(t, &coderdtest.Options{})
+	_ = coderdtest.CreateFirstUser(t, client)
+	_, err := client.DeploymentStats(ctx)
+	require.NoError(t, err)
+}

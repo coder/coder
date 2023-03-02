@@ -362,6 +362,20 @@ export interface DeploymentDAUsResponse {
 }
 
 // From codersdk/deployment.go
+export interface DeploymentStats {
+  readonly aggregated_from: string
+  readonly updated_at: string
+  readonly workspaces_by_transition: Record<WorkspaceTransition, number>
+  readonly workspace_connection_latency_ms: WorkspaceConnectionLatencyMS
+  readonly session_count_vscode: number
+  readonly session_count_ssh: number
+  readonly session_count_jetbrains: number
+  readonly session_count_reconnecting_pty: number
+  readonly workspace_rx_bytes: number
+  readonly workspace_tx_bytes: number
+}
+
+// From codersdk/deployment.go
 export interface Entitlements {
   readonly features: Record<FeatureName, Feature>
   readonly warnings: string[]
@@ -1054,6 +1068,12 @@ export interface WorkspaceBuildParameter {
 export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
   readonly Since: string
+}
+
+// From codersdk/deployment.go
+export interface WorkspaceConnectionLatencyMS {
+  readonly P50: number
+  readonly P95: number
 }
 
 // From codersdk/workspaces.go

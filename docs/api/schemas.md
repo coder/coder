@@ -2917,6 +2917,45 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
 | `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
 
+## codersdk.DeploymentStats
+
+```json
+{
+  "aggregated_from": "string",
+  "session_count_jetbrains": 0,
+  "session_count_reconnecting_pty": 0,
+  "session_count_ssh": 0,
+  "session_count_vscode": 0,
+  "updated_at": "string",
+  "workspace_connection_latency_ms": {
+    "p50": 0,
+    "p95": 0
+  },
+  "workspace_rx_bytes": 0,
+  "workspace_tx_bytes": 0,
+  "workspaces_by_transition": {
+    "property1": 0,
+    "property2": 0
+  }
+}
+```
+
+### Properties
+
+| Name                              | Type                                                                           | Required | Restrictions | Description |
+| --------------------------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `aggregated_from`                 | string                                                                         | false    |              |             |
+| `session_count_jetbrains`         | integer                                                                        | false    |              |             |
+| `session_count_reconnecting_pty`  | integer                                                                        | false    |              |             |
+| `session_count_ssh`               | integer                                                                        | false    |              |             |
+| `session_count_vscode`            | integer                                                                        | false    |              |             |
+| `updated_at`                      | string                                                                         | false    |              |             |
+| `workspace_connection_latency_ms` | [codersdk.WorkspaceConnectionLatencyMS](#codersdkworkspaceconnectionlatencyms) | false    |              |             |
+| `workspace_rx_bytes`              | integer                                                                        | false    |              |             |
+| `workspace_tx_bytes`              | integer                                                                        | false    |              |             |
+| `workspaces_by_transition`        | object                                                                         | false    |              |             |
+| » `[any property]`                | integer                                                                        | false    |              |             |
+
 ## codersdk.Entitlement
 
 ```json
@@ -5909,6 +5948,22 @@ Parameter represents a set value for the scope.
 | ------- | ------ | -------- | ------------ | ----------- |
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
+
+## codersdk.WorkspaceConnectionLatencyMS
+
+```json
+{
+  "p50": 0,
+  "p95": 0
+}
+```
+
+### Properties
+
+| Name  | Type   | Required | Restrictions | Description |
+| ----- | ------ | -------- | ------------ | ----------- |
+| `p50` | number | false    |              |             |
+| `p95` | number | false    |              |             |
 
 ## codersdk.WorkspaceQuota
 

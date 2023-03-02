@@ -64,18 +64,53 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.BuildInfoResponse](schemas.md#codersdkbuildinforesponse) |
 
+## Report CSP violations
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/csp/reports \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /csp/reports`
+
+> Body parameter
+
+```json
+{
+  "csp-report": {}
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                 | Required | Description      |
+| ------ | ---- | ---------------------------------------------------- | -------- | ---------------- |
+| `body` | body | [coderd.cspViolation](schemas.md#coderdcspviolation) | true     | Violation report |
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+| ------ | ------------------------------------------------------- | ----------- | ------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get deployment config
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/config/deployment \
+curl -X GET http://coder-server:8080/api/v2/deployment/config \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /config/deployment`
+`GET /deployment/config`
 
 ### Example responses
 
@@ -1132,38 +1167,49 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Report CSP violations
+## Get deployment stats
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/csp/reports \
-  -H 'Content-Type: application/json' \
+curl -X GET http://coder-server:8080/api/v2/deployment/stats \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /csp/reports`
+`GET /deployment/stats`
 
-> Body parameter
+### Example responses
+
+> 200 Response
 
 ```json
 {
-  "csp-report": {}
+  "aggregated_from": "string",
+  "session_count_jetbrains": 0,
+  "session_count_reconnecting_pty": 0,
+  "session_count_ssh": 0,
+  "session_count_vscode": 0,
+  "updated_at": "string",
+  "workspace_connection_latency_ms": {
+    "p50": 0,
+    "p95": 0
+  },
+  "workspace_rx_bytes": 0,
+  "workspace_tx_bytes": 0,
+  "workspaces_by_transition": {
+    "property1": 0,
+    "property2": 0
+  }
 }
 ```
 
-### Parameters
-
-| Name   | In   | Type                                                 | Required | Description      |
-| ------ | ---- | ---------------------------------------------------- | -------- | ---------------- |
-| `body` | body | [coderd.cspViolation](schemas.md#coderdcspviolation) | true     | Violation report |
-
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema |
-| ------ | ------------------------------------------------------- | ----------- | ------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+| Status | Meaning                                                 | Description | Schema                                                         |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentStats](schemas.md#codersdkdeploymentstats) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

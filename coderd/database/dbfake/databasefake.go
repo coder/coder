@@ -276,7 +276,9 @@ func (q *fakeQuerier) GetDeploymentWorkspaceAgentStats(_ context.Context, create
 
 	latestAgentStats := map[uuid.UUID]database.WorkspaceAgentStat{}
 	for _, agentStat := range q.workspaceAgentStats {
-		latestAgentStats[agentStat.AgentID] = agentStat
+		if agentStat.CreatedAt.After(createdAfter) {
+			latestAgentStats[agentStat.AgentID] = agentStat
+		}
 	}
 
 	stat := database.GetDeploymentWorkspaceAgentStatsRow{}

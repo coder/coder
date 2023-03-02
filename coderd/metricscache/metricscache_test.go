@@ -373,3 +373,28 @@ func TestCache_BuildTime(t *testing.T) {
 		})
 	}
 }
+
+func TestCache_DeploymentStats(t *testing.T) {
+	t.Parallel()
+	db := dbfake.New()
+	cache := metricscache.New(db, slogtest.Make(t, nil), testutil.IntervalFast)
+
+	_, err := db.InsertWorkspaceAgentStat(context.Background(), database.InsertWorkspaceAgentStatParams{
+		ID:                 uuid.New(),
+		AgentID:            uuid.New(),
+		CreatedAt:          database.Now(),
+		ConnectionCount:    1,
+		RxBytes:            1,
+		TxBytes:            1,
+		SessionCountVSCode: 1,
+	})
+	require.NoError(t, err)
+
+	var stat codersdk.DeploymentStats
+	require.Eventually(t, func() bool {
+		var ok bool
+		stat, ok = cache.DeploymentStats()
+		return ok
+	}, testutil.WaitLong, testutil.IntervalMedium)
+	require.Equal(t, int64(1), stat.SessionCountVSCode)
+}

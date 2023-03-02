@@ -32,6 +32,7 @@ type Cache struct {
 	templateDAUResponses     atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
 	templateUniqueUsers      atomic.Pointer[map[uuid.UUID]int]
 	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]database.GetTemplateAverageBuildTimeRow]
+	deploymentStatsResponse  atomic.Pointer[codersdk.DeploymentStats]
 
 	done   chan struct{}
 	cancel func()
@@ -196,6 +197,26 @@ func (c *Cache) refresh(ctx context.Context) error {
 	c.templateUniqueUsers.Store(&templateUniqueUsers)
 	c.templateAverageBuildTime.Store(&templateAverageBuildTimes)
 
+	from := database.Now().Add(-15 * time.Minute)
+	deploymentStats, err := c.database.GetDeploymentWorkspaceAgentStats(ctx, from)
+	if err != nil {
+		return err
+	}
+	c.deploymentStatsResponse.Store(&codersdk.DeploymentStats{
+		AggregatedFrom: from,
+		UpdatedAt:      database.Now(),
+		WorkspaceConnectionLatencyMS: codersdk.WorkspaceConnectionLatencyMS{
+			P50: deploymentStats.WorkspaceConnectionLatency50,
+			P95: deploymentStats.WorkspaceConnectionLatency95,
+		},
+		SessionCountVSCode:          deploymentStats.SessionCountVSCode,
+		SessionCountSSH:             deploymentStats.SessionCountSSH,
+		SessionCountJetBrains:       deploymentStats.SessionCountJetBrains,
+		SessionCountReconnectingPTY: deploymentStats.SessionCountReconnectingPTY,
+		WorkspaceRxBytes:            deploymentStats.WorkspaceRxBytes,
+		WorkspaceTxBytes:            deploymentStats.WorkspaceTxBytes,
+	})
+
 	return nil
 }
 
@@ -321,4 +342,12 @@ func (c *Cache) TemplateBuildTimeStats(id uuid.UUID) codersdk.TemplateBuildTimeS
 			P95: convertMillis(resp.Delete95),
 		},
 	}
+}
+
+func (c *Cache) DeploymentStats() (codersdk.DeploymentStats, bool) {
+	deploymentStats := c.deploymentStatsResponse.Load()
+	if deploymentStats == nil {
+		return codersdk.DeploymentStats{}, false
+	}
+	return *deploymentStats, true
 }

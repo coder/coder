@@ -343,7 +343,7 @@ func (f *DeploymentConfigField[T]) MarshalJSON() ([]byte, error) {
 
 // DeploymentConfig returns the deployment config for the coder server.
 func (c *Client) DeploymentConfig(ctx context.Context) (DeploymentConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/config/deployment", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/config", nil)
 	if err != nil {
 		return DeploymentConfig{}, xerrors.Errorf("execute request: %w", err)
 	}
@@ -354,6 +354,21 @@ func (c *Client) DeploymentConfig(ctx context.Context) (DeploymentConfig, error)
 	}
 
 	var df DeploymentConfig
+	return df, json.NewDecoder(res.Body).Decode(&df)
+}
+
+func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/stats", nil)
+	if err != nil {
+		return DeploymentStats{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return DeploymentStats{}, ReadBodyAsError(res)
+	}
+
+	var df DeploymentStats
 	return df, json.NewDecoder(res.Body).Decode(&df)
 }
 
@@ -529,23 +544,23 @@ func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {
 	return host, json.NewDecoder(res.Body).Decode(&host)
 }
 
-type WorkspaceConnectionLatency struct {
-	P50 *int64
-	P95 *int64
+type WorkspaceConnectionLatencyMS struct {
+	P50 float64
+	P95 float64
 }
 
 type DeploymentStats struct {
-	WorkspacesByTransition       map[WorkspaceTransition]int
-	WorkspaceConnectionLatencyMS WorkspaceConnectionLatency
+	AggregatedFrom time.Time `json:"aggregated_from"`
+	UpdatedAt      time.Time `json:"updated_at"`
 
-	SessionCountVSCode          int
-	SessionCountSSH             int
-	SessionCountJetBrains       int
-	SessionCountReconnectingPTY int
+	WorkspacesByTransition       map[WorkspaceTransition]int  `json:"workspaces_by_transition"`
+	WorkspaceConnectionLatencyMS WorkspaceConnectionLatencyMS `json:"workspace_connection_latency_ms"`
 
-	WorkspaceRxBytes int
-	WorkspaceTxBytes int
+	SessionCountVSCode          int64 `json:"session_count_vscode"`
+	SessionCountSSH             int64 `json:"session_count_ssh"`
+	SessionCountJetBrains       int64 `json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64 `json:"session_count_reconnecting_pty"`
 
-	// X downloaded in the past 10 minutes
-	// X uploaded in the past 10 minutes
+	WorkspaceRxBytes int64 `json:"workspace_rx_bytes"`
+	WorkspaceTxBytes int64 `json:"workspace_tx_bytes"`
 }

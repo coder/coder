@@ -398,15 +398,16 @@ func New(options *Options) *API {
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
 		r.Get("/buildinfo", buildInfo)
+		r.Route("/deployment", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/config", api.deploymentConfig)
+			r.Get("/stats", api.deploymentStats)
+		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.handleExperimentsGet)
 		})
 		r.Get("/updatecheck", api.updateCheck)
-		r.Route("/config", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Get("/deployment", api.deploymentConfig)
-		})
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

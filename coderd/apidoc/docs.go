@@ -304,31 +304,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/config/deployment": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "General"
-                ],
-                "summary": "Get deployment config",
-                "operationId": "get-deployment-config",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.DeploymentConfig"
-                        }
-                    }
-                }
-            }
-        },
         "/csp/reports": {
             "post": {
                 "security": [
@@ -380,6 +355,56 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    }
+                }
+            }
+        },
+        "/deployment/config": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get deployment config",
+                "operationId": "get-deployment-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeploymentConfig"
+                        }
+                    }
+                }
+            }
+        },
+        "/deployment/stats": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get deployment stats",
+                "operationId": "get-deployment-stats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeploymentStats"
+                        }
                     }
                 }
             }
@@ -6596,6 +6621,44 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DeploymentStats": {
+            "type": "object",
+            "properties": {
+                "aggregated_from": {
+                    "type": "string"
+                },
+                "session_count_jetbrains": {
+                    "type": "integer"
+                },
+                "session_count_reconnecting_pty": {
+                    "type": "integer"
+                },
+                "session_count_ssh": {
+                    "type": "integer"
+                },
+                "session_count_vscode": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workspace_connection_latency_ms": {
+                    "$ref": "#/definitions/codersdk.WorkspaceConnectionLatencyMS"
+                },
+                "workspace_rx_bytes": {
+                    "type": "integer"
+                },
+                "workspace_tx_bytes": {
+                    "type": "integer"
+                },
+                "workspaces_by_transition": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
         "codersdk.Entitlement": {
             "type": "string",
             "enum": [
@@ -8668,6 +8731,17 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceConnectionLatencyMS": {
+            "type": "object",
+            "properties": {
+                "p50": {
+                    "type": "number"
+                },
+                "p95": {
+                    "type": "number"
                 }
             }
         },
