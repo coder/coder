@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/provisionerdserver"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -159,7 +159,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			var setCalled int64
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: mockTemplateScheduleStore{
-					setFn: func(ctx context.Context, db database.Store, template database.Template, options provisionerdserver.TemplateScheduleOptions) (database.Template, error) {
+					setFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 						atomic.AddInt64(&setCalled, 1)
 						require.Equal(t, maxTTL, options.MaxTTL)
 						template.DefaultTTL = int64(options.DefaultTTL)
@@ -450,7 +450,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			var setCalled int64
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: mockTemplateScheduleStore{
-					setFn: func(ctx context.Context, db database.Store, template database.Template, options provisionerdserver.TemplateScheduleOptions) (database.Template, error) {
+					setFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 						if atomic.AddInt64(&setCalled, 1) == 2 {
 							require.Equal(t, maxTTL, options.MaxTTL)
 						}

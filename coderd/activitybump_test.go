@@ -11,32 +11,32 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/provisionerdserver"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
 
 type mockTemplateScheduleStore struct {
-	getFn func(ctx context.Context, db database.Store, templateID uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error)
-	setFn func(ctx context.Context, db database.Store, template database.Template, options provisionerdserver.TemplateScheduleOptions) (database.Template, error)
+	getFn func(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error)
+	setFn func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error)
 }
 
-var _ provisionerdserver.TemplateScheduleStore = mockTemplateScheduleStore{}
+var _ schedule.TemplateScheduleStore = mockTemplateScheduleStore{}
 
-func (m mockTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error) {
+func (m mockTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 	if m.getFn != nil {
 		return m.getFn(ctx, db, templateID)
 	}
 
-	return provisionerdserver.NewAGPLTemplateScheduleStore().GetTemplateScheduleOptions(ctx, db, templateID)
+	return schedule.NewAGPLTemplateScheduleStore().GetTemplateScheduleOptions(ctx, db, templateID)
 }
 
-func (m mockTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, options provisionerdserver.TemplateScheduleOptions) (database.Template, error) {
+func (m mockTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 	if m.setFn != nil {
 		return m.setFn(ctx, db, template, options)
 	}
 
-	return provisionerdserver.NewAGPLTemplateScheduleStore().SetTemplateScheduleOptions(ctx, db, template, options)
+	return schedule.NewAGPLTemplateScheduleStore().SetTemplateScheduleOptions(ctx, db, template, options)
 }
 
 func TestWorkspaceActivityBump(t *testing.T) {
@@ -58,8 +58,8 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			// very frequently in tests.
 			AgentStatsRefreshInterval: time.Millisecond * 100,
 			TemplateScheduleStore: mockTemplateScheduleStore{
-				getFn: func(ctx context.Context, db database.Store, templateID uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error) {
-					return provisionerdserver.TemplateScheduleOptions{
+				getFn: func(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+					return schedule.TemplateScheduleOptions{
 						UserSchedulingEnabled: true,
 						DefaultTTL:            ttl,
 						MaxTTL:                maxTTL,

@@ -1,4 +1,4 @@
-package provisionerdserver
+package schedule
 
 import (
 	"context"

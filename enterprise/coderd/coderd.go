@@ -20,8 +20,8 @@ import (
 	agplaudit "github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/enterprise/derpmesh"
@@ -315,10 +315,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); changed {
 		if enabled {
 			store := &enterpriseTemplateScheduleStore{}
-			ptr := provisionerdserver.TemplateScheduleStore(store)
+			ptr := schedule.TemplateScheduleStore(store)
 			api.AGPL.TemplateScheduleStore.Store(&ptr)
 		} else {
-			store := provisionerdserver.NewAGPLTemplateScheduleStore()
+			store := schedule.NewAGPLTemplateScheduleStore()
 			api.AGPL.TemplateScheduleStore.Store(&store)
 		}
 	}

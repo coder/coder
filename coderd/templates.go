@@ -18,8 +18,8 @@ import (
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/examples"
@@ -273,7 +273,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("insert template: %s", err)
 		}
 
-		dbTemplate, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, dbTemplate, provisionerdserver.TemplateScheduleOptions{
+		dbTemplate, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
 			UserSchedulingEnabled: true,
 			DefaultTTL:            defaultTTL,
 			MaxTTL:                maxTTL,
@@ -536,7 +536,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		if defaultTTL != time.Duration(template.DefaultTTL) || maxTTL != time.Duration(template.MaxTTL) {
-			updated, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, updated, provisionerdserver.TemplateScheduleOptions{
+			updated, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, updated, schedule.TemplateScheduleOptions{
 				UserSchedulingEnabled: true,
 				DefaultTTL:            defaultTTL,
 				MaxTTL:                maxTTL,

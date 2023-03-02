@@ -65,8 +65,8 @@ import (
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/ptr"
@@ -102,7 +102,7 @@ type Options struct {
 	TLSCertificates       []tls.Certificate
 	GitAuthConfigs        []*gitauth.Config
 	TrialGenerator        func(context.Context, string) error
-	TemplateScheduleStore provisionerdserver.TemplateScheduleStore
+	TemplateScheduleStore schedule.TemplateScheduleStore
 
 	// All rate limits default to -1 (unlimited) in tests if not set.
 	APIRateLimit   int

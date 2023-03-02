@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/parameter"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
@@ -54,7 +55,7 @@ type Server struct {
 	Telemetry             telemetry.Reporter
 	QuotaCommitter        *atomic.Pointer[proto.QuotaCommitter]
 	Auditor               *atomic.Pointer[audit.Auditor]
-	TemplateScheduleStore *atomic.Pointer[TemplateScheduleStore]
+	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 
 	AcquireJobDebounce time.Duration
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
 )
@@ -306,15 +307,15 @@ func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websock
 
 type enterpriseTemplateScheduleStore struct{}
 
-var _ provisionerdserver.TemplateScheduleStore = &enterpriseTemplateScheduleStore{}
+var _ schedule.TemplateScheduleStore = &enterpriseTemplateScheduleStore{}
 
-func (*enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error) {
+func (*enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 	tpl, err := db.GetTemplateByID(ctx, templateID)
 	if err != nil {
-		return provisionerdserver.TemplateScheduleOptions{}, err
+		return schedule.TemplateScheduleOptions{}, err
 	}
 
-	return provisionerdserver.TemplateScheduleOptions{
+	return schedule.TemplateScheduleOptions{
 		// TODO: make configurable at template level
 		UserSchedulingEnabled: true,
 		DefaultTTL:            time.Duration(tpl.DefaultTTL),
@@ -322,7 +323,7 @@ func (*enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.C
 	}, nil
 }
 
-func (*enterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts provisionerdserver.TemplateScheduleOptions) (database.Template, error) {
+func (*enterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts schedule.TemplateScheduleOptions) (database.Template, error) {
 	template, err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 		ID:         tpl.ID,
 		UpdatedAt:  database.Now(),

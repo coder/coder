@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/provisionerdserver"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
@@ -32,9 +33,9 @@ func mockAuditor() *atomic.Pointer[audit.Auditor] {
 	return ptr
 }
 
-func testTemplateScheduleStore() *atomic.Pointer[provisionerdserver.TemplateScheduleStore] {
-	ptr := &atomic.Pointer[provisionerdserver.TemplateScheduleStore]{}
-	store := provisionerdserver.NewAGPLTemplateScheduleStore()
+func testTemplateScheduleStore() *atomic.Pointer[schedule.TemplateScheduleStore] {
+	ptr := &atomic.Pointer[schedule.TemplateScheduleStore]{}
+	store := schedule.NewAGPLTemplateScheduleStore()
 	ptr.Store(&store)
 	return ptr
 }
@@ -890,9 +891,9 @@ func TestCompleteJob(t *testing.T) {
 
 				srv := setup(t, false)
 
-				var store provisionerdserver.TemplateScheduleStore = mockTemplateScheduleStore{
-					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error) {
-						return provisionerdserver.TemplateScheduleOptions{
+				var store schedule.TemplateScheduleStore = mockTemplateScheduleStore{
+					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+						return schedule.TemplateScheduleOptions{
 							UserSchedulingEnabled: true,
 							DefaultTTL:            c.templateDefaultTTL,
 							MaxTTL:                c.templateMaxTTL,
@@ -1167,15 +1168,15 @@ func must[T any](value T, err error) T {
 }
 
 type mockTemplateScheduleStore struct {
-	GetFn func(ctx context.Context, db database.Store, id uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error)
+	GetFn func(ctx context.Context, db database.Store, id uuid.UUID) (schedule.TemplateScheduleOptions, error)
 }
 
-var _ provisionerdserver.TemplateScheduleStore = mockTemplateScheduleStore{}
+var _ schedule.TemplateScheduleStore = mockTemplateScheduleStore{}
 
-func (mockTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, opts provisionerdserver.TemplateScheduleOptions) (database.Template, error) {
-	return provisionerdserver.NewAGPLTemplateScheduleStore().SetTemplateScheduleOptions(ctx, db, template, opts)
+func (mockTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, opts schedule.TemplateScheduleOptions) (database.Template, error) {
+	return schedule.NewAGPLTemplateScheduleStore().SetTemplateScheduleOptions(ctx, db, template, opts)
 }
 
-func (m mockTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, id uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error) {
+func (m mockTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, id uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 	return m.GetFn(ctx, db, id)
 }
