@@ -966,13 +966,13 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 				return nil, xerrors.Errorf("get provisioner job: %w", err)
 			}
 
-			switch arg.Status {
-			case "pending":
+			switch database.WorkspaceStatus(arg.Status) {
+			case database.WorkspaceStatusPending:
 				if !job.StartedAt.Valid {
 					continue
 				}
 
-			case "starting":
+			case database.WorkspaceStatusStarting:
 				if !job.StartedAt.Valid &&
 					!job.CanceledAt.Valid &&
 					job.CompletedAt.Valid &&
@@ -981,7 +981,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 					continue
 				}
 
-			case "running":
+			case database.WorkspaceStatusRunning:
 				if !job.CompletedAt.Valid &&
 					job.CanceledAt.Valid &&
 					job.Error.Valid ||
@@ -989,7 +989,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 					continue
 				}
 
-			case "stopping":
+			case database.WorkspaceStatusStopping:
 				if !job.StartedAt.Valid &&
 					!job.CanceledAt.Valid &&
 					job.CompletedAt.Valid &&
@@ -998,7 +998,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 					continue
 				}
 
-			case "stopped":
+			case database.WorkspaceStatusStopped:
 				if !job.CompletedAt.Valid &&
 					job.CanceledAt.Valid &&
 					job.Error.Valid ||
@@ -1006,23 +1006,23 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 					continue
 				}
 
-			case "failed":
+			case database.WorkspaceStatusFailed:
 				if (!job.CanceledAt.Valid && !job.Error.Valid) ||
 					(!job.CompletedAt.Valid && !job.Error.Valid) {
 					continue
 				}
 
-			case "canceling":
+			case database.WorkspaceStatusCanceling:
 				if !job.CanceledAt.Valid && job.CompletedAt.Valid {
 					continue
 				}
 
-			case "canceled":
+			case database.WorkspaceStatusCanceled:
 				if !job.CanceledAt.Valid && !job.CompletedAt.Valid {
 					continue
 				}
 
-			case "deleted":
+			case database.WorkspaceStatusDeleted:
 				if !job.StartedAt.Valid &&
 					job.CanceledAt.Valid &&
 					!job.CompletedAt.Valid &&
@@ -1031,7 +1031,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 					continue
 				}
 
-			case "deleting":
+			case database.WorkspaceStatusDeleting:
 				if !job.CompletedAt.Valid &&
 					job.CanceledAt.Valid &&
 					job.Error.Valid &&
