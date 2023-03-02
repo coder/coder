@@ -124,6 +124,13 @@ export const RenameFileDialog: FC<{
       setError("File already exists")
       return
     }
+    if (!isAllowedFile(pathValue)) {
+      const extensions = allowedExtensions.join(", ")
+      setError(
+        `This extension is not allowed. You only can create files with the following extensions: ${extensions}.`,
+      )
+      return
+    }
     onConfirm(pathValue)
     setPathValue("")
   }
