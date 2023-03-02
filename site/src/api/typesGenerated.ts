@@ -10,6 +10,7 @@ export interface APIKey {
   readonly updated_at: string
   readonly login_type: LoginType
   readonly scope: APIKeyScope
+  readonly token_name: string
   readonly lifetime_seconds: number
 }
 
@@ -225,6 +226,7 @@ export interface CreateTokenRequest {
   // This is likely an enum in an external package ("time.Duration")
   readonly lifetime: number
   readonly scope: APIKeyScope
+  readonly token_name: string
 }
 
 // From codersdk/users.go

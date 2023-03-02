@@ -464,6 +464,21 @@ func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIK
 	return database.APIKey{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetAPIKeyByName(_ context.Context, params database.GetAPIKeyByNameParams) (database.APIKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if params.TokenName == "" {
+		return database.APIKey{}, sql.ErrNoRows
+	}
+	for _, apiKey := range q.apiKeys {
+		if params.UserID == apiKey.UserID && params.TokenName == apiKey.TokenName {
+			return apiKey, nil
+		}
+	}
+	return database.APIKey{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time) ([]database.APIKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2536,6 +2551,7 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 		LastUsed:        arg.LastUsed,
 		LoginType:       arg.LoginType,
 		Scope:           arg.Scope,
+		TokenName:       arg.TokenName,
 	}
 	q.apiKeys = append(q.apiKeys, key)
 	return key, nil

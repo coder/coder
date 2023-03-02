@@ -3337,6 +3337,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/keys/tokens/{keyname}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get API key by token name",
+                "operationId": "get-api-key-by-token-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Key Name",
+                        "name": "keyname",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.APIKey"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/keys/{keyid}": {
             "get": {
                 "security": [
@@ -3350,8 +3392,8 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Get API key",
-                "operationId": "get-api-key",
+                "summary": "Get API key by ID",
+                "operationId": "get-api-key-by-id",
                 "parameters": [
                     {
                         "type": "string",
@@ -5342,6 +5384,7 @@ const docTemplate = `{
                 "lifetime_seconds",
                 "login_type",
                 "scope",
+                "token_name",
                 "updated_at",
                 "user_id"
             ],
@@ -5387,6 +5430,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.APIKeyScope"
                         }
                     ]
+                },
+                "token_name": {
+                    "type": "string"
                 },
                 "updated_at": {
                     "type": "string",
@@ -6007,6 +6053,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.APIKeyScope"
                         }
                     ]
+                },
+                "token_name": {
+                    "type": "string"
                 }
             }
         },
