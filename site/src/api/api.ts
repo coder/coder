@@ -235,6 +235,15 @@ export const getTemplateVersionResources = async (
   return response.data
 }
 
+export const getTemplateVersionVariables = async (
+  versionId: string,
+): Promise<TypesGen.TemplateVersionVariable[]> => {
+  const response = await axios.get<TypesGen.TemplateVersionVariable[]>(
+    `/api/v2/templateversions/${versionId}/variables`,
+  )
+  return response.data
+}
+
 export const getTemplateVersions = async (
   templateId: string,
 ): Promise<TypesGen.TemplateVersion[]> => {
