@@ -3,6 +3,7 @@ import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Stack } from "components/Stack/Stack"
 import { ChangeEvent, FC, useState } from "react"
 import Typography from "@material-ui/core/Typography"
+import { allowedExtensions, isAllowedFile } from "util/templateVersion"
 
 export const CreateFileDialog: FC<{
   onClose: () => void
@@ -22,6 +23,14 @@ export const CreateFileDialog: FC<{
     }
     if (checkExists(pathValue)) {
       setError("File already exists")
+      return
+    }
+    if (!isAllowedFile(pathValue)) {
+      setError(
+        `This is not an allowed extension. Valid extensions are: ${allowedExtensions.join(
+          ", ",
+        )}.`,
+      )
       return
     }
     onConfirm(pathValue)

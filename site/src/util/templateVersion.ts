@@ -23,7 +23,7 @@ export const getTemplateVersionFiles = async (
   return files
 }
 
-const allowedExtensions = ["tf", "md", "Dockerfile"]
+export const allowedExtensions = ["tf", "md", "Dockerfile"]
 
 export const isAllowedFile = (name: string) => {
   return allowedExtensions.some((ext) => name.endsWith(ext))
