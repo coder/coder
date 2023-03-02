@@ -26,10 +26,9 @@ export const CreateFileDialog: FC<{
       return
     }
     if (!isAllowedFile(pathValue)) {
+      const extensions = allowedExtensions.join(", ")
       setError(
-        `This is not an allowed extension. Valid extensions are: ${allowedExtensions.join(
-          ", ",
-        )}.`,
+        `This extension is not allowed. You only can create files with the following extensions: ${extensions}.`,
       )
       return
     }
