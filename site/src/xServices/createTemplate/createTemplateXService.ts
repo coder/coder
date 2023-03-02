@@ -6,6 +6,7 @@ import {
   getTemplateVersionSchema,
   uploadTemplateFile,
   getTemplateVersionLogs,
+  getTemplateVersionVariables,
 } from "api/api"
 import {
   CreateTemplateVersionRequest,
@@ -14,7 +15,9 @@ import {
   Template,
   TemplateExample,
   TemplateVersion,
+  TemplateVersionVariable,
   UploadResponse,
+  VariableValue,
 } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
 import { delay } from "util/delay"
@@ -24,7 +27,7 @@ import { assign, createMachine } from "xstate"
 // 1. upload template tar or use the example ID
 // 2. create template version
 // 3. wait for it to complete
-// 4. if the job failed with the missing parameter error then:
+// 4. verify if template has missing parameters or variables
 //    a. prompt for params
 //    b. create template version again with the same file hash
 //    c. wait for it to complete
@@ -39,6 +42,7 @@ export interface CreateTemplateData {
   default_ttl_hours: number
   allow_user_cancel_workspace_jobs: boolean
   parameter_values_by_name?: Record<string, string>
+  user_variable_values?: VariableValue[]
 }
 interface CreateTemplateContext {
   organizationId: string
@@ -50,6 +54,7 @@ interface CreateTemplateContext {
   version?: TemplateVersion
   templateData?: CreateTemplateData
   parameters?: ParameterSchema[]
+  variables?: TemplateVersionVariable[]
   // file is used in the FE to show the filename and some other visual stuff
   // uploadedFile is the response from the server to use in the API
   file?: File
@@ -78,7 +83,7 @@ export const createTemplateMachine =
           createFirstVersion: {
             data: TemplateVersion
           }
-          createVersionWithParameters: {
+          createVersionWithParametersAndVariables: {
             data: TemplateVersion
           }
           waitForJobToBeCompleted: {
@@ -86,6 +91,12 @@ export const createTemplateMachine =
           }
           loadParameterSchema: {
             data: ParameterSchema[]
+          }
+          checkParametersAndVariables: {
+            data: {
+              parameters?: ParameterSchema[]
+              variables: TemplateVersionVariable[]
+            }
           }
           createTemplate: {
             data: Template
@@ -171,16 +182,14 @@ export const createTemplateMachine =
                 src: "waitForJobToBeCompleted",
                 onDone: [
                   {
-                    target: "loadingMissingParameters",
-                    cond: "hasMissingParameters",
-                    actions: ["assignVersion"],
-                  },
-                  {
                     target: "loadingVersionLogs",
                     actions: ["assignJobError", "assignVersion"],
                     cond: "hasFailed",
                   },
-                  { target: "creatingTemplate", actions: ["assignVersion"] },
+                  {
+                    target: "checkingParametersAndVariables",
+                    actions: ["assignVersion"],
+                  },
                 ],
                 onError: {
                   target: "#createTemplate.idle",
@@ -189,51 +198,43 @@ export const createTemplateMachine =
               },
               tags: ["submitting"],
             },
-            loadingVersionLogs: {
+            checkingParametersAndVariables: {
               invoke: {
-                src: "loadVersionLogs",
-                onDone: {
-                  target: "#createTemplate.idle",
-                  actions: ["assignJobLogs"],
-                },
+                src: "checkParametersAndVariables",
+                onDone: [
+                  {
+                    target: "creatingTemplate",
+                    cond: "hasNoParametersOrVariables",
+                  },
+                  {
+                    target: "promptParametersAndVariables",
+                    actions: ["assignParametersAndVariables"],
+                  },
+                ],
                 onError: {
                   target: "#createTemplate.idle",
                   actions: ["assignError"],
                 },
               },
             },
-            loadingMissingParameters: {
-              invoke: {
-                src: "loadParameterSchema",
-                onDone: {
-                  target: "promptParameters",
-                  actions: ["assignParameters"],
-                },
-                onError: {
-                  target: "#createTemplate.idle",
-                  actions: ["assignError"],
-                },
-              },
-              tags: ["submitting"],
-            },
-            promptParameters: {
+            promptParametersAndVariables: {
               on: {
                 CREATE: {
-                  target: "creatingVersionWithParameters",
+                  target: "creatingVersionWithParametersAndVariables",
                   actions: ["assignTemplateData"],
                 },
               },
             },
-            creatingVersionWithParameters: {
+            creatingVersionWithParametersAndVariables: {
               invoke: {
-                src: "createVersionWithParameters",
+                src: "createVersionWithParametersAndVariables",
                 onDone: {
                   target: "waitingForJobToBeCompleted",
                   actions: ["assignVersion"],
                 },
                 onError: {
                   actions: ["assignError"],
-                  target: "promptParameters",
+                  target: "promptParametersAndVariables",
                 },
               },
               tags: ["submitting"],
@@ -254,6 +255,19 @@ export const createTemplateMachine =
             },
             created: {
               type: "final",
+            },
+            loadingVersionLogs: {
+              invoke: {
+                src: "loadVersionLogs",
+                onDone: {
+                  target: "#createTemplate.idle",
+                  actions: ["assignJobLogs"],
+                },
+                onError: {
+                  target: "#createTemplate.idle",
+                  actions: ["assignError"],
+                },
+              },
             },
           },
         },
@@ -300,7 +314,7 @@ export const createTemplateMachine =
 
           throw new Error("No file or example provided")
         },
-        createVersionWithParameters: async ({
+        createVersionWithParametersAndVariables: async ({
           organizationId,
           parameters,
           templateData,
@@ -313,11 +327,11 @@ export const createTemplateMachine =
             throw new Error("No template data defined")
           }
 
-          const { parameter_values_by_name } = templateData
           // Get parameter values if they are needed/present
           const parameterValues: CreateTemplateVersionRequest["parameter_values"] =
             []
           if (parameters) {
+            const { parameter_values_by_name } = templateData
             parameters.forEach((schema) => {
               const value = parameter_values_by_name?.[schema.name]
               parameterValues.push({
@@ -354,12 +368,24 @@ export const createTemplateMachine =
           }
           return version
         },
-        loadParameterSchema: async ({ version }) => {
+        checkParametersAndVariables: async ({ version }) => {
           if (!version) {
             throw new Error("Version not defined")
           }
 
-          return getTemplateVersionSchema(version.id)
+          if (isMissingParameter(version)) {
+            const [parameters, variables] = await Promise.all([
+              getTemplateVersionSchema(version.id),
+              getTemplateVersionVariables(version.id),
+            ])
+
+            return { parameters, variables }
+          }
+
+          return {
+            parameters: undefined,
+            variables: await getTemplateVersionVariables(version.id),
+          }
         },
         createTemplate: async ({ organizationId, version, templateData }) => {
           if (!version) {
@@ -401,7 +427,10 @@ export const createTemplateMachine =
         }),
         assignVersion: assign({ version: (_, { data }) => data }),
         assignTemplateData: assign({ templateData: (_, { data }) => data }),
-        assignParameters: assign({ parameters: (_, { data }) => data }),
+        assignParametersAndVariables: assign({
+          parameters: (_, { data }) => data.parameters,
+          variables: (_, { data }) => data.variables,
+        }),
         assignFile: assign({ file: (_, { file }) => file }),
         assignUploadResponse: assign({ uploadResponse: (_, { data }) => data }),
         removeFile: assign({
@@ -414,11 +443,18 @@ export const createTemplateMachine =
         isExampleProvided: ({ exampleId }) => Boolean(exampleId),
         isNotUsingExample: ({ exampleId }) => !exampleId,
         hasFile: ({ file }) => Boolean(file),
-        hasFailed: (_, { data }) => data.job.status === "failed",
-        hasMissingParameters: (_, { data }) =>
+        hasFailed: (_, { data }) =>
           Boolean(
-            data.job.error && data.job.error.includes("missing parameter"),
+            data.job.status === "failed" && !isMissingParameter(data), // This should not be considered as a "hard" failure
           ),
+        hasNoParametersOrVariables: (_, { data }) =>
+          data.parameters === undefined && data.variables.length === 0,
       },
     },
   )
+
+const isMissingParameter = (version: TemplateVersion) => {
+  return Boolean(
+    version.job.error && version.job.error.includes("missing parameter"),
+  )
+}

@@ -30,8 +30,15 @@ const CreateTemplatePage: FC = () => {
       },
     },
   })
-  const { starterTemplate, parameters, error, file, jobError, jobLogs } =
-    state.context
+  const {
+    starterTemplate,
+    parameters,
+    error,
+    file,
+    jobError,
+    jobLogs,
+    variables,
+  } = state.context
   const shouldDisplayForm = !state.hasTag("loading")
 
   const onCancel = () => {
@@ -59,6 +66,7 @@ const CreateTemplatePage: FC = () => {
               error={error}
               starterTemplate={starterTemplate}
               isSubmitting={state.hasTag("submitting")}
+              variables={variables}
               parameters={parameters}
               onCancel={onCancel}
               onSubmit={(data) => {

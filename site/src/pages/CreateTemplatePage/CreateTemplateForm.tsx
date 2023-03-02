@@ -5,6 +5,7 @@ import {
   ParameterSchema,
   ProvisionerJobLog,
   TemplateExample,
+  TemplateVersionVariable,
 } from "api/typesGenerated"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import { ParameterInput } from "components/ParameterInput/ParameterInput"
@@ -23,6 +24,7 @@ import * as Yup from "yup"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
 import { LazyIconField } from "components/IconField/LazyIconField"
+import { VariableInput } from "./VariableInput"
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),
@@ -32,6 +34,9 @@ const validationSchema = Yup.object({
   default_ttl_hours: Yup.number(),
   allow_user_cancel_workspace_jobs: Yup.boolean(),
   parameter_values_by_name: Yup.object().optional(),
+  user_variable_values: Yup.array()
+    .of(Yup.object({ name: Yup.string(), value: Yup.string().optional() }))
+    .optional(),
 })
 
 const defaultInitialValues: CreateTemplateData = {
@@ -42,6 +47,7 @@ const defaultInitialValues: CreateTemplateData = {
   default_ttl_hours: 24,
   allow_user_cancel_workspace_jobs: false,
   parameter_values_by_name: undefined,
+  user_variable_values: undefined,
 }
 
 const getInitialValues = (starterTemplate?: TemplateExample) => {
@@ -62,6 +68,7 @@ interface CreateTemplateFormProps {
   starterTemplate?: TemplateExample
   error?: unknown
   parameters?: ParameterSchema[]
+  variables?: TemplateVersionVariable[]
   isSubmitting: boolean
   onCancel: () => void
   onSubmit: (data: CreateTemplateData) => void
@@ -74,6 +81,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   starterTemplate,
   error,
   parameters,
+  variables,
   isSubmitting,
   onCancel,
   onSubmit,
@@ -261,6 +269,34 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                       `parameter_values_by_name.${schema.name}`,
                       value,
                     )
+                  }}
+                />
+              ))}
+            </Stack>
+          </div>
+        )}
+
+        {/* Variables */}
+        {variables && (
+          <div className={styles.formSection}>
+            <div className={styles.formSectionInfo}>
+              <h2 className={styles.formSectionInfoTitle}>Variables</h2>
+              <p className={styles.formSectionInfoDescription}>
+                Enter the user variables
+              </p>
+            </div>
+
+            <Stack direction="column" className={styles.formSectionFields}>
+              {variables.map((variable, index) => (
+                <VariableInput
+                  variable={variable}
+                  disabled={isSubmitting}
+                  key={variable.name}
+                  onChange={async (value) => {
+                    await form.setFieldValue("user_variable_values." + index, {
+                      name: variable.name,
+                      value: value,
+                    })
                   }}
                 />
               ))}
