@@ -53,8 +53,38 @@ jobs:
           project: wl5hnrrkns
           context: base-build-context
           file: scripts/Dockerfile.base
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           pull: true
           no-cache: true
           push: true
           tags: |
             ghcr.io/coder/coder-base:latest
+
+      - name: Verify that images are pushed properly
+        run: |
+          # retry 10 times with a 5 second delay as the images may not be
+          # available immediately
+          for i in {1..10}; do
+            rc=0
+            raw_manifests=$(docker buildx imagetools inspect --raw ghcr.io/coder/coder-base:latest) || rc=$?
+            if [[ "$rc" -eq 0 ]]; then
+              break
+            fi
+            if [[ "$i" -eq 10 ]]; then
+              echo "Failed to pull manifests after 10 retries"
+              exit 1
+            fi
+            echo "Failed to pull manifests, retrying in 5 seconds"
+            sleep 5
+          done
+
+          manifests=$(
+            echo "$raw_manifests" | \
+              jq -r '.manifests[].platform | .os + "/" + .architecture + (if .variant then "/" + .variant else "" end)'
+          )
+
+          # Verify all 3 platforms are present.
+          set -euxo pipefail
+          echo "$manifests" | grep -q linux/amd64
+          echo "$manifests" | grep -q linux/arm64
+          echo "$manifests" | grep -q linux/arm/v7

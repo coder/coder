@@ -5467,25 +5467,35 @@ INSERT INTO
 		rx_packets,
 		rx_bytes,
 		tx_packets,
-		tx_bytes
+		tx_bytes,
+		session_count_vscode,
+		session_count_jetbrains,
+		session_count_reconnecting_pty,
+		session_count_ssh,
+		connection_median_latency_ms
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh
 `
 
 type InsertWorkspaceAgentStatParams struct {
-	ID                 uuid.UUID       `db:"id" json:"id"`
-	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
-	UserID             uuid.UUID       `db:"user_id" json:"user_id"`
-	WorkspaceID        uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	TemplateID         uuid.UUID       `db:"template_id" json:"template_id"`
-	AgentID            uuid.UUID       `db:"agent_id" json:"agent_id"`
-	ConnectionsByProto json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
-	ConnectionCount    int64           `db:"connection_count" json:"connection_count"`
-	RxPackets          int64           `db:"rx_packets" json:"rx_packets"`
-	RxBytes            int64           `db:"rx_bytes" json:"rx_bytes"`
-	TxPackets          int64           `db:"tx_packets" json:"tx_packets"`
-	TxBytes            int64           `db:"tx_bytes" json:"tx_bytes"`
+	ID                          uuid.UUID       `db:"id" json:"id"`
+	CreatedAt                   time.Time       `db:"created_at" json:"created_at"`
+	UserID                      uuid.UUID       `db:"user_id" json:"user_id"`
+	WorkspaceID                 uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	TemplateID                  uuid.UUID       `db:"template_id" json:"template_id"`
+	AgentID                     uuid.UUID       `db:"agent_id" json:"agent_id"`
+	ConnectionsByProto          json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
+	ConnectionCount             int64           `db:"connection_count" json:"connection_count"`
+	RxPackets                   int64           `db:"rx_packets" json:"rx_packets"`
+	RxBytes                     int64           `db:"rx_bytes" json:"rx_bytes"`
+	TxPackets                   int64           `db:"tx_packets" json:"tx_packets"`
+	TxBytes                     int64           `db:"tx_bytes" json:"tx_bytes"`
+	SessionCountVSCode          int64           `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
+	ConnectionMedianLatencyMS   int64           `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWorkspaceAgentStatParams) (WorkspaceAgentStat, error) {
@@ -5502,6 +5512,11 @@ func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWor
 		arg.RxBytes,
 		arg.TxPackets,
 		arg.TxBytes,
+		arg.SessionCountVSCode,
+		arg.SessionCountJetBrains,
+		arg.SessionCountReconnectingPTY,
+		arg.SessionCountSSH,
+		arg.ConnectionMedianLatencyMS,
 	)
 	var i WorkspaceAgentStat
 	err := row.Scan(
@@ -5517,6 +5532,11 @@ func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWor
 		&i.RxBytes,
 		&i.TxPackets,
 		&i.TxBytes,
+		&i.ConnectionMedianLatencyMS,
+		&i.SessionCountVSCode,
+		&i.SessionCountJetBrains,
+		&i.SessionCountReconnectingPTY,
+		&i.SessionCountSSH,
 	)
 	return i, err
 }

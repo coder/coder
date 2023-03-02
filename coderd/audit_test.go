@@ -151,6 +151,7 @@ func TestAuditLogsFilter(t *testing.T) {
 			Name           string
 			SearchQuery    string
 			ExpectedResult int
+			ExpectedError  bool
 		}{
 			{
 				Name:           "FilterByCreateAction",
@@ -188,19 +189,19 @@ func TestAuditLogsFilter(t *testing.T) {
 				ExpectedResult: 2,
 			},
 			{
-				Name:           "FilterInvalidSingleValue",
-				SearchQuery:    "invalid",
-				ExpectedResult: 5,
+				Name:          "FilterInvalidSingleValue",
+				SearchQuery:   "invalid",
+				ExpectedError: true,
 			},
 			{
-				Name:           "FilterWithInvalidResourceType",
-				SearchQuery:    "resource_type:invalid",
-				ExpectedResult: 5,
+				Name:          "FilterWithInvalidResourceType",
+				SearchQuery:   "resource_type:invalid",
+				ExpectedError: true,
 			},
 			{
-				Name:           "FilterWithInvalidAction",
-				SearchQuery:    "action:invalid",
-				ExpectedResult: 5,
+				Name:          "FilterWithInvalidAction",
+				SearchQuery:   "action:invalid",
+				ExpectedError: true,
 			},
 			{
 				Name:           "FilterOnCreateSingleDay",
@@ -229,7 +230,7 @@ func TestAuditLogsFilter(t *testing.T) {
 			},
 			{
 				Name:           "FilterOnWorkspaceBuildStartByInitiator",
-				SearchQuery:    "resource_type:workspace_build action:start build_reason:start",
+				SearchQuery:    "resource_type:workspace_build action:start build_reason:initiator",
 				ExpectedResult: 1,
 			},
 		}
@@ -245,9 +246,13 @@ func TestAuditLogsFilter(t *testing.T) {
 						Limit: 25,
 					},
 				})
-				require.NoError(t, err, "fetch audit logs")
-				require.Len(t, auditLogs.AuditLogs, testCase.ExpectedResult, "expected audit logs returned")
-				require.Equal(t, testCase.ExpectedResult, int(auditLogs.Count), "expected audit log count returned")
+				if testCase.ExpectedError {
+					require.Error(t, err, "expected error")
+				} else {
+					require.NoError(t, err, "fetch audit logs")
+					require.Len(t, auditLogs.AuditLogs, testCase.ExpectedResult, "expected audit logs returned")
+					require.Equal(t, testCase.ExpectedResult, int(auditLogs.Count), "expected audit log count returned")
+				}
 			})
 		}
 	})

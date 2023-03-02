@@ -550,6 +550,9 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 ```json
 {
+  "example_id": "string",
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "name": "string",
   "parameter_values": [
     {
       "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
@@ -559,28 +562,28 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
       "source_value": "string"
     }
   ],
-  "rich_parameter_values": [
-    {
-      "name": "string",
-      "value": "string"
-    }
-  ],
+  "provisioner": "terraform",
+  "storage_method": "file",
+  "tags": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "user_variable_values": [
     {
       "name": "string",
       "value": "string"
     }
-  ],
-  "workspace_name": "string"
+  ]
 }
 ```
 
 ### Parameters
 
-| Name           | In   | Type                                                                                                 | Required | Description                     |
-| -------------- | ---- | ---------------------------------------------------------------------------------------------------- | -------- | ------------------------------- |
-| `organization` | path | string(uuid)                                                                                         | true     | Organization ID                 |
-| `body`         | body | [codersdk.CreateTemplateVersionDryRunRequest](schemas.md#codersdkcreatetemplateversiondryrunrequest) | true     | Create template version request |
+| Name           | In   | Type                                                                                     | Required | Description                     |
+| -------------- | ---- | ---------------------------------------------------------------------------------------- | -------- | ------------------------------- |
+| `organization` | path | string(uuid)                                                                             | true     | Organization ID                 |
+| `body`         | body | [codersdk.CreateTemplateVersionRequest](schemas.md#codersdkcreatetemplateversionrequest) | true     | Create template version request |
 
 ### Example responses
 

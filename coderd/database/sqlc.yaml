@@ -25,6 +25,11 @@ overrides:
       api_key_scope_all: APIKeyScopeAll
       api_key_scope_application_connect: APIKeyScopeApplicationConnect
       avatar_url: AvatarURL
+      session_count_vscode: SessionCountVSCode
+      session_count_jetbrains: SessionCountJetBrains
+      session_count_reconnecting_pty: SessionCountReconnectingPTY
+      session_count_ssh: SessionCountSSH
+      connection_median_latency_ms: ConnectionMedianLatencyMS
       login_type_oidc: LoginTypeOIDC
       oauth_access_token: OAuthAccessToken
       oauth_expiry: OAuthExpiry

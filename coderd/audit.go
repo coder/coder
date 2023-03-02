@@ -8,8 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"net/url"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +20,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/searchquery"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -49,7 +48,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := auditSearchQuery(queryStr)
+	filter, errs := searchquery.AuditLogs(queryStr)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid audit search query.",
@@ -372,126 +371,4 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 	default:
 		return ""
 	}
-}
-
-// auditSearchQuery takes a query string and returns the auditLog filter.
-// It also can return the list of validation errors to return to the api.
-func auditSearchQuery(query string) (database.GetAuditLogsOffsetParams, []codersdk.ValidationError) {
-	searchParams := make(url.Values)
-	if query == "" {
-		// No filter
-		return database.GetAuditLogsOffsetParams{}, nil
-	}
-	query = strings.ToLower(query)
-	// Because we do this in 2 passes, we want to maintain quotes on the first
-	// pass.Further splitting occurs on the second pass and quotes will be
-	// dropped.
-	elements := splitQueryParameterByDelimiter(query, ' ', true)
-	for _, element := range elements {
-		parts := splitQueryParameterByDelimiter(element, ':', false)
-		switch len(parts) {
-		case 1:
-			// No key:value pair.
-			searchParams.Set("resource_type", parts[0])
-		case 2:
-			searchParams.Set(parts[0], parts[1])
-		default:
-			return database.GetAuditLogsOffsetParams{}, []codersdk.ValidationError{
-				{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 ':'", element)},
-			}
-		}
-	}
-
-	// Using the query param parser here just returns consistent errors with
-	// other parsing.
-	parser := httpapi.NewQueryParamParser()
-	const layout = "2006-01-02"
-
-	var (
-		dateFromString    = parser.String(searchParams, "", "date_from")
-		dateToString      = parser.String(searchParams, "", "date_to")
-		parsedDateFrom, _ = time.Parse(layout, dateFromString)
-		parsedDateTo, _   = time.Parse(layout, dateToString)
-	)
-
-	if dateToString != "" {
-		parsedDateTo = parsedDateTo.Add(23*time.Hour + 59*time.Minute + 59*time.Second) // parsedDateTo goes to 23:59
-	}
-
-	if dateToString != "" && parsedDateTo.Before(parsedDateFrom) {
-		return database.GetAuditLogsOffsetParams{}, []codersdk.ValidationError{
-			{Field: "q", Detail: fmt.Sprintf("DateTo value %q cannot be before than DateFrom", parsedDateTo)},
-		}
-	}
-
-	filter := database.GetAuditLogsOffsetParams{
-		ResourceType: resourceTypeFromString(parser.String(searchParams, "", "resource_type")),
-		ResourceID:   parser.UUID(searchParams, uuid.Nil, "resource_id"),
-		Action:       actionFromString(parser.String(searchParams, "", "action")),
-		Username:     parser.String(searchParams, "", "username"),
-		Email:        parser.String(searchParams, "", "email"),
-		DateFrom:     parsedDateFrom,
-		DateTo:       parsedDateTo,
-		BuildReason:  buildReasonFromString(parser.String(searchParams, "", "build_reason")),
-	}
-
-	return filter, parser.Errors
-}
-
-func resourceTypeFromString(resourceTypeString string) string {
-	switch codersdk.ResourceType(resourceTypeString) {
-	case codersdk.ResourceTypeTemplate:
-		return resourceTypeString
-	case codersdk.ResourceTypeTemplateVersion:
-		return resourceTypeString
-	case codersdk.ResourceTypeUser:
-		return resourceTypeString
-	case codersdk.ResourceTypeWorkspace:
-		return resourceTypeString
-	case codersdk.ResourceTypeWorkspaceBuild:
-		return resourceTypeString
-	case codersdk.ResourceTypeGitSSHKey:
-		return resourceTypeString
-	case codersdk.ResourceTypeAPIKey:
-		return resourceTypeString
-	case codersdk.ResourceTypeGroup:
-		return resourceTypeString
-	case codersdk.ResourceTypeLicense:
-		return resourceTypeString
-	}
-	return ""
-}
-
-func actionFromString(actionString string) string {
-	switch codersdk.AuditAction(actionString) {
-	case codersdk.AuditActionCreate:
-		return actionString
-	case codersdk.AuditActionWrite:
-		return actionString
-	case codersdk.AuditActionDelete:
-		return actionString
-	case codersdk.AuditActionStart:
-		return actionString
-	case codersdk.AuditActionStop:
-		return actionString
-	case codersdk.AuditActionLogin:
-		return actionString
-	case codersdk.AuditActionLogout:
-		return actionString
-	default:
-	}
-	return ""
-}
-
-func buildReasonFromString(buildReasonString string) string {
-	switch codersdk.BuildReason(buildReasonString) {
-	case codersdk.BuildReasonInitiator:
-		return buildReasonString
-	case codersdk.BuildReasonAutostart:
-		return buildReasonString
-	case codersdk.BuildReasonAutostop:
-		return buildReasonString
-	default:
-	}
-	return ""
 }
