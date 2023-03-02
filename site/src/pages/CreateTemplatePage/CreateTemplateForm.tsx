@@ -18,7 +18,12 @@ import { useFormik } from "formik"
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
-import { nameValidator, getFormHelpers, onChangeTrimmed } from "util/formUtils"
+import {
+  nameValidator,
+  getFormHelpers,
+  onChangeTrimmed,
+  templateDisplayNameValidator,
+} from "util/formUtils"
 import { CreateTemplateData } from "xServices/createTemplate/createTemplateXService"
 import * as Yup from "yup"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
@@ -28,15 +33,7 @@ import { VariableInput } from "./VariableInput"
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),
-  display_name: Yup.string().optional(),
-  description: Yup.string().optional(),
-  icon: Yup.string().optional(),
-  default_ttl_hours: Yup.number(),
-  allow_user_cancel_workspace_jobs: Yup.boolean(),
-  parameter_values_by_name: Yup.object().optional(),
-  user_variable_values: Yup.array()
-    .of(Yup.object({ name: Yup.string(), value: Yup.string().optional() }))
-    .optional(),
+  display_name: templateDisplayNameValidator("Display name"),
 })
 
 const defaultInitialValues: CreateTemplateData = {
@@ -46,8 +43,6 @@ const defaultInitialValues: CreateTemplateData = {
   icon: "",
   default_ttl_hours: 24,
   allow_user_cancel_workspace_jobs: false,
-  parameter_values_by_name: undefined,
-  user_variable_values: undefined,
 }
 
 const getInitialValues = (starterTemplate?: TemplateExample) => {
@@ -65,27 +60,27 @@ const getInitialValues = (starterTemplate?: TemplateExample) => {
 }
 
 interface CreateTemplateFormProps {
-  starterTemplate?: TemplateExample
-  error?: unknown
-  parameters?: ParameterSchema[]
-  variables?: TemplateVersionVariable[]
-  isSubmitting: boolean
   onCancel: () => void
   onSubmit: (data: CreateTemplateData) => void
+  isSubmitting: boolean
   upload: TemplateUploadProps
+  starterTemplate?: TemplateExample
+  parameters?: ParameterSchema[]
+  variables?: TemplateVersionVariable[]
+  error?: unknown
   jobError?: string
   logs?: ProvisionerJobLog[]
 }
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
+  onCancel,
+  onSubmit,
   starterTemplate,
-  error,
   parameters,
   variables,
   isSubmitting,
-  onCancel,
-  onSubmit,
   upload,
+  error,
   jobError,
   logs,
 }) => {
@@ -126,6 +121,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               onChange={onChangeTrimmed(form)}
               autoFocus
               fullWidth
+              required
               label={t("form.fields.name")}
               variant="outlined"
             />
