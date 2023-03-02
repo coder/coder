@@ -528,3 +528,24 @@ func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {
 	var host AppHostResponse
 	return host, json.NewDecoder(res.Body).Decode(&host)
 }
+
+type WorkspaceConnectionLatency struct {
+	P50 *int64
+	P95 *int64
+}
+
+type DeploymentStats struct {
+	WorkspacesByTransition       map[WorkspaceTransition]int
+	WorkspaceConnectionLatencyMS WorkspaceConnectionLatency
+
+	SessionCountVSCode          int
+	SessionCountSSH             int
+	SessionCountJetBrains       int
+	SessionCountReconnectingPTY int
+
+	WorkspaceRxBytes int
+	WorkspaceTxBytes int
+
+	// X downloaded in the past 10 minutes
+	// X uploaded in the past 10 minutes
+}

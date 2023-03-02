@@ -60,7 +60,7 @@ const (
 
 	// MagicSSHSessionTypeEnvironmentVariable is used to track the purpose behind an SSH connection.
 	// This is stripped from any commands being executed, and is counted towards connection stats.
-	MagicSSHSessionTypeEnvironmentVariable = "__CODER_SSH_SESSION_TYPE"
+	MagicSSHSessionTypeEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
 	// MagicSSHSessionTypeVSCode is set in the SSH config by the VS Code extension to identify itself.
 	MagicSSHSessionTypeVSCode = "vscode"
 	// MagicSSHSessionTypeJetBrains is set in the SSH config by the JetBrains extension to identify itself.
@@ -156,10 +156,6 @@ type agent struct {
 	network       *tailnet.Conn
 	connStatsChan chan *agentsdk.Stats
 
-	statRxPackets            atomic.Int64
-	statRxBytes              atomic.Int64
-	statTxPackets            atomic.Int64
-	statTxBytes              atomic.Int64
 	connCountVSCode          atomic.Int64
 	connCountJetBrains       atomic.Int64
 	connCountReconnectingPTY atomic.Int64
@@ -1188,14 +1184,12 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 			ConnectionCount:    int64(len(networkStats)),
 			ConnectionsByProto: map[string]int64{},
 		}
-		// Tailscale resets counts on every report!
-		// We'd rather have these compound, like Linux does!
 		for conn, counts := range networkStats {
 			stats.ConnectionsByProto[conn.Proto.String()]++
-			stats.RxBytes = a.statRxBytes.Add(int64(counts.RxBytes))
-			stats.RxPackets = a.statRxPackets.Add(int64(counts.RxPackets))
-			stats.TxBytes = a.statTxBytes.Add(int64(counts.TxBytes))
-			stats.TxPackets = a.statTxPackets.Add(int64(counts.TxPackets))
+			stats.RxBytes += int64(counts.RxBytes)
+			stats.RxPackets += int64(counts.RxPackets)
+			stats.TxBytes += int64(counts.TxBytes)
+			stats.TxPackets += int64(counts.TxPackets)
 		}
 
 		// The count of active sessions.
