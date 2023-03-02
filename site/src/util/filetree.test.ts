@@ -5,16 +5,20 @@ import {
   isFolder,
   moveFile,
   removeFile,
-  setFile,
+  createFile,
   traverse,
 } from "./filetree"
 
-test("setFile() set file into the file tree", () => {
+test("createFile() set file into the file tree", () => {
   let fileTree: FileTree = {
     "main.tf": "terraform",
     images: { "java.Dockerfile": "java dockerfile" },
   }
-  fileTree = setFile("images/python.Dockerfile", "python dockerfile", fileTree)
+  fileTree = createFile(
+    "images/python.Dockerfile",
+    fileTree,
+    "python dockerfile",
+  )
   expect((fileTree.images as FileTree)["python.Dockerfile"]).toEqual(
     "python dockerfile",
   )
