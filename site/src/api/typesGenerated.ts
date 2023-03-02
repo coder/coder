@@ -13,6 +13,11 @@ export interface APIKey {
   readonly lifetime_seconds: number
 }
 
+// From codersdk/apikey.go
+export interface APIKeyWithOwner extends APIKey {
+  readonly username: string
+}
+
 // From codersdk/licenses.go
 export interface AddLicenseRequest {
   readonly license: string

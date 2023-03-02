@@ -58,6 +58,11 @@ type Node struct {
 	PreferredDERP int `json:"preferred_derp"`
 	// DERPLatency is the latency in seconds to each DERP server.
 	DERPLatency map[string]float64 `json:"derp_latency"`
+	// DERPForcedWebsocket contains a mapping of DERP regions to
+	// error messages that caused the connection to be forced to
+	// use WebSockets. We don't use WebSockets by default because
+	// they are less performant.
+	DERPForcedWebsocket map[int]string `json:"derp_forced_websockets"`
 	// Addresses are the IP address ranges this connection exposes.
 	Addresses []netip.Prefix `json:"addresses"`
 	// AllowedIPs specify what addresses can dial the connection.
