@@ -100,3 +100,4 @@ export const templateDisplayNameValidator = (
       templateDisplayNameMaxLength,
       Language.nameTooLong(displayName, templateDisplayNameMaxLength),
     )
+    .optional()
