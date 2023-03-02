@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -141,6 +143,95 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
+	})
+
+	t.Run("MaxTTL", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			defaultTTL = 1 * time.Hour
+			maxTTL     = 24 * time.Hour
+		)
+
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+
+			var setCalled int64
+			client := coderdtest.New(t, &coderdtest.Options{
+				TemplateScheduleStore: mockTemplateScheduleStore{
+					setFn: func(ctx context.Context, db database.Store, template database.Template, options provisionerdserver.TemplateScheduleOptions) (database.Template, error) {
+						atomic.AddInt64(&setCalled, 1)
+						require.Equal(t, maxTTL, options.MaxTTL)
+						template.DefaultTTL = int64(options.DefaultTTL)
+						template.MaxTTL = int64(options.MaxTTL)
+						return template, nil
+					},
+				},
+			})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+				Name:             "testing",
+				VersionID:        version.ID,
+				DefaultTTLMillis: ptr.Ref(int64(0)),
+				MaxTTLMillis:     ptr.Ref(maxTTL.Milliseconds()),
+			})
+			require.NoError(t, err)
+
+			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
+			require.EqualValues(t, 0, got.DefaultTTLMillis)
+			require.Equal(t, maxTTL.Milliseconds(), got.MaxTTLMillis)
+		})
+
+		t.Run("DefaultTTLBigger", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+				Name:             "testing",
+				VersionID:        version.ID,
+				DefaultTTLMillis: ptr.Ref((maxTTL * 2).Milliseconds()),
+				MaxTTLMillis:     ptr.Ref(maxTTL.Milliseconds()),
+			})
+			require.Error(t, err)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			require.Len(t, sdkErr.Validations, 1)
+			require.Equal(t, "default_ttl_ms", sdkErr.Validations[0].Field)
+			require.Contains(t, sdkErr.Validations[0].Detail, "Must be less than or equal to max_ttl_ms")
+		})
+
+		t.Run("IgnoredUnlicensed", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+				Name:             "testing",
+				VersionID:        version.ID,
+				DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()),
+				MaxTTLMillis:     ptr.Ref(maxTTL.Milliseconds()),
+			})
+			require.NoError(t, err)
+			require.Equal(t, defaultTTL.Milliseconds(), got.DefaultTTLMillis)
+			require.Zero(t, got.MaxTTLMillis)
+		})
 	})
 
 	t.Run("NoVersion", func(t *testing.T) {
@@ -343,6 +434,114 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.Equal(t, updated.DefaultTTLMillis, template.DefaultTTLMillis)
+	})
+
+	t.Run("MaxTTL", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			defaultTTL = 1 * time.Hour
+			maxTTL     = 24 * time.Hour
+		)
+
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+
+			var setCalled int64
+			client := coderdtest.New(t, &coderdtest.Options{
+				TemplateScheduleStore: mockTemplateScheduleStore{
+					setFn: func(ctx context.Context, db database.Store, template database.Template, options provisionerdserver.TemplateScheduleOptions) (database.Template, error) {
+						if atomic.AddInt64(&setCalled, 1) == 2 {
+							require.Equal(t, maxTTL, options.MaxTTL)
+						}
+						template.DefaultTTL = int64(options.DefaultTTL)
+						template.MaxTTL = int64(options.MaxTTL)
+						return template, nil
+					},
+				},
+			})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+			})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+				Name:                         template.Name,
+				DisplayName:                  template.DisplayName,
+				Description:                  template.Description,
+				Icon:                         template.Icon,
+				DefaultTTLMillis:             0,
+				MaxTTLMillis:                 maxTTL.Milliseconds(),
+				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+			})
+			require.NoError(t, err)
+
+			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
+			require.EqualValues(t, 0, got.DefaultTTLMillis)
+			require.Equal(t, maxTTL.Milliseconds(), got.MaxTTLMillis)
+		})
+
+		t.Run("DefaultTTLBigger", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+			})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+				Name:                         template.Name,
+				DisplayName:                  template.DisplayName,
+				Description:                  template.Description,
+				Icon:                         template.Icon,
+				DefaultTTLMillis:             (maxTTL * 2).Milliseconds(),
+				MaxTTLMillis:                 maxTTL.Milliseconds(),
+				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+			})
+			require.Error(t, err)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			require.Len(t, sdkErr.Validations, 1)
+			require.Equal(t, "default_ttl_ms", sdkErr.Validations[0].Field)
+			require.Contains(t, sdkErr.Validations[0].Detail, "Must be less than or equal to max_ttl_ms")
+		})
+
+		t.Run("IgnoredUnlicensed", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+			})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+				Name:                         template.Name,
+				DisplayName:                  template.DisplayName,
+				Description:                  template.Description,
+				Icon:                         template.Icon,
+				DefaultTTLMillis:             defaultTTL.Milliseconds(),
+				MaxTTLMillis:                 maxTTL.Milliseconds(),
+				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+			})
+			require.NoError(t, err)
+			require.Equal(t, defaultTTL.Milliseconds(), got.DefaultTTLMillis)
+			require.Zero(t, got.MaxTTLMillis)
+		})
 	})
 
 	t.Run("NotModified", func(t *testing.T) {

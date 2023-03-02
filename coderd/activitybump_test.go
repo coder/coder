@@ -18,15 +18,24 @@ import (
 
 type mockTemplateScheduleStore struct {
 	getFn func(ctx context.Context, db database.Store, templateID uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error)
+	setFn func(ctx context.Context, db database.Store, template database.Template, options provisionerdserver.TemplateScheduleOptions) (database.Template, error)
 }
 
 var _ provisionerdserver.TemplateScheduleStore = mockTemplateScheduleStore{}
 
 func (m mockTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (provisionerdserver.TemplateScheduleOptions, error) {
-	return m.getFn(ctx, db, templateID)
+	if m.getFn != nil {
+		return m.getFn(ctx, db, templateID)
+	}
+
+	return provisionerdserver.NewAGPLTemplateScheduleStore().GetTemplateScheduleOptions(ctx, db, templateID)
 }
 
-func (mockTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, options provisionerdserver.TemplateScheduleOptions) (database.Template, error) {
+func (m mockTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, options provisionerdserver.TemplateScheduleOptions) (database.Template, error) {
+	if m.setFn != nil {
+		return m.setFn(ctx, db, template, options)
+	}
+
 	return provisionerdserver.NewAGPLTemplateScheduleStore().SetTemplateScheduleOptions(ctx, db, template, options)
 }
 
