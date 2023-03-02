@@ -78,14 +78,12 @@ const DeleteTemplateButton: FC<{ onClick: () => void }> = ({ onClick }) => (
 export type TemplatePageHeaderProps = {
   template: Template
   permissions: AuthorizationResponse
-  templateVersionVariables: TemplateVersionVariable[]
   onDeleteTemplate: () => void
 }
 
 export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
   template,
   permissions,
-  templateVersionVariables,
   onDeleteTemplate,
 }) => {
   const hasIcon = template.icon && template.icon !== ""
@@ -101,14 +99,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
                 onClick={deleteTemplate.openDeleteConfirmation}
               />
               <TemplateSettingsButton templateName={template.name} />
-              <Maybe
-                condition={
-                  templateVersionVariables &&
-                  templateVersionVariables.length > 0
-                }
-              >
-                <TemplateVariablesButton templateName={template.name} />
-              </Maybe>
+              <TemplateVariablesButton templateName={template.name} />
             </Maybe>
             <CreateWorkspaceButton templateName={template.name} />
           </>

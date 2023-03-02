@@ -57,14 +57,10 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
       organizationId,
     },
   })
-  const {
-    template,
-    permissions: templatePermissions,
-    templateVersionVariables,
-  } = templateState.context
+  const { template, permissions: templatePermissions } = templateState.context
   const permissions = usePermissions()
 
-  if (!template || !templatePermissions || !templateVersionVariables) {
+  if (!template || !templatePermissions) {
     return <Loader />
   }
 
@@ -73,7 +69,6 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
       <TemplatePageHeader
         template={template}
         permissions={templatePermissions}
-        templateVersionVariables={templateVersionVariables}
         onDeleteTemplate={() => {
           navigate("/templates")
         }}
