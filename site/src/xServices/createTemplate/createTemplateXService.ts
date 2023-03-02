@@ -95,7 +95,7 @@ export const createTemplateMachine =
           checkParametersAndVariables: {
             data: {
               parameters?: ParameterSchema[]
-              variables: TemplateVersionVariable[]
+              variables?: TemplateVersionVariable[]
             }
           }
           createTemplate: {
@@ -216,6 +216,7 @@ export const createTemplateMachine =
                   actions: ["assignError"],
                 },
               },
+              tags: ["submitting"],
             },
             promptParametersAndVariables: {
               on: {
@@ -348,6 +349,7 @@ export const createTemplateMachine =
             file_id: version.job.file_id,
             provisioner: "terraform",
             parameter_values: parameterValues,
+            user_variable_values: templateData.user_variable_values,
             tags: {},
           })
         },
@@ -373,18 +375,27 @@ export const createTemplateMachine =
             throw new Error("Version not defined")
           }
 
-          if (isMissingParameter(version)) {
-            const [parameters, variables] = await Promise.all([
-              getTemplateVersionSchema(version.id),
-              getTemplateVersionVariables(version.id),
-            ])
+          let promiseParameter: Promise<ParameterSchema[]> | undefined =
+            undefined
+          let promiseVariables: Promise<TemplateVersionVariable[]> | undefined =
+            undefined
 
-            return { parameters, variables }
+          if (isMissingParameter(version)) {
+            promiseParameter = getTemplateVersionSchema(version.id)
           }
 
+          if (isMissingVariables(version)) {
+            promiseVariables = getTemplateVersionVariables(version.id)
+          }
+
+          const [parameters, variables] = await Promise.all([
+            promiseParameter,
+            promiseVariables,
+          ])
+
           return {
-            parameters: undefined,
-            variables: await getTemplateVersionVariables(version.id),
+            parameters,
+            variables,
           }
         },
         createTemplate: async ({ organizationId, version, templateData }) => {
@@ -445,10 +456,12 @@ export const createTemplateMachine =
         hasFile: ({ file }) => Boolean(file),
         hasFailed: (_, { data }) =>
           Boolean(
-            data.job.status === "failed" && !isMissingParameter(data), // This should not be considered as a "hard" failure
+            data.job.status === "failed" &&
+              !isMissingParameter(data) &&
+              !isMissingVariables(data),
           ),
         hasNoParametersOrVariables: (_, { data }) =>
-          data.parameters === undefined && data.variables.length === 0,
+          data.parameters === undefined && data.variables === undefined,
       },
     },
   )
@@ -456,5 +469,12 @@ export const createTemplateMachine =
 const isMissingParameter = (version: TemplateVersion) => {
   return Boolean(
     version.job.error && version.job.error.includes("missing parameter"),
+  )
+}
+
+const isMissingVariables = (version: TemplateVersion) => {
+  return Boolean(
+    version.job.error &&
+      version.job.error.includes("required template variables"),
   )
 }

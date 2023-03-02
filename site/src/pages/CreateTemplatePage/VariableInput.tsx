@@ -18,7 +18,10 @@ const VariableLabel: React.FC<{ variable: TemplateVersionVariable }> = ({
 
   return (
     <label htmlFor={variable.name}>
-      <span className={styles.labelName}>var.{variable.name}</span>
+      <span className={styles.labelName}>
+        var.{variable.name}
+        {!variable.required && " (optional)"}
+      </span>
       <span className={styles.labelDescription}>{variable.description}</span>
     </label>
   )
@@ -91,12 +94,20 @@ const VariableField: React.FC<VariableInputProps> = ({
       size="small"
       disabled={disabled}
       placeholder={variable.sensitive ? "" : variable.default_value}
+      required={variable.required}
       defaultValue={
         variable.sensitive ? "" : defaultValue ?? variable.default_value
       }
       onChange={(event) => {
         onChange(event.target.value)
       }}
+      type={
+        variable.type === "number"
+          ? "number"
+          : variable.sensitive
+          ? "password"
+          : "string"
+      }
     />
   )
 }
