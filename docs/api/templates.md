@@ -545,6 +545,9 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 ```json
 {
+  "example_id": "string",
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "name": "string",
   "parameter_values": [
     {
       "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
@@ -554,28 +557,28 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
       "source_value": "string"
     }
   ],
-  "rich_parameter_values": [
-    {
-      "name": "string",
-      "value": "string"
-    }
-  ],
+  "provisioner": "terraform",
+  "storage_method": "file",
+  "tags": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "user_variable_values": [
     {
       "name": "string",
       "value": "string"
     }
-  ],
-  "workspace_name": "string"
+  ]
 }
 ```
 
 ### Parameters
 
-| Name           | In   | Type                                                                                                 | Required | Description                     |
-| -------------- | ---- | ---------------------------------------------------------------------------------------------------- | -------- | ------------------------------- |
-| `organization` | path | string(uuid)                                                                                         | true     | Organization ID                 |
-| `body`         | body | [codersdk.CreateTemplateVersionDryRunRequest](schemas.md#codersdkcreatetemplateversiondryrunrequest) | true     | Create template version request |
+| Name           | In   | Type                                                                                     | Required | Description                     |
+| -------------- | ---- | ---------------------------------------------------------------------------------------- | -------- | ------------------------------- |
+| `organization` | path | string(uuid)                                                                             | true     | Organization ID                 |
+| `body`         | body | [codersdk.CreateTemplateVersionRequest](schemas.md#codersdkcreatetemplateversionrequest) | true     | Create template version request |
 
 ### Example responses
 
@@ -1719,6 +1722,69 @@ Status Code **200**
 | `workspace_transition` | `start`         |
 | `workspace_transition` | `stop`          |
 | `workspace_transition` | `delete`        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get git auth by template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/gitauth \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/gitauth`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+| ----------------- | ---- | ------------ | -------- | ------------------- |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "authenticate_url": "string",
+    "authenticated": true,
+    "id": "string",
+    "type": "azure-devops"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TemplateVersionGitAuth](schemas.md#codersdktemplateversiongitauth) |
+
+<h3 id="get-git-auth-by-template-version-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                 | Type                                                   | Required | Restrictions | Description |
+| -------------------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]`       | array                                                  | false    |              |             |
+| `» authenticate_url` | string                                                 | false    |              |             |
+| `» authenticated`    | boolean                                                | false    |              |             |
+| `» id`               | string                                                 | false    |              |             |
+| `» type`             | [codersdk.GitProvider](schemas.md#codersdkgitprovider) | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value          |
+| -------- | -------------- |
+| `type`   | `azure-devops` |
+| `type`   | `github`       |
+| `type`   | `gitlab`       |
+| `type`   | `bitbucket`    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

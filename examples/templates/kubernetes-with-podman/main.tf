@@ -26,6 +26,34 @@ variable "os" {
   default = "ubuntu"
 }
 
+variable "cpu" {
+  description = "CPU (__ cores)"
+  default     = 2
+  validation {
+    condition = contains([
+      "2",
+      "4",
+      "6",
+      "8"
+    ], var.cpu)
+    error_message = "Invalid cpu!"
+  }
+}
+
+variable "memory" {
+  description = "Memory (__ GB)"
+  default     = 2
+  validation {
+    condition = contains([
+      "2",
+      "4",
+      "6",
+      "8"
+    ], var.memory)
+    error_message = "Invalid memory!"
+  }
+}
+
 resource "coder_agent" "dev" {
   os             = "linux"
   arch           = "amd64"
@@ -80,10 +108,17 @@ resource "kubernetes_pod" "main" {
         run_as_user = "1000"
       }
       resources {
+        requests = {
+          "cpu"    = "250m"
+          "memory" = "500Mi"
+        }
         limits = {
           # Acquire a FUSE device, powered by smarter-device-manager
           "github.com/fuse" : 1
+          cpu    = "${var.cpu}"
+          memory = "${var.memory}Gi"
         }
+
       }
       env {
         name  = "CODER_AGENT_TOKEN"

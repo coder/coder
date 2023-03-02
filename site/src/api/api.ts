@@ -101,9 +101,19 @@ export const logout = async (): Promise<void> => {
   await axios.post("/api/v2/users/logout")
 }
 
-export const getUser = async (): Promise<TypesGen.User> => {
-  const response = await axios.get<TypesGen.User>("/api/v2/users/me")
-  return response.data
+export const getAuthenticatedUser = async (): Promise<
+  TypesGen.User | undefined
+> => {
+  try {
+    const response = await axios.get<TypesGen.User>("/api/v2/users/me")
+    return response.data
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      return undefined
+    }
+
+    throw error
+  }
 }
 
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
@@ -132,8 +142,8 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
 
 export const getTokens = async (
   params: TypesGen.TokensFilter,
-): Promise<TypesGen.APIKey[]> => {
-  const response = await axios.get<TypesGen.APIKey[]>(
+): Promise<TypesGen.APIKeyWithOwner[]> => {
+  const response = await axios.get<TypesGen.APIKeyWithOwner[]>(
     `/api/v2/users/me/keys/tokens`,
     {
       params,
@@ -225,6 +235,15 @@ export const getTemplateVersionResources = async (
   return response.data
 }
 
+export const getTemplateVersionVariables = async (
+  versionId: string,
+): Promise<TypesGen.TemplateVersionVariable[]> => {
+  const response = await axios.get<TypesGen.TemplateVersionVariable[]>(
+    `/api/v2/templateversions/${versionId}/variables`,
+  )
+  return response.data
+}
+
 export const getTemplateVersions = async (
   templateId: string,
 ): Promise<TypesGen.TemplateVersion[]> => {
@@ -281,6 +300,15 @@ export const createTemplateVersion = async (
   const response = await axios.post<TypesGen.TemplateVersion>(
     `/api/v2/organizations/${organizationId}/templateversions`,
     data,
+  )
+  return response.data
+}
+
+export const getTemplateVersionGitAuth = async (
+  versionId: string,
+): Promise<TypesGen.TemplateVersionGitAuth[]> => {
+  const response = await axios.get(
+    `/api/v2/templateversions/${versionId}/gitauth`,
   )
   return response.data
 }

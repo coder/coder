@@ -248,13 +248,18 @@
 
 ```json
 {
-  "conns_by_proto": {
+  "connection_count": 0,
+  "connection_median_latency_ms": 0,
+  "connections_by_proto": {
     "property1": 0,
     "property2": 0
   },
-  "num_comms": 0,
   "rx_bytes": 0,
   "rx_packets": 0,
+  "session_count_jetbrains": 0,
+  "session_count_reconnecting_pty": 0,
+  "session_count_ssh": 0,
+  "session_count_vscode": 0,
   "tx_bytes": 0,
   "tx_packets": 0
 }
@@ -262,15 +267,20 @@
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description                                                  |
-| ------------------ | ------- | -------- | ------------ | ------------------------------------------------------------ |
-| `conns_by_proto`   | object  | false    |              | Conns by proto is a count of connections by protocol.        |
-| » `[any property]` | integer | false    |              |                                                              |
-| `num_comms`        | integer | false    |              | Num comms is the number of connections received by an agent. |
-| `rx_bytes`         | integer | false    |              | Rx bytes is the number of received bytes.                    |
-| `rx_packets`       | integer | false    |              | Rx packets is the number of received packets.                |
-| `tx_bytes`         | integer | false    |              | Tx bytes is the number of transmitted bytes.                 |
-| `tx_packets`       | integer | false    |              | Tx packets is the number of transmitted bytes.               |
+| Name                             | Type    | Required | Restrictions | Description                                                                                                                   |
+| -------------------------------- | ------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `connection_count`               | integer | false    |              | Connection count is the number of connections received by an agent.                                                           |
+| `connection_median_latency_ms`   | number  | false    |              | Connection median latency ms is the median latency of all connections in milliseconds.                                        |
+| `connections_by_proto`           | object  | false    |              | Connections by proto is a count of connections by protocol.                                                                   |
+| » `[any property]`               | integer | false    |              |                                                                                                                               |
+| `rx_bytes`                       | integer | false    |              | Rx bytes is the number of received bytes.                                                                                     |
+| `rx_packets`                     | integer | false    |              | Rx packets is the number of received packets.                                                                                 |
+| `session_count_jetbrains`        | integer | false    |              | Session count jetbrains is the number of connections received by an agent that are from our JetBrains extension.              |
+| `session_count_reconnecting_pty` | integer | false    |              | Session count reconnecting pty is the number of connections received by an agent that are from the reconnecting web terminal. |
+| `session_count_ssh`              | integer | false    |              | Session count ssh is the number of connections received by an agent that are normal, non-tagged SSH sessions.                 |
+| `session_count_vscode`           | integer | false    |              | Session count vscode is the number of connections received by an agent that are from our VS Code extension.                   |
+| `tx_bytes`                       | integer | false    |              | Tx bytes is the number of transmitted bytes.                                                                                  |
+| `tx_packets`                     | integer | false    |              | Tx packets is the number of transmitted bytes.                                                                                |
 
 ## agentsdk.StatsResponse
 
@@ -440,7 +450,14 @@
     "background_color": "string",
     "enabled": true,
     "message": "string"
-  }
+  },
+  "support_links": [
+    {
+      "icon": "string",
+      "name": "string",
+      "target": "string"
+    }
+  ]
 }
 ```
 
@@ -450,6 +467,7 @@
 | ---------------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
 | `logo_url`       | string                                                       | false    |              |             |
 | `service_banner` | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
+| `support_links`  | array of [codersdk.LinkConfig](#codersdklinkconfig)          | false    |              |             |
 
 ## codersdk.AssignableRoles
 
@@ -1018,6 +1036,61 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |                                                                                    |
 | `user_variable_values`  | array of [codersdk.VariableValue](#codersdkvariablevalue)                     | false    |              |                                                                                    |
 | `workspace_name`        | string                                                                        | false    |              |                                                                                    |
+
+## codersdk.CreateTemplateVersionRequest
+
+```json
+{
+  "example_id": "string",
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "name": "string",
+  "parameter_values": [
+    {
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
+      "destination_scheme": "none",
+      "name": "string",
+      "source_scheme": "none",
+      "source_value": "string"
+    }
+  ],
+  "provisioner": "terraform",
+  "storage_method": "file",
+  "tags": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "user_variable_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                          |
+| ---------------------- | --------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------- |
+| `example_id`           | string                                                                      | false    |              |                                                                                                      |
+| `file_id`              | string                                                                      | false    |              |                                                                                                      |
+| `name`                 | string                                                                      | false    |              |                                                                                                      |
+| `parameter_values`     | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values allows for additional parameters to be provided during the dry-run provision stage. |
+| `provisioner`          | string                                                                      | true     |              |                                                                                                      |
+| `storage_method`       | [codersdk.ProvisionerStorageMethod](#codersdkprovisionerstoragemethod)      | true     |              |                                                                                                      |
+| `tags`                 | object                                                                      | false    |              |                                                                                                      |
+| » `[any property]`     | string                                                                      | false    |              |                                                                                                      |
+| `template_id`          | string                                                                      | false    |              | Template ID optionally associates a version with a template.                                         |
+| `user_variable_values` | array of [codersdk.VariableValue](#codersdkvariablevalue)                   | false    |              |                                                                                                      |
+
+#### Enumerated Values
+
+| Property         | Value       |
+| ---------------- | ----------- |
+| `provisioner`    | `terraform` |
+| `provisioner`    | `echo`      |
+| `storage_method` | `file`      |
 
 ## codersdk.CreateTestAuditLogRequest
 
@@ -2285,6 +2358,31 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "usage": "string",
     "value": ["string"]
   },
+  "support": {
+    "links": {
+      "default": [
+        {
+          "icon": "string",
+          "name": "string",
+          "target": "string"
+        }
+      ],
+      "enterprise": true,
+      "flag": "string",
+      "hidden": true,
+      "name": "string",
+      "secret": true,
+      "shorthand": "string",
+      "usage": "string",
+      "value": [
+        {
+          "icon": "string",
+          "name": "string",
+          "target": "string"
+        }
+      ]
+    }
+  },
   "swagger": {
     "enable": {
       "default": true,
@@ -2546,6 +2644,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `ssh_keygen_algorithm`               | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
 | `strict_transport_security`          | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)                                                   | false    |              |                                                 |
 | `strict_transport_security_options`  | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
+| `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                                                           | false    |              |                                                 |
 | `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                                           | false    |              |                                                 |
 | `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                                       | false    |              |                                                 |
 | `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                                                   | false    |              |                                                 |
@@ -2606,6 +2705,48 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `shorthand`  | string                                                    | false    |              |             |
 | `usage`      | string                                                    | false    |              |             |
 | `value`      | array of [codersdk.GitAuthConfig](#codersdkgitauthconfig) | false    |              |             |
+
+## codersdk.DeploymentConfigField-array_codersdk_LinkConfig
+
+```json
+{
+  "default": [
+    {
+      "icon": "string",
+      "name": "string",
+      "target": "string"
+    }
+  ],
+  "enterprise": true,
+  "flag": "string",
+  "hidden": true,
+  "name": "string",
+  "secret": true,
+  "shorthand": "string",
+  "usage": "string",
+  "value": [
+    {
+      "icon": "string",
+      "name": "string",
+      "target": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                | Required | Restrictions | Description |
+| ------------ | --------------------------------------------------- | -------- | ------------ | ----------- |
+| `default`    | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
+| `enterprise` | boolean                                             | false    |              |             |
+| `flag`       | string                                              | false    |              |             |
+| `hidden`     | boolean                                             | false    |              |             |
+| `name`       | string                                              | false    |              |             |
+| `secret`     | boolean                                             | false    |              |             |
+| `shorthand`  | string                                              | false    |              |             |
+| `usage`      | string                                              | false    |              |             |
+| `value`      | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
 
 ## codersdk.DeploymentConfigField-array_string
 
@@ -2944,6 +3085,23 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `type`         | string          | false    |              |             |
 | `validate_url` | string          | false    |              |             |
 
+## codersdk.GitProvider
+
+```json
+"azure-devops"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+| -------------- |
+| `azure-devops` |
+| `github`       |
+| `gitlab`       |
+| `bitbucket`    |
+
 ## codersdk.GitSSHKey
 
 ```json
@@ -3042,6 +3200,24 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `id`          | integer | false    |              |                                                                                                                                                                                                        |
 | `uploaded_at` | string  | false    |              |                                                                                                                                                                                                        |
 | `uuid`        | string  | false    |              |                                                                                                                                                                                                        |
+
+## codersdk.LinkConfig
+
+```json
+{
+  "icon": "string",
+  "name": "string",
+  "target": "string"
+}
+```
+
+### Properties
+
+| Name     | Type   | Required | Restrictions | Description |
+| -------- | ------ | -------- | ------------ | ----------- |
+| `icon`   | string | false    |              |             |
+| `name`   | string | false    |              |             |
+| `target` | string | false    |              |             |
 
 ## codersdk.LogLevel
 
@@ -3965,6 +4141,20 @@ Parameter represents a set value for the scope.
 | `canceled`  |
 | `failed`    |
 
+## codersdk.ProvisionerStorageMethod
+
+```json
+"file"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value  |
+| ------ |
+| `file` |
+
 ## codersdk.PutExtendWorkspaceRequest
 
 ```json
@@ -4119,6 +4309,42 @@ Parameter represents a set value for the scope.
 | `background_color` | string  | false    |              |             |
 | `enabled`          | boolean | false    |              |             |
 | `message`          | string  | false    |              |             |
+
+## codersdk.SupportConfig
+
+```json
+{
+  "links": {
+    "default": [
+      {
+        "icon": "string",
+        "name": "string",
+        "target": "string"
+      }
+    ],
+    "enterprise": true,
+    "flag": "string",
+    "hidden": true,
+    "name": "string",
+    "secret": true,
+    "shorthand": "string",
+    "usage": "string",
+    "value": [
+      {
+        "icon": "string",
+        "name": "string",
+        "target": "string"
+      }
+    ]
+  }
+}
+```
+
+### Properties
+
+| Name    | Type                                                                                                                 | Required | Restrictions | Description |
+| ------- | -------------------------------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `links` | [codersdk.DeploymentConfigField-array_codersdk_LinkConfig](#codersdkdeploymentconfigfield-array_codersdk_linkconfig) | false    |              |             |
 
 ## codersdk.SwaggerConfig
 
@@ -4570,6 +4796,26 @@ Parameter represents a set value for the scope.
 | `template_id`     | string                                             | false    |              |             |
 | `updated_at`      | string                                             | false    |              |             |
 
+## codersdk.TemplateVersionGitAuth
+
+```json
+{
+  "authenticate_url": "string",
+  "authenticated": true,
+  "id": "string",
+  "type": "azure-devops"
+}
+```
+
+### Properties
+
+| Name               | Type                                         | Required | Restrictions | Description |
+| ------------------ | -------------------------------------------- | -------- | ------------ | ----------- |
+| `authenticate_url` | string                                       | false    |              |             |
+| `authenticated`    | boolean                                      | false    |              |             |
+| `id`               | string                                       | false    |              |             |
+| `type`             | [codersdk.GitProvider](#codersdkgitprovider) | false    |              |             |
+
 ## codersdk.TemplateVersionParameter
 
 ```json
@@ -4756,6 +5002,26 @@ Parameter represents a set value for the scope.
 | Name | Type   | Required | Restrictions | Description |
 | ---- | ------ | -------- | ------------ | ----------- |
 | `id` | string | true     |              |             |
+
+## codersdk.UpdateAppearanceConfig
+
+```json
+{
+  "logo_url": "string",
+  "service_banner": {
+    "background_color": "string",
+    "enabled": true,
+    "message": "string"
+  }
+}
+```
+
+### Properties
+
+| Name             | Type                                                         | Required | Restrictions | Description |
+| ---------------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `logo_url`       | string                                                       | false    |              |             |
+| `service_banner` | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
 
 ## codersdk.UpdateCheckResponse
 

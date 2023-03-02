@@ -49,6 +49,7 @@ export const getOverrides = ({
         textTransform: "none",
         letterSpacing: "none",
         border: `1px solid ${palette.divider}`,
+        whiteSpace: "nowrap",
 
         "&:focus-visible": {
           outline: `2px solid ${palette.primary.dark}`,

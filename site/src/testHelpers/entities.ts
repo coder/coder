@@ -60,6 +60,25 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   version: "v99.999.9999+c9cdf14",
 }
 
+export const MockSupportLinks: TypesGen.LinkConfig[] = [
+  {
+    name: "First link",
+    target: "http://first-link",
+    icon: "chat",
+  },
+  {
+    name: "Second link",
+    target: "http://second-link",
+    icon: "docs",
+  },
+  {
+    name: "Third link",
+    target:
+      "https://github.com/coder/coder/issues/new?labels=needs+grooming&body={CODER_BUILD_INFO}",
+    icon: "",
+  },
+]
+
 export const MockUpdateCheck: TypesGen.UpdateCheckResponse = {
   current: true,
   url: "file:///mock-url",
@@ -768,6 +787,56 @@ export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
     validation_monotonic: "decreasing",
   }
 
+export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
+  name: "first_variable",
+  description: "This is first variable.",
+  type: "string",
+  value: "",
+  default_value: "abc",
+  required: false,
+  sensitive: false,
+}
+
+export const MockTemplateVersionVariable2: TypesGen.TemplateVersionVariable = {
+  name: "second_variable",
+  description: "This is second variable.",
+  type: "number",
+  value: "5",
+  default_value: "3",
+  required: false,
+  sensitive: false,
+}
+
+export const MockTemplateVersionVariable3: TypesGen.TemplateVersionVariable = {
+  name: "third_variable",
+  description: "This is third variable.",
+  type: "bool",
+  value: "",
+  default_value: "false",
+  required: false,
+  sensitive: false,
+}
+
+export const MockTemplateVersionVariable4: TypesGen.TemplateVersionVariable = {
+  name: "fourth_variable",
+  description: "This is fourth variable.",
+  type: "string",
+  value: "defghijk",
+  default_value: "",
+  required: true,
+  sensitive: true,
+}
+
+export const MockTemplateVersionVariable5: TypesGen.TemplateVersionVariable = {
+  name: "fifth_variable",
+  description: "This is fifth variable.",
+  type: "string",
+  value: "",
+  default_value: "",
+  required: true,
+  sensitive: false,
+}
+
 // requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",
@@ -1389,4 +1458,11 @@ export const mockParameterSchema = (
     validation_value_type: "",
     ...partial,
   }
+}
+
+export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
+  id: "github",
+  type: "github",
+  authenticate_url: "https://example.com/gitauth/github",
+  authenticated: false,
 }
