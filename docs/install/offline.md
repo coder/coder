@@ -142,8 +142,9 @@ services:
       - ./plugins:/opt/terraform/plugins
     # ...
   environment:
-    CODER_TELEMETRY_ENABLE: false # disable telemetry
-    CODER_DERP_SERVER_STUN_ADDRESSES: "" # only use relayed connections
+    CODER_TELEMETRY_ENABLE: "false" # Disable telemetry
+    CODER_DERP_SERVER_STUN_ADDRESSES: "" # Only use relayed connections
+    CODER_UPDATE_CHECK: "false" # Disable automatic update checks
   database:
     image: registry.example.com/postgres:13
     # ...
@@ -164,6 +165,9 @@ coder:
   env:
     # Disable telemetry
     - name: "CODER_TELEMETRY_ENABLE"
+      value: "false"
+    # Disable automatic update checks
+    - name: "CODER_UPDATE_CHECK"
       value: "false"
     # Only use relayed connections
     - name: "CODER_DERP_SERVER_STUN_ADDRESSES"
