@@ -8592,6 +8592,10 @@ const docTemplate = `{
                 "job": {
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
                 },
+                "max_deadline": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "reason": {
                     "enum": [
                         "initiator",

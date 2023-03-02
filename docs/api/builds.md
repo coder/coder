@@ -49,6 +49,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "max_deadline": "2019-08-24T14:15:22Z",
   "reason": "initiator",
   "resources": [
     {
@@ -195,6 +196,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "max_deadline": "2019-08-24T14:15:22Z",
   "reason": "initiator",
   "resources": [
     {
@@ -708,6 +710,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "max_deadline": "2019-08-24T14:15:22Z",
   "reason": "initiator",
   "resources": [
     {
@@ -859,6 +862,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       },
       "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
+    "max_deadline": "2019-08-24T14:15:22Z",
     "reason": "initiator",
     "resources": [
       {
@@ -983,6 +987,7 @@ Status Code **200**
 | `»» tags`                            | object                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» [any property]`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» worker_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
+| `» max_deadline`                     | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `» reason`                           | [codersdk.BuildReason](schemas.md#codersdkbuildreason)                           | false    |              |                                                                                                                                                                                                                                                |
 | `» resources`                        | array                                                                            | false    |              |                                                                                                                                                                                                                                                |
 | `»» agents`                          | array                                                                            | false    |              |                                                                                                                                                                                                                                                |
@@ -1175,6 +1180,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "max_deadline": "2019-08-24T14:15:22Z",
   "reason": "initiator",
   "resources": [
     {

@@ -5304,6 +5304,7 @@ Parameter represents a set value for the scope.
       },
       "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
+    "max_deadline": "2019-08-24T14:15:22Z",
     "reason": "initiator",
     "resources": [
       {
@@ -5762,6 +5763,7 @@ Parameter represents a set value for the scope.
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "max_deadline": "2019-08-24T14:15:22Z",
   "reason": "initiator",
   "resources": [
     {
@@ -5865,6 +5867,7 @@ Parameter represents a set value for the scope.
 | `initiator_id`          | string                                                            | false    |              |             |
 | `initiator_name`        | string                                                            | false    |              |             |
 | `job`                   | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |             |
+| `max_deadline`          | string                                                            | false    |              |             |
 | `reason`                | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |             |
 | `resources`             | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |             |
 | `status`                | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |             |
@@ -6126,6 +6129,7 @@ Parameter represents a set value for the scope.
           },
           "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
         },
+        "max_deadline": "2019-08-24T14:15:22Z",
         "reason": "initiator",
         "resources": [
           {

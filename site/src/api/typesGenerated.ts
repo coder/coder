@@ -1043,6 +1043,7 @@ export interface WorkspaceBuild {
   readonly reason: BuildReason
   readonly resources: WorkspaceResource[]
   readonly deadline?: string
+  readonly max_deadline?: string
   readonly status: WorkspaceStatus
   readonly daily_cost: number
 }
