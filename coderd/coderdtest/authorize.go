@@ -346,8 +346,9 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		t.Fail()
 	}
 	_, err := client.CreateToken(ctx, admin.UserID.String(), codersdk.CreateTokenRequest{
-		Lifetime: time.Hour,
-		Scope:    codersdk.APIKeyScopeAll,
+		Lifetime:  time.Hour,
+		Scope:     codersdk.APIKeyScopeAll,
+		TokenName: namesgenerator.GetRandomName(1),
 	})
 	require.NoError(t, err, "create token")
 
