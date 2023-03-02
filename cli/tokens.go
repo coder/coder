@@ -191,7 +191,7 @@ func removeToken() *cobra.Command {
 
 			token, err := client.APIKeyByName(cmd.Context(), codersdk.Me, args[0])
 			if err != nil {
-				return xerrors.Errorf("delete api key: %w", err)
+				return xerrors.Errorf("fetch api key by name %s: %w", args[0], err)
 			}
 
 			err = client.DeleteAPIKey(cmd.Context(), codersdk.Me, token.ID)
