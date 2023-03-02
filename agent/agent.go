@@ -879,10 +879,13 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	switch magicType {
 	case MagicSSHSessionTypeVSCode:
 		a.connCountVSCode.Add(1)
+		defer a.connCountVSCode.Add(-1)
 	case MagicSSHSessionTypeJetBrains:
 		a.connCountJetBrains.Add(1)
+		defer a.connCountJetBrains.Add(-1)
 	case "":
 		a.connCountSSHSession.Add(1)
+		defer a.connCountSSHSession.Add(-1)
 	default:
 		a.logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("type", magicType))
 	}
@@ -986,6 +989,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	defer conn.Close()
 
 	a.connCountReconnectingPTY.Add(1)
+	defer a.connCountReconnectingPTY.Add(-1)
 
 	connectionID := uuid.NewString()
 	logger = logger.With(slog.F("id", msg.ID), slog.F("connection_id", connectionID))
@@ -1194,8 +1198,7 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 			stats.TxPackets = a.statTxPackets.Add(int64(counts.TxPackets))
 		}
 
-		// Tailscale's connection stats are not cumulative, but it makes no sense to make
-		// ours temporary.
+		// The count of active sessions.
 		stats.SessionCountSSH = a.connCountSSHSession.Load()
 		stats.SessionCountVSCode = a.connCountVSCode.Load()
 		stats.SessionCountJetBrains = a.connCountJetBrains.Load()
