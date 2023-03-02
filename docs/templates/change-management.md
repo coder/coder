@@ -26,5 +26,4 @@ coder templates push --yes $CODER_TEMPLATE_NAME \
 > Looking for an example? See how we push our development image
 > and template [via GitHub actions](https://github.com/coder/coder/blob/main/.github/workflows/dogfood.yaml).
 
-> You need to set `CODER_MAX_TOKEN_LIFETIME` to a higher value on your coder server to allow creating tokens with a more than 1 month life.
->, e.g., for a system install, you can set `CODER_MAX_TOKEN_LIFETIME=8760h0m0s` in `/etc/coder/coder.env` to allow max token life of 1 year.
+> To create tokens with over a 30 day lifetime, [configure Coder server to set a longer max token lifetime](../cli/coder_server#--max-token-lifetime)
