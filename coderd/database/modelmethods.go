@@ -188,21 +188,23 @@ func (b WorkspaceBuildThin) WithWorkspace(workspace Workspace) WorkspaceBuild {
 
 func (b WorkspaceBuildThin) Expand(orgID, ownerID uuid.UUID) WorkspaceBuild {
 	return WorkspaceBuild{
-		ID:                b.ID,
-		CreatedAt:         b.CreatedAt,
-		UpdatedAt:         b.UpdatedAt,
-		WorkspaceID:       b.WorkspaceID,
-		TemplateVersionID: b.TemplateVersionID,
-		BuildNumber:       b.BuildNumber,
-		Transition:        b.Transition,
-		InitiatorID:       b.InitiatorID,
-		ProvisionerState:  b.ProvisionerState,
-		JobID:             b.JobID,
-		Deadline:          b.Deadline,
-		Reason:            b.Reason,
-		DailyCost:         b.DailyCost,
-		OrganizationID:    orgID,
-		WorkspaceOwnerID:  ownerID,
+		WorkspaceBuildThin: WorkspaceBuildThin{
+			ID:                b.ID,
+			CreatedAt:         b.CreatedAt,
+			UpdatedAt:         b.UpdatedAt,
+			WorkspaceID:       b.WorkspaceID,
+			TemplateVersionID: b.TemplateVersionID,
+			BuildNumber:       b.BuildNumber,
+			Transition:        b.Transition,
+			InitiatorID:       b.InitiatorID,
+			ProvisionerState:  b.ProvisionerState,
+			JobID:             b.JobID,
+			Deadline:          b.Deadline,
+			Reason:            b.Reason,
+			DailyCost:         b.DailyCost,
+		},
+		OrganizationID:   orgID,
+		WorkspaceOwnerID: ownerID,
 	}
 }
 
