@@ -12,7 +12,6 @@ import { useCallback, useRef, useState } from "react"
 import { getValidationErrorMessage } from "../../api/errors"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
 import { Stack } from "../Stack/Stack"
-import { combineClasses } from "util/combineClasses"
 
 export const Language = {
   filterName: "Filters",
