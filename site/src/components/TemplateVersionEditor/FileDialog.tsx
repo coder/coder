@@ -4,15 +4,17 @@ import { Stack } from "components/Stack/Stack"
 import { ChangeEvent, FC, useState } from "react"
 import Typography from "@material-ui/core/Typography"
 import { allowedExtensions, isAllowedFile } from "util/templateVersion"
+import { FileTree, validatePath } from "util/filetree"
 
 export const CreateFileDialog: FC<{
   onClose: () => void
   checkExists: (path: string) => boolean
   onConfirm: (path: string) => void
   open: boolean
-}> = ({ checkExists, onClose, onConfirm, open }) => {
+  fileTree: FileTree
+}> = ({ checkExists, onClose, onConfirm, open, fileTree }) => {
   const [pathValue, setPathValue] = useState("")
-  const [error, setError] = useState("")
+  const [error, setError] = useState<string>()
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     setPathValue(event.target.value)
   }
@@ -32,7 +34,13 @@ export const CreateFileDialog: FC<{
       )
       return
     }
+    const pathError = validatePath(pathValue, fileTree)
+    if (pathError) {
+      setError(pathError)
+      return
+    }
     onConfirm(pathValue)
+    setError(undefined)
     setPathValue("")
   }
 
@@ -41,6 +49,7 @@ export const CreateFileDialog: FC<{
       open={open}
       onClose={() => {
         onClose()
+        setError(undefined)
         setPathValue("")
       }}
       onConfirm={handleConfirm}
@@ -62,6 +71,7 @@ export const CreateFileDialog: FC<{
                 handleConfirm()
               }
             }}
+            error={Boolean(error)}
             helperText={error}
             name="file-path"
             autoComplete="off"
@@ -109,9 +119,10 @@ export const RenameFileDialog: FC<{
   checkExists: (path: string) => boolean
   open: boolean
   filename: string
-}> = ({ checkExists, onClose, onConfirm, open, filename }) => {
+  fileTree: FileTree
+}> = ({ checkExists, onClose, onConfirm, open, filename, fileTree }) => {
   const [pathValue, setPathValue] = useState(filename)
-  const [error, setError] = useState("")
+  const [error, setError] = useState<string>()
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     setPathValue(event.target.value)
   }
@@ -127,11 +138,17 @@ export const RenameFileDialog: FC<{
     if (!isAllowedFile(pathValue)) {
       const extensions = allowedExtensions.join(", ")
       setError(
-        `This extension is not allowed. You only can create files with the following extensions: ${extensions}.`,
+        `This extension is not allowed. You only can rename files with the following extensions: ${extensions}.`,
       )
       return
     }
+    const pathError = validatePath(pathValue, fileTree)
+    if (pathError) {
+      setError(pathError)
+      return
+    }
     onConfirm(pathValue)
+    setError(undefined)
     setPathValue("")
   }
 
@@ -140,6 +157,7 @@ export const RenameFileDialog: FC<{
       open={open}
       onClose={() => {
         onClose()
+        setError(undefined)
         setPathValue("")
       }}
       onConfirm={handleConfirm}
@@ -161,6 +179,7 @@ export const RenameFileDialog: FC<{
                 handleConfirm()
               }
             }}
+            error={Boolean(error)}
             helperText={error}
             name="file-path"
             autoComplete="off"

@@ -18,14 +18,15 @@ import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuild
 import { FC, useCallback, useEffect, useRef, useState } from "react"
 import { navHeight, dashboardContentBottomPadding } from "theme/constants"
 import {
+  createFile,
   existsFile,
   FileTree,
   getFileContent,
   isFolder,
   moveFile,
   removeFile,
-  setFile,
   traverse,
+  updateFile,
 } from "util/filetree"
 import {
   CreateFileDialog,
@@ -217,13 +218,14 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               </Tooltip>
             </div>
             <CreateFileDialog
+              fileTree={fileTree}
               open={createFileOpen}
               onClose={() => {
                 setCreateFileOpen(false)
               }}
               checkExists={(path) => existsFile(path, fileTree)}
               onConfirm={(path) => {
-                setFileTree((fileTree) => setFile(path, "", fileTree))
+                setFileTree((fileTree) => createFile(path, fileTree, ""))
                 setActivePath(path)
                 setCreateFileOpen(false)
                 setDirty(true)
@@ -246,6 +248,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               filename={deleteFileOpen || ""}
             />
             <RenameFileDialog
+              fileTree={fileTree}
               open={Boolean(renameFileOpen)}
               onClose={() => {
                 setRenameFileOpen(undefined)
@@ -289,7 +292,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                     return
                   }
                   setFileTree((fileTree) =>
-                    setFile(activePath, value, fileTree),
+                    updateFile(activePath, value, fileTree),
                   )
                   setDirty(true)
                 }}

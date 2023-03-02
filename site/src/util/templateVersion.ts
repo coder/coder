@@ -1,6 +1,6 @@
 import * as API from "api/api"
 import { TemplateVersion } from "api/typesGenerated"
-import { FileTree, setFile } from "./filetree"
+import { FileTree, createFile } from "./filetree"
 import { TarReader } from "./tar"
 
 /**
@@ -35,10 +35,10 @@ export const createTemplateVersionFileTree = async (
   let fileTree: FileTree = {}
   for (const file of tarReader.fileInfo) {
     if (isAllowedFile(file.name)) {
-      fileTree = setFile(
+      fileTree = createFile(
         file.name,
-        tarReader.getTextFile(file.name) as string,
         fileTree,
+        tarReader.getTextFile(file.name) as string,
       )
     }
   }
