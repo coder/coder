@@ -33,7 +33,7 @@ func sqlxSelect[RT any](ctx context.Context, q *sqlQuerier, queryName string, ar
 func sqlxGet[RT any](ctx context.Context, q *sqlQuerier, queryName string, argument interface{}) (RT, error) {
 	var empty RT
 
-	query, err := sqlxqueries.Query(queryName, nil)
+	query, err := sqlxqueries.Query(queryName, argument)
 	if err != nil {
 		return empty, xerrors.Errorf("get query: %w", err)
 	}

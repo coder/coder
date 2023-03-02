@@ -8,45 +8,54 @@ FROM
 	workspace_builds
 INNER JOIN
 	workspaces ON workspace_builds.workspace_id = workspaces.id
-)
+);
 {{ end }}
 
 
-{{ define "GetWorkspaceBuildByID" }}
--- name: GetWorkspaceBuildByID :one
+{{ define "GetWorkspaceBuild" }}
+-- name: GetWorkspaceBuild :one
 SELECT
 	*
 FROM
 	{{ template "workspace_builds_rbac" }}
 WHERE
-	id = @build_id
+	CASE
+		WHEN @build_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			id = @build_id
+		ELSE true
+	END
+	AND CASE
+		WHEN @job_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			job_id = @job_id
+		ELSE true
+	END
+	AND CASE
+		WHEN @job_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			job_id = @job_id
+		ELSE true
+	END
+	AND CASE
+		WHEN @created_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at > @created_aftet
+		ELSE true
+	END
+	AND CASE
+		WHEN @workspace_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspace_id = @workspace_id
+		ELSE true
+	END
+	AND CASE
+		WHEN @build_number :: integer != 0 THEN
+			build_number = @build_number
+		ELSE true
+	END
+{{ if .Latest }}
+ORDER BY
+	build_number desc
+{{ end }}
+LIMIT @limit_opt;
 {{ end }}
 
-{{ define "GetWorkspaceBuildByJobID" }}
--- name: GetWorkspaceBuildByJobID :one
-SELECT
-	*
-FROM
-	{{ template "workspace_builds_rbac" }}
-WHERE
-	job_id = $1
-{{ end }}
-
-{{ define "GetWorkspaceBuildsCreatedAfter" }}
--- name: GetWorkspaceBuildsCreatedAfter :many
-SELECT * FROM {{ template "workspace_builds_rbac" }} WHERE created_at > $1;
-{{ end }}
-
-{{ define "GetWorkspaceBuildByWorkspaceIDAndBuildNumber" }}
--- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
-SELECT
-	*
-FROM
-	{{ template "workspace_builds_rbac" }}
-WHERE
-	workspace_id = $1
-	AND build_number = $2;
-{{ end }}
 
 {{ define "GetWorkspaceBuildsByWorkspaceID" }}
 -- name: GetWorkspaceBuildsByWorkspaceID :many
@@ -82,22 +91,6 @@ LIMIT
     -- A null limit means "no limit", so 0 means return all
     NULLIF(@limit_opt :: int, 0);
 {{ end }}
-
-
-{{ define "GetLatestWorkspaceBuildByWorkspaceID" }}
--- name: GetLatestWorkspaceBuildByWorkspaceID :one
-SELECT
-	*
-FROM
-	{{ template "workspace_builds_rbac" }}
-WHERE
-	workspace_id = $1
-ORDER BY
-    build_number desc
-LIMIT
-	1;
-{{ end }}
-
 
 {{ define "GetLatestWorkspaceBuildsByWorkspaceIDs" }}
 -- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many

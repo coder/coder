@@ -190,7 +190,7 @@ func (s *MethodTestSuite) TestProvsionerJob() {
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{JobID: j.ID, WorkspaceID: w.ID})
 		check.Args(j.ID).Asserts(w, rbac.ActionRead).Returns(j)
 	}))
 	s.Run("TemplateVersion/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
@@ -223,7 +223,7 @@ func (s *MethodTestSuite) TestProvsionerJob() {
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{JobID: j.ID, WorkspaceID: w.ID})
 		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).Asserts(w, rbac.ActionUpdate).Returns()
 	}))
 	s.Run("BuildFalseCancel/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
@@ -232,7 +232,7 @@ func (s *MethodTestSuite) TestProvsionerJob() {
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{JobID: j.ID, WorkspaceID: w.ID})
 		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).Asserts(w, rbac.ActionUpdate).Returns()
 	}))
 	s.Run("TemplateVersion/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
@@ -282,7 +282,7 @@ func (s *MethodTestSuite) TestProvsionerJob() {
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{JobID: j.ID, WorkspaceID: w.ID})
 		check.Args(database.GetProvisionerLogsByIDBetweenParams{
 			JobID: j.ID,
 		}).Asserts(w, rbac.ActionRead).Returns([]database.ProvisionerJobLog{})
@@ -945,31 +945,31 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetLatestWorkspaceBuildByWorkspaceID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID})
+		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID})
 		check.Args(ws.ID).Asserts(ws, rbac.ActionRead).Returns(b.WithWorkspace(ws))
 	}))
 	s.Run("GetLatestWorkspaceBuildsByWorkspaceIDs", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID}).WithWorkspace(ws)
+		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID}).WithWorkspace(ws)
 		check.Args([]uuid.UUID{ws.ID}).Asserts(ws, rbac.ActionRead).Returns(slice.New(b))
 	}))
 	s.Run("GetWorkspaceAgentByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		check.Args(agt.ID).Asserts(ws, rbac.ActionRead).Returns(agt)
 	}))
 	s.Run("GetWorkspaceAgentByInstanceID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		check.Args(agt.AuthInstanceID.String).Asserts(ws, rbac.ActionRead).Returns(agt)
 	}))
 	s.Run("GetWorkspaceAgentsByResourceIDs", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		check.Args([]uuid.UUID{res.ID}).Asserts( /*ws, rbac.ActionRead*/ ).
@@ -977,7 +977,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("UpdateWorkspaceAgentLifecycleStateByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		check.Args(database.UpdateWorkspaceAgentLifecycleStateByIDParams{
@@ -987,7 +987,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("UpdateWorkspaceAgentStartupByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		check.Args(database.UpdateWorkspaceAgentStartupByIDParams{
@@ -996,7 +996,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceAppByAgentIDAndSlug", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
@@ -1008,7 +1008,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceAppsByAgentID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		a := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
@@ -1018,13 +1018,13 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceAppsByAgentIDs", s.Subtest(func(db database.Store, check *expects) {
 		aWs := dbgen.Workspace(s.T(), db, database.Workspace{})
-		aBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: aWs.ID, JobID: uuid.New()}).WithWorkspace(aWs)
+		aBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: aWs.ID, JobID: uuid.New()}).WithWorkspace(aWs)
 		aRes := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: aBuild.JobID})
 		aAgt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: aRes.ID})
 		a := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: aAgt.ID})
 
 		bWs := dbgen.Workspace(s.T(), db, database.Workspace{})
-		bBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: bWs.ID, JobID: uuid.New()}).WithWorkspace(bWs)
+		bBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: bWs.ID, JobID: uuid.New()}).WithWorkspace(bWs)
 		bRes := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: bBuild.JobID})
 		bAgt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: bRes.ID})
 		b := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: bAgt.ID})
@@ -1035,17 +1035,17 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceBuildByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID}).WithWorkspace(ws)
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID}).WithWorkspace(ws)
 		check.Args(build.ID).Asserts(ws, rbac.ActionRead).Returns(build)
 	}))
 	s.Run("GetWorkspaceBuildByJobID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID}).WithWorkspace(ws)
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID}).WithWorkspace(ws)
 		check.Args(build.JobID).Asserts(ws, rbac.ActionRead).Returns(build)
 	}))
 	s.Run("GetWorkspaceBuildByWorkspaceIDAndBuildNumber", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 10}).WithWorkspace(ws)
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, BuildNumber: 10}).WithWorkspace(ws)
 		check.Args(database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
 			WorkspaceID: ws.ID,
 			BuildNumber: build.BuildNumber,
@@ -1053,20 +1053,20 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID})
 		check.Args(build.ID).Asserts(ws, rbac.ActionRead).
 			Returns([]database.WorkspaceBuildParameter{})
 	}))
 	s.Run("GetWorkspaceBuildsByWorkspaceID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 1}).WithWorkspace(ws)
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 2}).WithWorkspace(ws)
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 3}).WithWorkspace(ws)
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, BuildNumber: 1}).WithWorkspace(ws)
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, BuildNumber: 2}).WithWorkspace(ws)
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, BuildNumber: 3}).WithWorkspace(ws)
 		check.Args(database.GetWorkspaceBuildsByWorkspaceIDParams{WorkspaceID: ws.ID}).Asserts(ws, rbac.ActionRead) // ordering
 	}))
 	s.Run("GetWorkspaceByAgentID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		check.Args(agt.ID).Asserts(ws, rbac.ActionRead).Returns(ws)
@@ -1081,14 +1081,14 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceResourceByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
 		_ = dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		check.Args(res.ID).Asserts(ws, rbac.ActionRead).Returns(res)
 	}))
 	s.Run("GetWorkspaceResourceMetadataByResourceIDs", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
 		_ = dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
 		a := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		b := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
@@ -1097,7 +1097,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("Build/GetWorkspaceResourcesByJobID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
 		job := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
 		check.Args(job.ID).Asserts(ws, rbac.ActionRead).Returns([]database.WorkspaceResource{})
 	}))
@@ -1113,7 +1113,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		tJob := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{ID: v.JobID, Type: database.ProvisionerJobTypeTemplateVersionImport})
 
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()}).WithWorkspace(ws)
 		wJob := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
 		check.Args([]uuid.UUID{tJob.ID, wJob.ID}).
 			Asserts( /*v.RBACObject(tpl), rbac.ActionRead, ws, rbac.ActionRead*/ ).
@@ -1146,7 +1146,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("InsertWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
 		w := dbgen.Workspace(s.T(), db, database.Workspace{})
-		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: w.ID})
+		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: w.ID})
 		check.Args(database.InsertWorkspaceBuildParametersParams{
 			WorkspaceBuildID: b.ID,
 			Name:             []string{"foo", "bar"},
@@ -1163,7 +1163,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("UpdateWorkspaceAgentConnectionByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		check.Args(database.UpdateWorkspaceAgentConnectionByIDParams{
@@ -1178,7 +1178,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("UpdateWorkspaceAppHealthByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
@@ -1195,7 +1195,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("UpdateWorkspaceBuildByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()})
 		check.Args(database.UpdateWorkspaceBuildByIDParams{
 			ID:        build.ID,
 			UpdatedAt: build.UpdatedAt,
@@ -1228,7 +1228,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceByWorkspaceAppID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})

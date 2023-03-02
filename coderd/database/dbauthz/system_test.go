@@ -109,7 +109,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts()
 	}))
 	s.Run("GetWorkspaceBuildsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{CreatedAt: time.Now().Add(-time.Hour)})
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildThin{CreatedAt: time.Now().Add(-time.Hour)})
 		check.Args(time.Now()).Asserts()
 	}))
 	s.Run("GetWorkspaceAgentsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {

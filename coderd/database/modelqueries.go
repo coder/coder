@@ -194,16 +194,36 @@ type WorkspaceBuild struct {
 	WorkspaceOwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
 }
 
+type getWorkspaceBuildParams struct {
+	BuildID      uuid.UUID `db:"build_id"`
+	JobID        uuid.UUID `db:"job_id"`
+	CreatedAfter time.Time `db:"created_after"`
+	WorkspaceID  uuid.UUID `db:"workspace_id"`
+	BuildNumber  int32     `db:"build_number"`
+	LimitOpt     int32     `db:"limit_opt"`
+	Latest       bool      `db:"-"`
+}
+
+func (q *sqlQuerier) getWorkspaceBuild(ctx context.Context, arg getWorkspaceBuildParams) (WorkspaceBuild, error) {
+	arg.LimitOpt = 1
+	return sqlxGet[WorkspaceBuild](ctx, q, "GetWorkspaceBuild", arg)
+}
+
+func (q *sqlQuerier) selectWorkspaceBuild(ctx context.Context, arg getWorkspaceBuildParams) ([]WorkspaceBuild, error) {
+	arg.LimitOpt = -1
+	return sqlxSelect[WorkspaceBuild](ctx, q, "GetWorkspaceBuild", arg)
+}
+
 func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error) {
-	return sqlxGet[WorkspaceBuild](ctx, q, "GetWorkspaceBuildByID", id)
+	return q.getWorkspaceBuild(ctx, getWorkspaceBuildParams{BuildID: id})
 }
 
 func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuild, error) {
-	return sqlxGet[WorkspaceBuild](ctx, q, "GetWorkspaceBuildByJobID", jobID)
+	return q.getWorkspaceBuild(ctx, getWorkspaceBuildParams{JobID: jobID})
 }
 
 func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, after time.Time) ([]WorkspaceBuild, error) {
-	return sqlxSelect[WorkspaceBuild](ctx, q, "GetWorkspaceBuildsCreatedAfter", after)
+	return q.selectWorkspaceBuild(ctx, getWorkspaceBuildParams{CreatedAfter: after})
 }
 
 type GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams struct {
@@ -228,7 +248,7 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg Ge
 }
 
 func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspacedID uuid.UUID) (WorkspaceBuild, error) {
-	return sqlxGet[WorkspaceBuild](ctx, q, "GetLatestWorkspaceBuildByWorkspaceID", workspacedID)
+	return q.getWorkspaceBuild(ctx, getWorkspaceBuildParams{WorkspaceID: workspacedID, Latest: true})
 }
 
 func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error) {
