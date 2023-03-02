@@ -941,18 +941,23 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 
 	now := database.Now()
 	_, err = api.Database.InsertWorkspaceAgentStat(ctx, database.InsertWorkspaceAgentStatParams{
-		ID:                 uuid.New(),
-		CreatedAt:          now,
-		AgentID:            workspaceAgent.ID,
-		WorkspaceID:        workspace.ID,
-		UserID:             workspace.OwnerID,
-		TemplateID:         workspace.TemplateID,
-		ConnectionsByProto: payload,
-		ConnectionCount:    req.ConnectionCount,
-		RxPackets:          req.RxPackets,
-		RxBytes:            req.RxBytes,
-		TxPackets:          req.TxPackets,
-		TxBytes:            req.TxBytes,
+		ID:                          uuid.New(),
+		CreatedAt:                   now,
+		AgentID:                     workspaceAgent.ID,
+		WorkspaceID:                 workspace.ID,
+		UserID:                      workspace.OwnerID,
+		TemplateID:                  workspace.TemplateID,
+		ConnectionsByProto:          payload,
+		ConnectionCount:             req.ConnectionCount,
+		RxPackets:                   req.RxPackets,
+		RxBytes:                     req.RxBytes,
+		TxPackets:                   req.TxPackets,
+		TxBytes:                     req.TxBytes,
+		SessionCountVSCode:          req.SessionCountVSCode,
+		SessionCountJetBrains:       req.SessionCountJetBrains,
+		SessionCountReconnectingPTY: req.SessionCountReconnectingPTY,
+		SessionCountSSH:             req.SessionCountSSH,
+		ConnectionMedianLatencyMS:   int64(req.ConnectionMedianLatencyMS),
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
