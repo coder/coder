@@ -24,7 +24,7 @@ External provisioners can reduce load and build queue times from the Coder serve
 
 ## Run an external provisioner
 
-The [Coder CLI](../cli.md) can launch external provisioners once authenticated as a user with the Template Admin or Owner role. There are 3 types of provisioners:
+Once authenticated as a user with the Template Admin or Owner role, the [Coder CLI](../cli.md) can launch external provisioners. There are 3 types of provisioners:
 
 - **Generic provisioners** can pick up any build job from templates without provisioner tags.
 
