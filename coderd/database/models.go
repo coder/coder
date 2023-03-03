@@ -1454,6 +1454,8 @@ type TemplateVersionParameter struct {
 	ValidationError string `db:"validation_error" json:"validation_error"`
 	// Validation: consecutive values preserve the monotonic order
 	ValidationMonotonic string `db:"validation_monotonic" json:"validation_monotonic"`
+	// Is parameter required?
+	Required bool `db:"required" json:"required"`
 }
 
 type TemplateVersionVariable struct {
