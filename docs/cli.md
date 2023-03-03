@@ -50,6 +50,6 @@ coder [flags]
 | [<code>stop</code>](./cli/coder_stop)                     | Stop a workspace                                                |
 | [<code>templates</code>](./cli/coder_templates)           | Manage templates                                                |
 | [<code>tokens</code>](./cli/coder_tokens)                 | Manage personal access tokens                                   |
-| [<code>update</code>](./cli/coder_update)                 | Update a workspace                                              |
+| [<code>update</code>](./cli/coder_update)                 | Will update and start a given workspace if it is out of date.   |
 | [<code>users</code>](./cli/coder_users)                   | Manage users                                                    |
 | [<code>version</code>](./cli/coder_version)               | Show coder version                                              |
