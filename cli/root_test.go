@@ -13,7 +13,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -198,32 +197,13 @@ func prepareTestData(t *testing.T) (*codersdk.Client, map[string]string) {
 		IncludeProvisionerDaemon: true,
 	})
 	firstUser := coderdtest.CreateFirstUser(t, rootClient)
-
-	firstUserData, err := rootClient.User(ctx, firstUser.UserID.String())
+	secondUser, err := rootClient.CreateUser(ctx, codersdk.CreateUserRequest{
+		Email:          "testuser2@coder.com",
+		Username:       "testuser2",
+		Password:       coderdtest.FirstUserParams.Password,
+		OrganizationID: firstUser.OrganizationID,
+	})
 	require.NoError(t, err)
-
-	var secondUser codersdk.User
-	for {
-		secondUser, err = rootClient.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "testuser2@coder.com",
-			Username:       "testuser2",
-			Password:       coderdtest.FirstUserParams.Password,
-			OrganizationID: firstUser.OrganizationID,
-		})
-		require.NoError(t, err)
-
-		// If the second user has the same timestamp as the first user, delete it and try again.
-		// This is because user order is determined by creation time, and we want to ensure
-		// second user is listed after first user.
-		// Round to microsecond since that is the precision of the database.
-		if secondUser.CreatedAt.Round(time.Microsecond).Equal(firstUserData.CreatedAt.Round(time.Microsecond)) {
-			err = rootClient.DeleteUser(ctx, secondUser.ID)
-			require.NoError(t, err)
-			continue
-		}
-		break
-	}
-
 	version := coderdtest.CreateTemplateVersion(t, rootClient, firstUser.OrganizationID, nil)
 	version = coderdtest.AwaitTemplateVersionJob(t, rootClient, version.ID)
 	template := coderdtest.CreateTemplate(t, rootClient, firstUser.OrganizationID, version.ID, func(req *codersdk.CreateTemplateRequest) {
