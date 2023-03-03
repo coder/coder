@@ -3,9 +3,12 @@ package cliui
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 )
@@ -147,10 +150,69 @@ func (jsonFormat) AttachFlags(_ *cobra.Command) {}
 
 // Format implements OutputFormat.
 func (jsonFormat) Format(_ context.Context, data any) (string, error) {
+	data = maybeSortList(data)
+
 	outBytes, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return "", xerrors.Errorf("marshal output to JSON: %w", err)
 	}
 
 	return string(outBytes), nil
+}
+
+// maybeSortList tries to sort the given input type if it's a slice of structs.
+// If the input is not a slice of structs, it is returned as-is.
+//
+// The sorting algorithm for structs is to sort by the "ID" field, or the "Name"
+// field if "ID" is not present. If neither field is present, the input is
+// returned as-is.
+//
+// The sorting algorithm requires that the ID or Name field on the struct is
+// a string or a UUID.
+func maybeSortList(in any) any {
+	v := reflect.Indirect(reflect.ValueOf(in))
+	if v.Kind() != reflect.Slice || v.Len() == 0 || !isStructOrStructPointer(v.Type().Elem()) {
+		return in
+	}
+
+	inner := v.Type().Elem()
+	if inner.Kind() == reflect.Pointer {
+		inner = inner.Elem()
+	}
+
+	sortField, ok := inner.FieldByName("ID")
+	if !ok {
+		sortField, ok = inner.FieldByName("Name")
+		if !ok {
+			return in
+		}
+	}
+
+	out := reflect.MakeSlice(v.Type(), v.Len(), v.Cap())
+	reflect.Copy(out, v)
+	sort.Slice(out.Interface(), func(i, j int) bool {
+		iv := out.Index(i)
+		jv := out.Index(j)
+
+		if iv.Kind() == reflect.Ptr {
+			iv = iv.Elem()
+			jv = jv.Elem()
+		}
+
+		ival := iv.FieldByIndex(sortField.Index)
+		jval := jv.FieldByIndex(sortField.Index)
+
+		switch ival.Interface().(type) {
+		case string:
+			return ival.String() < jval.String()
+		case uuid.UUID:
+			iUUID, _ := ival.Interface().(uuid.UUID)
+			jUUID, _ := jval.Interface().(uuid.UUID)
+			return iUUID.String() < jUUID.String()
+		}
+
+		panic(fmt.Sprintf("unknown sort field type: %T", ival.Interface()))
+	})
+
+	return out.Interface()
 }
