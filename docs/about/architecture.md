@@ -25,7 +25,7 @@ It offers:
 provisionerd is the execution context for infrastructure modifying providers.
 At the moment, the only provider is Terraform (running `terraform`).
 
-By default, the Coder server runs multiple provisioner daemons. [External provisioners](../admin/provisioners.md) can be added for enhanced security or scalability.
+By default, the Coder server runs multiple provisioner daemons. [External provisioners](../admin/provisioners.md) can be added for security or scalability purposes.
 
 ## Agents
 
