@@ -2,7 +2,7 @@
 
 By default, the Coder server runs [built-in provisioner daemons](../cli/coder_server.md#provisioner-daemons), which execute `terraform` during workspace and template builds. You can learn more about `provisionerd` in our [architecture documentation](../about/architecture.md#provisionerd).
 
-> While external provisioners are stable, the feature is in an [alpha state](../contributing/feature-stages.md#alpha-features) and the behavior is subject to change in feature releases. Use [GitHub issues](https://github.com/coder/coder) to leave feedback.
+> While external provisioners are stable, the feature is in an [alpha state](../contributing/feature-stages.md#alpha-features) and the behavior is subject to change in future releases. Use [GitHub issues](https://github.com/coder/coder) to leave feedback.
 
 ## Benefits of external provisioners
 
