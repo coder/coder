@@ -397,7 +397,7 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 	}
 
 	// Send an empty stat to get the interval.
-	postStat(&Stats{ConnsByProto: map[string]int64{}})
+	postStat(&Stats{ConnectionsByProto: map[string]int64{}})
 
 	go func() {
 		defer close(exited)
@@ -426,10 +426,12 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 // Stats records the Agent's network connection statistics for use in
 // user-facing metrics and debugging.
 type Stats struct {
-	// ConnsByProto is a count of connections by protocol.
-	ConnsByProto map[string]int64 `json:"conns_by_proto"`
-	// NumConns is the number of connections received by an agent.
-	NumConns int64 `json:"num_comms"`
+	// ConnectionsByProto is a count of connections by protocol.
+	ConnectionsByProto map[string]int64 `json:"connections_by_proto"`
+	// ConnectionCount is the number of connections received by an agent.
+	ConnectionCount int64 `json:"connection_count"`
+	// ConnectionMedianLatencyMS is the median latency of all connections in milliseconds.
+	ConnectionMedianLatencyMS float64 `json:"connection_median_latency_ms"`
 	// RxPackets is the number of received packets.
 	RxPackets int64 `json:"rx_packets"`
 	// RxBytes is the number of received bytes.
@@ -438,6 +440,19 @@ type Stats struct {
 	TxPackets int64 `json:"tx_packets"`
 	// TxBytes is the number of transmitted bytes.
 	TxBytes int64 `json:"tx_bytes"`
+
+	// SessionCountVSCode is the number of connections received by an agent
+	// that are from our VS Code extension.
+	SessionCountVSCode int64 `json:"session_count_vscode"`
+	// SessionCountJetBrains is the number of connections received by an agent
+	// that are from our JetBrains extension.
+	SessionCountJetBrains int64 `json:"session_count_jetbrains"`
+	// SessionCountReconnectingPTY is the number of connections received by an agent
+	// that are from the reconnecting web terminal.
+	SessionCountReconnectingPTY int64 `json:"session_count_reconnecting_pty"`
+	// SessionCountSSH is the number of connections received by an agent
+	// that are normal, non-tagged SSH sessions.
+	SessionCountSSH int64 `json:"session_count_ssh"`
 }
 
 type StatsResponse struct {

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
@@ -50,10 +49,13 @@ func tokens() *cobra.Command {
 }
 
 func createToken() *cobra.Command {
-	var tokenLifetime time.Duration
+	var (
+		tokenLifetime time.Duration
+		name          string
+	)
 	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Create a tokens",
+		Short: "Create a token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {
@@ -61,7 +63,8 @@ func createToken() *cobra.Command {
 			}
 
 			res, err := client.CreateToken(cmd.Context(), codersdk.Me, codersdk.CreateTokenRequest{
-				Lifetime: tokenLifetime,
+				Lifetime:  tokenLifetime,
+				TokenName: name,
 			})
 			if err != nil {
 				return xerrors.Errorf("create tokens: %w", err)
@@ -82,6 +85,7 @@ func createToken() *cobra.Command {
 	}
 
 	cliflag.DurationVarP(cmd.Flags(), &tokenLifetime, "lifetime", "", "CODER_TOKEN_LIFETIME", 30*24*time.Hour, "Specify a duration for the lifetime of the token.")
+	cmd.Flags().StringVarP(&name, "name", "n", "", "Specify a human-readable name.")
 
 	return cmd
 }
@@ -93,28 +97,28 @@ type tokenListRow struct {
 
 	// For table format:
 	ID        string    `json:"-" table:"id,default_sort"`
+	TokenName string    `json:"token_name" table:"name"`
 	LastUsed  time.Time `json:"-" table:"last used"`
 	ExpiresAt time.Time `json:"-" table:"expires at"`
 	CreatedAt time.Time `json:"-" table:"created at"`
 	Owner     string    `json:"-" table:"owner"`
 }
 
-func tokenListRowFromToken(token codersdk.APIKey, usersByID map[uuid.UUID]codersdk.User) tokenListRow {
-	user := usersByID[token.UserID]
-
+func tokenListRowFromToken(token codersdk.APIKeyWithOwner) tokenListRow {
 	return tokenListRow{
-		APIKey:    token,
+		APIKey:    token.APIKey,
 		ID:        token.ID,
+		TokenName: token.TokenName,
 		LastUsed:  token.LastUsed,
 		ExpiresAt: token.ExpiresAt,
 		CreatedAt: token.CreatedAt,
-		Owner:     user.Username,
+		Owner:     token.Username,
 	}
 }
 
 func listTokens() *cobra.Command {
 	// we only display the 'owner' column if the --all argument is passed in
-	defaultCols := []string{"id", "last used", "expires at", "created at"}
+	defaultCols := []string{"id", "name", "last used", "expires at", "created at"}
 	if slices.Contains(os.Args, "-a") || slices.Contains(os.Args, "--all") {
 		defaultCols = append(defaultCols, "owner")
 	}
@@ -150,20 +154,10 @@ func listTokens() *cobra.Command {
 				))
 			}
 
-			userRes, err := client.Users(cmd.Context(), codersdk.UsersRequest{})
-			if err != nil {
-				return err
-			}
-
-			usersByID := map[uuid.UUID]codersdk.User{}
-			for _, user := range userRes.Users {
-				usersByID[user.ID] = user
-			}
-
 			displayTokens = make([]tokenListRow, len(tokens))
 
 			for i, token := range tokens {
-				displayTokens[i] = tokenListRowFromToken(token, usersByID)
+				displayTokens[i] = tokenListRowFromToken(token)
 			}
 
 			out, err := formatter.Format(cmd.Context(), displayTokens)
@@ -185,7 +179,7 @@ func listTokens() *cobra.Command {
 
 func removeToken() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "remove [id]",
+		Use:     "remove [name]",
 		Aliases: []string{"rm"},
 		Short:   "Delete a token",
 		Args:    cobra.ExactArgs(1),
@@ -195,7 +189,12 @@ func removeToken() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			err = client.DeleteAPIKey(cmd.Context(), codersdk.Me, args[0])
+			token, err := client.APIKeyByName(cmd.Context(), codersdk.Me, args[0])
+			if err != nil {
+				return xerrors.Errorf("fetch api key by name %s: %w", args[0], err)
+			}
+
+			err = client.DeleteAPIKey(cmd.Context(), codersdk.Me, token.ID)
 			if err != nil {
 				return xerrors.Errorf("delete api key: %w", err)
 			}

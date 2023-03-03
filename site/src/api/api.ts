@@ -142,8 +142,8 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
 
 export const getTokens = async (
   params: TypesGen.TokensFilter,
-): Promise<TypesGen.APIKey[]> => {
-  const response = await axios.get<TypesGen.APIKey[]>(
+): Promise<TypesGen.APIKeyWithOwner[]> => {
+  const response = await axios.get<TypesGen.APIKeyWithOwner[]>(
     `/api/v2/users/me/keys/tokens`,
     {
       params,
@@ -231,6 +231,15 @@ export const getTemplateVersionResources = async (
 ): Promise<TypesGen.WorkspaceResource[]> => {
   const response = await axios.get<TypesGen.WorkspaceResource[]>(
     `/api/v2/templateversions/${versionId}/resources`,
+  )
+  return response.data
+}
+
+export const getTemplateVersionVariables = async (
+  versionId: string,
+): Promise<TypesGen.TemplateVersionVariable[]> => {
+  const response = await axios.get<TypesGen.TemplateVersionVariable[]>(
+    `/api/v2/templateversions/${versionId}/variables`,
   )
   return response.data
 }

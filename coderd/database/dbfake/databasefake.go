@@ -40,7 +40,6 @@ func New() database.Store {
 		mutex: &sync.RWMutex{},
 		data: &data{
 			apiKeys:                   make([]database.APIKey, 0),
-			agentStats:                make([]database.AgentStat, 0),
 			organizationMembers:       make([]database.OrganizationMember, 0),
 			organizations:             make([]database.Organization, 0),
 			users:                     make([]database.User, 0),
@@ -60,6 +59,7 @@ func New() database.Store {
 			provisionerJobs:           make([]database.ProvisionerJob, 0),
 			templateVersions:          make([]database.TemplateVersion, 0),
 			templates:                 make([]database.Template, 0),
+			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
 			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
@@ -104,7 +104,7 @@ type data struct {
 	userLinks           []database.UserLink
 
 	// New tables
-	agentStats                []database.AgentStat
+	workspaceAgentStats       []database.WorkspaceAgentStat
 	auditLogs                 []database.AuditLog
 	files                     []database.File
 	gitAuthLinks              []database.GitAuthLink
@@ -307,29 +307,39 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
-func (*fakeQuerier) DeleteOldAgentStats(_ context.Context) error {
+func (*fakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	// no-op
 	return nil
 }
 
-func (q *fakeQuerier) InsertAgentStat(_ context.Context, p database.InsertAgentStatParams) (database.AgentStat, error) {
+func (q *fakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
 	if err := validateDatabaseType(p); err != nil {
-		return database.AgentStat{}, err
+		return database.WorkspaceAgentStat{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	stat := database.AgentStat{
-		ID:          p.ID,
-		CreatedAt:   p.CreatedAt,
-		WorkspaceID: p.WorkspaceID,
-		AgentID:     p.AgentID,
-		UserID:      p.UserID,
-		Payload:     p.Payload,
-		TemplateID:  p.TemplateID,
+	stat := database.WorkspaceAgentStat{
+		ID:                          p.ID,
+		CreatedAt:                   p.CreatedAt,
+		WorkspaceID:                 p.WorkspaceID,
+		AgentID:                     p.AgentID,
+		UserID:                      p.UserID,
+		ConnectionsByProto:          p.ConnectionsByProto,
+		ConnectionCount:             p.ConnectionCount,
+		RxPackets:                   p.RxPackets,
+		RxBytes:                     p.RxBytes,
+		TxPackets:                   p.TxPackets,
+		TxBytes:                     p.TxBytes,
+		TemplateID:                  p.TemplateID,
+		SessionCountVSCode:          p.SessionCountVSCode,
+		SessionCountJetBrains:       p.SessionCountJetBrains,
+		SessionCountReconnectingPTY: p.SessionCountReconnectingPTY,
+		SessionCountSSH:             p.SessionCountSSH,
+		ConnectionMedianLatencyMS:   p.ConnectionMedianLatencyMS,
 	}
-	q.agentStats = append(q.agentStats, stat)
+	q.workspaceAgentStats = append(q.workspaceAgentStats, stat)
 	return stat, nil
 }
 
@@ -339,7 +349,7 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 
 	seens := make(map[time.Time]map[uuid.UUID]struct{})
 
-	for _, as := range q.agentStats {
+	for _, as := range q.workspaceAgentStats {
 		if as.TemplateID != templateID {
 			continue
 		}
@@ -379,7 +389,7 @@ func (q *fakeQuerier) GetDeploymentDAUs(_ context.Context) ([]database.GetDeploy
 
 	seens := make(map[time.Time]map[uuid.UUID]struct{})
 
-	for _, as := range q.agentStats {
+	for _, as := range q.workspaceAgentStats {
 		date := as.CreatedAt.Truncate(time.Hour * 24)
 
 		dateEntry := seens[date]
@@ -497,6 +507,21 @@ func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIK
 
 	for _, apiKey := range q.apiKeys {
 		if apiKey.ID == id {
+			return apiKey, nil
+		}
+	}
+	return database.APIKey{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetAPIKeyByName(_ context.Context, params database.GetAPIKeyByNameParams) (database.APIKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if params.TokenName == "" {
+		return database.APIKey{}, sql.ErrNoRows
+	}
+	for _, apiKey := range q.apiKeys {
+		if params.UserID == apiKey.UserID && params.TokenName == apiKey.TokenName {
 			return apiKey, nil
 		}
 	}
@@ -1010,13 +1035,13 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 				return nil, xerrors.Errorf("get provisioner job: %w", err)
 			}
 
-			switch arg.Status {
-			case "pending":
+			switch database.WorkspaceStatus(arg.Status) {
+			case database.WorkspaceStatusPending:
 				if !job.StartedAt.Valid {
 					continue
 				}
 
-			case "starting":
+			case database.WorkspaceStatusStarting:
 				if !job.StartedAt.Valid &&
 					!job.CanceledAt.Valid &&
 					job.CompletedAt.Valid &&
@@ -1025,7 +1050,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 					continue
 				}
 
-			case "running":
+			case database.WorkspaceStatusRunning:
 				if !job.CompletedAt.Valid &&
 					job.CanceledAt.Valid &&
 					job.Error.Valid ||
@@ -1033,7 +1058,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 					continue
 				}
 
-			case "stopping":
+			case database.WorkspaceStatusStopping:
 				if !job.StartedAt.Valid &&
 					!job.CanceledAt.Valid &&
 					job.CompletedAt.Valid &&
@@ -1042,7 +1067,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 					continue
 				}
 
-			case "stopped":
+			case database.WorkspaceStatusStopped:
 				if !job.CompletedAt.Valid &&
 					job.CanceledAt.Valid &&
 					job.Error.Valid ||
@@ -1050,23 +1075,23 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 					continue
 				}
 
-			case "failed":
+			case database.WorkspaceStatusFailed:
 				if (!job.CanceledAt.Valid && !job.Error.Valid) ||
 					(!job.CompletedAt.Valid && !job.Error.Valid) {
 					continue
 				}
 
-			case "canceling":
+			case database.WorkspaceStatusCanceling:
 				if !job.CanceledAt.Valid && job.CompletedAt.Valid {
 					continue
 				}
 
-			case "canceled":
+			case database.WorkspaceStatusCanceled:
 				if !job.CanceledAt.Valid && !job.CompletedAt.Valid {
 					continue
 				}
 
-			case "deleted":
+			case database.WorkspaceStatusDeleted:
 				if !job.StartedAt.Valid &&
 					job.CanceledAt.Valid &&
 					!job.CompletedAt.Valid &&
@@ -1075,7 +1100,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 					continue
 				}
 
-			case "deleting":
+			case database.WorkspaceStatusDeleting:
 				if !job.CompletedAt.Valid &&
 					job.CanceledAt.Valid &&
 					job.Error.Valid &&
@@ -2554,6 +2579,7 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 		LastUsed:        arg.LastUsed,
 		LoginType:       arg.LoginType,
 		Scope:           arg.Scope,
+		TokenName:       arg.TokenName,
 	}
 	q.apiKeys = append(q.apiKeys, key)
 	return key, nil

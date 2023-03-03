@@ -28,8 +28,8 @@ coder tokens [flags]
 
 ## Subcommands
 
-| Name                                         | Purpose         |
-| -------------------------------------------- | --------------- |
-| [<code>create</code>](./coder_tokens_create) | Create a tokens |
-| [<code>list</code>](./coder_tokens_list)     | List tokens     |
-| [<code>remove</code>](./coder_tokens_remove) | Delete a token  |
+| Name                                         | Purpose        |
+| -------------------------------------------- | -------------- |
+| [<code>create</code>](./coder_tokens_create) | Create a token |
+| [<code>list</code>](./coder_tokens_list)     | List tokens    |
+| [<code>remove</code>](./coder_tokens_remove) | Delete a token |

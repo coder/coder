@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -21,6 +19,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/searchquery"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/coderd/util/slice"
@@ -182,7 +181,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query().Get("q")
-	params, errs := userSearchQuery(query)
+	params, errs := searchquery.Users(query)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid user search query.",
@@ -1166,60 +1165,6 @@ func findUser(id uuid.UUID, users []database.User) *database.User {
 	return nil
 }
 
-func userSearchQuery(query string) (database.GetUsersParams, []codersdk.ValidationError) {
-	searchParams := make(url.Values)
-	if query == "" {
-		// No filter
-		return database.GetUsersParams{}, nil
-	}
-	query = strings.ToLower(query)
-	// Because we do this in 2 passes, we want to maintain quotes on the first
-	// pass.Further splitting occurs on the second pass and quotes will be
-	// dropped.
-	elements := splitQueryParameterByDelimiter(query, ' ', true)
-	for _, element := range elements {
-		parts := splitQueryParameterByDelimiter(element, ':', false)
-		switch len(parts) {
-		case 1:
-			// No key:value pair.
-			searchParams.Set("search", parts[0])
-		case 2:
-			searchParams.Set(parts[0], parts[1])
-		default:
-			return database.GetUsersParams{}, []codersdk.ValidationError{
-				{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 ':'", element)},
-			}
-		}
-	}
-
-	parser := httpapi.NewQueryParamParser()
-	filter := database.GetUsersParams{
-		Search:   parser.String(searchParams, "", "search"),
-		Status:   httpapi.ParseCustom(parser, searchParams, []database.UserStatus{}, "status", parseUserStatus),
-		RbacRole: parser.Strings(searchParams, []string{}, "role"),
-	}
-
-	return filter, parser.Errors
-}
-
-// parseUserStatus ensures proper enums are used for user statuses
-func parseUserStatus(v string) ([]database.UserStatus, error) {
-	var statuses []database.UserStatus
-	if v == "" {
-		return statuses, nil
-	}
-	parts := strings.Split(v, ",")
-	for _, part := range parts {
-		switch database.UserStatus(part) {
-		case database.UserStatusActive, database.UserStatusSuspended:
-			statuses = append(statuses, database.UserStatus(part))
-		default:
-			return []database.UserStatus{}, xerrors.Errorf("%q is not a valid user status", part)
-		}
-	}
-	return statuses, nil
-}
-
 func convertAPIKey(k database.APIKey) codersdk.APIKey {
 	return codersdk.APIKey{
 		ID:              k.ID,
@@ -1231,5 +1176,6 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		LoginType:       codersdk.LoginType(k.LoginType),
 		Scope:           codersdk.APIKeyScope(k.Scope),
 		LifetimeSeconds: k.LifetimeSeconds,
+		TokenName:       k.TokenName,
 	}
 }

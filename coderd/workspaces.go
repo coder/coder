@@ -7,10 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -19,7 +17,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
@@ -27,6 +24,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/searchquery"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/util/ptr"
@@ -126,7 +124,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := workspaceSearchQuery(queryStr, page, api.AgentInactiveDisconnectTimeout)
+	filter, errs := searchquery.Workspaces(queryStr, page, api.AgentInactiveDisconnectTimeout)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -570,7 +568,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 	aReq.New = workspace
 
-	users, err := api.Database.GetUsersByIDs(ctx, []uuid.UUID{user.ID, workspaceBuild.InitiatorID})
+	initiator, err := api.Database.GetUserByID(ctx, workspaceBuild.InitiatorID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user.",
@@ -584,6 +582,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(workspaceBuild)},
 	})
 
+	users := []database.User{user, initiator}
 	apiBuild, err := api.convertWorkspaceBuild(
 		workspaceBuild,
 		workspace,
@@ -1237,89 +1236,6 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 		Valid:  true,
 		String: *s,
 	}, nil
-}
-
-// workspaceSearchQuery takes a query string and returns the workspace filter.
-// It also can return the list of validation errors to return to the api.
-func workspaceSearchQuery(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
-	filter := database.GetWorkspacesParams{
-		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
-
-		Offset: int32(page.Offset),
-		Limit:  int32(page.Limit),
-	}
-	searchParams := make(url.Values)
-	if query == "" {
-		// No filter
-		return filter, nil
-	}
-	query = strings.ToLower(query)
-	// Because we do this in 2 passes, we want to maintain quotes on the first
-	// pass.Further splitting occurs on the second pass and quotes will be
-	// dropped.
-	elements := splitQueryParameterByDelimiter(query, ' ', true)
-	for _, element := range elements {
-		parts := splitQueryParameterByDelimiter(element, ':', false)
-		switch len(parts) {
-		case 1:
-			// No key:value pair. It is a workspace name, and maybe includes an owner
-			parts = splitQueryParameterByDelimiter(element, '/', false)
-			switch len(parts) {
-			case 1:
-				searchParams.Set("name", parts[0])
-			case 2:
-				searchParams.Set("owner", parts[0])
-				searchParams.Set("name", parts[1])
-			default:
-				return database.GetWorkspacesParams{}, []codersdk.ValidationError{
-					{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 '/'", element)},
-				}
-			}
-		case 2:
-			searchParams.Set(parts[0], parts[1])
-		default:
-			return database.GetWorkspacesParams{}, []codersdk.ValidationError{
-				{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 ':'", element)},
-			}
-		}
-	}
-
-	// Using the query param parser here just returns consistent errors with
-	// other parsing.
-	parser := httpapi.NewQueryParamParser()
-	filter.OwnerUsername = parser.String(searchParams, "", "owner")
-	filter.TemplateName = parser.String(searchParams, "", "template")
-	filter.Name = parser.String(searchParams, "", "name")
-	filter.Status = parser.String(searchParams, "", "status")
-	filter.HasAgent = parser.String(searchParams, "", "has-agent")
-	return filter, parser.Errors
-}
-
-// splitQueryParameterByDelimiter takes a query string and splits it into the individual elements
-// of the query. Each element is separated by a delimiter. All quoted strings are
-// kept as a single element.
-//
-// Although all our names cannot have spaces, that is a validation error.
-// We should still parse the quoted string as a single value so that validation
-// can properly fail on the space. If we do not, a value of `template:"my name"`
-// will search `template:"my name:name"`, which produces an empty list instead of
-// an error.
-// nolint:revive
-func splitQueryParameterByDelimiter(query string, delimiter rune, maintainQuotes bool) []string {
-	quoted := false
-	parts := strings.FieldsFunc(query, func(r rune) bool {
-		if r == '"' {
-			quoted = !quoted
-		}
-		return !quoted && r == delimiter
-	})
-	if !maintainQuotes {
-		for i, part := range parts {
-			parts[i] = strings.Trim(part, "\"")
-		}
-	}
-
-	return parts
 }
 
 func watchWorkspaceChannel(id uuid.UUID) string {

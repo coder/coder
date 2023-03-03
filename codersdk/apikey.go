@@ -20,6 +20,7 @@ type APIKey struct {
 	UpdatedAt       time.Time   `json:"updated_at" validate:"required" format:"date-time"`
 	LoginType       LoginType   `json:"login_type" validate:"required" enums:"password,github,oidc,token"`
 	Scope           APIKeyScope `json:"scope" validate:"required" enums:"all,application_connect"`
+	TokenName       string      `json:"token_name" validate:"required"`
 	LifetimeSeconds int64       `json:"lifetime_seconds" validate:"required"`
 }
 
@@ -44,8 +45,9 @@ const (
 )
 
 type CreateTokenRequest struct {
-	Lifetime time.Duration `json:"lifetime"`
-	Scope    APIKeyScope   `json:"scope" enums:"all,application_connect"`
+	Lifetime  time.Duration `json:"lifetime"`
+	Scope     APIKeyScope   `json:"scope" enums:"all,application_connect"`
+	TokenName string        `json:"token_name"`
 }
 
 // GenerateAPIKeyResponse contains an API key for a user.
@@ -90,6 +92,11 @@ type TokensFilter struct {
 	IncludeAll bool `json:"include_all"`
 }
 
+type APIKeyWithOwner struct {
+	APIKey
+	Username string `json:"username"`
+}
+
 // asRequestOption returns a function that can be used in (*Client).Request.
 // It modifies the request query parameters.
 func (f TokensFilter) asRequestOption() RequestOption {
@@ -101,7 +108,7 @@ func (f TokensFilter) asRequestOption() RequestOption {
 }
 
 // Tokens list machine API keys.
-func (c *Client) Tokens(ctx context.Context, userID string, filter TokensFilter) ([]APIKey, error) {
+func (c *Client) Tokens(ctx context.Context, userID string, filter TokensFilter) ([]APIKeyWithOwner, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), nil, filter.asRequestOption())
 	if err != nil {
 		return nil, err
@@ -110,13 +117,27 @@ func (c *Client) Tokens(ctx context.Context, userID string, filter TokensFilter)
 	if res.StatusCode > http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-	apiKey := []APIKey{}
+	apiKey := []APIKeyWithOwner{}
 	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
 }
 
-// APIKey returns the api key by id.
-func (c *Client) APIKey(ctx context.Context, userID string, id string) (*APIKey, error) {
+// APIKeyByID returns the api key by id.
+func (c *Client) APIKeyByID(ctx context.Context, userID string, id string) (*APIKey, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, id), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode > http.StatusCreated {
+		return nil, ReadBodyAsError(res)
+	}
+	apiKey := &APIKey{}
+	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
+}
+
+// APIKeyByName returns the api key by name.
+func (c *Client) APIKeyByName(ctx context.Context, userID string, name string) (*APIKey, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens/%s", userID, name), nil)
 	if err != nil {
 		return nil, err
 	}

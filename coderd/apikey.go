@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
 
@@ -62,6 +63,12 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		lifeTime = createToken.Lifetime
 	}
 
+	tokenName := namesgenerator.GetRandomName(1)
+
+	if len(createToken.TokenName) != 0 {
+		tokenName = createToken.TokenName
+	}
+
 	err := api.validateAPIKeyLifetime(lifeTime)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -77,8 +84,19 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		ExpiresAt:       database.Now().Add(lifeTime),
 		Scope:           scope,
 		LifetimeSeconds: int64(lifeTime.Seconds()),
+		TokenName:       tokenName,
 	})
 	if err != nil {
+		if database.IsUniqueViolation(err, database.UniqueIndexApiKeyName) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("A token with name %q already exists.", tokenName),
+				Validations: []codersdk.ValidationError{{
+					Field:  "name",
+					Detail: "This value is already in use and should be unique.",
+				}},
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create API key.",
 			Detail:  err.Error(),
@@ -133,8 +151,8 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
 }
 
-// @Summary Get API key
-// @ID get-api-key
+// @Summary Get API key by ID
+// @ID get-api-key-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
@@ -142,7 +160,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Param keyid path string true "Key ID" format(uuid)
 // @Success 200 {object} codersdk.APIKey
 // @Router /users/{user}/keys/{keyid} [get]
-func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
+func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	keyID := chi.URLParam(r, "keyid")
@@ -165,6 +183,46 @@ func (api *API) apiKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(key))
+}
+
+// @Summary Get API key by token name
+// @ID get-api-key-by-token-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Param keyname path string true "Key Name" format(string)
+// @Success 200 {object} codersdk.APIKey
+// @Router /users/{user}/keys/tokens/{keyname} [get]
+func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx       = r.Context()
+		user      = httpmw.UserParam(r)
+		tokenName = chi.URLParam(r, "keyname")
+	)
+
+	token, err := api.Database.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
+		TokenName: tokenName,
+		UserID:    user.ID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching API key.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if !api.Authorize(r, rbac.ActionRead, token) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(token))
 }
 
 // @Summary Get user tokens
@@ -216,9 +274,30 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var apiKeys []codersdk.APIKey
+	var userIds []uuid.UUID
 	for _, key := range keys {
-		apiKeys = append(apiKeys, convertAPIKey(key))
+		userIds = append(userIds, key.UserID)
+	}
+
+	users, _ := api.Database.GetUsersByIDs(ctx, userIds)
+	usersByID := map[uuid.UUID]database.User{}
+	for _, user := range users {
+		usersByID[user.ID] = user
+	}
+
+	var apiKeys []codersdk.APIKeyWithOwner
+	for _, key := range keys {
+		if user, exists := usersByID[key.UserID]; exists {
+			apiKeys = append(apiKeys, codersdk.APIKeyWithOwner{
+				APIKey:   convertAPIKey(key),
+				Username: user.Username,
+			})
+		} else {
+			apiKeys = append(apiKeys, codersdk.APIKeyWithOwner{
+				APIKey:   convertAPIKey(key),
+				Username: "",
+			})
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, apiKeys)
@@ -284,6 +363,7 @@ type createAPIKeyParams struct {
 	ExpiresAt       time.Time
 	LifetimeSeconds int64
 	Scope           database.APIKeyScope
+	TokenName       string
 }
 
 func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
@@ -353,6 +433,7 @@ func (api *API) createAPIKey(ctx context.Context, params createAPIKeyParams) (*h
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
 		Scope:        scope,
+		TokenName:    params.TokenName,
 	})
 	if err != nil {
 		return nil, nil, xerrors.Errorf("insert API key: %w", err)
