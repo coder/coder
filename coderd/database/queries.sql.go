@@ -3561,7 +3561,8 @@ INSERT INTO
         validation_min,
         validation_max,
         validation_error,
-        validation_monotonic
+        validation_monotonic,
+        required
     )
 VALUES
     (
@@ -3577,7 +3578,8 @@ VALUES
         $10,
         $11,
         $12,
-        $13
+        $13,
+        $14
     ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required
 `
 
@@ -3595,6 +3597,7 @@ type InsertTemplateVersionParameterParams struct {
 	ValidationMax       int32           `db:"validation_max" json:"validation_max"`
 	ValidationError     string          `db:"validation_error" json:"validation_error"`
 	ValidationMonotonic string          `db:"validation_monotonic" json:"validation_monotonic"`
+	Required            bool            `db:"required" json:"required"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -3612,6 +3615,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.ValidationMax,
 		arg.ValidationError,
 		arg.ValidationMonotonic,
+		arg.Required,
 	)
 	var i TemplateVersionParameter
 	err := row.Scan(

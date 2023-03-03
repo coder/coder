@@ -2182,6 +2182,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
         "value": "string"
       }
     ],
+    "required": true,
     "type": "string",
     "validation_error": "string",
     "validation_max": 0,
@@ -2216,6 +2217,7 @@ Status Code **200**
 | `»» icon`                 | string                                                                           | false    |              |             |
 | `»» name`                 | string                                                                           | false    |              |             |
 | `»» value`                | string                                                                           | false    |              |             |
+| `» required`              | boolean                                                                          | false    |              |             |
 | `» type`                  | string                                                                           | false    |              |             |
 | `» validation_error`      | string                                                                           | false    |              |             |
 | `» validation_max`        | integer                                                                          | false    |              |             |

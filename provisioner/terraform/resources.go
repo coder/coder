@@ -447,6 +447,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				Mutable:      param.Mutable,
 				DefaultValue: param.Default,
 				Icon:         param.Icon,
+				Required:     param.Default == "", // FIXME pull from terraform-provider-coder
 			}
 			if len(param.Validation) == 1 {
 				protoParam.ValidationRegex = param.Validation[0].Regex
