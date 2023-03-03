@@ -115,7 +115,7 @@ coder:
     # will be automatically mounted into the pod if specified, and the correct
     # "CODER_TLS_*" environment variables will be set for you.
     secretNames: []
-  
+
   # coder.lifecycle -- container lifecycle handlers for the Coder container, allowing
   # for lifecycle events such as postStart and preStop events
   # See: https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/
