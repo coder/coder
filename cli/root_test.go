@@ -197,13 +197,29 @@ func prepareTestData(t *testing.T) (*codersdk.Client, map[string]string) {
 		IncludeProvisionerDaemon: true,
 	})
 	firstUser := coderdtest.CreateFirstUser(t, rootClient)
-	secondUser, err := rootClient.CreateUser(ctx, codersdk.CreateUserRequest{
-		Email:          "testuser2@coder.com",
-		Username:       "testuser2",
-		Password:       coderdtest.FirstUserParams.Password,
-		OrganizationID: firstUser.OrganizationID,
-	})
-	require.NoError(t, err)
+
+	// Generate the second user and ensure it has a greater ID than the first
+	// user so the sorting doesn't get messed up.
+	var secondUser codersdk.User
+	for {
+		var err error
+		secondUser, err = rootClient.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "testuser2@coder.com",
+			Username:       "testuser2",
+			Password:       coderdtest.FirstUserParams.Password,
+			OrganizationID: firstUser.OrganizationID,
+		})
+		require.NoError(t, err)
+
+		if secondUser.ID.String() > firstUser.UserID.String() {
+			break
+		}
+
+		// Delete the user until we get a user with a greater ID.
+		err = rootClient.DeleteUser(ctx, secondUser.ID)
+		require.NoError(t, err)
+	}
+
 	version := coderdtest.CreateTemplateVersion(t, rootClient, firstUser.OrganizationID, nil)
 	version = coderdtest.AwaitTemplateVersionJob(t, rootClient, version.ID)
 	template := coderdtest.CreateTemplate(t, rootClient, firstUser.OrganizationID, version.ID, func(req *codersdk.CreateTemplateRequest) {
