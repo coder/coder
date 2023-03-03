@@ -1,8 +1,22 @@
 # Offline Deployments
 
-Coder can run in offline / air-gapped environments.
+All Coder features are supported in offline / behind firewalls / in air-gapped environments. However, some changes to your configuration are necessary.
 
-## Building & push a custom Coder image
+> This is a general comparison. Keep reading for a full tutorial running Coder offline with Kubernetes or Docker.
+
+|                    | Public deployments                                                                                                                                                                                                                                                 | Offline deployments                                                                                                                                                                                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Terraform binary   | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)                                                                                          |
+| Terraform registry | Coder templates will attempt to download providers from [registry.terraform.io](https://registry.terraform.io) or [custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) specified in each template | [Custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) can be specified in each Coder template, or a custom registry/mirror can be used. More details below                                                  |
+| STUN               | By default, Coder uses Google's public STUN server for direct workspace connections                                                                                                                                                                                | STUN can be safely [disabled](../cli/coder_server#--derp-server-stun-addresses), users can still connect via [relayed connections](../networking.md#-geo-distribution). Alternatively, you can set a [custom DERP server](../cli/coder_server#--derp-server-stun-addresses) |
+| DERP               | By default, Coder's built-in DERP relay can be used, or [Tailscale's public relays](../networking.md#relayed-connections).                                                                                                                                         | By default, Coder's built-in DERP relay can be used, or [custom relays](../networking.md#custom-relays).                                                                                                                                                                    |
+| PostgreSQL         | If no [PostgreSQL connection URL](../cli/coder_server#--postgres-url) is specified, Coder will download Postgres from [repo1.maven.org](https://repo1.maven.org)                                                                                                   | An external database is required, you must specify a [PostgreSQL connection URL](../cli/coder_server#--postgres-url)                                                                                                                                                        |
+| Telemetry          | Telemetry is on by default, and [can be disabled](../cli/coder_server#--telemetry)                                                                                                                                                                                 | Telemetry [can be disabled](../cli/coder_server#--telemetry)                                                                                                                                                                                                                |
+| Update check       | By default, Coder checks for updates from [GitHub releases](https:/github.com/coder/coder/releases)                                                                                                                                                                | Update checks [can be disabled](../cli/coder_server#--update-check)                                                                                                                                                                                                         |
+
+## Offline container images
+
+The following instructions walk you through how to build a custom Coder server image for Docker or Kubernetes
 
 First, build and push a container image extending our official image with the following:
 
@@ -127,6 +141,10 @@ services:
     volumes:
       - ./plugins:/opt/terraform/plugins
     # ...
+  environment:
+    CODER_TELEMETRY_ENABLE: "false" # Disable telemetry
+    CODER_DERP_SERVER_STUN_ADDRESSES: "" # Only use relayed connections
+    CODER_UPDATE_CHECK: "false" # Disable automatic update checks
   database:
     image: registry.example.com/postgres:13
     # ...
@@ -144,5 +162,18 @@ coder:
   image:
     repo: "registry.example.com/coder"
     tag: "latest"
+  env:
+    # Disable telemetry
+    - name: "CODER_TELEMETRY_ENABLE"
+      value: "false"
+    # Disable automatic update checks
+    - name: "CODER_UPDATE_CHECK"
+      value: "false"
+    # Only use relayed connections
+    - name: "CODER_DERP_SERVER_STUN_ADDRESSES"
+      value: ""
+    # You must set up an external PostgreSQL database
+    - name: "CODER_PG_CONNECTION_URL"
+      value: ""
 # ...
 ```

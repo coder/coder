@@ -559,9 +559,12 @@ func New(options *Options) *API {
 						r.Route("/tokens", func(r chi.Router) {
 							r.Post("/", api.postToken)
 							r.Get("/", api.tokens)
+							r.Route("/{keyname}", func(r chi.Router) {
+								r.Get("/", api.apiKeyByName)
+							})
 						})
 						r.Route("/{keyid}", func(r chi.Router) {
-							r.Get("/", api.apiKey)
+							r.Get("/", api.apiKeyByID)
 							r.Delete("/", api.deleteAPIKey)
 						})
 					})

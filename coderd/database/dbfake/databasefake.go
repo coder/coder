@@ -272,18 +272,23 @@ func (q *fakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.Ins
 	defer q.mutex.Unlock()
 
 	stat := database.WorkspaceAgentStat{
-		ID:                 p.ID,
-		CreatedAt:          p.CreatedAt,
-		WorkspaceID:        p.WorkspaceID,
-		AgentID:            p.AgentID,
-		UserID:             p.UserID,
-		ConnectionsByProto: p.ConnectionsByProto,
-		ConnectionCount:    p.ConnectionCount,
-		RxPackets:          p.RxPackets,
-		RxBytes:            p.RxBytes,
-		TxPackets:          p.TxPackets,
-		TxBytes:            p.TxBytes,
-		TemplateID:         p.TemplateID,
+		ID:                          p.ID,
+		CreatedAt:                   p.CreatedAt,
+		WorkspaceID:                 p.WorkspaceID,
+		AgentID:                     p.AgentID,
+		UserID:                      p.UserID,
+		ConnectionsByProto:          p.ConnectionsByProto,
+		ConnectionCount:             p.ConnectionCount,
+		RxPackets:                   p.RxPackets,
+		RxBytes:                     p.RxBytes,
+		TxPackets:                   p.TxPackets,
+		TxBytes:                     p.TxBytes,
+		TemplateID:                  p.TemplateID,
+		SessionCountVSCode:          p.SessionCountVSCode,
+		SessionCountJetBrains:       p.SessionCountJetBrains,
+		SessionCountReconnectingPTY: p.SessionCountReconnectingPTY,
+		SessionCountSSH:             p.SessionCountSSH,
+		ConnectionMedianLatencyMS:   p.ConnectionMedianLatencyMS,
 	}
 	q.workspaceAgentStats = append(q.workspaceAgentStats, stat)
 	return stat, nil
@@ -453,6 +458,21 @@ func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIK
 
 	for _, apiKey := range q.apiKeys {
 		if apiKey.ID == id {
+			return apiKey, nil
+		}
+	}
+	return database.APIKey{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetAPIKeyByName(_ context.Context, params database.GetAPIKeyByNameParams) (database.APIKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if params.TokenName == "" {
+		return database.APIKey{}, sql.ErrNoRows
+	}
+	for _, apiKey := range q.apiKeys {
+		if params.UserID == apiKey.UserID && params.TokenName == apiKey.TokenName {
 			return apiKey, nil
 		}
 	}
@@ -2510,6 +2530,7 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 		LastUsed:        arg.LastUsed,
 		LoginType:       arg.LoginType,
 		Scope:           arg.Scope,
+		TokenName:       arg.TokenName,
 	}
 	q.apiKeys = append(q.apiKeys, key)
 	return key, nil

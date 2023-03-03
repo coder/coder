@@ -90,6 +90,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 		UpdatedAt:       takeFirst(seed.UpdatedAt, database.Now()),
 		LoginType:       takeFirst(seed.LoginType, database.LoginTypePassword),
 		Scope:           takeFirst(seed.Scope, database.APIKeyScopeAll),
+		TokenName:       takeFirst(seed.TokenName),
 	})
 	require.NoError(t, err, "insert api key")
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
