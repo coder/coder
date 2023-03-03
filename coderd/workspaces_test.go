@@ -1884,3 +1884,84 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	require.NoError(t, err)
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
 }
+
+func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
+	t.Parallel()
+
+	const (
+		firstParameterName         = "first_parameter"
+		firstParameterType         = "string"
+		firstParameterDescription  = "This is _first_ *parameter*"
+		firstParameterDefaultValue = "1"
+
+		secondParameterName        = "second_parameter"
+		secondParameterType        = "number"
+		secondParameterDescription = "_This_ is second *parameter*"
+		secondParameterRequired    = true
+	)
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:         firstParameterName,
+								Type:         firstParameterType,
+								Description:  firstParameterDescription,
+								DefaultValue: firstParameterDefaultValue,
+							},
+							{
+								Name:        secondParameterName,
+								Type:        secondParameterType,
+								Description: secondParameterDescription,
+								Required:    secondParameterRequired,
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	templateRichParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
+	require.NoError(t, err)
+	require.Len(t, templateRichParameters, 2)
+	require.Equal(t, firstParameterName, templateRichParameters[0].Name)
+	require.Equal(t, firstParameterType, templateRichParameters[0].Type)
+	require.Equal(t, firstParameterDescription, templateRichParameters[0].Description)
+	require.Equal(t, firstParameterDefaultValue, templateRichParameters[0].DefaultValue)
+	require.Equal(t, secondParameterName, templateRichParameters[1].Name)
+	require.Equal(t, secondParameterType, templateRichParameters[1].Type)
+	require.Equal(t, secondParameterDescription, templateRichParameters[1].Description)
+	require.Equal(t, secondParameterRequired, templateRichParameters[1].Required)
+
+	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
+		{Name: firstParameterName, Value: firstParameterDefaultValue},
+	}
+
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.RichParameterValues = expectedBuildParameters
+	})
+
+	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+	workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+}
