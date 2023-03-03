@@ -109,6 +109,8 @@ func TestExactMethods(t *testing.T) {
 // TestUserOrder ensures that the fake database returns users in the order they
 // were created.
 func TestUserOrder(t *testing.T) {
+	t.Parallel()
+
 	db := dbfake.New()
 	now := database.Now()
 	count := 10
