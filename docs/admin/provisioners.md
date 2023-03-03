@@ -12,15 +12,15 @@ There are benefits in running external provisioner servers.
 
 As you add more (template) admins in Coder, there is an increased risk of malicious code being added into templates. Isolated provisioners can prevent template admins from running code directly against the Coder server, database, or host machine.
 
-Additionally, you can configure provisioner environments to access cloud secrets that the Coder server does not necessarily have access to.
+Additionally, you can configure provisioner environments to access cloud secrets that you would like to conceal from the Coder server.
 
 ### Extensibility
 
-Instead of exposing a full API and secrets to the Coder server (e.g. Kubernetes, Docker, VMware), provisioners can run in each environment. See [Provider authentication](../templates/authentication.md) for more details.
+Instead of exposing an entire API and secrets (e.g. Kubernetes, Docker, VMware) to the Coder server, you can run provisioners in each environment. See [Provider authentication](../templates/authentication.md) for more details.
 
 ### Scalability
 
-Reduce load from the Coder server and reduce queue times and build times for users. See [Scaling Coder](./scale.md#concurrent-workspace-builds) for more details.
+External provisioners can reduce load and build queue times from the Coder server. See [Scaling Coder](./scale.md#concurrent-workspace-builds) for more details.
 
 ## Run an external provisioner
 
@@ -32,9 +32,9 @@ The [Coder CLI](../cli.md) can launch external provisioners once authenticated a
   coder provisionerd start
   ```
 
-  > Ensure all provisioners (including [built-in provisioners](#disable-built-in-provisioners)) have similar configuration/cloud access or you may run into intermittent build errors, depending on which provisioner picks up a job.
+  > Ensure all provisioners (including [built-in provisioners](#disable-built-in-provisioners)) have similar configuration/cloud access. Otherwise, users may run into intermittent build errors depending on which provisioner picks up a job.
 
-- **Tagged provisioners** can be used to pick up build jobs from workspaces and templates with matching tags.
+- **Tagged provisioners** can be used to pick up build jobs from templates (and corresponding workspaces) with matching tags.
 
   ```sh
   coder provisionerd start \
@@ -81,7 +81,7 @@ docker run --rm -it \
 
 Be sure to replace `https://coder.example.com` with your [access URL](./configure.md#access-url) and `your_token` with an [API token](../api.md).
 
-To include [provider secrets](../templates/authentication.md), you can modify the command to mount environment variables or external volumes. Alternatively, you can create a custom provisioner image that includes the Coder CLI.
+To include [provider secrets](../templates/authentication.md), modify the `docker run` command to mount environment variables or external volumes. Alternatively, you can create a custom provisioner image.
 
 ## Disable built-in provisioners
 
