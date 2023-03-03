@@ -7,7 +7,6 @@ import {
   TemplateExample,
   TemplateVersionVariable,
 } from "api/typesGenerated"
-import { FormFooter } from "components/FormFooter/FormFooter"
 import { ParameterInput } from "components/ParameterInput/ParameterInput"
 import { Stack } from "components/Stack/Stack"
 import {
@@ -30,6 +29,14 @@ import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuild
 import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
 import { LazyIconField } from "components/IconField/LazyIconField"
 import { VariableInput } from "./VariableInput"
+import {
+  FormFields,
+  FormFooter,
+  FormSection,
+  HorizontalForm,
+} from "components/HorizontalForm/HorizontalForm"
+import camelCase from "lodash/camelCase"
+import capitalize from "lodash/capitalize"
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),
@@ -85,7 +92,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   logs,
 }) => {
   const styles = useStyles()
-  const formFooterStyles = useFormFooterStyles()
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues(starterTemplate),
     validationSchema,
@@ -95,287 +101,220 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   const { t } = useTranslation("createTemplatePage")
 
   return (
-    <form onSubmit={form.handleSubmit}>
-      <Stack direction="column" spacing={10} className={styles.formSections}>
-        {/* General info */}
-        <div className={styles.formSection}>
-          <div className={styles.formSectionInfo}>
-            <h2 className={styles.formSectionInfoTitle}>
-              {t("form.generalInfo.title")}
-            </h2>
-            <p className={styles.formSectionInfoDescription}>
-              {t("form.generalInfo.description")}
-            </p>
-          </div>
-
-          <Stack direction="column" className={styles.formSectionFields}>
-            {starterTemplate ? (
-              <SelectedTemplate template={starterTemplate} />
-            ) : (
-              <TemplateUpload {...upload} />
-            )}
-
-            <TextField
-              {...getFieldHelpers("name")}
-              disabled={isSubmitting}
-              onChange={onChangeTrimmed(form)}
-              autoFocus
-              fullWidth
-              required
-              label={t("form.fields.name")}
-              variant="outlined"
+    <HorizontalForm onSubmit={form.handleSubmit}>
+      {/* General info */}
+      <FormSection
+        title={t("form.generalInfo.title")}
+        description={t("form.generalInfo.description")}
+      >
+        <FormFields>
+          {starterTemplate ? (
+            <SelectedTemplate template={starterTemplate} />
+          ) : (
+            <TemplateUpload
+              {...upload}
+              onUpload={async (file) => {
+                await fillNameAndDisplayWithFilename(file.name, form)
+                upload.onUpload(file)
+              }}
             />
-          </Stack>
-        </div>
+          )}
 
-        {/* Display info  */}
-        <div className={styles.formSection}>
-          <div className={styles.formSectionInfo}>
-            <h2 className={styles.formSectionInfoTitle}>
-              {t("form.displayInfo.title")}
-            </h2>
-            <p className={styles.formSectionInfoDescription}>
-              {t("form.displayInfo.description")}
-            </p>
-          </div>
+          <TextField
+            {...getFieldHelpers("name")}
+            disabled={isSubmitting}
+            onChange={onChangeTrimmed(form)}
+            autoFocus
+            fullWidth
+            required
+            label={t("form.fields.name")}
+            variant="outlined"
+          />
+        </FormFields>
+      </FormSection>
 
-          <Stack direction="column" className={styles.formSectionFields}>
-            <TextField
-              {...getFieldHelpers("display_name")}
-              disabled={isSubmitting}
-              fullWidth
-              label={t("form.fields.displayName")}
-              variant="outlined"
-            />
+      {/* Display info  */}
+      <FormSection
+        title={t("form.displayInfo.title")}
+        description={t("form.displayInfo.description")}
+      >
+        <FormFields>
+          <TextField
+            {...getFieldHelpers("display_name")}
+            disabled={isSubmitting}
+            fullWidth
+            label={t("form.fields.displayName")}
+            variant="outlined"
+          />
 
-            <TextField
-              {...getFieldHelpers("description")}
-              disabled={isSubmitting}
-              rows={5}
-              multiline
-              fullWidth
-              label={t("form.fields.description")}
-              variant="outlined"
-            />
+          <TextField
+            {...getFieldHelpers("description")}
+            disabled={isSubmitting}
+            rows={5}
+            multiline
+            fullWidth
+            label={t("form.fields.description")}
+            variant="outlined"
+          />
 
-            <LazyIconField
-              {...getFieldHelpers("icon")}
-              disabled={isSubmitting}
-              onChange={onChangeTrimmed(form)}
-              fullWidth
-              label={t("form.fields.icon")}
-              variant="outlined"
-              onPickEmoji={(value) => form.setFieldValue("icon", value)}
-            />
-          </Stack>
-        </div>
+          <LazyIconField
+            {...getFieldHelpers("icon")}
+            disabled={isSubmitting}
+            onChange={onChangeTrimmed(form)}
+            fullWidth
+            label={t("form.fields.icon")}
+            variant="outlined"
+            onPickEmoji={(value) => form.setFieldValue("icon", value)}
+          />
+        </FormFields>
+      </FormSection>
 
-        {/* Schedule */}
-        <div className={styles.formSection}>
-          <div className={styles.formSectionInfo}>
-            <h2 className={styles.formSectionInfoTitle}>
-              {t("form.schedule.title")}
-            </h2>
-            <p className={styles.formSectionInfoDescription}>
-              {t("form.schedule.description")}
-            </p>
-          </div>
+      {/* Schedule */}
+      <FormSection
+        title={t("form.schedule.title")}
+        description={t("form.schedule.description")}
+      >
+        <FormFields>
+          <TextField
+            {...getFieldHelpers("default_ttl_hours")}
+            disabled={isSubmitting}
+            onChange={onChangeTrimmed(form)}
+            fullWidth
+            label={t("form.fields.autoStop")}
+            variant="outlined"
+            type="number"
+            helperText={t("form.helperText.autoStop")}
+          />
+        </FormFields>
+      </FormSection>
 
-          <Stack direction="column" className={styles.formSectionFields}>
-            <TextField
-              {...getFieldHelpers("default_ttl_hours")}
-              disabled={isSubmitting}
-              onChange={onChangeTrimmed(form)}
-              fullWidth
-              label={t("form.fields.autoStop")}
-              variant="outlined"
-              type="number"
-              helperText={t("form.helperText.autoStop")}
-            />
-          </Stack>
-        </div>
+      {/* Operations */}
+      <FormSection
+        title={t("form.operations.title")}
+        description={t("form.operations.description")}
+      >
+        <FormFields>
+          <label htmlFor="allow_user_cancel_workspace_jobs">
+            <Stack direction="row" spacing={1}>
+              <Checkbox
+                color="primary"
+                id="allow_user_cancel_workspace_jobs"
+                name="allow_user_cancel_workspace_jobs"
+                disabled={isSubmitting}
+                checked={form.values.allow_user_cancel_workspace_jobs}
+                onChange={form.handleChange}
+              />
 
-        {/* Operations */}
-        <div className={styles.formSection}>
-          <div className={styles.formSectionInfo}>
-            <h2 className={styles.formSectionInfoTitle}>
-              {t("form.operations.title")}
-            </h2>
-            <p className={styles.formSectionInfoDescription}>
-              {t("form.operations.description")}
-            </p>
-          </div>
+              <Stack direction="column" spacing={0.5}>
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={0.5}
+                  className={styles.optionText}
+                >
+                  {t("form.fields.allowUsersToCancel")}
 
-          <Stack direction="column" className={styles.formSectionFields}>
-            <label htmlFor="allow_user_cancel_workspace_jobs">
-              <Stack direction="row" spacing={1}>
-                <Checkbox
-                  color="primary"
-                  id="allow_user_cancel_workspace_jobs"
-                  name="allow_user_cancel_workspace_jobs"
-                  disabled={isSubmitting}
-                  checked={form.values.allow_user_cancel_workspace_jobs}
-                  onChange={form.handleChange}
-                />
-
-                <Stack direction="column" spacing={0.5}>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={0.5}
-                    className={styles.optionText}
-                  >
-                    {t("form.fields.allowUsersToCancel")}
-
-                    <HelpTooltip>
-                      <HelpTooltipText>
-                        {t("form.tooltip.allowUsersToCancel")}
-                      </HelpTooltipText>
-                    </HelpTooltip>
-                  </Stack>
-                  <span className={styles.optionHelperText}>
-                    {t("form.helperText.allowUsersToCancel")}
-                  </span>
+                  <HelpTooltip>
+                    <HelpTooltipText>
+                      {t("form.tooltip.allowUsersToCancel")}
+                    </HelpTooltipText>
+                  </HelpTooltip>
                 </Stack>
+                <span className={styles.optionHelperText}>
+                  {t("form.helperText.allowUsersToCancel")}
+                </span>
               </Stack>
-            </label>
-          </Stack>
-        </div>
-
-        {/* Parameters */}
-        {parameters && (
-          <div className={styles.formSection}>
-            <div className={styles.formSectionInfo}>
-              <h2 className={styles.formSectionInfoTitle}>
-                {t("form.parameters.title")}
-              </h2>
-              <p className={styles.formSectionInfoDescription}>
-                {t("form.parameters.description")}
-              </p>
-            </div>
-
-            <Stack direction="column" className={styles.formSectionFields}>
-              {parameters.map((schema) => (
-                <ParameterInput
-                  schema={schema}
-                  disabled={isSubmitting}
-                  key={schema.id}
-                  onChange={async (value) => {
-                    await form.setFieldValue(
-                      `parameter_values_by_name.${schema.name}`,
-                      value,
-                    )
-                  }}
-                />
-              ))}
             </Stack>
+          </label>
+        </FormFields>
+      </FormSection>
+
+      {/* Parameters */}
+      {parameters && (
+        <FormSection
+          title={t("form.parameters.title")}
+          description={t("form.parameters.description")}
+        >
+          <FormFields>
+            {parameters.map((schema) => (
+              <ParameterInput
+                schema={schema}
+                disabled={isSubmitting}
+                key={schema.id}
+                onChange={async (value) => {
+                  await form.setFieldValue(
+                    `parameter_values_by_name.${schema.name}`,
+                    value,
+                  )
+                }}
+              />
+            ))}
+          </FormFields>
+        </FormSection>
+      )}
+
+      {/* Variables */}
+      {variables && (
+        <FormSection title="Variables" description="Template variables">
+          <FormFields>
+            {variables.map((variable, index) => (
+              <VariableInput
+                variable={variable}
+                disabled={isSubmitting}
+                key={variable.name}
+                onChange={async (value) => {
+                  await form.setFieldValue("user_variable_values." + index, {
+                    name: variable.name,
+                    value: value,
+                  })
+                }}
+              />
+            ))}
+          </FormFields>
+        </FormSection>
+      )}
+
+      {jobError && (
+        <Stack>
+          <div className={styles.error}>
+            <h5 className={styles.errorTitle}>Error during provisioning</h5>
+            <p className={styles.errorDescription}>
+              Looks like we found an error during the template provisioning. You
+              can see the logs bellow.
+            </p>
+
+            <code className={styles.errorDetails}>{jobError}</code>
           </div>
-        )}
 
-        {/* Variables */}
-        {variables && (
-          <div className={styles.formSection}>
-            <div className={styles.formSectionInfo}>
-              <h2 className={styles.formSectionInfoTitle}>Variables</h2>
-              <p className={styles.formSectionInfoDescription}>
-                Enter the user variables
-              </p>
-            </div>
+          <WorkspaceBuildLogs logs={logs ?? []} />
+        </Stack>
+      )}
 
-            <Stack direction="column" className={styles.formSectionFields}>
-              {variables.map((variable, index) => (
-                <VariableInput
-                  variable={variable}
-                  disabled={isSubmitting}
-                  key={variable.name}
-                  onChange={async (value) => {
-                    await form.setFieldValue("user_variable_values." + index, {
-                      name: variable.name,
-                      value: value,
-                    })
-                  }}
-                />
-              ))}
-            </Stack>
-          </div>
-        )}
-
-        {jobError && (
-          <Stack>
-            <div className={styles.error}>
-              <h5 className={styles.errorTitle}>Error during provisioning</h5>
-              <p className={styles.errorDescription}>
-                Looks like we found an error during the template provisioning.
-                You can see the logs bellow.
-              </p>
-
-              <code className={styles.errorDetails}>{jobError}</code>
-            </div>
-
-            <WorkspaceBuildLogs logs={logs ?? []} />
-          </Stack>
-        )}
-
-        <FormFooter
-          styles={formFooterStyles}
-          onCancel={onCancel}
-          isLoading={isSubmitting}
-          submitLabel={jobError ? "Retry" : "Create template"}
-        />
-      </Stack>
-    </form>
+      <FormFooter
+        onCancel={onCancel}
+        isLoading={isSubmitting}
+        submitLabel={jobError ? "Retry" : "Create template"}
+      />
+    </HorizontalForm>
   )
 }
 
+const fillNameAndDisplayWithFilename = async (
+  filename: string,
+  form: ReturnType<typeof useFormik<CreateTemplateData>>,
+) => {
+  const [name, _extension] = filename.split(".")
+  await Promise.all([
+    form.setFieldValue(
+      "name",
+      // Camel case will remove special chars and spaces
+      camelCase(name).toLowerCase(),
+    ),
+    form.setFieldValue("display_name", capitalize(name)),
+  ])
+}
+
 const useStyles = makeStyles((theme) => ({
-  formSections: {
-    [theme.breakpoints.down("sm")]: {
-      gap: theme.spacing(8),
-    },
-  },
-
-  formSection: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: theme.spacing(15),
-
-    [theme.breakpoints.down("sm")]: {
-      flexDirection: "column",
-      gap: theme.spacing(2),
-    },
-  },
-
-  formSectionInfo: {
-    width: 312,
-    flexShrink: 0,
-    position: "sticky",
-    top: theme.spacing(3),
-
-    [theme.breakpoints.down("sm")]: {
-      width: "100%",
-      position: "initial",
-    },
-  },
-
-  formSectionInfoTitle: {
-    fontSize: 20,
-    color: theme.palette.text.primary,
-    fontWeight: 400,
-    margin: 0,
-    marginBottom: theme.spacing(1),
-  },
-
-  formSectionInfoDescription: {
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-    lineHeight: "160%",
-    margin: 0,
-  },
-
-  formSectionFields: {
-    width: "100%",
-  },
-
   optionText: {
     fontSize: theme.spacing(2),
     color: theme.palette.text.primary,
@@ -409,27 +348,5 @@ const useStyles = makeStyles((theme) => ({
     marginTop: theme.spacing(1),
     color: theme.palette.error.light,
     fontSize: theme.spacing(2),
-  },
-}))
-
-const useFormFooterStyles = makeStyles((theme) => ({
-  button: {
-    minWidth: theme.spacing(23),
-
-    [theme.breakpoints.down("sm")]: {
-      width: "100%",
-    },
-  },
-  footer: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "flex-start",
-    flexDirection: "row-reverse",
-    gap: theme.spacing(2),
-
-    [theme.breakpoints.down("sm")]: {
-      flexDirection: "column",
-      gap: theme.spacing(1),
-    },
   },
 }))
