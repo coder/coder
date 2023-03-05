@@ -33,6 +33,7 @@ jobs:
     permissions:
       pull-requests: write
     steps:
+      - uses: actions/checkout@v3
       - name: Get changed files in the docs folder
         id: changed-files
         uses: tj-actions/changed-files@v35
