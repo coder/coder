@@ -52,7 +52,7 @@ func (g *Group) FullName() string {
 // Its methods won't panic if the map is nil.
 type Annotations map[string]string
 
-// Mark sets a value on the attonations map, creating one
+// Mark sets a value on the annotations map, creating one
 // if it doesn't exist. Mark does not mutate the original and
 // returns a copy. It is suitable for chaining.
 func (a Annotations) Mark(key string, value string) Annotations {

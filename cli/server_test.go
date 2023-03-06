@@ -406,7 +406,7 @@ func TestServer(t *testing.T) {
 			"--tls-key-file", keyPath,
 			"--cache-dir", t.TempDir(),
 		)
-		clitest.Start(t, root)
+		clitest.Start(ctx, t, root)
 
 		// Verify HTTPS
 		accessURL := waitAccessURL(t, cfg)
@@ -446,7 +446,7 @@ func TestServer(t *testing.T) {
 		)
 		pty := ptytest.New(t)
 		root.SetOut(pty.Output())
-		clitest.Start(t, root)
+		clitest.Start(ctx, t, root)
 
 		accessURL := waitAccessURL(t, cfg)
 		require.Equal(t, "https", accessURL.Scheme)
@@ -864,7 +864,7 @@ func TestServer(t *testing.T) {
 			pty := ptytest.New(t)
 			root.SetOutput(pty.Output())
 			root.SetErr(pty.Output())
-			clitest.Start(t, root)
+			clitest.Start(ctx, t, root)
 
 			pty.ExpectMatch("is deprecated")
 
@@ -894,7 +894,7 @@ func TestServer(t *testing.T) {
 			pty := ptytest.New(t)
 			root.SetOutput(pty.Output())
 			root.SetErr(pty.Output())
-			clitest.Start(t, root)
+			clitest.Start(ctx, t, root)
 
 			pty.ExpectMatch("is deprecated")
 
@@ -1230,7 +1230,7 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-human", fiName,
 			)
-			clitest.Start(t, root)
+			clitest.Start(context.Background(), t, root)
 
 			waitFile(t, fiName, testutil.WaitShort)
 		})
@@ -1247,7 +1247,7 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-human", fi,
 			)
-			clitest.Start(t, root)
+			clitest.Start(context.Background(), t, root)
 
 			waitFile(t, fi, testutil.WaitShort)
 		})
@@ -1264,7 +1264,7 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-json", fi,
 			)
-			clitest.Start(t, root)
+			clitest.Start(context.Background(), t, root)
 
 			waitFile(t, fi, testutil.WaitShort)
 		})
@@ -1335,7 +1335,7 @@ func TestServer(t *testing.T) {
 			root.SetOut(pty.Output())
 			root.SetErr(pty.Output())
 
-			clitest.Start(t, root)
+			clitest.Start(ctx, t, root)
 
 			// Wait for server to listen on HTTP, this is a good
 			// starting point for expecting logs.

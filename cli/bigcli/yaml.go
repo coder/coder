@@ -1,8 +1,7 @@
 package bigcli
 
 import (
-	"strings"
-
+	"github.com/iancoleman/strcase"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
@@ -16,7 +15,7 @@ func deepMapNode(n *yaml.Node, path []string, headComment string) *yaml.Node {
 	}
 
 	// Name is every two nodes.
-	for i := 0; i < len(n.Content); i += 2 {
+	for i := 0; i < len(n.Content)-1; i += 2 {
 		if n.Content[i].Value == path[0] {
 			// Found matching name, recurse.
 			return deepMapNode(n.Content[i+1], path[1:], headComment)
@@ -86,7 +85,7 @@ func (s OptionSet) ToYAML() (*yaml.Node, error) {
 					opt.Group,
 				)
 			}
-			group = append(group, strings.ToLower(g.Name))
+			group = append(group, strcase.ToLowerCamel(g.Name))
 		}
 		var groupDesc string
 		if opt.Group != nil {

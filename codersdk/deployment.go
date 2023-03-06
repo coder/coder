@@ -1243,6 +1243,7 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 			Flag:          "config",
 			Env:           "CONFIG_PATH",
 			FlagShorthand: "c",
+			Hidden:        true,
 			Group:         &DeploymentGroupConfig,
 			Value:         &c.Config,
 		},
@@ -1250,10 +1251,11 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 			Name: "Write Config",
 			Description: `
 Write out the current server configuration to the path specified by --config.`,
-			Flag:  "write-config",
-			Env:   "WRITE_CONFIG",
-			Group: &DeploymentGroupConfig,
-			Value: &c.WriteConfig,
+			Flag:   "write-config",
+			Env:    "WRITE_CONFIG",
+			Group:  &DeploymentGroupConfig,
+			Hidden: true,
+			Value:  &c.WriteConfig,
 		},
 		{
 			Name:        "Support Links",

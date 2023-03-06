@@ -99,6 +99,7 @@ func (String) Type() string {
 
 var _ pflag.SliceValue = &Strings{}
 
+// Strings is a slice of strings that implements pflag.Value and pflag.SliceValue.
 type Strings []string
 
 func (s *Strings) Append(v string) error {
@@ -219,6 +220,7 @@ func (u *URL) Value() *url.URL {
 	return (*url.URL)(u)
 }
 
+// HostPort is a host:port pair.
 type HostPort struct {
 	Host string
 	Port string
@@ -315,6 +317,9 @@ func (s *Struct[T]) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &s.Value)
 }
 
+// DiscardValue does nothing but implements the pflag.Value interface.
+// It's useful in cases where you want to accept an option, but access the
+// underlying value directly instead of through the Option methods.
 type DiscardValue struct{}
 
 func (DiscardValue) Set(string) error {
@@ -326,5 +331,5 @@ func (DiscardValue) String() string {
 }
 
 func (DiscardValue) Type() string {
-	return "nop"
+	return "discard"
 }

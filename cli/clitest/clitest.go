@@ -11,14 +11,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/testutil"
 )
 
 // New creates a CLI instance with a configuration pointed to a
@@ -38,8 +41,7 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 		return len(p), nil
 	}
 	l.t.Log(
-		l.prefix+": ",
-		trimmed,
+		l.prefix + ": " + trimmed,
 	)
 	return len(p), nil
 }
@@ -118,19 +120,25 @@ func extractTar(t *testing.T, data []byte, directory string) {
 
 // Start runs the command in a goroutine and cleans it up when
 // the test completed.
-func Start(t *testing.T, cmd *cobra.Command) {
+func Start(ctx context.Context, t *testing.T, cmd *cobra.Command) {
 	t.Helper()
 
 	closeCh := make(chan struct{})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	deadline, hasDeadline := ctx.Deadline()
+	if !hasDeadline {
+		// We don't want to wait the full 5 minutes for a test to time out.
+		deadline = time.Now().Add(testutil.WaitMedium)
+	}
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
 
 	go func() {
 		defer cancel()
 		defer close(closeCh)
 		err := cmd.ExecuteContext(ctx)
-		if err != nil {
-			t.Error("command failed", err)
+		if ctx.Err() == nil {
+			assert.NoError(t, err)
 		}
 	}()
 
