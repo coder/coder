@@ -59,7 +59,8 @@ func TestAgent_Stats_SSH(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	conn, _, stats, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	//nolint:dogsled
+	conn, _, stats, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
 
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
@@ -85,7 +86,8 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	conn, _, stats, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	//nolint:dogsled
+	conn, _, stats, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
 
 	ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "/bin/bash")
 	require.NoError(t, err)
@@ -114,7 +116,8 @@ func TestAgent_Stats_Magic(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	conn, _, stats, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	//nolint:dogsled
+	conn, _, stats, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
@@ -572,7 +575,7 @@ func TestAgent_SFTP(t *testing.T) {
 		home = "/" + strings.ReplaceAll(home, "\\", "/")
 	}
 	//nolint:dogsled
-	conn, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
@@ -604,7 +607,7 @@ func TestAgent_SCP(t *testing.T) {
 	defer cancel()
 
 	//nolint:dogsled
-	conn, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
@@ -709,7 +712,7 @@ func TestAgent_StartupScript(t *testing.T) {
 	}
 	content := "output"
 	//nolint:dogsled
-	_, _, _, fs := setupAgent(t, agentsdk.Metadata{
+	_, _, _, fs, _ := setupAgent(t, agentsdk.Metadata{
 		StartupScript: "echo " + content,
 	}, 0)
 	var gotContent string
@@ -740,10 +743,10 @@ func TestAgent_StartupScript(t *testing.T) {
 func TestAgent_Lifecycle(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Timeout", func(t *testing.T) {
+	t.Run("StartTimeout", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
 			StartupScript:        "sleep 5",
 			StartupScriptTimeout: time.Nanosecond,
 		}, 0)
@@ -769,10 +772,10 @@ func TestAgent_Lifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Error", func(t *testing.T) {
+	t.Run("StartError", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
 			StartupScript:        "false",
 			StartupScriptTimeout: 30 * time.Second,
 		}, 0)
@@ -801,7 +804,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 	t.Run("Ready", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
 			StartupScript:        "true",
 			StartupScriptTimeout: 30 * time.Second,
 		}, 0)
@@ -826,6 +829,191 @@ func TestAgent_Lifecycle(t *testing.T) {
 			require.Equal(t, want, got)
 		}
 	})
+
+	t.Run("ShuttingDown", func(t *testing.T) {
+		t.Parallel()
+
+		_, client, _, _, closer := setupAgent(t, agentsdk.Metadata{
+			ShutdownScript:       "sleep 5",
+			StartupScriptTimeout: 30 * time.Second,
+		}, 0)
+
+		var ready []codersdk.WorkspaceAgentLifecycle
+		assert.Eventually(t, func() bool {
+			ready = client.getLifecycleStates()
+			return len(ready) > 0 && ready[len(ready)-1] == codersdk.WorkspaceAgentLifecycleReady
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		// Start close asynchronously so that we an inspect the state.
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			err := closer.Close()
+			assert.NoError(t, err)
+		}()
+		t.Cleanup(func() {
+			<-done
+		})
+
+		want := []codersdk.WorkspaceAgentLifecycle{
+			codersdk.WorkspaceAgentLifecycleShuttingDown,
+		}
+
+		var got []codersdk.WorkspaceAgentLifecycle
+		assert.Eventually(t, func() bool {
+			got = client.getLifecycleStates()[len(ready):]
+			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		require.Equal(t, want, got)
+	})
+
+	t.Run("ShutdownTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		_, client, _, _, closer := setupAgent(t, agentsdk.Metadata{
+			ShutdownScript:        "sleep 5",
+			ShutdownScriptTimeout: time.Nanosecond,
+		}, 0)
+
+		var ready []codersdk.WorkspaceAgentLifecycle
+		assert.Eventually(t, func() bool {
+			ready = client.getLifecycleStates()
+			return len(ready) > 0 && ready[len(ready)-1] == codersdk.WorkspaceAgentLifecycleReady
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		// Start close asynchronously so that we an inspect the state.
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			err := closer.Close()
+			assert.NoError(t, err)
+		}()
+		t.Cleanup(func() {
+			<-done
+		})
+
+		want := []codersdk.WorkspaceAgentLifecycle{
+			codersdk.WorkspaceAgentLifecycleShuttingDown,
+			codersdk.WorkspaceAgentLifecycleShutdownTimeout,
+		}
+
+		var got []codersdk.WorkspaceAgentLifecycle
+		assert.Eventually(t, func() bool {
+			got = client.getLifecycleStates()[len(ready):]
+			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		switch len(got) {
+		case 1:
+			// This can happen if lifecycle state updates are
+			// too fast, only the latest one is reported.
+			require.Equal(t, want[1:], got)
+		default:
+			// This is the expected case.
+			require.Equal(t, want, got)
+		}
+	})
+
+	t.Run("ShutdownError", func(t *testing.T) {
+		t.Parallel()
+
+		_, client, _, _, closer := setupAgent(t, agentsdk.Metadata{
+			ShutdownScript:        "false",
+			ShutdownScriptTimeout: 30 * time.Second,
+		}, 0)
+
+		var ready []codersdk.WorkspaceAgentLifecycle
+		assert.Eventually(t, func() bool {
+			ready = client.getLifecycleStates()
+			return len(ready) > 0 && ready[len(ready)-1] == codersdk.WorkspaceAgentLifecycleReady
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		// Start close asynchronously so that we an inspect the state.
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			err := closer.Close()
+			assert.NoError(t, err)
+		}()
+		t.Cleanup(func() {
+			<-done
+		})
+
+		want := []codersdk.WorkspaceAgentLifecycle{
+			codersdk.WorkspaceAgentLifecycleShuttingDown,
+			codersdk.WorkspaceAgentLifecycleShutdownError,
+		}
+
+		var got []codersdk.WorkspaceAgentLifecycle
+		assert.Eventually(t, func() bool {
+			got = client.getLifecycleStates()[len(ready):]
+			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		switch len(got) {
+		case 1:
+			// This can happen if lifecycle state updates are
+			// too fast, only the latest one is reported.
+			require.Equal(t, want[1:], got)
+		default:
+			// This is the expected case.
+			require.Equal(t, want, got)
+		}
+	})
+
+	t.Run("ShutdownScriptOnce", func(t *testing.T) {
+		t.Parallel()
+
+		expected := "this-is-shutdown"
+		client := &client{
+			t:       t,
+			agentID: uuid.New(),
+			metadata: agentsdk.Metadata{
+				DERPMap:        tailnettest.RunDERPAndSTUN(t),
+				StartupScript:  "echo 1",
+				ShutdownScript: "echo " + expected,
+			},
+			statsChan:   make(chan *agentsdk.Stats),
+			coordinator: tailnet.NewCoordinator(),
+		}
+
+		fs := afero.NewMemMapFs()
+		agent := agent.New(agent.Options{
+			Client:     client,
+			Logger:     slogtest.Make(t, nil).Leveled(slog.LevelInfo),
+			Filesystem: fs,
+		})
+
+		// agent.Close() loads the shutdown script from the agent metadata.
+		// The metadata is populated just before execution of the startup script, so it's mandatory to wait
+		// until the startup starts.
+		require.Eventually(t, func() bool {
+			outputPath := filepath.Join(os.TempDir(), "coder-startup-script.log")
+			content, err := afero.ReadFile(fs, outputPath)
+			if err != nil {
+				t.Logf("read file %q: %s", outputPath, err)
+				return false
+			}
+			return len(content) > 0 // something is in the startup log file
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		err := agent.Close()
+		require.NoError(t, err, "agent should be closed successfully")
+
+		outputPath := filepath.Join(os.TempDir(), "coder-shutdown-script.log")
+		logFirstRead, err := afero.ReadFile(fs, outputPath)
+		require.NoError(t, err, "log file should be present")
+		require.Equal(t, expected, string(bytes.TrimSpace(logFirstRead)))
+
+		// Make sure that script can't be executed twice.
+		err = agent.Close()
+		require.NoError(t, err, "don't need to close the agent twice, no effect")
+
+		logSecondRead, err := afero.ReadFile(fs, outputPath)
+		require.NoError(t, err, "log file should be present")
+		require.Equal(t, string(bytes.TrimSpace(logFirstRead)), string(bytes.TrimSpace(logSecondRead)))
+	})
 }
 
 func TestAgent_Startup(t *testing.T) {
@@ -834,7 +1022,7 @@ func TestAgent_Startup(t *testing.T) {
 	t.Run("EmptyDirectory", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
 			StartupScript:        "true",
 			StartupScriptTimeout: 30 * time.Second,
 			Directory:            "",
@@ -848,7 +1036,7 @@ func TestAgent_Startup(t *testing.T) {
 	t.Run("HomeDirectory", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
 			StartupScript:        "true",
 			StartupScriptTimeout: 30 * time.Second,
 			Directory:            "~",
@@ -864,7 +1052,7 @@ func TestAgent_Startup(t *testing.T) {
 	t.Run("HomeEnvironmentVariable", func(t *testing.T) {
 		t.Parallel()
 
-		_, client, _, _ := setupAgent(t, agentsdk.Metadata{
+		_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
 			StartupScript:        "true",
 			StartupScriptTimeout: 30 * time.Second,
 			Directory:            "$HOME",
@@ -891,7 +1079,7 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 	defer cancel()
 
 	//nolint:dogsled
-	conn, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
 	id := uuid.New()
 	netConn, err := conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
 	require.NoError(t, err)
@@ -993,7 +1181,7 @@ func TestAgent_Dial(t *testing.T) {
 			}()
 
 			//nolint:dogsled
-			conn, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+			conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
 			require.True(t, conn.AwaitReachable(context.Background()))
 			conn1, err := conn.DialContext(context.Background(), l.Addr().Network(), l.Addr().String())
 			require.NoError(t, err)
@@ -1015,7 +1203,7 @@ func TestAgent_Speedtest(t *testing.T) {
 	defer cancel()
 	derpMap := tailnettest.RunDERPAndSTUN(t)
 	//nolint:dogsled
-	conn, _, _, _ := setupAgent(t, agentsdk.Metadata{
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{
 		DERPMap: derpMap,
 	}, 0)
 	defer conn.Close()
@@ -1101,7 +1289,7 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) *exec.Cmd {
 	//nolint:dogsled
-	agentConn, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	waitGroup := sync.WaitGroup{}
@@ -1148,7 +1336,7 @@ func setupSSHSession(t *testing.T, options agentsdk.Metadata) *ssh.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	//nolint:dogsled
-	conn, _, _, _ := setupAgent(t, options, 0)
+	conn, _, _, _, _ := setupAgent(t, options, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1173,6 +1361,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 	*client,
 	<-chan *agentsdk.Stats,
 	afero.Fs,
+	io.Closer,
 ) {
 	if metadata.DERPMap == nil {
 		metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
@@ -1233,7 +1422,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 	if !agentConn.AwaitReachable(ctx) {
 		t.Fatal("agent not reachable")
 	}
-	return agentConn, c, statsCh, fs
+	return agentConn, c, statsCh, fs, closer
 }
 
 var dialTestPayload = []byte("dean-was-here123")

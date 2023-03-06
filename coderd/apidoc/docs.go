@@ -5198,6 +5198,12 @@ const docTemplate = `{
                 "motd_file": {
                     "type": "string"
                 },
+                "shutdown_script": {
+                    "type": "string"
+                },
+                "shutdown_script_timeout": {
+                    "type": "integer"
+                },
                 "startup_script": {
                     "type": "string"
                 },
@@ -8425,6 +8431,12 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "shutdown_script": {
+                    "type": "string"
+                },
+                "shutdown_script_timeout_seconds": {
+                    "type": "integer"
+                },
                 "startup_script": {
                     "type": "string"
                 },
@@ -8462,14 +8474,22 @@ const docTemplate = `{
                 "starting",
                 "start_timeout",
                 "start_error",
-                "ready"
+                "ready",
+                "shutting_down",
+                "shutdown_timeout",
+                "shutdown_error",
+                "off"
             ],
             "x-enum-varnames": [
                 "WorkspaceAgentLifecycleCreated",
                 "WorkspaceAgentLifecycleStarting",
                 "WorkspaceAgentLifecycleStartTimeout",
                 "WorkspaceAgentLifecycleStartError",
-                "WorkspaceAgentLifecycleReady"
+                "WorkspaceAgentLifecycleReady",
+                "WorkspaceAgentLifecycleShuttingDown",
+                "WorkspaceAgentLifecycleShutdownTimeout",
+                "WorkspaceAgentLifecycleShutdownError",
+                "WorkspaceAgentLifecycleOff"
             ]
         },
         "codersdk.WorkspaceAgentListeningPort": {
