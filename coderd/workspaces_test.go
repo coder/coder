@@ -1898,6 +1898,7 @@ func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
 		secondParameterType        = "number"
 		secondParameterDescription = "_This_ is second *parameter*"
 		secondParameterRequired    = true
+		secondParameterValue       = "333"
 	)
 
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -1951,11 +1952,15 @@ func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
 
 	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
 		{Name: firstParameterName, Value: firstParameterDefaultValue},
+		{Name: secondParameterName, Value: secondParameterValue},
 	}
 
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-		cwr.RichParameterValues = expectedBuildParameters
+		cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+			// First parameter is optional, so coder should pick the default value.
+			{Name: secondParameterName, Value: secondParameterValue},
+		}
 	})
 
 	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -1963,5 +1968,6 @@ func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
 
 	workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
 	require.NoError(t, err)
+
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
 }

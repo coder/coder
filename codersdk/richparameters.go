@@ -23,7 +23,7 @@ func ValidateWorkspaceBuildParameters(richParameters []TemplateVersionParameter,
 			continue // previous build parameters have been validated before the last build
 		}
 
-		err := ValidateWorkspaceBuildParameter(richParameter, *buildParameter, lastBuildParameter)
+		err := ValidateWorkspaceBuildParameter(richParameter, buildParameter, lastBuildParameter)
 		if err != nil {
 			return xerrors.Errorf("can't validate build parameter %q: %w", richParameter.Name, err)
 		}
@@ -31,11 +31,17 @@ func ValidateWorkspaceBuildParameters(richParameters []TemplateVersionParameter,
 	return nil
 }
 
-func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, buildParameter WorkspaceBuildParameter, lastBuildParameter *WorkspaceBuildParameter) error {
-	value := buildParameter.Value
+func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, buildParameter *WorkspaceBuildParameter, lastBuildParameter *WorkspaceBuildParameter) error {
+	var value string
+
+	if buildParameter != nil {
+		value = buildParameter.Value
+	}
+
 	if richParameter.Required && value == "" {
 		return xerrors.Errorf("parameter value is required")
 	}
+
 	if value == "" { // parameter is optional, so take the default value
 		value = richParameter.DefaultValue
 	}
