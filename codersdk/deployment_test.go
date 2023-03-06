@@ -69,6 +69,7 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		// These are generally for development, so their configurability is
 		// not relevant.
 		if opt.Hidden {
+			delete(excludes, opt.Name)
 			continue
 		}
 
