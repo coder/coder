@@ -479,7 +479,7 @@ func isWorkspaceCommand(cmd *cobra.Command) bool {
 	return ws
 }
 
-// We will eventually replace this with the bigcli template describedc
+// We will eventually replace this with the clibase template describedc
 // in usage.go. We don't want to continue working around
 // Cobra's feature-set.
 func usageTemplateCobra() string {

@@ -146,7 +146,7 @@ func generateDocsTree(cmd *cobra.Command, basePath string) error {
 	}
 
 	if cmd.Name() == "server" {
-		// The server command is now managed by bigcli and needs a new generator.
+		// The server command is now managed by clibase and needs a new generator.
 		return nil
 	}
 

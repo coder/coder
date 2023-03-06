@@ -58,7 +58,7 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		},
 		"Git Auth Providers": {
 			// Technically Git Auth Providers can be provided through the env,
-			// but bypassing bigcli. See cli.ReadGitAuthProvidersFromEnv.
+			// but bypassing clibase. See cli.ReadGitAuthProvidersFromEnv.
 			flag: true,
 			env:  true,
 		},

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/bigcli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbtestutil"
@@ -96,7 +96,7 @@ func TestTokenMaxLifetime(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	dc := coderdtest.DeploymentValues(t)
-	dc.MaxTokenLifetime = bigcli.Duration(time.Hour * 24 * 7)
+	dc.MaxTokenLifetime = clibase.Duration(time.Hour * 24 * 7)
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: dc,
 	})
@@ -136,7 +136,7 @@ func TestSessionExpiry(t *testing.T) {
 	//
 	// We don't support updating the deployment config after startup, but for
 	// this test it works because we don't copy the value (and we use pointers).
-	dc.SessionDuration = bigcli.Duration(time.Second)
+	dc.SessionDuration = clibase.Duration(time.Second)
 
 	userClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 

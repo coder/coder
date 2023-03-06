@@ -1,4 +1,4 @@
-package bigcli
+package clibase
 
 import (
 	"os"
@@ -33,7 +33,7 @@ type Option struct {
 	// Value includes the types listed in values.go.
 	Value pflag.Value `json:"value,omitempty"`
 
-	// Annotations enable extensions to bigcli higher up in the stack. It's useful for
+	// Annotations enable extensions to clibase higher up in the stack. It's useful for
 	// help formatting and documentation generation.
 	Annotations Annotations `json:"annotations,omitempty"`
 

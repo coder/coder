@@ -1,10 +1,10 @@
-package bigcli_test
+package clibase_test
 
 import (
 	"reflect"
 	"testing"
 
-	"github.com/coder/coder/cli/bigcli"
+	"github.com/coder/coder/cli/clibase"
 )
 
 func TestFilterNamePrefix(t *testing.T) {
@@ -16,7 +16,7 @@ func TestFilterNamePrefix(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want []bigcli.EnvVar
+		want []clibase.EnvVar
 	}{
 		{"empty", args{[]string{}, "SHIRE"}, nil},
 		{
@@ -27,7 +27,7 @@ func TestFilterNamePrefix(t *testing.T) {
 				},
 				"SHIRE_",
 			},
-			[]bigcli.EnvVar{
+			[]clibase.EnvVar{
 				{Name: "BRANDYBUCK", Value: "hmm"},
 			},
 		},
@@ -36,7 +36,7 @@ func TestFilterNamePrefix(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := bigcli.EnvsWithPrefix(tt.args.environ, tt.args.prefix); !reflect.DeepEqual(got, tt.want) {
+			if got := clibase.EnvsWithPrefix(tt.args.environ, tt.args.prefix); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("EnvsWithPrefix() = %v, want %v", got, tt.want)
 			}
 		})

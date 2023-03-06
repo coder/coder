@@ -5301,19 +5301,19 @@ const docTemplate = `{
                 }
             }
         },
-        "bigcli.Annotations": {
+        "clibase.Annotations": {
             "type": "object",
             "additionalProperties": {
                 "type": "string"
             }
         },
-        "bigcli.Group": {
+        "clibase.Group": {
             "type": "object",
             "properties": {
                 "children": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/bigcli.Group"
+                        "$ref": "#/definitions/clibase.Group"
                     }
                 },
                 "description": {
@@ -5323,11 +5323,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "parent": {
-                    "$ref": "#/definitions/bigcli.Group"
+                    "$ref": "#/definitions/clibase.Group"
                 }
             }
         },
-        "bigcli.HostPort": {
+        "clibase.HostPort": {
             "type": "object",
             "properties": {
                 "host": {
@@ -5338,14 +5338,14 @@ const docTemplate = `{
                 }
             }
         },
-        "bigcli.Option": {
+        "clibase.Option": {
             "type": "object",
             "properties": {
                 "annotations": {
-                    "description": "Annotations enable extensions to bigcli higher up in the stack. It's useful for\nhelp formatting and documentation generation.",
+                    "description": "Annotations enable extensions to clibase higher up in the stack. It's useful for\nhelp formatting and documentation generation.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/bigcli.Annotations"
+                            "$ref": "#/definitions/clibase.Annotations"
                         }
                     ]
                 },
@@ -5372,7 +5372,7 @@ const docTemplate = `{
                     "description": "Group is a group hierarchy that helps organize this option in help, configs\nand other documentation.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/bigcli.Group"
+                            "$ref": "#/definitions/clibase.Group"
                         }
                     ]
                 },
@@ -5386,7 +5386,7 @@ const docTemplate = `{
                     "description": "UseInstead is a list of options that should be used instead of this one.\nThe field is used to generate a deprecation warning.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/bigcli.Option"
+                        "$ref": "#/definitions/clibase.Option"
                     }
                 },
                 "value": {
@@ -5398,7 +5398,7 @@ const docTemplate = `{
                 }
             }
         },
-        "bigcli.Struct-array_codersdk_GitAuthConfig": {
+        "clibase.Struct-array_codersdk_GitAuthConfig": {
             "type": "object",
             "properties": {
                 "value": {
@@ -5409,7 +5409,7 @@ const docTemplate = `{
                 }
             }
         },
-        "bigcli.Struct-array_codersdk_LinkConfig": {
+        "clibase.Struct-array_codersdk_LinkConfig": {
             "type": "object",
             "properties": {
                 "value": {
@@ -5420,7 +5420,7 @@ const docTemplate = `{
                 }
             }
         },
-        "bigcli.URL": {
+        "clibase.URL": {
             "type": "object",
             "properties": {
                 "forceQuery": {
@@ -6398,7 +6398,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "relay_url": {
-                    "$ref": "#/definitions/bigcli.URL"
+                    "$ref": "#/definitions/clibase.URL"
                 },
                 "stun_addresses": {
                     "type": "array",
@@ -6428,7 +6428,7 @@ const docTemplate = `{
                 "options": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/bigcli.Option"
+                        "$ref": "#/definitions/clibase.Option"
                     }
                 }
             }
@@ -6448,18 +6448,18 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "access_url": {
-                    "$ref": "#/definitions/bigcli.URL"
+                    "$ref": "#/definitions/clibase.URL"
                 },
                 "address": {
                     "description": "DEPRECATED: Use HTTPAddress or TLS.Address instead.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/bigcli.HostPort"
+                            "$ref": "#/definitions/clibase.HostPort"
                         }
                     ]
                 },
                 "agent_fallback_troubleshooting_url": {
-                    "$ref": "#/definitions/bigcli.URL"
+                    "$ref": "#/definitions/clibase.URL"
                 },
                 "agent_stat_refresh_interval": {
                     "type": "integer"
@@ -6501,7 +6501,7 @@ const docTemplate = `{
                     }
                 },
                 "git_auth": {
-                    "$ref": "#/definitions/bigcli.Struct-array_codersdk_GitAuthConfig"
+                    "$ref": "#/definitions/clibase.Struct-array_codersdk_GitAuthConfig"
                 },
                 "http_address": {
                     "description": "HTTPAddress is a string because it may be set to zero to disable.",
@@ -6598,7 +6598,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "wildcard_access_url": {
-                    "$ref": "#/definitions/bigcli.URL"
+                    "$ref": "#/definitions/clibase.URL"
                 },
                 "write_config": {
                     "type": "boolean"
@@ -7007,7 +7007,7 @@ const docTemplate = `{
                     }
                 },
                 "icon_url": {
-                    "$ref": "#/definitions/bigcli.URL"
+                    "$ref": "#/definitions/clibase.URL"
                 },
                 "ignore_email_verified": {
                     "type": "boolean"
@@ -7263,7 +7263,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/bigcli.HostPort"
+                    "$ref": "#/definitions/clibase.HostPort"
                 },
                 "enable": {
                     "type": "boolean"
@@ -7274,7 +7274,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/bigcli.HostPort"
+                    "$ref": "#/definitions/clibase.HostPort"
                 },
                 "enable": {
                     "type": "boolean"
@@ -7586,7 +7586,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "links": {
-                    "$ref": "#/definitions/bigcli.Struct-array_codersdk_LinkConfig"
+                    "$ref": "#/definitions/clibase.Struct-array_codersdk_LinkConfig"
                 }
             }
         },
@@ -7602,7 +7602,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/bigcli.HostPort"
+                    "$ref": "#/definitions/clibase.HostPort"
                 },
                 "cert_file": {
                     "type": "array",
@@ -7649,7 +7649,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "url": {
-                    "$ref": "#/definitions/bigcli.URL"
+                    "$ref": "#/definitions/clibase.URL"
                 }
             }
         },

@@ -1,11 +1,11 @@
-package bigcli_test
+package clibase_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/bigcli"
+	"github.com/coder/coder/cli/clibase"
 )
 
 func TestOptionSet_ParseFlags(t *testing.T) {
@@ -14,10 +14,10 @@ func TestOptionSet_ParseFlags(t *testing.T) {
 	t.Run("SimpleString", func(t *testing.T) {
 		t.Parallel()
 
-		var workspaceName bigcli.String
+		var workspaceName clibase.String
 
-		os := bigcli.OptionSet{
-			bigcli.Option{
+		os := clibase.OptionSet{
+			clibase.Option{
 				Name:          "Workspace Name",
 				Value:         &workspaceName,
 				Flag:          "workspace-name",
@@ -38,10 +38,10 @@ func TestOptionSet_ParseFlags(t *testing.T) {
 	t.Run("Strings", func(t *testing.T) {
 		t.Parallel()
 
-		var names bigcli.Strings
+		var names clibase.Strings
 
-		os := bigcli.OptionSet{
-			bigcli.Option{
+		os := clibase.OptionSet{
+			clibase.Option{
 				Name:          "name",
 				Value:         &names,
 				Flag:          "name",
@@ -57,10 +57,10 @@ func TestOptionSet_ParseFlags(t *testing.T) {
 	t.Run("ExtraFlags", func(t *testing.T) {
 		t.Parallel()
 
-		var workspaceName bigcli.String
+		var workspaceName clibase.String
 
-		os := bigcli.OptionSet{
-			bigcli.Option{
+		os := clibase.OptionSet{
+			clibase.Option{
 				Name:  "Workspace Name",
 				Value: &workspaceName,
 			},
@@ -77,10 +77,10 @@ func TestOptionSet_ParseEnv(t *testing.T) {
 	t.Run("SimpleString", func(t *testing.T) {
 		t.Parallel()
 
-		var workspaceName bigcli.String
+		var workspaceName clibase.String
 
-		os := bigcli.OptionSet{
-			bigcli.Option{
+		os := clibase.OptionSet{
+			clibase.Option{
 				Name:  "Workspace Name",
 				Value: &workspaceName,
 				Env:   "WORKSPACE_NAME",

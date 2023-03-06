@@ -710,7 +710,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "string"}, nil
 		case "encoding/json.RawMessage":
 			return TypescriptType{ValueType: "Record<string, string>"}, nil
-		case "github.com/coder/coder/cli/bigcli.URL":
+		case "github.com/coder/coder/cli/clibase.URL":
 			return TypescriptType{ValueType: "string"}, nil
 		}
 

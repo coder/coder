@@ -10,7 +10,7 @@ import (
 
 	"github.com/mitchellh/go-wordwrap"
 
-	"github.com/coder/coder/cli/bigcli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 )
 
@@ -20,7 +20,7 @@ var usageTemplateRaw string
 type optionGroup struct {
 	Name        string
 	Description string
-	Options     bigcli.OptionSet
+	Options     clibase.OptionSet
 }
 
 const envPrefix = "CODER_"
@@ -44,22 +44,22 @@ var usageTemplate = template.Must(
 				}
 				return sb.String()
 			},
-			"envName": func(opt bigcli.Option) string {
+			"envName": func(opt clibase.Option) string {
 				if opt.Env == "" {
 					return ""
 				}
 				return envPrefix + opt.Env
 			},
-			"flagName": func(opt bigcli.Option) string {
+			"flagName": func(opt clibase.Option) string {
 				return opt.Flag
 			},
 			"prettyHeader": func(s string) string {
 				return cliui.Styles.Bold.Render(s)
 			},
-			"isEnterprise": func(opt bigcli.Option) bool {
+			"isEnterprise": func(opt clibase.Option) bool {
 				return opt.Annotations.IsSet("enterprise")
 			},
-			"isDeprecated": func(opt bigcli.Option) bool {
+			"isDeprecated": func(opt clibase.Option) bool {
 				return len(opt.UseInstead) > 0
 			},
 			"formatGroupDescription": func(s string) string {
@@ -68,7 +68,7 @@ var usageTemplate = template.Must(
 				s = wordwrap.WrapString(s, 60)
 				return s
 			},
-			"optionGroups": func(cmd *bigcli.Command) []optionGroup {
+			"optionGroups": func(cmd *clibase.Command) []optionGroup {
 				groups := []optionGroup{{
 					// Default group.
 					Name:        "",
@@ -114,7 +114,7 @@ var usageTemplate = template.Must(
 					groups = append(groups, optionGroup{
 						Name:        groupName,
 						Description: opt.Group.Description,
-						Options:     bigcli.OptionSet{opt},
+						Options:     clibase.OptionSet{opt},
 					})
 				}
 				sort.Slice(groups, func(i, j int) bool {
@@ -130,7 +130,7 @@ var usageTemplate = template.Must(
 
 // usageFn returns a function that generates usage (help)
 // output for a given command.
-func usageFn(output io.Writer, cmd *bigcli.Command) func() {
+func usageFn(output io.Writer, cmd *clibase.Command) func() {
 	return func() {
 		err := usageTemplate.Execute(output, cmd)
 		if err != nil {

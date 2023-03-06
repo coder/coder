@@ -55,7 +55,7 @@ import (
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogstackdriver"
 	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/bigcli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
@@ -91,7 +91,7 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 	sort.Strings(environ)
 
 	var providers []codersdk.GitAuthConfig
-	for _, v := range bigcli.EnvsWithPrefix(environ, envPrefix+"GITAUTH_") {
+	for _, v := range clibase.EnvsWithPrefix(environ, envPrefix+"GITAUTH_") {
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
 			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
@@ -164,10 +164,10 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 
 			cfg := &codersdk.DeploymentValues{}
 			cliOpts := cfg.Options()
-			var configDir bigcli.String
+			var configDir clibase.String
 			// This is a hack to get around the fact that the Cobra-defined
 			// flags are not available.
-			cliOpts.Add(bigcli.Option{
+			cliOpts.Add(clibase.Option{
 				Name:        "Global Config",
 				Flag:        config.FlagName,
 				Description: "Global Config is ignored in server mode.",
@@ -188,12 +188,12 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 
 			flagSet := cliOpts.FlagSet()
 			// These parents and children will be moved once we convert the
-			// rest of the `cli` package to bigcli.
-			flagSet.Usage = usageFn(cmd.ErrOrStderr(), &bigcli.Command{
-				Parent: &bigcli.Command{
+			// rest of the `cli` package to clibase.
+			flagSet.Usage = usageFn(cmd.ErrOrStderr(), &clibase.Command{
+				Parent: &clibase.Command{
 					Use: "coder",
 				},
-				Children: []*bigcli.Command{
+				Children: []*clibase.Command{
 					{
 						Use:   "postgres-builtin-url",
 						Short: "Output the connection URL for the built-in PostgreSQL deployment.",
@@ -560,7 +560,7 @@ flags, and YAML configuration. The precedence is as follows:
 					if err != nil {
 						return xerrors.Errorf("parse wildcard url: %w", err)
 					}
-					cfg.WildcardAccessURL = bigcli.URL(*u)
+					cfg.WildcardAccessURL = clibase.URL(*u)
 				}
 			}
 
@@ -1173,7 +1173,7 @@ flags, and YAML configuration. The precedence is as follows:
 
 	createAdminUserCommand := newCreateAdminUserCommand()
 	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		// Help is handled by bigcli in command body.
+		// Help is handled by clibase in command body.
 	})
 	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd, createAdminUserCommand)
 

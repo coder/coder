@@ -1,4 +1,4 @@
-package bigcli_test
+package clibase_test
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/coder/coder/cli/bigcli"
+	"github.com/coder/coder/cli/clibase"
 )
 
 func TestOption_ToYAML(t *testing.T) {
@@ -14,9 +14,9 @@ func TestOption_ToYAML(t *testing.T) {
 
 	t.Run("RequireKey", func(t *testing.T) {
 		t.Parallel()
-		var workspaceName bigcli.String
-		os := bigcli.OptionSet{
-			bigcli.Option{
+		var workspaceName clibase.String
+		os := clibase.OptionSet{
+			clibase.Option{
 				Name:    "Workspace Name",
 				Value:   &workspaceName,
 				Default: "billie",
@@ -31,15 +31,15 @@ func TestOption_ToYAML(t *testing.T) {
 	t.Run("SimpleString", func(t *testing.T) {
 		t.Parallel()
 
-		var workspaceName bigcli.String
+		var workspaceName clibase.String
 
-		os := bigcli.OptionSet{
-			bigcli.Option{
+		os := clibase.OptionSet{
+			clibase.Option{
 				Name:        "Workspace Name",
 				Value:       &workspaceName,
 				Default:     "billie",
 				Description: "The workspace's name",
-				Group:       &bigcli.Group{Name: "Names"},
+				Group:       &clibase.Group{Name: "Names"},
 				YAML:        "workspaceName",
 			},
 		}

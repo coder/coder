@@ -296,7 +296,7 @@
 | ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
 | `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
 
-## bigcli.Annotations
+## clibase.Annotations
 
 ```json
 {
@@ -311,7 +311,7 @@
 | ---------------- | ------ | -------- | ------------ | ----------- |
 | `[any property]` | string | false    |              |             |
 
-## bigcli.Group
+## clibase.Group
 
 ```json
 {
@@ -336,14 +336,14 @@
 
 ### Properties
 
-| Name          | Type                                  | Required | Restrictions | Description |
-| ------------- | ------------------------------------- | -------- | ------------ | ----------- |
-| `children`    | array of [bigcli.Group](#bigcligroup) | false    |              |             |
-| `description` | string                                | false    |              |             |
-| `name`        | string                                | false    |              |             |
-| `parent`      | [bigcli.Group](#bigcligroup)          | false    |              |             |
+| Name          | Type                                    | Required | Restrictions | Description |
+| ------------- | --------------------------------------- | -------- | ------------ | ----------- |
+| `children`    | array of [clibase.Group](#clibasegroup) | false    |              |             |
+| `description` | string                                  | false    |              |             |
+| `name`        | string                                  | false    |              |             |
+| `parent`      | [clibase.Group](#clibasegroup)          | false    |              |             |
 
-## bigcli.HostPort
+## clibase.HostPort
 
 ```json
 {
@@ -359,7 +359,7 @@
 | `host` | string | false    |              |             |
 | `port` | string | false    |              |             |
 
-## bigcli.Option
+## clibase.Option
 
 ```json
 {
@@ -435,22 +435,22 @@
 
 ### Properties
 
-| Name             | Type                                     | Required | Restrictions | Description                                                                                                                    |
-| ---------------- | ---------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `annotations`    | [bigcli.Annotations](#bigcliannotations) | false    |              | Annotations enable extensions to bigcli higher up in the stack. It's useful for help formatting and documentation generation.  |
-| `default`        | string                                   | false    |              | Default is parsed into Value if set.                                                                                           |
-| `description`    | string                                   | false    |              |                                                                                                                                |
-| `env`            | string                                   | false    |              | Env is the environment variable used to configure this option. If unset, environment configuring is disabled.                  |
-| `flag`           | string                                   | false    |              | Flag is the long name of the flag used to configure this option. If unset, flag configuring is disabled.                       |
-| `flag_shorthand` | string                                   | false    |              | Flag shorthand is the one-character shorthand for the flag. If unset, no shorthand is used.                                    |
-| `group`          | [bigcli.Group](#bigcligroup)             | false    |              | Group is a group hierarchy that helps organize this option in help, configs and other documentation.                           |
-| `hidden`         | boolean                                  | false    |              |                                                                                                                                |
-| `name`           | string                                   | false    |              |                                                                                                                                |
-| `use_instead`    | array of [bigcli.Option](#bigclioption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning. |
-| `value`          | any                                      | false    |              | Value includes the types listed in values.go.                                                                                  |
-| `yaml`           | string                                   | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                    |
+| Name             | Type                                       | Required | Restrictions | Description                                                                                                                    |
+| ---------------- | ------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `annotations`    | [clibase.Annotations](#clibaseannotations) | false    |              | Annotations enable extensions to clibase higher up in the stack. It's useful for help formatting and documentation generation. |
+| `default`        | string                                     | false    |              | Default is parsed into Value if set.                                                                                           |
+| `description`    | string                                     | false    |              |                                                                                                                                |
+| `env`            | string                                     | false    |              | Env is the environment variable used to configure this option. If unset, environment configuring is disabled.                  |
+| `flag`           | string                                     | false    |              | Flag is the long name of the flag used to configure this option. If unset, flag configuring is disabled.                       |
+| `flag_shorthand` | string                                     | false    |              | Flag shorthand is the one-character shorthand for the flag. If unset, no shorthand is used.                                    |
+| `group`          | [clibase.Group](#clibasegroup)             | false    |              | Group is a group hierarchy that helps organize this option in help, configs and other documentation.                           |
+| `hidden`         | boolean                                    | false    |              |                                                                                                                                |
+| `name`           | string                                     | false    |              |                                                                                                                                |
+| `use_instead`    | array of [clibase.Option](#clibaseoption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning. |
+| `value`          | any                                        | false    |              | Value includes the types listed in values.go.                                                                                  |
+| `yaml`           | string                                     | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                    |
 
-## bigcli.Struct-array_codersdk_GitAuthConfig
+## clibase.Struct-array_codersdk_GitAuthConfig
 
 ```json
 {
@@ -476,7 +476,7 @@
 | ------- | --------------------------------------------------------- | -------- | ------------ | ----------- |
 | `value` | array of [codersdk.GitAuthConfig](#codersdkgitauthconfig) | false    |              |             |
 
-## bigcli.Struct-array_codersdk_LinkConfig
+## clibase.Struct-array_codersdk_LinkConfig
 
 ```json
 {
@@ -496,7 +496,7 @@
 | ------- | --------------------------------------------------- | -------- | ------------ | ----------- |
 | `value` | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
 
-## bigcli.URL
+## clibase.URL
 
 ```json
 {
@@ -1615,14 +1615,14 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name             | Type                     | Required | Restrictions | Description |
-| ---------------- | ------------------------ | -------- | ------------ | ----------- |
-| `enable`         | boolean                  | false    |              |             |
-| `region_code`    | string                   | false    |              |             |
-| `region_id`      | integer                  | false    |              |             |
-| `region_name`    | string                   | false    |              |             |
-| `relay_url`      | [bigcli.URL](#bigcliurl) | false    |              |             |
-| `stun_addresses` | array of string          | false    |              |             |
+| Name             | Type                       | Required | Restrictions | Description |
+| ---------------- | -------------------------- | -------- | ------------ | ----------- |
+| `enable`         | boolean                    | false    |              |             |
+| `region_code`    | string                     | false    |              |             |
+| `region_id`      | integer                    | false    |              |             |
+| `region_name`    | string                     | false    |              |             |
+| `relay_url`      | [clibase.URL](#clibaseurl) | false    |              |             |
+| `stun_addresses` | array of string            | false    |              |             |
 
 ## codersdk.DangerousConfig
 
@@ -1920,7 +1920,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Name      | Type                                                   | Required | Restrictions | Description |
 | --------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
 | `config`  | [codersdk.DeploymentValues](#codersdkdeploymentvalues) | false    |              |             |
-| `options` | array of [bigcli.Option](#bigclioption)                | false    |              |             |
+| `options` | array of [clibase.Option](#clibaseoption)              | false    |              |             |
 
 ## codersdk.DeploymentDAUsResponse
 
@@ -2180,54 +2180,54 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name                                 | Type                                                                                     | Required | Restrictions | Description                                                        |
-| ------------------------------------ | ---------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------ |
-| `access_url`                         | [bigcli.URL](#bigcliurl)                                                                 | false    |              |                                                                    |
-| `address`                            | [bigcli.HostPort](#bigclihostport)                                                       | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
-| `agent_fallback_troubleshooting_url` | [bigcli.URL](#bigcliurl)                                                                 | false    |              |                                                                    |
-| `agent_stat_refresh_interval`        | integer                                                                                  | false    |              |                                                                    |
-| `audit_logging`                      | boolean                                                                                  | false    |              |                                                                    |
-| `autobuild_poll_interval`            | integer                                                                                  | false    |              |                                                                    |
-| `browser_only`                       | boolean                                                                                  | false    |              |                                                                    |
-| `cache_directory`                    | string                                                                                   | false    |              |                                                                    |
-| `config`                             | string                                                                                   | false    |              |                                                                    |
-| `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                     | false    |              |                                                                    |
-| `derp`                               | [codersdk.DERP](#codersdkderp)                                                           | false    |              |                                                                    |
-| `disable_password_auth`              | boolean                                                                                  | false    |              |                                                                    |
-| `disable_path_apps`                  | boolean                                                                                  | false    |              |                                                                    |
-| `disable_session_expiry_refresh`     | boolean                                                                                  | false    |              |                                                                    |
-| `experiments`                        | array of string                                                                          | false    |              |                                                                    |
-| `git_auth`                           | [bigcli.Struct-array_codersdk_GitAuthConfig](#bigclistruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
-| `http_address`                       | string                                                                                   | false    |              | Http address is a string because it may be set to zero to disable. |
-| `in_memory_database`                 | boolean                                                                                  | false    |              |                                                                    |
-| `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                         | false    |              |                                                                    |
-| `max_session_expiry`                 | integer                                                                                  | false    |              |                                                                    |
-| `max_token_lifetime`                 | integer                                                                                  | false    |              |                                                                    |
-| `metrics_cache_refresh_interval`     | integer                                                                                  | false    |              |                                                                    |
-| `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                           | false    |              |                                                                    |
-| `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                               | false    |              |                                                                    |
-| `pg_connection_url`                  | string                                                                                   | false    |              |                                                                    |
-| `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                             | false    |              |                                                                    |
-| `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                   | false    |              |                                                                    |
-| `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                 | false    |              |                                                                    |
-| `proxy_trusted_headers`              | array of string                                                                          | false    |              |                                                                    |
-| `proxy_trusted_origins`              | array of string                                                                          | false    |              |                                                                    |
-| `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                     | false    |              |                                                                    |
-| `redirect_to_access_url`             | boolean                                                                                  | false    |              |                                                                    |
-| `scim_api_key`                       | string                                                                                   | false    |              |                                                                    |
-| `secure_auth_cookie`                 | boolean                                                                                  | false    |              |                                                                    |
-| `ssh_keygen_algorithm`               | string                                                                                   | false    |              |                                                                    |
-| `strict_transport_security`          | integer                                                                                  | false    |              |                                                                    |
-| `strict_transport_security_options`  | array of string                                                                          | false    |              |                                                                    |
-| `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                         | false    |              |                                                                    |
-| `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                         | false    |              |                                                                    |
-| `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                     | false    |              |                                                                    |
-| `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                 | false    |              |                                                                    |
-| `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                             | false    |              |                                                                    |
-| `update_check`                       | boolean                                                                                  | false    |              |                                                                    |
-| `verbose`                            | boolean                                                                                  | false    |              |                                                                    |
-| `wildcard_access_url`                | [bigcli.URL](#bigcliurl)                                                                 | false    |              |                                                                    |
-| `write_config`                       | boolean                                                                                  | false    |              |                                                                    |
+| Name                                 | Type                                                                                       | Required | Restrictions | Description                                                        |
+| ------------------------------------ | ------------------------------------------------------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------ |
+| `access_url`                         | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
+| `address`                            | [clibase.HostPort](#clibasehostport)                                                       | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
+| `agent_fallback_troubleshooting_url` | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
+| `agent_stat_refresh_interval`        | integer                                                                                    | false    |              |                                                                    |
+| `audit_logging`                      | boolean                                                                                    | false    |              |                                                                    |
+| `autobuild_poll_interval`            | integer                                                                                    | false    |              |                                                                    |
+| `browser_only`                       | boolean                                                                                    | false    |              |                                                                    |
+| `cache_directory`                    | string                                                                                     | false    |              |                                                                    |
+| `config`                             | string                                                                                     | false    |              |                                                                    |
+| `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                       | false    |              |                                                                    |
+| `derp`                               | [codersdk.DERP](#codersdkderp)                                                             | false    |              |                                                                    |
+| `disable_password_auth`              | boolean                                                                                    | false    |              |                                                                    |
+| `disable_path_apps`                  | boolean                                                                                    | false    |              |                                                                    |
+| `disable_session_expiry_refresh`     | boolean                                                                                    | false    |              |                                                                    |
+| `experiments`                        | array of string                                                                            | false    |              |                                                                    |
+| `git_auth`                           | [clibase.Struct-array_codersdk_GitAuthConfig](#clibasestruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
+| `http_address`                       | string                                                                                     | false    |              | Http address is a string because it may be set to zero to disable. |
+| `in_memory_database`                 | boolean                                                                                    | false    |              |                                                                    |
+| `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                           | false    |              |                                                                    |
+| `max_session_expiry`                 | integer                                                                                    | false    |              |                                                                    |
+| `max_token_lifetime`                 | integer                                                                                    | false    |              |                                                                    |
+| `metrics_cache_refresh_interval`     | integer                                                                                    | false    |              |                                                                    |
+| `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                             | false    |              |                                                                    |
+| `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                 | false    |              |                                                                    |
+| `pg_connection_url`                  | string                                                                                     | false    |              |                                                                    |
+| `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                               | false    |              |                                                                    |
+| `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                     | false    |              |                                                                    |
+| `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                   | false    |              |                                                                    |
+| `proxy_trusted_headers`              | array of string                                                                            | false    |              |                                                                    |
+| `proxy_trusted_origins`              | array of string                                                                            | false    |              |                                                                    |
+| `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                       | false    |              |                                                                    |
+| `redirect_to_access_url`             | boolean                                                                                    | false    |              |                                                                    |
+| `scim_api_key`                       | string                                                                                     | false    |              |                                                                    |
+| `secure_auth_cookie`                 | boolean                                                                                    | false    |              |                                                                    |
+| `ssh_keygen_algorithm`               | string                                                                                     | false    |              |                                                                    |
+| `strict_transport_security`          | integer                                                                                    | false    |              |                                                                    |
+| `strict_transport_security_options`  | array of string                                                                            | false    |              |                                                                    |
+| `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                           | false    |              |                                                                    |
+| `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                           | false    |              |                                                                    |
+| `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                       | false    |              |                                                                    |
+| `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                   | false    |              |                                                                    |
+| `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                               | false    |              |                                                                    |
+| `update_check`                       | boolean                                                                                    | false    |              |                                                                    |
+| `verbose`                            | boolean                                                                                    | false    |              |                                                                    |
+| `wildcard_access_url`                | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
+| `write_config`                       | boolean                                                                                    | false    |              |                                                                    |
 
 ## codersdk.Entitlement
 
@@ -2724,18 +2724,18 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name                    | Type                     | Required | Restrictions | Description |
-| ----------------------- | ------------------------ | -------- | ------------ | ----------- |
-| `allow_signups`         | boolean                  | false    |              |             |
-| `client_id`             | string                   | false    |              |             |
-| `client_secret`         | string                   | false    |              |             |
-| `email_domain`          | array of string          | false    |              |             |
-| `icon_url`              | [bigcli.URL](#bigcliurl) | false    |              |             |
-| `ignore_email_verified` | boolean                  | false    |              |             |
-| `issuer_url`            | string                   | false    |              |             |
-| `scopes`                | array of string          | false    |              |             |
-| `sign_in_text`          | string                   | false    |              |             |
-| `username_field`        | string                   | false    |              |             |
+| Name                    | Type                       | Required | Restrictions | Description |
+| ----------------------- | -------------------------- | -------- | ------------ | ----------- |
+| `allow_signups`         | boolean                    | false    |              |             |
+| `client_id`             | string                     | false    |              |             |
+| `client_secret`         | string                     | false    |              |             |
+| `email_domain`          | array of string            | false    |              |             |
+| `icon_url`              | [clibase.URL](#clibaseurl) | false    |              |             |
+| `ignore_email_verified` | boolean                    | false    |              |             |
+| `issuer_url`            | string                     | false    |              |             |
+| `scopes`                | array of string            | false    |              |             |
+| `sign_in_text`          | string                     | false    |              |             |
+| `username_field`        | string                     | false    |              |             |
 
 ## codersdk.Organization
 
@@ -2944,10 +2944,10 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name      | Type                               | Required | Restrictions | Description |
-| --------- | ---------------------------------- | -------- | ------------ | ----------- |
-| `address` | [bigcli.HostPort](#bigclihostport) | false    |              |             |
-| `enable`  | boolean                            | false    |              |             |
+| Name      | Type                                 | Required | Restrictions | Description |
+| --------- | ------------------------------------ | -------- | ------------ | ----------- |
+| `address` | [clibase.HostPort](#clibasehostport) | false    |              |             |
+| `enable`  | boolean                              | false    |              |             |
 
 ## codersdk.PrometheusConfig
 
@@ -2963,10 +2963,10 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name      | Type                               | Required | Restrictions | Description |
-| --------- | ---------------------------------- | -------- | ------------ | ----------- |
-| `address` | [bigcli.HostPort](#bigclihostport) | false    |              |             |
-| `enable`  | boolean                            | false    |              |             |
+| Name      | Type                                 | Required | Restrictions | Description |
+| --------- | ------------------------------------ | -------- | ------------ | ----------- |
+| `address` | [clibase.HostPort](#clibasehostport) | false    |              |             |
+| `enable`  | boolean                              | false    |              |             |
 
 ## codersdk.ProvisionerConfig
 
@@ -3286,9 +3286,9 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name    | Type                                                                               | Required | Restrictions | Description |
-| ------- | ---------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `links` | [bigcli.Struct-array_codersdk_LinkConfig](#bigclistruct-array_codersdk_linkconfig) | false    |              |             |
+| Name    | Type                                                                                 | Required | Restrictions | Description |
+| ------- | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `links` | [clibase.Struct-array_codersdk_LinkConfig](#clibasestruct-array_codersdk_linkconfig) | false    |              |             |
 
 ## codersdk.SwaggerConfig
 
@@ -3326,18 +3326,18 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name               | Type                               | Required | Restrictions | Description |
-| ------------------ | ---------------------------------- | -------- | ------------ | ----------- |
-| `address`          | [bigcli.HostPort](#bigclihostport) | false    |              |             |
-| `cert_file`        | array of string                    | false    |              |             |
-| `client_auth`      | string                             | false    |              |             |
-| `client_ca_file`   | string                             | false    |              |             |
-| `client_cert_file` | string                             | false    |              |             |
-| `client_key_file`  | string                             | false    |              |             |
-| `enable`           | boolean                            | false    |              |             |
-| `key_file`         | array of string                    | false    |              |             |
-| `min_version`      | string                             | false    |              |             |
-| `redirect_http`    | boolean                            | false    |              |             |
+| Name               | Type                                 | Required | Restrictions | Description |
+| ------------------ | ------------------------------------ | -------- | ------------ | ----------- |
+| `address`          | [clibase.HostPort](#clibasehostport) | false    |              |             |
+| `cert_file`        | array of string                      | false    |              |             |
+| `client_auth`      | string                               | false    |              |             |
+| `client_ca_file`   | string                               | false    |              |             |
+| `client_cert_file` | string                               | false    |              |             |
+| `client_key_file`  | string                               | false    |              |             |
+| `enable`           | boolean                              | false    |              |             |
+| `key_file`         | array of string                      | false    |              |             |
+| `min_version`      | string                               | false    |              |             |
+| `redirect_http`    | boolean                              | false    |              |             |
 
 ## codersdk.TelemetryConfig
 
@@ -3363,11 +3363,11 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name     | Type                     | Required | Restrictions | Description |
-| -------- | ------------------------ | -------- | ------------ | ----------- |
-| `enable` | boolean                  | false    |              |             |
-| `trace`  | boolean                  | false    |              |             |
-| `url`    | [bigcli.URL](#bigcliurl) | false    |              |             |
+| Name     | Type                       | Required | Restrictions | Description |
+| -------- | -------------------------- | -------- | ------------ | ----------- |
+| `enable` | boolean                    | false    |              |             |
+| `trace`  | boolean                    | false    |              |             |
+| `url`    | [clibase.URL](#clibaseurl) | false    |              |             |
 
 ## codersdk.Template
 

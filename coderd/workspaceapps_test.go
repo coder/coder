@@ -21,7 +21,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
-	"github.com/coder/coder/cli/bigcli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
@@ -152,9 +152,9 @@ func setupProxyTest(t *testing.T, opts *setupProxyTestOpts) (*codersdk.Client, c
 	require.True(t, ok)
 
 	deploymentValues := coderdtest.DeploymentValues(t)
-	deploymentValues.DisablePathApps = bigcli.Bool(opts.DisablePathApps)
-	deploymentValues.Dangerous.AllowPathAppSharing = bigcli.Bool(opts.DangerousAllowPathAppSharing)
-	deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = bigcli.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
+	deploymentValues.DisablePathApps = clibase.Bool(opts.DisablePathApps)
+	deploymentValues.Dangerous.AllowPathAppSharing = clibase.Bool(opts.DangerousAllowPathAppSharing)
+	deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = clibase.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues:            deploymentValues,

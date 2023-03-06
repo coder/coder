@@ -18,7 +18,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 
 	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/bigcli"
+	"github.com/coder/coder/cli/clibase"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -114,56 +114,56 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
-	Verbose             bigcli.Bool `json:"verbose,omitempty"`
-	AccessURL           bigcli.URL  `json:"access_url,omitempty"`
-	WildcardAccessURL   bigcli.URL  `json:"wildcard_access_url,omitempty"`
-	RedirectToAccessURL bigcli.Bool `json:"redirect_to_access_url,omitempty"`
+	Verbose             clibase.Bool `json:"verbose,omitempty"`
+	AccessURL           clibase.URL  `json:"access_url,omitempty"`
+	WildcardAccessURL   clibase.URL  `json:"wildcard_access_url,omitempty"`
+	RedirectToAccessURL clibase.Bool `json:"redirect_to_access_url,omitempty"`
 	// HTTPAddress is a string because it may be set to zero to disable.
-	HTTPAddress                     bigcli.String                  `json:"http_address,omitempty" typescript:",notnull"`
-	AutobuildPollInterval           bigcli.Duration                `json:"autobuild_poll_interval,omitempty"`
-	DERP                            DERP                           `json:"derp,omitempty" typescript:",notnull"`
-	Prometheus                      PrometheusConfig               `json:"prometheus,omitempty" typescript:",notnull"`
-	Pprof                           PprofConfig                    `json:"pprof,omitempty" typescript:",notnull"`
-	ProxyTrustedHeaders             bigcli.Strings                 `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
-	ProxyTrustedOrigins             bigcli.Strings                 `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
-	CacheDir                        bigcli.String                  `json:"cache_directory,omitempty" typescript:",notnull"`
-	InMemoryDatabase                bigcli.Bool                    `json:"in_memory_database,omitempty" typescript:",notnull"`
-	PostgresURL                     bigcli.String                  `json:"pg_connection_url,omitempty" typescript:",notnull"`
-	OAuth2                          OAuth2Config                   `json:"oauth2,omitempty" typescript:",notnull"`
-	OIDC                            OIDCConfig                     `json:"oidc,omitempty" typescript:",notnull"`
-	Telemetry                       TelemetryConfig                `json:"telemetry,omitempty" typescript:",notnull"`
-	TLS                             TLSConfig                      `json:"tls,omitempty" typescript:",notnull"`
-	Trace                           TraceConfig                    `json:"trace,omitempty" typescript:",notnull"`
-	SecureAuthCookie                bigcli.Bool                    `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
-	StrictTransportSecurity         bigcli.Int64                   `json:"strict_transport_security,omitempty" typescript:",notnull"`
-	StrictTransportSecurityOptions  bigcli.Strings                 `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
-	SSHKeygenAlgorithm              bigcli.String                  `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
-	MetricsCacheRefreshInterval     bigcli.Duration                `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
-	AgentStatRefreshInterval        bigcli.Duration                `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
-	AgentFallbackTroubleshootingURL bigcli.URL                     `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
-	AuditLogging                    bigcli.Bool                    `json:"audit_logging,omitempty" typescript:",notnull"`
-	BrowserOnly                     bigcli.Bool                    `json:"browser_only,omitempty" typescript:",notnull"`
-	SCIMAPIKey                      bigcli.String                  `json:"scim_api_key,omitempty" typescript:",notnull"`
-	Provisioner                     ProvisionerConfig              `json:"provisioner,omitempty" typescript:",notnull"`
-	RateLimit                       RateLimitConfig                `json:"rate_limit,omitempty" typescript:",notnull"`
-	Experiments                     bigcli.Strings                 `json:"experiments,omitempty" typescript:",notnull"`
-	UpdateCheck                     bigcli.Bool                    `json:"update_check,omitempty" typescript:",notnull"`
-	MaxTokenLifetime                bigcli.Duration                `json:"max_token_lifetime,omitempty" typescript:",notnull"`
-	Swagger                         SwaggerConfig                  `json:"swagger,omitempty" typescript:",notnull"`
-	Logging                         LoggingConfig                  `json:"logging,omitempty" typescript:",notnull"`
-	Dangerous                       DangerousConfig                `json:"dangerous,omitempty" typescript:",notnull"`
-	DisablePathApps                 bigcli.Bool                    `json:"disable_path_apps,omitempty" typescript:",notnull"`
-	SessionDuration                 bigcli.Duration                `json:"max_session_expiry,omitempty" typescript:",notnull"`
-	DisableSessionExpiryRefresh     bigcli.Bool                    `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
-	DisablePasswordAuth             bigcli.Bool                    `json:"disable_password_auth,omitempty" typescript:",notnull"`
-	Support                         SupportConfig                  `json:"support,omitempty" typescript:",notnull"`
-	GitAuthProviders                bigcli.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
+	HTTPAddress                     clibase.String                  `json:"http_address,omitempty" typescript:",notnull"`
+	AutobuildPollInterval           clibase.Duration                `json:"autobuild_poll_interval,omitempty"`
+	DERP                            DERP                            `json:"derp,omitempty" typescript:",notnull"`
+	Prometheus                      PrometheusConfig                `json:"prometheus,omitempty" typescript:",notnull"`
+	Pprof                           PprofConfig                     `json:"pprof,omitempty" typescript:",notnull"`
+	ProxyTrustedHeaders             clibase.Strings                 `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
+	ProxyTrustedOrigins             clibase.Strings                 `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
+	CacheDir                        clibase.String                  `json:"cache_directory,omitempty" typescript:",notnull"`
+	InMemoryDatabase                clibase.Bool                    `json:"in_memory_database,omitempty" typescript:",notnull"`
+	PostgresURL                     clibase.String                  `json:"pg_connection_url,omitempty" typescript:",notnull"`
+	OAuth2                          OAuth2Config                    `json:"oauth2,omitempty" typescript:",notnull"`
+	OIDC                            OIDCConfig                      `json:"oidc,omitempty" typescript:",notnull"`
+	Telemetry                       TelemetryConfig                 `json:"telemetry,omitempty" typescript:",notnull"`
+	TLS                             TLSConfig                       `json:"tls,omitempty" typescript:",notnull"`
+	Trace                           TraceConfig                     `json:"trace,omitempty" typescript:",notnull"`
+	SecureAuthCookie                clibase.Bool                    `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
+	StrictTransportSecurity         clibase.Int64                   `json:"strict_transport_security,omitempty" typescript:",notnull"`
+	StrictTransportSecurityOptions  clibase.Strings                 `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
+	SSHKeygenAlgorithm              clibase.String                  `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
+	MetricsCacheRefreshInterval     clibase.Duration                `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
+	AgentStatRefreshInterval        clibase.Duration                `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
+	AgentFallbackTroubleshootingURL clibase.URL                     `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
+	AuditLogging                    clibase.Bool                    `json:"audit_logging,omitempty" typescript:",notnull"`
+	BrowserOnly                     clibase.Bool                    `json:"browser_only,omitempty" typescript:",notnull"`
+	SCIMAPIKey                      clibase.String                  `json:"scim_api_key,omitempty" typescript:",notnull"`
+	Provisioner                     ProvisionerConfig               `json:"provisioner,omitempty" typescript:",notnull"`
+	RateLimit                       RateLimitConfig                 `json:"rate_limit,omitempty" typescript:",notnull"`
+	Experiments                     clibase.Strings                 `json:"experiments,omitempty" typescript:",notnull"`
+	UpdateCheck                     clibase.Bool                    `json:"update_check,omitempty" typescript:",notnull"`
+	MaxTokenLifetime                clibase.Duration                `json:"max_token_lifetime,omitempty" typescript:",notnull"`
+	Swagger                         SwaggerConfig                   `json:"swagger,omitempty" typescript:",notnull"`
+	Logging                         LoggingConfig                   `json:"logging,omitempty" typescript:",notnull"`
+	Dangerous                       DangerousConfig                 `json:"dangerous,omitempty" typescript:",notnull"`
+	DisablePathApps                 clibase.Bool                    `json:"disable_path_apps,omitempty" typescript:",notnull"`
+	SessionDuration                 clibase.Duration                `json:"max_session_expiry,omitempty" typescript:",notnull"`
+	DisableSessionExpiryRefresh     clibase.Bool                    `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
+	DisablePasswordAuth             clibase.Bool                    `json:"disable_password_auth,omitempty" typescript:",notnull"`
+	Support                         SupportConfig                   `json:"support,omitempty" typescript:",notnull"`
+	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
 
-	Config      bigcli.String `json:"config,omitempty" typescript:",notnull"`
-	WriteConfig bigcli.Bool   `json:"write_config,omitempty" typescript:",notnull"`
+	Config      clibase.String `json:"config,omitempty" typescript:",notnull"`
+	WriteConfig clibase.Bool   `json:"write_config,omitempty" typescript:",notnull"`
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
-	Address bigcli.HostPort `json:"address,omitempty" typescript:",notnull"`
+	Address clibase.HostPort `json:"address,omitempty" typescript:",notnull"`
 }
 
 type DERP struct {
@@ -172,27 +172,27 @@ type DERP struct {
 }
 
 type DERPServerConfig struct {
-	Enable        bigcli.Bool    `json:"enable" typescript:",notnull"`
-	RegionID      bigcli.Int64   `json:"region_id" typescript:",notnull"`
-	RegionCode    bigcli.String  `json:"region_code" typescript:",notnull"`
-	RegionName    bigcli.String  `json:"region_name" typescript:",notnull"`
-	STUNAddresses bigcli.Strings `json:"stun_addresses" typescript:",notnull"`
-	RelayURL      bigcli.URL     `json:"relay_url" typescript:",notnull"`
+	Enable        clibase.Bool    `json:"enable" typescript:",notnull"`
+	RegionID      clibase.Int64   `json:"region_id" typescript:",notnull"`
+	RegionCode    clibase.String  `json:"region_code" typescript:",notnull"`
+	RegionName    clibase.String  `json:"region_name" typescript:",notnull"`
+	STUNAddresses clibase.Strings `json:"stun_addresses" typescript:",notnull"`
+	RelayURL      clibase.URL     `json:"relay_url" typescript:",notnull"`
 }
 
 type DERPConfig struct {
-	URL  bigcli.String `json:"url" typescript:",notnull"`
-	Path bigcli.String `json:"path" typescript:",notnull"`
+	URL  clibase.String `json:"url" typescript:",notnull"`
+	Path clibase.String `json:"path" typescript:",notnull"`
 }
 
 type PrometheusConfig struct {
-	Enable  bigcli.Bool     `json:"enable" typescript:",notnull"`
-	Address bigcli.HostPort `json:"address" typescript:",notnull"`
+	Enable  clibase.Bool     `json:"enable" typescript:",notnull"`
+	Address clibase.HostPort `json:"address" typescript:",notnull"`
 }
 
 type PprofConfig struct {
-	Enable  bigcli.Bool     `json:"enable" typescript:",notnull"`
-	Address bigcli.HostPort `json:"address" typescript:",notnull"`
+	Enable  clibase.Bool     `json:"enable" typescript:",notnull"`
+	Address clibase.HostPort `json:"address" typescript:",notnull"`
 }
 
 type OAuth2Config struct {
@@ -200,51 +200,51 @@ type OAuth2Config struct {
 }
 
 type OAuth2GithubConfig struct {
-	ClientID          bigcli.String  `json:"client_id" typescript:",notnull"`
-	ClientSecret      bigcli.String  `json:"client_secret" typescript:",notnull"`
-	AllowedOrgs       bigcli.Strings `json:"allowed_orgs" typescript:",notnull"`
-	AllowedTeams      bigcli.Strings `json:"allowed_teams" typescript:",notnull"`
-	AllowSignups      bigcli.Bool    `json:"allow_signups" typescript:",notnull"`
-	AllowEveryone     bigcli.Bool    `json:"allow_everyone" typescript:",notnull"`
-	EnterpriseBaseURL bigcli.String  `json:"enterprise_base_url" typescript:",notnull"`
+	ClientID          clibase.String  `json:"client_id" typescript:",notnull"`
+	ClientSecret      clibase.String  `json:"client_secret" typescript:",notnull"`
+	AllowedOrgs       clibase.Strings `json:"allowed_orgs" typescript:",notnull"`
+	AllowedTeams      clibase.Strings `json:"allowed_teams" typescript:",notnull"`
+	AllowSignups      clibase.Bool    `json:"allow_signups" typescript:",notnull"`
+	AllowEveryone     clibase.Bool    `json:"allow_everyone" typescript:",notnull"`
+	EnterpriseBaseURL clibase.String  `json:"enterprise_base_url" typescript:",notnull"`
 }
 
 type OIDCConfig struct {
-	AllowSignups        bigcli.Bool    `json:"allow_signups" typescript:",notnull"`
-	ClientID            bigcli.String  `json:"client_id" typescript:",notnull"`
-	ClientSecret        bigcli.String  `json:"client_secret" typescript:",notnull"`
-	EmailDomain         bigcli.Strings `json:"email_domain" typescript:",notnull"`
-	IssuerURL           bigcli.String  `json:"issuer_url" typescript:",notnull"`
-	Scopes              bigcli.Strings `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified bigcli.Bool    `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField       bigcli.String  `json:"username_field" typescript:",notnull"`
-	SignInText          bigcli.String  `json:"sign_in_text" typescript:",notnull"`
-	IconURL             bigcli.URL     `json:"icon_url" typescript:",notnull"`
+	AllowSignups        clibase.Bool    `json:"allow_signups" typescript:",notnull"`
+	ClientID            clibase.String  `json:"client_id" typescript:",notnull"`
+	ClientSecret        clibase.String  `json:"client_secret" typescript:",notnull"`
+	EmailDomain         clibase.Strings `json:"email_domain" typescript:",notnull"`
+	IssuerURL           clibase.String  `json:"issuer_url" typescript:",notnull"`
+	Scopes              clibase.Strings `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified clibase.Bool    `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       clibase.String  `json:"username_field" typescript:",notnull"`
+	SignInText          clibase.String  `json:"sign_in_text" typescript:",notnull"`
+	IconURL             clibase.URL     `json:"icon_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
-	Enable bigcli.Bool `json:"enable" typescript:",notnull"`
-	Trace  bigcli.Bool `json:"trace" typescript:",notnull"`
-	URL    bigcli.URL  `json:"url" typescript:",notnull"`
+	Enable clibase.Bool `json:"enable" typescript:",notnull"`
+	Trace  clibase.Bool `json:"trace" typescript:",notnull"`
+	URL    clibase.URL  `json:"url" typescript:",notnull"`
 }
 
 type TLSConfig struct {
-	Enable         bigcli.Bool     `json:"enable" typescript:",notnull"`
-	Address        bigcli.HostPort `json:"address" typescript:",notnull"`
-	RedirectHTTP   bigcli.Bool     `json:"redirect_http" typescript:",notnull"`
-	CertFiles      bigcli.Strings  `json:"cert_file" typescript:",notnull"`
-	ClientAuth     bigcli.String   `json:"client_auth" typescript:",notnull"`
-	ClientCAFile   bigcli.String   `json:"client_ca_file" typescript:",notnull"`
-	KeyFiles       bigcli.Strings  `json:"key_file" typescript:",notnull"`
-	MinVersion     bigcli.String   `json:"min_version" typescript:",notnull"`
-	ClientCertFile bigcli.String   `json:"client_cert_file" typescript:",notnull"`
-	ClientKeyFile  bigcli.String   `json:"client_key_file" typescript:",notnull"`
+	Enable         clibase.Bool     `json:"enable" typescript:",notnull"`
+	Address        clibase.HostPort `json:"address" typescript:",notnull"`
+	RedirectHTTP   clibase.Bool     `json:"redirect_http" typescript:",notnull"`
+	CertFiles      clibase.Strings  `json:"cert_file" typescript:",notnull"`
+	ClientAuth     clibase.String   `json:"client_auth" typescript:",notnull"`
+	ClientCAFile   clibase.String   `json:"client_ca_file" typescript:",notnull"`
+	KeyFiles       clibase.Strings  `json:"key_file" typescript:",notnull"`
+	MinVersion     clibase.String   `json:"min_version" typescript:",notnull"`
+	ClientCertFile clibase.String   `json:"client_cert_file" typescript:",notnull"`
+	ClientKeyFile  clibase.String   `json:"client_key_file" typescript:",notnull"`
 }
 
 type TraceConfig struct {
-	Enable          bigcli.Bool   `json:"enable" typescript:",notnull"`
-	HoneycombAPIKey bigcli.String `json:"honeycomb_api_key" typescript:",notnull"`
-	CaptureLogs     bigcli.Bool   `json:"capture_logs" typescript:",notnull"`
+	Enable          clibase.Bool   `json:"enable" typescript:",notnull"`
+	HoneycombAPIKey clibase.String `json:"honeycomb_api_key" typescript:",notnull"`
+	CaptureLogs     clibase.Bool   `json:"capture_logs" typescript:",notnull"`
 }
 
 type GitAuthConfig struct {
@@ -261,30 +261,30 @@ type GitAuthConfig struct {
 }
 
 type ProvisionerConfig struct {
-	Daemons             bigcli.Int64    `json:"daemons" typescript:",notnull"`
-	DaemonPollInterval  bigcli.Duration `json:"daemon_poll_interval" typescript:",notnull"`
-	DaemonPollJitter    bigcli.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
-	ForceCancelInterval bigcli.Duration `json:"force_cancel_interval" typescript:",notnull"`
+	Daemons             clibase.Int64    `json:"daemons" typescript:",notnull"`
+	DaemonPollInterval  clibase.Duration `json:"daemon_poll_interval" typescript:",notnull"`
+	DaemonPollJitter    clibase.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
+	ForceCancelInterval clibase.Duration `json:"force_cancel_interval" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
-	DisableAll bigcli.Bool  `json:"disable_all" typescript:",notnull"`
-	API        bigcli.Int64 `json:"api" typescript:",notnull"`
+	DisableAll clibase.Bool  `json:"disable_all" typescript:",notnull"`
+	API        clibase.Int64 `json:"api" typescript:",notnull"`
 }
 
 type SwaggerConfig struct {
-	Enable bigcli.Bool `json:"enable" typescript:",notnull"`
+	Enable clibase.Bool `json:"enable" typescript:",notnull"`
 }
 
 type LoggingConfig struct {
-	Human       bigcli.String `json:"human" typescript:",notnull"`
-	JSON        bigcli.String `json:"json" typescript:",notnull"`
-	Stackdriver bigcli.String `json:"stackdriver" typescript:",notnull"`
+	Human       clibase.String `json:"human" typescript:",notnull"`
+	JSON        clibase.String `json:"json" typescript:",notnull"`
+	Stackdriver clibase.String `json:"stackdriver" typescript:",notnull"`
 }
 
 type DangerousConfig struct {
-	AllowPathAppSharing         bigcli.Bool `json:"allow_path_app_sharing" typescript:",notnull"`
-	AllowPathAppSiteOwnerAccess bigcli.Bool `json:"allow_path_app_site_owner_access" typescript:",notnull"`
+	AllowPathAppSharing         clibase.Bool `json:"allow_path_app_sharing" typescript:",notnull"`
+	AllowPathAppSiteOwnerAccess clibase.Bool `json:"allow_path_app_site_owner_access" typescript:",notnull"`
 }
 
 const (
@@ -292,7 +292,7 @@ const (
 	flagSecretKey     = "secret"
 )
 
-func IsSecretDeploymentOption(opt bigcli.Option) bool {
+func IsSecretDeploymentOption(opt clibase.Option) bool {
 	return opt.Annotations.IsSet(flagSecretKey)
 }
 
@@ -311,21 +311,21 @@ func DefaultCacheDir() string {
 
 // The DeploymentGroup variables are used to organize the myriad server options.
 var (
-	DeploymentGroupNetworking = bigcli.Group{
+	DeploymentGroupNetworking = clibase.Group{
 		Name: "Networking",
 	}
-	DeploymentGroupNetworkingTLS = bigcli.Group{
+	DeploymentGroupNetworkingTLS = clibase.Group{
 		Parent: &DeploymentGroupNetworking,
 		Name:   "TLS",
 		Description: `Configure TLS / HTTPS for your Coder deployment. If you're running
 Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
 secure link, you can safely ignore these settings.`,
 	}
-	DeploymentGroupNetworkingHTTP = bigcli.Group{
+	DeploymentGroupNetworkingHTTP = clibase.Group{
 		Parent: &DeploymentGroupNetworking,
 		Name:   "HTTP",
 	}
-	DeploymentGroupNetworkingDERP = bigcli.Group{
+	DeploymentGroupNetworkingDERP = clibase.Group{
 		Parent: &DeploymentGroupNetworking,
 		Name:   "DERP",
 		Description: `Most Coder deployments never have to think about DERP because all connections
@@ -333,51 +333,51 @@ between workspaces and users are peer-to-peer. However, when Coder cannot establ
 a peer to peer connection, Coder uses a distributed relay network backed by
 Tailscale and WireGuard.`,
 	}
-	DeploymentGroupIntrospection = bigcli.Group{
+	DeploymentGroupIntrospection = clibase.Group{
 		Name:        "Introspection",
 		Description: `Configure logging, tracing, and metrics exporting.`,
 	}
-	DeploymentGroupIntrospectionPPROF = bigcli.Group{
+	DeploymentGroupIntrospectionPPROF = clibase.Group{
 		Parent: &DeploymentGroupIntrospection,
 		Name:   "pprof",
 	}
-	DeploymentGroupIntrospectionPrometheus = bigcli.Group{
+	DeploymentGroupIntrospectionPrometheus = clibase.Group{
 		Parent: &DeploymentGroupIntrospection,
 		Name:   "Prometheus",
 	}
-	DeploymentGroupIntrospectionTracing = bigcli.Group{
+	DeploymentGroupIntrospectionTracing = clibase.Group{
 		Parent: &DeploymentGroupIntrospection,
 		Name:   "Tracing",
 	}
-	DeploymentGroupIntrospectionLogging = bigcli.Group{
+	DeploymentGroupIntrospectionLogging = clibase.Group{
 		Parent: &DeploymentGroupIntrospection,
 		Name:   "Logging",
 	}
-	DeploymentGroupOAuth2 = bigcli.Group{
+	DeploymentGroupOAuth2 = clibase.Group{
 		Name:        "OAuth2",
 		Description: `Configure login and user-provisioning with GitHub via oAuth2.`,
 	}
-	DeploymentGroupOAuth2GitHub = bigcli.Group{
+	DeploymentGroupOAuth2GitHub = clibase.Group{
 		Parent: &DeploymentGroupOAuth2,
 		Name:   "GitHub",
 	}
-	DeploymentGroupOIDC = bigcli.Group{
+	DeploymentGroupOIDC = clibase.Group{
 		Name: "OIDC",
 	}
-	DeploymentGroupTelemetry = bigcli.Group{
+	DeploymentGroupTelemetry = clibase.Group{
 		Name: "Telemetry",
 		Description: `Telemetry is critical to our ability to improve Coder. We strip all personal
 information before sending data to our servers. Please only disable telemetry
 when required by your organization's security policy.`,
 	}
-	DeploymentGroupProvisioning = bigcli.Group{
+	DeploymentGroupProvisioning = clibase.Group{
 		Name:        "Provisioning",
 		Description: `Tune the behavior of the provisioner, which is responsible for creating, updating, and deleting workspace resources.`,
 	}
-	DeploymentGroupDangerous = bigcli.Group{
+	DeploymentGroupDangerous = clibase.Group{
 		Name: "⚠️ Dangerous",
 	}
-	DeploymentGroupConfig = bigcli.Group{
+	DeploymentGroupConfig = clibase.Group{
 		Name:        "Config",
 		Description: `Use a YAML configuration file when your server launch become unwieldy.`,
 	}
@@ -389,11 +389,11 @@ when required by your organization's security policy.`,
 // apitypings doesn't know how to generate the OptionSet... yet.
 type DeploymentConfig struct {
 	Values  *DeploymentValues `json:"config,omitempty"`
-	Options bigcli.OptionSet  `json:"options,omitempty"`
+	Options clibase.OptionSet `json:"options,omitempty"`
 }
 
-func (c *DeploymentValues) Options() bigcli.OptionSet {
-	httpAddress := bigcli.Option{
+func (c *DeploymentValues) Options() clibase.OptionSet {
+	httpAddress := clibase.Option{
 		Name:        "HTTP Address",
 		Description: "HTTP bind address of the server. Unset to disable the HTTP endpoint.",
 		Flag:        "http-address",
@@ -403,7 +403,7 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 		Group:       &DeploymentGroupNetworkingHTTP,
 		YAML:        "httpAddress",
 	}
-	tlsBindAddress := bigcli.Option{
+	tlsBindAddress := clibase.Option{
 		Name:        "TLS Address",
 		Description: "HTTPS bind address of the server.",
 		Flag:        "tls-address",
@@ -413,7 +413,7 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 		Group:       &DeploymentGroupNetworkingTLS,
 		YAML:        "address",
 	}
-	redirectToAccessURL := bigcli.Option{
+	redirectToAccessURL := clibase.Option{
 		Name:        "Redirect to Access URL",
 		Description: "Specifies whether to redirect requests that do not match the access URL host.",
 		Flag:        "redirect-to-access-url",
@@ -422,7 +422,7 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 		Group:       &DeploymentGroupNetworking,
 		YAML:        "redirectToAccessURL",
 	}
-	return bigcli.OptionSet{
+	return clibase.OptionSet{
 		{
 			Name:        "Access URL",
 			Description: `The URL that users will use to access the Coder deployment.`,
@@ -462,7 +462,7 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 			Env:           "ADDRESS",
 			Hidden:        true,
 			Value:         &c.Address,
-			UseInstead: []bigcli.Option{
+			UseInstead: []clibase.Option{
 				httpAddress,
 				tlsBindAddress,
 			},
@@ -486,7 +486,7 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 			Default:     "true",
 			Hidden:      true,
 			Value:       &c.TLS.RedirectHTTP,
-			UseInstead:  []bigcli.Option{redirectToAccessURL},
+			UseInstead:  []clibase.Option{redirectToAccessURL},
 			Group:       &DeploymentGroupNetworkingTLS,
 			YAML:        "redirectHTTP",
 		},
@@ -611,7 +611,7 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 			Description: "An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.",
 			Flag:        "derp-server-relay-url",
 			Env:         "DERP_SERVER_RELAY_URL",
-			Annotations: bigcli.Annotations{}.Mark(flagEnterpriseKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
 			Value:       &c.DERP.Server.RelayURL,
 			Group:       &DeploymentGroupNetworkingDERP,
 			YAML:        "relayURL",
@@ -691,7 +691,7 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 			Flag:        "oauth2-github-client-secret",
 			Env:         "OAUTH2_GITHUB_CLIENT_SECRET",
 			Value:       &c.OAuth2.Github.ClientSecret,
-			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
 			Group:       &DeploymentGroupOAuth2GitHub,
 		},
 		{
@@ -764,7 +764,7 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 			Description: "Client secret to use for Login with OIDC.",
 			Flag:        "oidc-client-secret",
 			Env:         "OIDC_CLIENT_SECRET",
-			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
 			Value:       &c.OIDC.ClientSecret,
 			Group:       &DeploymentGroupOIDC,
 		},
@@ -882,7 +882,7 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 			Description: "Enables trace exporting to Honeycomb.io using the provided API Key.",
 			Flag:        "trace-honeycomb-api-key",
 			Env:         "TRACE_HONEYCOMB_API_KEY",
-			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
 			Value:       &c.Trace.HoneycombAPIKey,
 			Group:       &DeploymentGroupIntrospectionTracing,
 		},
@@ -1098,7 +1098,7 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
 			Flag:        "postgres-url",
 			Env:         "PG_CONNECTION_URL",
-			Annotations: bigcli.Annotations{}.Mark(flagSecretKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
 			Value:       &c.PostgresURL,
 		},
 		{
@@ -1175,7 +1175,7 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 			Flag:        "audit-logging",
 			Env:         "AUDIT_LOGGING",
 			Default:     "true",
-			Annotations: bigcli.Annotations{}.Mark(flagEnterpriseKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
 			Value:       &c.AuditLogging,
 			YAML:        "auditLogging",
 		},
@@ -1184,7 +1184,7 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 			Description: "Whether Coder only allows connections to workspaces via the browser.",
 			Flag:        "browser-only",
 			Env:         "BROWSER_ONLY",
-			Annotations: bigcli.Annotations{}.Mark(flagEnterpriseKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
 			Value:       &c.BrowserOnly,
 			Group:       &DeploymentGroupNetworking,
 			YAML:        "browserOnly",
@@ -1194,7 +1194,7 @@ func (c *DeploymentValues) Options() bigcli.OptionSet {
 			Description: "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.",
 			Flag:        "scim-auth-header",
 			Env:         "SCIM_AUTH_HEADER",
-			Annotations: bigcli.Annotations{}.Mark(flagEnterpriseKey, "true").Mark(flagSecretKey, "true"),
+			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true").Mark(flagSecretKey, "true"),
 			Value:       &c.SCIMAPIKey,
 		},
 
@@ -1274,7 +1274,7 @@ Write out the current server configuration to the path specified by --config.`,
 }
 
 type SupportConfig struct {
-	Links bigcli.Struct[[]LinkConfig] `json:"links" typescript:",notnull"`
+	Links clibase.Struct[[]LinkConfig] `json:"links" typescript:",notnull"`
 }
 
 type LinkConfig struct {
@@ -1304,7 +1304,7 @@ func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
 
 		// This only works with string values for now.
 		switch v := opt.Value.(type) {
-		case *bigcli.String:
+		case *clibase.String:
 			err := v.Set("")
 			if err != nil {
 				panic(err)

@@ -1,4 +1,4 @@
-package bigcli
+package clibase
 
 import (
 	"github.com/iancoleman/strcase"
