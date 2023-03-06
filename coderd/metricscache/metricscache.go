@@ -26,8 +26,9 @@ import (
 // take a few hundred milliseconds, which would ruin page load times and
 // database performance if in the hot path.
 type Cache struct {
-	database database.Store
-	log      slog.Logger
+	database  database.Store
+	log       slog.Logger
+	intervals Intervals
 
 	deploymentDAUResponses   atomic.Pointer[codersdk.DeploymentDAUsResponse]
 	templateDAUResponses     atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
@@ -54,23 +55,24 @@ func New(db database.Store, log slog.Logger, intervals Intervals) *Cache {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &Cache{
-		database: db,
-		log:      log,
-		done:     make(chan struct{}),
-		cancel:   cancel,
+		database:  db,
+		intervals: intervals,
+		log:       log,
+		done:      make(chan struct{}),
+		cancel:    cancel,
 	}
 	go func() {
 		var wg sync.WaitGroup
 		defer close(c.done)
 		wg.Add(1)
 		go func() {
-			wg.Done()
-			c.run(ctx, intervals.TemplateDAUs, c.refreshTemplateDAUs)
+			defer wg.Done()
+			c.run(ctx, "template daus", intervals.TemplateDAUs, c.refreshTemplateDAUs)
 		}()
 		wg.Add(1)
 		go func() {
-			wg.Done()
-			c.run(ctx, intervals.DeploymentStats, c.refreshDeploymentStats)
+			defer wg.Done()
+			c.run(ctx, "deployment stats", intervals.DeploymentStats, c.refreshDeploymentStats)
 		}()
 		wg.Wait()
 	}()
@@ -228,7 +230,8 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 	}
 	c.deploymentStatsResponse.Store(&codersdk.DeploymentStats{
 		AggregatedFrom: from,
-		UpdatedAt:      database.Now(),
+		CollectedAt:    database.Now(),
+		RefreshingAt:   database.Now().Add(c.intervals.DeploymentStats),
 		WorkspaceConnectionLatencyMS: codersdk.WorkspaceConnectionLatencyMS{
 			P50: deploymentStats.WorkspaceConnectionLatency50,
 			P95: deploymentStats.WorkspaceConnectionLatency95,
@@ -243,7 +246,7 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 	return nil
 }
 
-func (c *Cache) run(ctx context.Context, interval time.Duration, refresh func(context.Context) error) {
+func (c *Cache) run(ctx context.Context, name string, interval time.Duration, refresh func(context.Context) error) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -260,7 +263,7 @@ func (c *Cache) run(ctx context.Context, interval time.Duration, refresh func(co
 			}
 			c.log.Debug(
 				ctx,
-				"metrics refreshed",
+				name+" metrics refreshed",
 				slog.F("took", time.Since(start)),
 				slog.F("interval", interval),
 			)
