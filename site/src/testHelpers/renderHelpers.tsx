@@ -43,11 +43,18 @@ type RenderWithAuthOptions = {
   // Extra routes to add to the router. It is helpful when having redirecting
   // routes or multiple routes during the test flow
   extraRoutes?: RouteObject[]
+  // The same as extraRoutes but for routes that don't require authentication
+  nonAuthenticatedRoutes?: RouteObject[]
 }
 
 export function renderWithAuth(
   element: JSX.Element,
-  { path = "/", route = "/", extraRoutes = [] }: RenderWithAuthOptions = {},
+  {
+    path = "/",
+    route = "/",
+    extraRoutes = [],
+    nonAuthenticatedRoutes = [],
+  }: RenderWithAuthOptions = {},
 ) {
   const routes: RouteObject[] = [
     {
@@ -59,6 +66,7 @@ export function renderWithAuth(
         },
       ],
     },
+    ...nonAuthenticatedRoutes,
   ]
 
   const router = createMemoryRouter(routes, { initialEntries: [route] })

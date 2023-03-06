@@ -19,7 +19,7 @@ describe("RequireAuth", () => {
     )
 
     renderWithAuth(<h1>Test</h1>, {
-      extraRoutes: [
+      nonAuthenticatedRoutes: [
         {
           path: "setup",
           element: <h1>Setup</h1>,
