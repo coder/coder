@@ -359,52 +359,6 @@
 | `host` | string | false    |              |             |
 | `port` | string | false    |              |             |
 
-## bigcli.Object-array_codersdk_GitAuthConfig
-
-```json
-{
-  "value": [
-    {
-      "auth_url": "string",
-      "client_id": "string",
-      "id": "string",
-      "no_refresh": true,
-      "regex": "string",
-      "scopes": ["string"],
-      "token_url": "string",
-      "type": "string",
-      "validate_url": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name    | Type                                                      | Required | Restrictions | Description |
-| ------- | --------------------------------------------------------- | -------- | ------------ | ----------- |
-| `value` | array of [codersdk.GitAuthConfig](#codersdkgitauthconfig) | false    |              |             |
-
-## bigcli.Object-array_codersdk_LinkConfig
-
-```json
-{
-  "value": [
-    {
-      "icon": "string",
-      "name": "string",
-      "target": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name    | Type                                                | Required | Restrictions | Description |
-| ------- | --------------------------------------------------- | -------- | ------------ | ----------- |
-| `value` | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
-
 ## bigcli.Option
 
 ```json
@@ -495,6 +449,52 @@
 | `use_instead`    | array of [bigcli.Option](#bigclioption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning. |
 | `value`          | any                                      | false    |              | Value includes the types listed in values.go.                                                                                  |
 | `yaml`           | string                                   | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                    |
+
+## bigcli.Struct-array_codersdk_GitAuthConfig
+
+```json
+{
+  "value": [
+    {
+      "auth_url": "string",
+      "client_id": "string",
+      "id": "string",
+      "no_refresh": true,
+      "regex": "string",
+      "scopes": ["string"],
+      "token_url": "string",
+      "type": "string",
+      "validate_url": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                      | Required | Restrictions | Description |
+| ------- | --------------------------------------------------------- | -------- | ------------ | ----------- |
+| `value` | array of [codersdk.GitAuthConfig](#codersdkgitauthconfig) | false    |              |             |
+
+## bigcli.Struct-array_codersdk_LinkConfig
+
+```json
+{
+  "value": [
+    {
+      "icon": "string",
+      "name": "string",
+      "target": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                | Required | Restrictions | Description |
+| ------- | --------------------------------------------------- | -------- | ------------ | ----------- |
+| `value` | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
 
 ## bigcli.URL
 
@@ -2197,7 +2197,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `disable_path_apps`                  | boolean                                                                                  | false    |              |                                                                    |
 | `disable_session_expiry_refresh`     | boolean                                                                                  | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                          | false    |              |                                                                    |
-| `git_auth`                           | [bigcli.Object-array_codersdk_GitAuthConfig](#bigcliobject-array_codersdk_gitauthconfig) | false    |              |                                                                    |
+| `git_auth`                           | [bigcli.Struct-array_codersdk_GitAuthConfig](#bigclistruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
 | `http_address`                       | string                                                                                   | false    |              | Http address is a string because it may be set to zero to disable. |
 | `in_memory_database`                 | boolean                                                                                  | false    |              |                                                                    |
 | `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                         | false    |              |                                                                    |
@@ -3288,7 +3288,7 @@ Parameter represents a set value for the scope.
 
 | Name    | Type                                                                               | Required | Restrictions | Description |
 | ------- | ---------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `links` | [bigcli.Object-array_codersdk_LinkConfig](#bigcliobject-array_codersdk_linkconfig) | false    |              |             |
+| `links` | [bigcli.Struct-array_codersdk_LinkConfig](#bigclistruct-array_codersdk_linkconfig) | false    |              |             |
 
 ## codersdk.SwaggerConfig
 

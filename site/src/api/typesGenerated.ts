@@ -380,7 +380,7 @@ export interface DeploymentValues {
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.Bool")
   readonly disable_password_auth?: boolean
   readonly support?: SupportConfig
-  // Named type "github.com/coder/coder/cli/bigcli.Object[[]github.com/coder/coder/codersdk.GitAuthConfig]" unknown, using "any"
+  // Named type "github.com/coder/coder/cli/bigcli.Struct[[]github.com/coder/coder/codersdk.GitAuthConfig]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly git_auth?: any
   // This is likely an enum in an external package ("github.com/coder/coder/cli/bigcli.String")
@@ -734,7 +734,7 @@ export interface ServiceBannerConfig {
 
 // From codersdk/deployment.go
 export interface SupportConfig {
-  // Named type "github.com/coder/coder/cli/bigcli.Object[[]github.com/coder/coder/codersdk.LinkConfig]" unknown, using "any"
+  // Named type "github.com/coder/coder/cli/bigcli.Struct[[]github.com/coder/coder/codersdk.LinkConfig]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly links: any
 }
@@ -1451,12 +1451,3 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
   "start",
   "stop",
 ]
-
-// From codersdk/deployment.go
-export type Flaggable =
-  | string
-  | number
-  | boolean
-  | string[]
-  | GitAuthConfig[]
-  | LinkConfig[]

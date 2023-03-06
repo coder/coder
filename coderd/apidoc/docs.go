@@ -5338,28 +5338,6 @@ const docTemplate = `{
                 }
             }
         },
-        "bigcli.Object-array_codersdk_GitAuthConfig": {
-            "type": "object",
-            "properties": {
-                "value": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.GitAuthConfig"
-                    }
-                }
-            }
-        },
-        "bigcli.Object-array_codersdk_LinkConfig": {
-            "type": "object",
-            "properties": {
-                "value": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.LinkConfig"
-                    }
-                }
-            }
-        },
         "bigcli.Option": {
             "type": "object",
             "properties": {
@@ -5417,6 +5395,28 @@ const docTemplate = `{
                 "yaml": {
                     "description": "YAML is the YAML key used to configure this option. If unset, YAML\nconfiguring is disabled.",
                     "type": "string"
+                }
+            }
+        },
+        "bigcli.Struct-array_codersdk_GitAuthConfig": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.GitAuthConfig"
+                    }
+                }
+            }
+        },
+        "bigcli.Struct-array_codersdk_LinkConfig": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.LinkConfig"
+                    }
                 }
             }
         },
@@ -6501,7 +6501,7 @@ const docTemplate = `{
                     }
                 },
                 "git_auth": {
-                    "$ref": "#/definitions/bigcli.Object-array_codersdk_GitAuthConfig"
+                    "$ref": "#/definitions/bigcli.Struct-array_codersdk_GitAuthConfig"
                 },
                 "http_address": {
                     "description": "HTTPAddress is a string because it may be set to zero to disable.",
@@ -7586,7 +7586,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "links": {
-                    "$ref": "#/definitions/bigcli.Object-array_codersdk_LinkConfig"
+                    "$ref": "#/definitions/bigcli.Struct-array_codersdk_LinkConfig"
                 }
             }
         },

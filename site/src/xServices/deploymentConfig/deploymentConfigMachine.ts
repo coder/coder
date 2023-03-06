@@ -3,9 +3,9 @@ import { getDeploymentValues, getDeploymentDAUs } from "api/api"
 import { createMachine, assign } from "xstate"
 import { DeploymentConfig } from "api/types"
 
-export const deploymentValuesMachine = createMachine(
+export const deploymentConfigMachine = createMachine(
   {
-    id: "deploymentValuesMachine",
+    id: "deploymentConfigMachine",
     predictableActionArguments: true,
 
     schema: {

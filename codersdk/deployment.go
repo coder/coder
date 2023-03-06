@@ -167,8 +167,8 @@ type DeploymentValues struct {
 }
 
 type DERP struct {
-	Server *DERPServerConfig `json:"server" typescript:",notnull"`
-	Config *DERPConfig       `json:"config" typescript:",notnull"`
+	Server DERPServerConfig `json:"server" typescript:",notnull"`
+	Config DERPConfig       `json:"config" typescript:",notnull"`
 }
 
 type DERPServerConfig struct {
@@ -196,7 +196,7 @@ type PprofConfig struct {
 }
 
 type OAuth2Config struct {
-	Github *OAuth2GithubConfig `json:"github" typescript:",notnull"`
+	Github OAuth2GithubConfig `json:"github" typescript:",notnull"`
 }
 
 type OAuth2GithubConfig struct {
@@ -1281,10 +1281,6 @@ type LinkConfig struct {
 	Name   string `json:"name" yaml:"name"`
 	Target string `json:"target" yaml:"target"`
 	Icon   string `json:"icon" yaml:"icon"`
-}
-
-type Flaggable interface {
-	string | time.Duration | bool | int | []string | []GitAuthConfig | []LinkConfig
 }
 
 // WithoutSecrets returns a copy of the config without secret values.

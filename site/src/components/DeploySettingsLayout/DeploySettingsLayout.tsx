@@ -6,7 +6,7 @@ import { createContext, Suspense, useContext, FC } from "react"
 import { useMachine } from "@xstate/react"
 import { Loader } from "components/Loader/Loader"
 import { DeploymentDAUsResponse } from "api/typesGenerated"
-import { deploymentValuesMachine } from "xServices/deploymentValues/deploymentValuesMachine"
+import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
 import { usePermissions } from "hooks/usePermissions"
 import { Outlet } from "react-router-dom"
@@ -34,7 +34,7 @@ export const useDeploySettings = (): DeploySettingsContextValue => {
 }
 
 export const DeploySettingsLayout: FC = () => {
-  const [state] = useMachine(deploymentValuesMachine)
+  const [state] = useMachine(deploymentConfigMachine)
   const styles = useStyles()
   const {
     deploymentValues,
