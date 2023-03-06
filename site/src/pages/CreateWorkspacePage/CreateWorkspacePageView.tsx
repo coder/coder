@@ -577,7 +577,6 @@ export const ValidationSchemaForRichParameters = (
       Yup.object().shape({
         name: Yup.string().required(),
         value: Yup.string()
-          .required(t("validationRequiredParameter"))
           .test("verify with template", (val, ctx) => {
             const name = ctx.parent.name
             const templateParameter = templateParameters.find(
