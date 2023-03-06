@@ -9,7 +9,7 @@ import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { Stack } from "components/Stack/Stack"
 import {
   deploymentGroupHasParent,
-  findDeploymentOptions,
+  useDeploymentOptions,
 } from "util/deployOptions"
 
 export type UserAuthSettingsPageViewProps = {
@@ -32,7 +32,7 @@ export const UserAuthSettingsPageView = ({
         />
 
         <Badges>
-          {findDeploymentOptions(options, "OIDC Client ID")[0].value ? (
+          {useDeploymentOptions(options, "OIDC Client ID")[0].value ? (
             <EnabledBadge />
           ) : (
             <DisabledBadge />
@@ -55,8 +55,7 @@ export const UserAuthSettingsPageView = ({
         />
 
         <Badges>
-          {findDeploymentOptions(options, "OAuth2 GitHub Client ID")[0]
-            .value ? (
+          {useDeploymentOptions(options, "OAuth2 GitHub Client ID")[0].value ? (
             <EnabledBadge />
           ) : (
             <DisabledBadge />

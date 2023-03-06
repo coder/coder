@@ -157,7 +157,7 @@ type DeploymentValues struct {
 	DisableSessionExpiryRefresh     bigcli.Bool                    `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
 	DisablePasswordAuth             bigcli.Bool                    `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                  `json:"support,omitempty" typescript:",notnull"`
-	GitAuthProviders                bigcli.Object[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
+	GitAuthProviders                bigcli.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
 
 	Config      bigcli.String `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig bigcli.Bool   `json:"write_config,omitempty" typescript:",notnull"`
@@ -1272,7 +1272,7 @@ Write out the current server configuration to the path specified by --config.`,
 }
 
 type SupportConfig struct {
-	Links bigcli.Object[[]LinkConfig] `json:"links" typescript:",notnull"`
+	Links bigcli.Struct[[]LinkConfig] `json:"links" typescript:",notnull"`
 }
 
 type LinkConfig struct {
@@ -1285,8 +1285,8 @@ type Flaggable interface {
 	string | time.Duration | bool | int | []string | []GitAuthConfig | []LinkConfig
 }
 
-// Scrub returns a copy of the config without secret values.
-func (c *DeploymentValues) Scrub() (*DeploymentValues, error) {
+// WithoutSecrets returns a copy of the config without secret values.
+func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
 	var ff DeploymentValues
 
 	// Create copy via JSON.

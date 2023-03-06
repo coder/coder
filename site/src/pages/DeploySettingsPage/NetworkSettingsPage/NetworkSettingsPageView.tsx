@@ -9,7 +9,7 @@ import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { Stack } from "components/Stack/Stack"
 import {
   deploymentGroupHasParent,
-  findDeploymentOptions,
+  useDeploymentOptions,
 } from "util/deployOptions"
 
 export type NetworkSettingsPageViewProps = {
@@ -42,7 +42,7 @@ export const NetworkSettingsPageView = ({
       />
 
       <Badges>
-        {findDeploymentOptions(options, "Wildcard Access URL")[0].value !==
+        {useDeploymentOptions(options, "Wildcard Access URL")[0].value !==
         "" ? (
           <EnabledBadge />
         ) : (

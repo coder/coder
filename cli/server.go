@@ -1177,8 +1177,6 @@ flags, and YAML configuration. The precedence is as follows:
 	})
 	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd, createAdminUserCommand)
 
-	// deployment.AttachFlags(root.Flags(), vip, false)
-
 	return root
 }
 

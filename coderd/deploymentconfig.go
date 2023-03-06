@@ -21,7 +21,7 @@ func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	values, err := api.DeploymentValues.Scrub()
+	values, err := api.DeploymentValues.WithoutSecrets()
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

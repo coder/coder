@@ -1,6 +1,7 @@
+import { useMemo } from "react"
 import { DeploymentGroup, DeploymentOption } from "./../api/types"
 
-export const findDeploymentOptions = (
+const deploymentOptions = (
   options: DeploymentOption[],
   ...names: string[]
 ): DeploymentOption[] => {
@@ -16,6 +17,13 @@ export const findDeploymentOptions = (
   return found
 }
 
+export const useDeploymentOptions = (
+  options: DeploymentOption[],
+  ...names: string[]
+): DeploymentOption[] => {
+  return useMemo(() => deploymentOptions(options, ...names), [options, names])
+}
+
 export const deploymentGroupHasParent = (
   group: DeploymentGroup | undefined,
   parent: string,
@@ -23,12 +31,11 @@ export const deploymentGroupHasParent = (
   if (!group) {
     return false
   }
-
-  if (group.name === parent) {
-    return true
-  }
   if (group.parent) {
     return deploymentGroupHasParent(group.parent, parent)
+  }
+  if (group.name === parent) {
+    return true
   }
   return false
 }

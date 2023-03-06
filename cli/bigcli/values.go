@@ -265,24 +265,24 @@ func (*HostPort) Type() string {
 }
 
 var (
-	_ yaml.Marshaler   = new(Object[struct{}])
-	_ yaml.Unmarshaler = new(Object[struct{}])
+	_ yaml.Marshaler   = new(Struct[struct{}])
+	_ yaml.Unmarshaler = new(Struct[struct{}])
 )
 
-// Object is a special value type that encodes an arbitrary struct.
+// Struct is a special value type that encodes an arbitrary struct.
 // It implements the flag.Value interface, but in general these values should
 // only be accepted via config for ergonomics.
 //
 // The string encoding type is YAML.
-type Object[T any] struct {
+type Struct[T any] struct {
 	Value T
 }
 
-func (s *Object[T]) Set(v string) error {
+func (s *Struct[T]) Set(v string) error {
 	return yaml.Unmarshal([]byte(v), &s.Value)
 }
 
-func (s *Object[T]) String() string {
+func (s *Struct[T]) String() string {
 	byt, err := yaml.Marshal(s.Value)
 	if err != nil {
 		return "decode failed: " + err.Error()
@@ -290,7 +290,7 @@ func (s *Object[T]) String() string {
 	return string(byt)
 }
 
-func (s *Object[T]) MarshalYAML() (interface{}, error) {
+func (s *Struct[T]) MarshalYAML() (interface{}, error) {
 	var n yaml.Node
 	err := n.Encode(s.Value)
 	if err != nil {
@@ -299,19 +299,19 @@ func (s *Object[T]) MarshalYAML() (interface{}, error) {
 	return n, nil
 }
 
-func (s *Object[T]) UnmarshalYAML(n *yaml.Node) error {
+func (s *Struct[T]) UnmarshalYAML(n *yaml.Node) error {
 	return n.Decode(&s.Value)
 }
 
-func (s *Object[T]) Type() string {
+func (s *Struct[T]) Type() string {
 	return fmt.Sprintf("struct[%T]", s.Value)
 }
 
-func (s *Object[T]) MarshalJSON() ([]byte, error) {
+func (s *Struct[T]) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.Value)
 }
 
-func (s *Object[T]) UnmarshalJSON(b []byte) error {
+func (s *Struct[T]) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &s.Value)
 }
 

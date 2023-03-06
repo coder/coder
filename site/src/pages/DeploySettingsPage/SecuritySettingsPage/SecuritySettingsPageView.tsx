@@ -10,7 +10,7 @@ import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { Stack } from "components/Stack/Stack"
 import {
   deploymentGroupHasParent,
-  findDeploymentOptions,
+  useDeploymentOptions,
 } from "util/deployOptions"
 
 export type SecuritySettingsPageViewProps = {
@@ -32,7 +32,7 @@ export const SecuritySettingsPageView = ({
         />
 
         <OptionsTable
-          options={findDeploymentOptions(
+          options={useDeploymentOptions(
             options,
             "SSH Keygen Algorithm",
             "Secure Auth Cookie",

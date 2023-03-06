@@ -5,7 +5,7 @@ import { DAUChart } from "components/DAUChart/DAUChart"
 import { Header } from "components/DeploySettingsLayout/Header"
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { Stack } from "components/Stack/Stack"
-import { findDeploymentOptions } from "util/deployOptions"
+import { useDeploymentOptions } from "util/deployOptions"
 
 export type GeneralSettingsPageViewProps = {
   deploymentOptions: DeploymentOption[]
@@ -30,7 +30,7 @@ export const GeneralSettingsPageView = ({
         )}
         {deploymentDAUs && <DAUChart daus={deploymentDAUs} />}
         <OptionsTable
-          options={findDeploymentOptions(
+          options={useDeploymentOptions(
             deploymentOptions,
             "Access URL",
             "Wildcard Access URL",
