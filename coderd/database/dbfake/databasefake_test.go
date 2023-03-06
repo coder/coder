@@ -9,10 +9,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
-
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 )
 
 // test that transactions don't deadlock, and that we don't see intermediate state.
@@ -102,6 +103,29 @@ func TestExactMethods(t *testing.T) {
 		// for the database.Store. If you still want to keep it, add it to
 		// 'extraFakeMethods' to allow it.
 		t.Errorf("Fake method '%s()' is excessive and not needed to fit interface, delete it", k)
+	}
+}
+
+// TestUserOrder ensures that the fake database returns users in the order they
+// were created.
+func TestUserOrder(t *testing.T) {
+	t.Parallel()
+
+	db := dbfake.New()
+	now := database.Now()
+	count := 10
+	for i := 0; i < count; i++ {
+		dbgen.User(t, db, database.User{
+			Username:  fmt.Sprintf("user%d", i),
+			CreatedAt: now,
+		})
+	}
+
+	users, err := db.GetUsers(context.Background(), database.GetUsersParams{})
+	require.NoError(t, err)
+	require.Lenf(t, users, count, "expected %d users", count)
+	for i, user := range users {
+		require.Equal(t, fmt.Sprintf("user%d", i), user.Username)
 	}
 }
 

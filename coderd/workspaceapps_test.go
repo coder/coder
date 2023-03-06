@@ -438,7 +438,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		// Get the current user and API key.
 		user, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
-		currentAPIKey, err := client.APIKey(ctx, firstUser.UserID.String(), strings.Split(client.SessionToken(), "-")[0])
+		currentAPIKey, err := client.APIKeyByID(ctx, firstUser.UserID.String(), strings.Split(client.SessionToken(), "-")[0])
 		require.NoError(t, err)
 
 		// Try to load the application without authentication.
@@ -500,7 +500,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		apiKey := cookies[0].Value
 
 		// Fetch the API key.
-		apiKeyInfo, err := client.APIKey(ctx, firstUser.UserID.String(), strings.Split(apiKey, "-")[0])
+		apiKeyInfo, err := client.APIKeyByID(ctx, firstUser.UserID.String(), strings.Split(apiKey, "-")[0])
 		require.NoError(t, err)
 		require.Equal(t, user.ID, apiKeyInfo.UserID)
 		require.Equal(t, codersdk.LoginTypePassword, apiKeyInfo.LoginType)

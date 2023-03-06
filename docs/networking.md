@@ -50,12 +50,16 @@ Direct connections are a straight line between the user and workspace, so there
 is no special geo-distribution configuration. To speed up direct connections,
 move the user and workspace closer together.
 
+If a direct connection is not available (e.g. client or server is behind NAT), Coder
+will use a relayed connection. By default, [Coder uses Google's public STUN server](./cli/coder_server#--derp-server-stun-addresses), but
+this can be disabled or changed for [offline deployments](./install/offline.md).
+
 ### Relayed connections
 
-Tailscale has graciously allowed us to use
-[their global DERP relays](https://tailscale.com/kb/1118/custom-derp-servers/#what-are-derp-servers).
+By default, your Coder server also runs a built-in DERP relay which can be used for both public and [offline deployments](./install/offline.md).
 
-You can launch `coder server` with Tailscale's DERPs like so:
+However, Tailscale has graciously allowed us to use
+[their global DERP relays](https://tailscale.com/kb/1118/custom-derp-servers/#what-are-derp-servers). You can launch `coder server` with Tailscale's DERPs like so:
 
 ```bash
 $ coder server --derp-config-url https://controlplane.tailscale.com/derpmap/default
@@ -63,9 +67,7 @@ $ coder server --derp-config-url https://controlplane.tailscale.com/derpmap/defa
 
 #### Custom Relays
 
-If you run Coder in air-gap mode or want lower latency than what Tailscale offers,
-you may run custom DERP servers. Refer to
-[Tailscale's documentation](https://tailscale.com/kb/1118/custom-derp-servers/#why-run-your-own-derp-server)
+If you want lower latency than what Tailscale offers or want additional DERP relays for offline deployments, you may run custom DERP servers. Refer to [Tailscale's documentation](https://tailscale.com/kb/1118/custom-derp-servers/#why-run-your-own-derp-server)
 to learn how to set them up.
 
 After you have custom DERP servers, you can launch Coder with them like so:

@@ -2,7 +2,7 @@
 
 # coder tokens create
 
-Create a tokens
+Create a token
 
 ## Usage
 
@@ -20,3 +20,10 @@ Specify a duration for the lifetime of the token.
 | --- | --- |
 | Consumes | <code>$CODER_TOKEN_LIFETIME</code> |
 | Default | <code>720h0m0s</code> |
+
+### --name, -n
+
+Specify a human-readable name.
+<br/>
+| | |
+| --- | --- |
