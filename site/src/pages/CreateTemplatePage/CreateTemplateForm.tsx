@@ -66,7 +66,7 @@ const getInitialValues = (starterTemplate?: TemplateExample) => {
   }
 }
 
-interface CreateTemplateFormProps {
+export interface CreateTemplateFormProps {
   onCancel: () => void
   onSubmit: (data: CreateTemplateData) => void
   isSubmitting: boolean
