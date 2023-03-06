@@ -11,16 +11,19 @@ func ValidateNewWorkspaceParameters(richParameters []TemplateVersionParameter, b
 }
 
 func ValidateWorkspaceBuildParameters(richParameters []TemplateVersionParameter, buildParameters, lastBuildParameters []WorkspaceBuildParameter) error {
-	for _, buildParameter := range buildParameters {
-		if buildParameter.Name == "" {
-			return xerrors.Errorf(`workspace build parameter name is missing`)
-		}
-		richParameter, found := findTemplateVersionParameter(richParameters, buildParameter.Name)
-		if !found {
-			return xerrors.Errorf(`workspace build parameter is not defined in the template ("coder_parameter"): %s`, buildParameter.Name)
+	for _, richParameter := range richParameters {
+		buildParameter, foundBuildParameter := findBuildParameter(buildParameters, richParameter.Name)
+		lastBuildParameter, foundLastBuildParameter := findBuildParameter(lastBuildParameters, richParameter.Name)
+
+		if richParameter.Required && !foundBuildParameter && !foundLastBuildParameter {
+			return xerrors.Errorf("workspace build parameter %q is required", buildParameter.Name)
 		}
 
-		err := ValidateWorkspaceBuildParameter(*richParameter, buildParameter, findLastBuildParameter(lastBuildParameters, buildParameter.Name))
+		if !foundBuildParameter && foundLastBuildParameter {
+			continue // previous build parameters have been validated before the last build
+		}
+
+		err := ValidateWorkspaceBuildParameter(richParameter, *buildParameter, lastBuildParameter)
 		if err != nil {
 			return xerrors.Errorf("can't validate build parameter %q: %w", buildParameter.Name, err)
 		}
@@ -30,11 +33,10 @@ func ValidateWorkspaceBuildParameters(richParameters []TemplateVersionParameter,
 
 func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, buildParameter WorkspaceBuildParameter, lastBuildParameter *WorkspaceBuildParameter) error {
 	value := buildParameter.Value
-	if value == "" && richParameter.Required {
+	if richParameter.Required && value == "" {
 		return xerrors.Errorf("parameter value is required")
 	}
-
-	if value == "" { // parameter is optional
+	if value == "" { // parameter is optional, so take the default value
 		value = richParameter.DefaultValue
 	}
 
@@ -89,13 +91,13 @@ func findTemplateVersionParameter(params []TemplateVersionParameter, parameterNa
 	return nil, false
 }
 
-func findLastBuildParameter(params []WorkspaceBuildParameter, parameterName string) *WorkspaceBuildParameter {
+func findBuildParameter(params []WorkspaceBuildParameter, parameterName string) (*WorkspaceBuildParameter, bool) {
 	for _, p := range params {
 		if p.Name == parameterName {
-			return &p
+			return &p, true
 		}
 	}
-	return nil
+	return nil, false
 }
 
 func parameterValuesAsArray(options []TemplateVersionParameterOption) []string {
