@@ -222,7 +222,10 @@ func New(options *Options) *API {
 	metricsCache := metricscache.New(
 		options.Database,
 		options.Logger.Named("metrics_cache"),
-		options.MetricsCacheRefreshInterval,
+		metricscache.Intervals{
+			TemplateDAUs:    options.MetricsCacheRefreshInterval,
+			DeploymentStats: options.AgentStatsRefreshInterval,
+		},
 	)
 
 	staticHandler := site.Handler(site.FS(), binFS, binHashes)

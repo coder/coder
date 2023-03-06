@@ -164,7 +164,9 @@ func TestCache_TemplateUsers(t *testing.T) {
 			t.Parallel()
 			var (
 				db    = dbfake.New()
-				cache = metricscache.New(db, slogtest.Make(t, nil), testutil.IntervalFast)
+				cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
+					TemplateDAUs: testutil.IntervalFast,
+				})
 			)
 
 			defer cache.Close()
@@ -289,7 +291,9 @@ func TestCache_BuildTime(t *testing.T) {
 
 			var (
 				db    = dbfake.New()
-				cache = metricscache.New(db, slogtest.Make(t, nil), testutil.IntervalFast)
+				cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
+					TemplateDAUs: testutil.IntervalFast,
+				})
 			)
 
 			defer cache.Close()
@@ -377,7 +381,9 @@ func TestCache_BuildTime(t *testing.T) {
 func TestCache_DeploymentStats(t *testing.T) {
 	t.Parallel()
 	db := dbfake.New()
-	cache := metricscache.New(db, slogtest.Make(t, nil), testutil.IntervalFast)
+	cache := metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
+		DeploymentStats: testutil.IntervalFast,
+	})
 
 	_, err := db.InsertWorkspaceAgentStat(context.Background(), database.InsertWorkspaceAgentStatParams{
 		ID:                 uuid.New(),
