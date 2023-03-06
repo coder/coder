@@ -30,7 +30,11 @@ func ValidateWorkspaceBuildParameters(richParameters []TemplateVersionParameter,
 
 func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, buildParameter WorkspaceBuildParameter, lastBuildParameter *WorkspaceBuildParameter) error {
 	value := buildParameter.Value
-	if value == "" {
+	if value == "" && richParameter.Required {
+		return xerrors.Errorf("parameter value is required")
+	}
+
+	if value == "" { // parameter is optional
 		value = richParameter.DefaultValue
 	}
 

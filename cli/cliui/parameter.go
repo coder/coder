@@ -85,7 +85,7 @@ func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.Templat
 		}
 	} else {
 		text := "Enter a value"
-		if templateVersionParameter.DefaultValue != "" {
+		if !templateVersionParameter.Required {
 			text += fmt.Sprintf(" (default: %q)", templateVersionParameter.DefaultValue)
 		}
 		text += ":"
