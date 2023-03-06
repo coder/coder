@@ -1057,8 +1057,8 @@ QastnN77KfUwdj3SJt44U/uh1jAIv4oSLBr8HYUkbnI8
 -----END RSA PRIVATE KEY-----`
 
 func DeploymentValues(t *testing.T) *codersdk.DeploymentValues {
-	cfg := codersdk.NewDeploymentValues()
+	var cfg codersdk.DeploymentValues
 	err := cfg.Options().SetDefaults()
 	require.NoError(t, err)
-	return cfg
+	return &cfg
 }

@@ -6,8 +6,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/cli/envparse"
 )
 
 // Option is a configuration option for a CLI application.
@@ -99,7 +97,7 @@ func (s *OptionSet) ParseEnv(globalPrefix string, environ []string) error {
 	// avoid N*M complexity when there are a lot of options and environment
 	// variables.
 	envs := make(map[string]string)
-	for _, v := range envparse.FilterNamePrefix(environ, globalPrefix) {
+	for _, v := range EnvsWithPrefix(environ, globalPrefix) {
 		envs[v.Name] = v.Value
 	}
 
