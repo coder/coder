@@ -82,15 +82,6 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 	return validation.Valid(richParameter.Type, value)
 }
 
-func findTemplateVersionParameter(params []TemplateVersionParameter, parameterName string) (*TemplateVersionParameter, bool) {
-	for _, p := range params {
-		if p.Name == parameterName {
-			return &p, true
-		}
-	}
-	return nil, false
-}
-
 func findBuildParameter(params []WorkspaceBuildParameter, parameterName string) (*WorkspaceBuildParameter, bool) {
 	if params == nil {
 		return nil, false
