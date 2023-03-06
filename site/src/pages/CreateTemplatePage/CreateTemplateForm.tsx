@@ -255,7 +255,10 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
 
       {/* Variables */}
       {variables && (
-        <FormSection title="Variables" description="Template variables">
+        <FormSection
+          title="Variables"
+          description="Input variables allow you to customize templates without altering their source code."
+        >
           <FormFields>
             {variables.map((variable, index) => (
               <VariableInput

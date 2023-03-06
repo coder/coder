@@ -8,6 +8,13 @@ import { Permissions } from "xServices/auth/authXService"
 import { TemplateVersionFiles } from "util/templateVersion"
 import { FileTree } from "util/filetree"
 
+export const MockOrganization: TypesGen.Organization = {
+  id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  name: "Test Organization",
+  created_at: "",
+  updated_at: "",
+}
+
 export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
   entries: [
     { date: "2022-08-27T00:00:00Z", amount: 1 },
@@ -140,7 +147,7 @@ export const MockUser: TypesGen.User = {
   email: "test@coder.com",
   created_at: "",
   status: "active",
-  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  organization_ids: [MockOrganization.id],
   roles: [MockOwnerRole],
   avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
   last_seen_at: "",
@@ -152,7 +159,7 @@ export const MockUserAdmin: TypesGen.User = {
   email: "test@coder.com",
   created_at: "",
   status: "active",
-  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  organization_ids: [MockOrganization.id],
   roles: [MockUserAdminRole],
   avatar_url: "",
   last_seen_at: "",
@@ -164,7 +171,7 @@ export const MockUser2: TypesGen.User = {
   email: "test2@coder.com",
   created_at: "",
   status: "active",
-  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  organization_ids: [MockOrganization.id],
   roles: [],
   avatar_url: "",
   last_seen_at: "2022-09-14T19:12:21Z",
@@ -176,17 +183,10 @@ export const SuspendedMockUser: TypesGen.User = {
   email: "iamsuspendedsad!@coder.com",
   created_at: "",
   status: "suspended",
-  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  organization_ids: [MockOrganization.id],
   roles: [],
   avatar_url: "",
   last_seen_at: "",
-}
-
-export const MockOrganization: TypesGen.Organization = {
-  id: "test-org",
-  name: "Test Organization",
-  created_at: "",
-  updated_at: "",
 }
 
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
@@ -201,7 +201,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   created_at: "",
   id: "test-provisioner-job",
   status: "succeeded",
-  file_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  file_id: MockOrganization.id,
   completed_at: "2022-05-17T17:39:01.382927298Z",
   tags: {},
 }
@@ -1240,7 +1240,7 @@ export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
   request_id: "53bded77-7b9d-4e82-8771-991a34d759f9",
   time: "2022-05-19T16:45:57.122Z",
-  organization_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  organization_id: MockOrganization.id,
   ip: "127.0.0.1",
   user_agent:
     '"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',

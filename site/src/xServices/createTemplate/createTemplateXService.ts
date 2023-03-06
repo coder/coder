@@ -11,6 +11,7 @@ import {
 import {
   CreateTemplateVersionRequest,
   ParameterSchema,
+  ProvisionerJob,
   ProvisionerJobLog,
   Template,
   TemplateExample,
@@ -358,15 +359,18 @@ export const createTemplateMachine =
             throw new Error("Version not defined")
           }
 
-          let status = version.job.status
-          while (["pending", "running"].includes(status)) {
+          let job = version.job
+          while (isPendingOrRunning(job)) {
             version = await getTemplateVersion(version.id)
-            status = version.job.status
+            job = version.job
+
             // Delay the verification in two seconds to not overload the server
             // with too many requests Maybe at some point we could have a
             // websocket for template version Also, preferred doing this way to
             // avoid a new state since we don't need to reflect it on the UI
-            await delay(2_000)
+            if (isPendingOrRunning(job)) {
+              await delay(2_000)
+            }
           }
           return version
         },
@@ -477,4 +481,8 @@ const isMissingVariables = (version: TemplateVersion) => {
     version.job.error &&
       version.job.error.includes("required template variables"),
   )
+}
+
+const isPendingOrRunning = (job: ProvisionerJob) => {
+  return job.status === "pending" || job.status === "running"
 }
