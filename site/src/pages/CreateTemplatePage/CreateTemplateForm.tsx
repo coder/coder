@@ -30,7 +30,7 @@ import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
 import { LazyIconField } from "components/IconField/LazyIconField"
 import { Maybe } from "components/Conditionals/Maybe"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
-import i18next, { t } from "i18next"
+import i18next from "i18next"
 import Link from "@material-ui/core/Link"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import {
