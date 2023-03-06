@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"sort"
 	"strconv"
@@ -155,6 +156,7 @@ type agent struct {
 
 	network       *tailnet.Conn
 	connStatsChan chan *agentsdk.Stats
+	latestStat    atomic.Pointer[agentsdk.Stats]
 
 	connCountVSCode          atomic.Int64
 	connCountJetBrains       atomic.Int64
@@ -1240,6 +1242,13 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		}
 		// Convert from microseconds to milliseconds.
 		stats.ConnectionMedianLatencyMS /= 1000
+
+		lastStat := a.latestStat.Load()
+		if lastStat != nil && reflect.DeepEqual(lastStat, stats) {
+			a.logger.Info(ctx, "skipping stat because nothing changed")
+			return
+		}
+		a.latestStat.Store(stats)
 
 		select {
 		case a.connStatsChan <- stats:

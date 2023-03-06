@@ -406,7 +406,7 @@ func newConfig() *codersdk.DeploymentConfig {
 			Usage:   "How frequently agent stats are recorded",
 			Flag:    "agent-stats-refresh-interval",
 			Hidden:  true,
-			Default: time.Minute,
+			Default: 30 * time.Second,
 		},
 		AgentFallbackTroubleshootingURL: &codersdk.DeploymentConfigField[string]{
 			Name:    "Agent Fallback Troubleshooting URL",

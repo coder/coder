@@ -156,7 +156,6 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.Eventuallyf(t, func() bool {
 			var ok bool
 			s, ok = <-stats
-			fmt.Printf("WE GOT STATS %+v\n", s)
 			return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 &&
 				// Ensure that the connection didn't count as a "normal" SSH session.
 				// This was a special one, so it should be labeled specially in the stats!
