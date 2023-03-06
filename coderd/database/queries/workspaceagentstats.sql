@@ -69,4 +69,4 @@ WITH agent_stats AS (
 		FROM workspace_agent_stats
 	) AS a WHERE a.rn = 1
 )
-SELECT * FROM agent_stats CROSS JOIN latest_agent_stats;
+SELECT * FROM agent_stats, latest_agent_stats;

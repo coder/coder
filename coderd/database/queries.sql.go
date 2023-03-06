@@ -5380,7 +5380,7 @@ WITH agent_stats AS (
 		FROM workspace_agent_stats
 	) AS a WHERE a.rn = 1
 )
-SELECT workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats CROSS JOIN latest_agent_stats
+SELECT workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats, latest_agent_stats
 `
 
 type GetDeploymentWorkspaceAgentStatsRow struct {
