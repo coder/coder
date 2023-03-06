@@ -130,8 +130,8 @@ func Start(ctx context.Context, t *testing.T, cmd *cobra.Command) {
 		// We don't want to wait the full 5 minutes for a test to time out.
 		deadline = time.Now().Add(testutil.WaitMedium)
 	}
+
 	ctx, cancel := context.WithDeadline(ctx, deadline)
-	defer cancel()
 
 	go func() {
 		defer cancel()
