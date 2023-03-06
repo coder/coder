@@ -5,7 +5,7 @@
   "descriptionLabel": "Description",
   "descriptionMaxError": "Please enter a description that is less than or equal to 128 characters.",
   "defaultTtlLabel": "Default auto-stop",
-  "maxTtlLabel": "Max. Lifetime",
+  "maxTtlLabel": "Max. Lifetime (alpha)",
   "iconLabel": "Icon",
   "formAriaLabel": "Template settings form",
   "selectEmoji": "Select emoji",

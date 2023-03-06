@@ -27,7 +27,7 @@
       "description": "Description",
       "icon": "Icon",
       "autoStop": "Default auto-stop",
-      "maxTTL": "Max. Lifetime",
+      "maxTTL": "Max. Lifetime (alpha)",
       "allowUsersToCancel": "Allow users to cancel in-progress workspace jobs"
     },
     "helperText": {
