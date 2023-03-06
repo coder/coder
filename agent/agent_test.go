@@ -116,6 +116,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
+	//nolint:dogsled
 	conn, _, stats, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
