@@ -43,7 +43,7 @@ func (q *sqlQuerier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID
 
 const getAPIKeyByID = `-- name: GetAPIKeyByID :one
 SELECT
-	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
 FROM
 	api_keys
 WHERE
@@ -67,12 +67,52 @@ func (q *sqlQuerier) GetAPIKeyByID(ctx context.Context, id string) (APIKey, erro
 		&i.LifetimeSeconds,
 		&i.IPAddress,
 		&i.Scope,
+		&i.TokenName,
+	)
+	return i, err
+}
+
+const getAPIKeyByName = `-- name: GetAPIKeyByName :one
+SELECT
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
+FROM
+	api_keys
+WHERE
+	user_id = $1 AND
+	token_name = $2 AND
+	token_name != ''
+LIMIT
+	1
+`
+
+type GetAPIKeyByNameParams struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	TokenName string    `db:"token_name" json:"token_name"`
+}
+
+// there is no unique constraint on empty token names
+func (q *sqlQuerier) GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error) {
+	row := q.db.QueryRowContext(ctx, getAPIKeyByName, arg.UserID, arg.TokenName)
+	var i APIKey
+	err := row.Scan(
+		&i.ID,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.LastUsed,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LoginType,
+		&i.LifetimeSeconds,
+		&i.IPAddress,
+		&i.Scope,
+		&i.TokenName,
 	)
 	return i, err
 }
 
 const getAPIKeysByLoginType = `-- name: GetAPIKeysByLoginType :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope FROM api_keys WHERE login_type = $1
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name FROM api_keys WHERE login_type = $1
 `
 
 func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error) {
@@ -96,6 +136,7 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginT
 			&i.LifetimeSeconds,
 			&i.IPAddress,
 			&i.Scope,
+			&i.TokenName,
 		); err != nil {
 			return nil, err
 		}
@@ -111,7 +152,7 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginT
 }
 
 const getAPIKeysByUserID = `-- name: GetAPIKeysByUserID :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope FROM api_keys WHERE login_type = $1 AND user_id = $2
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name FROM api_keys WHERE login_type = $1 AND user_id = $2
 `
 
 type GetAPIKeysByUserIDParams struct {
@@ -140,6 +181,7 @@ func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUse
 			&i.LifetimeSeconds,
 			&i.IPAddress,
 			&i.Scope,
+			&i.TokenName,
 		); err != nil {
 			return nil, err
 		}
@@ -155,7 +197,7 @@ func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUse
 }
 
 const getAPIKeysLastUsedAfter = `-- name: GetAPIKeysLastUsedAfter :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope FROM api_keys WHERE last_used > $1
+SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name FROM api_keys WHERE last_used > $1
 `
 
 func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error) {
@@ -179,6 +221,7 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 			&i.LifetimeSeconds,
 			&i.IPAddress,
 			&i.Scope,
+			&i.TokenName,
 		); err != nil {
 			return nil, err
 		}
@@ -206,7 +249,8 @@ INSERT INTO
 		created_at,
 		updated_at,
 		login_type,
-		scope
+		scope,
+		token_name
 	)
 VALUES
 	($1,
@@ -215,7 +259,7 @@ VALUES
 	     WHEN 0 THEN 86400
 		 ELSE $2::bigint
 	 END
-	 , $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope
+	 , $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, scope, token_name
 `
 
 type InsertAPIKeyParams struct {
@@ -230,6 +274,7 @@ type InsertAPIKeyParams struct {
 	UpdatedAt       time.Time   `db:"updated_at" json:"updated_at"`
 	LoginType       LoginType   `db:"login_type" json:"login_type"`
 	Scope           APIKeyScope `db:"scope" json:"scope"`
+	TokenName       string      `db:"token_name" json:"token_name"`
 }
 
 func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error) {
@@ -245,6 +290,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		arg.UpdatedAt,
 		arg.LoginType,
 		arg.Scope,
+		arg.TokenName,
 	)
 	var i APIKey
 	err := row.Scan(
@@ -259,6 +305,7 @@ func (q *sqlQuerier) InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (
 		&i.LifetimeSeconds,
 		&i.IPAddress,
 		&i.Scope,
+		&i.TokenName,
 	)
 	return i, err
 }
@@ -5416,25 +5463,35 @@ INSERT INTO
 		rx_packets,
 		rx_bytes,
 		tx_packets,
-		tx_bytes
+		tx_bytes,
+		session_count_vscode,
+		session_count_jetbrains,
+		session_count_reconnecting_pty,
+		session_count_ssh,
+		connection_median_latency_ms
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh
 `
 
 type InsertWorkspaceAgentStatParams struct {
-	ID                 uuid.UUID       `db:"id" json:"id"`
-	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
-	UserID             uuid.UUID       `db:"user_id" json:"user_id"`
-	WorkspaceID        uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	TemplateID         uuid.UUID       `db:"template_id" json:"template_id"`
-	AgentID            uuid.UUID       `db:"agent_id" json:"agent_id"`
-	ConnectionsByProto json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
-	ConnectionCount    int64           `db:"connection_count" json:"connection_count"`
-	RxPackets          int64           `db:"rx_packets" json:"rx_packets"`
-	RxBytes            int64           `db:"rx_bytes" json:"rx_bytes"`
-	TxPackets          int64           `db:"tx_packets" json:"tx_packets"`
-	TxBytes            int64           `db:"tx_bytes" json:"tx_bytes"`
+	ID                          uuid.UUID       `db:"id" json:"id"`
+	CreatedAt                   time.Time       `db:"created_at" json:"created_at"`
+	UserID                      uuid.UUID       `db:"user_id" json:"user_id"`
+	WorkspaceID                 uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	TemplateID                  uuid.UUID       `db:"template_id" json:"template_id"`
+	AgentID                     uuid.UUID       `db:"agent_id" json:"agent_id"`
+	ConnectionsByProto          json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
+	ConnectionCount             int64           `db:"connection_count" json:"connection_count"`
+	RxPackets                   int64           `db:"rx_packets" json:"rx_packets"`
+	RxBytes                     int64           `db:"rx_bytes" json:"rx_bytes"`
+	TxPackets                   int64           `db:"tx_packets" json:"tx_packets"`
+	TxBytes                     int64           `db:"tx_bytes" json:"tx_bytes"`
+	SessionCountVSCode          int64           `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
+	ConnectionMedianLatencyMS   int64           `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWorkspaceAgentStatParams) (WorkspaceAgentStat, error) {
@@ -5451,6 +5508,11 @@ func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWor
 		arg.RxBytes,
 		arg.TxPackets,
 		arg.TxBytes,
+		arg.SessionCountVSCode,
+		arg.SessionCountJetBrains,
+		arg.SessionCountReconnectingPTY,
+		arg.SessionCountSSH,
+		arg.ConnectionMedianLatencyMS,
 	)
 	var i WorkspaceAgentStat
 	err := row.Scan(
@@ -5466,6 +5528,11 @@ func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWor
 		&i.RxBytes,
 		&i.TxPackets,
 		&i.TxBytes,
+		&i.ConnectionMedianLatencyMS,
+		&i.SessionCountVSCode,
+		&i.SessionCountJetBrains,
+		&i.SessionCountReconnectingPTY,
+		&i.SessionCountSSH,
 	)
 	return i, err
 }

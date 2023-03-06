@@ -15,13 +15,18 @@ interface TableBodyProps {
   workspaces?: Workspace[]
   isUsingFilter: boolean
   onUpdateWorkspace: (workspace: Workspace) => void
+  error?: Error | unknown
 }
 
 export const WorkspacesTableBody: FC<
   React.PropsWithChildren<TableBodyProps>
-> = ({ workspaces, isUsingFilter, onUpdateWorkspace }) => {
+> = ({ workspaces, isUsingFilter, onUpdateWorkspace, error }) => {
   const { t } = useTranslation("workspacesPage")
   const styles = useStyles()
+
+  if (error) {
+    return <TableEmpty message={t("emptyResultsMessage")} />
+  }
 
   if (!workspaces) {
     return <TableLoader />

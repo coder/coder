@@ -134,7 +134,8 @@ CREATE TABLE api_keys (
     login_type login_type NOT NULL,
     lifetime_seconds bigint DEFAULT 86400 NOT NULL,
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
-    scope api_key_scope DEFAULT 'all'::api_key_scope NOT NULL
+    scope api_key_scope DEFAULT 'all'::api_key_scope NOT NULL,
+    token_name text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN api_keys.hashed_secret IS 'hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.';
@@ -474,7 +475,12 @@ CREATE TABLE workspace_agent_stats (
     rx_packets bigint DEFAULT 0 NOT NULL,
     rx_bytes bigint DEFAULT 0 NOT NULL,
     tx_packets bigint DEFAULT 0 NOT NULL,
-    tx_bytes bigint DEFAULT 0 NOT NULL
+    tx_bytes bigint DEFAULT 0 NOT NULL,
+    connection_median_latency_ms bigint DEFAULT '-1'::integer NOT NULL,
+    session_count_vscode bigint DEFAULT 0 NOT NULL,
+    session_count_jetbrains bigint DEFAULT 0 NOT NULL,
+    session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
+    session_count_ssh bigint DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -742,6 +748,8 @@ ALTER TABLE ONLY workspaces
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
+
+CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (user_id, token_name) WHERE (login_type = 'token'::login_type);
 
 CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id);
 

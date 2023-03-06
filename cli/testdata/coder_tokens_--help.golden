@@ -22,7 +22,7 @@ Get Started:
       [;m$ coder tokens rm WuoWs4ZsMX[0m 
 
 Commands:
-  create      Create a tokens
+  create      Create a token
   list        List tokens
   remove      Delete a token
 

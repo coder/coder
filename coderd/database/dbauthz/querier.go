@@ -36,6 +36,10 @@ func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey
 	return fetch(q.log, q.auth, q.db.GetAPIKeyByID)(ctx, id)
 }
 
+func (q *querier) GetAPIKeyByName(ctx context.Context, arg database.GetAPIKeyByNameParams) (database.APIKey, error) {
+	return fetch(q.log, q.auth, q.db.GetAPIKeyByName)(ctx, arg)
+}
+
 func (q *querier) GetAPIKeysByLoginType(ctx context.Context, loginType database.LoginType) ([]database.APIKey, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysByLoginType)(ctx, loginType)
 }

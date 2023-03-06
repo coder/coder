@@ -8,6 +8,13 @@ import { Permissions } from "xServices/auth/authXService"
 import { TemplateVersionFiles } from "util/templateVersion"
 import { FileTree } from "util/filetree"
 
+export const MockOrganization: TypesGen.Organization = {
+  id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  name: "Test Organization",
+  created_at: "",
+  updated_at: "",
+}
+
 export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
   entries: [
     { date: "2022-08-27T00:00:00Z", amount: 1 },
@@ -41,6 +48,7 @@ export const MockTokens: TypesGen.APIKey[] = [
     login_type: "token",
     scope: "all",
     lifetime_seconds: 2592000,
+    token_name: "token-one",
   },
   {
     id: "tBoVE3dqLl",
@@ -52,6 +60,7 @@ export const MockTokens: TypesGen.APIKey[] = [
     login_type: "token",
     scope: "all",
     lifetime_seconds: 2592000,
+    token_name: "token-two",
   },
 ]
 
@@ -138,7 +147,7 @@ export const MockUser: TypesGen.User = {
   email: "test@coder.com",
   created_at: "",
   status: "active",
-  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  organization_ids: [MockOrganization.id],
   roles: [MockOwnerRole],
   avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
   last_seen_at: "",
@@ -150,7 +159,7 @@ export const MockUserAdmin: TypesGen.User = {
   email: "test@coder.com",
   created_at: "",
   status: "active",
-  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  organization_ids: [MockOrganization.id],
   roles: [MockUserAdminRole],
   avatar_url: "",
   last_seen_at: "",
@@ -162,7 +171,7 @@ export const MockUser2: TypesGen.User = {
   email: "test2@coder.com",
   created_at: "",
   status: "active",
-  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  organization_ids: [MockOrganization.id],
   roles: [],
   avatar_url: "",
   last_seen_at: "2022-09-14T19:12:21Z",
@@ -174,17 +183,10 @@ export const SuspendedMockUser: TypesGen.User = {
   email: "iamsuspendedsad!@coder.com",
   created_at: "",
   status: "suspended",
-  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  organization_ids: [MockOrganization.id],
   roles: [],
   avatar_url: "",
   last_seen_at: "",
-}
-
-export const MockOrganization: TypesGen.Organization = {
-  id: "test-org",
-  name: "Test Organization",
-  created_at: "",
-  updated_at: "",
 }
 
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
@@ -199,7 +201,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   created_at: "",
   id: "test-provisioner-job",
   status: "succeeded",
-  file_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  file_id: MockOrganization.id,
   completed_at: "2022-05-17T17:39:01.382927298Z",
   tags: {},
 }
@@ -787,6 +789,56 @@ export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
     validation_monotonic: "decreasing",
   }
 
+export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
+  name: "first_variable",
+  description: "This is first variable.",
+  type: "string",
+  value: "",
+  default_value: "abc",
+  required: false,
+  sensitive: false,
+}
+
+export const MockTemplateVersionVariable2: TypesGen.TemplateVersionVariable = {
+  name: "second_variable",
+  description: "This is second variable.",
+  type: "number",
+  value: "5",
+  default_value: "3",
+  required: false,
+  sensitive: false,
+}
+
+export const MockTemplateVersionVariable3: TypesGen.TemplateVersionVariable = {
+  name: "third_variable",
+  description: "This is third variable.",
+  type: "bool",
+  value: "",
+  default_value: "false",
+  required: false,
+  sensitive: false,
+}
+
+export const MockTemplateVersionVariable4: TypesGen.TemplateVersionVariable = {
+  name: "fourth_variable",
+  description: "This is fourth variable.",
+  type: "string",
+  value: "defghijk",
+  default_value: "",
+  required: true,
+  sensitive: true,
+}
+
+export const MockTemplateVersionVariable5: TypesGen.TemplateVersionVariable = {
+  name: "fifth_variable",
+  description: "This is fifth variable.",
+  type: "string",
+  value: "",
+  default_value: "",
+  required: true,
+  sensitive: false,
+}
+
 // requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",
@@ -1185,7 +1237,7 @@ export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
   request_id: "53bded77-7b9d-4e82-8771-991a34d759f9",
   time: "2022-05-19T16:45:57.122Z",
-  organization_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  organization_id: MockOrganization.id,
   ip: "127.0.0.1",
   user_agent:
     '"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',
@@ -1406,6 +1458,42 @@ export const mockParameterSchema = (
     ...partial,
   }
 }
+
+export const MockParameterSchemas: TypesGen.ParameterSchema[] = [
+  mockParameterSchema({
+    name: "region",
+    default_source_value: "🏈 US Central",
+    description: "Where would you like your workspace to live?",
+    redisplay_value: true,
+    validation_contains: [
+      "🏈 US Central",
+      "⚽ Brazil East",
+      "💶 EU West",
+      "🦘 Australia South",
+    ],
+  }),
+  mockParameterSchema({
+    name: "instance_size",
+    default_source_value: "Big",
+    description: "How large should you instance be?",
+    validation_contains: ["Small", "Medium", "Big"],
+    redisplay_value: true,
+  }),
+  mockParameterSchema({
+    name: "instance_size",
+    default_source_value: "Big",
+    description: "How large should your instance be?",
+    validation_contains: ["Small", "Medium", "Big"],
+    redisplay_value: true,
+  }),
+  mockParameterSchema({
+    name: "disable_docker",
+    description: "Disable Docker?",
+    validation_value_type: "bool",
+    default_source_value: "false",
+    redisplay_value: true,
+  }),
+]
 
 export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
   id: "github",
