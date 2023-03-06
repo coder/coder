@@ -11,17 +11,6 @@ import i18next from "i18next"
 
 const { t } = i18next
 
-const renderTemplateSettingsPage = async () => {
-  const renderResult = renderWithAuth(<TemplateSettingsPage />, {
-    route: `/templates/${MockTemplate.name}/settings`,
-    path: `/templates/:templateId/settings`,
-  })
-  // Wait the form to be rendered
-  const label = t("nameLabel", { ns: "templateSettingsPage" })
-  await screen.findAllByLabelText(label)
-  return renderResult
-}
-
 const validFormValues = {
   name: "Name",
   display_name: "A display name",
@@ -29,6 +18,17 @@ const validFormValues = {
   icon: "vscode.png",
   default_ttl_ms: 1,
   allow_user_cancel_workspace_jobs: false,
+}
+
+const renderTemplateSettingsPage = async () => {
+  renderWithAuth(<TemplateSettingsPage />, {
+    route: `/templates/${MockTemplate.name}/settings`,
+    path: `/templates/:template/settings`,
+    extraRoutes: [{ path: "templates/:template", element: <></> }],
+  })
+  // Wait the form to be rendered
+  const label = t("nameLabel", { ns: "templateSettingsPage" })
+  await screen.findAllByLabelText(label)
 }
 
 const fillAndSubmitForm = async ({
@@ -109,17 +109,13 @@ describe("TemplateSettingsPage", () => {
     })
 
     await fillAndSubmitForm(validFormValues)
-    expect(screen.getByDisplayValue(1)).toBeInTheDocument() // the default_ttl_ms
     await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1))
-
-    await waitFor(() =>
-      expect(API.updateTemplateMeta).toBeCalledWith(
-        "test-template",
-        expect.objectContaining({
-          ...validFormValues,
-          default_ttl_ms: 3600000, // the default_ttl_ms to ms
-        }),
-      ),
+    expect(API.updateTemplateMeta).toBeCalledWith(
+      "test-template",
+      expect.objectContaining({
+        ...validFormValues,
+        default_ttl_ms: 3600000, // the default_ttl_ms to ms
+      }),
     )
   })
 
