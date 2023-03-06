@@ -6,10 +6,12 @@ Coder can run in offline / air-gapped environments.
 
 First, build and push a container image extending our official image with the following:
 
-- Terraform [(supported versions)](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)
 - CLI config (.tfrc) for Terraform referring to [external mirror](https://www.terraform.io/cli/config/config-file#explicit-installation-method-configuration)
 - [Terraform Providers](https://registry.terraform.io) for templates
   - These could also be specified via a volume mount (Docker) or [network mirror](https://www.terraform.io/internals/provider-network-mirror-protocol). See below for details.
+
+> Note: Coder includes the latest [supported version](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24) of Terraform in the official Docker images.
+> If you need to bundle a different version of terraform, you can do so by customizing the image.
 
 Here's an example:
 
@@ -24,13 +26,16 @@ RUN apk add curl unzip
 # Create directory for the Terraform CLI (and assets)
 RUN mkdir -p /opt/terraform
 
-# In order to run Coder airgapped or within private networks,
-# Terraform has to be bundled into the image in PATH or /opt.
-#
+# Terraform is already included in the official Coder image.
+# See https://github.com/coder/coder/blob/main/scripts/Dockerfile.base#L15
+# If you need to install a different version of Terraform, you can do so here.
+# The below step is optional if you wish to keep the existing version.
 # See https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24
 # for supported Terraform versions.
 ARG TERRAFORM_VERSION=1.3.0
-RUN curl -LOs https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
+RUN apk update && \
+    apk del terraform && \
+    curl -LOs https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
     && unzip -o terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
     && mv terraform /opt/terraform \
     && rm terraform_${TERRAFORM_VERSION}_linux_amd64.zip
