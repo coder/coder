@@ -124,7 +124,7 @@ func New(
 			slog.F("workspace_id", build.Metadata.WorkspaceId),
 			slog.F("workspace_name", build.Metadata.WorkspaceName),
 			slog.F("workspace_owner", build.Metadata.WorkspaceOwner),
-			slog.F("workspace_transition", build.Metadata.WorkspaceTransition.String()),
+			slog.F("workspace_transition", strings.ToLower(build.Metadata.WorkspaceTransition.String())),
 		)
 	}
 
