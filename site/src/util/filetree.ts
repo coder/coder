@@ -1,15 +1,46 @@
 import set from "lodash/set"
 import has from "lodash/has"
-import omit from "lodash/omit"
+import unset from "lodash/unset"
 import get from "lodash/get"
 
 export type FileTree = {
   [key: string]: FileTree | string
 }
 
-export const setFile = (
+export const createFile = (
   path: string,
-  content: string,
+  fileTree: FileTree,
+  value: string,
+): FileTree => {
+  if (existsFile(path, fileTree)) {
+    throw new Error(`File ${path} already exists`)
+  }
+  const pathError = validatePath(path, fileTree)
+  if (pathError) {
+    throw new Error(pathError)
+  }
+
+  return set(fileTree, path.split("/"), value)
+}
+
+export const validatePath = (
+  path: string,
+  fileTree: FileTree,
+): string | undefined => {
+  const paths = path.split("/")
+  paths.pop() // The last item is the filename
+  for (let i = 0; i <= paths.length; i++) {
+    const path = paths.slice(0, i + 1)
+    const pathStr = path.join("/")
+    if (existsFile(pathStr, fileTree) && !isFolder(pathStr, fileTree)) {
+      return `Invalid path. The path ${path} is not a folder`
+    }
+  }
+}
+
+export const updateFile = (
+  path: string,
+  content: FileTree | string,
   fileTree: FileTree,
 ): FileTree => {
   return set(fileTree, path.split("/"), content)
@@ -20,7 +51,23 @@ export const existsFile = (path: string, fileTree: FileTree) => {
 }
 
 export const removeFile = (path: string, fileTree: FileTree) => {
-  return omit(fileTree, path.split("/"))
+  const updatedFileTree = { ...fileTree }
+  unset(updatedFileTree, path.split("/"))
+  return updatedFileTree
+}
+
+export const moveFile = (
+  currentPath: string,
+  newPath: string,
+  fileTree: FileTree,
+) => {
+  const content = getFileContent(currentPath, fileTree)
+  if (typeof content !== "string") {
+    throw new Error("Move folders is not allowed")
+  }
+  fileTree = removeFile(currentPath, fileTree)
+  fileTree = createFile(newPath, fileTree, content)
+  return fileTree
 }
 
 export const getFileContent = (path: string, fileTree: FileTree) => {

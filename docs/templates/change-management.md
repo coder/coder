@@ -17,7 +17,7 @@ export CODER_TEMPLATE_NAME=kubernetes
 export CODER_TEMPLATE_DIR=.coder/templates/kubernetes
 export CODER_TEMPLATE_VERSION=$(git rev-parse --short HEAD)
 
-# Push the new template template version to Coder
+# Push the new template version to Coder
 coder templates push --yes $CODER_TEMPLATE_NAME \
     --directory $CODER_TEMPLATE_DIR \
     --name=$CODER_TEMPLATE_VERSION # Version name is optional
@@ -25,3 +25,5 @@ coder templates push --yes $CODER_TEMPLATE_NAME \
 
 > Looking for an example? See how we push our development image
 > and template [via GitHub actions](https://github.com/coder/coder/blob/main/.github/workflows/dogfood.yaml).
+
+> To create tokens with over a 30 day lifetime, [configure Coder server to set a longer max token lifetime](../cli/coder_server#--max-token-lifetime)
