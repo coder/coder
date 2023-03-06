@@ -90,16 +90,17 @@ resource "coder_agent" "dev" {
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
 
 
-    if [ ! -d ${data.coder_parameter.repo_dir.value} ]; then
-      mkdir -p ${data.coder_parameter.repo_dir.value}
+    CODER_REPO_DIR="${data.coder_parameter.repo_dir.value}"
+    if [ -n "$${CODER_REPO_DIR// }" ] && [ ! -d "$CODER_REPO_DIR" ]; then
+      mkdir -p "$CODER_REPO_DIR"
 
-      git clone https://github.com/coder/coder ${data.coder_parameter.repo_dir.value}
+      git clone https://github.com/coder/coder "$CODER_REPO_DIR"
     fi
 
     sudo service docker start
     DOTFILES_URI="${data.coder_parameter.dotfiles_url.value}"
     rm -f ~/.personalize.log
-    if [ -n "$DOTFILES_URI" ]; then
+    if [ -n "$${DOTFILES_URI// }" ]; then
       coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log
     fi
     if [ -x ~/personalize ]; then
