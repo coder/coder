@@ -39,7 +39,9 @@
   "agentStatus": {
     "connected": {
       "ready": "Ready",
-      "starting": "Starting..."
+      "starting": "Starting...",
+      "shuttingDown": "Stopping...",
+      "off": "Stopped"
     },
     "connecting": "Connecting...",
     "disconnected": "Disconnected",

@@ -1118,6 +1118,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 				Apps: []*sdkproto.App{{
 					Slug: "a",
 				}},
+				ShutdownScript: "shutdown",
 			}},
 		})
 		require.NoError(t, err)
@@ -1132,6 +1133,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.Equal(t, "amd64", agent.Architecture)
 		require.Equal(t, "linux", agent.OperatingSystem)
 		require.Equal(t, "value", agent.StartupScript.String)
+		require.Equal(t, "shutdown", agent.ShutdownScript.String)
 		want, err := json.Marshal(map[string]string{
 			"something": "test",
 		})
