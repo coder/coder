@@ -16,7 +16,7 @@ func ValidateWorkspaceBuildParameters(richParameters []TemplateVersionParameter,
 		lastBuildParameter, foundLastBuildParameter := findBuildParameter(lastBuildParameters, richParameter.Name)
 
 		if richParameter.Required && !foundBuildParameter && !foundLastBuildParameter {
-			return xerrors.Errorf("workspace build parameter %q is required", buildParameter.Name)
+			return xerrors.Errorf("workspace build parameter %q is required", richParameter.Name)
 		}
 
 		if !foundBuildParameter && foundLastBuildParameter {
@@ -25,7 +25,7 @@ func ValidateWorkspaceBuildParameters(richParameters []TemplateVersionParameter,
 
 		err := ValidateWorkspaceBuildParameter(richParameter, *buildParameter, lastBuildParameter)
 		if err != nil {
-			return xerrors.Errorf("can't validate build parameter %q: %w", buildParameter.Name, err)
+			return xerrors.Errorf("can't validate build parameter %q: %w", richParameter.Name, err)
 		}
 	}
 	return nil
@@ -92,6 +92,10 @@ func findTemplateVersionParameter(params []TemplateVersionParameter, parameterNa
 }
 
 func findBuildParameter(params []WorkspaceBuildParameter, parameterName string) (*WorkspaceBuildParameter, bool) {
+	if params == nil {
+		return nil, false
+	}
+
 	for _, p := range params {
 		if p.Name == parameterName {
 			return &p, true
