@@ -121,12 +121,17 @@ describe("TemplateSettingsPage", () => {
 
     await fillAndSubmitForm(validFormValues)
     await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1))
-    expect(API.updateTemplateMeta).toBeCalledWith(
-      "test-template",
-      expect.objectContaining({
-        ...validFormValues,
-        default_ttl_ms: 3600000, // the default_ttl_ms to ms
-      }),
+    await waitFor(() =>
+      expect(API.updateTemplateMeta).toBeCalledWith(
+        "test-template",
+        expect.objectContaining({
+          ...validFormValues,
+          // convert from the display value (hours) to ms
+          default_ttl_ms: validFormValues.default_ttl_ms * 3600000,
+          // this value is undefined if not entitled
+          max_ttl_ms: undefined,
+        }),
+      ),
     )
   })
 
