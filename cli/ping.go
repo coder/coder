@@ -31,7 +31,7 @@ func ping() *cobra.Command {
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
 
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}

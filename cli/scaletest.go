@@ -317,7 +317,7 @@ func scaletestCleanup() *cobra.Command {
 		Long:  "Cleanup scaletest workspaces, then cleanup scaletest users. The strategy flags will apply to each stage of the cleanup process.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}
@@ -502,7 +502,7 @@ func scaletestCreateWorkspaces() *cobra.Command {
 It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}

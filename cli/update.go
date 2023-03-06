@@ -24,7 +24,7 @@ func update() *cobra.Command {
 		Long: "Will update and start a given workspace if it is out of date. Use --always-prompt to change " +
 			"the parameter values of the workspace.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}

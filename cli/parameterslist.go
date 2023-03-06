@@ -24,7 +24,7 @@ func parameterList() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			scope, name := args[0], args[1]
 
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}

@@ -28,7 +28,7 @@ func restart() *cobra.Command {
 				return err
 			}
 
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}

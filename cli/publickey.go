@@ -18,7 +18,7 @@ func publickey() *cobra.Command {
 		Aliases: []string{"pubkey"},
 		Short:   "Output your Coder public key used for Git operations",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}

@@ -65,7 +65,7 @@ func portForward() *cobra.Command {
 				return xerrors.New("no port-forwards requested")
 			}
 
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}

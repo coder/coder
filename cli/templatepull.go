@@ -31,7 +31,7 @@ func templatePull() *cobra.Command {
 				dest = args[1]
 			}
 
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create client: %w", err)
 			}

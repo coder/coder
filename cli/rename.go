@@ -17,7 +17,7 @@ func rename() *cobra.Command {
 		Short:       "Rename a workspace",
 		Args:        cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}

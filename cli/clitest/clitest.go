@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -26,7 +27,7 @@ import (
 
 // New creates a CLI instance with a configuration pointed to a
 // temporary testing directory.
-func New(t *testing.T, args ...string) (*cobra.Command, config.Root) {
+func New(t *testing.T, args ...string) (*clibase.Command, config.Root) {
 	return NewWithSubcommands(t, cli.AGPL(), args...)
 }
 

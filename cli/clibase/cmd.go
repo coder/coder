@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"runtime"
 	"strings"
+
+	"github.com/spf13/pflag"
+	"golang.org/x/xerrors"
 )
 
 // Cmd describes an executable command.
@@ -28,8 +30,9 @@ type Cmd struct {
 
 	// Middleware is called before the Handler.
 	// Use Chain() to combine multiple middlewares.
-	Middleware Middleware
-	Handler    Handler
+	Middleware  MiddlewareFunc
+	Handler     HandlerFunc
+	HelpHandler HandlerFunc
 }
 
 // Name returns the first word in the Use string.
@@ -65,42 +68,102 @@ type Invokation struct {
 	parent *Invokation
 
 	ctx     context.Context
-	Command *Command
+	Command *Cmd
 	Args    []string
-	// Environ is the environment variables is os.Environ() form.
-	Environ []string
-	Stdout  io.Writer
-	Stderr  io.Writer
-	Stdin   io.Reader
-
-	err error
+	// Env is a list of environment variables. Use EnvsWithPrefix to parse
+	// os.Environ.
+	Env    []EnvVar
+	Stdout io.Writer
+	Stderr io.Writer
+	Stdin  io.Reader
 }
 
 func (i *Invokation) Context() context.Context {
 	return i.ctx
 }
 
-func (i *Invokation) Exit(err error) {
-	if i.parent != nil {
-		i.parent.Exit(err)
-		return
+// run recursively executes the command and its children.
+// allArgs is wired through the stack so that global flags can be accepted
+// anywhere in the command invokation.
+func (i *Invokation) run(allArgs []string, flagSet *pflag.FlagSet) error {
+	err := i.Command.Options.SetDefaults()
+	if err != nil {
+		return xerrors.Errorf("setting defaults: %w", err)
 	}
 
-	i.err = err
-	// Goexit simulates an os.Exit, but can be captured in tests and
-	// middleware. Production callers may switch on err to determine the right
-	// exit code. Perhaps in the future we could add an ExitCoder interface.
-	runtime.Goexit()
+	childrenMap := make(map[string]*Cmd)
+	for _, child := range i.Command.Children {
+		if _, ok := childrenMap[child.Name()]; ok {
+			return xerrors.Errorf("duplicate command name: %s", child.Name())
+		}
+		childrenMap[child.Name()] = child
+	}
+
+	if flagSet == nil {
+		flagSet = pflag.NewFlagSet(i.Command.Name(), pflag.ContinueOnError)
+	}
+
+	additionalFlags := i.Command.Options.FlagSet()
+	flagSet.AddFlagSet(additionalFlags)
+
+	// Run child command if found.
+	for argI, arg := range i.Args {
+		if child, ok := childrenMap[arg]; ok {
+			i.Args = i.Args[argI+1:]
+			child.Parent = i.Command
+			i.Command = child
+			err := i.run(allArgs, flagSet)
+			if err != nil {
+				return xerrors.Errorf(
+					"subcommand %s: %w", child.Name(), err,
+				)
+			}
+			return nil
+		}
+	}
+
+	err = i.Command.Options.ParseEnv(i.Env)
+	if err != nil {
+		return xerrors.Errorf("parsing env: %w", err)
+	}
+
+	err = flagSet.Parse(allArgs)
+	if err != nil {
+		return xerrors.Errorf("parsing flags: %w", err)
+	}
+
+	mw := i.Command.Middleware
+	if mw == nil {
+		mw = Chain()
+	}
+
+	if i.Command.Handler == nil {
+		if i.Command.HelpHandler != nil {
+			return i.Command.HelpHandler(i)
+		}
+		return xerrors.Errorf("no handler or help for command %s", i.Command.FullName())
+	}
+
+	i.Args = stripFlags(i.Args)
+	return mw(i.Command.Handler)(i)
 }
 
+func stripFlags(args []string) []string {
+	var stripped []string
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+		stripped = append(stripped, arg)
+	}
+	return stripped
+}
+
+// Run executes the command.
+//
+//nolint:revive
 func (i *Invokation) Run() error {
-	waitDone := make(chan struct{})
-	go func() {
-		defer close(waitDone)
-		i.Command.Middleware(i.Command.Handler).ServeCommand(i)
-	}()
-	<-waitDone
-	return i.err
+	return i.run(i.Args, nil)
 }
 
 // WithContext returns a copy of the Invokation with the given context.
@@ -111,12 +174,12 @@ func (i *Invokation) WithContext(ctx context.Context) *Invokation {
 	return &i2
 }
 
-// Middleware returns the next handler in the chain,
+// MiddlewareFunc returns the next handler in the chain,
 // or nil if there are no more.
-type Middleware func(next Handler) Handler
+type MiddlewareFunc func(next HandlerFunc) HandlerFunc
 
-func chain(ms ...Middleware) Middleware {
-	return Middleware(func(next Handler) Handler {
+func chain(ms ...MiddlewareFunc) MiddlewareFunc {
+	return MiddlewareFunc(func(next HandlerFunc) HandlerFunc {
 		if len(ms) > 0 {
 			return chain(ms[1:]...)(ms[0](next))
 		}
@@ -127,44 +190,30 @@ func chain(ms ...Middleware) Middleware {
 // Chain returns a Handler that first calls middleware in order.
 //
 //nolint:revive
-func Chain(ms ...Middleware) Middleware {
+func Chain(ms ...MiddlewareFunc) MiddlewareFunc {
 	// We need to reverse the array to provide top-to-bottom execution
 	// order when defining a command.
-	reversed := make([]Middleware, len(ms))
+	reversed := make([]MiddlewareFunc, len(ms))
 	for i := range ms {
 		reversed[len(ms)-1-i] = ms[i]
 	}
 	return chain(reversed...)
 }
 
-func RequireNArgs(want int) Middleware {
-	return func(next Handler) Handler {
-		return HandlerFunc(func(i *Invokation) {
+func RequireNArgs(want int) MiddlewareFunc {
+	return func(next HandlerFunc) HandlerFunc {
+		return func(i *Invokation) error {
 			if len(i.Args) != want {
-				i.Exit(
-					fmt.Errorf(
-						"wanted %v args but got %v",
-						want,
-						len(i.Args),
-					),
+				return fmt.Errorf(
+					"wanted %v args but got %v",
+					want,
+					len(i.Args),
 				)
 			}
-			next.ServeCommand(i)
-		})
+			return next(i)
+		}
 	}
 }
 
-// HandlerFunc is to Handler what http.HandlerFunc is to http.Handler.
-type HandlerFunc func(i *Invokation)
-
-func (h HandlerFunc) ServeCommand(i *Invokation) {
-	h(i)
-}
-
-var _ Handler = HandlerFunc(nil)
-
-// Handler describes the executable portion of a command. It
-// is loosely based on the http.Handler interface.
-type Handler interface {
-	ServeCommand(i *Invokation)
-}
+// HandlerFunc handles an Invokation of a command.
+type HandlerFunc func(i *Invokation) error

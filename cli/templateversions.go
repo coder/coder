@@ -46,7 +46,7 @@ func templateVersionsList() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Short: "List all the versions of the specified template",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create client: %w", err)
 			}

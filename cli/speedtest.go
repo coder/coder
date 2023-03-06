@@ -32,7 +32,7 @@ func speedtest() *cobra.Command {
 			ctx, cancel := context.WithCancel(cmd.Context())
 			defer cancel()
 
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}

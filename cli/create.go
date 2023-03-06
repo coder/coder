@@ -30,7 +30,7 @@ func create() *cobra.Command {
 		Use:         "create [name]",
 		Short:       "Create a workspace",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}

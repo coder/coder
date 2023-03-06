@@ -57,7 +57,7 @@ func createToken() *cobra.Command {
 		Use:   "create",
 		Short: "Create a token",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
@@ -136,7 +136,7 @@ func listTokens() *cobra.Command {
 		Aliases: []string{"ls"},
 		Short:   "List tokens",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
@@ -184,7 +184,7 @@ func removeToken() *cobra.Command {
 		Short:   "Delete a token",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}

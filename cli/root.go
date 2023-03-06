@@ -26,6 +26,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
@@ -71,43 +72,15 @@ func init() {
 	cobra.AddTemplateFuncs(templateFunctions)
 }
 
-func Core() []*cobra.Command {
+func Core() []*clibase.Command {
+	r := &rootCmd{}
 	// Please re-sort this list alphabetically if you change it!
-	return []*cobra.Command{
-		configSSH(),
-		create(),
-		deleteWorkspace(),
-		dotfiles(),
-		gitssh(),
-		list(),
-		login(),
-		logout(),
-		parameters(),
-		ping(),
-		portForward(),
-		publickey(),
-		rename(),
-		resetPassword(),
-		restart(),
-		scaletest(),
-		schedules(),
-		show(),
-		speedtest(),
-		ssh(),
-		start(),
-		state(),
-		stop(),
-		templates(),
-		tokens(),
-		update(),
-		users(),
-		versionCmd(),
-		vscodeSSH(),
-		workspaceAgent(),
+	return []*clibase.Command{
+		show(r),
 	}
 }
 
-func AGPL() []*cobra.Command {
+func AGPL() []*clibase.Command {
 	all := append(Core(), Server(func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
 		api := coderd.New(o)
 		return api, api, nil
@@ -257,86 +230,104 @@ func isTest() bool {
 	return flag.Lookup("test.v") != nil
 }
 
-// CreateClient returns a new client from the command context.
-// It reads from global configuration files if flags are not set.
-func CreateClient(cmd *cobra.Command) (*codersdk.Client, error) {
-	root := createConfig(cmd)
-	rawURL, err := cmd.Flags().GetString(varURL)
-	if err != nil || rawURL == "" {
-		rawURL, err = root.URL().Read()
-		if err != nil {
-			// If the configuration files are absent, the user is logged out
-			if os.IsNotExist(err) {
-				return nil, errUnauthenticated
-			}
-			return nil, err
-		}
-	}
-	serverURL, err := url.Parse(strings.TrimSpace(rawURL))
-	if err != nil {
-		return nil, err
-	}
-	token, err := cmd.Flags().GetString(varToken)
-	if err != nil || token == "" {
-		token, err = root.Session().Read()
-		if err != nil {
-			// If the configuration files are absent, the user is logged out
-			if os.IsNotExist(err) {
-				return nil, errUnauthenticated
-			}
-			return nil, err
-		}
-	}
-	client, err := createUnauthenticatedClient(cmd, serverURL)
-	if err != nil {
-		return nil, err
-	}
-	client.SetSessionToken(token)
+type rootCmd struct {
+	clientURL    *url.URL
+	token        string
+	globalConfig string
+	header       []string
 
-	// We send these requests in parallel to minimize latency.
-	var (
-		versionErr = make(chan error)
-		warningErr = make(chan error)
-	)
-	go func() {
-		versionErr <- checkVersions(cmd, client)
-		close(versionErr)
-	}()
-
-	go func() {
-		warningErr <- checkWarnings(cmd, client)
-		close(warningErr)
-	}()
-
-	if err = <-versionErr; err != nil {
-		// Just log the error here. We never want to fail a command
-		// due to a pre-run.
-		_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
-			cliui.Styles.Warn.Render("check versions error: %s"), err)
-		_, _ = fmt.Fprintln(cmd.ErrOrStderr())
-	}
-
-	if err = <-warningErr; err != nil {
-		// Same as above
-		_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
-			cliui.Styles.Warn.Render("check entitlement warnings error: %s"), err)
-		_, _ = fmt.Fprintln(cmd.ErrOrStderr())
-	}
-
-	return client, nil
+	noVersionCheck   bool
+	noFeatureWarning bool
 }
 
-func createUnauthenticatedClient(cmd *cobra.Command, serverURL *url.URL) (*codersdk.Client, error) {
-	client := codersdk.New(serverURL)
-	headers, err := cmd.Flags().GetStringArray(varHeader)
-	if err != nil {
-		return nil, err
+// useClient returns a new client from the command context.
+// It reads from global configuration files if flags are not set.
+func (r *rootCmd) useClient(c *codersdk.Client) clibase.MiddlewareFunc {
+	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
+		return clibase.HandlerFunc(
+			func(i *clibase.Invokation) error {
+				root := r.createConfig()
+				clientURL := r.clientURL
+				var err error
+				if clientURL == nil {
+					rawURL, err := root.URL().Read()
+					// If the configuration files are absent, the user is logged out
+					if os.IsNotExist(err) {
+						return (errUnauthenticated)
+					}
+					if err != nil {
+						return err
+					}
+
+					clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+					if err != nil {
+						return err
+					}
+				}
+
+				token := r.token
+				if token == "" {
+					token, err = root.Session().Read()
+					// If the configuration files are absent, the user is logged out
+					if os.IsNotExist(err) {
+						return (errUnauthenticated)
+					}
+					if err != nil {
+						return err
+					}
+				}
+
+				client, err := r.createUnauthenticatedClient(clientURL)
+				if err != nil {
+					return err
+				}
+
+				client.SetSessionToken(token)
+
+				// We send these requests in parallel to minimize latency.
+				var (
+					versionErr = make(chan error)
+					warningErr = make(chan error)
+				)
+				go func() {
+					versionErr <- r.checkVersions(i, client)
+					close(versionErr)
+				}()
+
+				go func() {
+					warningErr <- r.checkWarnings(i, client)
+					close(warningErr)
+				}()
+
+				if err = <-versionErr; err != nil {
+					// Just log the error here. We never want to fail a command
+					// due to a pre-run.
+					_, _ = fmt.Fprintf(i.Stderr,
+						cliui.Styles.Warn.Render("check versions error: %s"), err)
+					_, _ = fmt.Fprintln(i.Stderr)
+				}
+
+				if err = <-warningErr; err != nil {
+					// Same as above
+					_, _ = fmt.Fprintf(i.Stderr,
+						cliui.Styles.Warn.Render("check entitlement warnings error: %s"), err)
+					_, _ = fmt.Fprintln(i.Stderr)
+				}
+
+				*c = *client
+				return nil
+			},
+		)
 	}
+}
+
+func (r *rootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Client, error) {
+	client := codersdk.New(serverURL)
 	transport := &headerTransport{
 		transport: http.DefaultTransport,
 		headers:   map[string]string{},
 	}
-	for _, header := range headers {
+	for _, header := range r.header {
 		parts := strings.SplitN(header, "=", 2)
 		if len(parts) < 2 {
 			return nil, xerrors.Errorf("split header %q had less than two parts", header)
@@ -381,7 +372,7 @@ func CurrentOrganization(cmd *cobra.Command, client *codersdk.Client) (codersdk.
 // namedWorkspace fetches and returns a workspace by an identifier, which may be either
 // a bare name (for a workspace owned by the current user) or a "user/workspace" combination,
 // where user is either a username or UUID.
-func namedWorkspace(cmd *cobra.Command, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
+func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
 	parts := strings.Split(identifier, "/")
 
 	var owner, name string
@@ -396,16 +387,12 @@ func namedWorkspace(cmd *cobra.Command, client *codersdk.Client, identifier stri
 		return codersdk.Workspace{}, xerrors.Errorf("invalid workspace name: %q", identifier)
 	}
 
-	return client.WorkspaceByOwnerAndName(cmd.Context(), owner, name, codersdk.WorkspaceOptions{})
+	return client.WorkspaceByOwnerAndName(ctx, owner, name, codersdk.WorkspaceOptions{})
 }
 
 // createConfig consumes the global configuration flag to produce a config root.
-func createConfig(cmd *cobra.Command) config.Root {
-	globalRoot, err := cmd.Flags().GetString(config.FlagName)
-	if err != nil {
-		panic(err)
-	}
-	return config.Root(globalRoot)
+func (r *rootCmd) createConfig() config.Root {
+	return config.Root(r.globalConfig)
 }
 
 // isTTY returns whether the passed reader is a TTY or not.
@@ -598,12 +585,12 @@ func FormatCobraError(err error, cmd *cobra.Command) string {
 	return cliui.Styles.Error.Render(output.String())
 }
 
-func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
-	if cliflag.IsSetBool(cmd, varNoVersionCheck) {
+func (r *rootCmd) checkVersions(i *clibase.Invokation, client *codersdk.Client) error {
+	if r.noVersionCheck {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(cmd.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(i.Context(), 10*time.Second)
 	defer cancel()
 
 	clientVersion := buildinfo.Version()
@@ -629,25 +616,25 @@ func checkVersions(cmd *cobra.Command, client *codersdk.Client) error {
 
 	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
 		warn := cliui.Styles.Warn.Copy().Align(lipgloss.Left)
-		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), warn.Render(fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
-		_, _ = fmt.Fprintln(cmd.ErrOrStderr())
+		_, _ = fmt.Fprintf(i.Stderr, warn.Render(fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
+		_, _ = fmt.Fprintln(i.Stderr)
 	}
 
 	return nil
 }
 
-func checkWarnings(cmd *cobra.Command, client *codersdk.Client) error {
-	if cliflag.IsSetBool(cmd, varNoFeatureWarning) {
+func (r *rootCmd) checkWarnings(i *clibase.Invokation, client *codersdk.Client) error {
+	if r.noFeatureWarning {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(cmd.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(i.Context(), 10*time.Second)
 	defer cancel()
 
 	entitlements, err := client.Entitlements(ctx)
 	if err == nil {
 		for _, w := range entitlements.Warnings {
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Warn.Render(w))
+			_, _ = fmt.Fprintln(i.Stderr, cliui.Styles.Warn.Render(w))
 		}
 	}
 	return nil

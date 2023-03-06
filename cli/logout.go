@@ -16,7 +16,7 @@ func logout() *cobra.Command {
 		Use:   "logout",
 		Short: "Unauthenticate your local session",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}

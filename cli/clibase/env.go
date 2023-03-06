@@ -25,9 +25,9 @@ type EnvVar struct {
 	Value string
 }
 
-// EnvsWithPrefix returns all environment variables starting with
+// ParseEnviron returns all environment variables starting with
 // prefix without said prefix.
-func EnvsWithPrefix(environ []string, prefix string) []EnvVar {
+func ParseEnviron(environ []string, prefix string) []EnvVar {
 	var filtered []EnvVar
 	for _, line := range environ {
 		name := envName(line)

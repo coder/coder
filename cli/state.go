@@ -31,7 +31,7 @@ func statePull() *cobra.Command {
 		Short: "Pull a Terraform state file from a workspace.",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}
@@ -73,7 +73,7 @@ func statePush() *cobra.Command {
 		Args:  cobra.ExactArgs(2),
 		Short: "Push a Terraform state file to a workspace.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
+			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}
