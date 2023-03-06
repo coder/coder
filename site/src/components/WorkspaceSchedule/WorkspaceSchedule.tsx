@@ -46,7 +46,7 @@ export const WorkspaceSchedule: FC<
 
   return (
     <div className={styles.schedule}>
-      <Stack spacing={2}>
+      <Stack>
         <div>
           <span className={styles.scheduleLabel}>{Language.timezoneLabel}</span>
           <span className={styles.scheduleValue}>{timezone}</span>

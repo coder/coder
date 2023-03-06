@@ -1,7 +1,7 @@
 Delete a token
 
 Usage:
-  coder tokens remove [id] [flags]
+  coder tokens remove [name] [flags]
 
 Aliases:
   remove, rm
