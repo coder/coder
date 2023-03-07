@@ -160,7 +160,7 @@ func WorkspaceBuild[B AnyWorkspaceBuild](t testing.TB, db database.Store, orig B
 	var thin database.WorkspaceBuildThin
 	switch v := any(orig).(type) {
 	case database.WorkspaceBuild:
-		thin = v.ToThin()
+		thin = v.WorkspaceBuildThin
 	case database.WorkspaceBuildThin:
 		thin = v
 	default:
@@ -178,6 +178,7 @@ func WorkspaceBuild[B AnyWorkspaceBuild](t testing.TB, db database.Store, orig B
 		JobID:             takeFirst(thin.JobID, uuid.New()),
 		ProvisionerState:  takeFirstSlice(thin.ProvisionerState, []byte{}),
 		Deadline:          takeFirst(thin.Deadline, database.Now().Add(time.Hour)),
+		MaxDeadline:       takeFirst(thin.MaxDeadline, database.Now().Add(time.Hour*24*7)),
 		Reason:            takeFirst(thin.Reason, database.BuildReasonInitiator),
 	})
 	require.NoError(t, err, "insert workspace build")

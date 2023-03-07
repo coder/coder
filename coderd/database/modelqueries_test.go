@@ -120,7 +120,7 @@ func TestGetWorkspaceBuild(t *testing.T) {
 		}
 		expected := builds[1]
 		require.Len(t, found, 1, "should only be one build")
-		require.Equal(t, expected.ID, found[0].ID, "builds should be equal")
+		require.Equal(t, expected, found[0], "builds should be equal")
 	})
 
 	t.Run("GetWorkspaceBuildByWorkspaceIDAndBuildNumber", func(t *testing.T) {
@@ -157,7 +157,7 @@ func TestGetWorkspaceBuild(t *testing.T) {
 			t.Fatal(err)
 		}
 		require.Len(t, found, 1, "should be only one build")
-		require.Equal(t, builds[1].ID, found[0].ID, "builds should be equal")
+		require.Equal(t, builds[1], found[0], "builds should be equal")
 	})
 
 	t.Run("GetLatestWorkspaceBuilds", func(t *testing.T) {
@@ -167,7 +167,7 @@ func TestGetWorkspaceBuild(t *testing.T) {
 			t.Fatal(err)
 		}
 		require.Len(t, found, 1, "should be only 1 build")
-		require.Equal(t, builds[1].ID, found[0].ID, "builds should be equal")
+		require.Equal(t, builds[1], found[0].WorkspaceBuildThin, "builds should be equal")
 	})
 
 	t.Run("GetLatestWorkspaceBuildByWorkspaceID", func(t *testing.T) {
@@ -176,7 +176,7 @@ func TestGetWorkspaceBuild(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		require.Equal(t, builds[1].ID, found.ID, "builds should be equal")
+		require.Equal(t, builds[1], found, "builds should be equal")
 	})
 }
 

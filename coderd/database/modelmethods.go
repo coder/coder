@@ -191,47 +191,15 @@ func (l License) RBACObject() rbac.Object {
 	return rbac.ResourceLicense.WithIDString(strconv.FormatInt(int64(l.ID), 10))
 }
 
-func (b WorkspaceBuild) ToThin() WorkspaceBuildThin {
-	return WorkspaceBuildThin{
-		ID:                b.ID,
-		CreatedAt:         b.CreatedAt,
-		UpdatedAt:         b.UpdatedAt,
-		WorkspaceID:       b.WorkspaceID,
-		TemplateVersionID: b.TemplateVersionID,
-		BuildNumber:       b.BuildNumber,
-		Transition:        b.Transition,
-		InitiatorID:       b.InitiatorID,
-		ProvisionerState:  b.ProvisionerState,
-		JobID:             b.JobID,
-		Deadline:          b.Deadline,
-		Reason:            b.Reason,
-		DailyCost:         b.DailyCost,
-	}
-}
-
 func (b WorkspaceBuildThin) WithWorkspace(workspace Workspace) WorkspaceBuild {
 	return b.Expand(workspace.OrganizationID, workspace.OwnerID)
 }
 
 func (b WorkspaceBuildThin) Expand(orgID, ownerID uuid.UUID) WorkspaceBuild {
 	return WorkspaceBuild{
-		WorkspaceBuildThin: WorkspaceBuildThin{
-			ID:                b.ID,
-			CreatedAt:         b.CreatedAt,
-			UpdatedAt:         b.UpdatedAt,
-			WorkspaceID:       b.WorkspaceID,
-			TemplateVersionID: b.TemplateVersionID,
-			BuildNumber:       b.BuildNumber,
-			Transition:        b.Transition,
-			InitiatorID:       b.InitiatorID,
-			ProvisionerState:  b.ProvisionerState,
-			JobID:             b.JobID,
-			Deadline:          b.Deadline,
-			Reason:            b.Reason,
-			DailyCost:         b.DailyCost,
-		},
-		OrganizationID:   orgID,
-		WorkspaceOwnerID: ownerID,
+		WorkspaceBuildThin: b,
+		OrganizationID:     orgID,
+		WorkspaceOwnerID:   ownerID,
 	}
 }
 
