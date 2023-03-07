@@ -1276,6 +1276,9 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 
 		select {
 		case a.connStatsChan <- stats:
+			// Only store the latest stat when it's successfully sent!
+			// Otherwise, it should be sent again on the next iteration.
+			a.latestStat.Store(stats)
 		default:
 			a.logger.Warn(ctx, "network stat dropped")
 		}
