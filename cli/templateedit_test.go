@@ -301,7 +301,6 @@ func TestTemplateEdit(t *testing.T) {
 						HasLicense:       true,
 						Trial:            true,
 						RequireTelemetry: false,
-						Experimental:     false,
 					}
 					for _, feature := range codersdk.FeatureNames {
 						res.Features[feature] = codersdk.Feature{
@@ -374,7 +373,6 @@ func TestTemplateEdit(t *testing.T) {
 						HasLicense:       true,
 						Trial:            true,
 						RequireTelemetry: false,
-						Experimental:     false,
 					}
 					for _, feature := range codersdk.FeatureNames {
 						var one int64 = 1

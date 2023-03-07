@@ -5,6 +5,7 @@ import (
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/codersdk"
 )
 
 // @Summary Get deployment config
@@ -14,11 +15,23 @@ import (
 // @Tags General
 // @Success 200 {object} codersdk.DeploymentConfig
 // @Router /config/deployment [get]
-func (api *API) deploymentConfig(rw http.ResponseWriter, r *http.Request) {
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentConfig) {
+func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
 		httpapi.Forbidden(rw)
 		return
 	}
 
-	httpapi.Write(r.Context(), rw, http.StatusOK, api.DeploymentConfig)
+	values, err := api.DeploymentValues.WithoutSecrets()
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(
+		r.Context(), rw, http.StatusOK,
+		codersdk.DeploymentConfig{
+			Values:  values,
+			Options: values.Options(),
+		},
+	)
 }

@@ -31,6 +31,8 @@ func New(t *testing.T, opts ...pty.Option) *PTY {
 	return create(t, ptty, "cmd")
 }
 
+// Start starts a new process asynchronously and returns a PTY and Process.
+// It kills the process upon cleanup.
 func Start(t *testing.T, cmd *exec.Cmd, opts ...pty.StartOption) (*PTY, pty.Process) {
 	t.Helper()
 

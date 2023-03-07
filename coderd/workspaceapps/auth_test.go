@@ -43,13 +43,13 @@ func Test_ResolveRequest(t *testing.T) {
 	)
 	allApps := []string{appNameOwner, appNameAuthed, appNamePublic}
 
-	deploymentConfig := coderdtest.DeploymentConfig(t)
-	deploymentConfig.DisablePathApps.Value = false
-	deploymentConfig.Dangerous.AllowPathAppSharing.Value = true
-	deploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value = true
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.DisablePathApps = false
+	deploymentValues.Dangerous.AllowPathAppSharing = true
+	deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = true
 
 	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentConfig:            deploymentConfig,
+		DeploymentValues:            deploymentValues,
 		IncludeProvisionerDaemon:    true,
 		AgentStatsRefreshInterval:   time.Millisecond * 100,
 		MetricsCacheRefreshInterval: time.Millisecond * 100,
