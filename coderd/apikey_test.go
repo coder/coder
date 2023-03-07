@@ -136,9 +136,9 @@ func TestTokenDefaultMaxLifetime(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	dc := coderdtest.DeploymentConfig(t)
+	dc := coderdtest.DeploymentValues(t)
 	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentConfig: dc,
+		DeploymentValues: dc,
 	})
 	_ = coderdtest.CreateFirstUser(t, client)
 
