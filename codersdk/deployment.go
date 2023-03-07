@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"io"
 	"math"
 	"net/http"
 	"os"
@@ -1328,27 +1327,15 @@ func (c *Client) DeploymentValues(ctx context.Context) (*DeploymentConfig, error
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-
-	byt, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, xerrors.Errorf("read response: %w", err)
-	}
-
 	conf := &DeploymentValues{}
 	resp := &DeploymentConfig{
 		Values:  conf,
 		Options: conf.Options(),
 	}
-
-	err = json.Unmarshal(byt, resp)
-	if err != nil {
-		return nil, xerrors.Errorf("decode response: %w\n%s", err, byt)
-	}
-	return resp, nil
+	return resp, json.NewDecoder(res.Body).Decode(resp)
 }
 
 type AppearanceConfig struct {
