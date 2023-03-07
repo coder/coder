@@ -126,15 +126,15 @@ func TestCache(t *testing.T) {
 					Host:   fmt.Sprintf("127.0.0.1:%d", tcpAddr.Port),
 					Path:   "/",
 				})
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+				defer cancel()
 				req := httptest.NewRequest(http.MethodGet, "/", nil)
+				req = req.WithContext(ctx)
 				conn, release, err := cache.Acquire(req, uuid.Nil)
 				if !assert.NoError(t, err) {
 					return
 				}
 				defer release()
-
-				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-				defer cancel()
 				if !conn.AwaitReachable(ctx) {
 					t.Error("agent not reachable")
 					return
