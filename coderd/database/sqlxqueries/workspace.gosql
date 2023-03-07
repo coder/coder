@@ -13,7 +13,6 @@ INNER JOIN
 
 
 {{ define "GetWorkspaceBuild" }}
--- {{ . }}}}
 -- name: GetWorkspaceBuild :one
 SELECT
 	*
@@ -54,7 +53,7 @@ WHERE
 ORDER BY
 	build_number desc
 {{ end }}
-{{ if gt .TestLimit 0 }} LIMIT @limit_opt {{ end }};
+LIMIT @limit_opt;
 {{ end }}
 
 

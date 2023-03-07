@@ -13,7 +13,7 @@ import (
 func SelectContext[RT any](ctx context.Context, q sqlx.QueryerContext, queryName string, argument interface{}) ([]RT, error) {
 	var empty []RT
 
-	query, err := query(queryName, nil)
+	query, err := query(queryName, argument)
 	if err != nil {
 		return empty, xerrors.Errorf("get query: %w", err)
 	}
