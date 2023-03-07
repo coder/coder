@@ -20,7 +20,7 @@ func TestCommand_ToUpper(t *testing.T) {
 		)
 		return &clibase.Cmd{
 			Use: "root [subcommand]",
-			Options: &clibase.OptionSet{
+			Options: clibase.OptionSet{
 				clibase.Option{
 					Name:  "verbose",
 					Flag:  "verbose",

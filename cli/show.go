@@ -8,7 +8,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func show(root *rootCmd) *clibase.Command {
+func show(root *RootCmd) *clibase.Command {
 	var client *codersdk.Client
 	return &clibase.Command{
 		Use:   "show <workspace>",

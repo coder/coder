@@ -25,9 +25,19 @@ type EnvVar struct {
 	Value string
 }
 
+type Environ []EnvVar
+
+func (e Environ) ToOS() []string {
+	var env []string
+	for _, v := range e {
+		env = append(env, v.Name+"="+v.Value)
+	}
+	return env
+}
+
 // ParseEnviron returns all environment variables starting with
 // prefix without said prefix.
-func ParseEnviron(environ []string, prefix string) []EnvVar {
+func ParseEnviron(environ []string, prefix string) Environ {
 	var filtered []EnvVar
 	for _, line := range environ {
 		name := envName(line)

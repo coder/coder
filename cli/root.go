@@ -73,7 +73,7 @@ func init() {
 }
 
 func Core() []*clibase.Command {
-	r := &rootCmd{}
+	r := &RootCmd{}
 	// Please re-sort this list alphabetically if you change it!
 	return []*clibase.Command{
 		show(r),
@@ -88,35 +88,12 @@ func AGPL() []*clibase.Command {
 	return all
 }
 
-func Root(subcommands []*cobra.Command) *cobra.Command {
-	// The GIT_ASKPASS environment variable must point at
-	// a binary with no arguments. To prevent writing
-	// cross-platform scripts to invoke the Coder binary
-	// with a `gitaskpass` subcommand, we override the entrypoint
-	// to check if the command was invoked.
-	isGitAskpass := false
-
+func (r *RootCmd) Command(subcommands []*clibase.Command) *clibase.Command {
 	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
-	cmd := &cobra.Command{
-		Use:           "coder",
-		SilenceErrors: true,
-		SilenceUsage:  true,
-		Long:          fmt.Sprintf(fmtLong, buildinfo.Version()),
-		Args: func(cmd *cobra.Command, args []string) error {
-			if gitauth.CheckCommand(args, os.Environ()) {
-				isGitAskpass = true
-				return nil
-			}
-			return cobra.NoArgs(cmd, args)
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if isGitAskpass {
-				return gitAskpass().RunE(cmd, args)
-			}
-			return cmd.Help()
-		},
-		Example: formatExamples(
+	cmd := &clibase.Command{
+		Use: "coder",
+		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + formatExamples(
 			example{
 				Description: "Start a Coder server",
 				Command:     "coder server",
@@ -126,28 +103,116 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 				Command:     "coder templates init",
 			},
 		),
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(0),
+		),
+		Handler: func(i *clibase.Invokation) error {
+			// The GIT_ASKPASS environment variable must point at
+			// a binary with no arguments. To prevent writing
+			// cross-platform scripts to invoke the Coder binary
+			// with a `gitaskpass` subcommand, we override the entrypoint
+			// to check if the command was invoked.
+			if gitauth.CheckCommand(i.Args, i.Environ.ToOS()) {
+				return gitAskpass().Handler(i)
+			}
+			return i.Command.HelpHandler(i)
+		},
+		Children: subcommands,
 	}
 
-	cmd.AddCommand(subcommands...)
-	fixUnknownSubcommandError(cmd.Commands())
+	// Set default help handler for all commands.
+	cmd.Walk(func(c *clibase.Command) {
+		if c.HelpHandler == nil {
+			c.HelpHandler = func(i *clibase.Invokation) error {
+				usageFn(i.Stderr, c)()
+				return nil
+			}
+		}
+	})
 
-	cmd.SetUsageTemplate(usageTemplateCobra())
-
-	cliflag.String(cmd.PersistentFlags(), varURL, "", envURL, "", "URL to a deployment.")
-	cliflag.Bool(cmd.PersistentFlags(), varNoVersionCheck, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
-	cliflag.Bool(cmd.PersistentFlags(), varNoFeatureWarning, "", envNoFeatureWarning, false, "Suppress warnings about unlicensed features.")
-	cliflag.String(cmd.PersistentFlags(), varToken, "", envSessionToken, "", fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken))
-	cliflag.String(cmd.PersistentFlags(), varAgentToken, "", "CODER_AGENT_TOKEN", "", "An agent authentication token.")
-	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
-	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "URL for an agent to access your deployment.")
-	_ = cmd.PersistentFlags().MarkHidden(varAgentURL)
-	cliflag.String(cmd.PersistentFlags(), config.FlagName, "", "CODER_CONFIG_DIR", config.DefaultDir(), "Path to the global `coder` config directory.")
-	cliflag.StringArray(cmd.PersistentFlags(), varHeader, "", "CODER_HEADER", []string{}, "HTTP headers added to all requests. Provide as \"Key=Value\"")
-	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY.")
-	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
-	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
-	_ = cmd.PersistentFlags().MarkHidden(varNoOpen)
-	cliflag.Bool(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", false, "Enable verbose output.")
+	cmd.Options = []clibase.Option{
+		{
+			Name:        varURL,
+			Flag:        varURL,
+			Env:         envURL,
+			Description: "URL to a deployment.",
+			Value:       &r.clientURL,
+		},
+		{
+			Name:        varToken,
+			Flag:        varToken,
+			Env:         envSessionToken,
+			Description: fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken),
+			Value:       &r.token,
+		},
+		{
+			Name:        varAgentToken,
+			Flag:        varAgentToken,
+			Description: "An agent authentication token.",
+			Value:       &r.agentToken,
+			Hidden:      true,
+		},
+		{
+			Name:        varAgentURL,
+			Flag:        varAgentURL,
+			Env:         "CODER_AGENT_URL",
+			Description: "URL for an agent to access your deployment",
+			Value:       &r.agentURL,
+			Hidden:      true,
+		},
+		{
+			Name:        varNoVersionCheck,
+			Flag:        varNoVersionCheck,
+			Env:         envNoVersionCheck,
+			Description: "Suppress warning when client and server versions do not match.",
+			Value:       &r.noVersionCheck,
+		},
+		{
+			Name:        varNoFeatureWarning,
+			Flag:        varNoFeatureWarning,
+			Env:         envNoFeatureWarning,
+			Description: "Suppress warnings about unlicensed features.",
+			Value:       &r.noFeatureWarning,
+		},
+		{
+			Name:        varHeader,
+			Flag:        varHeader,
+			Env:         "CODER_HEADER",
+			Description: "Additional HTTP headers to send to the server.",
+			Value:       &r.header,
+		},
+		{
+			Name:        varNoOpen,
+			Flag:        varNoOpen,
+			Env:         "CODER_NO_OPEN",
+			Description: "Suppress opening the browser after logging in.",
+			Value:       &r.noOpen,
+			Hidden:      true,
+		},
+		{
+			Name:        varForceTty,
+			Flag:        varForceTty,
+			Env:         "CODER_FORCE_TTY",
+			Hidden:      true,
+			Description: "Force the use of a TTY.",
+			Value:       &r.forceTTY,
+		},
+		{
+			Name:          varVerbose,
+			Flag:          varVerbose,
+			FlagShorthand: "v",
+			Env:           "CODER_VERBOSE",
+			Description:   "Enable verbose logging.",
+			Value:         &r.verbose,
+		},
+		{
+			Name:        config.FlagName,
+			Flag:        config.FlagName,
+			Env:         "CODER_CONFIG_DIR",
+			Description: "Path to the global `coder` config directory.",
+			Value:       &r.globalConfig,
+		},
+	}
 
 	return cmd
 }
@@ -165,35 +230,6 @@ func ContextWithLogger(ctx context.Context, l slog.Logger) context.Context {
 func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
 	l, ok := ctx.Value(contextKeyLogger).(slog.Logger)
 	return l, ok
-}
-
-// fixUnknownSubcommandError modifies the provided commands so that the
-// ones with subcommands output the correct error message when an
-// unknown subcommand is invoked.
-//
-// Example:
-//
-//	unknown command "bad" for "coder templates"
-func fixUnknownSubcommandError(commands []*cobra.Command) {
-	for _, sc := range commands {
-		if sc.HasSubCommands() {
-			if sc.Run == nil && sc.RunE == nil {
-				if sc.Args != nil {
-					// In case the developer does not know about this
-					// behavior in Cobra they must verify correct
-					// behavior. For instance, settings Args to
-					// `cobra.ExactArgs(0)` will not give the same
-					// message as `cobra.NoArgs`. Likewise, omitting the
-					// run function will not give the wanted error.
-					panic("developer error: subcommand has subcommands and Args but no Run or RunE")
-				}
-				sc.Args = cobra.NoArgs
-				sc.Run = func(*cobra.Command, []string) {}
-			}
-
-			fixUnknownSubcommandError(sc.Commands())
-		}
-	}
 }
 
 // versionCmd prints the coder version
@@ -230,26 +266,31 @@ func isTest() bool {
 	return flag.Lookup("test.v") != nil
 }
 
-type rootCmd struct {
-	clientURL    *url.URL
-	token        string
-	globalConfig string
-	header       []string
+type RootCmd struct {
+	clientURL    clibase.URL
+	token        clibase.String
+	globalConfig clibase.String
+	header       clibase.Strings
+	agentToken   clibase.String
+	agentURL     clibase.URL
+	forceTTY     clibase.Bool
+	noOpen       clibase.Bool
+	verbose      clibase.Bool
 
-	noVersionCheck   bool
-	noFeatureWarning bool
+	noVersionCheck   clibase.Bool
+	noFeatureWarning clibase.Bool
 }
 
 // useClient returns a new client from the command context.
 // It reads from global configuration files if flags are not set.
-func (r *rootCmd) useClient(c *codersdk.Client) clibase.MiddlewareFunc {
+func (r *RootCmd) useClient(c *codersdk.Client) clibase.MiddlewareFunc {
 	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
 		return clibase.HandlerFunc(
 			func(i *clibase.Invokation) error {
 				root := r.createConfig()
-				clientURL := r.clientURL
+				var clientURL *url.URL
 				var err error
-				if clientURL == nil {
+				if clientURL.String() == "" {
 					rawURL, err := root.URL().Read()
 					// If the configuration files are absent, the user is logged out
 					if os.IsNotExist(err) {
@@ -263,9 +304,11 @@ func (r *rootCmd) useClient(c *codersdk.Client) clibase.MiddlewareFunc {
 					if err != nil {
 						return err
 					}
+				} else {
+					clientURL = r.clientURL.Value()
 				}
 
-				token := r.token
+				token := r.token.Value()
 				if token == "" {
 					token, err = root.Session().Read()
 					// If the configuration files are absent, the user is logged out
@@ -321,7 +364,7 @@ func (r *rootCmd) useClient(c *codersdk.Client) clibase.MiddlewareFunc {
 	}
 }
 
-func (r *rootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Client, error) {
+func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Client, error) {
 	client := codersdk.New(serverURL)
 	transport := &headerTransport{
 		transport: http.DefaultTransport,
@@ -391,7 +434,7 @@ func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier str
 }
 
 // createConfig consumes the global configuration flag to produce a config root.
-func (r *rootCmd) createConfig() config.Root {
+func (r *RootCmd) createConfig() config.Root {
 	return config.Root(r.globalConfig)
 }
 
@@ -585,7 +628,7 @@ func FormatCobraError(err error, cmd *cobra.Command) string {
 	return cliui.Styles.Error.Render(output.String())
 }
 
-func (r *rootCmd) checkVersions(i *clibase.Invokation, client *codersdk.Client) error {
+func (r *RootCmd) checkVersions(i *clibase.Invokation, client *codersdk.Client) error {
 	if r.noVersionCheck {
 		return nil
 	}
@@ -623,7 +666,7 @@ func (r *rootCmd) checkVersions(i *clibase.Invokation, client *codersdk.Client) 
 	return nil
 }
 
-func (r *rootCmd) checkWarnings(i *clibase.Invokation, client *codersdk.Client) error {
+func (r *RootCmd) checkWarnings(i *clibase.Invokation, client *codersdk.Client) error {
 	if r.noFeatureWarning {
 		return nil
 	}

@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
@@ -18,18 +18,20 @@ import (
 
 // gitAskpass is used by the Coder agent to automatically authenticate
 // with Git providers based on a hostname.
-func gitAskpass() *cobra.Command {
-	return &cobra.Command{
+func gitAskpass() *clibase.Command {
+	return &clibase.Command{
 		Use:    "gitaskpass",
 		Hidden: true,
-		Args:   cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+		),
+		Handler: func(i *clibase.Invokation) error {
+			ctx := i.Context()
 
 			ctx, stop := signal.NotifyContext(ctx, InterruptSignals...)
 			defer stop()
 
-			user, host, err := gitauth.ParseAskpass(args[0])
+			user, host, err := gitauth.ParseAskpass(i.Args[0])
 			if err != nil {
 				return xerrors.Errorf("parse host: %w", err)
 			}

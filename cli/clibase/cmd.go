@@ -25,7 +25,7 @@ type Cmd struct {
 	// Long is a detailed description of the command,
 	// presented on its help page. It may contain examples.
 	Long        string
-	Options     *OptionSet
+	Options     OptionSet
 	Annotations Annotations
 
 	// Middleware is called before the Handler.
@@ -33,6 +33,14 @@ type Cmd struct {
 	Middleware  MiddlewareFunc
 	Handler     HandlerFunc
 	HelpHandler HandlerFunc
+}
+
+// Walk calls fn for the command and all its children.
+func (c *Command) Walk(fn func(*Command)) {
+	fn(c)
+	for _, child := range c.Children {
+		child.Walk(fn)
+	}
 }
 
 // Name returns the first word in the Use string.
@@ -70,12 +78,12 @@ type Invokation struct {
 	ctx     context.Context
 	Command *Cmd
 	Args    []string
-	// Env is a list of environment variables. Use EnvsWithPrefix to parse
+	// Environ is a list of environment variables. Use EnvsWithPrefix to parse
 	// os.Environ.
-	Env    []EnvVar
-	Stdout io.Writer
-	Stderr io.Writer
-	Stdin  io.Reader
+	Environ Environ
+	Stdout  io.Writer
+	Stderr  io.Writer
+	Stdin   io.Reader
 }
 
 func (i *Invokation) Context() context.Context {
@@ -122,7 +130,7 @@ func (i *Invokation) run(allArgs []string, flagSet *pflag.FlagSet) error {
 		}
 	}
 
-	err = i.Command.Options.ParseEnv(i.Env)
+	err = i.Command.Options.ParseEnv(i.Environ)
 	if err != nil {
 		return xerrors.Errorf("parsing env: %w", err)
 	}
@@ -160,6 +168,7 @@ func stripFlags(args []string) []string {
 }
 
 // Run executes the command.
+// If two command share a flag name, the deepest command wins.
 //
 //nolint:revive
 func (i *Invokation) Run() error {
