@@ -2,9 +2,10 @@ package executor_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
+
+	"github.com/coder/coder/coderd/database/dbtestutil"
 
 	"go.uber.org/goleak"
 
@@ -493,7 +494,7 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 }
 
 func TestExecutorAutostartMultipleOK(t *testing.T) {
-	if os.Getenv("DB") == "" {
+	if !dbtestutil.UsingRealDatabase() {
 		t.Skip(`This test only really works when using a "real" database, similar to a HA setup`)
 	}
 

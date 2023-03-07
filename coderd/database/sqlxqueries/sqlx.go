@@ -18,6 +18,11 @@ func SelectContext[RT any](ctx context.Context, q sqlx.QueryerContext, queryName
 		return empty, xerrors.Errorf("get query: %w", err)
 	}
 
+	// No argument was given, use an empty struct.
+	if argument == nil {
+		argument = struct{}{}
+	}
+
 	query, args, err := bindNamed(query, argument)
 	if err != nil {
 		return empty, xerrors.Errorf("bind named: %w", err)

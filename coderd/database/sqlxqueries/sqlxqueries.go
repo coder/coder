@@ -21,9 +21,13 @@ var (
 
 func queries() (*template.Template, error) {
 	once.Do(func() {
-		tpls, err := template.ParseFS(sqlxQueries, "*.gosql")
+		tpls, err := template.New("").
+			Funcs(template.FuncMap{
+				"int32": func(i int) int32 { return int32(i) },
+			}).ParseFS(sqlxQueries, "*.gosql")
 		if err != nil {
 			cachedError = xerrors.Errorf("developer error parse sqlx queries: %w", err)
+			return
 		}
 		cached = tpls
 	})

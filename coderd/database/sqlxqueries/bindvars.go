@@ -39,6 +39,10 @@ func bindNamed(query string, arg interface{}) (newQuery string, args []interface
 	// Replace all names with the correct index
 	for i, name := range names {
 		rpl := fmt.Sprintf("$%d", i+1)
+		if strings.Contains(query, rpl) {
+			return "", nil,
+				xerrors.Errorf("query contains both named params %q, and unnamed %q: choose one", name, rpl)
+		}
 		query = strings.ReplaceAll(query, name, rpl)
 		// Remove the "@" prefix to match to the "db" struct tag.
 		names[i] = strings.TrimPrefix(name, "@")

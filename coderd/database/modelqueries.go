@@ -192,7 +192,7 @@ type workspaceQuerier interface {
 type WorkspaceBuild struct {
 	WorkspaceBuildThin
 	OrganizationID   uuid.UUID `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
+	WorkspaceOwnerID uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
 }
 
 type getWorkspaceBuildParams struct {
@@ -203,6 +203,7 @@ type getWorkspaceBuildParams struct {
 	BuildNumber  int32     `db:"build_number"`
 	LimitOpt     int32     `db:"limit_opt"`
 	Latest       bool      `db:"-"`
+	TestLimit    int       `db:"-"`
 }
 
 func (q *sqlQuerier) getWorkspaceBuild(ctx context.Context, arg getWorkspaceBuildParams) (WorkspaceBuild, error) {
@@ -233,7 +234,10 @@ type GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams struct {
 }
 
 func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error) {
-	return sqlxqueries.GetContext[WorkspaceBuild](ctx, q.sdb, "GetWorkspaceBuildByWorkspaceIDAndBuildNumber", arg)
+	return q.getWorkspaceBuild(ctx, getWorkspaceBuildParams{
+		BuildNumber: arg.BuildNumber,
+		WorkspaceID: arg.WorkspaceID,
+	})
 }
 
 type GetWorkspaceBuildsByWorkspaceIDParams struct {

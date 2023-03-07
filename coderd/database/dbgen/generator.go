@@ -231,7 +231,7 @@ func OrganizationMember(t testing.TB, db database.Store, orig database.Organizat
 		UpdatedAt:      takeFirst(orig.UpdatedAt, database.Now()),
 		Roles:          takeFirstSlice(orig.Roles, []string{}),
 	})
-	require.NoError(t, err, "insert organization")
+	require.NoError(t, err, "insert organization member")
 	return mem
 }
 

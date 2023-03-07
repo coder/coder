@@ -8,16 +8,17 @@ FROM
 	workspace_builds
 INNER JOIN
 	workspaces ON workspace_builds.workspace_id = workspaces.id
-);
-{{ end }}
+)
+{{ end }};
 
 
 {{ define "GetWorkspaceBuild" }}
+-- {{ . }}}}
 -- name: GetWorkspaceBuild :one
 SELECT
 	*
 FROM
-	{{ template "workspace_builds_rbac" }}
+	{{ template "workspace_builds_rbac" }} workspace_builds
 WHERE
 	CASE
 		WHEN @build_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
@@ -53,7 +54,7 @@ WHERE
 ORDER BY
 	build_number desc
 {{ end }}
-LIMIT @limit_opt;
+{{ if gt .TestLimit 0 }} LIMIT @limit_opt {{ end }};
 {{ end }}
 
 
@@ -62,9 +63,9 @@ LIMIT @limit_opt;
 SELECT
 	*
 FROM
-	{{ template "workspace_builds_rbac" }}
+	{{ template "workspace_builds_rbac" }} workspace_builds
 WHERE
-	workspace_builds.workspace_id = $1
+	workspace_builds.workspace_id = @workspace_id
 	AND workspace_builds.created_at > @since
     AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
