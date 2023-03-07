@@ -33,10 +33,11 @@ func StatusWriterMiddleware(next http.Handler) http.Handler {
 }
 
 func (w *StatusWriter) WriteHeader(status int) {
-	if !w.wroteHeader {
-		w.Status = status
-		w.wroteHeader = true
+	if w.wroteHeader {
+		return
 	}
+	w.Status = status
+	w.wroteHeader = true
 	w.ResponseWriter.WriteHeader(status)
 }
 
