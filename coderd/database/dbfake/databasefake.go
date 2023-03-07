@@ -511,6 +511,21 @@ func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIK
 	return database.APIKey{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetAPIKeyByName(_ context.Context, params database.GetAPIKeyByNameParams) (database.APIKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if params.TokenName == "" {
+		return database.APIKey{}, sql.ErrNoRows
+	}
+	for _, apiKey := range q.apiKeys {
+		if params.UserID == apiKey.UserID && params.TokenName == apiKey.TokenName {
+			return apiKey, nil
+		}
+	}
+	return database.APIKey{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time) ([]database.APIKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2562,6 +2577,7 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 		LastUsed:        arg.LastUsed,
 		LoginType:       arg.LoginType,
 		Scope:           arg.Scope,
+		TokenName:       arg.TokenName,
 	}
 	q.apiKeys = append(q.apiKeys, key)
 	return key, nil
@@ -2887,6 +2903,7 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		TroubleshootingURL:       arg.TroubleshootingURL,
 		MOTDFile:                 arg.MOTDFile,
 		LifecycleState:           database.WorkspaceAgentLifecycleStateCreated,
+		ShutdownScript:           arg.ShutdownScript,
 	}
 
 	q.workspaceAgents = append(q.workspaceAgents, agent)
@@ -2951,6 +2968,21 @@ func (q *fakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
+	}
+
+	// There is a common bug when using dbfake that 2 inserted users have the
+	// same created_at time. This causes user order to not be deterministic,
+	// which breaks some unit tests.
+	// To fix this, we make sure that the created_at time is always greater
+	// than the last user's created_at time.
+	allUsers, _ := q.GetUsers(context.Background(), database.GetUsersParams{})
+	if len(allUsers) > 0 {
+		lastUser := allUsers[len(allUsers)-1]
+		if arg.CreatedAt.Before(lastUser.CreatedAt) ||
+			arg.CreatedAt.Equal(lastUser.CreatedAt) {
+			// 1 ms is a good enough buffer.
+			arg.CreatedAt = lastUser.CreatedAt.Add(time.Millisecond)
+		}
 	}
 
 	q.mutex.Lock()

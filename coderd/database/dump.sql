@@ -107,7 +107,11 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'starting',
     'start_timeout',
     'start_error',
-    'ready'
+    'ready',
+    'shutting_down',
+    'shutdown_timeout',
+    'shutdown_error',
+    'off'
 );
 
 CREATE TYPE workspace_app_health AS ENUM (
@@ -134,7 +138,8 @@ CREATE TABLE api_keys (
     login_type login_type NOT NULL,
     lifetime_seconds bigint DEFAULT 86400 NOT NULL,
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
-    scope api_key_scope DEFAULT 'all'::api_key_scope NOT NULL
+    scope api_key_scope DEFAULT 'all'::api_key_scope NOT NULL,
+    token_name text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN api_keys.hashed_secret IS 'hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.';
@@ -508,7 +513,9 @@ CREATE TABLE workspace_agents (
     lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
     login_before_ready boolean DEFAULT true NOT NULL,
     startup_script_timeout_seconds integer DEFAULT 0 NOT NULL,
-    expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL
+    expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL,
+    shutdown_script character varying(65534),
+    shutdown_script_timeout_seconds integer DEFAULT 0 NOT NULL
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
@@ -526,6 +533,10 @@ COMMENT ON COLUMN workspace_agents.login_before_ready IS 'If true, the agent wil
 COMMENT ON COLUMN workspace_agents.startup_script_timeout_seconds IS 'The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.';
 
 COMMENT ON COLUMN workspace_agents.expanded_directory IS 'The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder';
+
+COMMENT ON COLUMN workspace_agents.shutdown_script IS 'Script that is executed before the agent is stopped.';
+
+COMMENT ON COLUMN workspace_agents.shutdown_script_timeout_seconds IS 'The number of seconds to wait for the shutdown script to complete. If the script does not complete within this time, the agent lifecycle will be marked as shutdown_timeout.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
@@ -747,6 +758,8 @@ ALTER TABLE ONLY workspaces
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
+
+CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (user_id, token_name) WHERE (login_type = 'token'::login_type);
 
 CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id);
 

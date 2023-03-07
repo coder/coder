@@ -266,7 +266,7 @@ func TestPostLogin(t *testing.T) {
 		defer cancel()
 
 		split := strings.Split(client.SessionToken(), "-")
-		key, err := client.APIKey(ctx, admin.UserID.String(), split[0])
+		key, err := client.APIKeyByID(ctx, admin.UserID.String(), split[0])
 		require.NoError(t, err, "fetch login key")
 		require.Equal(t, int64(86400), key.LifetimeSeconds, "default should be 86400")
 
@@ -274,7 +274,7 @@ func TestPostLogin(t *testing.T) {
 		token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
 		require.NoError(t, err, "make new token api key")
 		split = strings.Split(token.Key, "-")
-		apiKey, err := client.APIKey(ctx, admin.UserID.String(), split[0])
+		apiKey, err := client.APIKeyByID(ctx, admin.UserID.String(), split[0])
 		require.NoError(t, err, "fetch api key")
 
 		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*29)), "default tokens lasts more than 29 days")
@@ -356,7 +356,7 @@ func TestPostLogout(t *testing.T) {
 		defer cancel()
 
 		keyID := strings.Split(client.SessionToken(), "-")[0]
-		apiKey, err := client.APIKey(ctx, admin.UserID.String(), keyID)
+		apiKey, err := client.APIKeyByID(ctx, admin.UserID.String(), keyID)
 		require.NoError(t, err)
 		require.Equal(t, keyID, apiKey.ID, "API key should exist in the database")
 
@@ -385,7 +385,7 @@ func TestPostLogout(t *testing.T) {
 		}
 		require.True(t, found, "auth cookie should be returned")
 
-		_, err = client.APIKey(ctx, admin.UserID.String(), keyID)
+		_, err = client.APIKeyByID(ctx, admin.UserID.String(), keyID)
 		sdkErr := &codersdk.Error{}
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode(), "Expecting 401")
@@ -723,7 +723,7 @@ func TestUpdateUserPassword(t *testing.T) {
 
 		// Trying to get an API key should fail since our client's token
 		// has been deleted.
-		_, err = client.APIKey(ctx, user.UserID.String(), apikey1.Key)
+		_, err = client.APIKeyByID(ctx, user.UserID.String(), apikey1.Key)
 		require.Error(t, err)
 		cerr := coderdtest.SDKError(t, err)
 		require.Equal(t, http.StatusUnauthorized, cerr.StatusCode())
@@ -738,12 +738,12 @@ func TestUpdateUserPassword(t *testing.T) {
 
 		// Trying to get an API key should fail since all keys are deleted
 		// on password change.
-		_, err = client.APIKey(ctx, user.UserID.String(), apikey1.Key)
+		_, err = client.APIKeyByID(ctx, user.UserID.String(), apikey1.Key)
 		require.Error(t, err)
 		cerr = coderdtest.SDKError(t, err)
 		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
 
-		_, err = client.APIKey(ctx, user.UserID.String(), apikey2.Key)
+		_, err = client.APIKeyByID(ctx, user.UserID.String(), apikey2.Key)
 		require.Error(t, err)
 		cerr = coderdtest.SDKError(t, err)
 		require.Equal(t, http.StatusNotFound, cerr.StatusCode())

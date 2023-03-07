@@ -144,15 +144,17 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Metadata{
-		Apps:                 convertApps(dbApps),
-		DERPMap:              api.DERPMap,
-		GitAuthConfigs:       len(api.GitAuthConfigs),
-		EnvironmentVariables: apiAgent.EnvironmentVariables,
-		StartupScript:        apiAgent.StartupScript,
-		Directory:            apiAgent.Directory,
-		VSCodePortProxyURI:   vscodeProxyURI,
-		MOTDFile:             workspaceAgent.MOTDFile,
-		StartupScriptTimeout: time.Duration(apiAgent.StartupScriptTimeoutSeconds) * time.Second,
+		Apps:                  convertApps(dbApps),
+		DERPMap:               api.DERPMap,
+		GitAuthConfigs:        len(api.GitAuthConfigs),
+		EnvironmentVariables:  apiAgent.EnvironmentVariables,
+		StartupScript:         apiAgent.StartupScript,
+		Directory:             apiAgent.Directory,
+		VSCodePortProxyURI:    vscodeProxyURI,
+		MOTDFile:              workspaceAgent.MOTDFile,
+		StartupScriptTimeout:  time.Duration(apiAgent.StartupScriptTimeoutSeconds) * time.Second,
+		ShutdownScript:        apiAgent.ShutdownScript,
+		ShutdownScriptTimeout: time.Duration(apiAgent.ShutdownScriptTimeoutSeconds) * time.Second,
 	})
 }
 
@@ -803,25 +805,27 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		troubleshootingURL = dbAgent.TroubleshootingURL
 	}
 	workspaceAgent := codersdk.WorkspaceAgent{
-		ID:                          dbAgent.ID,
-		CreatedAt:                   dbAgent.CreatedAt,
-		UpdatedAt:                   dbAgent.UpdatedAt,
-		ResourceID:                  dbAgent.ResourceID,
-		InstanceID:                  dbAgent.AuthInstanceID.String,
-		Name:                        dbAgent.Name,
-		Architecture:                dbAgent.Architecture,
-		OperatingSystem:             dbAgent.OperatingSystem,
-		StartupScript:               dbAgent.StartupScript.String,
-		Version:                     dbAgent.Version,
-		EnvironmentVariables:        envs,
-		Directory:                   dbAgent.Directory,
-		ExpandedDirectory:           dbAgent.ExpandedDirectory,
-		Apps:                        apps,
-		ConnectionTimeoutSeconds:    dbAgent.ConnectionTimeoutSeconds,
-		TroubleshootingURL:          troubleshootingURL,
-		LifecycleState:              codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
-		LoginBeforeReady:            dbAgent.LoginBeforeReady,
-		StartupScriptTimeoutSeconds: dbAgent.StartupScriptTimeoutSeconds,
+		ID:                           dbAgent.ID,
+		CreatedAt:                    dbAgent.CreatedAt,
+		UpdatedAt:                    dbAgent.UpdatedAt,
+		ResourceID:                   dbAgent.ResourceID,
+		InstanceID:                   dbAgent.AuthInstanceID.String,
+		Name:                         dbAgent.Name,
+		Architecture:                 dbAgent.Architecture,
+		OperatingSystem:              dbAgent.OperatingSystem,
+		StartupScript:                dbAgent.StartupScript.String,
+		Version:                      dbAgent.Version,
+		EnvironmentVariables:         envs,
+		Directory:                    dbAgent.Directory,
+		ExpandedDirectory:            dbAgent.ExpandedDirectory,
+		Apps:                         apps,
+		ConnectionTimeoutSeconds:     dbAgent.ConnectionTimeoutSeconds,
+		TroubleshootingURL:           troubleshootingURL,
+		LifecycleState:               codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
+		LoginBeforeReady:             dbAgent.LoginBeforeReady,
+		StartupScriptTimeoutSeconds:  dbAgent.StartupScriptTimeoutSeconds,
+		ShutdownScript:               dbAgent.ShutdownScript.String,
+		ShutdownScriptTimeoutSeconds: dbAgent.ShutdownScriptTimeoutSeconds,
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {

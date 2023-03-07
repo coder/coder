@@ -10,6 +10,7 @@ export interface APIKey {
   readonly updated_at: string
   readonly login_type: LoginType
   readonly scope: APIKeyScope
+  readonly token_name: string
   readonly lifetime_seconds: number
 }
 
@@ -224,6 +225,7 @@ export interface CreateTokenRequest {
   // This is likely an enum in an external package ("time.Duration")
   readonly lifetime: number
   readonly scope: APIKeyScope
+  readonly token_name: string
 }
 
 // From codersdk/users.go
@@ -1011,6 +1013,8 @@ export interface WorkspaceAgent {
   readonly troubleshooting_url: string
   readonly login_before_ready: boolean
   readonly startup_script_timeout_seconds: number
+  readonly shutdown_script?: string
+  readonly shutdown_script_timeout_seconds: number
 }
 
 // From codersdk/workspaceagentconn.go
@@ -1318,13 +1322,21 @@ export const ValidationMonotonicOrders: ValidationMonotonicOrder[] = [
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentLifecycle =
   | "created"
+  | "off"
   | "ready"
+  | "shutdown_error"
+  | "shutdown_timeout"
+  | "shutting_down"
   | "start_error"
   | "start_timeout"
   | "starting"
 export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
   "created",
+  "off",
   "ready",
+  "shutdown_error",
+  "shutdown_timeout",
+  "shutting_down",
   "start_error",
   "start_timeout",
   "starting",

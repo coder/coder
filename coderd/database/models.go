@@ -1014,11 +1014,15 @@ func AllUserStatusValues() []UserStatus {
 type WorkspaceAgentLifecycleState string
 
 const (
-	WorkspaceAgentLifecycleStateCreated      WorkspaceAgentLifecycleState = "created"
-	WorkspaceAgentLifecycleStateStarting     WorkspaceAgentLifecycleState = "starting"
-	WorkspaceAgentLifecycleStateStartTimeout WorkspaceAgentLifecycleState = "start_timeout"
-	WorkspaceAgentLifecycleStateStartError   WorkspaceAgentLifecycleState = "start_error"
-	WorkspaceAgentLifecycleStateReady        WorkspaceAgentLifecycleState = "ready"
+	WorkspaceAgentLifecycleStateCreated         WorkspaceAgentLifecycleState = "created"
+	WorkspaceAgentLifecycleStateStarting        WorkspaceAgentLifecycleState = "starting"
+	WorkspaceAgentLifecycleStateStartTimeout    WorkspaceAgentLifecycleState = "start_timeout"
+	WorkspaceAgentLifecycleStateStartError      WorkspaceAgentLifecycleState = "start_error"
+	WorkspaceAgentLifecycleStateReady           WorkspaceAgentLifecycleState = "ready"
+	WorkspaceAgentLifecycleStateShuttingDown    WorkspaceAgentLifecycleState = "shutting_down"
+	WorkspaceAgentLifecycleStateShutdownTimeout WorkspaceAgentLifecycleState = "shutdown_timeout"
+	WorkspaceAgentLifecycleStateShutdownError   WorkspaceAgentLifecycleState = "shutdown_error"
+	WorkspaceAgentLifecycleStateOff             WorkspaceAgentLifecycleState = "off"
 )
 
 func (e *WorkspaceAgentLifecycleState) Scan(src interface{}) error {
@@ -1062,7 +1066,11 @@ func (e WorkspaceAgentLifecycleState) Valid() bool {
 		WorkspaceAgentLifecycleStateStarting,
 		WorkspaceAgentLifecycleStateStartTimeout,
 		WorkspaceAgentLifecycleStateStartError,
-		WorkspaceAgentLifecycleStateReady:
+		WorkspaceAgentLifecycleStateReady,
+		WorkspaceAgentLifecycleStateShuttingDown,
+		WorkspaceAgentLifecycleStateShutdownTimeout,
+		WorkspaceAgentLifecycleStateShutdownError,
+		WorkspaceAgentLifecycleStateOff:
 		return true
 	}
 	return false
@@ -1075,6 +1083,10 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 		WorkspaceAgentLifecycleStateStartTimeout,
 		WorkspaceAgentLifecycleStateStartError,
 		WorkspaceAgentLifecycleStateReady,
+		WorkspaceAgentLifecycleStateShuttingDown,
+		WorkspaceAgentLifecycleStateShutdownTimeout,
+		WorkspaceAgentLifecycleStateShutdownError,
+		WorkspaceAgentLifecycleStateOff,
 	}
 }
 
@@ -1216,6 +1228,7 @@ type APIKey struct {
 	LifetimeSeconds int64       `db:"lifetime_seconds" json:"lifetime_seconds"`
 	IPAddress       pqtype.Inet `db:"ip_address" json:"ip_address"`
 	Scope           APIKeyScope `db:"scope" json:"scope"`
+	TokenName       string      `db:"token_name" json:"token_name"`
 }
 
 type AuditLog struct {
@@ -1546,6 +1559,10 @@ type WorkspaceAgent struct {
 	StartupScriptTimeoutSeconds int32 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
 	// The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder
 	ExpandedDirectory string `db:"expanded_directory" json:"expanded_directory"`
+	// Script that is executed before the agent is stopped.
+	ShutdownScript sql.NullString `db:"shutdown_script" json:"shutdown_script"`
+	// The number of seconds to wait for the shutdown script to complete. If the script does not complete within this time, the agent lifecycle will be marked as shutdown_timeout.
+	ShutdownScriptTimeoutSeconds int32 `db:"shutdown_script_timeout_seconds" json:"shutdown_script_timeout_seconds"`
 }
 
 type WorkspaceAgentStat struct {

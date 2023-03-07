@@ -175,10 +175,6 @@ func TestCache_TemplateUsers(t *testing.T) {
 				Provisioner: database.ProvisionerTypeEcho,
 			})
 
-			gotUniqueUsers, ok := cache.TemplateUniqueUsers(template.ID)
-			require.False(t, ok, "template shouldn't have loaded yet")
-			require.EqualValues(t, -1, gotUniqueUsers)
-
 			for _, row := range tt.args.rows {
 				row.TemplateID = template.ID
 				db.InsertWorkspaceAgentStat(context.Background(), row)
@@ -191,7 +187,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 				"TemplateDAUs never populated",
 			)
 
-			gotUniqueUsers, ok = cache.TemplateUniqueUsers(template.ID)
+			gotUniqueUsers, ok := cache.TemplateUniqueUsers(template.ID)
 			require.True(t, ok)
 
 			gotEntries, ok := cache.TemplateDAUs(template.ID)

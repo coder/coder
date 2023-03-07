@@ -13,7 +13,6 @@ import * as API from "api/api"
 import i18next from "i18next"
 import TemplateVariablesPage from "./TemplateVariablesPage"
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter"
-import { Route } from "react-router-dom"
 import * as router from "react-router"
 
 const navigate = jest.fn()
@@ -35,9 +34,7 @@ const renderTemplateVariablesPage = () => {
   return renderWithAuth(<TemplateVariablesPage />, {
     route: `/templates/${MockTemplate.name}/variables`,
     path: `/templates/:template/variables`,
-    routes: (
-      <Route path={`/templates/${MockTemplate.name}`} element={<></>}></Route>
-    ),
+    extraRoutes: [{ path: `/templates/${MockTemplate.name}`, element: <></> }],
   })
 }
 
