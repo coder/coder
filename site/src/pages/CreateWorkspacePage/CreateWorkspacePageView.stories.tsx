@@ -2,6 +2,7 @@ import { ComponentMeta, Story } from "@storybook/react"
 import {
   makeMockApiError,
   mockParameterSchema,
+  MockParameterSchemas,
   MockTemplate,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
@@ -34,41 +35,7 @@ export const Parameters = Template.bind({})
 Parameters.args = {
   templates: [MockTemplate],
   selectedTemplate: MockTemplate,
-  templateSchema: [
-    mockParameterSchema({
-      name: "region",
-      default_source_value: "🏈 US Central",
-      description: "Where would you like your workspace to live?",
-      redisplay_value: true,
-      validation_contains: [
-        "🏈 US Central",
-        "⚽ Brazil East",
-        "💶 EU West",
-        "🦘 Australia South",
-      ],
-    }),
-    mockParameterSchema({
-      name: "instance_size",
-      default_source_value: "Big",
-      description: "How large should you instance be?",
-      validation_contains: ["Small", "Medium", "Big"],
-      redisplay_value: true,
-    }),
-    mockParameterSchema({
-      name: "instance_size",
-      default_source_value: "Big",
-      description: "How large should your instance be?",
-      validation_contains: ["Small", "Medium", "Big"],
-      redisplay_value: true,
-    }),
-    mockParameterSchema({
-      name: "disable_docker",
-      description: "Disable Docker?",
-      validation_value_type: "bool",
-      default_source_value: "false",
-      redisplay_value: true,
-    }),
-  ],
+  templateSchema: MockParameterSchemas,
   createWorkspaceErrors: {},
 }
 

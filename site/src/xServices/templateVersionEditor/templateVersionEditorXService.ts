@@ -252,11 +252,17 @@ export const templateVersionEditorMachine = createMachine(
         }
         // Add the editable files
         traverse(fileTree, (content, _filename, fullPath) => {
+          // When a file is deleted. Don't add it to the tar.
+          if (content === undefined) {
+            return
+          }
+
           if (typeof content === "string") {
             tar.addFile(fullPath, content)
-          } else {
-            tar.addFolder(fullPath)
+            return
           }
+
+          tar.addFolder(fullPath)
         })
         const blob = await tar.write()
         return API.uploadTemplateFile(new File([blob], "template.tar"))

@@ -121,6 +121,7 @@ func (c *Cache) Acquire(r *http.Request, id uuid.UUID) (*Conn, func(), error) {
 				}
 				c.connMap.Delete(id.String())
 				c.connGroup.Forget(id.String())
+				transport.CloseIdleConnections()
 				_ = conn.Close()
 			}()
 			return conn, nil

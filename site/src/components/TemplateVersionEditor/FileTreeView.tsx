@@ -67,7 +67,8 @@ export const FileTreeView: FC<{
           onSelect(currentPath)
         }}
         onContextMenu={(event) => {
-          event.preventDefault()
+          event.preventDefault() // Avoid default browser behavior
+          event.stopPropagation() // Avoid trigger parent context menu
           setContextMenu(
             contextMenu
               ? undefined
@@ -137,7 +138,7 @@ export const FileTreeView: FC<{
             setContextMenu(undefined)
           }}
         >
-          Rename...
+          Rename
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -148,7 +149,7 @@ export const FileTreeView: FC<{
             setContextMenu(undefined)
           }}
         >
-          Delete Permanently
+          Delete
         </MenuItem>
       </Menu>
     </TreeView>
