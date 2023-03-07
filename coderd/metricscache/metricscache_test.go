@@ -175,6 +175,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 
 			for _, row := range tt.args.rows {
 				row.TemplateID = template.ID
+				row.ConnectionCount = 1
 				db.InsertWorkspaceAgentStat(context.Background(), row)
 			}
 

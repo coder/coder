@@ -304,6 +304,9 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, templateID uuid.UUID) (
 		if as.TemplateID != templateID {
 			continue
 		}
+		if as.ConnectionCount == 0 {
+			continue
+		}
 
 		date := as.CreatedAt.Truncate(time.Hour * 24)
 
@@ -341,6 +344,9 @@ func (q *fakeQuerier) GetDeploymentDAUs(_ context.Context) ([]database.GetDeploy
 	seens := make(map[time.Time]map[uuid.UUID]struct{})
 
 	for _, as := range q.workspaceAgentStats {
+		if as.ConnectionCount == 0 {
+			continue
+		}
 		date := as.CreatedAt.Truncate(time.Hour * 24)
 
 		dateEntry := seens[date]
