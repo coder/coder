@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/autobuild/executor"
-	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"

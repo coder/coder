@@ -3,7 +3,11 @@ import {
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceAgentConnecting,
+  MockWorkspaceAgentOff,
   MockWorkspaceAgentOutdated,
+  MockWorkspaceAgentShutdownError,
+  MockWorkspaceAgentShutdownTimeout,
+  MockWorkspaceAgentShuttingDown,
   MockWorkspaceAgentStartError,
   MockWorkspaceAgentStarting,
   MockWorkspaceAgentStartTimeout,
@@ -109,6 +113,38 @@ StartTimeout.args = {
 export const StartError = Template.bind({})
 StartError.args = {
   agent: MockWorkspaceAgentStartError,
+  workspace: MockWorkspace,
+  applicationsHost: "",
+  showApps: true,
+}
+
+export const ShuttingDown = Template.bind({})
+ShuttingDown.args = {
+  agent: MockWorkspaceAgentShuttingDown,
+  workspace: MockWorkspace,
+  applicationsHost: "",
+  showApps: true,
+}
+
+export const ShutdownTimeout = Template.bind({})
+ShutdownTimeout.args = {
+  agent: MockWorkspaceAgentShutdownTimeout,
+  workspace: MockWorkspace,
+  applicationsHost: "",
+  showApps: true,
+}
+
+export const ShutdownError = Template.bind({})
+ShutdownError.args = {
+  agent: MockWorkspaceAgentShutdownError,
+  workspace: MockWorkspace,
+  applicationsHost: "",
+  showApps: true,
+}
+
+export const Off = Template.bind({})
+Off.args = {
+  agent: MockWorkspaceAgentOff,
   workspace: MockWorkspace,
   applicationsHost: "",
   showApps: true,

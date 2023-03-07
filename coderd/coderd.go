@@ -51,6 +51,7 @@ import (
 	"github.com/coder/coder/coderd/metricscache"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/updatecheck"
@@ -113,15 +114,16 @@ type Options struct {
 	RealIPConfig                   *httpmw.RealIPConfig
 	TrialGenerator                 func(ctx context.Context, email string) error
 	// TLSCertificates is used to mesh DERP servers securely.
-	TLSCertificates    []tls.Certificate
-	TailnetCoordinator tailnet.Coordinator
-	DERPServer         *derp.Server
-	DERPMap            *tailcfg.DERPMap
-	SwaggerEndpoint    bool
+	TLSCertificates       []tls.Certificate
+	TailnetCoordinator    tailnet.Coordinator
+	DERPServer            *derp.Server
+	DERPMap               *tailcfg.DERPMap
+	SwaggerEndpoint       bool
+	SetUserGroups         func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
+	TemplateScheduleStore schedule.TemplateScheduleStore
 	// AppSigningKey denotes the symmetric key to use for signing app tickets.
 	// The key must be 64 bytes long.
 	AppSigningKey []byte
-	SetUserGroups func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
@@ -213,6 +215,9 @@ func New(options *Options) *API {
 	if options.SetUserGroups == nil {
 		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
 	}
+	if options.TemplateScheduleStore == nil {
+		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
+	}
 	if len(options.AppSigningKey) != 64 {
 		panic("coderd: AppSigningKey must be 64 bytes long")
 	}
@@ -266,9 +271,10 @@ func New(options *Options) *API {
 			oauthConfigs,
 			options.AppSigningKey,
 		),
-		metricsCache: metricsCache,
-		Auditor:      atomic.Pointer[audit.Auditor]{},
-		Experiments:  experiments,
+		metricsCache:          metricsCache,
+		Auditor:               atomic.Pointer[audit.Auditor]{},
+		TemplateScheduleStore: atomic.Pointer[schedule.TemplateScheduleStore]{},
+		Experiments:           experiments,
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -278,6 +284,7 @@ func New(options *Options) *API {
 		)
 	}
 	api.Auditor.Store(&options.Auditor)
+	api.TemplateScheduleStore.Store(&options.TemplateScheduleStore)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 
@@ -705,6 +712,7 @@ type API struct {
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
+	TemplateScheduleStore             atomic.Pointer[schedule.TemplateScheduleStore]
 
 	HTTPAuth *HTTPAuthorizer
 
@@ -806,18 +814,19 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		gitAuthProviders = append(gitAuthProviders, cfg.ID)
 	}
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
-		AccessURL:          api.AccessURL,
-		ID:                 daemon.ID,
-		Database:           api.Database,
-		Pubsub:             api.Pubsub,
-		Provisioners:       daemon.Provisioners,
-		GitAuthProviders:   gitAuthProviders,
-		Telemetry:          api.Telemetry,
-		Tags:               tags,
-		QuotaCommitter:     &api.QuotaCommitter,
-		Auditor:            &api.Auditor,
-		AcquireJobDebounce: debounce,
-		Logger:             api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		AccessURL:             api.AccessURL,
+		ID:                    daemon.ID,
+		Database:              api.Database,
+		Pubsub:                api.Pubsub,
+		Provisioners:          daemon.Provisioners,
+		GitAuthProviders:      gitAuthProviders,
+		Telemetry:             api.Telemetry,
+		Tags:                  tags,
+		QuotaCommitter:        &api.QuotaCommitter,
+		Auditor:               &api.Auditor,
+		TemplateScheduleStore: &api.TemplateScheduleStore,
+		AcquireJobDebounce:    debounce,
+		Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 	})
 	if err != nil {
 		return nil, err

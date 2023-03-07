@@ -107,7 +107,11 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'starting',
     'start_timeout',
     'start_error',
-    'ready'
+    'ready',
+    'shutting_down',
+    'shutdown_timeout',
+    'shutdown_error',
+    'off'
 );
 
 CREATE TYPE workspace_app_health AS ENUM (
@@ -430,7 +434,8 @@ CREATE TABLE templates (
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     display_name character varying(64) DEFAULT ''::character varying NOT NULL,
-    allow_user_cancel_workspace_jobs boolean DEFAULT true NOT NULL
+    allow_user_cancel_workspace_jobs boolean DEFAULT true NOT NULL,
+    max_ttl bigint DEFAULT '0'::bigint NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for auto-stop for workspaces created from this template.';
@@ -509,7 +514,9 @@ CREATE TABLE workspace_agents (
     lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
     login_before_ready boolean DEFAULT true NOT NULL,
     startup_script_timeout_seconds integer DEFAULT 0 NOT NULL,
-    expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL
+    expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL,
+    shutdown_script character varying(65534),
+    shutdown_script_timeout_seconds integer DEFAULT 0 NOT NULL
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
@@ -527,6 +534,10 @@ COMMENT ON COLUMN workspace_agents.login_before_ready IS 'If true, the agent wil
 COMMENT ON COLUMN workspace_agents.startup_script_timeout_seconds IS 'The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.';
 
 COMMENT ON COLUMN workspace_agents.expanded_directory IS 'The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder';
+
+COMMENT ON COLUMN workspace_agents.shutdown_script IS 'Script that is executed before the agent is stopped.';
+
+COMMENT ON COLUMN workspace_agents.shutdown_script_timeout_seconds IS 'The number of seconds to wait for the shutdown script to complete. If the script does not complete within this time, the agent lifecycle will be marked as shutdown_timeout.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
@@ -569,7 +580,8 @@ CREATE TABLE workspace_builds (
     job_id uuid NOT NULL,
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
-    daily_cost integer DEFAULT 0 NOT NULL
+    daily_cost integer DEFAULT 0 NOT NULL,
+    max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_resource_metadata (

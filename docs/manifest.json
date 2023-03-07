@@ -260,6 +260,13 @@
           "icon_path": "./images/icons/scale.svg"
         },
         {
+          "title": "External Provisioners",
+          "description": "Run provisioners isolated from the Coder server",
+          "path": "./admin/provisioners.md",
+          "icon_path": "./images/icons/queue.svg",
+          "state": "enterprise"
+        },
+        {
           "title": "Audit Logs",
           "description": "Learn how to use Audit Logs in your Coder deployment",
           "path": "./admin/audit-logs.md",

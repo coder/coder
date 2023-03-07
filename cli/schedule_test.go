@@ -308,13 +308,16 @@ func TestScheduleOverride(t *testing.T) {
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.TTLMillis = nil
 			})
 			cmdArgs   = []string{"schedule", "override-stop", workspace.Name, "1h"}
 			stdoutBuf = &bytes.Buffer{}
 		)
+		require.Zero(t, template.DefaultTTLMillis)
+		require.Zero(t, template.MaxTTLMillis)
+
 		// Unset the workspace TTL
 		err = client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil})
 		require.NoError(t, err)

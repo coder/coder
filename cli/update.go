@@ -20,7 +20,9 @@ func update() *cobra.Command {
 		Annotations: workspaceCommand,
 		Use:         "update <workspace>",
 		Args:        cobra.ExactArgs(1),
-		Short:       "Update a workspace",
+		Short:       "Will update and start a given workspace if it is out of date.",
+		Long: "Will update and start a given workspace if it is out of date. Use --always-prompt to change " +
+			"the parameter values of the workspace.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {
@@ -68,7 +70,7 @@ func update() *cobra.Command {
 
 			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID:   template.ActiveVersionID,
-				Transition:          workspace.LatestBuild.Transition,
+				Transition:          codersdk.WorkspaceTransitionStart,
 				ParameterValues:     buildParams.parameters,
 				RichParameterValues: buildParams.richParameters,
 			})

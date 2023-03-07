@@ -10,7 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/autobuild/schedule"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/coderd/util/tz"
 	"github.com/coder/coder/codersdk"

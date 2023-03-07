@@ -13,11 +13,18 @@ Coder offers these user roles in the community edition:
 | Change User roles                                     |         |            |                | ✅    |
 | Manage **ALL** Templates                              |         |            | ✅             | ✅    |
 | View, update and delete **ALL** Workspaces            |         |            | ✅             | ✅    |
+| Run [external provisioners](./provisioners.md)        |         |            | ✅             | ✅    |
 | Execute and use **ALL** Workspaces                    |         |            |                | ✅    |
 | View all user operation [Audit Logs](./audit-logs.md) | ✅      |            |                | ✅    |
 
 A user may have one or more roles. All users have an implicit Member role
 that may use personal workspaces.
+
+## Security notes
+
+A malicious Template Admin could write a template that executes commands on the host (or `coder server` container), which potentially escalates their privileges or shuts down the Coder server. To avoid this, run [external provisioners](./provisioners.md).
+
+In low-trust environments, we do not recommend giving users direct access to edit templates. Instead, use [CI/CD pipelines to update templates](../templates/change-management.md) with proper security scans and code reviews in place.
 
 ## Create a user
 
