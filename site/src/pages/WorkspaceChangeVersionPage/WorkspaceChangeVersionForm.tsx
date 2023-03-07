@@ -39,12 +39,7 @@ export const WorkspaceChangeVersionForm: FC<{
   return (
     <form onSubmit={formik.handleSubmit}>
       <Stack direction="column" spacing={3}>
-        <Stack
-          direction="row"
-          spacing={2}
-          className={styles.workspace}
-          alignItems="center"
-        >
+        <Stack direction="row" className={styles.workspace} alignItems="center">
           <div className={styles.workspaceIcon}>
             <img src={workspace.template_icon} alt="" />
           </div>

@@ -14,6 +14,7 @@ import { Permissions } from "xServices/auth/authXService"
 import { Loader } from "components/Loader/Loader"
 import { usePermissions } from "hooks/usePermissions"
 import { TemplatePageHeader } from "./TemplatePageHeader"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 
 const useTemplateName = () => {
   const { template } = useParams()
@@ -57,8 +58,20 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
       organizationId,
     },
   })
-  const { template, permissions: templatePermissions } = templateState.context
+  const {
+    template,
+    permissions: templatePermissions,
+    getTemplateError,
+  } = templateState.context
   const permissions = usePermissions()
+
+  if (getTemplateError) {
+    return (
+      <div className={styles.error}>
+        <AlertBanner severity="error" error={getTemplateError} />
+      </div>
+    )
+  }
 
   if (!template || !templatePermissions) {
     return <Loader />
@@ -117,6 +130,9 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
 
 export const useStyles = makeStyles((theme) => {
   return {
+    error: {
+      margin: theme.spacing(2),
+    },
     tabs: {
       borderBottom: `1px solid ${theme.palette.divider}`,
       marginBottom: theme.spacing(5),

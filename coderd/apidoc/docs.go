@@ -5198,6 +5198,12 @@ const docTemplate = `{
                 "motd_file": {
                     "type": "string"
                 },
+                "shutdown_script": {
+                    "type": "string"
+                },
+                "shutdown_script_timeout": {
+                    "type": "integer"
+                },
                 "startup_script": {
                     "type": "string"
                 },
@@ -5868,6 +5874,10 @@ const docTemplate = `{
                 "icon": {
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
                     "type": "string"
+                },
+                "max_ttl_ms": {
+                    "description": "MaxTTLMillis allows optionally specifying the max lifetime for\nworkspaces created from this template.",
+                    "type": "integer"
                 },
                 "name": {
                     "description": "Name is the name of the template.",
@@ -7723,6 +7733,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "max_ttl_ms": {
+                    "description": "MaxTTLMillis is an enterprise feature. It's value is only used if your\nlicense is entitled to use the advanced template scheduling feature.",
+                    "type": "integer"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -7951,6 +7965,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.TemplateVersionParameterOption"
                     }
+                },
+                "required": {
+                    "type": "boolean"
                 },
                 "type": {
                     "type": "string",
@@ -8425,6 +8442,12 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "shutdown_script": {
+                    "type": "string"
+                },
+                "shutdown_script_timeout_seconds": {
+                    "type": "integer"
+                },
                 "startup_script": {
                     "type": "string"
                 },
@@ -8462,14 +8485,22 @@ const docTemplate = `{
                 "starting",
                 "start_timeout",
                 "start_error",
-                "ready"
+                "ready",
+                "shutting_down",
+                "shutdown_timeout",
+                "shutdown_error",
+                "off"
             ],
             "x-enum-varnames": [
                 "WorkspaceAgentLifecycleCreated",
                 "WorkspaceAgentLifecycleStarting",
                 "WorkspaceAgentLifecycleStartTimeout",
                 "WorkspaceAgentLifecycleStartError",
-                "WorkspaceAgentLifecycleReady"
+                "WorkspaceAgentLifecycleReady",
+                "WorkspaceAgentLifecycleShuttingDown",
+                "WorkspaceAgentLifecycleShutdownTimeout",
+                "WorkspaceAgentLifecycleShutdownError",
+                "WorkspaceAgentLifecycleOff"
             ]
         },
         "codersdk.WorkspaceAgentListeningPort": {
@@ -8632,6 +8663,10 @@ const docTemplate = `{
                 },
                 "job": {
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
+                },
+                "max_deadline": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "reason": {
                     "enum": [

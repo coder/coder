@@ -892,8 +892,18 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get template",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
+	// You must have update permissions on the template to get the state.
+	// This matches a push!
+	if !api.Authorize(r, rbac.ActionUpdate, template.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -1139,6 +1149,7 @@ func (api *API) convertWorkspaceBuild(
 		InitiatorUsername:   initiator.Username,
 		Job:                 apiJob,
 		Deadline:            codersdk.NewNullTime(build.Deadline, !build.Deadline.IsZero()),
+		MaxDeadline:         codersdk.NewNullTime(build.MaxDeadline, !build.MaxDeadline.IsZero()),
 		Reason:              codersdk.BuildReason(build.Reason),
 		Resources:           apiResources,
 		Status:              convertWorkspaceStatus(apiJob.Status, transition),
