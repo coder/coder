@@ -34,7 +34,7 @@ func TestCommand_ToUpper(t *testing.T) {
 					Middleware: clibase.Chain(
 						clibase.RequireNArgs(1),
 					),
-					Options: &clibase.OptionSet{
+					Options: clibase.OptionSet{
 						clibase.Option{
 							Name:  "lower",
 							Flag:  "lower",

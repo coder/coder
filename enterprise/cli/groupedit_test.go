@@ -65,7 +65,7 @@ func TestGroupEdit(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		clitest.SetupConfig(t, client, root)
 
-		err = cmd.Execute()
+		err = cmd.Run()
 		require.NoError(t, err)
 
 		pty.ExpectMatch(fmt.Sprintf("Successfully patched group %s", cliui.Styles.Keyword.Render(expectedName)))
@@ -97,7 +97,7 @@ func TestGroupEdit(t *testing.T) {
 
 		clitest.SetupConfig(t, client, root)
 
-		err = cmd.Execute()
+		err = cmd.Run()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "must be a valid UUID or email address")
 	})
@@ -118,7 +118,7 @@ func TestGroupEdit(t *testing.T) {
 
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Execute()
+		err := cmd.Run()
 		require.Error(t, err)
 	})
 }

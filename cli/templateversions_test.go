@@ -29,7 +29,7 @@ func TestTemplateVersions(t *testing.T) {
 
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.Execute()
+			errC <- cmd.Run()
 		}()
 
 		require.NoError(t, <-errC)

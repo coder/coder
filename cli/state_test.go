@@ -40,7 +40,7 @@ func TestStatePull(t *testing.T) {
 		statefilePath := filepath.Join(t.TempDir(), "state")
 		cmd, root := clitest.New(t, "state", "pull", workspace.Name, statefilePath)
 		clitest.SetupConfig(t, client, root)
-		err := cmd.Execute()
+		err := cmd.Run()
 		require.NoError(t, err)
 		gotState, err := os.ReadFile(statefilePath)
 		require.NoError(t, err)
@@ -69,7 +69,7 @@ func TestStatePull(t *testing.T) {
 		var gotState bytes.Buffer
 		cmd.SetOut(&gotState)
 		clitest.SetupConfig(t, client, root)
-		err := cmd.Execute()
+		err := cmd.Run()
 		require.NoError(t, err)
 		require.Equal(t, wantState, bytes.TrimSpace(gotState.Bytes()))
 	})
@@ -98,7 +98,7 @@ func TestStatePush(t *testing.T) {
 		require.NoError(t, err)
 		cmd, root := clitest.New(t, "state", "push", workspace.Name, stateFile.Name())
 		clitest.SetupConfig(t, client, root)
-		err = cmd.Execute()
+		err = cmd.Run()
 		require.NoError(t, err)
 	})
 
@@ -117,7 +117,7 @@ func TestStatePush(t *testing.T) {
 		cmd, root := clitest.New(t, "state", "push", "--build", strconv.Itoa(int(workspace.LatestBuild.BuildNumber)), workspace.Name, "-")
 		clitest.SetupConfig(t, client, root)
 		cmd.SetIn(strings.NewReader("some magic state"))
-		err := cmd.Execute()
+		err := cmd.Run()
 		require.NoError(t, err)
 	})
 }

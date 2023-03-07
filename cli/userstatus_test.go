@@ -26,7 +26,7 @@ func TestUserStatus(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		// Yes to the prompt
 		cmd.SetIn(bytes.NewReader([]byte("yes\n")))
-		err := cmd.Execute()
+		err := cmd.Run()
 		// Expect an error, as you cannot suspend yourself
 		require.Error(t, err)
 		require.ErrorContains(t, err, "cannot suspend yourself")
@@ -39,7 +39,7 @@ func TestUserStatus(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		// Yes to the prompt
 		cmd.SetIn(bytes.NewReader([]byte("yes\n")))
-		err := cmd.Execute()
+		err := cmd.Run()
 		require.NoError(t, err, "suspend user")
 
 		// Check the user status
@@ -52,7 +52,7 @@ func TestUserStatus(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		// Yes to the prompt
 		cmd.SetIn(bytes.NewReader([]byte("yes\n")))
-		err = cmd.Execute()
+		err = cmd.Run()
 		require.NoError(t, err, "suspend user")
 
 		// Check the user status

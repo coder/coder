@@ -46,7 +46,7 @@ func TestScheduleShow(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		cmd.SetOut(stdoutBuf)
 
-		err := cmd.Execute()
+		err := cmd.Run()
 		require.NoError(t, err, "unexpected error")
 		lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 		if assert.Len(t, lines, 4) {
@@ -83,7 +83,7 @@ func TestScheduleShow(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		cmd.SetOut(stdoutBuf)
 
-		err := cmd.Execute()
+		err := cmd.Run()
 		require.NoError(t, err, "unexpected error")
 		lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 		if assert.Len(t, lines, 4) {
@@ -107,7 +107,7 @@ func TestScheduleShow(t *testing.T) {
 		cmd, root := clitest.New(t, "schedule", "show", "doesnotexist")
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Execute()
+		err := cmd.Run()
 		require.ErrorContains(t, err, "status code 404", "unexpected error")
 	})
 }
@@ -136,7 +136,7 @@ func TestScheduleStart(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	cmd.SetOut(stdoutBuf)
 
-	err := cmd.Execute()
+	err := cmd.Run()
 	assert.NoError(t, err, "unexpected error")
 	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
@@ -161,7 +161,7 @@ func TestScheduleStart(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	cmd.SetOut(stdoutBuf)
 
-	err = cmd.Execute()
+	err = cmd.Run()
 	assert.NoError(t, err, "unexpected error")
 	lines = strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
@@ -190,7 +190,7 @@ func TestScheduleStop(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	cmd.SetOut(stdoutBuf)
 
-	err := cmd.Execute()
+	err := cmd.Run()
 	assert.NoError(t, err, "unexpected error")
 	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
@@ -207,7 +207,7 @@ func TestScheduleStop(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	cmd.SetOut(stdoutBuf)
 
-	err = cmd.Execute()
+	err = cmd.Run()
 	assert.NoError(t, err, "unexpected error")
 	lines = strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {
@@ -252,7 +252,7 @@ func TestScheduleOverride(t *testing.T) {
 		cmd.SetOut(stdoutBuf)
 
 		// When: we execute `coder schedule override workspace <number without units>`
-		err = cmd.ExecuteContext(ctx)
+		err = cmd.RunContext(ctx)
 		require.NoError(t, err)
 
 		// Then: the deadline of the latest build is updated assuming the units are minutes
@@ -292,7 +292,7 @@ func TestScheduleOverride(t *testing.T) {
 		cmd.SetOut(stdoutBuf)
 
 		// When: we execute `coder bump workspace <not a number>`
-		err = cmd.ExecuteContext(ctx)
+		err = cmd.RunContext(ctx)
 		// Then: the command fails
 		require.ErrorContains(t, err, "invalid duration")
 	})
@@ -344,7 +344,7 @@ func TestScheduleOverride(t *testing.T) {
 		cmd.SetOut(stdoutBuf)
 
 		// When: we execute `coder bump workspace``
-		err = cmd.ExecuteContext(ctx)
+		err = cmd.RunContext(ctx)
 		require.Error(t, err)
 
 		// Then: nothing happens and the deadline remains unset
@@ -374,7 +374,7 @@ func TestScheduleStartDefaults(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	cmd.SetOut(stdoutBuf)
 
-	err := cmd.Execute()
+	err := cmd.Run()
 	require.NoError(t, err, "unexpected error")
 	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")
 	if assert.Len(t, lines, 4) {

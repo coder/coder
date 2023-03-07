@@ -82,7 +82,7 @@ param3: 1
 
 		done := make(chan any)
 		go func() {
-			err := cmd.ExecuteContext(ctx)
+			err := cmd.RunContext(ctx)
 			assert.NoError(t, err)
 			close(done)
 		}()
@@ -160,7 +160,7 @@ param3: 1
 
 		done = make(chan any)
 		go func() {
-			err := cmd.ExecuteContext(ctx)
+			err := cmd.RunContext(ctx)
 			assert.NoError(t, err)
 			close(done)
 		}()

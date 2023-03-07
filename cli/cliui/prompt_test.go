@@ -161,7 +161,7 @@ func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, cmdOpt func(cmd *cob
 	cmd.SetOut(ptty.Output())
 	cmd.SetErr(ptty.Output())
 	cmd.SetIn(ptty.Input())
-	return value, cmd.ExecuteContext(context.Background())
+	return value, cmd.RunContext(context.Background())
 }
 
 func TestPasswordTerminalState(t *testing.T) {
@@ -216,5 +216,5 @@ func passwordHelper() {
 			})
 		},
 	}
-	cmd.ExecuteContext(context.Background())
+	cmd.RunContext(context.Background())
 }

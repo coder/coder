@@ -38,7 +38,7 @@ func TestRename(t *testing.T) {
 
 	errC := make(chan error, 1)
 	go func() {
-		errC <- cmd.ExecuteContext(ctx)
+		errC <- cmd.RunContext(ctx)
 	}()
 
 	pty.ExpectMatch("confirm rename:")

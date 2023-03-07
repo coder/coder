@@ -47,7 +47,7 @@ func TestTemplatePull(t *testing.T) {
 		t.Parallel()
 
 		cmd, _ := clitest.New(t, "templates", "pull")
-		err := cmd.Execute()
+		err := cmd.Run()
 		require.Error(t, err)
 	})
 
@@ -83,7 +83,7 @@ func TestTemplatePull(t *testing.T) {
 		var buf bytes.Buffer
 		cmd.SetOut(&buf)
 
-		err = cmd.Execute()
+		err = cmd.Run()
 		require.NoError(t, err)
 
 		require.True(t, bytes.Equal(expected, buf.Bytes()), "tar files differ")
@@ -134,7 +134,7 @@ func TestTemplatePull(t *testing.T) {
 		errChan := make(chan error)
 		go func() {
 			defer close(errChan)
-			errChan <- cmd.Execute()
+			errChan <- cmd.Run()
 		}()
 
 		require.NoError(t, <-errChan)
@@ -200,7 +200,7 @@ func TestTemplatePull(t *testing.T) {
 		errChan := make(chan error)
 		go func() {
 			defer close(errChan)
-			errChan <- cmd.Execute()
+			errChan <- cmd.Run()
 		}()
 
 		pty.ExpectMatch("not empty")

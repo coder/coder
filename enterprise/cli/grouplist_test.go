@@ -64,7 +64,7 @@ func TestGroupList(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		clitest.SetupConfig(t, client, root)
 
-		err = cmd.Execute()
+		err = cmd.Run()
 		require.NoError(t, err)
 
 		matches := []string{
@@ -97,7 +97,7 @@ func TestGroupList(t *testing.T) {
 		cmd.SetErr(pty.Output())
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Execute()
+		err := cmd.Run()
 		require.NoError(t, err)
 
 		pty.ExpectMatch("No groups found")

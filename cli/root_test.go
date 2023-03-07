@@ -132,7 +132,7 @@ ExtractCommandPathsLoop:
 			clitest.SetupConfig(t, rootClient, cfg)
 			cmd.SetOut(&buf)
 			assert.NoError(t, err)
-			err = cmd.ExecuteContext(ctx)
+			err = cmd.RunContext(ctx)
 			err2 := os.Chdir(wd)
 			require.NoError(t, err)
 			require.NoError(t, err2)
@@ -249,7 +249,7 @@ func TestRoot(t *testing.T) {
 
 			cmd, _ := clitest.New(t, "delete")
 
-			cmd, err := cmd.ExecuteC()
+			cmd, err := cmd.RunC()
 			errStr := cli.FormatCobraError(err, cmd)
 			require.Contains(t, errStr, "Run 'coder delete --help' for usage.")
 		})
@@ -276,7 +276,7 @@ func TestRoot(t *testing.T) {
 					return err
 				}
 
-				cmd, err := cmd.ExecuteC()
+				cmd, err := cmd.RunC()
 				errStr := cli.FormatCobraError(err, cmd)
 				require.Contains(t, errStr, "This is a message. Try this instead.")
 				require.NotContains(t, errStr, err.Error())
@@ -293,7 +293,7 @@ func TestRoot(t *testing.T) {
 					return xerrors.Errorf("this is a non-codersdk error: %w", xerrors.Errorf("a wrapped error"))
 				}
 
-				cmd, err := cmd.ExecuteC()
+				cmd, err := cmd.RunC()
 				errStr := cli.FormatCobraError(err, cmd)
 				require.Contains(t, errStr, err.Error())
 			})
@@ -318,7 +318,7 @@ func TestRoot(t *testing.T) {
 					return err
 				}
 
-				cmd, err := cmd.ExecuteC()
+				cmd, err := cmd.RunC()
 				errStr := cli.FormatCobraError(err, cmd)
 				require.Contains(t, errStr, "This is a message. Try this instead.")
 				require.Contains(t, errStr, err.Error())
@@ -334,7 +334,7 @@ func TestRoot(t *testing.T) {
 					return xerrors.Errorf("this is a non-codersdk error: %w", xerrors.Errorf("a wrapped error"))
 				}
 
-				cmd, err := cmd.ExecuteC()
+				cmd, err := cmd.RunC()
 				errStr := cli.FormatCobraError(err, cmd)
 				require.Contains(t, errStr, err.Error())
 			})
@@ -347,7 +347,7 @@ func TestRoot(t *testing.T) {
 		buf := new(bytes.Buffer)
 		cmd, _ := clitest.New(t, "version")
 		cmd.SetOut(buf)
-		err := cmd.Execute()
+		err := cmd.Run()
 		require.NoError(t, err)
 
 		output := buf.String()
@@ -373,6 +373,6 @@ func TestRoot(t *testing.T) {
 		cmd, _ := clitest.New(t, "--header", "X-Testing=wow", "login", srv.URL)
 		cmd.SetOut(buf)
 		// This won't succeed, because we're using the login cmd to assert requests.
-		_ = cmd.Execute()
+		_ = cmd.Run()
 	})
 }

@@ -28,7 +28,7 @@ func TestUserList(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.Execute()
+			errC <- cmd.Run()
 		}()
 		require.NoError(t, <-errC)
 		pty.ExpectMatch("coder.com")
@@ -46,7 +46,7 @@ func TestUserList(t *testing.T) {
 		cmd.SetOut(buf)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -63,7 +63,7 @@ func TestUserList(t *testing.T) {
 
 		cmd, _ := clitest.New(t, "users", "list")
 
-		_, err := cmd.ExecuteC()
+		_, err := cmd.RunC()
 
 		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
 	})
@@ -74,7 +74,7 @@ func TestUserList(t *testing.T) {
 		cmd, root := clitest.New(t, "users", "list")
 		clitest.SetupConfig(t, client, root)
 
-		_, err := cmd.ExecuteC()
+		_, err := cmd.RunC()
 
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -98,7 +98,7 @@ func TestUserShow(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 		pty.ExpectMatch(otherUser.Email)
@@ -122,7 +122,7 @@ func TestUserShow(t *testing.T) {
 		cmd.SetOut(buf)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 

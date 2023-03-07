@@ -37,7 +37,7 @@ func TestList(t *testing.T) {
 		defer cancelFunc()
 		done := make(chan any)
 		go func() {
-			errC := cmd.ExecuteContext(ctx)
+			errC := cmd.RunContext(ctx)
 			assert.NoError(t, errC)
 			close(done)
 		}()
@@ -65,7 +65,7 @@ func TestList(t *testing.T) {
 
 		out := bytes.NewBuffer(nil)
 		cmd.SetOut(out)
-		err := cmd.ExecuteContext(ctx)
+		err := cmd.RunContext(ctx)
 		require.NoError(t, err)
 
 		var templates []codersdk.Workspace

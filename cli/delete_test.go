@@ -33,7 +33,7 @@ func TestDelete(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			// When running with the race detector on, we sometimes get an EOF.
 			if err != nil {
 				assert.ErrorIs(t, err, io.EOF)
@@ -62,7 +62,7 @@ func TestDelete(t *testing.T) {
 		cmd.SetErr(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			// When running with the race detector on, we sometimes get an EOF.
 			if err != nil {
 				assert.ErrorIs(t, err, io.EOF)
@@ -95,7 +95,7 @@ func TestDelete(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			// When running with the race detector on, we sometimes get an EOF.
 			if err != nil {
 				assert.ErrorIs(t, err, io.EOF)
@@ -117,7 +117,7 @@ func TestDelete(t *testing.T) {
 		doneChan := make(chan struct{})
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.ErrorContains(t, err, "invalid workspace name: \"a/b/c\"")
 		}()
 		<-doneChan

@@ -153,21 +153,17 @@ func TestConfigSSH(t *testing.T) {
 
 	tcpAddr, valid := listener.Addr().(*net.TCPAddr)
 	require.True(t, valid)
-	cmd, root := clitest.New(t, "config-ssh",
+	inv, root := clitest.New(t, "config-ssh",
 		"--ssh-option", "HostName "+tcpAddr.IP.String(),
 		"--ssh-option", "Port "+strconv.Itoa(tcpAddr.Port),
 		"--ssh-config-file", sshConfigFile,
 		"--skip-proxy-command")
 	clitest.SetupConfig(t, client, root)
-	doneChan := make(chan struct{})
 	pty := ptytest.New(t)
-	cmd.SetIn(pty.Input())
-	cmd.SetOut(pty.Output())
-	go func() {
-		defer close(doneChan)
-		err := cmd.Execute()
-		assert.NoError(t, err)
-	}()
+	inv.Stdin = pty.Input()
+	inv.Stdout = pty.Output()
+
+	clitest.Start(t, inv)
 
 	matches := []struct {
 		match, write string
@@ -178,8 +174,6 @@ func TestConfigSSH(t *testing.T) {
 		pty.ExpectMatch(m.match)
 		pty.WriteLine(m.write)
 	}
-
-	<-doneChan
 
 	home := filepath.Dir(filepath.Dir(sshConfigFile))
 	// #nosec
@@ -586,14 +580,14 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				"--ssh-config-file", sshConfigName,
 			}
 			args = append(args, tt.args...)
-			cmd, root := clitest.New(t, args...)
+			inv, root := clitest.New(t, args...)
 			clitest.SetupConfig(t, client, root)
 
 			pty := ptytest.New(t)
-			cmd.SetIn(pty.Input())
-			cmd.SetOut(pty.Output())
+			inv.Stdin = pty.Input()
+			inv.Stdout = pty.Output()
 			done := tGo(t, func() {
-				err := cmd.Execute()
+				err := inv.Run()
 				if !tt.wantErr {
 					assert.NoError(t, err)
 				} else {
@@ -703,17 +697,13 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 
 			sshConfigFile := sshConfigFileName(t)
 
-			cmd, root := clitest.New(t, "config-ssh", "--ssh-config-file", sshConfigFile)
+			inv, root := clitest.New(t, "config-ssh", "--ssh-config-file", sshConfigFile)
 			clitest.SetupConfig(t, client, root)
 			doneChan := make(chan struct{})
 			pty := ptytest.New(t)
-			cmd.SetIn(pty.Input())
-			cmd.SetOut(pty.Output())
-			go func() {
-				defer close(doneChan)
-				err := cmd.Execute()
-				assert.NoError(t, err)
-			}()
+			inv.Stdin = pty.Input()
+			inv.Stdout = pty.Output()
+			clitest.Start(t, inv)
 
 			matches := []struct {
 				match, write string

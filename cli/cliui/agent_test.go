@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
@@ -24,9 +25,9 @@ func TestAgent(t *testing.T) {
 
 	var disconnected atomic.Bool
 	ptty := ptytest.New(t)
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			err := cliui.Agent(cmd.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
+	cmd := &clibase.Command{
+		Handler: func(inv *clibase.Invokation) error {
+			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
 				WorkspaceName: "example",
 				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
 					agent := codersdk.WorkspaceAgent{
@@ -49,7 +50,7 @@ func TestAgent(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		err := cmd.Execute()
+		err := cmd.Run()
 		assert.NoError(t, err)
 	}()
 	ptty.ExpectMatchContext(ctx, "lost connection")
@@ -95,7 +96,7 @@ func TestAgent_TimeoutWithTroubleshootingURL(t *testing.T) {
 	cmd.SetIn(ptty.Input())
 	done := make(chan error, 1)
 	go func() {
-		done <- cmd.ExecuteContext(ctx)
+		done <- cmd.RunContext(ctx)
 	}()
 	ptty.ExpectMatchContext(ctx, "Don't panic, your workspace is booting")
 	timeout.Store(true)
@@ -148,7 +149,7 @@ func TestAgent_StartupTimeout(t *testing.T) {
 	cmd.SetIn(ptty.Input())
 	done := make(chan error, 1)
 	go func() {
-		done <- cmd.ExecuteContext(ctx)
+		done <- cmd.RunContext(ctx)
 	}()
 	setStatus(codersdk.WorkspaceAgentConnecting)
 	ptty.ExpectMatchContext(ctx, "Don't panic, your workspace is booting")
@@ -206,7 +207,7 @@ func TestAgent_StartErrorExit(t *testing.T) {
 	cmd.SetIn(ptty.Input())
 	done := make(chan error, 1)
 	go func() {
-		done <- cmd.ExecuteContext(ctx)
+		done <- cmd.RunContext(ctx)
 	}()
 	setStatus(codersdk.WorkspaceAgentConnected)
 	setState(codersdk.WorkspaceAgentLifecycleStarting)
@@ -261,7 +262,7 @@ func TestAgent_NoWait(t *testing.T) {
 	cmd.SetIn(ptty.Input())
 	done := make(chan error, 1)
 	go func() {
-		done <- cmd.ExecuteContext(ctx)
+		done <- cmd.RunContext(ctx)
 	}()
 	setStatus(codersdk.WorkspaceAgentConnecting)
 	ptty.ExpectMatchContext(ctx, "Don't panic, your workspace is booting")
@@ -270,19 +271,19 @@ func TestAgent_NoWait(t *testing.T) {
 	require.NoError(t, <-done, "created - should exit early")
 
 	setState(codersdk.WorkspaceAgentLifecycleStarting)
-	go func() { done <- cmd.ExecuteContext(ctx) }()
+	go func() { done <- cmd.RunContext(ctx) }()
 	require.NoError(t, <-done, "starting - should exit early")
 
 	setState(codersdk.WorkspaceAgentLifecycleStartTimeout)
-	go func() { done <- cmd.ExecuteContext(ctx) }()
+	go func() { done <- cmd.RunContext(ctx) }()
 	require.NoError(t, <-done, "start timeout - should exit early")
 
 	setState(codersdk.WorkspaceAgentLifecycleStartError)
-	go func() { done <- cmd.ExecuteContext(ctx) }()
+	go func() { done <- cmd.RunContext(ctx) }()
 	require.NoError(t, <-done, "start error - should exit early")
 
 	setState(codersdk.WorkspaceAgentLifecycleReady)
-	go func() { done <- cmd.ExecuteContext(ctx) }()
+	go func() { done <- cmd.RunContext(ctx) }()
 	require.NoError(t, <-done, "ready - should exit early")
 }
 
@@ -330,7 +331,7 @@ func TestAgent_LoginBeforeReadyEnabled(t *testing.T) {
 	cmd.SetIn(ptty.Input())
 	done := make(chan error, 1)
 	go func() {
-		done <- cmd.ExecuteContext(ctx)
+		done <- cmd.RunContext(ctx)
 	}()
 	setStatus(codersdk.WorkspaceAgentConnecting)
 	ptty.ExpectMatchContext(ctx, "Don't panic, your workspace is booting")
@@ -339,18 +340,18 @@ func TestAgent_LoginBeforeReadyEnabled(t *testing.T) {
 	require.NoError(t, <-done, "created - should exit early")
 
 	setState(codersdk.WorkspaceAgentLifecycleStarting)
-	go func() { done <- cmd.ExecuteContext(ctx) }()
+	go func() { done <- cmd.RunContext(ctx) }()
 	require.NoError(t, <-done, "starting - should exit early")
 
 	setState(codersdk.WorkspaceAgentLifecycleStartTimeout)
-	go func() { done <- cmd.ExecuteContext(ctx) }()
+	go func() { done <- cmd.RunContext(ctx) }()
 	require.NoError(t, <-done, "start timeout - should exit early")
 
 	setState(codersdk.WorkspaceAgentLifecycleStartError)
-	go func() { done <- cmd.ExecuteContext(ctx) }()
+	go func() { done <- cmd.RunContext(ctx) }()
 	require.NoError(t, <-done, "start error - should exit early")
 
 	setState(codersdk.WorkspaceAgentLifecycleReady)
-	go func() { done <- cmd.ExecuteContext(ctx) }()
+	go func() { done <- cmd.RunContext(ctx) }()
 	require.NoError(t, <-done, "ready - should exit early")
 }

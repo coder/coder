@@ -45,7 +45,7 @@ func TestGitAuth(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		err := cmd.Execute()
+		err := cmd.Run()
 		assert.NoError(t, err)
 	}()
 	ptty.ExpectMatchContext(ctx, "You must authenticate with")

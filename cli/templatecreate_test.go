@@ -63,7 +63,7 @@ func TestTemplateCreate(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		matches := []struct {
@@ -111,7 +111,7 @@ func TestTemplateCreate(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		require.NoError(t, <-execDone)
@@ -134,7 +134,7 @@ func TestTemplateCreate(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		matches := []struct {
@@ -174,7 +174,7 @@ func TestTemplateCreate(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		matches := []struct {
@@ -213,7 +213,7 @@ func TestTemplateCreate(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		matches := []struct {
@@ -262,7 +262,7 @@ func TestTemplateCreate(t *testing.T) {
 			cmd, root := clitest.New(t, args...)
 			clitest.SetupConfig(t, client, root)
 
-			return cmd.Execute()
+			return cmd.Run()
 		}
 		del := func() error {
 			args := []string{
@@ -274,7 +274,7 @@ func TestTemplateCreate(t *testing.T) {
 			cmd, root := clitest.New(t, args...)
 			clitest.SetupConfig(t, client, root)
 
-			return cmd.Execute()
+			return cmd.Run()
 		}
 
 		err := create()
@@ -294,7 +294,7 @@ func TestTemplateCreate(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		require.EqualError(t, <-execDone, "Template name must be less than 32 characters")
@@ -337,7 +337,7 @@ func TestTemplateCreate(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		matches := []struct {
@@ -393,7 +393,7 @@ func TestTemplateCreate(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		matches := []struct {
@@ -437,7 +437,7 @@ func TestTemplateCreate(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		matches := []struct {

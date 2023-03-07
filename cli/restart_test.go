@@ -36,7 +36,7 @@ func TestRestart(t *testing.T) {
 
 		done := make(chan error, 1)
 		go func() {
-			done <- cmd.ExecuteContext(ctx)
+			done <- cmd.RunContext(ctx)
 		}()
 		pty.ExpectMatch("Stopping workspace")
 		pty.ExpectMatch("Starting workspace")

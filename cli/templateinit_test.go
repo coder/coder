@@ -19,7 +19,7 @@ func TestTemplateInit(t *testing.T) {
 		pty := ptytest.New(t)
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
-		err := cmd.Execute()
+		err := cmd.Run()
 		require.NoError(t, err)
 		files, err := os.ReadDir(tempDir)
 		require.NoError(t, err)

@@ -29,7 +29,7 @@ func TestFeaturesList(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.Execute()
+			errC <- cmd.Run()
 		}()
 		require.NoError(t, <-errC)
 		pty.ExpectMatch("user_limit")
@@ -48,7 +48,7 @@ func TestFeaturesList(t *testing.T) {
 		cmd.SetOut(buf)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 

@@ -43,7 +43,7 @@ func TestPing(t *testing.T) {
 		defer cancel()
 
 		cmdDone := tGo(t, func() {
-			err := cmd.ExecuteContext(ctx)
+			err := cmd.RunContext(ctx)
 			assert.NoError(t, err)
 		})
 

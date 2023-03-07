@@ -98,7 +98,7 @@ func TestSSH(t *testing.T) {
 		defer cancel()
 
 		cmdDone := tGo(t, func() {
-			err := cmd.ExecuteContext(ctx)
+			err := cmd.RunContext(ctx)
 			assert.NoError(t, err)
 		})
 		pty.ExpectMatch("Waiting")
@@ -139,7 +139,7 @@ func TestSSH(t *testing.T) {
 		defer cancel()
 
 		cmdDone := tGo(t, func() {
-			err := cmd.ExecuteContext(ctx)
+			err := cmd.RunContext(ctx)
 			assert.ErrorIs(t, err, cliui.Canceled)
 		})
 		pty.ExpectMatch(wantURL)
@@ -179,7 +179,7 @@ func TestSSH(t *testing.T) {
 		cmd.SetOut(serverInput)
 		cmd.SetErr(io.Discard)
 		cmdDone := tGo(t, func() {
-			err := cmd.ExecuteContext(ctx)
+			err := cmd.RunContext(ctx)
 			assert.NoError(t, err)
 		})
 
@@ -274,7 +274,7 @@ func TestSSH(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		cmd.SetErr(pty.Output())
 		cmdDone := tGo(t, func() {
-			err := cmd.ExecuteContext(ctx)
+			err := cmd.RunContext(ctx)
 			assert.NoError(t, err, "ssh command failed")
 		})
 
@@ -477,7 +477,7 @@ Expire-Date: 0
 	cmd.SetOut(tpty.Output())
 	cmd.SetErr(tpty.Output())
 	cmdDone := tGo(t, func() {
-		err := cmd.ExecuteContext(ctx)
+		err := cmd.RunContext(ctx)
 		assert.NoError(t, err, "ssh command failed")
 	})
 	// Prevent the test from hanging if the asserts below kill the test

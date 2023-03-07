@@ -24,7 +24,7 @@ func TestUserCreate(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 		matches := []string{

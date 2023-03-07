@@ -56,7 +56,7 @@ func TestVSCodeSSH(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		//nolint // The above seems reasonable for a one-off test.
-		err := cmd.ExecuteContext(context.WithValue(ctx, "fs", fs))
+		err := cmd.RunContext(context.WithValue(ctx, "fs", fs))
 		if err != nil {
 			assert.ErrorIs(t, err, context.Canceled)
 		}

@@ -47,7 +47,7 @@ func TestGroupDelete(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		clitest.SetupConfig(t, client, root)
 
-		err = cmd.Execute()
+		err = cmd.Run()
 		require.NoError(t, err)
 
 		pty.ExpectMatch(fmt.Sprintf("Successfully deleted group %s", cliui.Styles.Keyword.Render(group.Name)))
@@ -70,7 +70,7 @@ func TestGroupDelete(t *testing.T) {
 
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Execute()
+		err := cmd.Run()
 		require.Error(t, err)
 	})
 }

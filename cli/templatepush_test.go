@@ -54,7 +54,7 @@ func TestTemplatePush(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		matches := []struct {
@@ -82,7 +82,7 @@ func TestTemplatePush(t *testing.T) {
 		cmd, root = clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 		require.NoError(t, <-execDone)
 
@@ -101,7 +101,7 @@ func TestTemplatePush(t *testing.T) {
 		cmd, root = clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 		require.NoError(t, <-execDone)
 		// Assert template version changed and the param was removed
@@ -133,7 +133,7 @@ func TestTemplatePush(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		matches := []struct {
@@ -187,7 +187,7 @@ func TestTemplatePush(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		matches := []struct {
@@ -239,7 +239,7 @@ func TestTemplatePush(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		require.NoError(t, <-execDone)
@@ -298,7 +298,7 @@ func TestTemplatePush(t *testing.T) {
 
 			execDone := make(chan error)
 			go func() {
-				execDone <- cmd.Execute()
+				execDone <- cmd.Run()
 			}()
 
 			matches := []struct {
@@ -357,7 +357,7 @@ func TestTemplatePush(t *testing.T) {
 
 			execDone := make(chan error)
 			go func() {
-				execDone <- cmd.Execute()
+				execDone <- cmd.Run()
 			}()
 
 			matches := []struct {
@@ -404,7 +404,7 @@ func TestTemplatePush(t *testing.T) {
 
 			execDone := make(chan error)
 			go func() {
-				execDone <- cmd.Execute()
+				execDone <- cmd.Run()
 			}()
 
 			matches := []struct {
@@ -464,7 +464,7 @@ func TestTemplatePush(t *testing.T) {
 
 			execDone := make(chan error)
 			go func() {
-				execDone <- cmd.Execute()
+				execDone <- cmd.Run()
 			}()
 
 			matches := []struct {

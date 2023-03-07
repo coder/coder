@@ -59,7 +59,7 @@ func TestSpeedtest(t *testing.T) {
 
 	ctx = cli.ContextWithLogger(ctx, slogtest.Make(t, nil).Named("speedtest").Leveled(slog.LevelDebug))
 	cmdDone := tGo(t, func() {
-		err := cmd.ExecuteContext(ctx)
+		err := cmd.RunContext(ctx)
 		assert.NoError(t, err)
 	})
 	<-cmdDone

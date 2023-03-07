@@ -78,7 +78,7 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, str
 
 	errC := make(chan error, 1)
 	go func() {
-		errC <- cmd.ExecuteContext(ctx)
+		errC <- cmd.RunContext(ctx)
 	}()
 	t.Cleanup(func() { require.NoError(t, <-errC) })
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
@@ -166,7 +166,7 @@ func TestGitSSH(t *testing.T) {
 			"-o", "IdentitiesOnly=yes",
 			"127.0.0.1",
 		)
-		err := cmd.ExecuteContext(ctx)
+		err := cmd.RunContext(ctx)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, inc)
 
@@ -231,7 +231,7 @@ func TestGitSSH(t *testing.T) {
 		cmd, _ := clitest.New(t, cmdArgs...)
 		cmd.SetOut(pty.Output())
 		cmd.SetErr(pty.Output())
-		err = cmd.ExecuteContext(ctx)
+		err = cmd.RunContext(ctx)
 		require.NoError(t, err)
 		select {
 		case key := <-authkey:
@@ -248,7 +248,7 @@ func TestGitSSH(t *testing.T) {
 		cmd, _ = clitest.New(t, cmdArgs...)
 		cmd.SetOut(pty.Output())
 		cmd.SetErr(pty.Output())
-		err = cmd.ExecuteContext(ctx)
+		err = cmd.RunContext(ctx)
 		require.NoError(t, err)
 		select {
 		case key := <-authkey:

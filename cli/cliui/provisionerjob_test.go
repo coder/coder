@@ -151,7 +151,7 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		err := cmd.ExecuteContext(context.Background())
+		err := cmd.RunContext(context.Background())
 		if err != nil {
 			assert.ErrorIs(t, err, cliui.Canceled)
 		}

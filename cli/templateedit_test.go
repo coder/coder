@@ -59,7 +59,7 @@ func TestTemplateEdit(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		ctx, _ := testutil.Context(t)
-		err := cmd.ExecuteContext(ctx)
+		err := cmd.RunContext(ctx)
 
 		require.NoError(t, err)
 
@@ -96,7 +96,7 @@ func TestTemplateEdit(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		ctx, _ := testutil.Context(t)
-		err := cmd.ExecuteContext(ctx)
+		err := cmd.RunContext(ctx)
 
 		require.ErrorContains(t, err, "not modified")
 
@@ -129,7 +129,7 @@ func TestTemplateEdit(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		ctx, _ := testutil.Context(t)
-		err := cmd.ExecuteContext(ctx)
+		err := cmd.RunContext(ctx)
 
 		require.Error(t, err, "client call must fail")
 		_, isSdkError := codersdk.AsError(err)
@@ -179,7 +179,7 @@ func TestTemplateEdit(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		ctx, _ := testutil.Context(t)
-		err = cmd.ExecuteContext(ctx)
+		err = cmd.RunContext(ctx)
 
 		require.NoError(t, err)
 
@@ -225,7 +225,7 @@ func TestTemplateEdit(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		ctx, _ := testutil.Context(t)
-		err = cmd.ExecuteContext(ctx)
+		err = cmd.RunContext(ctx)
 
 		require.NoError(t, err)
 

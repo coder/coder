@@ -39,7 +39,7 @@ func TestPortForward(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		cmd.SetErr(pty.Output())
 
-		err := cmd.Execute()
+		err := cmd.Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "no port-forwards")
 
@@ -144,7 +144,7 @@ func TestPortForward(t *testing.T) {
 				defer cancel()
 				errC := make(chan error)
 				go func() {
-					errC <- cmd.ExecuteContext(ctx)
+					errC <- cmd.RunContext(ctx)
 				}()
 				pty.ExpectMatch("Ready!")
 
@@ -192,7 +192,7 @@ func TestPortForward(t *testing.T) {
 				defer cancel()
 				errC := make(chan error)
 				go func() {
-					errC <- cmd.ExecuteContext(ctx)
+					errC <- cmd.RunContext(ctx)
 				}()
 				pty.ExpectMatch("Ready!")
 
@@ -249,7 +249,7 @@ func TestPortForward(t *testing.T) {
 		defer cancel()
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC <- cmd.RunContext(ctx)
 		}()
 		pty.ExpectMatch("Ready!")
 
@@ -333,7 +333,7 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) codersdk.
 		require.NoError(t, err)
 	})
 	go func() {
-		errC <- cmd.ExecuteContext(agentCtx)
+		errC <- cmd.RunContext(agentCtx)
 	}()
 
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)

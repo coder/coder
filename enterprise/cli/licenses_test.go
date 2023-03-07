@@ -45,7 +45,7 @@ func TestLicensesAddFake(t *testing.T) {
 		pty := attachPty(t, cmd)
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC <- cmd.RunContext(ctx)
 		}()
 		require.NoError(t, <-errC)
 		pty.ExpectMatch("License with ID 1 added")
@@ -58,7 +58,7 @@ func TestLicensesAddFake(t *testing.T) {
 		pty := attachPty(t, cmd)
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC <- cmd.RunContext(ctx)
 		}()
 		pty.ExpectMatch("Paste license:")
 		pty.WriteLine(fakeLicenseJWT)
@@ -77,7 +77,7 @@ func TestLicensesAddFake(t *testing.T) {
 		pty := attachPty(t, cmd)
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC <- cmd.RunContext(ctx)
 		}()
 		require.NoError(t, <-errC)
 		pty.ExpectMatch("License with ID 1 added")
@@ -93,7 +93,7 @@ func TestLicensesAddFake(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC <- cmd.RunContext(ctx)
 		}()
 		_, err := w.Write([]byte(fakeLicenseJWT))
 		require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestLicensesAddFake(t *testing.T) {
 		pty := attachPty(t, cmd)
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC <- cmd.RunContext(ctx)
 		}()
 		require.NoError(t, <-errC)
 		pty.ExpectMatch("\"f2\": 2")
@@ -136,7 +136,7 @@ func TestLicensesAddReal(t *testing.T) {
 		defer cancel()
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC <- cmd.RunContext(ctx)
 		}()
 		err := <-errC
 		var coderError *codersdk.Error
@@ -159,7 +159,7 @@ func TestLicensesListFake(t *testing.T) {
 		cmd.SetOut(stdout)
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC <- cmd.RunContext(ctx)
 		}()
 		require.NoError(t, <-errC)
 		var licenses []codersdk.License
@@ -190,7 +190,7 @@ func TestLicensesListReal(t *testing.T) {
 		defer cancel()
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC <- cmd.RunContext(ctx)
 		}()
 		require.NoError(t, <-errC)
 		assert.Equal(t, "[]\n", stdout.String())
@@ -210,7 +210,7 @@ func TestLicensesDeleteFake(t *testing.T) {
 		pty := attachPty(t, cmd)
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC <- cmd.RunContext(ctx)
 		}()
 		require.NoError(t, <-errC)
 		pty.ExpectMatch("License with ID 55 deleted")
@@ -230,7 +230,7 @@ func TestLicensesDeleteReal(t *testing.T) {
 		defer cancel()
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC <- cmd.RunContext(ctx)
 		}()
 		err := <-errC
 		var coderError *codersdk.Error

@@ -53,7 +53,7 @@ func TestCreate(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 		matches := []struct {
@@ -98,7 +98,7 @@ func TestCreate(t *testing.T) {
 		cmdCtx, done := context.WithTimeout(context.Background(), testutil.WaitLong)
 		go func() {
 			defer done()
-			err := cmd.ExecuteContext(cmdCtx)
+			err := cmd.RunContext(cmdCtx)
 			assert.NoError(t, err)
 		}()
 		// No pty interaction needed since we use the -y skip prompt flag
@@ -121,7 +121,7 @@ func TestCreate(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 		matches := []string{
@@ -165,7 +165,7 @@ func TestCreate(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -210,7 +210,7 @@ func TestCreate(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -255,7 +255,7 @@ func TestCreate(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 		matches := []struct {
@@ -321,7 +321,7 @@ func TestCreate(t *testing.T) {
 		cmd.SetIn(pty.Input())
 		cmd.SetOut(pty.Output())
 
-		err = cmd.Execute()
+		err = cmd.Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "dry-run workspace")
 	})
@@ -384,7 +384,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -429,7 +429,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -512,7 +512,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -549,7 +549,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -589,7 +589,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		cmd.SetOut(pty.Output())
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := cmd.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -651,7 +651,7 @@ func TestCreateWithGitAuth(t *testing.T) {
 	cmd.SetOut(pty.Output())
 	go func() {
 		defer close(doneChan)
-		err := cmd.Execute()
+		err := cmd.Run()
 		assert.NoError(t, err)
 	}()
 

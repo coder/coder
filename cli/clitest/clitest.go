@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -27,7 +26,7 @@ import (
 
 // New creates a CLI instance with a configuration pointed to a
 // temporary testing directory.
-func New(t *testing.T, args ...string) (*clibase.Command, config.Root) {
+func New(t *testing.T, args ...string) (*clibase.Invokation, config.Root) {
 	return NewWithSubcommands(t, cli.AGPL(), args...)
 }
 
@@ -48,18 +47,20 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 }
 
 func NewWithSubcommands(
-	t *testing.T, subcommands []*cobra.Command, args ...string,
-) (*cobra.Command, config.Root) {
-	cmd := cli.Root(subcommands)
-	dir := t.TempDir()
-	root := config.Root(dir)
-	cmd.SetArgs(append([]string{"--global-config", dir}, args...))
+	t *testing.T, subcommands []*clibase.Command, args ...string,
+) (*clibase.Invokation, config.Root) {
+	var root cli.RootCmd
+	cmd := root.Command(subcommands)
 
+	configDir := config.Root(t.TempDir())
+	i := &clibase.Invokation{
+		Command: cmd,
+		Args:    append([]string{"--global-config", string(configDir)}, args...),
+		Stdout:  (&logWriter{prefix: "stdout", t: t}),
+		Stderr:  (&logWriter{prefix: "stderr", t: t}),
+	}
 	// These can be overridden by the test.
-	cmd.SetOut(&logWriter{prefix: "stdout", t: t})
-	cmd.SetErr(&logWriter{prefix: "stderr", t: t})
-
-	return cmd, root
+	return i, configDir
 }
 
 // SetupConfig applies the URL and SessionToken of the client to the config.
@@ -121,10 +122,12 @@ func extractTar(t *testing.T, data []byte, directory string) {
 
 // Start runs the command in a goroutine and cleans it up when
 // the test completed.
-func Start(ctx context.Context, t *testing.T, cmd *cobra.Command) {
+func Start(t *testing.T, inv *clibase.Invokation) {
 	t.Helper()
 
 	closeCh := make(chan struct{})
+
+	ctx := inv.Context()
 
 	deadline, hasDeadline := ctx.Deadline()
 	if !hasDeadline {
@@ -137,7 +140,7 @@ func Start(ctx context.Context, t *testing.T, cmd *cobra.Command) {
 	go func() {
 		defer cancel()
 		defer close(closeCh)
-		err := cmd.ExecuteContext(ctx)
+		err := inv.Run()
 		if ctx.Err() == nil {
 			assert.NoError(t, err)
 		}

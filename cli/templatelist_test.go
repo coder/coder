@@ -42,7 +42,7 @@ func TestTemplateList(t *testing.T) {
 
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC <- cmd.RunContext(ctx)
 		}()
 
 		// expect that templates are listed alphabetically
@@ -75,7 +75,7 @@ func TestTemplateList(t *testing.T) {
 
 		out := bytes.NewBuffer(nil)
 		cmd.SetOut(out)
-		err := cmd.ExecuteContext(ctx)
+		err := cmd.RunContext(ctx)
 		require.NoError(t, err)
 
 		var templates []codersdk.Template
@@ -99,7 +99,7 @@ func TestTemplateList(t *testing.T) {
 
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC <- cmd.RunContext(ctx)
 		}()
 
 		require.NoError(t, <-errC)

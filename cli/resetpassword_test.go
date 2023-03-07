@@ -46,7 +46,7 @@ func TestResetPassword(t *testing.T) {
 	)
 	go func() {
 		defer close(serverDone)
-		err = serverCmd.ExecuteContext(ctx)
+		err = servercmd.RunContext(ctx)
 		assert.NoError(t, err)
 	}()
 	var rawURL string
@@ -75,7 +75,7 @@ func TestResetPassword(t *testing.T) {
 	resetCmd.SetOut(pty.Output())
 	go func() {
 		defer close(cmdDone)
-		err = resetCmd.Execute()
+		err = resetcmd.Run()
 		assert.NoError(t, err)
 	}()
 

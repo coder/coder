@@ -36,7 +36,7 @@ func TestTemplateDelete(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		pty.ExpectMatch(fmt.Sprintf("Delete these templates: %s?", cliui.Styles.Code.Render(template.Name)))
@@ -67,7 +67,7 @@ func TestTemplateDelete(t *testing.T) {
 
 		cmd, root := clitest.New(t, append([]string{"templates", "delete", "--yes"}, templateNames...)...)
 		clitest.SetupConfig(t, client, root)
-		require.NoError(t, cmd.Execute())
+		require.NoError(t, cmd.Run())
 
 		for _, template := range templates {
 			_, err := client.Template(context.Background(), template.ID)
@@ -100,7 +100,7 @@ func TestTemplateDelete(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		pty.ExpectMatch(fmt.Sprintf("Delete these templates: %s?", cliui.Styles.Code.Render(strings.Join(templateNames, ", "))))
@@ -132,7 +132,7 @@ func TestTemplateDelete(t *testing.T) {
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- cmd.Run()
 		}()
 
 		pty.WriteLine("yes")
