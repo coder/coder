@@ -11,12 +11,14 @@ list_migrations() {
 main() {
 	cd "${SCRIPT_DIR}"
 
-	echo "Fetching origin/main..."
-	git fetch -u origin main
+	origin=$(git remote -v | grep "github.com[:/]coder/coder.*(fetch)" | cut -f1)
+
+	echo "Fetching ${origin}/main..."
+	git fetch -u "${origin}" main
 
 	curr_num=$(
 		set -e
-		list_migrations origin/main | grep '^[0-9]' | tail -n1
+		list_migrations "${origin}"/main | grep '^[0-9]' | tail -n1
 	)
 	echo "Last migration (main): ${curr_num}"
 	next_num=$(("1${curr_num:0:6}" - 1000000 + 1))
@@ -25,7 +27,7 @@ main() {
 
 	main_files="$(
 		set -e
-		list_migrations origin/main
+		list_migrations "${origin}"/main
 	)"
 	head_files="$(
 		set -e
