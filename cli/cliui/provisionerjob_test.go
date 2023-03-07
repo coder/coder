@@ -147,7 +147,7 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 	}
 	ptty := ptytest.New(t)
 	cmd.SetOutput(ptty.Output())
-	cmd.SetIn(ptty.Input())
+	cmd.Stdin = ptty.Input()
 	done := make(chan struct{})
 	go func() {
 		defer close(done)

@@ -45,7 +45,7 @@ func TestFeaturesList(t *testing.T) {
 		doneChan := make(chan struct{})
 
 		buf := bytes.NewBuffer(nil)
-		cmd.SetOut(buf)
+		cmd.Stdout = buf
 		go func() {
 			defer close(doneChan)
 			err := cmd.Run()

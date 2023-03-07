@@ -230,7 +230,7 @@ func TestGitSSH(t *testing.T) {
 		// Test authentication via local private key.
 		cmd, _ := clitest.New(t, cmdArgs...)
 		cmd.Stdout = pty.Output()
-		cmd.SetErr(pty.Output())
+		cmd.Stderr = pty.Output()
 		err = cmd.WithContext(ctx).Run()
 		require.NoError(t, err)
 		select {
@@ -247,7 +247,7 @@ func TestGitSSH(t *testing.T) {
 		// With the local file deleted, the coder key should be used.
 		cmd, _ = clitest.New(t, cmdArgs...)
 		cmd.Stdout = pty.Output()
-		cmd.SetErr(pty.Output())
+		cmd.Stderr = pty.Output()
 		err = cmd.WithContext(ctx).Run()
 		require.NoError(t, err)
 		select {

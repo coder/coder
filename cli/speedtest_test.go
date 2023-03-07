@@ -52,7 +52,7 @@ func TestSpeedtest(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)
 	cmd.Stdout = pty.Output()
-	cmd.SetErr(pty.Output())
+	cmd.Stderr = pty.Output()
 
 	ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()

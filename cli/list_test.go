@@ -64,7 +64,7 @@ func TestList(t *testing.T) {
 		defer cancelFunc()
 
 		out := bytes.NewBuffer(nil)
-		cmd.SetOut(out)
+		cmd.Stdout = out
 		err := cmd.WithContext(ctx).Run()
 		require.NoError(t, err)
 

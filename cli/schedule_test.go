@@ -44,7 +44,7 @@ func TestScheduleShow(t *testing.T) {
 
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
-		cmd.SetOut(stdoutBuf)
+		cmd.Stdout = stdoutBuf
 
 		err := cmd.Run()
 		require.NoError(t, err, "unexpected error")
@@ -81,7 +81,7 @@ func TestScheduleShow(t *testing.T) {
 
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
-		cmd.SetOut(stdoutBuf)
+		cmd.Stdout = stdoutBuf
 
 		err := cmd.Run()
 		require.NoError(t, err, "unexpected error")
@@ -134,7 +134,7 @@ func TestScheduleStart(t *testing.T) {
 	// Set a well-specified autostart schedule
 	cmd, root := clitest.New(t, "schedule", "start", workspace.Name, "9:30AM", "Mon-Fri", tz)
 	clitest.SetupConfig(t, client, root)
-	cmd.SetOut(stdoutBuf)
+	cmd.Stdout = stdoutBuf
 
 	err := cmd.Run()
 	assert.NoError(t, err, "unexpected error")
@@ -159,7 +159,7 @@ func TestScheduleStart(t *testing.T) {
 	// unset schedule
 	cmd, root = clitest.New(t, "schedule", "start", workspace.Name, "manual")
 	clitest.SetupConfig(t, client, root)
-	cmd.SetOut(stdoutBuf)
+	cmd.Stdout = stdoutBuf
 
 	err = cmd.Run()
 	assert.NoError(t, err, "unexpected error")
@@ -188,7 +188,7 @@ func TestScheduleStop(t *testing.T) {
 	// Set the workspace TTL
 	cmd, root := clitest.New(t, "schedule", "stop", workspace.Name, ttl.String())
 	clitest.SetupConfig(t, client, root)
-	cmd.SetOut(stdoutBuf)
+	cmd.Stdout = stdoutBuf
 
 	err := cmd.Run()
 	assert.NoError(t, err, "unexpected error")
@@ -205,7 +205,7 @@ func TestScheduleStop(t *testing.T) {
 	// Unset the workspace TTL
 	cmd, root = clitest.New(t, "schedule", "stop", workspace.Name, "manual")
 	clitest.SetupConfig(t, client, root)
-	cmd.SetOut(stdoutBuf)
+	cmd.Stdout = stdoutBuf
 
 	err = cmd.Run()
 	assert.NoError(t, err, "unexpected error")
@@ -249,7 +249,7 @@ func TestScheduleOverride(t *testing.T) {
 
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
-		cmd.SetOut(stdoutBuf)
+		cmd.Stdout = stdoutBuf
 
 		// When: we execute `coder schedule override workspace <number without units>`
 		err = cmd.WithContext(ctx).Run()
@@ -289,7 +289,7 @@ func TestScheduleOverride(t *testing.T) {
 
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
-		cmd.SetOut(stdoutBuf)
+		cmd.Stdout = stdoutBuf
 
 		// When: we execute `coder bump workspace <not a number>`
 		err = cmd.WithContext(ctx).Run()
@@ -341,7 +341,7 @@ func TestScheduleOverride(t *testing.T) {
 
 		cmd, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
-		cmd.SetOut(stdoutBuf)
+		cmd.Stdout = stdoutBuf
 
 		// When: we execute `coder bump workspace``
 		err = cmd.WithContext(ctx).Run()
@@ -372,7 +372,7 @@ func TestScheduleStartDefaults(t *testing.T) {
 	// Set an underspecified schedule
 	cmd, root := clitest.New(t, "schedule", "start", workspace.Name, "9:30AM")
 	clitest.SetupConfig(t, client, root)
-	cmd.SetOut(stdoutBuf)
+	cmd.Stdout = stdoutBuf
 
 	err := cmd.Run()
 	require.NoError(t, err, "unexpected error")

@@ -91,7 +91,7 @@ func TestSSH(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		cmd.Stdin = pty.Input()
-		cmd.SetErr(pty.Output())
+		cmd.Stderr = pty.Output()
 		cmd.Stdout = pty.Output()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -132,7 +132,7 @@ func TestSSH(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		cmd.Stdin = pty.Input()
-		cmd.SetErr(pty.Output())
+		cmd.Stderr = pty.Output()
 		cmd.Stdout = pty.Output()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -175,9 +175,9 @@ func TestSSH(t *testing.T) {
 
 		cmd, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		cmd.SetIn(clientOutput)
-		cmd.SetOut(serverInput)
-		cmd.SetErr(io.Discard)
+		cmd.Stdin = clientOutput
+		cmd.Stdout = serverInput
+		cmd.Stderr = io.Discard
 		cmdDone := tGo(t, func() {
 			err := cmd.WithContext(ctx).Run()
 			assert.NoError(t, err)
@@ -272,7 +272,7 @@ func TestSSH(t *testing.T) {
 		pty := ptytest.New(t)
 		cmd.Stdin = pty.Input()
 		cmd.Stdout = pty.Output()
-		cmd.SetErr(pty.Output())
+		cmd.Stderr = pty.Output()
 		cmdDone := tGo(t, func() {
 			err := cmd.WithContext(ctx).Run()
 			assert.NoError(t, err, "ssh command failed")
@@ -473,9 +473,9 @@ Expire-Date: 0
 	)
 	clitest.SetupConfig(t, client, root)
 	tpty := ptytest.New(t)
-	cmd.SetIn(tpty.Input())
-	cmd.SetOut(tpty.Output())
-	cmd.SetErr(tpty.Output())
+	cmd.Stdin = tpty.Input()
+	cmd.Stdout = tpty.Output()
+	cmd.Stderr = tpty.Output()
 	cmdDone := tGo(t, func() {
 		err := cmd.WithContext(ctx).Run()
 		assert.NoError(t, err, "ssh command failed")

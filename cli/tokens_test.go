@@ -27,7 +27,7 @@ func TestTokens(t *testing.T) {
 	cmd, root := clitest.New(t, "tokens", "ls")
 	clitest.SetupConfig(t, client, root)
 	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
+	cmd.Stdout = buf
 	err := cmd.WithContext(ctx).Run()
 	require.NoError(t, err)
 	res := buf.String()
@@ -36,7 +36,7 @@ func TestTokens(t *testing.T) {
 	cmd, root = clitest.New(t, "tokens", "create", "--name", "token-one")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
-	cmd.SetOut(buf)
+	cmd.Stdout = buf
 	err = cmd.WithContext(ctx).Run()
 	require.NoError(t, err)
 	res = buf.String()
@@ -50,7 +50,7 @@ func TestTokens(t *testing.T) {
 	cmd, root = clitest.New(t, "tokens", "ls")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
-	cmd.SetOut(buf)
+	cmd.Stdout = buf
 	err = cmd.WithContext(ctx).Run()
 	require.NoError(t, err)
 	res = buf.String()
@@ -64,7 +64,7 @@ func TestTokens(t *testing.T) {
 	cmd, root = clitest.New(t, "tokens", "ls", "--output=json")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
-	cmd.SetOut(buf)
+	cmd.Stdout = buf
 	err = cmd.WithContext(ctx).Run()
 	require.NoError(t, err)
 
@@ -76,7 +76,7 @@ func TestTokens(t *testing.T) {
 	cmd, root = clitest.New(t, "tokens", "rm", "token-one")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
-	cmd.SetOut(buf)
+	cmd.Stdout = buf
 	err = cmd.WithContext(ctx).Run()
 	require.NoError(t, err)
 	res = buf.String()

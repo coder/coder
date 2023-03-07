@@ -41,7 +41,7 @@ func TestGitAuth(t *testing.T) {
 		},
 	}
 	cmd.SetOutput(ptty.Output())
-	cmd.SetIn(ptty.Input())
+	cmd.Stdin = ptty.Input()
 	done := make(chan struct{})
 	go func() {
 		defer close(done)

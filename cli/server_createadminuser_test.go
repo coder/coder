@@ -133,8 +133,8 @@ func TestServerCreateAdminUser(t *testing.T) {
 		root.SetErr(pty.Output())
 		errC := make(chan error, 1)
 		go func() {
-			err := root.ExecuteContext(ctx)
-			t.Log("root.ExecuteContext() returned:", err)
+			err := root.WithContext(ctx).Run()
+			t.Log("root.WithContext() returned:", err).Run()
 			errC <- err
 		}()
 
@@ -179,8 +179,8 @@ func TestServerCreateAdminUser(t *testing.T) {
 		root.SetErr(pty.Output())
 		errC := make(chan error, 1)
 		go func() {
-			err := root.ExecuteContext(ctx)
-			t.Log("root.ExecuteContext() returned:", err)
+			err := root.WithContext(ctx).Run()
+			t.Log("root.WithContext() returned:", err).Run()
 			errC <- err
 		}()
 
@@ -216,13 +216,13 @@ func TestServerCreateAdminUser(t *testing.T) {
 			"--ssh-keygen-algorithm", "ed25519",
 		)
 		pty := ptytest.New(t)
-		root.SetIn(pty.Input())
+		root.Stdin = pty.Input()
 		root.SetOutput(pty.Output())
 		root.SetErr(pty.Output())
 		errC := make(chan error, 1)
 		go func() {
-			err := root.ExecuteContext(ctx)
-			t.Log("root.ExecuteContext() returned:", err)
+			err := root.WithContext(ctx).Run()
+			t.Log("root.WithContext() returned:", err).Run()
 			errC <- err
 		}()
 
@@ -270,7 +270,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		root.SetOutput(pty.Output())
 		root.SetErr(pty.Output())
 
-		err = root.ExecuteContext(ctx)
+		err = root.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "'email' failed on the 'email' tag")
 		require.ErrorContains(t, err, "'username' failed on the 'username' tag")

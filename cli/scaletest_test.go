@@ -78,7 +78,7 @@ param3: 1
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		cmd.Stdout = pty.Output()
-		cmd.SetErr(pty.Output())
+		cmd.Stderr = pty.Output()
 
 		done := make(chan any)
 		go func() {
@@ -156,7 +156,7 @@ param3: 1
 		clitest.SetupConfig(t, client, root)
 		pty = ptytest.New(t)
 		cmd.Stdout = pty.Output()
-		cmd.SetErr(pty.Output())
+		cmd.Stderr = pty.Output()
 
 		done = make(chan any)
 		go func() {

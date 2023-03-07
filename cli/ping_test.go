@@ -26,7 +26,7 @@ func TestPing(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		cmd.Stdin = pty.Input()
-		cmd.SetErr(pty.Output())
+		cmd.Stderr = pty.Output()
 		cmd.Stdout = pty.Output()
 
 		agentClient := agentsdk.New(client.URL)

@@ -30,12 +30,12 @@ func TestLogout(t *testing.T) {
 
 		logoutChan := make(chan struct{})
 		logout, _ := clitest.New(t, "logout", "--global-config", string(config))
-		logout.SetIn(pty.Input())
-		logout.SetOut(pty.Output())
+		logout.Stdin = pty.Input()
+		logout.Stdout = pty.Output()
 
 		go func() {
 			defer close(logoutChan)
-			err := logout.Execute()
+			err := logout.Run()
 			assert.NoError(t, err)
 			assert.NoFileExists(t, string(config.URL()))
 			assert.NoFileExists(t, string(config.Session()))
@@ -58,12 +58,12 @@ func TestLogout(t *testing.T) {
 
 		logoutChan := make(chan struct{})
 		logout, _ := clitest.New(t, "logout", "--global-config", string(config), "-y")
-		logout.SetIn(pty.Input())
-		logout.SetOut(pty.Output())
+		logout.Stdin = pty.Input()
+		logout.Stdout = pty.Output()
 
 		go func() {
 			defer close(logoutChan)
-			err := logout.Execute()
+			err := logout.Run()
 			assert.NoError(t, err)
 			assert.NoFileExists(t, string(config.URL()))
 			assert.NoFileExists(t, string(config.Session()))
@@ -88,12 +88,12 @@ func TestLogout(t *testing.T) {
 		logoutChan := make(chan struct{})
 		logout, _ := clitest.New(t, "logout", "--global-config", string(config))
 
-		logout.SetIn(pty.Input())
-		logout.SetOut(pty.Output())
+		logout.Stdin = pty.Input()
+		logout.Stdout = pty.Output()
 
 		go func() {
 			defer close(logoutChan)
-			err := logout.Execute()
+			err := logout.Run()
 			assert.EqualError(t, err, "You are not logged in. Try logging in using 'coder login <url>'.")
 		}()
 
@@ -115,12 +115,12 @@ func TestLogout(t *testing.T) {
 		logoutChan := make(chan struct{})
 		logout, _ := clitest.New(t, "logout", "--global-config", string(config))
 
-		logout.SetIn(pty.Input())
-		logout.SetOut(pty.Output())
+		logout.Stdin = pty.Input()
+		logout.Stdout = pty.Output()
 
 		go func() {
 			defer close(logoutChan)
-			err = logout.Execute()
+			err = logout.Run()
 			assert.EqualError(t, err, "You are not logged in. Try logging in using 'coder login <url>'.")
 		}()
 
@@ -169,12 +169,12 @@ func TestLogout(t *testing.T) {
 		logoutChan := make(chan struct{})
 		logout, _ := clitest.New(t, "logout", "--global-config", string(config))
 
-		logout.SetIn(pty.Input())
-		logout.SetOut(pty.Output())
+		logout.Stdin = pty.Input()
+		logout.Stdout = pty.Output()
 
 		go func() {
 			defer close(logoutChan)
-			err := logout.Execute()
+			err := logout.Run()
 			assert.NotNil(t, err)
 			var errorMessage string
 			if runtime.GOOS == "windows" {
@@ -200,11 +200,11 @@ func login(t *testing.T, pty *ptytest.PTY) config.Root {
 
 	doneChan := make(chan struct{})
 	root, cfg := clitest.New(t, "login", "--force-tty", client.URL.String(), "--no-open")
-	root.SetIn(pty.Input())
-	root.SetOut(pty.Output())
+	root.Stdin = pty.Input()
+	root.Stdout = pty.Output()
 	go func() {
 		defer close(doneChan)
-		err := root.Execute()
+		err := root.Run()
 		assert.NoError(t, err)
 	}()
 

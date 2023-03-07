@@ -40,7 +40,7 @@ func newSelect(ptty *ptytest.PTY, opts cliui.SelectOptions) (string, error) {
 		},
 	}
 	cmd.SetOutput(ptty.Output())
-	cmd.SetIn(ptty.Input())
+	cmd.Stdin = ptty.Input()
 	return value, cmd.RunContext(context.Background())
 }
 
@@ -83,6 +83,6 @@ func newRichSelect(ptty *ptytest.PTY, opts cliui.RichSelectOptions) (string, err
 		},
 	}
 	cmd.SetOutput(ptty.Output())
-	cmd.SetIn(ptty.Input())
+	cmd.Stdin = ptty.Input()
 	return value, cmd.RunContext(context.Background())
 }

@@ -94,7 +94,7 @@ func TestGroupList(t *testing.T) {
 
 		pty := ptytest.New(t)
 
-		cmd.SetErr(pty.Output())
+		cmd.Stderr = pty.Output()
 		clitest.SetupConfig(t, client, root)
 
 		err := cmd.Run()

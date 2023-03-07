@@ -86,9 +86,9 @@ func TestLicensesAddFake(t *testing.T) {
 		t.Parallel()
 		cmd := setupFakeLicenseServerTest(t, "license", "add", "-f", "-")
 		r, w := io.Pipe()
-		cmd.SetIn(r)
+		cmd.Stdin = r
 		stdout := new(bytes.Buffer)
-		cmd.SetOut(stdout)
+		cmd.Stdout = stdout
 		errC := make(chan error)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -156,7 +156,7 @@ func TestLicensesListFake(t *testing.T) {
 		defer cancel()
 		cmd := setupFakeLicenseServerTest(t, "licenses", "list")
 		stdout := new(bytes.Buffer)
-		cmd.SetOut(stdout)
+		cmd.Stdout = stdout
 		errC := make(chan error)
 		go func() {
 			errC <- cmd.WithContext(ctx).Run()
@@ -182,9 +182,9 @@ func TestLicensesListReal(t *testing.T) {
 		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
 			"licenses", "list")
 		stdout := new(bytes.Buffer)
-		cmd.SetOut(stdout)
+		cmd.Stdout = stdout
 		stderr := new(bytes.Buffer)
-		cmd.SetErr(stderr)
+		cmd.Stderr = stderr
 		clitest.SetupConfig(t, client, root)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()

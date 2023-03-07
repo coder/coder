@@ -264,7 +264,7 @@ func TestTemplateEdit(t *testing.T) {
 			clitest.SetupConfig(t, client, root)
 
 			ctx, _ := testutil.Context(t)
-			err := cmd.ExecuteContext(ctx)
+			err := cmd.WithContext(ctx).Run()
 			require.Error(t, err)
 			require.ErrorContains(t, err, "appears to be an AGPL deployment")
 
@@ -336,7 +336,7 @@ func TestTemplateEdit(t *testing.T) {
 			clitest.SetupConfig(t, proxyClient, root)
 
 			ctx, _ := testutil.Context(t)
-			err = cmd.ExecuteContext(ctx)
+			err = cmd.WithContext(ctx).Run()
 			require.Error(t, err)
 			require.ErrorContains(t, err, "license is not entitled")
 
@@ -423,7 +423,7 @@ func TestTemplateEdit(t *testing.T) {
 			clitest.SetupConfig(t, proxyClient, root)
 
 			ctx, _ := testutil.Context(t)
-			err = cmd.ExecuteContext(ctx)
+			err = cmd.WithContext(ctx).Run()
 			require.NoError(t, err)
 
 			require.EqualValues(t, 1, atomic.LoadInt64(&updateTemplateCalled))

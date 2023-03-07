@@ -74,7 +74,7 @@ func TestTemplateList(t *testing.T) {
 		defer cancelFunc()
 
 		out := bytes.NewBuffer(nil)
-		cmd.SetOut(out)
+		cmd.Stdout = out
 		err := cmd.WithContext(ctx).Run()
 		require.NoError(t, err)
 
@@ -92,7 +92,7 @@ func TestTemplateList(t *testing.T) {
 
 		pty := ptytest.New(t)
 		cmd.Stdin = pty.Input()
-		cmd.SetErr(pty.Output())
+		cmd.Stderr = pty.Output()
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()

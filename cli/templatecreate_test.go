@@ -106,7 +106,7 @@ func TestTemplateCreate(t *testing.T) {
 		cmd, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.SetIn(bytes.NewReader(source))
+		cmd.Stdin = bytes.NewReader(source)
 		cmd.Stdout = pty.Output()
 
 		execDone := make(chan error)

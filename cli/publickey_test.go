@@ -19,7 +19,7 @@ func TestPublicKey(t *testing.T) {
 		cmd, root := clitest.New(t, "publickey")
 		clitest.SetupConfig(t, client, root)
 		buf := new(bytes.Buffer)
-		cmd.SetOut(buf)
+		cmd.Stdout = buf
 		err := cmd.Run()
 		require.NoError(t, err)
 		publicKey := buf.String()

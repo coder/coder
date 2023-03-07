@@ -130,7 +130,7 @@ ExtractCommandPathsLoop:
 			var buf bytes.Buffer
 			cmd, cfg := clitest.New(t, tt.cmd...)
 			clitest.SetupConfig(t, rootClient, cfg)
-			cmd.SetOut(&buf)
+			cmd.Stdout = &buf
 			assert.NoError(t, err)
 			err = cmd.WithContext(ctx).Run()
 			err2 := os.Chdir(wd)
@@ -346,7 +346,7 @@ func TestRoot(t *testing.T) {
 
 		buf := new(bytes.Buffer)
 		cmd, _ := clitest.New(t, "version")
-		cmd.SetOut(buf)
+		cmd.Stdout = buf
 		err := cmd.Run()
 		require.NoError(t, err)
 
@@ -371,7 +371,7 @@ func TestRoot(t *testing.T) {
 		defer srv.Close()
 		buf := new(bytes.Buffer)
 		cmd, _ := clitest.New(t, "--header", "X-Testing=wow", "login", srv.URL)
-		cmd.SetOut(buf)
+		cmd.Stdout = buf
 		// This won't succeed, because we're using the login cmd to assert requests.
 		_ = cmd.Run()
 	})

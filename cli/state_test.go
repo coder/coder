@@ -67,7 +67,7 @@ func TestStatePull(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		cmd, root := clitest.New(t, "state", "pull", workspace.Name)
 		var gotState bytes.Buffer
-		cmd.SetOut(&gotState)
+		cmd.Stdout = &gotState
 		clitest.SetupConfig(t, client, root)
 		err := cmd.Run()
 		require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestStatePush(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		cmd, root := clitest.New(t, "state", "push", "--build", strconv.Itoa(int(workspace.LatestBuild.BuildNumber)), workspace.Name, "-")
 		clitest.SetupConfig(t, client, root)
-		cmd.SetIn(strings.NewReader("some magic state"))
+		cmd.Stdin = strings.NewReader("some magic state")
 		err := cmd.Run()
 		require.NoError(t, err)
 	})

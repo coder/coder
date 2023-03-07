@@ -123,7 +123,7 @@ func TestServer(t *testing.T) {
 		root.SetErr(pty.Output())
 		errC := make(chan error, 1)
 		go func() {
-			errC <- root.ExecuteContext(ctx)
+			errC <- root.WithContext(ctx).Run()
 		}()
 		accessURL := waitAccessURL(t, cfg)
 		client := codersdk.New(accessURL)
@@ -152,7 +152,7 @@ func TestServer(t *testing.T) {
 		root.SetErr(pty.Output())
 		errC := make(chan error, 1)
 		go func() {
-			errC <- root.ExecuteContext(ctx)
+			errC <- root.WithContext(ctx).Run()
 		}()
 		//nolint:gocritic // Embedded postgres take a while to fire up.
 		require.Eventually(t, func() bool {
@@ -167,7 +167,7 @@ func TestServer(t *testing.T) {
 		root, _ := clitest.New(t, "server", "postgres-builtin-url")
 		pty := ptytest.New(t)
 		root.SetOutput(pty.Output())
-		err := root.Execute()
+		err := root.Run()
 		require.NoError(t, err)
 
 		pty.ExpectMatch("psql")
@@ -179,7 +179,7 @@ func TestServer(t *testing.T) {
 		root, _ := clitest.New(t, "server", "postgres-builtin-url", "--raw-url")
 		pty := ptytest.New(t)
 		root.SetOutput(pty.Output())
-		err := root.ExecuteContext(ctx)
+		err := root.WithContext(ctx).Run()
 		require.NoError(t, err)
 
 		got := pty.ReadLine(ctx)
@@ -203,11 +203,11 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t)
-		root.SetIn(pty.Input())
-		root.SetOut(pty.Output())
+		root.Stdin = pty.Input()
+		root.Stdout = pty.Output()
 		errC := make(chan error, 1)
 		go func() {
-			errC <- root.ExecuteContext(ctx)
+			errC <- root.WithContext(ctx).Run()
 		}()
 
 		// Just wait for startup
@@ -235,11 +235,11 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t)
-		root.SetIn(pty.Input())
-		root.SetOut(pty.Output())
+		root.Stdin = pty.Input()
+		root.Stdout = pty.Output()
 		errC := make(chan error, 1)
 		go func() {
-			errC <- root.ExecuteContext(ctx)
+			errC <- root.WithContext(ctx).Run()
 		}()
 
 		// Just wait for startup
@@ -265,11 +265,11 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t)
-		root.SetIn(pty.Input())
-		root.SetOut(pty.Output())
+		root.Stdin = pty.Input()
+		root.Stdout = pty.Output()
 		errC := make(chan error, 1)
 		go func() {
-			errC <- root.ExecuteContext(ctx)
+			errC <- root.WithContext(ctx).Run()
 		}()
 
 		// Just wait for startup
@@ -293,7 +293,7 @@ func TestServer(t *testing.T) {
 			"--access-url", "google.com",
 			"--cache-dir", t.TempDir(),
 		)
-		err := root.ExecuteContext(ctx)
+		err := root.WithContext(ctx).Run()
 		require.Error(t, err)
 	})
 
@@ -312,7 +312,7 @@ func TestServer(t *testing.T) {
 			"--tls-min-version", "tls9",
 			"--cache-dir", t.TempDir(),
 		)
-		err := root.ExecuteContext(ctx)
+		err := root.WithContext(ctx).Run()
 		require.Error(t, err)
 	})
 	t.Run("TLSBadClientAuth", func(t *testing.T) {
@@ -330,7 +330,7 @@ func TestServer(t *testing.T) {
 			"--tls-client-auth", "something",
 			"--cache-dir", t.TempDir(),
 		)
-		err := root.ExecuteContext(ctx)
+		err := root.WithContext(ctx).Run()
 		require.Error(t, err)
 	})
 	t.Run("TLSInvalid", func(t *testing.T) {
@@ -382,7 +382,7 @@ func TestServer(t *testing.T) {
 				}
 				args = append(args, c.args...)
 				root, _ := clitest.New(t, args...)
-				err := root.ExecuteContext(ctx)
+				err := root.WithContext(ctx).Run()
 				require.Error(t, err)
 				t.Logf("args: %v", args)
 				require.ErrorContains(t, err, c.errContains)
@@ -445,7 +445,7 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t)
-		root.SetOut(pty.Output())
+		root.Stdout = pty.Output()
 		clitest.Start(ctx, t, root)
 
 		accessURL := waitAccessURL(t, cfg)
@@ -529,7 +529,7 @@ func TestServer(t *testing.T) {
 
 		errC := make(chan error, 1)
 		go func() {
-			errC <- root.ExecuteContext(ctx)
+			errC <- root.WithContext(ctx).Run()
 		}()
 
 		// We can't use waitAccessURL as it will only return the HTTP URL.
@@ -677,7 +677,7 @@ func TestServer(t *testing.T) {
 
 				errC := make(chan error, 1)
 				go func() {
-					errC <- root.ExecuteContext(ctx)
+					errC <- root.WithContext(ctx).Run()
 				}()
 
 				var (
@@ -766,7 +766,7 @@ func TestServer(t *testing.T) {
 		root.SetErr(pty.Output())
 		serverStop := make(chan error, 1)
 		go func() {
-			err := root.ExecuteContext(ctx)
+			err := root.WithContext(ctx).Run()
 			if err != nil {
 				t.Error(err)
 			}
@@ -796,7 +796,7 @@ func TestServer(t *testing.T) {
 		root.SetErr(pty.Output())
 		serverClose := make(chan struct{}, 1)
 		go func() {
-			err := root.ExecuteContext(ctx)
+			err := root.WithContext(ctx).Run()
 			if err != nil {
 				t.Error(err)
 			}
@@ -821,7 +821,7 @@ func TestServer(t *testing.T) {
 			"--tls-enable=false",
 			"--tls-address", "",
 		)
-		err := root.ExecuteContext(ctx)
+		err := root.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "tls-address")
 	})
@@ -837,7 +837,7 @@ func TestServer(t *testing.T) {
 			"--tls-enable=true",
 			"--tls-address", "",
 		)
-		err := root.ExecuteContext(ctx)
+		err := root.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "must not be empty")
 	})
@@ -935,7 +935,7 @@ func TestServer(t *testing.T) {
 		)
 		serverErr := make(chan error, 1)
 		go func() {
-			serverErr <- root.ExecuteContext(ctx)
+			serverErr <- root.WithContext(ctx).Run()
 		}()
 		_ = waitAccessURL(t, cfg)
 		currentProcess, err := os.FindProcess(os.Getpid())
@@ -962,7 +962,7 @@ func TestServer(t *testing.T) {
 		)
 		errC := make(chan error, 1)
 		go func() {
-			errC <- root.ExecuteContext(ctx)
+			errC <- root.WithContext(ctx).Run()
 		}()
 		cancelFunc()
 		require.NoError(t, <-errC)
@@ -1001,7 +1001,7 @@ func TestServer(t *testing.T) {
 		)
 		errC := make(chan error, 1)
 		go func() {
-			errC <- root.ExecuteContext(ctx)
+			errC <- root.WithContext(ctx).Run()
 		}()
 
 		<-deployment
@@ -1033,7 +1033,7 @@ func TestServer(t *testing.T) {
 		)
 		serverErr := make(chan error, 1)
 		go func() {
-			serverErr <- root.ExecuteContext(ctx)
+			serverErr <- root.WithContext(ctx).Run()
 		}()
 		_ = waitAccessURL(t, cfg)
 
@@ -1086,7 +1086,7 @@ func TestServer(t *testing.T) {
 		)
 		serverErr := make(chan error, 1)
 		go func() {
-			serverErr <- root.ExecuteContext(ctx)
+			serverErr <- root.WithContext(ctx).Run()
 		}()
 		accessURL := waitAccessURL(t, cfg)
 		client := codersdk.New(accessURL)
@@ -1123,7 +1123,7 @@ func TestServer(t *testing.T) {
 			)
 			serverErr := make(chan error, 1)
 			go func() {
-				serverErr <- root.ExecuteContext(ctx)
+				serverErr <- root.WithContext(ctx).Run()
 			}()
 			accessURL := waitAccessURL(t, cfg)
 			client := codersdk.New(accessURL)
@@ -1152,7 +1152,7 @@ func TestServer(t *testing.T) {
 			)
 			serverErr := make(chan error, 1)
 			go func() {
-				serverErr <- root.ExecuteContext(ctx)
+				serverErr <- root.WithContext(ctx).Run()
 			}()
 			accessURL := waitAccessURL(t, cfg)
 			client := codersdk.New(accessURL)
@@ -1180,7 +1180,7 @@ func TestServer(t *testing.T) {
 			)
 			serverErr := make(chan error, 1)
 			go func() {
-				serverErr <- root.ExecuteContext(ctx)
+				serverErr <- root.WithContext(ctx).Run()
 			}()
 			accessURL := waitAccessURL(t, cfg)
 			client := codersdk.New(accessURL)
@@ -1287,12 +1287,12 @@ func TestServer(t *testing.T) {
 			// Attach pty so we get debug output from the command if this test
 			// fails.
 			pty := ptytest.New(t)
-			root.SetOut(pty.Output())
+			root.Stdout = pty.Output()
 			root.SetErr(pty.Output())
 
 			serverErr := make(chan error, 1)
 			go func() {
-				serverErr <- root.ExecuteContext(ctx)
+				serverErr <- root.WithContext(ctx).Run()
 			}()
 			defer func() {
 				cancelFunc()
@@ -1332,7 +1332,7 @@ func TestServer(t *testing.T) {
 			// Attach pty so we get debug output from the command if this test
 			// fails.
 			pty := ptytest.New(t)
-			root.SetOut(pty.Output())
+			root.Stdout = pty.Output()
 			root.SetErr(pty.Output())
 
 			clitest.Start(ctx, t, root)
