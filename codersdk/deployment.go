@@ -321,8 +321,8 @@ var (
 		Parent: &DeploymentGroupNetworking,
 		Name:   "TLS",
 		Description: `Configure TLS / HTTPS for your Coder deployment. If you're running
-Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
-secure link, you can safely ignore these settings.`,
+ Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
+ secure link, you can safely ignore these settings.`,
 	}
 	DeploymentGroupNetworkingHTTP = clibase.Group{
 		Parent: &DeploymentGroupNetworking,
@@ -332,9 +332,9 @@ secure link, you can safely ignore these settings.`,
 		Parent: &DeploymentGroupNetworking,
 		Name:   "DERP",
 		Description: `Most Coder deployments never have to think about DERP because all connections
-between workspaces and users are peer-to-peer. However, when Coder cannot establish
-a peer to peer connection, Coder uses a distributed relay network backed by
-Tailscale and WireGuard.`,
+ between workspaces and users are peer-to-peer. However, when Coder cannot establish
+ a peer to peer connection, Coder uses a distributed relay network backed by
+ Tailscale and WireGuard.`,
 	}
 	DeploymentGroupIntrospection = clibase.Group{
 		Name:        "Introspection",
@@ -1272,6 +1272,7 @@ Write out the current server configuration to the path specified by --config.`,
 			Description: "Git Authentication providers",
 			YAML:        "gitAuthProviders",
 			Value:       &c.GitAuthProviders,
+			Hidden:      true,
 		},
 	}
 }

@@ -191,11 +191,11 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			flagSet := cliOpts.FlagSet()
 			// These parents and children will be moved once we convert the
 			// rest of the `cli` package to clibase.
-			flagSet.Usage = usageFn(cmd.ErrOrStderr(), &clibase.Command{
-				Parent: &clibase.Command{
+			flagSet.Usage = usageFn(cmd.ErrOrStderr(), &clibase.Cmd{
+				Parent: &clibase.Cmd{
 					Use: "coder",
 				},
-				Children: []*clibase.Command{
+				Children: []*clibase.Cmd{
 					{
 						Use:   "postgres-builtin-url",
 						Short: "Output the connection URL for the built-in PostgreSQL deployment.",

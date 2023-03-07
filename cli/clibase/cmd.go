@@ -2,12 +2,12 @@ package clibase
 
 import "strings"
 
-// Command describes an executable command.
-type Command struct {
+// Cmd describes an executable command.
+type Cmd struct {
 	// Parent is the direct parent of the command.
-	Parent *Command
+	Parent *Cmd
 	// Children is a list of direct descendants.
-	Children []*Command
+	Children []*Cmd
 	// Use is provided in form "command [flags] [args...]".
 	Use string
 	// Short is a one-line description of the command.
@@ -20,13 +20,13 @@ type Command struct {
 }
 
 // Name returns the first word in the Use string.
-func (c *Command) Name() string {
+func (c *Cmd) Name() string {
 	return strings.Split(c.Use, " ")[0]
 }
 
 // FullName returns the full invocation name of the command,
 // as seen on the command line.
-func (c *Command) FullName() string {
+func (c *Cmd) FullName() string {
 	var names []string
 
 	if c.Parent != nil {
@@ -38,7 +38,7 @@ func (c *Command) FullName() string {
 
 // FullName returns usage of the command, preceded
 // by the usage of its parents.
-func (c *Command) FullUsage() string {
+func (c *Cmd) FullUsage() string {
 	var uses []string
 	if c.Parent != nil {
 		uses = append(uses, c.Parent.FullUsage())

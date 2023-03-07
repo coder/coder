@@ -68,7 +68,7 @@ var usageTemplate = template.Must(
 				s = wordwrap.WrapString(s, 60)
 				return s
 			},
-			"optionGroups": func(cmd *clibase.Command) []optionGroup {
+			"optionGroups": func(cmd *clibase.Cmd) []optionGroup {
 				groups := []optionGroup{{
 					// Default group.
 					Name:        "",
@@ -130,7 +130,7 @@ var usageTemplate = template.Must(
 
 // usageFn returns a function that generates usage (help)
 // output for a given command.
-func usageFn(output io.Writer, cmd *clibase.Command) func() {
+func usageFn(output io.Writer, cmd *clibase.Cmd) func() {
 	return func() {
 		err := usageTemplate.Execute(output, cmd)
 		if err != nil {
