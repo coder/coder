@@ -5,6 +5,7 @@ import {
 } from "components/FormFooter/FormFooter"
 import { Stack } from "components/Stack/Stack"
 import { FC, HTMLProps, PropsWithChildren } from "react"
+import { combineClasses } from "util/combineClasses"
 
 export const HorizontalForm: FC<
   PropsWithChildren & HTMLProps<HTMLFormElement>
@@ -21,12 +22,16 @@ export const HorizontalForm: FC<
 }
 
 export const FormSection: FC<
-  PropsWithChildren & { title: string; description: string | JSX.Element }
-> = ({ children, title, description }) => {
+  PropsWithChildren & {
+    title: string
+    description: string | JSX.Element
+    className?: string
+  }
+> = ({ children, title, description, className }) => {
   const styles = useStyles()
 
   return (
-    <div className={styles.formSection}>
+    <div className={combineClasses([styles.formSection, className])}>
       <div className={styles.formSectionInfo}>
         <h2 className={styles.formSectionInfoTitle}>{title}</h2>
         <div className={styles.formSectionInfoDescription}>{description}</div>
