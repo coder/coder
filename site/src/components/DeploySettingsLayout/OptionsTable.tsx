@@ -12,11 +12,16 @@ import {
   OptionValue,
 } from "components/DeploySettingsLayout/Option"
 import { FC } from "react"
+import { DisabledBadge } from "./Badges"
 
 const OptionsTable: FC<{
   options: DeploymentOption[]
 }> = ({ options }) => {
   const styles = useStyles()
+
+  if (options.length === 0) {
+    return <DisabledBadge></DisabledBadge>
+  }
 
   return (
     <TableContainer>
