@@ -828,6 +828,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				ValidationMin:       richParameter.ValidationMin,
 				ValidationMax:       richParameter.ValidationMax,
 				ValidationMonotonic: richParameter.ValidationMonotonic,
+				Required:            richParameter.Required,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("insert parameter: %w", err)

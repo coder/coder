@@ -800,6 +800,7 @@ export interface TemplateVersionParameter {
   readonly validation_min?: number
   readonly validation_max?: number
   readonly validation_monotonic?: ValidationMonotonicOrder
+  readonly required: boolean
 }
 
 // From codersdk/templateversions.go

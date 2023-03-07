@@ -7966,6 +7966,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.TemplateVersionParameterOption"
                     }
                 },
+                "required": {
+                    "type": "boolean"
+                },
                 "type": {
                     "type": "string",
                     "enum": [

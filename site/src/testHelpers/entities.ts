@@ -761,6 +761,7 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
     mutable: true,
     icon: "/icon/folder.svg",
     options: [],
+    required: true,
   }
 
 export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
@@ -776,6 +777,7 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
     validation_min: 1,
     validation_max: 3,
     validation_monotonic: "increasing",
+    required: true,
   }
 
 export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
@@ -790,6 +792,7 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
     options: [],
     validation_error: "No way!",
     validation_regex: "^[a-z]{3}$",
+    required: true,
   }
 
 export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
@@ -802,6 +805,7 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
     mutable: false,
     icon: "/icon/database.svg",
     options: [],
+    required: true,
   }
 
 export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
@@ -817,6 +821,7 @@ export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
     validation_min: 1,
     validation_max: 10,
     validation_monotonic: "decreasing",
+    required: true,
   }
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
