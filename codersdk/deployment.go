@@ -554,12 +554,12 @@ type WorkspaceConnectionLatencyMS struct {
 type DeploymentStats struct {
 	// AggregatedFrom is the time in which stats are aggregated from.
 	// This might be back in time a specific duration or interval.
-	AggregatedFrom time.Time `json:"aggregated_since"`
+	AggregatedFrom time.Time `json:"aggregated_since" format:"date-time"`
 	// CollectedAt is the time in which stats are collected at.
-	CollectedAt time.Time `json:"collected_at"`
+	CollectedAt time.Time `json:"collected_at" format:"date-time"`
 	// RefreshingAt is the time when the next batch of stats will
 	// be refreshed.
-	RefreshingAt time.Time `json:"refreshing_at"`
+	RefreshingAt time.Time `json:"refreshing_at" format:"date-time"`
 
 	PendingWorkspaces  int64 `json:"pending_workspaces"`
 	BuildingWorkspaces int64 `json:"building_workspaces"`

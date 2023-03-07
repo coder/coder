@@ -68,7 +68,10 @@ func TestAgent_Stats_SSH(t *testing.T) {
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
 	defer session.Close()
-	require.NoError(t, session.Run("echo test"))
+	stdin, err := session.StdinPipe()
+	require.NoError(t, err)
+	err = session.Shell()
+	require.NoError(t, err)
 
 	var s *agentsdk.Stats
 	require.Eventuallyf(t, func() bool {
@@ -78,6 +81,9 @@ func TestAgent_Stats_SSH(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast,
 		"never saw stats: %+v", s,
 	)
+	_ = stdin.Close()
+	err = session.Wait()
+	require.NoError(t, err)
 }
 
 func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
