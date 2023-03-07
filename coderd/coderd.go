@@ -56,6 +56,7 @@ import (
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
@@ -120,6 +121,9 @@ type Options struct {
 	SwaggerEndpoint       bool
 	SetUserGroups         func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
+	// AppSigningKey denotes the symmetric key to use for signing app tickets.
+	// The key must be 64 bytes long.
+	AppSigningKey []byte
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
@@ -214,6 +218,9 @@ func New(options *Options) *API {
 	if options.TemplateScheduleStore == nil {
 		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
 	}
+	if len(options.AppSigningKey) != 64 {
+		panic("coderd: AppSigningKey must be 64 bytes long")
+	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -236,6 +243,11 @@ func New(options *Options) *API {
 	// static files since it only affects browsers.
 	staticHandler = httpmw.HSTS(staticHandler, options.StrictTransportSecurityCfg)
 
+	oauthConfigs := &httpmw.OAuth2Configs{
+		Github: options.GithubOAuth2Config,
+		OIDC:   options.OIDCConfig,
+	}
+
 	r := chi.NewRouter()
 	ctx, cancel := context.WithCancel(context.Background())
 	api := &API{
@@ -250,6 +262,15 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
+		WorkspaceAppsProvider: workspaceapps.New(
+			options.Logger.Named("workspaceapps"),
+			options.AccessURL,
+			options.Authorizer,
+			options.Database,
+			options.DeploymentConfig,
+			oauthConfigs,
+			options.AppSigningKey,
+		),
 		metricsCache:          metricsCache,
 		Auditor:               atomic.Pointer[audit.Auditor]{},
 		TemplateScheduleStore: atomic.Pointer[schedule.TemplateScheduleStore]{},
@@ -266,12 +287,8 @@ func New(options *Options) *API {
 	api.TemplateScheduleStore.Store(&options.TemplateScheduleStore)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
-	oauthConfigs := &httpmw.OAuth2Configs{
-		Github: options.GithubOAuth2Config,
-		OIDC:   options.OIDCConfig,
-	}
 
-	apiKeyMiddleware := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                          options.Database,
 		OAuth2Configs:               oauthConfigs,
 		RedirectToLogin:             false,
@@ -279,7 +296,7 @@ func New(options *Options) *API {
 		Optional:                    false,
 	})
 	// Same as above but it redirects to the login page.
-	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                          options.Database,
 		OAuth2Configs:               oauthConfigs,
 		RedirectToLogin:             true,
@@ -305,23 +322,9 @@ func New(options *Options) *API {
 		httpmw.Prometheus(options.PrometheusRegistry),
 		// handleSubdomainApplications checks if the first subdomain is a valid
 		// app URL. If it is, it will serve that application.
-		api.handleSubdomainApplications(
-			apiRateLimiter,
-			// Middleware to impose on the served application.
-			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
-				DB:            options.Database,
-				OAuth2Configs: oauthConfigs,
-				// The code handles the the case where the user is not
-				// authenticated automatically.
-				RedirectToLogin:             false,
-				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
-				Optional:                    true,
-			}),
-			httpmw.AsAuthzSystem(
-				httpmw.ExtractUserParam(api.Database, false),
-				httpmw.ExtractWorkspaceAndAgentParam(api.Database),
-			),
-		),
+		//
+		// Workspace apps do their own auth.
+		api.handleSubdomainApplications(apiRateLimiter),
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -345,26 +348,8 @@ func New(options *Options) *API {
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
 
 	apps := func(r chi.Router) {
-		r.Use(
-			apiRateLimiter,
-			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
-				DB:            options.Database,
-				OAuth2Configs: oauthConfigs,
-				// Optional is true to allow for public apps. If an
-				// authorization check fails and the user is not authenticated,
-				// they will be redirected to the login page by the app handler.
-				RedirectToLogin:             false,
-				DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
-				Optional:                    true,
-			}),
-			httpmw.AsAuthzSystem(
-				// Redirect to the login page if the user tries to open an app with
-				// "me" as the username and they are not logged in.
-				httpmw.ExtractUserParam(api.Database, true),
-				// Extracts the <workspace.agent> from the url
-				httpmw.ExtractWorkspaceAndAgentParam(api.Database),
-			),
-		)
+		// Workspace apps do their own auth.
+		r.Use(apiRateLimiter)
 		r.HandleFunc("/*", api.workspaceAppsProxyPath)
 	}
 	// %40 is the encoded character of the @ symbol. VS Code Web does
@@ -742,9 +727,10 @@ type API struct {
 	WebsocketWaitGroup sync.WaitGroup
 	derpCloseFunc      func()
 
-	metricsCache        *metricscache.Cache
-	workspaceAgentCache *wsconncache.Cache
-	updateChecker       *updatecheck.Checker
+	metricsCache          *metricscache.Cache
+	workspaceAgentCache   *wsconncache.Cache
+	updateChecker         *updatecheck.Checker
+	WorkspaceAppsProvider *workspaceapps.Provider
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.

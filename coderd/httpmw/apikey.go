@@ -25,13 +25,6 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// The special cookie name used for subdomain-based application proxying.
-// TODO: this will make dogfooding harder so come up with a more unique
-// solution
-//
-//nolint:gosec
-const DevURLSessionTokenCookie = "coder_devurl_session_token"
-
 type apiKeyContextKey struct{}
 
 // APIKeyOptional may return an API key from the ExtractAPIKey handler.
@@ -108,266 +101,279 @@ type ExtractAPIKeyConfig struct {
 	Optional bool
 }
 
-// ExtractAPIKey requires authentication using a valid API key. It handles
-// extending an API key if it comes close to expiry, updating the last used time
-// in the database.
-// nolint:revive
-func ExtractAPIKey(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
+// ExtractAPIKeyMW calls ExtractAPIKey with the given config on each request,
+// storing the result in the request context.
+func ExtractAPIKeyMW(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			ctx := r.Context()
-			// Write wraps writing a response to redirect if the handler
-			// specified it should. This redirect is used for user-facing pages
-			// like workspace applications.
-			write := func(code int, response codersdk.Response) {
-				if cfg.RedirectToLogin {
-					RedirectToLogin(rw, r, response.Message)
-					return
-				}
-
-				httpapi.Write(ctx, rw, code, response)
-			}
-
-			// optionalWrite wraps write, but will pass the request on to the
-			// next handler if the configuration says the API key is optional.
-			//
-			// It should be used when the API key is not provided or is invalid,
-			// but not when there are other errors.
-			optionalWrite := func(code int, response codersdk.Response) {
-				if cfg.Optional {
-					next.ServeHTTP(rw, r)
-					return
-				}
-
-				write(code, response)
-			}
-
-			token := apiTokenFromRequest(r)
-			if token == "" {
-				optionalWrite(http.StatusUnauthorized, codersdk.Response{
-					Message: SignedOutErrorMessage,
-					Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenCookie),
-				})
+			keyPtr, authzPtr, ok := ExtractAPIKey(rw, r, cfg)
+			if !ok {
 				return
 			}
 
-			keyID, keySecret, err := SplitAPIToken(token)
-			if err != nil {
-				optionalWrite(http.StatusUnauthorized, codersdk.Response{
-					Message: SignedOutErrorMessage,
-					Detail:  "Invalid API key format: " + err.Error(),
-				})
+			if keyPtr == nil || authzPtr == nil {
+				// Auth was optional and not provided.
+				next.ServeHTTP(rw, r)
 				return
 			}
-
-			//nolint:gocritic // System needs to fetch API key to check if it's valid.
-			key, err := cfg.DB.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), keyID)
-			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					optionalWrite(http.StatusUnauthorized, codersdk.Response{
-						Message: SignedOutErrorMessage,
-						Detail:  "API key is invalid.",
-					})
-					return
-				}
-				write(http.StatusInternalServerError, codersdk.Response{
-					Message: internalErrorMessage,
-					Detail:  fmt.Sprintf("Internal error fetching API key by id. %s", err.Error()),
-				})
-				return
-			}
-
-			// Checking to see if the secret is valid.
-			hashedSecret := sha256.Sum256([]byte(keySecret))
-			if subtle.ConstantTimeCompare(key.HashedSecret, hashedSecret[:]) != 1 {
-				optionalWrite(http.StatusUnauthorized, codersdk.Response{
-					Message: SignedOutErrorMessage,
-					Detail:  "API key secret is invalid.",
-				})
-				return
-			}
-
-			var (
-				link database.UserLink
-				now  = database.Now()
-				// Tracks if the API key has properties updated
-				changed = false
-			)
-			if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
-				//nolint:gocritic // System needs to fetch UserLink to check if it's valid.
-				link, err = cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
-					UserID:    key.UserID,
-					LoginType: key.LoginType,
-				})
-				if err != nil {
-					write(http.StatusInternalServerError, codersdk.Response{
-						Message: "A database error occurred",
-						Detail:  fmt.Sprintf("get user link by user ID and login type: %s", err.Error()),
-					})
-					return
-				}
-				// Check if the OAuth token is expired
-				if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
-					var oauthConfig OAuth2Config
-					switch key.LoginType {
-					case database.LoginTypeGithub:
-						oauthConfig = cfg.OAuth2Configs.Github
-					case database.LoginTypeOIDC:
-						oauthConfig = cfg.OAuth2Configs.OIDC
-					default:
-						write(http.StatusInternalServerError, codersdk.Response{
-							Message: internalErrorMessage,
-							Detail:  fmt.Sprintf("Unexpected authentication type %q.", key.LoginType),
-						})
-						return
-					}
-					// If it is, let's refresh it from the provided config
-					token, err := oauthConfig.TokenSource(r.Context(), &oauth2.Token{
-						AccessToken:  link.OAuthAccessToken,
-						RefreshToken: link.OAuthRefreshToken,
-						Expiry:       link.OAuthExpiry,
-					}).Token()
-					if err != nil {
-						write(http.StatusUnauthorized, codersdk.Response{
-							Message: "Could not refresh expired Oauth token.",
-							Detail:  err.Error(),
-						})
-						return
-					}
-					link.OAuthAccessToken = token.AccessToken
-					link.OAuthRefreshToken = token.RefreshToken
-					link.OAuthExpiry = token.Expiry
-					key.ExpiresAt = token.Expiry
-					changed = true
-				}
-			}
-
-			// Checking if the key is expired.
-			if key.ExpiresAt.Before(now) {
-				optionalWrite(http.StatusUnauthorized, codersdk.Response{
-					Message: SignedOutErrorMessage,
-					Detail:  fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
-				})
-				return
-			}
-
-			// Only update LastUsed once an hour to prevent database spam.
-			if now.Sub(key.LastUsed) > time.Hour {
-				key.LastUsed = now
-				remoteIP := net.ParseIP(r.RemoteAddr)
-				if remoteIP == nil {
-					remoteIP = net.IPv4(0, 0, 0, 0)
-				}
-				bitlen := len(remoteIP) * 8
-				key.IPAddress = pqtype.Inet{
-					IPNet: net.IPNet{
-						IP:   remoteIP,
-						Mask: net.CIDRMask(bitlen, bitlen),
-					},
-					Valid: true,
-				}
-				changed = true
-			}
-			// Only update the ExpiresAt once an hour to prevent database spam.
-			// We extend the ExpiresAt to reduce re-authentication.
-			if !cfg.DisableSessionExpiryRefresh {
-				apiKeyLifetime := time.Duration(key.LifetimeSeconds) * time.Second
-				if key.ExpiresAt.Sub(now) <= apiKeyLifetime-time.Hour {
-					key.ExpiresAt = now.Add(apiKeyLifetime)
-					changed = true
-				}
-			}
-			if changed {
-				//nolint:gocritic // System needs to update API Key LastUsed
-				err := cfg.DB.UpdateAPIKeyByID(dbauthz.AsSystemRestricted(ctx), database.UpdateAPIKeyByIDParams{
-					ID:        key.ID,
-					LastUsed:  key.LastUsed,
-					ExpiresAt: key.ExpiresAt,
-					IPAddress: key.IPAddress,
-				})
-				if err != nil {
-					write(http.StatusInternalServerError, codersdk.Response{
-						Message: internalErrorMessage,
-						Detail:  fmt.Sprintf("API key couldn't update: %s.", err.Error()),
-					})
-					return
-				}
-				// If the API Key is associated with a user_link (e.g. Github/OIDC)
-				// then we want to update the relevant oauth fields.
-				if link.UserID != uuid.Nil {
-					// nolint:gocritic
-					link, err = cfg.DB.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
-						UserID:            link.UserID,
-						LoginType:         link.LoginType,
-						OAuthAccessToken:  link.OAuthAccessToken,
-						OAuthRefreshToken: link.OAuthRefreshToken,
-						OAuthExpiry:       link.OAuthExpiry,
-					})
-					if err != nil {
-						write(http.StatusInternalServerError, codersdk.Response{
-							Message: internalErrorMessage,
-							Detail:  fmt.Sprintf("update user_link: %s.", err.Error()),
-						})
-						return
-					}
-				}
-
-				// We only want to update this occasionally to reduce DB write
-				// load. We update alongside the UserLink and APIKey since it's
-				// easier on the DB to colocate writes.
-				// nolint:gocritic
-				_, err = cfg.DB.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
-					ID:         key.UserID,
-					LastSeenAt: database.Now(),
-					UpdatedAt:  database.Now(),
-				})
-				if err != nil {
-					write(http.StatusInternalServerError, codersdk.Response{
-						Message: internalErrorMessage,
-						Detail:  fmt.Sprintf("update user last_seen_at: %s", err.Error()),
-					})
-					return
-				}
-			}
-
-			// If the key is valid, we also fetch the user roles and status.
-			// The roles are used for RBAC authorize checks, and the status
-			// is to block 'suspended' users from accessing the platform.
-			// nolint:gocritic
-			roles, err := cfg.DB.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), key.UserID)
-			if err != nil {
-				write(http.StatusUnauthorized, codersdk.Response{
-					Message: internalErrorMessage,
-					Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", err.Error()),
-				})
-				return
-			}
-
-			if roles.Status != database.UserStatusActive {
-				write(http.StatusUnauthorized, codersdk.Response{
-					Message: fmt.Sprintf("User is not active (status = %q). Contact an admin to reactivate your account.", roles.Status),
-				})
-				return
-			}
+			key, authz := *keyPtr, *authzPtr
 
 			// Actor is the user's authorization context.
-			actor := rbac.Subject{
-				ID:     key.UserID.String(),
-				Roles:  rbac.RoleNames(roles.Roles),
-				Groups: roles.Groups,
-				Scope:  rbac.ScopeName(key.Scope),
-			}
+			ctx := r.Context()
 			ctx = context.WithValue(ctx, apiKeyContextKey{}, key)
-			ctx = context.WithValue(ctx, userAuthKey{}, Authorization{
-				Username: roles.Username,
-				Actor:    actor,
-			})
+			ctx = context.WithValue(ctx, userAuthKey{}, authz)
 			// Set the auth context for the authzquerier as well.
-			ctx = dbauthz.As(ctx, actor)
+			ctx = dbauthz.As(ctx, authz.Actor)
 
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
+}
+
+// ExtractAPIKey requires authentication using a valid API key. It handles
+// extending an API key if it comes close to expiry, updating the last used time
+// in the database.
+//
+// If the configuration specifies that the API key is optional, a nil API key
+// and authz object may be returned. False is returned if a response was written
+// to the request and the caller should give up.
+// nolint:revive
+func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyConfig) (*database.APIKey, *Authorization, bool) {
+	ctx := r.Context()
+	// Write wraps writing a response to redirect if the handler
+	// specified it should. This redirect is used for user-facing pages
+	// like workspace applications.
+	write := func(code int, response codersdk.Response) (*database.APIKey, *Authorization, bool) {
+		if cfg.RedirectToLogin {
+			RedirectToLogin(rw, r, response.Message)
+			return nil, nil, false
+		}
+
+		httpapi.Write(ctx, rw, code, response)
+		return nil, nil, false
+	}
+
+	// optionalWrite wraps write, but will return nil, true if the API key is
+	// optional.
+	//
+	// It should be used when the API key is not provided or is invalid,
+	// but not when there are other errors.
+	optionalWrite := func(code int, response codersdk.Response) (*database.APIKey, *Authorization, bool) {
+		if cfg.Optional {
+			return nil, nil, true
+		}
+
+		write(code, response)
+		return nil, nil, false
+	}
+
+	token := apiTokenFromRequest(r)
+	if token == "" {
+		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
+			Message: SignedOutErrorMessage,
+			Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenCookie),
+		})
+	}
+
+	keyID, keySecret, err := SplitAPIToken(token)
+	if err != nil {
+		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
+			Message: SignedOutErrorMessage,
+			Detail:  "Invalid API key format: " + err.Error(),
+		})
+	}
+
+	//nolint:gocritic // System needs to fetch API key to check if it's valid.
+	key, err := cfg.DB.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), keyID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return optionalWrite(http.StatusUnauthorized, codersdk.Response{
+				Message: SignedOutErrorMessage,
+				Detail:  "API key is invalid.",
+			})
+		}
+
+		return write(http.StatusInternalServerError, codersdk.Response{
+			Message: internalErrorMessage,
+			Detail:  fmt.Sprintf("Internal error fetching API key by id. %s", err.Error()),
+		})
+	}
+
+	// Checking to see if the secret is valid.
+	hashedSecret := sha256.Sum256([]byte(keySecret))
+	if subtle.ConstantTimeCompare(key.HashedSecret, hashedSecret[:]) != 1 {
+		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
+			Message: SignedOutErrorMessage,
+			Detail:  "API key secret is invalid.",
+		})
+	}
+
+	var (
+		link database.UserLink
+		now  = database.Now()
+		// Tracks if the API key has properties updated
+		changed = false
+	)
+	if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
+		//nolint:gocritic // System needs to fetch UserLink to check if it's valid.
+		link, err = cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    key.UserID,
+			LoginType: key.LoginType,
+		})
+		if err != nil {
+			return write(http.StatusInternalServerError, codersdk.Response{
+				Message: "A database error occurred",
+				Detail:  fmt.Sprintf("get user link by user ID and login type: %s", err.Error()),
+			})
+		}
+		// Check if the OAuth token is expired
+		if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
+			var oauthConfig OAuth2Config
+			switch key.LoginType {
+			case database.LoginTypeGithub:
+				oauthConfig = cfg.OAuth2Configs.Github
+			case database.LoginTypeOIDC:
+				oauthConfig = cfg.OAuth2Configs.OIDC
+			default:
+				return write(http.StatusInternalServerError, codersdk.Response{
+					Message: internalErrorMessage,
+					Detail:  fmt.Sprintf("Unexpected authentication type %q.", key.LoginType),
+				})
+			}
+			// If it is, let's refresh it from the provided config
+			token, err := oauthConfig.TokenSource(r.Context(), &oauth2.Token{
+				AccessToken:  link.OAuthAccessToken,
+				RefreshToken: link.OAuthRefreshToken,
+				Expiry:       link.OAuthExpiry,
+			}).Token()
+			if err != nil {
+				return write(http.StatusUnauthorized, codersdk.Response{
+					Message: "Could not refresh expired Oauth token.",
+					Detail:  err.Error(),
+				})
+			}
+			link.OAuthAccessToken = token.AccessToken
+			link.OAuthRefreshToken = token.RefreshToken
+			link.OAuthExpiry = token.Expiry
+			key.ExpiresAt = token.Expiry
+			changed = true
+		}
+	}
+
+	// Checking if the key is expired.
+	if key.ExpiresAt.Before(now) {
+		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
+			Message: SignedOutErrorMessage,
+			Detail:  fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
+		})
+	}
+
+	// Only update LastUsed once an hour to prevent database spam.
+	if now.Sub(key.LastUsed) > time.Hour {
+		key.LastUsed = now
+		remoteIP := net.ParseIP(r.RemoteAddr)
+		if remoteIP == nil {
+			remoteIP = net.IPv4(0, 0, 0, 0)
+		}
+		bitlen := len(remoteIP) * 8
+		key.IPAddress = pqtype.Inet{
+			IPNet: net.IPNet{
+				IP:   remoteIP,
+				Mask: net.CIDRMask(bitlen, bitlen),
+			},
+			Valid: true,
+		}
+		changed = true
+	}
+	// Only update the ExpiresAt once an hour to prevent database spam.
+	// We extend the ExpiresAt to reduce re-authentication.
+	if !cfg.DisableSessionExpiryRefresh {
+		apiKeyLifetime := time.Duration(key.LifetimeSeconds) * time.Second
+		if key.ExpiresAt.Sub(now) <= apiKeyLifetime-time.Hour {
+			key.ExpiresAt = now.Add(apiKeyLifetime)
+			changed = true
+		}
+	}
+	if changed {
+		//nolint:gocritic // System needs to update API Key LastUsed
+		err := cfg.DB.UpdateAPIKeyByID(dbauthz.AsSystemRestricted(ctx), database.UpdateAPIKeyByIDParams{
+			ID:        key.ID,
+			LastUsed:  key.LastUsed,
+			ExpiresAt: key.ExpiresAt,
+			IPAddress: key.IPAddress,
+		})
+		if err != nil {
+			return write(http.StatusInternalServerError, codersdk.Response{
+				Message: internalErrorMessage,
+				Detail:  fmt.Sprintf("API key couldn't update: %s.", err.Error()),
+			})
+		}
+		// If the API Key is associated with a user_link (e.g. Github/OIDC)
+		// then we want to update the relevant oauth fields.
+		if link.UserID != uuid.Nil {
+			// nolint:gocritic
+			link, err = cfg.DB.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
+				UserID:            link.UserID,
+				LoginType:         link.LoginType,
+				OAuthAccessToken:  link.OAuthAccessToken,
+				OAuthRefreshToken: link.OAuthRefreshToken,
+				OAuthExpiry:       link.OAuthExpiry,
+			})
+			if err != nil {
+				return write(http.StatusInternalServerError, codersdk.Response{
+					Message: internalErrorMessage,
+					Detail:  fmt.Sprintf("update user_link: %s.", err.Error()),
+				})
+			}
+		}
+
+		// We only want to update this occasionally to reduce DB write
+		// load. We update alongside the UserLink and APIKey since it's
+		// easier on the DB to colocate writes.
+		// nolint:gocritic
+		_, err = cfg.DB.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
+			ID:         key.UserID,
+			LastSeenAt: database.Now(),
+			UpdatedAt:  database.Now(),
+		})
+		if err != nil {
+			return write(http.StatusInternalServerError, codersdk.Response{
+				Message: internalErrorMessage,
+				Detail:  fmt.Sprintf("update user last_seen_at: %s", err.Error()),
+			})
+		}
+	}
+
+	// If the key is valid, we also fetch the user roles and status.
+	// The roles are used for RBAC authorize checks, and the status
+	// is to block 'suspended' users from accessing the platform.
+	// nolint:gocritic
+	roles, err := cfg.DB.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), key.UserID)
+	if err != nil {
+		return write(http.StatusUnauthorized, codersdk.Response{
+			Message: internalErrorMessage,
+			Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", err.Error()),
+		})
+	}
+
+	if roles.Status != database.UserStatusActive {
+		return write(http.StatusUnauthorized, codersdk.Response{
+			Message: fmt.Sprintf("User is not active (status = %q). Contact an admin to reactivate your account.", roles.Status),
+		})
+	}
+
+	// Actor is the user's authorization context.
+	authz := Authorization{
+		Username: roles.Username,
+		Actor: rbac.Subject{
+			ID:     key.UserID.String(),
+			Roles:  rbac.RoleNames(roles.Roles),
+			Groups: roles.Groups,
+			Scope:  rbac.ScopeName(key.Scope),
+		},
+	}
+
+	return &key, &authz, true
 }
 
 // apiTokenFromRequest returns the api token from the request.
@@ -393,7 +399,7 @@ func apiTokenFromRequest(r *http.Request) string {
 		return headerValue
 	}
 
-	cookie, err = r.Cookie(DevURLSessionTokenCookie)
+	cookie, err = r.Cookie(codersdk.DevURLSessionTokenCookie)
 	if err == nil && cookie.Value != "" {
 		return cookie.Value
 	}

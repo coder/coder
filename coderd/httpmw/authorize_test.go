@@ -118,7 +118,7 @@ func TestExtractUserRoles(t *testing.T) {
 				rtr                   = chi.NewRouter()
 			)
 			rtr.Use(
-				httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+				httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 					DB:              db,
 					OAuth2Configs:   &httpmw.OAuth2Configs{},
 					RedirectToLogin: false,

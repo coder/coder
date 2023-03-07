@@ -47,7 +47,7 @@ func TestAPIKey(t *testing.T) {
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -63,7 +63,7 @@ func TestAPIKey(t *testing.T) {
 			r  = httptest.NewRequest("GET", "/", nil)
 			rw = httptest.NewRecorder()
 		)
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: true,
 		})(successHandler).ServeHTTP(rw, r)
@@ -84,7 +84,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, "test-wow-hello")
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -102,7 +102,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, "test-wow")
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -120,7 +120,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, "testtestid-wow")
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -139,7 +139,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -164,7 +164,7 @@ func TestAPIKey(t *testing.T) {
 			})
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -188,7 +188,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -212,7 +212,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -251,7 +251,7 @@ func TestAPIKey(t *testing.T) {
 			Value: token,
 		})
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -286,7 +286,7 @@ func TestAPIKey(t *testing.T) {
 		q.Add(codersdk.SessionTokenCookie, token)
 		r.URL.RawQuery = q.Encode()
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -317,7 +317,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -348,7 +348,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -379,7 +379,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:                          db,
 			RedirectToLogin:             false,
 			DisableSessionExpiryRefresh: true,
@@ -416,7 +416,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -459,7 +459,7 @@ func TestAPIKey(t *testing.T) {
 			RefreshToken: "moo",
 			Expiry:       database.Now().AddDate(0, 0, 1),
 		}
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB: db,
 			OAuth2Configs: &httpmw.OAuth2Configs{
 				Github: &oauth2Config{
@@ -498,7 +498,7 @@ func TestAPIKey(t *testing.T) {
 		r.RemoteAddr = "1.1.1.1"
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
@@ -520,7 +520,7 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: true,
 		})(successHandler).ServeHTTP(rw, r)
@@ -552,7 +552,7 @@ func TestAPIKey(t *testing.T) {
 			})
 		)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 			Optional:        true,
@@ -581,7 +581,7 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(successHandler).ServeHTTP(rw, r)
