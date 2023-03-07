@@ -81,6 +81,7 @@ import (
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/tailnet"
+	"github.com/coder/wgtunnel/tunnelsdk"
 )
 
 // nolint:gocyclo
@@ -347,31 +348,21 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				return xerrors.Errorf("configure http client: %w", err)
 			}
 
-			var (
-				ctxTunnel, closeTunnel = context.WithCancel(ctx)
-				tunnel                 *devtunnel.Tunnel
-				tunnelErr              <-chan error
-			)
-			defer closeTunnel()
-
 			// If the access URL is empty, we attempt to run a reverse-proxy
 			// tunnel to make the initial setup really simple.
+			var tunnel *tunnelsdk.Tunnel
 			if cfg.AccessURL.Value == "" {
 				cmd.Printf("Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
-				tunnel, tunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
+				tunnel, err = devtunnel.New(ctx, logger.Named("devtunnel"))
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
 				}
-				cfg.AccessURL.Value = tunnel.URL
+				defer tunnel.Close()
+				cfg.AccessURL.Value = tunnel.URL.String()
 
 				if cfg.WildcardAccessURL.Value == "" {
-					u, err := parseURL(tunnel.URL)
-					if err != nil {
-						return xerrors.Errorf("parse tunnel url: %w", err)
-					}
-
 					// Suffixed wildcard access URL.
-					cfg.WildcardAccessURL.Value = fmt.Sprintf("*--%s", u.Hostname())
+					cfg.WildcardAccessURL.Value = fmt.Sprintf("*--%s", tunnel.URL.Hostname())
 				}
 			}
 
@@ -824,10 +815,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Bold.Render(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
-			case exitErr = <-tunnelErr:
-				if exitErr == nil {
-					exitErr = xerrors.New("dev tunnel closed unexpectedly")
-				}
+			case <-tunnel.Wait():
+				exitErr = xerrors.New("dev tunnel closed unexpectedly")
 			case exitErr = <-errCh:
 			}
 			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
@@ -896,8 +885,8 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			// Close tunnel after we no longer have in-flight connections.
 			if tunnel != nil {
 				cmd.Println("Waiting for tunnel to close...")
-				closeTunnel()
-				<-tunnelErr
+				_ = tunnel.Close()
+				<-tunnel.Wait()
 				cmd.Println("Done waiting for tunnel")
 			}
 

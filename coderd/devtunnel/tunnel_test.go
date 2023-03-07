@@ -67,7 +67,7 @@ func TestTunnel(t *testing.T) {
 	fTunServer := newFakeTunnelServer(t)
 	cfg := fTunServer.config()
 
-	tun, errCh, err := devtunnel.NewWithConfig(ctx, slogtest.Make(t, nil).Leveled(slog.LevelDebug), cfg)
+	tun, errCh, err := devtunnel.New(ctx, slogtest.Make(t, nil).Leveled(slog.LevelDebug), cfg)
 	require.NoError(t, err)
 	t.Log(tun.URL)
 

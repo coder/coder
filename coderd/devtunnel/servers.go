@@ -8,6 +8,7 @@ import (
 	"github.com/go-ping/ping"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cryptorand"
 )
@@ -44,17 +45,34 @@ var Regions = []Region{
 	},
 }
 
-func FindClosestNode() (Node, error) {
+// Nodes returns a list of nodes to use for the tunnel. It will pick a random
+// node from each region.
+func Nodes() ([]Node, error) {
 	nodes := []Node{}
 
 	for _, region := range Regions {
 		// Pick a random node from each region.
 		i, err := cryptorand.Intn(len(region.Nodes))
 		if err != nil {
-			return Node{}, err
+			return []Node{}, err
 		}
 		nodes = append(nodes, region.Nodes[i])
 	}
+
+	return nodes, nil
+}
+
+// FindClosestNode pings each node and returns the one with the lowest latency.
+func FindClosestNode(nodes []Node) (Node, error) {
+	if len(nodes) == 0 {
+		return Node{}, xerrors.New("no wgtunnel nodes")
+	}
+	if len(nodes) == 1 {
+		return nodes[0], nil
+	}
+
+	// Copy the nodes so we don't mutate the original.
+	nodes = append([]Node{}, nodes...)
 
 	var (
 		nodesMu sync.Mutex
