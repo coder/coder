@@ -29,7 +29,8 @@ SELECT
 FROM
 	workspace_agent_stats
 WHERE
-	template_id = $1
+	template_id = $1 AND
+	connection_count > 0
 GROUP BY
 	date, user_id
 ORDER BY
@@ -41,6 +42,8 @@ SELECT
 	user_id
 FROM
 	workspace_agent_stats
+WHERE
+	connection_count > 0
 GROUP BY
 	date, user_id
 ORDER BY
