@@ -837,14 +837,6 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				}
 			}()
 
-			hasFirstUser, err := client.HasFirstUser(ctx)
-			if err != nil {
-				cmd.Println("\nFailed to check for the first user: " + err.Error())
-			} else if !hasFirstUser {
-				cmd.Println("\nGet started by creating the first user (in a new terminal):")
-				cmd.Println(cliui.Styles.Code.Render("coder login " + accessURLParsed.String()))
-			}
-
 			cmd.Println("\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
 			// Updates the systemd status from activating to activated.
@@ -1159,7 +1151,7 @@ func printLogo(cmd *cobra.Command) {
 		return
 	}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s - Software development on your infrastucture\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s - Your Self-Hosted Remote Development Platform\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
 }
 
 func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, error) {
