@@ -36,7 +36,7 @@ WHERE
 	END
 	AND CASE
 		WHEN @created_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			created_at > @created_aftet
+			created_at > @created_after
 		ELSE true
 	END
 	AND CASE

@@ -1,11 +1,12 @@
-package database
+package sqlxqueries
 
 import (
-	"database/sql/driver"
 	"fmt"
 	"reflect"
 	"regexp"
 	"strings"
+
+	"golang.org/x/xerrors"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx/reflectx"
@@ -18,7 +19,6 @@ var nameRegex = regexp.MustCompile(`@([a-zA-Z0-9_]+)`)
 
 // dbmapper grabs struct 'db' tags.
 var dbmapper = reflectx.NewMapper("db")
-var sqlValuer = reflect.TypeOf((*driver.Valuer)(nil)).Elem()
 
 // bindNamed is an implementation that improves on the SQLx implementation. This
 // adjusts the query to use "$#" syntax for arguments instead of "@argument". The
@@ -63,7 +63,7 @@ func bindNamed(query string, arg interface{}) (newQuery string, args []interface
 
 	err = dbmapper.TraversalsByNameFunc(v.Type(), names, func(i int, t []int) error {
 		if len(t) == 0 {
-			return fmt.Errorf("could not find name %s in %#v", names[i], arg)
+			return xerrors.Errorf("could not find name %s in %#v", names[i], arg)
 		}
 
 		val := reflectx.FieldByIndexesReadOnly(v, t)

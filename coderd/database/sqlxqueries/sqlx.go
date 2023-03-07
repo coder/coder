@@ -1,16 +1,19 @@
-package database
+package sqlxqueries
 
 import (
 	"context"
 
-	"github.com/coder/coder/coderd/database/sqlxqueries"
+	"github.com/jmoiron/sqlx"
+
 	"golang.org/x/xerrors"
 )
 
-func sqlxSelect[RT any](ctx context.Context, q *sqlQuerier, queryName string, argument interface{}) ([]RT, error) {
+// SelectContext runs the named query on the given database.
+// If the query returns no rows, an empty slice is returned.
+func SelectContext[RT any](ctx context.Context, q sqlx.QueryerContext, queryName string, argument interface{}) ([]RT, error) {
 	var empty []RT
 
-	query, err := sqlxqueries.Query(queryName, nil)
+	query, err := query(queryName, nil)
 	if err != nil {
 		return empty, xerrors.Errorf("get query: %w", err)
 	}
@@ -20,9 +23,7 @@ func sqlxSelect[RT any](ctx context.Context, q *sqlQuerier, queryName string, ar
 		return empty, xerrors.Errorf("bind named: %w", err)
 	}
 
-	// GetContext maps the results of the query to the items slice by struct
-	// db tags.
-	err = q.sdb.SelectContext(ctx, &empty, query, args...)
+	err = sqlx.SelectContext(ctx, q, &empty, query, args...)
 	if err != nil {
 		return empty, xerrors.Errorf("%s: %w", queryName, err)
 	}
@@ -30,10 +31,12 @@ func sqlxSelect[RT any](ctx context.Context, q *sqlQuerier, queryName string, ar
 	return empty, nil
 }
 
-func sqlxGet[RT any](ctx context.Context, q *sqlQuerier, queryName string, argument interface{}) (RT, error) {
+// GetContext runs the named query on the given database.
+// If the query returns no rows, sql.ErrNoRows is returned.
+func GetContext[RT any](ctx context.Context, q sqlx.QueryerContext, queryName string, argument interface{}) (RT, error) {
 	var empty RT
 
-	query, err := sqlxqueries.Query(queryName, argument)
+	query, err := query(queryName, argument)
 	if err != nil {
 		return empty, xerrors.Errorf("get query: %w", err)
 	}
@@ -45,7 +48,7 @@ func sqlxGet[RT any](ctx context.Context, q *sqlQuerier, queryName string, argum
 
 	// GetContext maps the results of the query to the items slice by struct
 	// db tags.
-	err = q.sdb.GetContext(ctx, &empty, query, args...)
+	err = sqlx.GetContext(ctx, q, &empty, query, args...)
 	if err != nil {
 		return empty, xerrors.Errorf("%s: %w", queryName, err)
 	}

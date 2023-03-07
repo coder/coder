@@ -31,21 +31,18 @@ func queries() (*template.Template, error) {
 	return cached, cachedError
 }
 
-func Query(name string, data interface{}) (string, error) {
+// query executes the named template with the given data and returns the result.
+// The returned query string is SQL.
+func query(name string, data interface{}) (string, error) {
 	tpls, err := queries()
 	if err != nil {
 		return "", err
 	}
 
 	var out bytes.Buffer
-	// TODO: Should we cache these?
 	err = tpls.ExecuteTemplate(&out, name, data)
 	if err != nil {
 		return "", xerrors.Errorf("execute template %s: %w", name, err)
 	}
 	return out.String(), nil
-}
-
-func GetWorkspaceBuildByID() (string, error) {
-	return Query("GetWorkspaceBuildByID", nil)
 }

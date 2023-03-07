@@ -10,6 +10,7 @@ import (
 	"github.com/lib/pq"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/database/sqlxqueries"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/rbac/regosql"
 )
@@ -206,12 +207,12 @@ type getWorkspaceBuildParams struct {
 
 func (q *sqlQuerier) getWorkspaceBuild(ctx context.Context, arg getWorkspaceBuildParams) (WorkspaceBuild, error) {
 	arg.LimitOpt = 1
-	return sqlxGet[WorkspaceBuild](ctx, q, "GetWorkspaceBuild", arg)
+	return sqlxqueries.GetContext[WorkspaceBuild](ctx, q.sdb, "GetWorkspaceBuild", arg)
 }
 
 func (q *sqlQuerier) selectWorkspaceBuild(ctx context.Context, arg getWorkspaceBuildParams) ([]WorkspaceBuild, error) {
 	arg.LimitOpt = -1
-	return sqlxSelect[WorkspaceBuild](ctx, q, "GetWorkspaceBuild", arg)
+	return sqlxqueries.SelectContext[WorkspaceBuild](ctx, q.sdb, "GetWorkspaceBuild", arg)
 }
 
 func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error) {
@@ -232,7 +233,7 @@ type GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams struct {
 }
 
 func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error) {
-	return sqlxGet[WorkspaceBuild](ctx, q, "GetWorkspaceBuildByWorkspaceIDAndBuildNumber", arg)
+	return sqlxqueries.GetContext[WorkspaceBuild](ctx, q.sdb, "GetWorkspaceBuildByWorkspaceIDAndBuildNumber", arg)
 }
 
 type GetWorkspaceBuildsByWorkspaceIDParams struct {
@@ -244,7 +245,7 @@ type GetWorkspaceBuildsByWorkspaceIDParams struct {
 }
 
 func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuild, error) {
-	return sqlxSelect[WorkspaceBuild](ctx, q, "GetWorkspaceBuildsByWorkspaceID", arg)
+	return sqlxqueries.SelectContext[WorkspaceBuild](ctx, q.sdb, "GetWorkspaceBuildsByWorkspaceID", arg)
 }
 
 func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspacedID uuid.UUID) (WorkspaceBuild, error) {
@@ -252,11 +253,11 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 }
 
 func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error) {
-	return sqlxSelect[WorkspaceBuild](ctx, q, "GetLatestWorkspaceBuildsByWorkspaceIDs", ids)
+	return sqlxqueries.SelectContext[WorkspaceBuild](ctx, q.sdb, "GetLatestWorkspaceBuildsByWorkspaceIDs", ids)
 }
 
 func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error) {
-	return sqlxSelect[WorkspaceBuild](ctx, q, "GetLatestWorkspaceBuilds", nil)
+	return sqlxqueries.SelectContext[WorkspaceBuild](ctx, q.sdb, "GetLatestWorkspaceBuilds", nil)
 }
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
