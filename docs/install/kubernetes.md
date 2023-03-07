@@ -112,6 +112,15 @@ to log in and manage templates.
    > [values.yaml](https://github.com/coder/coder/blob/main/helm/values.yaml)
    > file directly.
 
+   If you are deploying Coder on AWS EKS and service is set to LoadBalancer, the load balancer external IP will be stuck in a pending status unless sessionAffinity is set to None.
+
+   ```yaml
+   coder:
+     service:
+       type: LoadBalancer
+       sessionAffinity: None
+   ```
+
 1. Run the following command to install the chart in your cluster.
 
    ```console

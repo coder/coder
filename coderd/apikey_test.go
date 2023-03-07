@@ -72,7 +72,7 @@ func TestTokenScoped(t *testing.T) {
 	require.Equal(t, keys[0].Scope, codersdk.APIKeyScopeApplicationConnect)
 }
 
-func TestTokenDuration(t *testing.T) {
+func TestUserSetTokenDuration(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -90,7 +90,23 @@ func TestTokenDuration(t *testing.T) {
 	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*8*24))
 }
 
-func TestTokenMaxLifetime(t *testing.T) {
+func TestDefaultTokenDuration(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
+	require.NoError(t, err)
+	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
+	require.NoError(t, err)
+	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*29*24))
+	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*31*24))
+}
+
+func TestTokenUserSetMaxLifetime(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -111,6 +127,31 @@ func TestTokenMaxLifetime(t *testing.T) {
 	// fail
 	_, err = client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
 		Lifetime: time.Hour * 24 * 8,
+	})
+	require.ErrorContains(t, err, "lifetime must be less")
+}
+
+func TestTokenDefaultMaxLifetime(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	dc := coderdtest.DeploymentConfig(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentConfig: dc,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// success
+	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Lifetime: time.Hour * 24 * 365,
+	})
+	require.NoError(t, err)
+
+	// fail - default --max-token-lifetime is the maximum value of time.Duration
+	// which is 24 * 365 * 290.
+	_, err = client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Lifetime: time.Hour * 24 * 366 * 290,
 	})
 	require.ErrorContains(t, err, "lifetime must be less")
 }

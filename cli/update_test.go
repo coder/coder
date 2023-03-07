@@ -424,4 +424,142 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}
 		<-doneChan
 	})
+
+	t.Run("RequiredParameterAdded", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Upload the initial template
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(stringRichParameters))
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		tempDir := t.TempDir()
+		removeTmpDirUntilSuccessAfterTest(t, tempDir)
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
+		_, _ = parameterFile.WriteString(
+			stringParameterName + ": " + stringParameterValue)
+
+		// Create workspace
+		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
+		clitest.SetupConfig(t, client, root)
+		err := cmd.Execute()
+		require.NoError(t, err)
+
+		// Modify template
+		const addedParameterName = "added_parameter"
+
+		var modifiedParameters []*proto.RichParameter
+		modifiedParameters = append(modifiedParameters, stringRichParameters...)
+		modifiedParameters = append(modifiedParameters, &proto.RichParameter{
+			Name:     addedParameterName,
+			Type:     "string",
+			Mutable:  true,
+			Required: true,
+		})
+		version = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(modifiedParameters), template.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version.ID,
+		})
+		require.NoError(t, err)
+
+		// Update the workspace
+		cmd, root = clitest.New(t, "update", "my-workspace")
+		clitest.SetupConfig(t, client, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		go func() {
+			defer close(doneChan)
+			err := cmd.Execute()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			"added_parameter", "",
+			"Enter a value:", "abc",
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+
+			if value != "" {
+				pty.WriteLine(value)
+			}
+		}
+		<-doneChan
+	})
+
+	t.Run("OptionalParameterAdded", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Upload the initial template
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(stringRichParameters))
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		tempDir := t.TempDir()
+		removeTmpDirUntilSuccessAfterTest(t, tempDir)
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
+		_, _ = parameterFile.WriteString(
+			stringParameterName + ": " + stringParameterValue)
+
+		// Create workspace
+		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
+		clitest.SetupConfig(t, client, root)
+		err := cmd.Execute()
+		require.NoError(t, err)
+
+		// Modify template
+		const addedParameterName = "added_parameter"
+
+		var modifiedParameters []*proto.RichParameter
+		modifiedParameters = append(modifiedParameters, stringRichParameters...)
+		modifiedParameters = append(modifiedParameters, &proto.RichParameter{
+			Name:         addedParameterName,
+			Type:         "string",
+			Mutable:      true,
+			DefaultValue: "foobar",
+			Required:     false,
+		})
+		version = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(modifiedParameters), template.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version.ID,
+		})
+		require.NoError(t, err)
+
+		// Update the workspace
+		cmd, root = clitest.New(t, "update", "my-workspace")
+		clitest.SetupConfig(t, client, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		go func() {
+			defer close(doneChan)
+			err := cmd.Execute()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			"added_parameter", "",
+			`Enter a value (default: "foobar")`, "abc",
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+			pty.WriteLine(value)
+		}
+		<-doneChan
+	})
 }

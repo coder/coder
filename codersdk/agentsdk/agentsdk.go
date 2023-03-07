@@ -69,15 +69,17 @@ type Metadata struct {
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.
-	GitAuthConfigs       int                     `json:"git_auth_configs"`
-	VSCodePortProxyURI   string                  `json:"vscode_port_proxy_uri"`
-	Apps                 []codersdk.WorkspaceApp `json:"apps"`
-	DERPMap              *tailcfg.DERPMap        `json:"derpmap"`
-	EnvironmentVariables map[string]string       `json:"environment_variables"`
-	StartupScript        string                  `json:"startup_script"`
-	StartupScriptTimeout time.Duration           `json:"startup_script_timeout"`
-	Directory            string                  `json:"directory"`
-	MOTDFile             string                  `json:"motd_file"`
+	GitAuthConfigs        int                     `json:"git_auth_configs"`
+	VSCodePortProxyURI    string                  `json:"vscode_port_proxy_uri"`
+	Apps                  []codersdk.WorkspaceApp `json:"apps"`
+	DERPMap               *tailcfg.DERPMap        `json:"derpmap"`
+	EnvironmentVariables  map[string]string       `json:"environment_variables"`
+	StartupScript         string                  `json:"startup_script"`
+	StartupScriptTimeout  time.Duration           `json:"startup_script_timeout"`
+	Directory             string                  `json:"directory"`
+	MOTDFile              string                  `json:"motd_file"`
+	ShutdownScript        string                  `json:"shutdown_script"`
+	ShutdownScriptTimeout time.Duration           `json:"shutdown_script_timeout"`
 }
 
 // Metadata fetches metadata for the currently authenticated workspace agent.
@@ -397,7 +399,7 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 	}
 
 	// Send an empty stat to get the interval.
-	postStat(&Stats{ConnectionsByProto: map[string]int64{}})
+	postStat(&Stats{})
 
 	go func() {
 		defer close(exited)

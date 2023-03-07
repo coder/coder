@@ -132,8 +132,8 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertObject: workspaceRBACObj,
 		},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}/state": {
-			AssertAction: rbac.ActionRead,
-			AssertObject: workspaceRBACObj,
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/workspaceagents/{workspaceagent}": {
 			AssertAction: rbac.ActionRead,
