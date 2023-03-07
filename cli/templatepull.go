@@ -15,9 +15,9 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func templatePull() *clibase.Command {
+func templatePull() *clibase.Cmd {
 	var tarMode bool
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:   "pull <name> [destination]",
 		Short: "Download the latest version of a template to a path.",
 		Args:  cobra.RangeArgs(1, 2),

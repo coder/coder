@@ -10,8 +10,8 @@ import (
 	"github.com/coder/coder/cli/cliui"
 )
 
-func groupDelete() *clibase.Command {
-	cmd := &clibase.Command{
+func groupDelete() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:        "delete <name>",
 		Short:      "Delete a user group",
 		Middleware: clibase.RequireNArgs(1),

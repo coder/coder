@@ -12,8 +12,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func templateDelete() *clibase.Command {
-	cmd := &clibase.Command{
+func templateDelete() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:   "delete [name...]",
 		Short: "Delete templates",
 		Handler: func(inv *clibase.Invokation) error {

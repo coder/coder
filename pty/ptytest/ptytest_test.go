@@ -59,9 +59,9 @@ func TestPtytest(t *testing.T) {
 			tt := tt
 			// nolint:paralleltest // Avoid parallel test to more easily identify the issue.
 			t.Run(tt.name, func(t *testing.T) {
-				cmd := clibase.Command{
+				cmd := clibase.Cmd{
 					Use: "test",
-					Handler: func(cmd *clibase.Command, args []string) error {
+					Handler: func(cmd *clibase.Cmd, args []string) error {
 						fmt.Fprint(cmd.OutOrStdout(), tt.output)
 						return nil
 					},

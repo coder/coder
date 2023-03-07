@@ -64,7 +64,7 @@ func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]coders
 	}
 }
 
-func list() *clibase.Command {
+func list() *clibase.Cmd {
 	var (
 		all               bool
 		defaultQuery      = "owner:me"
@@ -75,7 +75,7 @@ func list() *clibase.Command {
 			cliui.JSONFormat(),
 		)
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "list",
 		Short:       "List workspaces",

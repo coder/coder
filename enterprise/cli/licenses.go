@@ -21,8 +21,8 @@ import (
 
 var jwtRegexp = regexp.MustCompile(`^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$`)
 
-func licenses() *clibase.Command {
-	cmd := &clibase.Command{
+func licenses() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Short:   "Add, delete, and list licenses",
 		Use:     "licenses",
 		Aliases: []string{"license"},
@@ -38,13 +38,13 @@ func licenses() *clibase.Command {
 	return cmd
 }
 
-func licenseAdd() *clibase.Command {
+func licenseAdd() *clibase.Cmd {
 	var (
 		filename string
 		license  string
 		debug    bool
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:   "add [-f file | -l license]",
 		Short: "Add license to Coder deployment",
 		Middleware: clibase.RequireNArgs(0),
@@ -121,8 +121,8 @@ func validJWT(s string) error {
 	return xerrors.New("Invalid license")
 }
 
-func licensesList() *clibase.Command {
-	cmd := &clibase.Command{
+func licensesList() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:        "list",
 		Short:      "List licenses (including expired)",
 		Aliases:    []string{"ls"},
@@ -150,8 +150,8 @@ func licensesList() *clibase.Command {
 	return cmd
 }
 
-func licenseDelete() *clibase.Command {
-	cmd := &clibase.Command{
+func licenseDelete() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:        "delete <id>",
 		Short:      "Delete license by ID",
 		Aliases:    []string{"del", "rm"},

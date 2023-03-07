@@ -21,12 +21,12 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func portForward() *clibase.Command {
+func portForward() *clibase.Cmd {
 	var (
 		tcpForwards []string // <port>:<port>
 		udpForwards []string // <port>:<port>
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:        "port-forward <workspace>",
 		Short:      "Forward ports from machine to a workspace",
 		Aliases:    []string{"tunnel"},
@@ -156,7 +156,7 @@ func portForward() *clibase.Command {
 	return cmd
 }
 
-func listenAndPortForward(ctx context.Context, cmd *clibase.Command, conn *codersdk.WorkspaceAgentConn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
+func listenAndPortForward(ctx context.Context, cmd *clibase.Cmd, conn *codersdk.WorkspaceAgentConn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
 	_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
 
 	var (

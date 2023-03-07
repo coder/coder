@@ -14,8 +14,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func templateVersions() *clibase.Command {
-	cmd := &clibase.Command{
+func templateVersions() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:     "versions",
 		Short:   "Manage different versions of the specified template",
 		Aliases: []string{"version"},
@@ -36,13 +36,13 @@ func templateVersions() *clibase.Command {
 	return cmd
 }
 
-func templateVersionsList() *clibase.Command {
+func templateVersionsList() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]templateVersionRow{}, nil),
 		cliui.JSONFormat(),
 	)
 
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:        "list <template>",
 		Middleware: clibase.RequireNArgs(1),
 		Short:      "List all the versions of the specified template",

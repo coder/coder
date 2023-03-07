@@ -72,15 +72,15 @@ func init() {
 	cobra.AddTemplateFuncs(templateFunctions)
 }
 
-func Core() []*clibase.Command {
+func Core() []*clibase.Cmd {
 	r := &RootCmd{}
 	// Please re-sort this list alphabetically if you change it!
-	return []*clibase.Command{
+	return []*clibase.Cmd{
 		show(r),
 	}
 }
 
-func AGPL() []*clibase.Command {
+func AGPL() []*clibase.Cmd {
 	all := append(Core(), Server(func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
 		api := coderd.New(o)
 		return api, api, nil
@@ -88,10 +88,10 @@ func AGPL() []*clibase.Command {
 	return all
 }
 
-func (r *RootCmd) Command(subcommands []*clibase.Command) *clibase.Command {
+func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use: "coder",
 		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + formatExamples(
 			example{
@@ -121,7 +121,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Command) *clibase.Command {
 	}
 
 	// Set default help handler for all commands.
-	cmd.Walk(func(c *clibase.Command) {
+	cmd.Walk(func(c *clibase.Cmd) {
 		if c.HelpHandler == nil {
 			c.HelpHandler = func(i *clibase.Invokation) error {
 				usageFn(i.Stderr, c)()
@@ -233,8 +233,8 @@ func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
 }
 
 // versionCmd prints the coder version
-func versionCmd() *clibase.Command {
-	return &clibase.Command{
+func versionCmd() *clibase.Cmd {
+	return &clibase.Cmd{
 		Use:   "version",
 		Short: "Show coder version",
 		Handler: func(inv *clibase.Invokation) error {
@@ -383,7 +383,7 @@ func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Cli
 
 // createAgentClient returns a new client from the command context.
 // It works just like CreateClient, but uses the agent token and URL instead.
-func createAgentClient(cmd *clibase.Command) (*agentsdk.Client, error) {
+func createAgentClient(cmd *clibase.Cmd) (*agentsdk.Client, error) {
 	rawURL, err := inv.ParsedFlags().GetString(varAgentURL)
 	if err != nil {
 		return nil, err
@@ -402,7 +402,7 @@ func createAgentClient(cmd *clibase.Command) (*agentsdk.Client, error) {
 }
 
 // CurrentOrganization returns the currently active organization for the authenticated user.
-func CurrentOrganization(cmd *clibase.Command, client *codersdk.Client) (codersdk.Organization, error) {
+func CurrentOrganization(cmd *clibase.Cmd, client *codersdk.Client) (codersdk.Organization, error) {
 	orgs, err := client.OrganizationsByUser(inv.Context(), codersdk.Me)
 	if err != nil {
 		return codersdk.Organization{}, nil
@@ -441,7 +441,7 @@ func (r *RootCmd) createConfig() config.Root {
 // isTTY returns whether the passed reader is a TTY or not.
 // This accepts a reader to work with Cobra's "InOrStdin"
 // function for simple testing.
-func isTTY(cmd *clibase.Command) bool {
+func isTTY(cmd *clibase.Cmd) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
@@ -459,18 +459,18 @@ func isTTY(cmd *clibase.Command) bool {
 // isTTYOut returns whether the passed reader is a TTY or not.
 // This accepts a reader to work with Cobra's "OutOrStdout"
 // function for simple testing.
-func isTTYOut(cmd *clibase.Command) bool {
+func isTTYOut(cmd *clibase.Cmd) bool {
 	return isTTYWriter(cmd, cmd.OutOrStdout)
 }
 
 // isTTYErr returns whether the passed reader is a TTY or not.
 // This accepts a reader to work with Cobra's "ErrOrStderr"
 // function for simple testing.
-func isTTYErr(cmd *clibase.Command) bool {
+func isTTYErr(cmd *clibase.Cmd) bool {
 	return isTTYWriter(cmd, cmd.ErrOrStderr)
 }
 
-func isTTYWriter(cmd *clibase.Command, writer func() io.Writer) bool {
+func isTTYWriter(cmd *clibase.Cmd, writer func() io.Writer) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
@@ -496,12 +496,12 @@ func usageHeader(s string) string {
 	return cliui.Styles.Placeholder.Render(s)
 }
 
-func isWorkspaceCommand(cmd *clibase.Command) bool {
+func isWorkspaceCommand(cmd *clibase.Cmd) bool {
 	if _, ok := cmd.Annotations["workspaces"]; ok {
 		return true
 	}
 	var ws bool
-	cmd.VisitParents(func(cmd *clibase.Command) {
+	cmd.VisitParents(func(cmd *clibase.Cmd) {
 		if _, ok := cmd.Annotations["workspaces"]; ok {
 			ws = true
 		}
@@ -604,8 +604,8 @@ func formatExamples(examples ...example) string {
 	return sb.String()
 }
 
-// FormatCobraError colorizes and adds "--help" docs to clibase.Commands.
-func FormatCobraError(err error, cmd *clibase.Command) string {
+// FormatCobraError colorizes and adds "--help" docs to clibase.Cmds.
+func FormatCobraError(err error, cmd *clibase.Cmd) string {
 	helpErrMsg := fmt.Sprintf("Run '%s --help' for usage.", cmd.CommandPath())
 
 	var (

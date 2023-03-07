@@ -153,88 +153,26 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 }
 
 // nolint:gocyclo
-func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Command {
-	root := &clibase.Command{
-		Use:                "server",
-		Short:              "Start a Coder server",
-		DisableFlagParsing: true,
+func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Cmd {
+	var (
+		cfg  codersdk.DeploymentValues
+		opts = cfg.Options()
+	)
+	root := &clibase.Cmd{
+		Use:     "server",
+		Short:   "Start a Coder server",
+		Options: opts,
 		Handler: func(inv *clibase.Invokation) error {
 			// Main command context for managing cancellation of running
 			// services.
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			cfg := &codersdk.DeploymentValues{}
-			cliOpts := cfg.Options()
 			var configDir clibase.String
-			// This is a hack to get around the fact that the Cobra-defined
-			// flags are not available.
-			cliOpts.Add(clibase.Option{
-				Name:        "Global Config",
-				Flag:        config.FlagName,
-				Description: "Global Config is ignored in server mode.",
-				Hidden:      true,
-				Default:     config.DefaultDir(),
-				Value:       &configDir,
-			})
-
-			err := cliOpts.SetDefaults()
-			if err != nil {
-				return xerrors.Errorf("set defaults: %w", err)
-			}
-
-			err = cliOpts.ParseEnv(envPrefix, os.Environ())
-			if err != nil {
-				return xerrors.Errorf("parse env: %w", err)
-			}
-
-			flagSet := cliOpts.FlagSet()
-			// These parents and children will be moved once we convert the
-			// rest of the `cli` package to clibase.
-			flagSet.Usage = usageFn(inv.Stderr, &clibase.Command{
-				Parent: &clibase.Command{
-					Use: "coder",
-				},
-				Children: []*clibase.Cmd{
-					{
-						Use:   "postgres-builtin-url",
-						Short: "Output the connection URL for the built-in PostgreSQL deployment.",
-					},
-					{
-						Use:   "postgres-builtin-serve",
-						Short: "Run the built-in PostgreSQL deployment.",
-					},
-				},
-				Use:   "server [flags]",
-				Short: "Start a Coder server",
-				Long: `
-The server provides the Coder dashboard, API, and provisioners.
-If no options are provided, the server will start with a built-in postgres
-and an access URL provided by Coder's cloud service.
-
-Use the following command to print the built-in postgres URL:
-	$ coder server postgres-builtin-url
-
-Use the following command to manually run the built-in postgres:
-	$ coder server postgres-builtin-serve
-
-Options may be provided via environment variables prefixed with "CODER_",
-flags, and YAML configuration. The precedence is as follows:
-	1. Defaults
-	2. YAML configuration
-	3. Environment variables
-	4. Flags
-				`,
-				Options: cliOpts,
-			})
-			err = flagSet.Parse(inv.Args)
-			if err != nil {
-				return xerrors.Errorf("parse flags: %w", err)
-			}
 
 			if cfg.WriteConfig {
 				// TODO: this should output to a file.
-				n, err := cliOpts.ToYAML()
+				n, err := opts.ToYAML()
 				if err != nil {
 					return xerrors.Errorf("generate yaml: %w", err)
 				}
@@ -251,7 +189,7 @@ flags, and YAML configuration. The precedence is as follows:
 			}
 
 			// Print deprecation warnings.
-			for _, opt := range cliOpts {
+			for _, opt := range opts {
 				if opt.UseInstead == nil {
 					continue
 				}
@@ -1162,10 +1100,20 @@ flags, and YAML configuration. The precedence is as follows:
 			}
 			return exitErr
 		},
+		Children: []*clibase.Cmd{
+			{
+				Use:   "postgres-builtin-url",
+				Short: "Output the connection URL for the built-in PostgreSQL deployment.",
+			},
+			{
+				Use:   "postgres-builtin-serve",
+				Short: "Run the built-in PostgreSQL deployment.",
+			},
+		},
 	}
 
 	var pgRawURL bool
-	postgresBuiltinURLCmd := &clibase.Command{
+	postgresBuiltinURLCmd := &clibase.Cmd{
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
 		Handler: func(inv *clibase.Invokation) error {
@@ -1182,7 +1130,7 @@ flags, and YAML configuration. The precedence is as follows:
 			return nil
 		},
 	}
-	postgresBuiltinServeCmd := &clibase.Command{
+	postgresBuiltinServeCmd := &clibase.Cmd{
 		Use:   "postgres-builtin-serve",
 		Short: "Run the built-in PostgreSQL deployment.",
 		Handler: func(inv *clibase.Invokation) error {
@@ -1360,7 +1308,7 @@ func newProvisionerDaemon(
 }
 
 // nolint: revive
-func printLogo(cmd *clibase.Command) {
+func printLogo(cmd *clibase.Cmd) {
 	// Only print the logo in TTYs.
 	if !isTTYOut(cmd) {
 		return
@@ -1765,7 +1713,7 @@ func isLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-func buildLogger(cmd *clibase.Command, cfg *codersdk.DeploymentValues) (slog.Logger, func(), error) {
+func buildLogger(cmd *clibase.Cmd, cfg *codersdk.DeploymentValues) (slog.Logger, func(), error) {
 	var (
 		sinks   = []slog.Sink{}
 		closers = []func() error{}

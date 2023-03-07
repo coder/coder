@@ -20,14 +20,14 @@ import (
 )
 
 func main() {
-	root := &clibase.Command{
+	root := &clibase.Cmd{
 		Use:   "cliui",
 		Short: "Used for visually testing UI components for the CLI.",
 	}
 
-	root.AddCommand(&clibase.Command{
+	root.AddCommand(&clibase.Cmd{
 		Use: "prompt",
-		Handler: func(cmd *clibase.Command, args []string) error {
+		Handler: func(cmd *clibase.Cmd, args []string) error {
 			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:    "What is our " + cliui.Styles.Field.Render("company name") + "?",
 				Default: "acme-corp",
@@ -63,9 +63,9 @@ func main() {
 		},
 	})
 
-	root.AddCommand(&clibase.Command{
+	root.AddCommand(&clibase.Cmd{
 		Use: "select",
-		Handler: func(cmd *clibase.Command, args []string) error {
+		Handler: func(cmd *clibase.Cmd, args []string) error {
 			value, err := cliui.Select(cmd, cliui.SelectOptions{
 				Options: []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
 				Size:    3,
@@ -75,9 +75,9 @@ func main() {
 		},
 	})
 
-	root.AddCommand(&clibase.Command{
+	root.AddCommand(&clibase.Cmd{
 		Use: "job",
-		Handler: func(cmd *clibase.Command, args []string) error {
+		Handler: func(cmd *clibase.Cmd, args []string) error {
 			job := codersdk.ProvisionerJob{
 				Status:    codersdk.ProvisionerJobPending,
 				CreatedAt: database.Now(),
@@ -161,9 +161,9 @@ func main() {
 		},
 	})
 
-	root.AddCommand(&clibase.Command{
+	root.AddCommand(&clibase.Cmd{
 		Use: "agent",
-		Handler: func(cmd *clibase.Command, args []string) error {
+		Handler: func(cmd *clibase.Cmd, args []string) error {
 			agent := codersdk.WorkspaceAgent{
 				Status:         codersdk.WorkspaceAgentDisconnected,
 				LifecycleState: codersdk.WorkspaceAgentLifecycleReady,
@@ -187,9 +187,9 @@ func main() {
 		},
 	})
 
-	root.AddCommand(&clibase.Command{
+	root.AddCommand(&clibase.Cmd{
 		Use: "resources",
-		Handler: func(cmd *clibase.Command, args []string) error {
+		Handler: func(cmd *clibase.Cmd, args []string) error {
 			disconnected := database.Now().Add(-4 * time.Second)
 			return cliui.WorkspaceResources(cmd.OutOrStdout(), []codersdk.WorkspaceResource{{
 				Transition: codersdk.WorkspaceTransitionStart,
@@ -237,9 +237,9 @@ func main() {
 		},
 	})
 
-	root.AddCommand(&clibase.Command{
+	root.AddCommand(&clibase.Cmd{
 		Use: "git-auth",
-		Handler: func(cmd *clibase.Command, args []string) error {
+		Handler: func(cmd *clibase.Cmd, args []string) error {
 			var count atomic.Int32
 			var githubAuthed atomic.Bool
 			var gitlabAuthed atomic.Bool

@@ -11,8 +11,8 @@ import (
 	"github.com/coder/coder/cli/cliui"
 )
 
-func logout() *clibase.Command {
-	cmd := &clibase.Command{
+func logout() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:   "logout",
 		Short: "Unauthenticate your local session",
 		Handler: func(inv *clibase.Invokation) error {

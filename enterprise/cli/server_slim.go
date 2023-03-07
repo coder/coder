@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func server() *clibase.Command {
+func server() *clibase.Cmd {
 	cmd := agpl.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
 		return nil, nil, xerrors.Errorf("slim build does not support `coder server`")
 	})

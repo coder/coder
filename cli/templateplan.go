@@ -5,8 +5,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func templatePlan() *clibase.Command {
-	return &clibase.Command{
+func templatePlan() *clibase.Cmd {
+	return &clibase.Cmd{
 		Use:   "plan <directory>",
 		Args:  cobra.MinimumNArgs(1),
 		Short: "Plan a template push from the current directory",

@@ -10,9 +10,9 @@ import (
 )
 
 // nolint
-func deleteWorkspace() *clibase.Command {
+func deleteWorkspace() *clibase.Cmd {
 	var orphan bool
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "delete <workspace>",
 		Short:       "Delete a workspace",

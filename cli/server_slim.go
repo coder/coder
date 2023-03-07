@@ -13,8 +13,8 @@ import (
 	"github.com/coder/coder/coderd"
 )
 
-func Server(_ func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Command {
-	root := &clibase.Command{
+func Server(_ func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Cmd {
+	root := &clibase.Cmd{
 		Use:    "server",
 		Short:  "Start a Coder server",
 		Hidden: true,
@@ -25,7 +25,7 @@ func Server(_ func(context.Context, *coderd.Options) (*coderd.API, io.Closer, er
 	}
 
 	var pgRawURL bool
-	postgresBuiltinURLCmd := &clibase.Command{
+	postgresBuiltinURLCmd := &clibase.Cmd{
 		Use:    "postgres-builtin-url",
 		Short:  "Output the connection URL for the built-in PostgreSQL deployment.",
 		Hidden: true,
@@ -34,7 +34,7 @@ func Server(_ func(context.Context, *coderd.Options) (*coderd.API, io.Closer, er
 			return nil
 		},
 	}
-	postgresBuiltinServeCmd := &clibase.Command{
+	postgresBuiltinServeCmd := &clibase.Cmd{
 		Use:    "postgres-builtin-serve",
 		Short:  "Run the built-in PostgreSQL deployment.",
 		Hidden: true,
@@ -51,7 +51,7 @@ func Server(_ func(context.Context, *coderd.Options) (*coderd.API, io.Closer, er
 		newUserEmail              string
 		newUserPassword           string
 	)
-	createAdminUserCommand := &clibase.Command{
+	createAdminUserCommand := &clibase.Cmd{
 		Use:    "create-admin-user",
 		Short:  "Create a new admin user with the given username, email and password and adds it to every organization.",
 		Hidden: true,

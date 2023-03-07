@@ -6,8 +6,8 @@ import (
 	"gvisor.dev/gvisor/runsc/cmd"
 )
 
-func users() *clibase.Command {
-	cmd := &clibase.Command{
+func users() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Short:   "Manage users",
 		Use:     "users",
 		Aliases: []string{"user"},

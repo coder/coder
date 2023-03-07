@@ -39,7 +39,7 @@ func init() {
 	browser.Stdout = io.Discard
 }
 
-func login() *clibase.Command {
+func login() *clibase.Cmd {
 	const firstUserTrialEnv = "CODER_FIRST_USER_TRIAL"
 
 	var (
@@ -48,7 +48,7 @@ func login() *clibase.Command {
 		password string
 		trial    bool
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:   "login <url>",
 		Short: "Authenticate with Coder deployment",
 		Args:  cobra.MaximumNArgs(1),
@@ -294,7 +294,7 @@ func isWSL() (bool, error) {
 }
 
 // openURL opens the provided URL via user's default browser
-func openURL(cmd *clibase.Command, urlToOpen string) error {
+func openURL(cmd *clibase.Cmd, urlToOpen string) error {
 	noOpen, err := inv.ParsedFlags().GetBool(varNoOpen)
 	if err != nil {
 		panic(err)

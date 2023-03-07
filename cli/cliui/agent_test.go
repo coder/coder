@@ -24,7 +24,7 @@ func TestAgent(t *testing.T) {
 
 	var disconnected atomic.Bool
 	ptty := ptytest.New(t)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Handler: func(inv *clibase.Invokation) error {
 			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
 				WorkspaceName: "example",
@@ -70,7 +70,7 @@ func TestAgent_TimeoutWithTroubleshootingURL(t *testing.T) {
 	wantURL := "https://coder.com/troubleshoot"
 
 	var connected, timeout atomic.Bool
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Handler: func(inv *clibase.Invokation) error {
 			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
 				WorkspaceName: "example",
@@ -124,7 +124,7 @@ func TestAgent_StartupTimeout(t *testing.T) {
 	setStatus := func(s codersdk.WorkspaceAgentStatus) { status.Store(string(s)) }
 	setState := func(s codersdk.WorkspaceAgentLifecycle) { state.Store(string(s)) }
 
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Handler: func(inv *clibase.Invokation) error {
 			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
 				WorkspaceName: "example",
@@ -186,7 +186,7 @@ func TestAgent_StartErrorExit(t *testing.T) {
 	var status, state atomic.String
 	setStatus := func(s codersdk.WorkspaceAgentStatus) { status.Store(string(s)) }
 	setState := func(s codersdk.WorkspaceAgentLifecycle) { state.Store(string(s)) }
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Handler: func(inv *clibase.Invokation) error {
 			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
 				WorkspaceName: "example",
@@ -245,7 +245,7 @@ func TestAgent_NoWait(t *testing.T) {
 	var status, state atomic.String
 	setStatus := func(s codersdk.WorkspaceAgentStatus) { status.Store(string(s)) }
 	setState := func(s codersdk.WorkspaceAgentLifecycle) { state.Store(string(s)) }
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Handler: func(inv *clibase.Invokation) error {
 			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
 				WorkspaceName: "example",
@@ -318,7 +318,7 @@ func TestAgent_LoginBeforeReadyEnabled(t *testing.T) {
 	var status, state atomic.String
 	setStatus := func(s codersdk.WorkspaceAgentStatus) { status.Store(string(s)) }
 	setState := func(s codersdk.WorkspaceAgentLifecycle) { state.Store(string(s)) }
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Handler: func(inv *clibase.Invokation) error {
 			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
 				WorkspaceName: "example",

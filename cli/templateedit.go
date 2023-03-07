@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func templateEdit() *clibase.Command {
+func templateEdit() *clibase.Cmd {
 	var (
 		name                         string
 		displayName                  string
@@ -23,7 +23,7 @@ func templateEdit() *clibase.Command {
 		allowUserCancelWorkspaceJobs bool
 	)
 
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:        "edit <template> [flags]",
 		Middleware: clibase.RequireNArgs(1),
 		Short:      "Edit the metadata of a template by name.",

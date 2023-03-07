@@ -12,13 +12,13 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
-func userCreate() *clibase.Command {
+func userCreate() *clibase.Cmd {
 	var (
 		email    string
 		username string
 		password string
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use: "create",
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)

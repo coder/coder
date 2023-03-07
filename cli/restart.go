@@ -9,8 +9,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func restart() *clibase.Command {
-	cmd := &clibase.Command{
+func restart() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "restart <workspace>",
 		Short:       "Restart a workspace",

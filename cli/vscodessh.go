@@ -27,14 +27,14 @@ import (
 // This command needs to remain stable for compatibility with
 // various VS Code versions, so it's kept separate from our
 // standard SSH command.
-func vscodeSSH() *clibase.Command {
+func vscodeSSH() *clibase.Cmd {
 	var (
 		sessionTokenFile    string
 		urlFile             string
 		networkInfoDir      string
 		networkInfoInterval time.Duration
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		// A SSH config entry is added by the VS Code extension that
 		// passes %h to ProxyCommand. The prefix of `coder-vscode--`
 		// is a magical string represented in our VS Cod extension.

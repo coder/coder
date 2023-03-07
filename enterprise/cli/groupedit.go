@@ -14,14 +14,14 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func groupEdit() *clibase.Command {
+func groupEdit() *clibase.Cmd {
 	var (
 		avatarURL string
 		name      string
 		addUsers  []string
 		rmUsers   []string
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:        "edit <name>",
 		Short:      "Edit a user group",
 		Middleware: clibase.RequireNArgs(1),

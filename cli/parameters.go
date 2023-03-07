@@ -5,8 +5,8 @@ import (
 	"gvisor.dev/gvisor/runsc/cmd"
 )
 
-func parameters() *clibase.Command {
-	cmd := &clibase.Command{
+func parameters() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Short: "List parameters for a given scope",
 		Example: formatExamples(
 			example{

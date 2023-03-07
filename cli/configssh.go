@@ -132,7 +132,7 @@ func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (r
 	}
 }
 
-func configSSH() *clibase.Command {
+func configSSH() *clibase.Cmd {
 	var (
 		sshConfigFile    string
 		sshConfigOpts    sshConfigOptions
@@ -140,7 +140,7 @@ func configSSH() *clibase.Command {
 		dryRun           bool
 		skipProxyCommand bool
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
 		Short:       "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",

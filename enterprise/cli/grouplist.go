@@ -14,13 +14,13 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func groupList() *clibase.Command {
+func groupList() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]groupTableRow{}, nil),
 		cliui.JSONFormat(),
 	)
 
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:   "list",
 		Short: "List user groups",
 		Args:  cobra.NoArgs,

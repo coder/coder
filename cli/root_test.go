@@ -172,7 +172,7 @@ ExtractCommandPathsLoop:
 	}
 }
 
-func extractVisibleCommandPaths(cmdPath []string, cmds []*clibase.Command) [][]string {
+func extractVisibleCommandPaths(cmdPath []string, cmds []*clibase.Cmd) [][]string {
 	var cmdPaths [][]string
 	for _, c := range cmds {
 		if c.Hidden {

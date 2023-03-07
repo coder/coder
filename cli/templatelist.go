@@ -9,13 +9,13 @@ import (
 	"github.com/coder/coder/cli/cliui"
 )
 
-func templateList() *clibase.Command {
+func templateList() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]templateTableRow{}, []string{"name", "last updated", "used by"}),
 		cliui.JSONFormat(),
 	)
 
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:     "list",
 		Short:   "List all the templates available for the organization",
 		Aliases: []string{"ls"},

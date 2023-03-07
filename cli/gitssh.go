@@ -18,8 +18,8 @@ import (
 	"github.com/coder/coder/cli/cliui"
 )
 
-func gitssh() *clibase.Command {
-	cmd := &clibase.Command{
+func gitssh() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:    "gitssh",
 		Hidden: true,
 		Short:  `Wraps the "ssh" command and uses the coder gitssh key for authentication`,

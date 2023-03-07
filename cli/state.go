@@ -13,8 +13,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func state() *clibase.Command {
-	cmd := &clibase.Command{
+func state() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:   "state",
 		Short: "Manually manage Terraform state to fix broken workspaces",
 		Handler: func(inv *clibase.Invokation) error {
@@ -25,9 +25,9 @@ func state() *clibase.Command {
 	return cmd
 }
 
-func statePull() *clibase.Command {
+func statePull() *clibase.Cmd {
 	var buildNumber int
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:   "pull <workspace> [file]",
 		Short: "Pull a Terraform state file from a workspace.",
 		Args:  cobra.MinimumNArgs(1),
@@ -67,9 +67,9 @@ func statePull() *clibase.Command {
 	return cmd
 }
 
-func statePush() *clibase.Command {
+func statePush() *clibase.Cmd {
 	var buildNumber int
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:        "push <workspace> <file>",
 		Middleware: clibase.RequireNArgs(2),
 		Short:      "Push a Terraform state file to a workspace.",

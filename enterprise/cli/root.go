@@ -5,8 +5,8 @@ import (
 	"github.com/coder/coder/cli/clibase"
 )
 
-func enterpriseOnly() []*clibase.Command {
-	return []*clibase.Command{
+func enterpriseOnly() []*clibase.Cmd {
+	return []*clibase.Cmd{
 		server(),
 		features(),
 		licenses(),
@@ -15,7 +15,7 @@ func enterpriseOnly() []*clibase.Command {
 	}
 }
 
-func EnterpriseSubcommands() []*clibase.Command {
+func EnterpriseSubcommands() []*clibase.Cmd {
 	all := append(agpl.Core(), enterpriseOnly()...)
 	return all
 }

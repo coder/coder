@@ -9,8 +9,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func stop() *clibase.Command {
-	cmd := &clibase.Command{
+func stop() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "stop <workspace>",
 		Short:       "Stop a workspace",

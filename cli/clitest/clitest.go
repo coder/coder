@@ -47,7 +47,7 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 }
 
 func NewWithSubcommands(
-	t *testing.T, subcommands []*clibase.Command, args ...string,
+	t *testing.T, subcommands []*clibase.Cmd, args ...string,
 ) (*clibase.Invokation, config.Root) {
 	var root cli.RootCmd
 	cmd := root.Command(subcommands)

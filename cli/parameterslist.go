@@ -11,13 +11,13 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func parameterList() *clibase.Command {
+func parameterList() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]codersdk.Parameter{}, []string{"name", "scope", "destination scheme"}),
 		cliui.JSONFormat(),
 	)
 
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:        "list",
 		Aliases:    []string{"ls"},
 		Middleware: clibase.RequireNArgs(2),

@@ -8,14 +8,14 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func update() *clibase.Command {
+func update() *clibase.Cmd {
 	var (
 		parameterFile     string
 		richParameterFile string
 		alwaysPrompt      bool
 	)
 
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "update <workspace>",
 		Middleware:  clibase.RequireNArgs(1),

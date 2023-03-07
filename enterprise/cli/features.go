@@ -17,8 +17,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func features() *clibase.Command {
-	cmd := &clibase.Command{
+func features() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Short:   "List Enterprise features",
 		Use:     "features",
 		Aliases: []string{"feature"},
@@ -32,14 +32,14 @@ func features() *clibase.Command {
 	return cmd
 }
 
-func featuresList() *clibase.Command {
+func featuresList() *clibase.Cmd {
 	var (
 		featureColumns = []string{"Name", "Entitlement", "Enabled", "Limit", "Actual"}
 		columns        []string
 		outputFormat   string
 	)
 
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Handler: func(inv *clibase.Invokation) error {

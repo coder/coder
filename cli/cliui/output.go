@@ -49,7 +49,7 @@ func NewOutputFormatter(formats ...OutputFormat) *OutputFormatter {
 
 // AttachFlags attaches the --output flag to the given command, and any
 // additional flags required by the output formatters.
-func (f *OutputFormatter) AttachFlags(cmd *clibase.Command) *pflag.FlagSet {
+func (f *OutputFormatter) AttachFlags(cmd *clibase.Cmd) *pflag.FlagSet {
 	fs := cmd.Options.FlagSet()
 	for _, format := range f.formats {
 		format.AttachFlags(fs)

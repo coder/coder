@@ -9,8 +9,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func start() *clibase.Command {
-	cmd := &clibase.Command{
+func start() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "start <workspace>",
 		Short:       "Start a workspace",

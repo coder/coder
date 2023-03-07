@@ -33,8 +33,8 @@ import (
 
 const scaletestTracerName = "coder_scaletest"
 
-func scaletest() *clibase.Command {
-	cmd := &clibase.Command{
+func scaletest() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:   "scaletest",
 		Short: "Run a scale test against the Coder API",
 		Long:  "Perform scale tests against the Coder server.",
@@ -58,7 +58,7 @@ type scaletestTracingFlags struct {
 	tracePropagate       bool
 }
 
-func (s *scaletestTracingFlags) attach(cmd *clibase.Command) {
+func (s *scaletestTracingFlags) attach(cmd *clibase.Cmd) {
 	cliflag.BoolVarP(cmd.Flags(), &s.traceEnable, "trace", "", "CODER_LOADTEST_TRACE", false, "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md")
 	cliflag.BoolVarP(cmd.Flags(), &s.traceCoder, "trace-coder", "", "CODER_LOADTEST_TRACE_CODER", false, "Whether opentelemetry traces are sent to Coder. We recommend keeping this disabled unless we advise you to enable it.")
 	cliflag.StringVarP(cmd.Flags(), &s.traceHoneycombAPIKey, "trace-honeycomb-api-key", "", "CODER_LOADTEST_TRACE_HONEYCOMB_API_KEY", "", "Enables trace exporting to Honeycomb.io using the provided API key.")
@@ -101,7 +101,7 @@ type scaletestStrategyFlags struct {
 	timeoutPerJob time.Duration
 }
 
-func (s *scaletestStrategyFlags) attach(cmd *clibase.Command) {
+func (s *scaletestStrategyFlags) attach(cmd *clibase.Cmd) {
 	concurrencyLong, concurrencyEnv, concurrencyDescription := "concurrency", "CODER_LOADTEST_CONCURRENCY", "Number of concurrent jobs to run. 0 means unlimited."
 	timeoutLong, timeoutEnv, timeoutDescription := "timeout", "CODER_LOADTEST_TIMEOUT", "Timeout for the entire test run. 0 means unlimited."
 	jobTimeoutLong, jobTimeoutEnv, jobTimeoutDescription := "job-timeout", "CODER_LOADTEST_JOB_TIMEOUT", "Timeout per job. Jobs may take longer to complete under higher concurrency limits."
@@ -208,7 +208,7 @@ type scaletestOutputFlags struct {
 	outputSpecs []string
 }
 
-func (s *scaletestOutputFlags) attach(cmd *clibase.Command) {
+func (s *scaletestOutputFlags) attach(cmd *clibase.Cmd) {
 	cliflag.StringArrayVarP(cmd.Flags(), &s.outputSpecs, "output", "", "CODER_SCALETEST_OUTPUTS", []string{"text"}, `Output format specs in the format "<format>[:<path>]". Not specifying a path will default to stdout. Available formats: text, json.`)
 }
 
@@ -308,10 +308,10 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 	return nil
 }
 
-func scaletestCleanup() *clibase.Command {
+func scaletestCleanup() *clibase.Cmd {
 	cleanupStrategy := &scaletestStrategyFlags{cleanup: true}
 
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:   "cleanup",
 		Short: "Cleanup any orphaned scaletest resources",
 		Long:  "Cleanup scaletest workspaces, then cleanup scaletest users. The strategy flags will apply to each stage of the cleanup process.",
@@ -461,7 +461,7 @@ func scaletestCleanup() *clibase.Command {
 	return cmd
 }
 
-func scaletestCreateWorkspaces() *clibase.Command {
+func scaletestCreateWorkspaces() *clibase.Cmd {
 	var (
 		count          int
 		template       string
@@ -494,7 +494,7 @@ func scaletestCreateWorkspaces() *clibase.Command {
 		output          = &scaletestOutputFlags{}
 	)
 
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:   "create-workspaces",
 		Short: "Creates many workspaces and waits for them to be ready",
 		Long: `Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.

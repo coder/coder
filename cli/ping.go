@@ -15,14 +15,14 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func ping() *clibase.Command {
+func ping() *clibase.Cmd {
 	var (
 		pingNum     int
 		pingTimeout time.Duration
 		pingWait    time.Duration
 		verbose     bool
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "ping <workspace>",
 		Short:       "Ping a workspace",

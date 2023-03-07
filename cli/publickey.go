@@ -10,10 +10,10 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func publickey() *clibase.Command {
+func publickey() *clibase.Cmd {
 	var reset bool
 
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:     "publickey",
 		Aliases: []string{"pubkey"},
 		Short:   "Output your Coder public key used for Git operations",

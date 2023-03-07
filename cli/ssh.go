@@ -39,7 +39,7 @@ var (
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 )
 
-func ssh() *clibase.Command {
+func ssh() *clibase.Cmd {
 	var (
 		stdio          bool
 		shuffle        bool
@@ -49,7 +49,7 @@ func ssh() *clibase.Command {
 		wsPollInterval time.Duration
 		noWait         bool
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace>",
 		Short:       "Start a shell into a workspace",
@@ -258,7 +258,7 @@ func ssh() *clibase.Command {
 // getWorkspaceAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
 // if `shuffle` is true.
-func getWorkspaceAndAgent(ctx context.Context, cmd *clibase.Command, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+func getWorkspaceAndAgent(ctx context.Context, cmd *clibase.Cmd, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace      codersdk.Workspace
 		workspaceParts = strings.Split(in, ".")

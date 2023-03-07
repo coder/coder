@@ -55,8 +55,8 @@ When enabling scheduled stop, enter a duration in one of the following formats:
 `
 )
 
-func schedules() *clibase.Command {
-	scheduleCmd := &clibase.Command{
+func schedules() *clibase.Cmd {
+	scheduleCmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "schedule { show | start | stop | override } <workspace>",
 		Short:       "Schedule automated start and stop times for workspaces",
@@ -75,8 +75,8 @@ func schedules() *clibase.Command {
 	return scheduleCmd
 }
 
-func scheduleShow() *clibase.Command {
-	showCmd := &clibase.Command{
+func scheduleShow() *clibase.Cmd {
+	showCmd := &clibase.Cmd{
 		Use:        "show <workspace-name>",
 		Short:      "Show workspace schedule",
 		Long:       scheduleShowDescriptionLong,
@@ -98,8 +98,8 @@ func scheduleShow() *clibase.Command {
 	return showCmd
 }
 
-func scheduleStart() *clibase.Command {
-	cmd := &clibase.Command{
+func scheduleStart() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use: "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
 		Example: formatExamples(
 			example{
@@ -149,8 +149,8 @@ func scheduleStart() *clibase.Command {
 	return cmd
 }
 
-func scheduleStop() *clibase.Command {
-	return &clibase.Command{
+func scheduleStop() *clibase.Cmd {
+	return &clibase.Cmd{
 		Middleware: clibase.RequireNArgs(2),
 		Use:        "stop <workspace-name> { <duration> | manual }",
 		Example: formatExamples(
@@ -195,8 +195,8 @@ func scheduleStop() *clibase.Command {
 	}
 }
 
-func scheduleOverride() *clibase.Command {
-	overrideCmd := &clibase.Command{
+func scheduleOverride() *clibase.Cmd {
+	overrideCmd := &clibase.Cmd{
 		Middleware: clibase.RequireNArgs(2),
 		Use:        "override-stop <workspace-name> <duration from now>",
 		Example: formatExamples(

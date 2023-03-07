@@ -17,9 +17,9 @@ import (
 	"github.com/coder/coder/cli/cliui"
 )
 
-func dotfiles() *clibase.Command {
+func dotfiles() *clibase.Cmd {
 	var symlinkDir string
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:        "dotfiles [git_repo_url]",
 		Middleware: clibase.RequireNArgs(1),
 		Short:      "Checkout and install a dotfiles repository from a Git URL",

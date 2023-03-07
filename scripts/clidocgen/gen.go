@@ -56,7 +56,7 @@ func init() {
 			},
 			"parseEnv": parseEnv,
 			"stripEnv": stripEnv,
-			"commandURI": func(cmd *clibase.Command) string {
+			"commandURI": func(cmd *clibase.Cmd) string {
 				return strings.TrimSuffix(
 					fmtDocFilename(cmd),
 					".md",
@@ -67,7 +67,7 @@ func init() {
 	)
 }
 
-func writeCommand(w io.Writer, cmd *clibase.Command) error {
+func writeCommand(w io.Writer, cmd *clibase.Cmd) error {
 	var (
 		flags          []*pflag.Flag
 		inheritedFlags []*pflag.Flag
@@ -91,8 +91,8 @@ func writeCommand(w io.Writer, cmd *clibase.Command) error {
 		"Flags":          flags,
 		"InheritedFlags": inheritedFlags,
 		"AtRoot":         cmd.Parent() == nil,
-		"VisibleSubcommands": func() []*clibase.Command {
-			var scs []*clibase.Command
+		"VisibleSubcommands": func() []*clibase.Cmd {
+			var scs []*clibase.Cmd
 			for _, sub := range cmd.Commands() {
 				if sub.Hidden {
 					continue
@@ -122,7 +122,7 @@ func writeCommand(w io.Writer, cmd *clibase.Command) error {
 	return err
 }
 
-func fullCommandName(cmd *clibase.Command) string {
+func fullCommandName(cmd *clibase.Cmd) string {
 	name := cmd.Name()
 	if cmd.Parent() != nil {
 		return fullCommandName(cmd.Parent()) + " " + name
@@ -130,7 +130,7 @@ func fullCommandName(cmd *clibase.Command) string {
 	return name
 }
 
-func fmtDocFilename(cmd *clibase.Command) string {
+func fmtDocFilename(cmd *clibase.Cmd) string {
 	fullName := fullCommandName(cmd)
 	if fullName == "coder" {
 		// Special case for index.
@@ -140,7 +140,7 @@ func fmtDocFilename(cmd *clibase.Command) string {
 	return fmt.Sprintf("%s.md", name)
 }
 
-func generateDocsTree(cmd *clibase.Command, basePath string) error {
+func generateDocsTree(cmd *clibase.Cmd, basePath string) error {
 	if cmd.Hidden {
 		return nil
 	}

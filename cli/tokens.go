@@ -15,8 +15,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func tokens() *clibase.Command {
-	cmd := &clibase.Command{
+func tokens() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:     "tokens",
 		Short:   "Manage personal access tokens",
 		Long:    "Tokens are used to authenticate automated clients to Coder.",
@@ -48,12 +48,12 @@ func tokens() *clibase.Command {
 	return cmd
 }
 
-func createToken() *clibase.Command {
+func createToken() *clibase.Cmd {
 	var (
 		tokenLifetime time.Duration
 		name          string
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:   "create",
 		Short: "Create a token",
 		Handler: func(inv *clibase.Invokation) error {
@@ -116,7 +116,7 @@ func tokenListRowFromToken(token codersdk.APIKeyWithOwner) tokenListRow {
 	}
 }
 
-func listTokens() *clibase.Command {
+func listTokens() *clibase.Cmd {
 	// we only display the 'owner' column if the --all argument is passed in
 	defaultCols := []string{"id", "name", "last used", "expires at", "created at"}
 	if slices.Contains(os.Args, "-a") || slices.Contains(os.Args, "--all") {
@@ -131,7 +131,7 @@ func listTokens() *clibase.Command {
 			cliui.JSONFormat(),
 		)
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List tokens",
@@ -177,8 +177,8 @@ func listTokens() *clibase.Command {
 	return cmd
 }
 
-func removeToken() *clibase.Command {
-	cmd := &clibase.Command{
+func removeToken() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:        "remove [name]",
 		Aliases:    []string{"rm"},
 		Short:      "Delete a token",

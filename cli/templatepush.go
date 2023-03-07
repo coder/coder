@@ -34,7 +34,7 @@ func (pf *templateUploadFlags) stdin() bool {
 	return pf.directory == "-"
 }
 
-func (pf *templateUploadFlags) upload(cmd *clibase.Command, client *codersdk.Client) (*codersdk.UploadResponse, error) {
+func (pf *templateUploadFlags) upload(cmd *clibase.Cmd, client *codersdk.Client) (*codersdk.UploadResponse, error) {
 	var content io.Reader
 	if pf.stdin() {
 		content = inv.Stdin
@@ -87,7 +87,7 @@ func (pf *templateUploadFlags) templateName(inv.Args []string) (string, error) {
 	return name, nil
 }
 
-func templatePush() *clibase.Command {
+func templatePush() *clibase.Cmd {
 	var (
 		versionName     string
 		provisioner     string
@@ -99,7 +99,7 @@ func templatePush() *clibase.Command {
 		uploadFlags     templateUploadFlags
 	)
 
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:   "push [template]",
 		Args:  cobra.MaximumNArgs(1),
 		Short: "Push a new template version from the current directory or as specified by flag",

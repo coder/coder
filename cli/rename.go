@@ -10,8 +10,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func rename() *clibase.Command {
-	cmd := &clibase.Command{
+func rename() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "rename <workspace> <new name>",
 		Short:       "Rename a workspace",

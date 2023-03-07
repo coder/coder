@@ -28,14 +28,14 @@ import (
 	"github.com/coder/coder/codersdk/agentsdk"
 )
 
-func workspaceAgent() *clibase.Command {
+func workspaceAgent() *clibase.Cmd {
 	var (
 		auth         string
 		logDir       string
 		pprofAddress string
 		noReap       bool
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use: "agent",
 		// This command isn't useful to manually execute.
 		Hidden: true,

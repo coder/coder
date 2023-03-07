@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func create() *clibase.Command {
+func create() *clibase.Cmd {
 	var (
 		parameterFile     string
 		richParameterFile string
@@ -25,7 +25,7 @@ func create() *clibase.Command {
 		stopAfter         time.Duration
 		workspaceName     string
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "create [name]",
 		Short:       "Create a workspace",
@@ -193,7 +193,7 @@ type buildParameters struct {
 
 // prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
 // Any missing params will be prompted to the user. It supports legacy and rich parameters.
-func prepWorkspaceBuild(cmd *clibase.Command, client *codersdk.Client, inv.Args prepWorkspaceBuildArgs) (*buildParameters, error) {
+func prepWorkspaceBuild(cmd *clibase.Cmd, client *codersdk.Client, inv.Args prepWorkspaceBuildArgs) (*buildParameters, error) {
 	ctx := inv.Context()
 
 	var useRichParameters bool

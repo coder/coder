@@ -24,8 +24,8 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func provisionerDaemons() *clibase.Command {
-	cmd := &clibase.Command{
+func provisionerDaemons() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:   "provisionerd",
 		Short: "Manage provisioner daemons",
 	}
@@ -34,14 +34,14 @@ func provisionerDaemons() *clibase.Command {
 	return cmd
 }
 
-func provisionerDaemonStart() *clibase.Command {
+func provisionerDaemonStart() *clibase.Cmd {
 	var (
 		cacheDir     string
 		rawTags      []string
 		pollInterval time.Duration
 		pollJitter   time.Duration
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:   "start",
 		Short: "Run a provisioner daemon",
 		Handler: func(inv *clibase.Invokation) error {

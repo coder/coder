@@ -21,7 +21,7 @@ import (
 	"github.com/coder/coder/provisionerd"
 )
 
-func templateCreate() *clibase.Command {
+func templateCreate() *clibase.Cmd {
 	var (
 		provisioner     string
 		provisionerTags []string
@@ -32,7 +32,7 @@ func templateCreate() *clibase.Command {
 
 		uploadFlags templateUploadFlags
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:   "create [name]",
 		Short: "Create a template from the current directory or as specified by flag",
 		Args:  cobra.MaximumNArgs(1),
@@ -153,7 +153,7 @@ type createValidTemplateVersionArgs struct {
 	ProvisionerTags map[string]string
 }
 
-func createValidTemplateVersion(cmd *clibase.Command, inv.Args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
+func createValidTemplateVersion(cmd *clibase.Cmd, inv.Args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
 	client := inv.Args.Client
 
 	variableValues, err := loadVariableValuesFromFile(inv.Args.VariablesFile)

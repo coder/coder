@@ -33,7 +33,7 @@ func TestSelect(t *testing.T) {
 
 func newSelect(ptty *ptytest.PTY, opts cliui.SelectOptions) (string, error) {
 	value := ""
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Handler: func(inv *clibase.Invokation) error {
 			var err error
 			value, err = cliui.Select(inv, opts)
@@ -75,7 +75,7 @@ func TestRichSelect(t *testing.T) {
 
 func newRichSelect(ptty *ptytest.PTY, opts cliui.RichSelectOptions) (string, error) {
 	value := ""
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Handler: func(inv *clibase.Invokation) error {
 			richOption, err := cliui.RichSelect(inv, opts)
 			if err == nil {

@@ -8,9 +8,9 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func show(root *RootCmd) *clibase.Command {
+func show(root *RootCmd) *clibase.Cmd {
 	var client *codersdk.Client
-	return &clibase.Command{
+	return &clibase.Cmd{
 		Use:   "show <workspace>",
 		Short: "Display details of a workspace's resources and agents",
 		Middleware: clibase.Chain(

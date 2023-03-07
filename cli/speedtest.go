@@ -17,13 +17,13 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func speedtest() *clibase.Command {
+func speedtest() *clibase.Cmd {
 	var (
 		direct    bool
 		duration  time.Duration
 		direction string
 	)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "speedtest <workspace>",
 		Middleware:  clibase.RequireNArgs(1),

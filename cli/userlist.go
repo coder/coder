@@ -13,13 +13,13 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func userList() *clibase.Command {
+func userList() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created_at", "status"}),
 		cliui.JSONFormat(),
 	)
 
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Handler: func(inv *clibase.Invokation) error {
@@ -46,13 +46,13 @@ func userList() *clibase.Command {
 	return cmd
 }
 
-func userSingle() *clibase.Command {
+func userSingle() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		&userShowFormat{},
 		cliui.JSONFormat(),
 	)
 
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:   "show <username|user_id|'me'>",
 		Short: "Show a single user. Use 'me' to indicate the currently authenticated user.",
 		Example: formatExamples(
@@ -114,7 +114,7 @@ func (*userShowFormat) ID() string {
 }
 
 // AttachFlags implements OutputFormat.
-func (*userShowFormat) AttachFlags(_ *clibase.Command) {}
+func (*userShowFormat) AttachFlags(_ *clibase.Cmd) {}
 
 // Format implements OutputFormat.
 func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error) {

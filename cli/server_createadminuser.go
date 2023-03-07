@@ -23,7 +23,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func newCreateAdminUserCommand() *clibase.Command {
+func newCreateAdminUserCommand() *clibase.Cmd {
 	var (
 		newUserDBURL              string
 		newUserSSHKeygenAlgorithm string
@@ -31,7 +31,7 @@ func newCreateAdminUserCommand() *clibase.Command {
 		newUserEmail              string
 		newUserPassword           string
 	)
-	createAdminUserCommand := &clibase.Command{
+	createAdminUserCommand := &clibase.Cmd{
 		Use:   "create-admin-user",
 		Short: "Create a new admin user with the given username, email and password and adds it to every organization.",
 		Handler: func(inv *clibase.Invokation) error {

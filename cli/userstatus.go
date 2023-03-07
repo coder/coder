@@ -11,7 +11,7 @@ import (
 )
 
 // createUserStatusCommand sets a user status.
-func createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Command {
+func createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Cmd {
 	var verb string
 	var pastVerb string
 	var aliases []string
@@ -32,7 +32,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Command {
 	}
 
 	var columns []string
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:        fmt.Sprintf("%s <username|user_id>", verb),
 		Short:      short,
 		Middleware: clibase.RequireNArgs(1),,

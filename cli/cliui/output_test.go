@@ -93,7 +93,7 @@ func Test_OutputFormatter(t *testing.T) {
 			},
 		)
 
-		cmd := &clibase.Command{}
+		cmd := &clibase.Cmd{}
 		fs := f.AttachFlags(cmd)
 
 		selected, err := fs.GetString("output")

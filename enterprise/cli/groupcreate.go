@@ -12,9 +12,9 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func groupCreate() *clibase.Command {
+func groupCreate() *clibase.Cmd {
 	var avatarURL string
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Use:        "create <name>",
 		Short:      "Create a user group",
 		Middleware: clibase.RequireNArgs(1),

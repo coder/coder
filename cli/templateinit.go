@@ -13,8 +13,8 @@ import (
 	"github.com/coder/coder/provisionersdk"
 )
 
-func templateInit() *clibase.Command {
-	return &clibase.Command{
+func templateInit() *clibase.Cmd {
+	return &clibase.Cmd{
 		Use:   "init [directory]",
 		Short: "Get started with a templated template.",
 		Handler: func(inv *clibase.Invokation) error {

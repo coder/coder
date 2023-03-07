@@ -125,7 +125,7 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 	}
 	jobLock := sync.Mutex{}
 	logs := make(chan codersdk.ProvisionerJobLog, 1)
-	cmd := &clibase.Command{
+	cmd := &clibase.Cmd{
 		Handler: func(inv *clibase.Invokation) error {
 			return cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 				FetchInterval: time.Millisecond,

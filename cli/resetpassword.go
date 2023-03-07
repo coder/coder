@@ -14,10 +14,10 @@ import (
 	"github.com/coder/coder/coderd/userpassword"
 )
 
-func resetPassword() *clibase.Command {
+func resetPassword() *clibase.Cmd {
 	var postgresURL string
 
-	root := &clibase.Command{
+	root := &clibase.Cmd{
 		Use:        "reset-password <username>",
 		Short:      "Directly connect to the database to reset a user's password",
 		Middleware: clibase.RequireNArgs(1),

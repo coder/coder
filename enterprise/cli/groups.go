@@ -1,9 +1,12 @@
 package cli
 
-import "github.com/coder/coder/cli/clibase"
+import (
+	"github.com/coder/coder/cli/clibase"
+	"gvisor.dev/gvisor/runsc/cmd"
+)
 
-func groups() *clibase.Command {
-	cmd := &clibase.Command{
+func groups() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:     "groups",
 		Short:   "Manage groups",
 		Aliases: []string{"group"},
