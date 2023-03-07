@@ -243,6 +243,10 @@ const useStyles = makeStyles((theme) => ({
       width: 16,
       height: 16,
     },
+
+    [theme.breakpoints.down("md")]: {
+      display: "none",
+    },
   },
   container: {
     position: "sticky",
@@ -256,6 +260,12 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 12,
     gap: theme.spacing(4),
     borderTop: `1px solid ${theme.palette.divider}`,
+
+    [theme.breakpoints.down("md")]: {
+      flexDirection: "column",
+      gap: theme.spacing(1),
+      alignItems: "left",
+    },
   },
   group: {
     display: "flex",
