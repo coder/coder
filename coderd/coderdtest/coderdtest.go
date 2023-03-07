@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -81,6 +82,10 @@ import (
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/coder/testutil"
 )
+
+// AppSigningKey is a 64-byte key used to sign JWTs for workspace app tickets in
+// tests.
+var AppSigningKey = must(hex.DecodeString("64656164626565666465616462656566646561646265656664656164626565666465616462656566646561646265656664656164626565666465616462656566"))
 
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
@@ -330,6 +335,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			DeploymentConfig:            options.DeploymentConfig,
 			UpdateCheckOptions:          options.UpdateCheckOptions,
 			SwaggerEndpoint:             options.SwaggerEndpoint,
+			AppSigningKey:               AppSigningKey,
 		}
 }
 

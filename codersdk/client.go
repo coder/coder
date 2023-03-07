@@ -38,6 +38,15 @@ const (
 	// OAuth2RedirectCookie is the name of the cookie that stores the oauth2 redirect.
 	OAuth2RedirectCookie = "oauth_redirect"
 
+	// DevURLSessionTokenCookie is the name of the cookie that stores a devurl
+	// token on app domains.
+	//nolint:gosec
+	DevURLSessionTokenCookie = "coder_devurl_session_token"
+	// DevURLSessionTicketCookie is the name of the cookie that stores a
+	// temporary JWT that can be used to authenticate instead of the session
+	// token.
+	DevURLSessionTicketCookie = "coder_devurl_session_ticket"
+
 	// BypassRatelimitHeader is the custom header to use to bypass ratelimits.
 	// Only owners can bypass rate limits. This is typically used for scale testing.
 	// nolint: gosec

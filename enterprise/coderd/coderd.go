@@ -63,7 +63,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
-	apiKeyMiddleware := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:              options.Database,
 		OAuth2Configs:   oauthConfigs,
 		RedirectToLogin: false,

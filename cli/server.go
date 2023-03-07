@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -587,19 +588,62 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 				defer options.Pubsub.Close()
 			}
 
-			deploymentID, err := options.Database.GetDeploymentID(ctx)
-			if errors.Is(err, sql.ErrNoRows) {
-				err = nil
-			}
-			if err != nil {
-				return xerrors.Errorf("get deployment id: %w", err)
-			}
-			if deploymentID == "" {
-				deploymentID = uuid.NewString()
-				err = options.Database.InsertDeploymentID(ctx, deploymentID)
+			var deploymentID string
+			err = options.Database.InTx(func(tx database.Store) error {
+				// This will block until the lock is acquired, and will be
+				// automatically released when the transaction ends.
+				err := tx.AcquireLock(ctx, database.LockIDDeploymentSetup)
 				if err != nil {
-					return xerrors.Errorf("set deployment id: %w", err)
+					return xerrors.Errorf("acquire lock: %w", err)
 				}
+
+				deploymentID, err = tx.GetDeploymentID(ctx)
+				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+					return xerrors.Errorf("get deployment id: %w", err)
+				}
+				if deploymentID == "" {
+					deploymentID = uuid.NewString()
+					err = tx.InsertDeploymentID(ctx, deploymentID)
+					if err != nil {
+						return xerrors.Errorf("set deployment id: %w", err)
+					}
+				}
+
+				// Read the app signing key from the DB. We store it hex
+				// encoded since the config table uses strings for the value and
+				// we don't want to deal with automatic encoding issues.
+				appSigningKeyStr, err := tx.GetAppSigningKey(ctx)
+				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+					return xerrors.Errorf("get app signing key: %w", err)
+				}
+				if appSigningKeyStr == "" {
+					// Generate 64 byte secure random string.
+					b := make([]byte, 64)
+					_, err := rand.Read(b)
+					if err != nil {
+						return xerrors.Errorf("generate fresh app signing key: %w", err)
+					}
+
+					appSigningKeyStr = hex.EncodeToString(b)
+					err = tx.InsertAppSigningKey(ctx, appSigningKeyStr)
+					if err != nil {
+						return xerrors.Errorf("insert freshly generated app signing key to database: %w", err)
+					}
+				}
+
+				appSigningKey, err := hex.DecodeString(appSigningKeyStr)
+				if err != nil {
+					return xerrors.Errorf("decode app signing key from database as hex: %w", err)
+				}
+				if len(appSigningKey) != 64 {
+					return xerrors.Errorf("app signing key must be 64 bytes, key in database is %d bytes", len(appSigningKey))
+				}
+
+				options.AppSigningKey = appSigningKey
+				return nil
+			}, nil)
+			if err != nil {
+				return err
 			}
 
 			// Disable telemetry if the in-memory database is used unless explicitly defined!
