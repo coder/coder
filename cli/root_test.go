@@ -178,7 +178,7 @@ func extractVisibleCommandPaths(cmdPath []string, cmds []*cobra.Command) [][]str
 		if c.Hidden {
 			continue
 		}
-		// TODO: re-enable after bigcli migration.
+		// TODO: re-enable after clibase migration.
 		if c.Name() == "server" {
 			continue
 		}
