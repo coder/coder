@@ -20,6 +20,8 @@ import dayjs from "dayjs"
 import CollectedIcon from "@material-ui/icons/Compare"
 import RefreshIcon from "@material-ui/icons/Refresh"
 
+export const bannerHeight = 36
+
 export interface DeploymentBannerViewProps {
   fetchStats?: () => void
   stats?: DeploymentStats
@@ -250,6 +252,7 @@ const useStyles = makeStyles((theme) => ({
   },
   container: {
     position: "sticky",
+    height: bannerHeight,
     bottom: 0,
     zIndex: 1,
     padding: theme.spacing(1, 2),

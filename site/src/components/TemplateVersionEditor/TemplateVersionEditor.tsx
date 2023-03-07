@@ -13,6 +13,7 @@ import {
 } from "api/typesGenerated"
 import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
+import { bannerHeight } from "components/DeploymentBanner/DeploymentBannerView"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import { FC, useCallback, useEffect, useRef, useState } from "react"
@@ -44,6 +45,7 @@ export interface TemplateVersionEditorProps {
   defaultFileTree: FileTree
   buildLogs?: ProvisionerJobLog[]
   resources?: WorkspaceResource[]
+  deploymentBannerVisible?: boolean
   disablePreview: boolean
   disableUpdate: boolean
   onPreview: (files: FileTree) => void
@@ -68,6 +70,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   disablePreview,
   disableUpdate,
   template,
+  deploymentBannerVisible,
   templateVersion,
   defaultFileTree,
   onPreview,
@@ -146,6 +149,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   const styles = useStyles({
     templateVersionSucceeded,
     showBuildLogs,
+    deploymentBannerVisible,
   })
 
   return (
@@ -385,10 +389,14 @@ const useStyles = makeStyles<
   {
     templateVersionSucceeded: boolean
     showBuildLogs: boolean
+    deploymentBannerVisible: boolean
   }
 >((theme) => ({
   root: {
-    height: `calc(100vh - ${navHeight}px)`,
+    height: (props) =>
+      `calc(100vh - ${
+        navHeight + (props.deploymentBannerVisible ? bannerHeight : 0)
+      }px)`,
     background: theme.palette.background.default,
     flex: 1,
     display: "flex",
