@@ -123,7 +123,9 @@ func New(options Options) io.Closer {
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
 		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
-		connStatsChan:          make(chan *agentsdk.Stats, 1),
+		// TODO: This is a temporary hack to make tests not flake.
+		// @kylecarbs has a better solution in here: https://github.com/coder/coder/pull/6469
+		connStatsChan: make(chan *agentsdk.Stats, 8),
 	}
 	a.init(ctx)
 	return a
