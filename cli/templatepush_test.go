@@ -49,8 +49,8 @@ func TestTemplatePush(t *testing.T) {
 		cmd, root := clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 
 		execDone := make(chan error)
 		go func() {
@@ -128,8 +128,8 @@ func TestTemplatePush(t *testing.T) {
 		cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 
 		execDone := make(chan error)
 		go func() {
@@ -182,8 +182,8 @@ func TestTemplatePush(t *testing.T) {
 		cmd, root := clitest.New(t, "templates", "push", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 
 		execDone := make(chan error)
 		go func() {
@@ -235,7 +235,7 @@ func TestTemplatePush(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
 		cmd.SetIn(bytes.NewReader(source))
-		cmd.SetOut(pty.Output())
+		cmd.Stdout = pty.Output()
 
 		execDone := make(chan error)
 		go func() {
@@ -293,8 +293,8 @@ func TestTemplatePush(t *testing.T) {
 			cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--variables-file", variablesFile.Name())
 			clitest.SetupConfig(t, client, root)
 			pty := ptytest.New(t)
-			cmd.SetIn(pty.Input())
-			cmd.SetOut(pty.Output())
+			cmd.Stdin = pty.Input()
+			cmd.Stdout = pty.Output()
 
 			execDone := make(chan error)
 			go func() {
@@ -352,8 +352,8 @@ func TestTemplatePush(t *testing.T) {
 			cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 			clitest.SetupConfig(t, client, root)
 			pty := ptytest.New(t)
-			cmd.SetIn(pty.Input())
-			cmd.SetOut(pty.Output())
+			cmd.Stdin = pty.Input()
+			cmd.Stdout = pty.Output()
 
 			execDone := make(chan error)
 			go func() {
@@ -399,8 +399,8 @@ func TestTemplatePush(t *testing.T) {
 			cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 			clitest.SetupConfig(t, client, root)
 			pty := ptytest.New(t)
-			cmd.SetIn(pty.Input())
-			cmd.SetOut(pty.Output())
+			cmd.Stdin = pty.Input()
+			cmd.Stdout = pty.Output()
 
 			execDone := make(chan error)
 			go func() {
@@ -459,8 +459,8 @@ func TestTemplatePush(t *testing.T) {
 			cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--variable", "second_variable=foobar")
 			clitest.SetupConfig(t, client, root)
 			pty := ptytest.New(t)
-			cmd.SetIn(pty.Input())
-			cmd.SetOut(pty.Output())
+			cmd.Stdin = pty.Input()
+			cmd.Stdout = pty.Output()
 
 			execDone := make(chan error)
 			go func() {

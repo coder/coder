@@ -62,7 +62,7 @@ func TestGroupEdit(t *testing.T) {
 
 		pty := ptytest.New(t)
 
-		cmd.SetOut(pty.Output())
+		cmd.Stdout = pty.Output()
 		clitest.SetupConfig(t, client, root)
 
 		err = cmd.Run()

@@ -34,15 +34,15 @@ func TestTemplateList(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()
 
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.RunContext(ctx)
+			errC <- cmd.WithContext(ctx).Run()
 		}()
 
 		// expect that templates are listed alphabetically
@@ -75,7 +75,7 @@ func TestTemplateList(t *testing.T) {
 
 		out := bytes.NewBuffer(nil)
 		cmd.SetOut(out)
-		err := cmd.RunContext(ctx)
+		err := cmd.WithContext(ctx).Run()
 		require.NoError(t, err)
 
 		var templates []codersdk.Template
@@ -91,7 +91,7 @@ func TestTemplateList(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
+		cmd.Stdin = pty.Input()
 		cmd.SetErr(pty.Output())
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -99,7 +99,7 @@ func TestTemplateList(t *testing.T) {
 
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.RunContext(ctx)
+			errC <- cmd.WithContext(ctx).Run()
 		}()
 
 		require.NoError(t, <-errC)

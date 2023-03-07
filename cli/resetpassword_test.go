@@ -46,7 +46,7 @@ func TestResetPassword(t *testing.T) {
 	)
 	go func() {
 		defer close(serverDone)
-		err = servercmd.RunContext(ctx)
+		err = servercmd.WithContext(ctx).Run()
 		assert.NoError(t, err)
 	}()
 	var rawURL string
@@ -71,8 +71,8 @@ func TestResetPassword(t *testing.T) {
 	clitest.SetupConfig(t, client, cmdCfg)
 	cmdDone := make(chan struct{})
 	pty := ptytest.New(t)
-	resetCmd.SetIn(pty.Input())
-	resetCmd.SetOut(pty.Output())
+	resetcmd.Stdin = pty.Input()
+	resetcmd.Stdout = pty.Output()
 	go func() {
 		defer close(cmdDone)
 		err = resetcmd.Run()

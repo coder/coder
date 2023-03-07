@@ -132,7 +132,7 @@ ExtractCommandPathsLoop:
 			clitest.SetupConfig(t, rootClient, cfg)
 			cmd.SetOut(&buf)
 			assert.NoError(t, err)
-			err = cmd.RunContext(ctx)
+			err = cmd.WithContext(ctx).Run()
 			err2 := os.Chdir(wd)
 			require.NoError(t, err)
 			require.NoError(t, err2)

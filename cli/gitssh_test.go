@@ -78,7 +78,7 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, str
 
 	errC := make(chan error, 1)
 	go func() {
-		errC <- cmd.RunContext(ctx)
+		errC <- cmd.WithContext(ctx).Run()
 	}()
 	t.Cleanup(func() { require.NoError(t, <-errC) })
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
@@ -166,7 +166,7 @@ func TestGitSSH(t *testing.T) {
 			"-o", "IdentitiesOnly=yes",
 			"127.0.0.1",
 		)
-		err := cmd.RunContext(ctx)
+		err := cmd.WithContext(ctx).Run()
 		require.NoError(t, err)
 		require.EqualValues(t, 1, inc)
 
@@ -229,9 +229,9 @@ func TestGitSSH(t *testing.T) {
 		}
 		// Test authentication via local private key.
 		cmd, _ := clitest.New(t, cmdArgs...)
-		cmd.SetOut(pty.Output())
+		cmd.Stdout = pty.Output()
 		cmd.SetErr(pty.Output())
-		err = cmd.RunContext(ctx)
+		err = cmd.WithContext(ctx).Run()
 		require.NoError(t, err)
 		select {
 		case key := <-authkey:
@@ -246,9 +246,9 @@ func TestGitSSH(t *testing.T) {
 
 		// With the local file deleted, the coder key should be used.
 		cmd, _ = clitest.New(t, cmdArgs...)
-		cmd.SetOut(pty.Output())
+		cmd.Stdout = pty.Output()
 		cmd.SetErr(pty.Output())
-		err = cmd.RunContext(ctx)
+		err = cmd.WithContext(ctx).Run()
 		require.NoError(t, err)
 		select {
 		case key := <-authkey:

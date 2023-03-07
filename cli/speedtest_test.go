@@ -51,7 +51,7 @@ func TestSpeedtest(t *testing.T) {
 	cmd, root := clitest.New(t, "speedtest", workspace.Name)
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)
-	cmd.SetOut(pty.Output())
+	cmd.Stdout = pty.Output()
 	cmd.SetErr(pty.Output())
 
 	ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -59,7 +59,7 @@ func TestSpeedtest(t *testing.T) {
 
 	ctx = cli.ContextWithLogger(ctx, slogtest.Make(t, nil).Named("speedtest").Leveled(slog.LevelDebug))
 	cmdDone := tGo(t, func() {
-		err := cmd.RunContext(ctx)
+		err := cmd.WithContext(ctx).Run()
 		assert.NoError(t, err)
 	})
 	<-cmdDone

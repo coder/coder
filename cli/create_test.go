@@ -49,8 +49,8 @@ func TestCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 		go func() {
 			defer close(doneChan)
 			err := cmd.Run()
@@ -98,7 +98,7 @@ func TestCreate(t *testing.T) {
 		cmdCtx, done := context.WithTimeout(context.Background(), testutil.WaitLong)
 		go func() {
 			defer done()
-			err := cmd.RunContext(cmdCtx)
+			err := cmd.WithContext(cmdCtx).Run()
 			assert.NoError(t, err)
 		}()
 		// No pty interaction needed since we use the -y skip prompt flag
@@ -117,8 +117,8 @@ func TestCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 		go func() {
 			defer close(doneChan)
 			err := cmd.Run()
@@ -161,8 +161,8 @@ func TestCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 		go func() {
 			defer close(doneChan)
 			err := cmd.Run()
@@ -206,8 +206,8 @@ func TestCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 		go func() {
 			defer close(doneChan)
 			err := cmd.Run()
@@ -251,8 +251,8 @@ func TestCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 		go func() {
 			defer close(doneChan)
 			err := cmd.Run()
@@ -318,8 +318,8 @@ func TestCreate(t *testing.T) {
 		cmd, root := clitest.New(t, "create", "test", "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 
 		err = cmd.Run()
 		require.Error(t, err)
@@ -380,8 +380,8 @@ func TestCreateWithRichParameters(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 		go func() {
 			defer close(doneChan)
 			err := cmd.Run()
@@ -425,8 +425,8 @@ func TestCreateWithRichParameters(t *testing.T) {
 
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 		go func() {
 			defer close(doneChan)
 			err := cmd.Run()
@@ -508,8 +508,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 		go func() {
 			defer close(doneChan)
 			err := cmd.Run()
@@ -545,8 +545,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 		go func() {
 			defer close(doneChan)
 			err := cmd.Run()
@@ -585,8 +585,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 		go func() {
 			defer close(doneChan)
 			err := cmd.Run()
@@ -647,8 +647,8 @@ func TestCreateWithGitAuth(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	doneChan := make(chan struct{})
 	pty := ptytest.New(t)
-	cmd.SetIn(pty.Input())
-	cmd.SetOut(pty.Output())
+	cmd.Stdin = pty.Input()
+	cmd.Stdout = pty.Output()
 	go func() {
 		defer close(doneChan)
 		err := cmd.Run()

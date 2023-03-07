@@ -252,7 +252,7 @@ func TestScheduleOverride(t *testing.T) {
 		cmd.SetOut(stdoutBuf)
 
 		// When: we execute `coder schedule override workspace <number without units>`
-		err = cmd.RunContext(ctx)
+		err = cmd.WithContext(ctx).Run()
 		require.NoError(t, err)
 
 		// Then: the deadline of the latest build is updated assuming the units are minutes
@@ -292,7 +292,7 @@ func TestScheduleOverride(t *testing.T) {
 		cmd.SetOut(stdoutBuf)
 
 		// When: we execute `coder bump workspace <not a number>`
-		err = cmd.RunContext(ctx)
+		err = cmd.WithContext(ctx).Run()
 		// Then: the command fails
 		require.ErrorContains(t, err, "invalid duration")
 	})
@@ -344,7 +344,7 @@ func TestScheduleOverride(t *testing.T) {
 		cmd.SetOut(stdoutBuf)
 
 		// When: we execute `coder bump workspace``
-		err = cmd.RunContext(ctx)
+		err = cmd.WithContext(ctx).Run()
 		require.Error(t, err)
 
 		// Then: nothing happens and the deadline remains unset

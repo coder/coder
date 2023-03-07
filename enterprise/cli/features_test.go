@@ -25,8 +25,8 @@ func TestFeaturesList(t *testing.T) {
 		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "features", "list")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 		errC := make(chan error)
 		go func() {
 			errC <- cmd.Run()

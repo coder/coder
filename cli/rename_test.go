@@ -33,12 +33,12 @@ func TestRename(t *testing.T) {
 	cmd, root := clitest.New(t, "rename", workspace.Name, want, "--yes")
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)
-	cmd.SetIn(pty.Input())
-	cmd.SetOut(pty.Output())
+	cmd.Stdin = pty.Input()
+	cmd.Stdout = pty.Output()
 
 	errC := make(chan error, 1)
 	go func() {
-		errC <- cmd.RunContext(ctx)
+		errC <- cmd.WithContext(ctx).Run()
 	}()
 
 	pty.ExpectMatch("confirm rename:")

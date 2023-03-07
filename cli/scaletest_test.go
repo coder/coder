@@ -77,12 +77,12 @@ param3: 1
 		)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.SetOut(pty.Output())
+		cmd.Stdout = pty.Output()
 		cmd.SetErr(pty.Output())
 
 		done := make(chan any)
 		go func() {
-			err := cmd.RunContext(ctx)
+			err := cmd.WithContext(ctx).Run()
 			assert.NoError(t, err)
 			close(done)
 		}()
@@ -155,12 +155,12 @@ param3: 1
 		)
 		clitest.SetupConfig(t, client, root)
 		pty = ptytest.New(t)
-		cmd.SetOut(pty.Output())
+		cmd.Stdout = pty.Output()
 		cmd.SetErr(pty.Output())
 
 		done = make(chan any)
 		go func() {
-			err := cmd.RunContext(ctx)
+			err := cmd.WithContext(ctx).Run()
 			assert.NoError(t, err)
 			close(done)
 		}()

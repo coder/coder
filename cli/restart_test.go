@@ -31,12 +31,12 @@ func TestRestart(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		cmd.Stdin = pty.Input()
+		cmd.Stdout = pty.Output()
 
 		done := make(chan error, 1)
 		go func() {
-			done <- cmd.RunContext(ctx)
+			done <- cmd.WithContext(ctx).Run()
 		}()
 		pty.ExpectMatch("Stopping workspace")
 		pty.ExpectMatch("Starting workspace")
