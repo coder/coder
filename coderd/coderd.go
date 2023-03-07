@@ -288,7 +288,7 @@ func New(options *Options) *API {
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 
-	apiKeyMiddleware := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                          options.Database,
 		OAuth2Configs:               oauthConfigs,
 		RedirectToLogin:             false,
@@ -296,7 +296,7 @@ func New(options *Options) *API {
 		Optional:                    false,
 	})
 	// Same as above but it redirects to the login page.
-	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                          options.Database,
 		OAuth2Configs:               oauthConfigs,
 		RedirectToLogin:             true,

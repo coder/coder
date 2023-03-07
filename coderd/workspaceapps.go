@@ -99,25 +99,20 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 	// username. The resolveWorkspaceApp function does not accept @me for
 	// security purposes.
 	if chi.URLParam(r, "user") == codersdk.Me {
-		// This is janky, but sadly necessary to extract the user's API key and
-		// user details in a manner consistent of the rest of the API.
-		mw := chi.Middlewares([]func(http.Handler) http.Handler{
-			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
-				DB: api.Database,
-				OAuth2Configs: &httpmw.OAuth2Configs{
-					Github: api.GithubOAuth2Config,
-					OIDC:   api.OIDCConfig,
-				},
-				RedirectToLogin:             true,
-				DisableSessionExpiryRefresh: api.DeploymentConfig.DisableSessionExpiryRefresh.Value,
-			}),
-			httpmw.ExtractUserParam(api.Database, true),
+		_, roles, ok := httpmw.ExtractAPIKey(rw, r, httpmw.ExtractAPIKeyConfig{
+			DB: api.Database,
+			OAuth2Configs: &httpmw.OAuth2Configs{
+				Github: api.GithubOAuth2Config,
+				OIDC:   api.OIDCConfig,
+			},
+			RedirectToLogin:             true,
+			DisableSessionExpiryRefresh: api.DeploymentConfig.DisableSessionExpiryRefresh.Value,
 		})
+		if !ok {
+			return
+		}
 
-		mw.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			user := httpmw.UserParam(r)
-			http.Redirect(rw, r, strings.Replace(r.URL.Path, "@me", "@"+user.Username, 1), http.StatusTemporaryRedirect)
-		}).ServeHTTP(rw, r)
+		http.Redirect(rw, r, strings.Replace(r.URL.Path, "@me", "@"+roles.Username, 1), http.StatusTemporaryRedirect)
 		return
 	}
 
