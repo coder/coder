@@ -87,7 +87,11 @@ const useStyles = makeStyles((theme) => ({
       color: theme.palette.text.primary,
     },
 
-    "& p": {
+    "& p:not(.MuiFormHelperText-root)": {
+      margin: 0,
+    },
+
+    "& > p": {
       margin: theme.spacing(1, 0),
     },
   },

@@ -143,6 +143,8 @@ message Agent {
 	string motd_file = 13;
 	bool login_before_ready = 14;
 	int32 startup_script_timeout_seconds = 15;
+	string shutdown_script = 16;
+	int32 shutdown_script_timeout_seconds = 17;
 }
 
 enum AppSharingLevel {
