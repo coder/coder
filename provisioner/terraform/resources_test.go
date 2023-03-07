@@ -297,6 +297,7 @@ func TestConvertResources(t *testing.T) {
 					Name:  "Second Option",
 					Value: "second",
 				}},
+				Required: true,
 			}},
 		},
 		"git-auth-providers": {

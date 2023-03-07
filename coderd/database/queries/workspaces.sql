@@ -317,6 +317,20 @@ SET
 WHERE
 	id = $1;
 
+-- name: UpdateWorkspaceTTLToBeWithinTemplateMax :exec
+UPDATE
+	workspaces
+SET
+	ttl = LEAST(ttl, @template_max_ttl::bigint)
+WHERE
+	template_id = @template_id
+	-- LEAST() does not pick NULL, so filter it out as we don't want to set a
+	-- TTL on the workspace if it's unset.
+	--
+	-- During build time, the template max TTL will still be used if the
+	-- workspace TTL is NULL.
+	AND ttl IS NOT NULL;
+
 -- name: GetDeploymentWorkspaceStats :one
 WITH workspaces_with_jobs AS (
 	SELECT

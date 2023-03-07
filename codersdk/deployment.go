@@ -35,6 +35,7 @@ const (
 	FeatureMultipleGitAuth            FeatureName = "multiple_git_auth"
 	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
 	FeatureAppearance                 FeatureName = "appearance"
+	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -48,6 +49,7 @@ var FeatureNames = []FeatureName{
 	FeatureMultipleGitAuth,
 	FeatureExternalProvisionerDaemons,
 	FeatureAppearance,
+	FeatureAdvancedTemplateScheduling,
 }
 
 // Humanize returns the feature name in a human-readable format.

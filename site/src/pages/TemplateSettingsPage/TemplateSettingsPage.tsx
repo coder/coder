@@ -1,4 +1,5 @@
 import { useMachine } from "@xstate/react"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
@@ -27,6 +28,9 @@ export const TemplateSettingsPage: FC = () => {
     saveTemplateSettingsError,
     getTemplateError,
   } = state.context
+  const { entitlements } = useDashboard()
+  const canSetMaxTTL =
+    entitlements.features["advanced_template_scheduling"].enabled
 
   return (
     <>
@@ -34,6 +38,7 @@ export const TemplateSettingsPage: FC = () => {
         <title>{pageTitle(t("title"))}</title>
       </Helmet>
       <TemplateSettingsPageView
+        canSetMaxTTL={canSetMaxTTL}
         isSubmitting={state.hasTag("submitting")}
         template={template}
         errors={{

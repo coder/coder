@@ -119,10 +119,11 @@ INSERT INTO
 		job_id,
 		provisioner_state,
 		deadline,
+		max_deadline,
 		reason
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
 
 -- name: UpdateWorkspaceBuildByID :one
 UPDATE
@@ -130,7 +131,8 @@ UPDATE
 SET
 	updated_at = $2,
 	provisioner_state = $3,
-	deadline = $4
+	deadline = $4,
+	max_deadline = $5
 WHERE
 	id = $1 RETURNING *;
 

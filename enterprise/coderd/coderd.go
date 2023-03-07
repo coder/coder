@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/enterprise/derpmesh"
@@ -252,6 +253,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalProvisionerDaemons: true,
+			codersdk.FeatureAdvancedTemplateScheduling: true,
 		})
 	if err != nil {
 		return err
@@ -307,6 +309,17 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			api.AGPL.QuotaCommitter.Store(&ptr)
 		} else {
 			api.AGPL.QuotaCommitter.Store(nil)
+		}
+	}
+
+	if changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); changed {
+		if enabled {
+			store := &enterpriseTemplateScheduleStore{}
+			ptr := schedule.TemplateScheduleStore(store)
+			api.AGPL.TemplateScheduleStore.Store(&ptr)
+		} else {
+			store := schedule.NewAGPLTemplateScheduleStore()
+			api.AGPL.TemplateScheduleStore.Store(&store)
 		}
 	}
 

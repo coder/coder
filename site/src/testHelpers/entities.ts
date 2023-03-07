@@ -287,6 +287,7 @@ export const MockTemplate: TypesGen.Template = {
   },
   description: "This is a test description.",
   default_ttl_ms: 24 * 60 * 60 * 1000,
+  max_ttl_ms: 2 * 24 * 60 * 60 * 1000,
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
@@ -760,6 +761,7 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
     mutable: true,
     icon: "/icon/folder.svg",
     options: [],
+    required: true,
   }
 
 export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
@@ -775,6 +777,7 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
     validation_min: 1,
     validation_max: 3,
     validation_monotonic: "increasing",
+    required: true,
   }
 
 export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
@@ -789,6 +792,7 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
     options: [],
     validation_error: "No way!",
     validation_regex: "^[a-z]{3}$",
+    required: true,
   }
 
 export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
@@ -801,6 +805,7 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
     mutable: false,
     icon: "/icon/database.svg",
     options: [],
+    required: true,
   }
 
 export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
@@ -816,6 +821,7 @@ export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
     validation_min: 1,
     validation_max: 10,
     validation_monotonic: "decreasing",
+    required: true,
   }
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {

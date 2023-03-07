@@ -921,7 +921,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if req.RxBytes == 0 && req.TxBytes == 0 {
+	// An empty stat means it's just looking for the report interval.
+	if req.ConnectionsByProto == nil {
 		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.StatsResponse{
 			ReportInterval: api.AgentStatsRefreshInterval,
 		})
@@ -935,7 +936,9 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		slog.F("payload", req),
 	)
 
-	activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID)
+	if req.ConnectionCount > 0 {
+		activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID)
+	}
 
 	payload, err := json.Marshal(req.ConnectionsByProto)
 	if err != nil {
@@ -968,13 +971,15 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err = api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
-		ID:         workspace.ID,
-		LastUsedAt: now,
-	})
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
+	if req.ConnectionCount > 0 {
+		err = api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+			ID:         workspace.ID,
+			LastUsedAt: now,
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.StatsResponse{
