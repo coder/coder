@@ -293,7 +293,7 @@ func (q *fakeQuerier) GetDeploymentWorkspaceAgentStats(_ context.Context, create
 	for _, agentStat := range agentStatsCreatedAfter {
 		stat.WorkspaceRxBytes += agentStat.RxBytes
 		stat.WorkspaceTxBytes += agentStat.TxBytes
-		latencies = append(latencies, float64(agentStat.ConnectionMedianLatencyMS))
+		latencies = append(latencies, agentStat.ConnectionMedianLatencyMS)
 	}
 
 	tryPercentile := func(fs []float64, p float64) float64 {
@@ -1029,7 +1029,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		if arg.Status != "" {
-			build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+			build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
 			if err != nil {
 				return nil, xerrors.Errorf("get latest build: %w", err)
 			}
@@ -1118,7 +1118,7 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		if arg.HasAgent != "" {
-			build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+			build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
 			if err != nil {
 				return nil, xerrors.Errorf("get latest build: %w", err)
 			}
@@ -1424,10 +1424,14 @@ func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUI
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	return q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspaceID)
+}
+
+func (q *fakeQuerier) getLatestWorkspaceBuildByWorkspaceIDNoLock(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	var row database.WorkspaceBuild
 	var buildNum int32 = -1
 	for _, workspaceBuild := range q.workspaceBuilds {
@@ -3612,7 +3616,7 @@ func (q *fakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database
 
 	stat := database.GetDeploymentWorkspaceStatsRow{}
 	for _, workspace := range q.workspaces {
-		build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+		build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
 		if err != nil {
 			return stat, err
 		}

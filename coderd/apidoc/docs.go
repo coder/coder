@@ -6685,14 +6685,16 @@ const docTemplate = `{
             "properties": {
                 "aggregated_since": {
                     "description": "AggregatedFrom is the time in which stats are aggregated from.\nThis might be back in time a specific duration or interval.",
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "building_workspaces": {
                     "type": "integer"
                 },
                 "collected_at": {
                     "description": "CollectedAt is the time in which stats are collected at.",
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "failed_workspaces": {
                     "type": "integer"
@@ -6702,7 +6704,8 @@ const docTemplate = `{
                 },
                 "refreshing_at": {
                     "description": "RefreshingAt is the time when the next batch of stats will\nbe refreshed.",
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "running_workspaces": {
                     "type": "integer"

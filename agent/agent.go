@@ -1272,7 +1272,6 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 			a.logger.Info(ctx, "skipping stat because nothing changed")
 			return
 		}
-		a.latestStat.Store(stats)
 
 		select {
 		case a.connStatsChan <- stats:
