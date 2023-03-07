@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+	"gvisor.dev/gvisor/runsc/cmd"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
@@ -43,9 +43,9 @@ func templateVersionsList() *clibase.Command {
 	)
 
 	cmd := &clibase.Command{
-		Use:   "list <template>",
-		Args:  cobra.ExactArgs(1),
-		Short: "List all the versions of the specified template",
+		Use:        "list <template>",
+		Middleware: clibase.RequireNArgs(1),
+		Short:      "List all the versions of the specified template",
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
@@ -55,7 +55,7 @@ func templateVersionsList() *clibase.Command {
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
-			template, err := client.TemplateByName(inv.Context(), organization.ID, args[0])
+			template, err := client.TemplateByName(inv.Context(), organization.ID, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get template by name: %w", err)
 			}
@@ -74,7 +74,7 @@ func templateVersionsList() *clibase.Command {
 				return xerrors.Errorf("render table: %w", err)
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}

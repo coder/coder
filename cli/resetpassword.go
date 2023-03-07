@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -19,11 +18,11 @@ func resetPassword() *clibase.Command {
 	var postgresURL string
 
 	root := &clibase.Command{
-		Use:   "reset-password <username>",
-		Short: "Directly connect to the database to reset a user's password",
-		Args:  cobra.ExactArgs(1),
+		Use:        "reset-password <username>",
+		Short:      "Directly connect to the database to reset a user's password",
+		Middleware: clibase.RequireNArgs(1),
 		Handler: func(inv *clibase.Invokation) error {
-			username := args[0]
+			username := inv.Args[0]
 
 			sqlDB, err := sql.Open("postgres", postgresURL)
 			if err != nil {
@@ -48,7 +47,7 @@ func resetPassword() *clibase.Command {
 				return xerrors.Errorf("retrieving user: %w", err)
 			}
 
-			password, err := cliui.Prompt(cmd, cliui.PromptOptions{
+			password, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:   "Enter new " + cliui.Styles.Field.Render("password") + ":",
 				Secret: true,
 				Validate: func(s string) error {
@@ -58,7 +57,7 @@ func resetPassword() *clibase.Command {
 			if err != nil {
 				return xerrors.Errorf("password prompt: %w", err)
 			}
-			confirmedPassword, err := cliui.Prompt(cmd, cliui.PromptOptions{
+			confirmedPassword, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:     "Confirm " + cliui.Styles.Field.Render("password") + ":",
 				Secret:   true,
 				Validate: cliui.ValidateNotEmpty,
@@ -83,7 +82,7 @@ func resetPassword() *clibase.Command {
 				return xerrors.Errorf("updating password: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nPassword has been reset for user %s!\n", cliui.Styles.Keyword.Render(user.Username))
+			_, _ = fmt.Fprintf(inv.Stdout, "\nPassword has been reset for user %s!\n", cliui.Styles.Keyword.Render(user.Username))
 			return nil
 		},
 	}

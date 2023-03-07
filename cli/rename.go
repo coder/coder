@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -16,22 +15,22 @@ func rename() *clibase.Command {
 		Annotations: workspaceCommand,
 		Use:         "rename <workspace> <new name>",
 		Short:       "Rename a workspace",
-		Args:        cobra.ExactArgs(2),
+		Middleware:  clibase.RequireNArgs(2),
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}
-			workspace, err := namedWorkspace(cmd, client, args[0])
+			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n\n",
+			_, _ = fmt.Fprintf(inv.Stdout, "%s\n\n",
 				cliui.Styles.Wrap.Render("WARNING: A rename can result in data loss if a resource references the workspace name in the template (e.g volumes). Please backup any data before proceeding."),
 			)
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "See: %s\n\n", "https://coder.com/docs/coder-oss/latest/templates/resource-persistence#%EF%B8%8F-persistence-pitfalls")
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+			_, _ = fmt.Fprintf(inv.Stdout, "See: %s\n\n", "https://coder.com/docs/coder-oss/latest/templates/resource-persistence#%EF%B8%8F-persistence-pitfalls")
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text: fmt.Sprintf("Type %q to confirm rename:", workspace.Name),
 				Validate: func(s string) error {
 					if s == workspace.Name {
@@ -45,7 +44,7 @@ func rename() *clibase.Command {
 			}
 
 			err = client.UpdateWorkspace(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceRequest{
-				Name: args[1],
+				Name: inv.Args[1],
 			})
 			if err != nil {
 				return xerrors.Errorf("rename workspace: %w", err)
@@ -54,7 +53,7 @@ func rename() *clibase.Command {
 		},
 	}
 
-	cliui.AllowSkipPrompt(cmd)
+	cliui.AllowSkipPrompt(inv)
 
 	return cmd
 }

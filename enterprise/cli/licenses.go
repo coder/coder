@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+	"gvisor.dev/gvisor/runsc/cmd"
 
 	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
@@ -46,7 +47,7 @@ func licenseAdd() *clibase.Command {
 	cmd := &clibase.Command{
 		Use:   "add [-f file | -l license]",
 		Short: "Add license to Coder deployment",
-		Args:  cobra.ExactArgs(0),
+		Middleware: clibase.RequireNArgs(0),
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {
@@ -58,7 +59,7 @@ func licenseAdd() *clibase.Command {
 				return xerrors.New("only one of (--file, --license) may be specified")
 
 			case filename == "" && license == "":
-				license, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				license, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:     "Paste license:",
 					Secret:   true,
 					Validate: validJWT,
@@ -70,7 +71,7 @@ func licenseAdd() *clibase.Command {
 			case filename != "" && license == "":
 				var r io.Reader
 				if filename == "-" {
-					r = cmd.InOrStdin()
+					r = inv.Stdin
 				} else {
 					f, err := os.Open(filename)
 					if err != nil {
@@ -99,11 +100,11 @@ func licenseAdd() *clibase.Command {
 				return err
 			}
 			if debug {
-				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc := json.NewEncoder(inv.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(licResp)
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "License with ID %d added\n", licResp.ID)
+			_, _ = fmt.Fprintf(inv.Stdout, "License with ID %d added\n", licResp.ID)
 			return nil
 		},
 	}
@@ -122,10 +123,10 @@ func validJWT(s string) error {
 
 func licensesList() *clibase.Command {
 	cmd := &clibase.Command{
-		Use:     "list",
-		Short:   "List licenses (including expired)",
-		Aliases: []string{"ls"},
-		Args:    cobra.ExactArgs(0),
+		Use:        "list",
+		Short:      "List licenses (including expired)",
+		Aliases:    []string{"ls"},
+		Middleware: clibase.RequireNArgs(0),,
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {
@@ -141,7 +142,7 @@ func licensesList() *clibase.Command {
 				licenses = make([]codersdk.License, 0)
 			}
 
-			enc := json.NewEncoder(cmd.OutOrStdout())
+			enc := json.NewEncoder(inv.Stdout)
 			enc.SetIndent("", "  ")
 			return enc.Encode(licenses)
 		},
@@ -151,24 +152,24 @@ func licensesList() *clibase.Command {
 
 func licenseDelete() *clibase.Command {
 	cmd := &clibase.Command{
-		Use:     "delete <id>",
-		Short:   "Delete license by ID",
-		Aliases: []string{"del", "rm"},
-		Args:    cobra.ExactArgs(1),
+		Use:        "delete <id>",
+		Short:      "Delete license by ID",
+		Aliases:    []string{"del", "rm"},
+		Middleware: clibase.RequireNArgs(1),,
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {
 				return err
 			}
-			id, err := strconv.ParseInt(args[0], 10, 32)
+			id, err := strconv.ParseInt(inv.Args[0], 10, 32)
 			if err != nil {
-				return xerrors.Errorf("license ID must be an integer: %s", args[0])
+				return xerrors.Errorf("license ID must be an integer: %s", inv.Args[0])
 			}
 			err = client.DeleteLicense(inv.Context(), int32(id))
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "License with ID %d deleted\n", id)
+			_, _ = fmt.Fprintf(inv.Stdout, "License with ID %d deleted\n", id)
 			return nil
 		},
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"golang.org/x/xerrors"
+	"gvisor.dev/gvisor/runsc/cmd"
 
 	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
@@ -77,7 +78,7 @@ func featuresList() *clibase.Command {
 				return xerrors.Errorf(`unknown output format %q, only "table" and "json" are supported`, outputFormat)
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}

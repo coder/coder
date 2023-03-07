@@ -40,12 +40,12 @@ func create() *clibase.Command {
 				return err
 			}
 
-			if len(args) >= 1 {
-				workspaceName = args[0]
+			if len(inv.Args) >= 1 {
+				workspaceName = inv.Args[0]
 			}
 
 			if workspaceName == "" {
-				workspaceName, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				workspaceName, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Specify a name for your workspace:",
 					Validate: func(workspaceName string) error {
 						_, err = client.WorkspaceByOwnerAndName(inv.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
@@ -67,7 +67,7 @@ func create() *clibase.Command {
 
 			var template codersdk.Template
 			if templateName == "" {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Select a template below to preview the provisioned infrastructure:"))
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Wrap.Render("Select a template below to preview the provisioned infrastructure:"))
 
 				templates, err := client.TemplatesByOrganization(inv.Context(), organization.ID)
 				if err != nil {
@@ -98,7 +98,7 @@ func create() *clibase.Command {
 				}
 
 				// Move the cursor up a single line for nicer display!
-				option, err := cliui.Select(cmd, cliui.SelectOptions{
+				option, err := cliui.Select(inv, cliui.SelectOptions{
 					Options:    templateNames,
 					HideSearch: true,
 				})
@@ -134,7 +134,7 @@ func create() *clibase.Command {
 				return err
 			}
 
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Confirm create?",
 				IsConfirm: true,
 			})
@@ -154,17 +154,17 @@ func create() *clibase.Command {
 				return err
 			}
 
-			err = cliui.WorkspaceBuild(inv.Context(), cmd.OutOrStdout(), client, workspace.LatestBuild.ID)
+			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, workspace.LatestBuild.ID)
 			if err != nil {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace has been created at %s!\n", cliui.Styles.Keyword.Render(workspace.Name), cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "\nThe %s workspace has been created at %s!\n", cliui.Styles.Keyword.Render(workspace.Name), cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}
 
-	cliui.AllowSkipPrompt(cmd)
+	cliui.AllowSkipPrompt(inv)
 	cliflag.StringVarP(cmd.Flags(), &templateName, "template", "t", "CODER_TEMPLATE_NAME", "", "Specify a template name.")
 	cliflag.StringVarP(cmd.Flags(), &parameterFile, "parameter-file", "", "CODER_PARAMETER_FILE", "", "Specify a file path with parameter values.")
 	cliflag.StringVarP(cmd.Flags(), &richParameterFile, "rich-parameter-file", "", "CODER_RICH_PARAMETER_FILE", "", "Specify a file path with values for rich parameters defined in the template.")
@@ -193,16 +193,16 @@ type buildParameters struct {
 
 // prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
 // Any missing params will be prompted to the user. It supports legacy and rich parameters.
-func prepWorkspaceBuild(cmd *clibase.Command, client *codersdk.Client, args prepWorkspaceBuildArgs) (*buildParameters, error) {
+func prepWorkspaceBuild(cmd *clibase.Command, client *codersdk.Client, inv.Args prepWorkspaceBuildArgs) (*buildParameters, error) {
 	ctx := inv.Context()
 
 	var useRichParameters bool
-	if len(args.ExistingRichParams) > 0 && len(args.RichParameterFile) > 0 {
+	if len(inv.Args.ExistingRichParams) > 0 && len(inv.Args.RichParameterFile) > 0 {
 		useRichParameters = true
 	}
 
 	var useLegacyParameters bool
-	if len(args.ExistingParams) > 0 || len(args.ParameterFile) > 0 {
+	if len(inv.Args.ExistingParams) > 0 || len(inv.Args.ParameterFile) > 0 {
 		useLegacyParameters = true
 	}
 
@@ -210,7 +210,7 @@ func prepWorkspaceBuild(cmd *clibase.Command, client *codersdk.Client, args prep
 		return nil, xerrors.Errorf("Rich parameters can't be used together with legacy parameters.")
 	}
 
-	templateVersion, err := client.TemplateVersion(ctx, args.Template.ActiveVersionID)
+	templateVersion, err := client.TemplateVersion(ctx, inv.Args.Template.ActiveVersionID)
 	if err != nil {
 		return nil, err
 	}
@@ -224,10 +224,10 @@ func prepWorkspaceBuild(cmd *clibase.Command, client *codersdk.Client, args prep
 	// parameterMapFromFile can be nil if parameter file is not specified
 	var parameterMapFromFile map[string]string
 	useParamFile := false
-	if args.ParameterFile != "" {
+	if inv.Args.ParameterFile != "" {
 		useParamFile = true
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
-		parameterMapFromFile, err = createParameterMapFromFile(args.ParameterFile)
+		_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
+		parameterMapFromFile, err = createParameterMapFromFile(inv.Args.ParameterFile)
 		if err != nil {
 			return nil, err
 		}
@@ -240,13 +240,13 @@ PromptParamLoop:
 			continue
 		}
 		if !disclaimerPrinted {
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
 			disclaimerPrinted = true
 		}
 
 		// Param file is all or nothing
 		if !useParamFile {
-			for _, e := range args.ExistingParams {
+			for _, e := range inv.Args.ExistingParams {
 				if e.Name == parameterSchema.Name {
 					// If the param already exists, we do not need to prompt it again.
 					// The workspace scope will reuse params for each build.
@@ -269,7 +269,7 @@ PromptParamLoop:
 	}
 
 	if disclaimerPrinted {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout())
+		_, _ = fmt.Fprintln(inv.Stdout)
 	}
 
 	// Rich parameters
@@ -280,10 +280,10 @@ PromptParamLoop:
 
 	parameterMapFromFile = map[string]string{}
 	useParamFile = false
-	if args.RichParameterFile != "" {
+	if inv.Args.RichParameterFile != "" {
 		useParamFile = true
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the rich parameter file.")+"\r\n")
-		parameterMapFromFile, err = createParameterMapFromFile(args.RichParameterFile)
+		_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("Attempting to read the variables from the rich parameter file.")+"\r\n")
+		parameterMapFromFile, err = createParameterMapFromFile(inv.Args.RichParameterFile)
 		if err != nil {
 			return nil, err
 		}
@@ -293,13 +293,13 @@ PromptParamLoop:
 PromptRichParamLoop:
 	for _, templateVersionParameter := range templateVersionParameters {
 		if !disclaimerPrinted {
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
 			disclaimerPrinted = true
 		}
 
 		// Param file is all or nothing
 		if !useParamFile {
-			for _, e := range args.ExistingRichParams {
+			for _, e := range inv.Args.ExistingRichParams {
 				if e.Name == templateVersionParameter.Name {
 					// If the param already exists, we do not need to prompt it again.
 					// The workspace scope will reuse params for each build.
@@ -308,8 +308,8 @@ PromptRichParamLoop:
 			}
 		}
 
-		if args.UpdateWorkspace && !templateVersionParameter.Mutable {
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Warn.Render(fmt.Sprintf(`Parameter %q is not mutable, so can't be customized after workspace creation.`, templateVersionParameter.Name)))
+		if inv.Args.UpdateWorkspace && !templateVersionParameter.Mutable {
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Warn.Render(fmt.Sprintf(`Parameter %q is not mutable, so can't be customized after workspace creation.`, templateVersionParameter.Name)))
 			continue
 		}
 
@@ -322,10 +322,10 @@ PromptRichParamLoop:
 	}
 
 	if disclaimerPrinted {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout())
+		_, _ = fmt.Fprintln(inv.Stdout)
 	}
 
-	err = cliui.GitAuth(ctx, cmd.OutOrStdout(), cliui.GitAuthOptions{
+	err = cliui.GitAuth(ctx, inv.Stdout, cliui.GitAuthOptions{
 		Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionGitAuth, error) {
 			return client.TemplateVersionGitAuth(ctx, templateVersion.ID)
 		},
@@ -336,15 +336,15 @@ PromptRichParamLoop:
 
 	// Run a dry-run with the given parameters to check correctness
 	dryRun, err := client.CreateTemplateVersionDryRun(inv.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
-		WorkspaceName:       args.NewWorkspaceName,
+		WorkspaceName:       inv.Args.NewWorkspaceName,
 		ParameterValues:     legacyParameters,
 		RichParameterValues: richParameters,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
 	}
-	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Planning workspace...")
-	err = cliui.ProvisionerJob(inv.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+	_, _ = fmt.Fprintln(inv.Stdout, "Planning workspace...")
+	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
 			return client.TemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
 		},
@@ -368,8 +368,8 @@ PromptRichParamLoop:
 		return nil, xerrors.Errorf("get workspace dry-run resources: %w", err)
 	}
 
-	err = cliui.WorkspaceResources(cmd.OutOrStdout(), resources, cliui.WorkspaceResourcesOptions{
-		WorkspaceName: args.NewWorkspaceName,
+	err = cliui.WorkspaceResources(inv.Stdout, resources, cliui.WorkspaceResourcesOptions{
+		WorkspaceName: inv.Args.NewWorkspaceName,
 		// Since agents haven't connected yet, hiding this makes more sense.
 		HideAgentState: true,
 		Title:          "Workspace Preview",

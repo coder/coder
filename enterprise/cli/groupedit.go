@@ -5,7 +5,6 @@ import (
 	"net/mail"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
@@ -23,13 +22,13 @@ func groupEdit() *clibase.Command {
 		rmUsers   []string
 	)
 	cmd := &clibase.Command{
-		Use:   "edit <name>",
-		Short: "Edit a user group",
-		Args:  cobra.ExactArgs(1),
+		Use:        "edit <name>",
+		Short:      "Edit a user group",
+		Middleware: clibase.RequireNArgs(1),
 		Handler: func(inv *clibase.Invokation) error {
 			var (
 				ctx       = inv.Context()
-				groupName = args[0]
+				groupName = inv.Args[0]
 			)
 
 			client, err := agpl.CreateClient(cmd)
@@ -75,7 +74,7 @@ func groupEdit() *clibase.Command {
 				return xerrors.Errorf("patch group: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Successfully patched group %s!\n", cliui.Styles.Keyword.Render(group.Name))
+			_, _ = fmt.Fprintf(inv.Stdout, "Successfully patched group %s!\n", cliui.Styles.Keyword.Render(group.Name))
 			return nil
 		},
 	}

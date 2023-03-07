@@ -30,19 +30,19 @@ func TestTemplateList(t *testing.T) {
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, secondVersion.ID)
 		secondTemplate := coderdtest.CreateTemplate(t, client, user.OrganizationID, secondVersion.ID)
 
-		cmd, root := clitest.New(t, "templates", "list")
+		inv, root := clitest.New(t, "templates", "list")
 		clitest.SetupConfig(t, client, root)
 
 		pty := ptytest.New(t)
-		cmd.Stdin = pty.Input()
-		cmd.Stdout = pty.Output()
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()
 
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.WithContext(ctx).Run()
+			errC <- inv.WithContext(ctx).Run()
 		}()
 
 		// expect that templates are listed alphabetically
@@ -67,15 +67,15 @@ func TestTemplateList(t *testing.T) {
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, secondVersion.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, secondVersion.ID)
 
-		cmd, root := clitest.New(t, "templates", "list", "--output=json")
+		inv, root := clitest.New(t, "templates", "list", "--output=json")
 		clitest.SetupConfig(t, client, root)
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()
 
 		out := bytes.NewBuffer(nil)
-		cmd.Stdout = out
-		err := cmd.WithContext(ctx).Run()
+		inv.Stdout = out
+		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
 		var templates []codersdk.Template
@@ -87,19 +87,19 @@ func TestTemplateList(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{})
 		coderdtest.CreateFirstUser(t, client)
 
-		cmd, root := clitest.New(t, "templates", "list")
+		inv, root := clitest.New(t, "templates", "list")
 		clitest.SetupConfig(t, client, root)
 
 		pty := ptytest.New(t)
-		cmd.Stdin = pty.Input()
-		cmd.Stderr = pty.Output()
+		inv.Stdin = pty.Input()
+		inv.Stderr = pty.Output()
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()
 
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.WithContext(ctx).Run()
+			errC <- inv.WithContext(ctx).Run()
 		}()
 
 		require.NoError(t, <-errC)

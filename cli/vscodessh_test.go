@@ -46,7 +46,7 @@ func TestVSCodeSSH(t *testing.T) {
 	err = afero.WriteFile(fs, "/token", []byte(client.SessionToken()), 0o600)
 	require.NoError(t, err)
 
-	cmd, _ := clitest.New(t,
+	inv, _ := clitest.New(t,
 		"vscodessh",
 		"--url-file", "/url",
 		"--session-token-file", "/token",
@@ -56,7 +56,7 @@ func TestVSCodeSSH(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		//nolint // The above seems reasonable for a one-off test.
-		err := cmd.RunContext(context.WithValue(ctx, "fs", fs))
+		err := inv.WithContext(context.WithValue(ctx, "fs", fs)).Run()
 		if err != nil {
 			assert.ErrorIs(t, err, context.Canceled)
 		}

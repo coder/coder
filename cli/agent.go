@@ -43,7 +43,7 @@ func workspaceAgent() *clibase.Command {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			rawURL, err := cmd.Flags().GetString(varAgentURL)
+			rawURL, err := inv.ParsedFlags().GetString(varAgentURL)
 			if err != nil {
 				return xerrors.Errorf("CODER_AGENT_URL must be set: %w", err)
 			}
@@ -129,7 +129,7 @@ func workspaceAgent() *clibase.Command {
 			var exchangeToken func(context.Context) (agentsdk.AuthenticateResponse, error)
 			switch auth {
 			case "token":
-				token, err := cmd.Flags().GetString(varAgentToken)
+				token, err := inv.ParsedFlags().GetString(varAgentToken)
 				if err != nil {
 					return xerrors.Errorf("CODER_AGENT_TOKEN must be set for token auth: %w", err)
 				}

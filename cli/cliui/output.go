@@ -6,9 +6,10 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/coder/coder/cli/clibase"
 	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cli/clibase"
 )
 
 type OutputFormat interface {

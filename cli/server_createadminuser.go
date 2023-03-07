@@ -60,7 +60,7 @@ func newCreateAdminUserCommand() *clibase.Command {
 
 			cfg := createConfig(cmd)
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
-			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
+			if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
@@ -110,7 +110,7 @@ func newCreateAdminUserCommand() *clibase.Command {
 			}
 
 			if newUserUsername == "" {
-				newUserUsername, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				newUserUsername, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Username",
 					Validate: func(val string) error {
 						if val == "" {
@@ -124,7 +124,7 @@ func newCreateAdminUserCommand() *clibase.Command {
 				}
 			}
 			if newUserEmail == "" {
-				newUserEmail, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				newUserEmail, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Email",
 					Validate: func(val string) error {
 						if val == "" {
@@ -138,7 +138,7 @@ func newCreateAdminUserCommand() *clibase.Command {
 				}
 			}
 			if newUserPassword == "" {
-				newUserPassword, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				newUserPassword, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:   "Password",
 					Secret: true,
 					Validate: func(val string) error {
@@ -153,7 +153,7 @@ func newCreateAdminUserCommand() *clibase.Command {
 				}
 
 				// Prompt again.
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:   "Confirm password",
 					Secret: true,
 					Validate: func(val string) error {

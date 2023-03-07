@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -19,9 +17,9 @@ func deleteWorkspace() *clibase.Command {
 		Use:         "delete <workspace>",
 		Short:       "Delete a workspace",
 		Aliases:     []string{"rm"},
-		Args:        cobra.ExactArgs(1),
+		Middleware:  clibase.RequireNArgs(1),
 		Handler: func(inv *clibase.Invokation) error {
-			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+			_, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Confirm delete workspace?",
 				IsConfirm: true,
 				Default:   cliui.ConfirmNo,
@@ -34,7 +32,7 @@ func deleteWorkspace() *clibase.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := namedWorkspace(cmd, client, args[0])
+			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -57,12 +55,12 @@ func deleteWorkspace() *clibase.Command {
 				return err
 			}
 
-			err = cliui.WorkspaceBuild(inv.Context(), cmd.OutOrStdout(), client, build.ID)
+			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, build.ID)
 			if err != nil {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nThe %s workspace has been deleted at %s!\n", cliui.Styles.Keyword.Render(workspace.Name), cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "\nThe %s workspace has been deleted at %s!\n", cliui.Styles.Keyword.Render(workspace.Name), cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}
@@ -70,6 +68,6 @@ func deleteWorkspace() *clibase.Command {
 		`Delete a workspace without deleting its resources. This can delete a
 workspace in a broken state, but may also lead to unaccounted cloud resources.`,
 	)
-	cliui.AllowSkipPrompt(cmd)
+	cliui.AllowSkipPrompt(inv)
 	return cmd
 }

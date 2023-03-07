@@ -24,12 +24,12 @@ func templatePull() *clibase.Command {
 		Handler: func(inv *clibase.Invokation) error {
 			var (
 				ctx          = inv.Context()
-				templateName = args[0]
+				templateName = inv.Args[0]
 				dest         string
 			)
 
-			if len(args) > 1 {
-				dest = args[1]
+			if len(inv.Args) > 1 {
+				dest = inv.Args[1]
 			}
 
 			client, err := useClient(cmd)
@@ -79,7 +79,7 @@ func templatePull() *clibase.Command {
 			}
 
 			if tarMode {
-				_, err = cmd.OutOrStdout().Write(raw)
+				_, err = inv.Stdout.Write(raw)
 				return err
 			}
 
@@ -98,7 +98,7 @@ func templatePull() *clibase.Command {
 			}
 
 			if len(ents) > 0 {
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      fmt.Sprintf("Directory %q is not empty, existing files may be overwritten.\nContinue extracting?", dest),
 					Default:   "No",
 					Secret:    false,
@@ -116,7 +116,7 @@ func templatePull() *clibase.Command {
 	}
 
 	cmd.Flags().BoolVar(&tarMode, "tar", false, "output the template as a tar archive to stdout")
-	cliui.AllowSkipPrompt(cmd)
+	cliui.AllowSkipPrompt(inv)
 
 	return cmd
 }

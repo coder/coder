@@ -71,12 +71,12 @@ func gitAskpass() *clibase.Command {
 
 			if token.Password != "" {
 				if user == "" {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), token.Username)
+					_, _ = fmt.Fprintln(inv.Stdout, token.Username)
 				} else {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), token.Password)
+					_, _ = fmt.Fprintln(inv.Stdout, token.Password)
 				}
 			} else {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), token.Username)
+				_, _ = fmt.Fprintln(inv.Stdout, token.Username)
 			}
 
 			return nil

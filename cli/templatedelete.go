@@ -32,8 +32,8 @@ func templateDelete() *clibase.Command {
 				return err
 			}
 
-			if len(args) > 0 {
-				templateNames = args
+			if len(inv.Args) > 0 {
+				templateNames = inv.Args
 
 				for _, templateName := range templateNames {
 					template, err := client.TemplateByName(ctx, organization.ID, templateName)
@@ -57,7 +57,7 @@ func templateDelete() *clibase.Command {
 					opts = append(opts, template.Name)
 				}
 
-				selection, err := cliui.Select(cmd, cliui.SelectOptions{
+				selection, err := cliui.Select(inv, cliui.SelectOptions{
 					Options: opts,
 				})
 				if err != nil {
@@ -73,7 +73,7 @@ func templateDelete() *clibase.Command {
 			}
 
 			// Confirm deletion of the template.
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Delete these templates: %s?", cliui.Styles.Code.Render(strings.Join(templateNames, ", "))),
 				IsConfirm: true,
 				Default:   cliui.ConfirmNo,
@@ -88,13 +88,13 @@ func templateDelete() *clibase.Command {
 					return xerrors.Errorf("delete template %q: %w", template.Name, err)
 				}
 
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Deleted template "+cliui.Styles.Code.Render(template.Name)+" at "+cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"!")
+				_, _ = fmt.Fprintln(inv.Stdout, "Deleted template "+cliui.Styles.Code.Render(template.Name)+" at "+cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"!")
 			}
 
 			return nil
 		},
 	}
 
-	cliui.AllowSkipPrompt(cmd)
+	cliui.AllowSkipPrompt(inv)
 	return cmd
 }

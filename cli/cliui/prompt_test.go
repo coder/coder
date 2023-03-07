@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/cli/clibase/clibasetest"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/pty/ptytest"
@@ -77,9 +78,9 @@ func TestPrompt(t *testing.T) {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text:      "ShouldNotSeeThis",
 				IsConfirm: true,
-			}, func(cmd *clibase.Command) {
-				cliui.AllowSkipPrompt(cmd)
-				cmd.SetArgs([]string{"-y"})
+			}, func(inv *clibase.Invokation) {
+				cliui.AllowSkipPrompt(inv)
+				inv.Args = []string{"-y"}
 			})
 			assert.NoError(t, err)
 			doneChan <- resp
@@ -145,23 +146,27 @@ func TestPrompt(t *testing.T) {
 	})
 }
 
-func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, cmdOpt func(cmd *clibase.Command)) (string, error) {
+func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, invOpt func(inv *clibase.Invokation)) (string, error) {
 	value := ""
 	cmd := &clibase.Command{
 		Handler: func(inv *clibase.Invokation) error {
 			var err error
-			value, err = cliui.Prompt(cmd, opts)
+			value, err = cliui.Prompt(inv, opts)
 			return err
 		},
 	}
+
+	inv := (&clibase.Invokation{
+		Command: cmd,
+	})
 	// Optionally modify the cmd
-	if cmdOpt != nil {
-		cmdOpt(cmd)
+	if invOpt != nil {
+		invOpt(inv)
 	}
-	cmd.Stdout = ptty.Output()
-	cmd.Stderr = ptty.Output()
-	cmd.Stdin = ptty.Input()
-	return value, cmd.RunContext(context.Background())
+	inv.Stdout = ptty.Output()
+	inv.Stderr = ptty.Output()
+	inv.Stdin = ptty.Input()
+	return value, inv.WithContext(context.Background()).Run()
 }
 
 func TestPasswordTerminalState(t *testing.T) {
@@ -209,12 +214,14 @@ func TestPasswordTerminalState(t *testing.T) {
 // nolint:unused
 func passwordHelper() {
 	cmd := &clibase.Command{
-		Run: func(inv *clibase.Invokation) {
-			cliui.Prompt(cmd, cliui.PromptOptions{
+		Handler: func(inv *clibase.Invokation) error {
+			cliui.Prompt(inv, cliui.PromptOptions{
 				Text:   "Password:",
 				Secret: true,
 			})
+			return nil
 		},
 	}
-	cmd.RunContext(context.Background())
+	inv, _ := clibasetest.Invoke(cmd)
+	inv.WithContext(context.Background()).Run()
 }

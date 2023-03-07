@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -19,11 +18,11 @@ func parameterList() *clibase.Command {
 	)
 
 	cmd := &clibase.Command{
-		Use:     "list",
-		Aliases: []string{"ls"},
-		Args:    cobra.ExactArgs(2),
+		Use:        "list",
+		Aliases:    []string{"ls"},
+		Middleware: clibase.RequireNArgs(2),
 		Handler: func(inv *clibase.Invokation) error {
-			scope, name := args[0], args[1]
+			scope, name := inv.Args[0], inv.Args[1]
 
 			client, err := useClient(cmd)
 			if err != nil {
@@ -79,7 +78,7 @@ func parameterList() *clibase.Command {
 				return xerrors.Errorf("render output: %w", err)
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}

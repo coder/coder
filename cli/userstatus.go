@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -34,10 +33,10 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Command {
 
 	var columns []string
 	cmd := &clibase.Command{
-		Use:     fmt.Sprintf("%s <username|user_id>", verb),
-		Short:   short,
-		Args:    cobra.ExactArgs(1),
-		Aliases: aliases,
+		Use:        fmt.Sprintf("%s <username|user_id>", verb),
+		Short:      short,
+		Middleware: clibase.RequireNArgs(1),,
+		Aliases:    aliases,
 		Example: formatExamples(
 			example{
 				Command: fmt.Sprintf("coder users %s example_user", verb),
@@ -49,7 +48,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Command {
 				return err
 			}
 
-			identifier := args[0]
+			identifier := inv.Args[0]
 			if identifier == "" {
 				return xerrors.Errorf("user identifier cannot be an empty string")
 			}
@@ -66,16 +65,16 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Command {
 			if err != nil {
 				return xerrors.Errorf("render user table: %w", err)
 			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), table)
+			_, _ = fmt.Fprintln(inv.Stdout, table)
 
 			// User status is already set to this
 			if user.Status == sdkStatus {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "User status is already %q\n", sdkStatus)
+				_, _ = fmt.Fprintf(inv.Stdout, "User status is already %q\n", sdkStatus)
 				return nil
 			}
 
 			// Prompt to confirm the action
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Are you sure you want to %s this user?", verb),
 				IsConfirm: true,
 				Default:   cliui.ConfirmYes,
@@ -89,7 +88,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Command {
 				return xerrors.Errorf("%s user: %w", verb, err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nUser %s has been %s!\n", cliui.Styles.Keyword.Render(user.Username), pastVerb)
+			_, _ = fmt.Fprintf(inv.Stdout, "\nUser %s has been %s!\n", cliui.Styles.Keyword.Render(user.Username), pastVerb)
 			return nil
 		},
 	}

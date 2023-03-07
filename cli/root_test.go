@@ -128,11 +128,11 @@ ExtractCommandPathsLoop:
 			}
 			err := os.Chdir(tmpwd)
 			var buf bytes.Buffer
-			cmd, cfg := clitest.New(t, tt.cmd...)
+			inv, cfg := clitest.New(t, tt.cmd...)
 			clitest.SetupConfig(t, rootClient, cfg)
-			cmd.Stdout = &buf
+			inv.Stdout = &buf
 			assert.NoError(t, err)
-			err = cmd.WithContext(ctx).Run()
+			err = inv.WithContext(ctx).Run()
 			err2 := os.Chdir(wd)
 			require.NoError(t, err)
 			require.NoError(t, err2)
@@ -247,7 +247,7 @@ func TestRoot(t *testing.T) {
 		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
 
-			cmd, _ := clitest.New(t, "delete")
+			inv, _ := clitest.New(t, "delete")
 
 			cmd, err := cmd.RunC()
 			errStr := cli.FormatCobraError(err, cmd)
@@ -261,7 +261,7 @@ func TestRoot(t *testing.T) {
 			t.Run("NoVerboseAPIError", func(t *testing.T) {
 				t.Parallel()
 
-				cmd, _ := clitest.New(t)
+				inv, _ := clitest.New(t)
 
 				cmd.RunE = func(inv *clibase.Invokation) error {
 					var err error = &codersdk.Error{
@@ -287,7 +287,7 @@ func TestRoot(t *testing.T) {
 			t.Run("NoVerboseRegularError", func(t *testing.T) {
 				t.Parallel()
 
-				cmd, _ := clitest.New(t)
+				inv, _ := clitest.New(t)
 
 				cmd.RunE = func(inv *clibase.Invokation) error {
 					return xerrors.Errorf("this is a non-codersdk error: %w", xerrors.Errorf("a wrapped error"))
@@ -303,7 +303,7 @@ func TestRoot(t *testing.T) {
 			t.Run("APIError", func(t *testing.T) {
 				t.Parallel()
 
-				cmd, _ := clitest.New(t, "--verbose")
+				inv, _ := clitest.New(t, "--verbose")
 
 				cmd.RunE = func(inv *clibase.Invokation) error {
 					var err error = &codersdk.Error{
@@ -328,7 +328,7 @@ func TestRoot(t *testing.T) {
 			t.Run("RegularError", func(t *testing.T) {
 				t.Parallel()
 
-				cmd, _ := clitest.New(t, "--verbose")
+				inv, _ := clitest.New(t, "--verbose")
 
 				cmd.RunE = func(inv *clibase.Invokation) error {
 					return xerrors.Errorf("this is a non-codersdk error: %w", xerrors.Errorf("a wrapped error"))
@@ -345,9 +345,9 @@ func TestRoot(t *testing.T) {
 		t.Parallel()
 
 		buf := new(bytes.Buffer)
-		cmd, _ := clitest.New(t, "version")
-		cmd.Stdout = buf
-		err := cmd.Run()
+		inv, _ := clitest.New(t, "version")
+		inv.Stdout = buf
+		err := inv.Run()
 		require.NoError(t, err)
 
 		output := buf.String()
@@ -370,9 +370,9 @@ func TestRoot(t *testing.T) {
 		}))
 		defer srv.Close()
 		buf := new(bytes.Buffer)
-		cmd, _ := clitest.New(t, "--header", "X-Testing=wow", "login", srv.URL)
-		cmd.Stdout = buf
+		inv, _ := clitest.New(t, "--header", "X-Testing=wow", "login", srv.URL)
+		inv.Stdout = buf
 		// This won't succeed, because we're using the login cmd to assert requests.
-		_ = cmd.Run()
+		_ = inv.Run()
 	})
 }

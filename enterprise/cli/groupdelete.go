@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
@@ -13,13 +12,13 @@ import (
 
 func groupDelete() *clibase.Command {
 	cmd := &clibase.Command{
-		Use:   "delete <name>",
-		Short: "Delete a user group",
-		Args:  cobra.ExactArgs(1),
+		Use:        "delete <name>",
+		Short:      "Delete a user group",
+		Middleware: clibase.RequireNArgs(1),
 		Handler: func(inv *clibase.Invokation) error {
 			var (
 				ctx       = inv.Context()
-				groupName = args[0]
+				groupName = inv.Args[0]
 			)
 
 			client, err := agpl.CreateClient(cmd)
@@ -42,7 +41,7 @@ func groupDelete() *clibase.Command {
 				return xerrors.Errorf("delete group: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Successfully deleted group %s!\n", cliui.Styles.Keyword.Render(group.Name))
+			_, _ = fmt.Fprintf(inv.Stdout, "Successfully deleted group %s!\n", cliui.Styles.Keyword.Render(group.Name))
 			return nil
 		},
 	}

@@ -54,7 +54,7 @@ func groupList() *clibase.Command {
 				return xerrors.Errorf("display groups: %w", err)
 			}
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, _ = fmt.Fprintln(inv.Stdout, out)
 			return nil
 		},
 	}

@@ -57,14 +57,14 @@ func TestGroupList(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "groups", "list")
+		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "groups", "list")
 
 		pty := ptytest.New(t)
 
-		cmd.Stdout = pty.Output()
+		inv.Stdout = pty.Output()
 		clitest.SetupConfig(t, client, root)
 
-		err = cmd.Run()
+		err = inv.Run()
 		require.NoError(t, err)
 
 		matches := []string{
@@ -90,14 +90,14 @@ func TestGroupList(t *testing.T) {
 			},
 		})
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "groups", "list")
+		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "groups", "list")
 
 		pty := ptytest.New(t)
 
-		cmd.Stderr = pty.Output()
+		inv.Stderr = pty.Output()
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Run()
+		err := inv.Run()
 		require.NoError(t, err)
 
 		pty.ExpectMatch("No groups found")

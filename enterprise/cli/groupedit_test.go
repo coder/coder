@@ -51,7 +51,7 @@ func TestGroupEdit(t *testing.T) {
 
 		expectedName := "beta"
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
+		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
 			"groups", "edit", group.Name,
 			"--name", expectedName,
 			"--avatar-url", "https://example.com",
@@ -62,10 +62,10 @@ func TestGroupEdit(t *testing.T) {
 
 		pty := ptytest.New(t)
 
-		cmd.Stdout = pty.Output()
+		inv.Stdout = pty.Output()
 		clitest.SetupConfig(t, client, root)
 
-		err = cmd.Run()
+		err = inv.Run()
 		require.NoError(t, err)
 
 		pty.ExpectMatch(fmt.Sprintf("Successfully patched group %s", cliui.Styles.Keyword.Render(expectedName)))
@@ -90,14 +90,14 @@ func TestGroupEdit(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
+		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
 			"groups", "edit", group.Name,
 			"-a", "foo",
 		)
 
 		clitest.SetupConfig(t, client, root)
 
-		err = cmd.Run()
+		err = inv.Run()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "must be a valid UUID or email address")
 	})
@@ -114,11 +114,11 @@ func TestGroupEdit(t *testing.T) {
 			},
 		})
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "groups", "edit")
+		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "groups", "edit")
 
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Run()
+		err := inv.Run()
 		require.Error(t, err)
 	})
 }

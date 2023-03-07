@@ -34,6 +34,7 @@ func TestCommand_ToUpper(t *testing.T) {
 					Middleware: clibase.Chain(
 						clibase.RequireNArgs(1),
 					),
+					Aliases: []string{"up"},
 					Options: clibase.OptionSet{
 						clibase.Option{
 							Name:  "lower",
@@ -63,10 +64,21 @@ func TestCommand_ToUpper(t *testing.T) {
 		}
 	}
 
-	t.Run("OK", func(t *testing.T) {
+	t.Run("SimpleOK", func(t *testing.T) {
 		t.Parallel()
 		i := &clibase.Invokation{
 			Args:    []string{"root", "toupper", "hello"},
+			Command: cmd(),
+		}
+		io := clibasetest.FakeIO(i)
+		i.Run()
+		require.Equal(t, "HELLO", io.Stdout.String())
+	})
+
+	t.Run("Alias", func(t *testing.T) {
+		t.Parallel()
+		i := &clibase.Invokation{
+			Args:    []string{"root", "up", "hello"},
 			Command: cmd(),
 		}
 		io := clibasetest.FakeIO(i)
@@ -129,6 +141,20 @@ func TestCommand_ToUpper(t *testing.T) {
 		io := clibasetest.FakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t, "hello!!!", io.Stdout.String())
+	})
+
+	t.Run("ParsedFlags", func(t *testing.T) {
+		t.Parallel()
+		i := &clibase.Invokation{
+			Args:    []string{"root", "toupper", "--verbose", "hello", "--lower"},
+			Command: cmd(),
+		}
+		_ = clibasetest.FakeIO(i)
+		require.NoError(t, i.Run())
+		require.Equal(t,
+			"true",
+			i.ParsedFlags().Lookup("verbose").Value.String(),
+		)
 	})
 }
 

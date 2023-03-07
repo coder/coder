@@ -32,14 +32,14 @@ func TestPortForward(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 
-		cmd, root := clitest.New(t, "port-forward", "blah")
+		inv, root := clitest.New(t, "port-forward", "blah")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.Stdin = pty.Input()
-		cmd.Stdout = pty.Output()
-		cmd.Stderr = pty.Output()
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
 
-		err := cmd.Run()
+		err := inv.Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "no port-forwards")
 
@@ -134,17 +134,17 @@ func TestPortForward(t *testing.T) {
 
 				// Launch port-forward in a goroutine so we can start dialing
 				// the "local" listener.
-				cmd, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag)
+				inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag)
 				clitest.SetupConfig(t, client, root)
 				pty := ptytest.New(t)
-				cmd.Stdin = pty.Input()
-				cmd.Stdout = pty.Output()
-				cmd.Stderr = pty.Output()
+				inv.Stdin = pty.Input()
+				inv.Stdout = pty.Output()
+				inv.Stderr = pty.Output()
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				errC := make(chan error)
 				go func() {
-					errC <- cmd.WithContext(ctx).Run()
+					errC <- inv.WithContext(ctx).Run()
 				}()
 				pty.ExpectMatch("Ready!")
 
@@ -182,17 +182,17 @@ func TestPortForward(t *testing.T) {
 
 				// Launch port-forward in a goroutine so we can start dialing
 				// the "local" listeners.
-				cmd, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag1, flag2)
+				inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag1, flag2)
 				clitest.SetupConfig(t, client, root)
 				pty := ptytest.New(t)
-				cmd.Stdin = pty.Input()
-				cmd.Stdout = pty.Output()
-				cmd.Stderr = pty.Output()
+				inv.Stdin = pty.Input()
+				inv.Stdout = pty.Output()
+				inv.Stderr = pty.Output()
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				errC := make(chan error)
 				go func() {
-					errC <- cmd.WithContext(ctx).Run()
+					errC <- inv.WithContext(ctx).Run()
 				}()
 				pty.ExpectMatch("Ready!")
 
@@ -239,17 +239,17 @@ func TestPortForward(t *testing.T) {
 
 		// Launch port-forward in a goroutine so we can start dialing
 		// the "local" listeners.
-		cmd, root := clitest.New(t, append([]string{"-v", "port-forward", workspace.Name}, flags...)...)
+		inv, root := clitest.New(t, append([]string{"-v", "port-forward", workspace.Name}, flags...)...)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.Stdin = pty.Input()
-		cmd.Stdout = pty.Output()
-		cmd.Stderr = pty.Output()
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.WithContext(ctx).Run()
+			errC <- inv.WithContext(ctx).Run()
 		}()
 		pty.ExpectMatch("Ready!")
 
@@ -319,12 +319,12 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) codersdk.
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// Start workspace agent in a goroutine
-	cmd, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
+	inv, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)
-	cmd.Stdin = pty.Input()
-	cmd.Stdout = pty.Output()
-	cmd.Stderr = pty.Output()
+	inv.Stdin = pty.Input()
+	inv.Stdout = pty.Output()
+	inv.Stderr = pty.Output()
 	errC := make(chan error)
 	agentCtx, agentCancel := context.WithCancel(ctx)
 	t.Cleanup(func() {
@@ -333,7 +333,7 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) codersdk.
 		require.NoError(t, err)
 	})
 	go func() {
-		errC <- cmd.WithContext(agentCtx).Run()
+		errC <- inv.WithContext(agentCtx).Run()
 	}()
 
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)

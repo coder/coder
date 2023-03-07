@@ -87,18 +87,18 @@ func TestSSH(t *testing.T) {
 		t.Parallel()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
-		cmd, root := clitest.New(t, "ssh", workspace.Name)
+		inv, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.Stdin = pty.Input()
-		cmd.Stderr = pty.Output()
-		cmd.Stdout = pty.Output()
+		inv.Stdin = pty.Input()
+		inv.Stderr = pty.Output()
+		inv.Stdout = pty.Output()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		cmdDone := tGo(t, func() {
-			err := cmd.WithContext(ctx).Run()
+			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
 		pty.ExpectMatch("Waiting")
@@ -128,18 +128,18 @@ func TestSSH(t *testing.T) {
 			a[0].TroubleshootingUrl = wantURL
 			return a
 		})
-		cmd, root := clitest.New(t, "ssh", workspace.Name)
+		inv, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.Stdin = pty.Input()
-		cmd.Stderr = pty.Output()
-		cmd.Stdout = pty.Output()
+		inv.Stdin = pty.Input()
+		inv.Stderr = pty.Output()
+		inv.Stdout = pty.Output()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		cmdDone := tGo(t, func() {
-			err := cmd.WithContext(ctx).Run()
+			err := inv.WithContext(ctx).Run()
 			assert.ErrorIs(t, err, cliui.Canceled)
 		})
 		pty.ExpectMatch(wantURL)
@@ -173,13 +173,13 @@ func TestSSH(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		cmd, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
+		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		cmd.Stdin = clientOutput
-		cmd.Stdout = serverInput
-		cmd.Stderr = io.Discard
+		inv.Stdin = clientOutput
+		inv.Stdout = serverInput
+		inv.Stderr = io.Discard
 		cmdDone := tGo(t, func() {
-			err := cmd.WithContext(ctx).Run()
+			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 		})
 
@@ -262,7 +262,7 @@ func TestSSH(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		cmd, root := clitest.New(t,
+		inv, root := clitest.New(t,
 			"ssh",
 			workspace.Name,
 			"--forward-agent",
@@ -270,11 +270,11 @@ func TestSSH(t *testing.T) {
 		)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.Stdin = pty.Input()
-		cmd.Stdout = pty.Output()
-		cmd.Stderr = pty.Output()
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
 		cmdDone := tGo(t, func() {
-			err := cmd.WithContext(ctx).Run()
+			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err, "ssh command failed")
 		})
 
@@ -466,18 +466,18 @@ Expire-Date: 0
 	})
 	defer agentCloser.Close()
 
-	cmd, root := clitest.New(t,
+	inv, root := clitest.New(t,
 		"ssh",
 		workspace.Name,
 		"--forward-gpg",
 	)
 	clitest.SetupConfig(t, client, root)
 	tpty := ptytest.New(t)
-	cmd.Stdin = tpty.Input()
-	cmd.Stdout = tpty.Output()
-	cmd.Stderr = tpty.Output()
+	inv.Stdin = tpty.Input()
+	inv.Stdout = tpty.Output()
+	inv.Stderr = tpty.Output()
 	cmdDone := tGo(t, func() {
-		err := cmd.WithContext(ctx).Run()
+		err := inv.WithContext(ctx).Run()
 		assert.NoError(t, err, "ssh command failed")
 	})
 	// Prevent the test from hanging if the asserts below kill the test

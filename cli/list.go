@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
@@ -81,7 +80,7 @@ func list() *clibase.Command {
 		Use:         "list",
 		Short:       "List workspaces",
 		Aliases:     []string{"ls"},
-		Args:        cobra.ExactArgs(0),
+		Middleware:  clibase.RequireNArgs(0),
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
@@ -128,7 +127,7 @@ func list() *clibase.Command {
 				return err
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}

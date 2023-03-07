@@ -27,16 +27,16 @@ func TestTemplateDelete(t *testing.T) {
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		cmd, root := clitest.New(t, "templates", "delete", template.Name)
+		inv, root := clitest.New(t, "templates", "delete", template.Name)
 
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.Stdin = pty.Input()
-		cmd.Stdout = pty.Output()
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Run()
+			execDone <- inv.Run()
 		}()
 
 		pty.ExpectMatch(fmt.Sprintf("Delete these templates: %s?", cliui.Styles.Code.Render(template.Name)))
@@ -65,9 +65,9 @@ func TestTemplateDelete(t *testing.T) {
 			templateNames = append(templateNames, template.Name)
 		}
 
-		cmd, root := clitest.New(t, append([]string{"templates", "delete", "--yes"}, templateNames...)...)
+		inv, root := clitest.New(t, append([]string{"templates", "delete", "--yes"}, templateNames...)...)
 		clitest.SetupConfig(t, client, root)
-		require.NoError(t, cmd.Run())
+		require.NoError(t, inv.Run())
 
 		for _, template := range templates {
 			_, err := client.Template(context.Background(), template.ID)
@@ -92,15 +92,15 @@ func TestTemplateDelete(t *testing.T) {
 			templateNames = append(templateNames, template.Name)
 		}
 
-		cmd, root := clitest.New(t, append([]string{"templates", "delete"}, templateNames...)...)
+		inv, root := clitest.New(t, append([]string{"templates", "delete"}, templateNames...)...)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.Stdin = pty.Input()
-		cmd.Stdout = pty.Output()
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Run()
+			execDone <- inv.Run()
 		}()
 
 		pty.ExpectMatch(fmt.Sprintf("Delete these templates: %s?", cliui.Styles.Code.Render(strings.Join(templateNames, ", "))))
@@ -123,16 +123,16 @@ func TestTemplateDelete(t *testing.T) {
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		cmd, root := clitest.New(t, "templates", "delete")
+		inv, root := clitest.New(t, "templates", "delete")
 		clitest.SetupConfig(t, client, root)
 
 		pty := ptytest.New(t)
-		cmd.Stdin = pty.Input()
-		cmd.Stdout = pty.Output()
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Run()
+			execDone <- inv.Run()
 		}()
 
 		pty.WriteLine("yes")

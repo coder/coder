@@ -18,6 +18,10 @@ type Cmd struct {
 	Children []*Cmd
 	// Use is provided in form "command [flags] [args...]".
 	Use string
+
+	// Aliases is a list of alternative names for the command.
+	Aliases []string
+
 	// Short is a one-line description of the command.
 	Short string
 	// Hidden determines whether the command should be hidden from help.
@@ -36,7 +40,7 @@ type Cmd struct {
 }
 
 // Walk calls fn for the command and all its children.
-func (c *Command) Walk(fn func(*Command)) {
+func (c *Cmd) Walk(fn func(*Cmd)) {
 	fn(c)
 	for _, child := range c.Children {
 		child.Walk(fn)
@@ -75,9 +79,10 @@ func (c *Cmd) FullUsage() string {
 type Invokation struct {
 	parent *Invokation
 
-	ctx     context.Context
-	Command *Cmd
-	Args    []string
+	ctx         context.Context
+	Command     *Cmd
+	parsedFlags *pflag.FlagSet
+	Args        []string
 	// Environ is a list of environment variables. Use EnvsWithPrefix to parse
 	// os.Environ.
 	Environ Environ
@@ -88,6 +93,13 @@ type Invokation struct {
 
 func (i *Invokation) Context() context.Context {
 	return i.ctx
+}
+
+func (i *Invokation) ParsedFlags() *pflag.FlagSet {
+	if i.parsedFlags == nil {
+		panic("flags not parsed, has Run() been called?")
+	}
+	return i.parsedFlags
 }
 
 // run recursively executes the command and its children.
@@ -101,10 +113,12 @@ func (i *Invokation) run(allArgs []string, flagSet *pflag.FlagSet) error {
 
 	childrenMap := make(map[string]*Cmd)
 	for _, child := range i.Command.Children {
-		if _, ok := childrenMap[child.Name()]; ok {
-			return xerrors.Errorf("duplicate command name: %s", child.Name())
+		for _, name := range append(child.Aliases, child.Name()) {
+			if _, ok := childrenMap[name]; ok {
+				return xerrors.Errorf("duplicate command name: %s", name)
+			}
+			childrenMap[name] = child
 		}
-		childrenMap[child.Name()] = child
 	}
 
 	if flagSet == nil {
@@ -139,6 +153,7 @@ func (i *Invokation) run(allArgs []string, flagSet *pflag.FlagSet) error {
 	if err != nil {
 		return xerrors.Errorf("parsing flags: %w", err)
 	}
+	i.parsedFlags = flagSet
 
 	mw := i.Command.Middleware
 	if mw == nil {
@@ -210,9 +225,15 @@ func Chain(ms ...MiddlewareFunc) MiddlewareFunc {
 }
 
 func RequireNArgs(want int) MiddlewareFunc {
+	if want < 0 {
+		panic("want must be >= 0")
+	}
 	return func(next HandlerFunc) HandlerFunc {
 		return func(i *Invokation) error {
 			if len(i.Args) != want {
+				if want == 0 {
+					return xerrors.Errorf("wanted no args but got %v", len(i.Args))
+				}
 				return fmt.Errorf(
 					"wanted %v args but got %v",
 					want,

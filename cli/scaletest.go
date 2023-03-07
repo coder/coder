@@ -612,8 +612,8 @@ It is recommended that all rate limits are disabled on the server before running
 				if err != nil {
 					return xerrors.Errorf("start dry run workspace creation: %w", err)
 				}
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Planning workspace...")
-				err = cliui.ProvisionerJob(inv.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+				_, _ = fmt.Fprintln(inv.Stdout, "Planning workspace...")
+				err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 					Fetch: func() (codersdk.ProvisionerJob, error) {
 						return client.TemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
 					},
@@ -738,7 +738,7 @@ It is recommended that all rate limits are disabled on the server before running
 
 			res := th.Results()
 			for _, o := range outputs {
-				err = o.write(res, cmd.OutOrStdout())
+				err = o.write(res, inv.Stdout)
 				if err != nil {
 					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
 				}

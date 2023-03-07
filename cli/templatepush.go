@@ -37,10 +37,10 @@ func (pf *templateUploadFlags) stdin() bool {
 func (pf *templateUploadFlags) upload(cmd *clibase.Command, client *codersdk.Client) (*codersdk.UploadResponse, error) {
 	var content io.Reader
 	if pf.stdin() {
-		content = cmd.InOrStdin()
+		content = inv.Stdin
 	} else {
 		prettyDir := prettyDirectoryPath(pf.directory)
-		_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+		_, err := cliui.Prompt(inv, cliui.PromptOptions{
 			Text:      fmt.Sprintf("Upload %q?", prettyDir),
 			IsConfirm: true,
 			Default:   cliui.ConfirmYes,
@@ -59,7 +59,7 @@ func (pf *templateUploadFlags) upload(cmd *clibase.Command, client *codersdk.Cli
 	}
 
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
-	spin.Writer = cmd.OutOrStdout()
+	spin.Writer = inv.Stdout
 	spin.Suffix = cliui.Styles.Keyword.Render(" Uploading directory...")
 	spin.Start()
 	defer spin.Stop()
@@ -71,18 +71,18 @@ func (pf *templateUploadFlags) upload(cmd *clibase.Command, client *codersdk.Cli
 	return &resp, nil
 }
 
-func (pf *templateUploadFlags) templateName(args []string) (string, error) {
+func (pf *templateUploadFlags) templateName(inv.Args []string) (string, error) {
 	if pf.stdin() {
 		// Can't infer name from directory if none provided.
-		if len(args) == 0 {
+		if len(inv.Args) == 0 {
 			return "", xerrors.New("template name argument must be provided")
 		}
-		return args[0], nil
+		return inv.Args[0], nil
 	}
 
 	name := filepath.Base(pf.directory)
-	if len(args) > 0 {
-		name = args[0]
+	if len(inv.Args) > 0 {
+		name = inv.Args[0]
 	}
 	return name, nil
 }
@@ -113,7 +113,7 @@ func templatePush() *clibase.Command {
 				return err
 			}
 
-			name, err := uploadFlags.templateName(args)
+			name, err := uploadFlags.templateName(inv.Args)
 			if err != nil {
 				return err
 			}
@@ -161,7 +161,7 @@ func templatePush() *clibase.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Updated version at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}
@@ -174,9 +174,9 @@ func templatePush() *clibase.Command {
 	cmd.Flags().StringArrayVarP(&provisionerTags, "provisioner-tag", "", []string{}, "Specify a set of tags to target provisioner daemons.")
 	cmd.Flags().BoolVar(&alwaysPrompt, "always-prompt", false, "Always prompt all parameters. Does not pull parameter values from active template version")
 	uploadFlags.register(cmd.Flags())
-	cliui.AllowSkipPrompt(cmd)
+	cliui.AllowSkipPrompt(inv)
 	// This is for testing!
-	err := cmd.Flags().MarkHidden("test.provisioner")
+	err := inv.ParsedFlags().MarkHidden("test.provisioner")
 	if err != nil {
 		panic(err)
 	}

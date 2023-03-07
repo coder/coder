@@ -25,3 +25,11 @@ func FakeIO(i *clibase.Invokation) *IO {
 	i.Stdin = io.Stdin
 	return io
 }
+
+// Invoke creates a fake invokation and IO.
+func Invoke(cmd *clibase.Command, args ...string) (*clibase.Invokation, *IO) {
+	i := clibase.Invokation{
+		Args: args,
+	}
+	return &i, FakeIO(&i)
+}

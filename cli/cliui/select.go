@@ -53,7 +53,7 @@ type RichSelectOptions struct {
 }
 
 // RichSelect displays a list of user options including name and description.
-func RichSelect(cmd *clibase.Command, richOptions RichSelectOptions) (*codersdk.TemplateVersionParameterOption, error) {
+func RichSelect(inv *clibase.Invokation, richOptions RichSelectOptions) (*codersdk.TemplateVersionParameterOption, error) {
 	opts := make([]string, len(richOptions.Options))
 	for i, option := range richOptions.Options {
 		line := option.Name
@@ -63,7 +63,7 @@ func RichSelect(cmd *clibase.Command, richOptions RichSelectOptions) (*codersdk.
 		opts[i] = line
 	}
 
-	selected, err := Select(cmd, SelectOptions{
+	selected, err := Select(inv, SelectOptions{
 		Options:    opts,
 		Default:    richOptions.Default,
 		Size:       richOptions.Size,
@@ -82,7 +82,7 @@ func RichSelect(cmd *clibase.Command, richOptions RichSelectOptions) (*codersdk.
 }
 
 // Select displays a list of user options.
-func Select(cmd *clibase.Command, opts SelectOptions) (string, error) {
+func Select(inv *clibase.Invokation, opts SelectOptions) (string, error) {
 	// The survey library used *always* fails when testing on Windows,
 	// as it requires a live TTY (can't be a conpty). We should fork
 	// this library to add a dummy fallback, that simply reads/writes
@@ -108,10 +108,10 @@ func Select(cmd *clibase.Command, opts SelectOptions) (string, error) {
 			is.Help.Text = ""
 		}
 	}), survey.WithStdio(fileReadWriter{
-		Reader: cmd.InOrStdin(),
+		Reader: inv.Stdin,
 	}, fileReadWriter{
-		Writer: cmd.OutOrStdout(),
-	}, cmd.OutOrStdout()))
+		Writer: inv.Stdout,
+	}, inv.Stdout))
 	if errors.Is(err, terminal.InterruptErr) {
 		return value, Canceled
 	}

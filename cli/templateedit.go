@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -25,9 +24,9 @@ func templateEdit() *clibase.Command {
 	)
 
 	cmd := &clibase.Command{
-		Use:   "edit <template> [flags]",
-		Args:  cobra.ExactArgs(1),
-		Short: "Edit the metadata of a template by name.",
+		Use:        "edit <template> [flags]",
+		Middleware: clibase.RequireNArgs(1),
+		Short:      "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
@@ -52,7 +51,7 @@ func templateEdit() *clibase.Command {
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
-			template, err := client.TemplateByName(inv.Context(), organization.ID, args[0])
+			template, err := client.TemplateByName(inv.Context(), organization.ID, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace template: %w", err)
 			}
@@ -72,7 +71,7 @@ func templateEdit() *clibase.Command {
 			if err != nil {
 				return xerrors.Errorf("update template metadata: %w", err)
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Updated template metadata at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated template metadata at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}
@@ -84,7 +83,7 @@ func templateEdit() *clibase.Command {
 	cmd.Flags().DurationVarP(&defaultTTL, "default-ttl", "", 0, "Edit the template default time before shutdown - workspaces created from this template default to this value.")
 	cmd.Flags().DurationVarP(&maxTTL, "max-ttl", "", 0, "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.")
 	cmd.Flags().BoolVarP(&allowUserCancelWorkspaceJobs, "allow-user-cancel-workspace-jobs", "", true, "Allow users to cancel in-progress workspace jobs.")
-	cliui.AllowSkipPrompt(cmd)
+	cliui.AllowSkipPrompt(inv)
 
 	return cmd
 }

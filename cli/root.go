@@ -256,7 +256,7 @@ func versionCmd() *clibase.Command {
 				_, _ = str.WriteString(fmt.Sprintf("Full build of Coder, supports the %s subcommand.\n", cliui.Styles.Code.Render("server")))
 			}
 
-			_, _ = fmt.Fprint(cmd.OutOrStdout(), str.String())
+			_, _ = fmt.Fprint(inv.Stdout, str.String())
 			return nil
 		},
 	}
@@ -384,7 +384,7 @@ func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Cli
 // createAgentClient returns a new client from the command context.
 // It works just like CreateClient, but uses the agent token and URL instead.
 func createAgentClient(cmd *clibase.Command) (*agentsdk.Client, error) {
-	rawURL, err := cmd.Flags().GetString(varAgentURL)
+	rawURL, err := inv.ParsedFlags().GetString(varAgentURL)
 	if err != nil {
 		return nil, err
 	}
@@ -392,7 +392,7 @@ func createAgentClient(cmd *clibase.Command) (*agentsdk.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	token, err := cmd.Flags().GetString(varAgentToken)
+	token, err := inv.ParsedFlags().GetString(varAgentToken)
 	if err != nil {
 		return nil, err
 	}
@@ -445,11 +445,11 @@ func isTTY(cmd *clibase.Command) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
-	forceTty, err := cmd.Flags().GetBool(varForceTty)
+	forceTty, err := inv.ParsedFlags().GetBool(varForceTty)
 	if forceTty && err == nil {
 		return true
 	}
-	file, ok := cmd.InOrStdin().(*os.File)
+	file, ok := inv.Stdin.(*os.File)
 	if !ok {
 		return false
 	}
@@ -474,7 +474,7 @@ func isTTYWriter(cmd *clibase.Command, writer func() io.Writer) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
-	forceTty, err := cmd.Flags().GetBool(varForceTty)
+	forceTty, err := inv.ParsedFlags().GetBool(varForceTty)
 	if forceTty && err == nil {
 		return true
 	}

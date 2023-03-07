@@ -26,7 +26,7 @@ func TestGitAuth(t *testing.T) {
 	cmd := &clibase.Command{
 		Handler: func(inv *clibase.Invokation) error {
 			var fetched atomic.Bool
-			return cliui.GitAuth(inv.Context(), cmd.OutOrStdout(), cliui.GitAuthOptions{
+			return cliui.GitAuth(inv.Context(), inv.Stdout, cliui.GitAuthOptions{
 				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionGitAuth, error) {
 					defer fetched.Store(true)
 					return []codersdk.TemplateVersionGitAuth{{
@@ -40,12 +40,17 @@ func TestGitAuth(t *testing.T) {
 			})
 		},
 	}
-	cmd.Stdout = ptty.Output()
-	cmd.Stdin = ptty.Input()
+
+	inv := (&clibase.Invokation{
+		Command: cmd,
+	}).WithContext(ctx)
+
+	inv.Stdout = ptty.Output()
+	inv.Stdin = ptty.Input()
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		err := cmd.Run()
+		err := inv.Run()
 		assert.NoError(t, err)
 	}()
 	ptty.ExpectMatchContext(ctx, "You must authenticate with")

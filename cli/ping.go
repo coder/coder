@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -27,7 +26,7 @@ func ping() *clibase.Command {
 		Annotations: workspaceCommand,
 		Use:         "ping <workspace>",
 		Short:       "Ping a workspace",
-		Args:        cobra.ExactArgs(1),
+		Middleware:  clibase.RequireNArgs(1),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
@@ -37,7 +36,7 @@ func ping() *clibase.Command {
 				return err
 			}
 
-			workspaceName := args[0]
+			workspaceName := inv.Args[0]
 			_, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, workspaceName, false)
 			if err != nil {
 				return err
@@ -45,7 +44,7 @@ func ping() *clibase.Command {
 
 			var logger slog.Logger
 			if verbose {
-				logger = slog.Make(sloghuman.Sink(cmd.OutOrStdout())).Leveled(slog.LevelDebug)
+				logger = slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
 			}
 
 			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{Logger: logger})
@@ -71,7 +70,7 @@ func ping() *clibase.Command {
 				cancel()
 				if err != nil {
 					if xerrors.Is(err, context.DeadlineExceeded) {
-						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "ping to %q timed out \n", workspaceName)
+						_, _ = fmt.Fprintf(inv.Stdout, "ping to %q timed out \n", workspaceName)
 						if n == pingNum {
 							return nil
 						}
@@ -85,7 +84,7 @@ func ping() *clibase.Command {
 						continue
 					}
 
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "ping to %q failed %s\n", workspaceName, err.Error())
+					_, _ = fmt.Fprintf(inv.Stdout, "ping to %q failed %s\n", workspaceName, err.Error())
 					if n == pingNum {
 						return nil
 					}
@@ -96,7 +95,7 @@ func ping() *clibase.Command {
 				var via string
 				if p2p {
 					if !didP2p {
-						_, _ = fmt.Fprintln(cmd.OutOrStdout(), "p2p connection established in",
+						_, _ = fmt.Fprintln(inv.Stdout, "p2p connection established in",
 							cliui.Styles.DateTimeStamp.Render(time.Since(start).Round(time.Millisecond).String()),
 						)
 					}
@@ -118,7 +117,7 @@ func ping() *clibase.Command {
 					)
 				}
 
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "pong from %s %s in %s\n",
+				_, _ = fmt.Fprintf(inv.Stdout, "pong from %s %s in %s\n",
 					cliui.Styles.Keyword.Render(workspaceName),
 					via,
 					cliui.Styles.DateTimeStamp.Render(dur.String()),

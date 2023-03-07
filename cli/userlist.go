@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -38,7 +37,7 @@ func userList() *clibase.Command {
 				return err
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}
@@ -61,14 +60,14 @@ func userSingle() *clibase.Command {
 				Command: "coder users show me",
 			},
 		),
-		Args: cobra.ExactArgs(1),
+		Middleware: clibase.RequireNArgs(1),
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}
 
-			user, err := client.User(inv.Context(), args[0])
+			user, err := client.User(inv.Context(), inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -91,7 +90,7 @@ func userSingle() *clibase.Command {
 				return err
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}

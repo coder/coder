@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -16,12 +14,12 @@ func restart() *clibase.Command {
 		Annotations: workspaceCommand,
 		Use:         "restart <workspace>",
 		Short:       "Restart a workspace",
-		Args:        cobra.ExactArgs(1),
+		Middleware:  clibase.RequireNArgs(1),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx := inv.Context()
-			out := cmd.OutOrStdout()
+			out := inv.Stdout
 
-			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+			_, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Confirm restart workspace?",
 				IsConfirm: true,
 			})
@@ -33,7 +31,7 @@ func restart() *clibase.Command {
 			if err != nil {
 				return err
 			}
-			workspace, err := namedWorkspace(cmd, client, args[0])
+			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -64,6 +62,6 @@ func restart() *clibase.Command {
 			return nil
 		},
 	}
-	cliui.AllowSkipPrompt(cmd)
+	cliui.AllowSkipPrompt(inv)
 	return cmd
 }

@@ -27,16 +27,16 @@ func TestRestart(t *testing.T) {
 
 		ctx, _ := testutil.Context(t)
 
-		cmd, root := clitest.New(t, "restart", workspace.Name, "--yes")
+		inv, root := clitest.New(t, "restart", workspace.Name, "--yes")
 		clitest.SetupConfig(t, client, root)
 
 		pty := ptytest.New(t)
-		cmd.Stdin = pty.Input()
-		cmd.Stdout = pty.Output()
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
 
 		done := make(chan error, 1)
 		go func() {
-			done <- cmd.WithContext(ctx).Run()
+			done <- inv.WithContext(ctx).Run()
 		}()
 		pty.ExpectMatch("Stopping workspace")
 		pty.ExpectMatch("Starting workspace")

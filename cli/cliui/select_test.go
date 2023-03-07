@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/cli/clibase/clibasetest"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
@@ -35,13 +36,14 @@ func newSelect(ptty *ptytest.PTY, opts cliui.SelectOptions) (string, error) {
 	cmd := &clibase.Command{
 		Handler: func(inv *clibase.Invokation) error {
 			var err error
-			value, err = cliui.Select(cmd, opts)
+			value, err = cliui.Select(inv, opts)
 			return err
 		},
 	}
-	cmd.Stdout = ptty.Output()
-	cmd.Stdin = ptty.Input()
-	return value, cmd.RunContext(context.Background())
+	inv, _ := clibasetest.Invoke(cmd)
+	inv.Stdout = ptty.Output()
+	inv.Stdin = ptty.Input()
+	return value, inv.WithContext(context.Background()).Run()
 }
 
 func TestRichSelect(t *testing.T) {
@@ -75,14 +77,15 @@ func newRichSelect(ptty *ptytest.PTY, opts cliui.RichSelectOptions) (string, err
 	value := ""
 	cmd := &clibase.Command{
 		Handler: func(inv *clibase.Invokation) error {
-			richOption, err := cliui.RichSelect(cmd, opts)
+			richOption, err := cliui.RichSelect(inv, opts)
 			if err == nil {
 				value = richOption.Value
 			}
 			return err
 		},
 	}
-	cmd.Stdout = ptty.Output()
-	cmd.Stdin = ptty.Input()
-	return value, cmd.RunContext(context.Background())
+	inv, _ := clibasetest.Invoke(cmd)
+	inv.Stdout = ptty.Output()
+	inv.Stdin = ptty.Input()
+	return value, inv.WithContext(context.Background()).Run()
 }

@@ -10,9 +10,10 @@ import (
 	"strings"
 
 	"github.com/bgentry/speakeasy"
-	"github.com/coder/coder/cli/clibase"
 	"github.com/mattn/go-isatty"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cli/clibase"
 )
 
 // PromptOptions supply a set of options to the prompt.
@@ -26,8 +27,8 @@ type PromptOptions struct {
 
 const skipPromptFlag = "yes"
 
-func AllowSkipPrompt(cmd *clibase.Command) {
-	cmd.Flags().BoolP(skipPromptFlag, "y", false, "Bypass prompts")
+func AllowSkipPrompt(inv *clibase.Invokation) {
+	inv.ParsedFlags().BoolP(skipPromptFlag, "y", false, "Bypass prompts")
 }
 
 const (
@@ -36,17 +37,17 @@ const (
 )
 
 // Prompt asks the user for input.
-func Prompt(cmd *clibase.Command, opts PromptOptions) (string, error) {
+func Prompt(inv *clibase.Invokation, opts PromptOptions) (string, error) {
 	// If the cmd has a "yes" flag for skipping confirm prompts, honor it.
 	// If it's not a "Confirm" prompt, then don't skip. As the default value of
 	// "yes" makes no sense.
-	if opts.IsConfirm && cmd.Flags().Lookup(skipPromptFlag) != nil {
-		if skip, _ := cmd.Flags().GetBool(skipPromptFlag); skip {
+	if opts.IsConfirm && inv.ParsedFlags().Lookup(skipPromptFlag) != nil {
+		if skip, _ := inv.ParsedFlags().GetBool(skipPromptFlag); skip {
 			return ConfirmYes, nil
 		}
 	}
 
-	_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.FocusedPrompt.String()+opts.Text+" ")
+	_, _ = fmt.Fprint(inv.Stdout, Styles.FocusedPrompt.String()+opts.Text+" ")
 	if opts.IsConfirm {
 		if len(opts.Default) == 0 {
 			opts.Default = ConfirmYes
@@ -58,9 +59,9 @@ func Prompt(cmd *clibase.Command, opts PromptOptions) (string, error) {
 		} else {
 			renderedNo = Styles.Bold.Render(ConfirmNo)
 		}
-		_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.Placeholder.Render("("+renderedYes+Styles.Placeholder.Render("/"+renderedNo+Styles.Placeholder.Render(") "))))
+		_, _ = fmt.Fprint(inv.Stdout, Styles.Placeholder.Render("("+renderedYes+Styles.Placeholder.Render("/"+renderedNo+Styles.Placeholder.Render(") "))))
 	} else if opts.Default != "" {
-		_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.Placeholder.Render("("+opts.Default+") "))
+		_, _ = fmt.Fprint(inv.Stdout, Styles.Placeholder.Render("("+opts.Default+") "))
 	}
 	interrupt := make(chan os.Signal, 1)
 
@@ -70,7 +71,7 @@ func Prompt(cmd *clibase.Command, opts PromptOptions) (string, error) {
 		var line string
 		var err error
 
-		inFile, isInputFile := cmd.InOrStdin().(*os.File)
+		inFile, isInputFile := inv.Stdin.(*os.File)
 		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
 			// we don't install a signal handler here because speakeasy has its own
 			line, err = speakeasy.Ask("")
@@ -78,7 +79,7 @@ func Prompt(cmd *clibase.Command, opts PromptOptions) (string, error) {
 			signal.Notify(interrupt, os.Interrupt)
 			defer signal.Stop(interrupt)
 
-			reader := bufio.NewReader(cmd.InOrStdin())
+			reader := bufio.NewReader(inv.Stdin)
 			line, err = reader.ReadString('\n')
 
 			// Check if the first line beings with JSON object or array chars.
@@ -109,8 +110,8 @@ func Prompt(cmd *clibase.Command, opts PromptOptions) (string, error) {
 		if opts.Validate != nil {
 			err := opts.Validate(line)
 			if err != nil {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), defaultStyles.Error.Render(err.Error()))
-				return Prompt(cmd, opts)
+				_, _ = fmt.Fprintln(inv.Stdout, defaultStyles.Error.Render(err.Error()))
+				return Prompt(inv, opts)
 			}
 		}
 		return line, nil
@@ -118,7 +119,7 @@ func Prompt(cmd *clibase.Command, opts PromptOptions) (string, error) {
 		return "", inv.Context().Err()
 	case <-interrupt:
 		// Print a newline so that any further output starts properly on a new line.
-		_, _ = fmt.Fprintln(cmd.OutOrStdout())
+		_, _ = fmt.Fprintln(inv.Stdout)
 		return "", Canceled
 	}
 }

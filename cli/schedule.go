@@ -8,6 +8,7 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+	"gvisor.dev/gvisor/runsc/cmd"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
@@ -76,22 +77,22 @@ func schedules() *clibase.Command {
 
 func scheduleShow() *clibase.Command {
 	showCmd := &clibase.Command{
-		Use:   "show <workspace-name>",
-		Short: "Show workspace schedule",
-		Long:  scheduleShowDescriptionLong,
-		Args:  cobra.ExactArgs(1),
+		Use:        "show <workspace-name>",
+		Short:      "Show workspace schedule",
+		Long:       scheduleShowDescriptionLong,
+		Middleware: clibase.RequireNArgs(1),
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}
 
-			workspace, err := namedWorkspace(cmd, client, args[0])
+			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
 			if err != nil {
 				return err
 			}
 
-			return displaySchedule(workspace, cmd.OutOrStdout())
+			return displaySchedule(workspace, inv.Stdout)
 		},
 	}
 	return showCmd
@@ -115,14 +116,14 @@ func scheduleStart() *clibase.Command {
 				return err
 			}
 
-			workspace, err := namedWorkspace(cmd, client, args[0])
+			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
 			if err != nil {
 				return err
 			}
 
 			var schedStr *string
-			if args[1] != "manual" {
-				sched, err := parseCLISchedule(args[1:]...)
+			if inv.Args[1] != "manual" {
+				sched, err := parseCLISchedule(inv.Args[1:]...)
 				if err != nil {
 					return err
 				}
@@ -137,11 +138,11 @@ func scheduleStart() *clibase.Command {
 				return err
 			}
 
-			updated, err := namedWorkspace(cmd, client, args[0])
+			updated, err := namedWorkspace(cmd, client, inv.Args[0])
 			if err != nil {
 				return err
 			}
-			return displaySchedule(updated, cmd.OutOrStdout())
+			return displaySchedule(updated, inv.Stdout)
 		},
 	}
 
@@ -150,8 +151,8 @@ func scheduleStart() *clibase.Command {
 
 func scheduleStop() *clibase.Command {
 	return &clibase.Command{
-		Args: cobra.ExactArgs(2),
-		Use:  "stop <workspace-name> { <duration> | manual }",
+		Middleware: clibase.RequireNArgs(2),
+		Use:        "stop <workspace-name> { <duration> | manual }",
 		Example: formatExamples(
 			example{
 				Command: "coder schedule stop my-workspace 2h30m",
@@ -165,14 +166,14 @@ func scheduleStop() *clibase.Command {
 				return err
 			}
 
-			workspace, err := namedWorkspace(cmd, client, args[0])
+			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
 			if err != nil {
 				return err
 			}
 
 			var durMillis *int64
-			if args[1] != "manual" {
-				dur, err := parseDuration(args[1])
+			if inv.Args[1] != "manual" {
+				dur, err := parseDuration(inv.Args[1])
 				if err != nil {
 					return err
 				}
@@ -185,19 +186,19 @@ func scheduleStop() *clibase.Command {
 				return err
 			}
 
-			updated, err := namedWorkspace(cmd, client, args[0])
+			updated, err := namedWorkspace(cmd, client, inv.Args[0])
 			if err != nil {
 				return err
 			}
-			return displaySchedule(updated, cmd.OutOrStdout())
+			return displaySchedule(updated, inv.Stdout)
 		},
 	}
 }
 
 func scheduleOverride() *clibase.Command {
 	overrideCmd := &clibase.Command{
-		Args: cobra.ExactArgs(2),
-		Use:  "override-stop <workspace-name> <duration from now>",
+		Middleware: clibase.RequireNArgs(2),
+		Use:        "override-stop <workspace-name> <duration from now>",
 		Example: formatExamples(
 			example{
 				Command: "coder schedule override-stop my-workspace 90m",
@@ -206,7 +207,7 @@ func scheduleOverride() *clibase.Command {
 		Short: "Edit stop time of active workspace",
 		Long:  scheduleOverrideDescriptionLong,
 		Handler: func(inv *clibase.Invokation) error {
-			overrideDuration, err := parseDuration(args[1])
+			overrideDuration, err := parseDuration(inv.Args[1])
 			if err != nil {
 				return err
 			}
@@ -216,7 +217,7 @@ func scheduleOverride() *clibase.Command {
 				return xerrors.Errorf("create client: %w", err)
 			}
 
-			workspace, err := namedWorkspace(cmd, client, args[0])
+			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
@@ -228,7 +229,7 @@ func scheduleOverride() *clibase.Command {
 
 			if overrideDuration < 29*time.Minute {
 				_, _ = fmt.Fprintf(
-					cmd.OutOrStdout(),
+					inv.Stdout,
 					"Please specify a duration of at least 30 minutes.\n",
 				)
 				return nil
@@ -241,11 +242,11 @@ func scheduleOverride() *clibase.Command {
 				return err
 			}
 
-			updated, err := namedWorkspace(cmd, client, args[0])
+			updated, err := namedWorkspace(cmd, client, inv.Args[0])
 			if err != nil {
 				return err
 			}
-			return displaySchedule(updated, cmd.OutOrStdout())
+			return displaySchedule(updated, inv.Stdout)
 		},
 	}
 	return overrideCmd

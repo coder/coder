@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
@@ -166,7 +165,7 @@ func listTokens() *clibase.Command {
 				return err
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}
@@ -180,19 +179,19 @@ func listTokens() *clibase.Command {
 
 func removeToken() *clibase.Command {
 	cmd := &clibase.Command{
-		Use:     "remove [name]",
-		Aliases: []string{"rm"},
-		Short:   "Delete a token",
-		Args:    cobra.ExactArgs(1),
+		Use:        "remove [name]",
+		Aliases:    []string{"rm"},
+		Short:      "Delete a token",
+		Middleware: clibase.RequireNArgs(1),,
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			token, err := client.APIKeyByName(inv.Context(), codersdk.Me, args[0])
+			token, err := client.APIKeyByName(inv.Context(), codersdk.Me, inv.Args[0])
 			if err != nil {
-				return xerrors.Errorf("fetch api key by name %s: %w", args[0], err)
+				return xerrors.Errorf("fetch api key by name %s: %w", inv.Args[0], err)
 			}
 
 			err = client.DeleteAPIKey(inv.Context(), codersdk.Me, token.ID)

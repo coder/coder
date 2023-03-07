@@ -30,7 +30,7 @@ func userCreate() *clibase.Command {
 				return err
 			}
 			if username == "" {
-				username, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				username, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Username:",
 				})
 				if err != nil {
@@ -38,7 +38,7 @@ func userCreate() *clibase.Command {
 				}
 			}
 			if email == "" {
-				email, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				email, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Email:",
 					Validate: func(s string) error {
 						err := validator.New().Var(s, "email")

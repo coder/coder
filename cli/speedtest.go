@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	tsspeedtest "tailscale.com/net/speedtest"
 
@@ -27,7 +26,7 @@ func speedtest() *clibase.Command {
 	cmd := &clibase.Command{
 		Annotations: workspaceCommand,
 		Use:         "speedtest <workspace>",
-		Args:        cobra.ExactArgs(1),
+		Middleware:  clibase.RequireNArgs(1),
 		Short:       "Run upload and download tests from your machine to a workspace",
 		Handler: func(inv *clibase.Invokation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
@@ -38,7 +37,7 @@ func speedtest() *clibase.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], false)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, inv.Args[0], false)
 			if err != nil {
 				return err
 			}
@@ -124,7 +123,7 @@ func speedtest() *clibase.Command {
 					fmt.Sprintf("%.4f Mbits/sec", r.MBitsPerSecond()),
 				})
 			}
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), tableWriter.Render())
+			_, err = fmt.Fprintln(inv.Stdout, tableWriter.Render())
 			return err
 		},
 	}

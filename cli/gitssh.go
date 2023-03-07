@@ -33,7 +33,7 @@ func gitssh() *clibase.Command {
 			defer stop()
 
 			// Early check so errors are reported immediately.
-			identityFiles, err := parseIdentityFilesForHost(ctx, args, env)
+			identityFiles, err := parseIdentityFilesForHost(ctx, inv.Args, env)
 			if err != nil {
 				return err
 			}
@@ -82,8 +82,8 @@ func gitssh() *clibase.Command {
 			c := exec.CommandContext(ctx, "ssh", args...)
 			c.Env = append(c.Env, env...)
 			c.Stderr = inv.Stderr
-			c.Stdout = cmd.OutOrStdout()
-			c.Stdin = cmd.InOrStdin()
+			c.Stdout = inv.Stdout
+			c.Stdin = inv.Stdin
 			err = c.Run()
 			if err != nil {
 				exitErr := &exec.ExitError{}
@@ -146,9 +146,9 @@ func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identit
 	args = append([]string{"-G"}, args...)
 	cmd := exec.CommandContext(ctx, "ssh", args...)
 	cmd.Env = append(cmd.Env, env...)
-	cmd.Stdout = &outBuf
-	cmd.Stderr = io.Discard
-	err = cmd.Run()
+	inv.Stdout = &outBuf
+	inv.Stderr = io.Discard
+	err = inv.Run()
 	if err != nil {
 		// If ssh -G failed, the SSH version is likely too old, fallback
 		// to using the default identity files.

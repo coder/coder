@@ -12,7 +12,6 @@ import (
 	"syscall"
 
 	"github.com/pion/udp"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/agent"
@@ -28,10 +27,10 @@ func portForward() *clibase.Command {
 		udpForwards []string // <port>:<port>
 	)
 	cmd := &clibase.Command{
-		Use:     "port-forward <workspace>",
-		Short:   "Forward ports from machine to a workspace",
-		Aliases: []string{"tunnel"},
-		Args:    cobra.ExactArgs(1),
+		Use:        "port-forward <workspace>",
+		Short:      "Forward ports from machine to a workspace",
+		Aliases:    []string{"tunnel"},
+		Middleware: clibase.RequireNArgs(1),,
 		Example: formatExamples(
 			example{
 				Description: "Port forward a single TCP port from 1234 in the workspace to port 5678 on your local machine",
@@ -71,7 +70,7 @@ func portForward() *clibase.Command {
 				return err
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], false)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, inv.Args[0], false)
 			if err != nil {
 				return err
 			}

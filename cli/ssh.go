@@ -121,9 +121,9 @@ func ssh() *clibase.Command {
 				defer rawSSH.Close()
 
 				go func() {
-					_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
+					_, _ = io.Copy(inv.Stdout, rawSSH)
 				}()
-				_, _ = io.Copy(rawSSH, cmd.InOrStdin())
+				_, _ = io.Copy(rawSSH, inv.Stdin)
 				return nil
 			}
 
@@ -176,8 +176,8 @@ func ssh() *clibase.Command {
 				defer closer.Close()
 			}
 
-			stdoutFile, validOut := cmd.OutOrStdout().(*os.File)
-			stdinFile, validIn := cmd.InOrStdin().(*os.File)
+			stdoutFile, validOut := inv.Stdout.(*os.File)
+			stdinFile, validIn := inv.Stdin.(*os.File)
 			if validOut && validIn && isatty.IsTerminal(stdoutFile.Fd()) {
 				state, err := term.MakeRaw(int(stdinFile.Fd()))
 				if err != nil {
@@ -209,8 +209,8 @@ func ssh() *clibase.Command {
 				return err
 			}
 
-			sshSession.Stdin = cmd.InOrStdin()
-			sshSession.Stdout = cmd.OutOrStdout()
+			sshSession.Stdin = inv.Stdin
+			sshSession.Stdout = inv.Stdout
 			sshSession.Stderr = inv.Stderr
 
 			err = sshSession.Shell()
@@ -246,7 +246,7 @@ func ssh() *clibase.Command {
 	}
 	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
 	cliflag.BoolVarP(cmd.Flags(), &shuffle, "shuffle", "", "CODER_SSH_SHUFFLE", false, "Specifies whether to choose a random workspace")
-	_ = cmd.Flags().MarkHidden("shuffle")
+	_ = inv.ParsedFlags().MarkHidden("shuffle")
 	cliflag.BoolVarP(cmd.Flags(), &forwardAgent, "forward-agent", "A", "CODER_SSH_FORWARD_AGENT", false, "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK")
 	cliflag.BoolVarP(cmd.Flags(), &forwardGPG, "forward-gpg", "G", "CODER_SSH_FORWARD_GPG", false, "Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, but supports all clients. Requires gnupg (gpg, gpgconf) on both the client and workspace. The GPG agent must already be running locally and will not be started for you. If a GPG agent is already running in the workspace, it will be attempted to be killed.")
 	cliflag.StringVarP(cmd.Flags(), &identityAgent, "identity-agent", "", "CODER_SSH_IDENTITY_AGENT", "", "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled")
@@ -402,7 +402,7 @@ func buildWorkspaceLink(serverURL *url.URL, workspace codersdk.Workspace) *url.U
 // runLocal runs a command on the local machine.
 func runLocal(ctx context.Context, stdin io.Reader, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stdin = stdin
+	inv.Stdin = stdin
 
 	out, err := cmd.Output()
 	if err != nil {

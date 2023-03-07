@@ -127,7 +127,7 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 	logs := make(chan codersdk.ProvisionerJobLog, 1)
 	cmd := &clibase.Command{
 		Handler: func(inv *clibase.Invokation) error {
-			return cliui.ProvisionerJob(inv.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+			return cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 				FetchInterval: time.Millisecond,
 				Fetch: func() (codersdk.ProvisionerJob, error) {
 					jobLock.Lock()
@@ -145,13 +145,17 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 			})
 		},
 	}
+	inv := (&clibase.Invokation{
+		Command: cmd,
+	})
+
 	ptty := ptytest.New(t)
-	cmd.Stdout = ptty.Output()
-	cmd.Stdin = ptty.Input()
+	inv.Stdout = ptty.Output()
+	inv.Stdin = ptty.Input()
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		err := cmd.RunContext(context.Background())
+		err := inv.WithContext(context.Background()).Run()
 		if err != nil {
 			assert.ErrorIs(t, err, cliui.Canceled)
 		}

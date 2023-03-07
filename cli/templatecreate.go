@@ -47,7 +47,7 @@ func templateCreate() *clibase.Command {
 				return err
 			}
 
-			templateName, err := uploadFlags.templateName(args)
+			templateName, err := uploadFlags.templateName(inv.Args)
 			if err != nil {
 				return err
 			}
@@ -87,7 +87,7 @@ func templateCreate() *clibase.Command {
 			}
 
 			if !uploadFlags.stdin() {
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      "Confirm create?",
 					IsConfirm: true,
 				})
@@ -107,12 +107,12 @@ func templateCreate() *clibase.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "\n"+cliui.Styles.Wrap.Render(
+			_, _ = fmt.Fprintln(inv.Stdout, "\n"+cliui.Styles.Wrap.Render(
 				"The "+cliui.Styles.Keyword.Render(templateName)+" template has been created at "+cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"! "+
 					"Developers can provision a workspace with this template using:")+"\n")
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+cliui.Styles.Code.Render(fmt.Sprintf("coder create --template=%q [workspace name]", templateName)))
-			_, _ = fmt.Fprintln(cmd.OutOrStdout())
+			_, _ = fmt.Fprintln(inv.Stdout, "  "+cliui.Styles.Code.Render(fmt.Sprintf("coder create --template=%q [workspace name]", templateName)))
+			_, _ = fmt.Fprintln(inv.Stdout)
 
 			return nil
 		},
@@ -125,11 +125,11 @@ func templateCreate() *clibase.Command {
 	uploadFlags.register(cmd.Flags())
 	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
 	// This is for testing!
-	err := cmd.Flags().MarkHidden("test.provisioner")
+	err := inv.ParsedFlags().MarkHidden("test.provisioner")
 	if err != nil {
 		panic(err)
 	}
-	cliui.AllowSkipPrompt(cmd)
+	cliui.AllowSkipPrompt(inv)
 	return cmd
 }
 
@@ -153,38 +153,38 @@ type createValidTemplateVersionArgs struct {
 	ProvisionerTags map[string]string
 }
 
-func createValidTemplateVersion(cmd *clibase.Command, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
-	client := args.Client
+func createValidTemplateVersion(cmd *clibase.Command, inv.Args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
+	client := inv.Args.Client
 
-	variableValues, err := loadVariableValuesFromFile(args.VariablesFile)
+	variableValues, err := loadVariableValuesFromFile(inv.Args.VariablesFile)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	variableValuesFromKeyValues, err := loadVariableValuesFromOptions(args.Variables)
+	variableValuesFromKeyValues, err := loadVariableValuesFromOptions(inv.Args.Variables)
 	if err != nil {
 		return nil, nil, err
 	}
 	variableValues = append(variableValues, variableValuesFromKeyValues...)
 
 	req := codersdk.CreateTemplateVersionRequest{
-		Name:               args.Name,
+		Name:               inv.Args.Name,
 		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
-		FileID:             args.FileID,
-		Provisioner:        codersdk.ProvisionerType(args.Provisioner),
+		FileID:             inv.Args.FileID,
+		Provisioner:        codersdk.ProvisionerType(inv.Args.Provisioner),
 		ParameterValues:    parameters,
-		ProvisionerTags:    args.ProvisionerTags,
+		ProvisionerTags:    inv.Args.ProvisionerTags,
 		UserVariableValues: variableValues,
 	}
-	if args.Template != nil {
-		req.TemplateID = args.Template.ID
+	if inv.Args.Template != nil {
+		req.TemplateID = inv.Args.Template.ID
 	}
-	version, err := client.CreateTemplateVersion(inv.Context(), args.Organization.ID, req)
+	version, err := client.CreateTemplateVersion(inv.Context(), inv.Args.Organization.ID, req)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	err = cliui.ProvisionerJob(inv.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
 			version, err := client.TemplateVersion(inv.Context(), version.ID)
 			return version.Job, err
@@ -218,8 +218,8 @@ func createValidTemplateVersion(cmd *clibase.Command, args createValidTemplateVe
 	// templateID is provided. This allows pulling params from the last
 	// version instead of prompting if we are updating template versions.
 	lastParameterValues := make(map[string]codersdk.Parameter)
-	if args.ReuseParameters && args.Template != nil {
-		activeVersion, err := client.TemplateVersion(inv.Context(), args.Template.ActiveVersionID)
+	if inv.Args.ReuseParameters && inv.Args.Template != nil {
+		activeVersion, err := client.TemplateVersion(inv.Context(), inv.Args.Template.ActiveVersionID)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("Fetch current active template version: %w", err)
 		}
@@ -242,9 +242,9 @@ func createValidTemplateVersion(cmd *clibase.Command, args createValidTemplateVe
 
 		// parameterMapFromFile can be nil if parameter file is not specified
 		var parameterMapFromFile map[string]string
-		if args.ParameterFile != "" {
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
-			parameterMapFromFile, err = createParameterMapFromFile(args.ParameterFile)
+		if inv.Args.ParameterFile != "" {
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
+			parameterMapFromFile, err = createParameterMapFromFile(inv.Args.ParameterFile)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -274,12 +274,12 @@ func createValidTemplateVersion(cmd *clibase.Command, args createValidTemplateVe
 
 			missingSchemas = append(missingSchemas, parameterSchema)
 		}
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("This template has required variables! They are scoped to the template, and not viewable after being set."))
+		_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("This template has required variables! They are scoped to the template, and not viewable after being set."))
 		if len(pulled) > 0 {
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(fmt.Sprintf("The following parameter values are being pulled from the latest template version: %s.", strings.Join(pulled, ", "))))
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render("Use \"--always-prompt\" flag to change the values."))
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render(fmt.Sprintf("The following parameter values are being pulled from the latest template version: %s.", strings.Join(pulled, ", "))))
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("Use \"--always-prompt\" flag to change the values."))
 		}
-		_, _ = fmt.Fprint(cmd.OutOrStdout(), "\r\n")
+		_, _ = fmt.Fprint(inv.Stdout, "\r\n")
 
 		for _, parameterSchema := range missingSchemas {
 			parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
@@ -292,12 +292,12 @@ func createValidTemplateVersion(cmd *clibase.Command, args createValidTemplateVe
 				SourceScheme:      codersdk.ParameterSourceSchemeData,
 				DestinationScheme: parameterSchema.DefaultDestinationScheme,
 			})
-			_, _ = fmt.Fprintln(cmd.OutOrStdout())
+			_, _ = fmt.Fprintln(inv.Stdout)
 		}
 
 		// This recursion is only 1 level deep in practice.
 		// The first pass populates the missing parameters, so it does not enter this `if` block again.
-		return createValidTemplateVersion(cmd, args, parameters...)
+		return createValidTemplateVersion(cmd, inv.Args, parameters...)
 	}
 
 	if version.Job.Status != codersdk.ProvisionerJobSucceeded {
@@ -316,7 +316,7 @@ func createValidTemplateVersion(cmd *clibase.Command, args createValidTemplateVe
 			startResources = append(startResources, r)
 		}
 	}
-	err = cliui.WorkspaceResources(cmd.OutOrStdout(), startResources, cliui.WorkspaceResourcesOptions{
+	err = cliui.WorkspaceResources(inv.Stdout, startResources, cliui.WorkspaceResourcesOptions{
 		HideAgentState: true,
 		HideAccess:     true,
 		Title:          "Template Preview",

@@ -38,13 +38,13 @@ func statePull() *clibase.Command {
 			}
 			var build codersdk.WorkspaceBuild
 			if buildNumber == 0 {
-				workspace, err := namedWorkspace(cmd, client, args[0])
+				workspace, err := namedWorkspace(cmd, client, inv.Args[0])
 				if err != nil {
 					return err
 				}
 				build = workspace.LatestBuild
 			} else {
-				build, err = client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(inv.Context(), codersdk.Me, args[0], strconv.Itoa(buildNumber))
+				build, err = client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(inv.Context(), codersdk.Me, inv.Args[0], strconv.Itoa(buildNumber))
 				if err != nil {
 					return err
 				}
@@ -55,12 +55,12 @@ func statePull() *clibase.Command {
 				return err
 			}
 
-			if len(args) < 2 {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(state))
+			if len(inv.Args) < 2 {
+				_, _ = fmt.Fprintln(inv.Stdout, string(state))
 				return nil
 			}
 
-			return os.WriteFile(args[1], state, 0o600)
+			return os.WriteFile(inv.Args[1], state, 0o600)
 		},
 	}
 	cmd.Flags().IntVarP(&buildNumber, "build", "b", 0, "Specify a workspace build to target by name.")
@@ -70,15 +70,15 @@ func statePull() *clibase.Command {
 func statePush() *clibase.Command {
 	var buildNumber int
 	cmd := &clibase.Command{
-		Use:   "push <workspace> <file>",
-		Args:  cobra.ExactArgs(2),
-		Short: "Push a Terraform state file to a workspace.",
+		Use:        "push <workspace> <file>",
+		Middleware: clibase.RequireNArgs(2),
+		Short:      "Push a Terraform state file to a workspace.",
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}
-			workspace, err := namedWorkspace(cmd, client, args[0])
+			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -86,17 +86,17 @@ func statePush() *clibase.Command {
 			if buildNumber == 0 {
 				build = workspace.LatestBuild
 			} else {
-				build, err = client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(inv.Context(), codersdk.Me, args[0], strconv.Itoa(buildNumber))
+				build, err = client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(inv.Context(), codersdk.Me, inv.Args[0], strconv.Itoa(buildNumber))
 				if err != nil {
 					return err
 				}
 			}
 
 			var state []byte
-			if args[1] == "-" {
-				state, err = io.ReadAll(cmd.InOrStdin())
+			if inv.Args[1] == "-" {
+				state, err = io.ReadAll(inv.Stdin)
 			} else {
-				state, err = os.ReadFile(args[1])
+				state, err = os.ReadFile(inv.Args[1])
 			}
 			if err != nil {
 				return err

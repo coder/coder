@@ -18,8 +18,8 @@ import (
 // nolint:paralleltest
 func TestDotfiles(t *testing.T) {
 	t.Run("MissingArg", func(t *testing.T) {
-		cmd, _ := clitest.New(t, "dotfiles")
-		err := cmd.Run()
+		inv, _ := clitest.New(t, "dotfiles")
+		err := inv.Run()
 		require.Error(t, err)
 	})
 	t.Run("NoInstallScript", func(t *testing.T) {
@@ -40,8 +40,8 @@ func TestDotfiles(t *testing.T) {
 		out, err := c.CombinedOutput()
 		require.NoError(t, err, string(out))
 
-		cmd, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
-		err = cmd.Run()
+		inv, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
+		err = inv.Run()
 		require.NoError(t, err)
 
 		b, err := os.ReadFile(filepath.Join(string(root), ".bashrc"))
@@ -69,8 +69,8 @@ func TestDotfiles(t *testing.T) {
 		err = c.Run()
 		require.NoError(t, err)
 
-		cmd, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
-		err = cmd.Run()
+		inv, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
+		err = inv.Run()
 		require.NoError(t, err)
 
 		b, err := os.ReadFile(filepath.Join(string(root), ".bashrc"))
@@ -100,8 +100,8 @@ func TestDotfiles(t *testing.T) {
 		out, err := c.CombinedOutput()
 		require.NoError(t, err, string(out))
 
-		cmd, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
-		err = cmd.Run()
+		inv, _ := clitest.New(t, "dotfiles", "--global-config", string(root), "--symlink-dir", string(root), "-y", testRepo)
+		err = inv.Run()
 		require.NoError(t, err)
 
 		b, err := os.ReadFile(filepath.Join(string(root), ".bashrc"))

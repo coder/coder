@@ -18,15 +18,14 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 )
 
 // IsSetBool returns the value of the boolean flag if it is set.
 // It returns false if the flag isn't set or if any error occurs attempting
 // to parse the value of the flag.
-func IsSetBool(cmd *clibase.Command, name string) bool {
-	val, ok := IsSet(cmd, name)
+func IsSetBool(fs *pflag.FlagSet, name string) bool {
+	val, ok := IsSet(fs, name)
 	if !ok {
 		return false
 	}
@@ -36,12 +35,11 @@ func IsSetBool(cmd *clibase.Command, name string) bool {
 }
 
 // IsSet returns the string value of the flag and whether it was set.
-func IsSet(cmd *clibase.Command, name string) (string, bool) {
-	flag := cmd.Flag(name)
+func IsSet(fs *pflag.FlagSet, name string) (string, bool) {
+	flag := fs.Lookup(name)
 	if flag == nil {
 		return "", false
 	}
-
 	return flag.Value.String(), flag.Changed
 }
 

@@ -227,7 +227,7 @@ flags, and YAML configuration. The precedence is as follows:
 				`,
 				Options: cliOpts,
 			})
-			err = flagSet.Parse(args)
+			err = flagSet.Parse(inv.Args)
 			if err != nil {
 				return xerrors.Errorf("parse flags: %w", err)
 			}
@@ -351,7 +351,7 @@ flags, and YAML configuration. The precedence is as follows:
 			shouldCoderTrace := cfg.Telemetry.Enable.Value() && !isTest()
 			// Only override if telemetryTraceEnable was specifically set.
 			// By default we want it to be controlled by telemetryEnable.
-			if cmd.Flags().Changed("telemetry-trace") {
+			ifinv.ParsedFlags().Changed("telemetry-trace") {
 				shouldCoderTrace = cfg.Telemetry.Trace.Value()
 			}
 
@@ -457,7 +457,7 @@ flags, and YAML configuration. The precedence is as follows:
 
 				// DEPRECATED: This redirect used to default to true.
 				// It made more sense to have the redirect be opt-in.
-				if os.Getenv("CODER_TLS_REDIRECT_HTTP") == "true" || cmd.Flags().Changed("tls-redirect-http-to-https") {
+				if os.Getenv("CODER_TLS_REDIRECT_HTTP") == "true" ||inv.ParsedFlags().Changed("tls-redirect-http-to-https") {
 					cmd.PrintErr(cliui.Styles.Warn.Render("WARN:") + " --tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead\n")
 					cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
 				}
@@ -1071,7 +1071,7 @@ flags, and YAML configuration. The precedence is as follows:
 			select {
 			case <-notifyCtx.Done():
 				exitErr = notifyCtx.Err()
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Bold.Render(
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Bold.Render(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
 			case exitErr = <-tunnelErr:
@@ -1119,7 +1119,7 @@ flags, and YAML configuration. The precedence is as follows:
 				go func() {
 					defer wg.Done()
 
-					if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
+					if ok, _ :=inv.ParsedFlags().GetBool(varVerbose); ok {
 						cmd.Printf("Shutting down provisioner daemon %d...\n", id)
 					}
 					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
@@ -1132,7 +1132,7 @@ flags, and YAML configuration. The precedence is as follows:
 						cmd.PrintErrf("Close provisioner daemon %d: %s\n", id, err)
 						return
 					}
-					if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
+					if ok, _ :=inv.ParsedFlags().GetBool(varVerbose); ok {
 						cmd.Printf("Gracefully shut down provisioner daemon %d\n", id)
 					}
 				}()
@@ -1175,9 +1175,9 @@ flags, and YAML configuration. The precedence is as follows:
 				return err
 			}
 			if pgRawURL {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", url)
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", url)
 			} else {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", cliui.Styles.Code.Render(fmt.Sprintf("psql %q", url)))
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.Styles.Code.Render(fmt.Sprintf("psql %q", url)))
 			}
 			return nil
 		},
@@ -1190,7 +1190,7 @@ flags, and YAML configuration. The precedence is as follows:
 
 			cfg := createConfig(cmd)
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
-			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
+			if ok, _ :=inv.ParsedFlags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
@@ -1204,9 +1204,9 @@ flags, and YAML configuration. The precedence is as follows:
 			defer func() { _ = closePg() }()
 
 			if pgRawURL {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", url)
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", url)
 			} else {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", cliui.Styles.Code.Render(fmt.Sprintf("psql %q", url)))
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.Styles.Code.Render(fmt.Sprintf("psql %q", url)))
 			}
 
 			<-ctx.Done()
@@ -1366,7 +1366,7 @@ func printLogo(cmd *clibase.Command) {
 		return
 	}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s - Software development on your infrastucture\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
+	_, _ = fmt.Fprintf(inv.Stdout, "%s - Software development on your infrastucture\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
 }
 
 func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, error) {
@@ -1776,7 +1776,7 @@ func buildLogger(cmd *clibase.Command, cfg *codersdk.DeploymentValues) (slog.Log
 		case "":
 
 		case "/dev/stdout":
-			sinks = append(sinks, sinkFn(cmd.OutOrStdout()))
+			sinks = append(sinks, sinkFn(inv.Stdout))
 
 		case "/dev/stderr":
 			sinks = append(sinks, sinkFn(inv.Stderr))

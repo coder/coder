@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/spf13/afero"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
@@ -40,9 +39,9 @@ func vscodeSSH() *clibase.Command {
 		// passes %h to ProxyCommand. The prefix of `coder-vscode--`
 		// is a magical string represented in our VS Cod extension.
 		// It's not important here, only the delimiter `--` is.
-		Use:    "vscodessh <coder-vscode--<owner>-<workspace>-<agent?>>",
-		Hidden: true,
-		Args:   cobra.ExactArgs(1),
+		Use:        "vscodessh <coder-vscode--<owner>-<workspace>-<agent?>>",
+		Hidden:     true,
+		Middleware: clibase.RequireNArgs(1),
 		Handler: func(inv *clibase.Invokation) error {
 			if networkInfoDir == "" {
 				return xerrors.New("network-info-dir must be specified")
@@ -83,7 +82,7 @@ func vscodeSSH() *clibase.Command {
 			client := codersdk.New(serverURL)
 			client.SetSessionToken(string(sessionToken))
 
-			parts := strings.Split(args[0], "--")
+			parts := strings.Split(inv.Args[0], "--")
 			if len(parts) < 3 {
 				return xerrors.Errorf("invalid argument format. must be: coder-vscode--<owner>-<name>-<agent?>")
 			}
@@ -136,10 +135,10 @@ func vscodeSSH() *clibase.Command {
 
 			// Copy SSH traffic over stdio.
 			go func() {
-				_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
+				_, _ = io.Copy(inv.Stdout, rawSSH)
 			}()
 			go func() {
-				_, _ = io.Copy(rawSSH, cmd.InOrStdin())
+				_, _ = io.Copy(rawSSH, inv.Stdin)
 			}()
 
 			// The VS Code extension obtains the PID of the SSH process to

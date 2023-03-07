@@ -17,7 +17,6 @@ import (
 	"github.com/cli/safeexec"
 	"github.com/pkg/diff"
 	"github.com/pkg/diff/write"
-	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -155,7 +154,7 @@ func configSSH() *clibase.Command {
 				Command:     "coder config-ssh --dry-run",
 			},
 		),
-		Args: cobra.ExactArgs(0),
+		Middleware: clibase.RequireNArgs(0),
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
@@ -164,7 +163,7 @@ func configSSH() *clibase.Command {
 
 			recvWorkspaceConfigs := sshPrepareWorkspaceConfigs(inv.Context(), client)
 
-			out := cmd.OutOrStdout()
+			out := inv.Stdout
 			if dryRun {
 				// Print everything except diff to stderr so
 				// that it's possible to capture the diff.
@@ -232,7 +231,7 @@ func configSSH() *clibase.Command {
 					oldOptsMsg = fmt.Sprintf("\n\n  Previous options:\n    * %s", strings.Join(oldOpts, "\n    * "))
 				}
 
-				line, err := cliui.Prompt(cmd, cliui.PromptOptions{
+				line, err := cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      fmt.Sprintf("New options differ from previous options:%s%s\n\n  Use new options?", newOptsMsg, oldOptsMsg),
 					IsConfirm: true,
 				})
@@ -246,7 +245,7 @@ func configSSH() *clibase.Command {
 					changes = append(changes, "Use new SSH options")
 				}
 				// Only print when prompts are shown.
-				if yes, _ := cmd.Flags().GetBool("yes"); !yes {
+				if yes, _ := inv.ParsedFlags().GetBool("yes"); !yes {
 					_, _ = fmt.Fprint(out, "\n")
 				}
 			}
@@ -335,14 +334,14 @@ func configSSH() *clibase.Command {
 				}
 				if len(diff) > 0 {
 					// Write diff to stdout.
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s", diff)
+					_, _ = fmt.Fprintf(inv.Stdout, "%s", diff)
 				}
 
 				return nil
 			}
 
 			if len(changes) > 0 {
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration:\n\n    * %s\n\n  Continue?", strings.Join(changes, "\n    * ")),
 					IsConfirm: true,
 				})
@@ -350,7 +349,7 @@ func configSSH() *clibase.Command {
 					return nil
 				}
 				// Only print when prompts are shown.
-				if yes, _ := cmd.Flags().GetBool("yes"); !yes {
+				if yes, _ := inv.ParsedFlags().GetBool("yes"); !yes {
 					_, _ = fmt.Fprint(out, "\n")
 				}
 			}
@@ -375,9 +374,9 @@ func configSSH() *clibase.Command {
 	cmd.Flags().StringArrayVarP(&sshConfigOpts.sshOptions, "ssh-option", "o", []string{}, "Specifies additional SSH options to embed in each host stanza.")
 	cmd.Flags().BoolVarP(&dryRun, "dry-run", "n", false, "Perform a trial run with no changes made, showing a diff at the end.")
 	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
-	_ = cmd.Flags().MarkHidden("skip-proxy-command")
+	_ = inv.ParsedFlags().MarkHidden("skip-proxy-command")
 	cliflag.BoolVarP(cmd.Flags(), &usePreviousOpts, "use-previous-options", "", "CODER_SSH_USE_PREVIOUS_OPTIONS", false, "Specifies whether or not to keep options from previous run of config-ssh.")
-	cliui.AllowSkipPrompt(cmd)
+	cliui.AllowSkipPrompt(inv)
 
 	return cmd
 }

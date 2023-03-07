@@ -22,11 +22,11 @@ func TestUserStatus(t *testing.T) {
 	require.NoError(t, err, "fetch user")
 
 	t.Run("StatusSelf", func(t *testing.T) {
-		cmd, root := clitest.New(t, "users", "suspend", "me")
+		inv, root := clitest.New(t, "users", "suspend", "me")
 		clitest.SetupConfig(t, client, root)
 		// Yes to the prompt
-		cmd.Stdin = bytes.NewReader([]byte("yes\n"))
-		err := cmd.Run()
+		inv.Stdin = bytes.NewReader([]byte("yes\n"))
+		err := inv.Run()
 		// Expect an error, as you cannot suspend yourself
 		require.Error(t, err)
 		require.ErrorContains(t, err, "cannot suspend yourself")
@@ -35,11 +35,11 @@ func TestUserStatus(t *testing.T) {
 	t.Run("StatusOther", func(t *testing.T) {
 		require.Equal(t, codersdk.UserStatusActive, otherUser.Status, "start as active")
 
-		cmd, root := clitest.New(t, "users", "suspend", otherUser.Username)
+		inv, root := clitest.New(t, "users", "suspend", otherUser.Username)
 		clitest.SetupConfig(t, client, root)
 		// Yes to the prompt
-		cmd.Stdin = bytes.NewReader([]byte("yes\n"))
-		err := cmd.Run()
+		inv.Stdin = bytes.NewReader([]byte("yes\n"))
+		err := inv.Run()
 		require.NoError(t, err, "suspend user")
 
 		// Check the user status
@@ -48,11 +48,11 @@ func TestUserStatus(t *testing.T) {
 		require.Equal(t, codersdk.UserStatusSuspended, otherUser.Status, "suspended user")
 
 		// Set back to active. Try using a uuid as well
-		cmd, root = clitest.New(t, "users", "activate", otherUser.ID.String())
+		inv, root = clitest.New(t, "users", "activate", otherUser.ID.String())
 		clitest.SetupConfig(t, client, root)
 		// Yes to the prompt
-		cmd.Stdin = bytes.NewReader([]byte("yes\n"))
-		err = cmd.Run()
+		inv.Stdin = bytes.NewReader([]byte("yes\n"))
+		err = inv.Run()
 		require.NoError(t, err, "suspend user")
 
 		// Check the user status

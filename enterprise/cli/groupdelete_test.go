@@ -38,16 +38,16 @@ func TestGroupDelete(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
+		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
 			"groups", "delete", group.Name,
 		)
 
 		pty := ptytest.New(t)
 
-		cmd.Stdout = pty.Output()
+		inv.Stdout = pty.Output()
 		clitest.SetupConfig(t, client, root)
 
-		err = cmd.Run()
+		err = inv.Run()
 		require.NoError(t, err)
 
 		pty.ExpectMatch(fmt.Sprintf("Successfully deleted group %s", cliui.Styles.Keyword.Render(group.Name)))
@@ -65,12 +65,12 @@ func TestGroupDelete(t *testing.T) {
 			},
 		})
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
+		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
 			"groups", "delete")
 
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Run()
+		err := inv.Run()
 		require.Error(t, err)
 	})
 }

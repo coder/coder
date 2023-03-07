@@ -35,10 +35,10 @@ func templateInit() *clibase.Command {
 				exampleByName[name] = example
 			}
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render(
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Wrap.Render(
 				"A template defines infrastructure as code to be provisioned "+
 					"for individual developer workspaces. Select an example to be copied to the active directory:\n"))
-			option, err := cliui.Select(cmd, cliui.SelectOptions{
+			option, err := cliui.Select(inv, cliui.SelectOptions{
 				Options: exampleNames,
 			})
 			if err != nil {
@@ -54,8 +54,8 @@ func templateInit() *clibase.Command {
 				return err
 			}
 			var directory string
-			if len(args) > 0 {
-				directory = args[0]
+			if len(inv.Args) > 0 {
+				directory = inv.Args[0]
 			} else {
 				directory = filepath.Join(workingDir, selectedTemplate.ID)
 			}
@@ -65,7 +65,7 @@ func templateInit() *clibase.Command {
 			} else {
 				relPath = "./" + relPath
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Extracting %s to %s...\n", cliui.Styles.Field.Render(selectedTemplate.ID), relPath)
+			_, _ = fmt.Fprintf(inv.Stdout, "Extracting %s to %s...\n", cliui.Styles.Field.Render(selectedTemplate.ID), relPath)
 			err = os.MkdirAll(directory, 0o700)
 			if err != nil {
 				return err
@@ -74,9 +74,9 @@ func templateInit() *clibase.Command {
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Create your template by running:")
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Paragraph.Render(cliui.Styles.Code.Render("cd "+relPath+" && coder templates create"))+"\n")
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Examples provide a starting point and are expected to be edited! 🎨"))
+			_, _ = fmt.Fprintln(inv.Stdout, "Create your template by running:")
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render(cliui.Styles.Code.Render("cd "+relPath+" && coder templates create"))+"\n")
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Wrap.Render("Examples provide a starting point and are expected to be edited! 🎨"))
 			return nil
 		},
 	}

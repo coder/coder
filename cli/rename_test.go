@@ -30,15 +30,15 @@ func TestRename(t *testing.T) {
 	// Only append one letter because it's easy to exceed maximum length:
 	// E.g. "compassionate-chandrasekhar82" + "t".
 	want := workspace.Name + "t"
-	cmd, root := clitest.New(t, "rename", workspace.Name, want, "--yes")
+	inv, root := clitest.New(t, "rename", workspace.Name, want, "--yes")
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)
-	cmd.Stdin = pty.Input()
-	cmd.Stdout = pty.Output()
+	inv.Stdin = pty.Input()
+	inv.Stdout = pty.Output()
 
 	errC := make(chan error, 1)
 	go func() {
-		errC <- cmd.WithContext(ctx).Run()
+		errC <- inv.WithContext(ctx).Run()
 	}()
 
 	pty.ExpectMatch("confirm rename:")

@@ -26,7 +26,7 @@ func publickey() *clibase.Command {
 			if reset {
 				// Confirm prompt if using --reset. We don't want to accidentally
 				// reset our public key.
-				_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+				_, err := cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Confirm regenerate a new sshkey for your workspaces? This will require updating the key " +
 						"on any services it is registered with. This action cannot be reverted.",
 					IsConfirm: true,
@@ -62,7 +62,7 @@ func publickey() *clibase.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&reset, "reset", false, "Regenerate your public key. This will require updating the key on any services it's registered with.")
-	cliui.AllowSkipPrompt(cmd)
+	cliui.AllowSkipPrompt(inv)
 
 	return cmd
 }

@@ -54,14 +54,14 @@ func login() *clibase.Command {
 		Args:  cobra.MaximumNArgs(1),
 		Handler: func(inv *clibase.Invokation) error {
 			rawURL := ""
-			if len(args) == 0 {
+			if len(inv.Args) == 0 {
 				var err error
-				rawURL, err = cmd.Flags().GetString(varURL)
+				rawURL, err = inv.ParsedFlags().GetString(varURL)
 				if err != nil {
 					return xerrors.Errorf("get global url flag")
 				}
 			} else {
-				rawURL = args[0]
+				rawURL = inv.Args[0]
 			}
 
 			if !strings.HasPrefix(rawURL, "http://") && !strings.HasPrefix(rawURL, "https://") {
@@ -100,13 +100,13 @@ func login() *clibase.Command {
 				return xerrors.Errorf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser? Error - has initial user: %w", serverURL.String(), err)
 			}
 			if !hasInitialUser {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), Caret+"Your Coder deployment hasn't been set up!\n")
+				_, _ = fmt.Fprintf(inv.Stdout, Caret+"Your Coder deployment hasn't been set up!\n")
 
 				if username == "" {
 					if !isTTY(cmd) {
 						return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
 					}
-					_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+					_, err := cliui.Prompt(inv, cliui.PromptOptions{
 						Text:      "Would you like to create the first user?",
 						Default:   cliui.ConfirmYes,
 						IsConfirm: true,
@@ -121,7 +121,7 @@ func login() *clibase.Command {
 					if err != nil {
 						return xerrors.Errorf("get current user: %w", err)
 					}
-					username, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					username, err = cliui.Prompt(inv, cliui.PromptOptions{
 						Text:    "What " + cliui.Styles.Field.Render("username") + " would you like?",
 						Default: currentUser.Username,
 					})
@@ -134,7 +134,7 @@ func login() *clibase.Command {
 				}
 
 				if email == "" {
-					email, err = cliui.Prompt(cmd, cliui.PromptOptions{
+					email, err = cliui.Prompt(inv, cliui.PromptOptions{
 						Text: "What's your " + cliui.Styles.Field.Render("email") + "?",
 						Validate: func(s string) error {
 							err := validator.New().Var(s, "email")
@@ -153,7 +153,7 @@ func login() *clibase.Command {
 					var matching bool
 
 					for !matching {
-						password, err = cliui.Prompt(cmd, cliui.PromptOptions{
+						password, err = cliui.Prompt(inv, cliui.PromptOptions{
 							Text:   "Enter a " + cliui.Styles.Field.Render("password") + ":",
 							Secret: true,
 							Validate: func(s string) error {
@@ -163,7 +163,7 @@ func login() *clibase.Command {
 						if err != nil {
 							return xerrors.Errorf("specify password prompt: %w", err)
 						}
-						confirm, err := cliui.Prompt(cmd, cliui.PromptOptions{
+						confirm, err := cliui.Prompt(inv, cliui.PromptOptions{
 							Text:     "Confirm " + cliui.Styles.Field.Render("password") + ":",
 							Secret:   true,
 							Validate: cliui.ValidateNotEmpty,
@@ -174,13 +174,13 @@ func login() *clibase.Command {
 
 						matching = confirm == password
 						if !matching {
-							_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Error.Render("Passwords do not match"))
+							_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Error.Render("Passwords do not match"))
 						}
 					}
 				}
 
 				if !cmd.Flags().Changed("first-user-trial") && os.Getenv(firstUserTrialEnv) == "" {
-					v, _ := cliui.Prompt(cmd, cliui.PromptOptions{
+					v, _ := cliui.Prompt(inv, cliui.PromptOptions{
 						Text:      "Start a 30-day trial of Enterprise?",
 						IsConfirm: true,
 						Default:   "yes",
@@ -216,27 +216,27 @@ func login() *clibase.Command {
 					return xerrors.Errorf("write server url: %w", err)
 				}
 
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+				_, _ = fmt.Fprintf(inv.Stdout,
 					cliui.Styles.Paragraph.Render(fmt.Sprintf("Welcome to Coder, %s! You're authenticated.", cliui.Styles.Keyword.Render(username)))+"\n")
 
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+				_, _ = fmt.Fprintf(inv.Stdout,
 					cliui.Styles.Paragraph.Render("Get started by creating a template: "+cliui.Styles.Code.Render("coder templates init"))+"\n")
 				return nil
 			}
 
-			sessionToken, _ := cmd.Flags().GetString(varToken)
+			sessionToken, _ := inv.ParsedFlags().GetString(varToken)
 			if sessionToken == "" {
 				authURL := *serverURL
 				// Don't use filepath.Join, we don't want to use the os separator
 				// for a url.
 				authURL.Path = path.Join(serverURL.Path, "/cli-auth")
 				if err := openURL(cmd, authURL.String()); err != nil {
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Open the following in your browser:\n\n\t%s\n\n", authURL.String())
+					_, _ = fmt.Fprintf(inv.Stdout, "Open the following in your browser:\n\n\t%s\n\n", authURL.String())
 				} else {
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Your browser has been opened to visit:\n\n\t%s\n\n", authURL.String())
+					_, _ = fmt.Fprintf(inv.Stdout, "Your browser has been opened to visit:\n\n\t%s\n\n", authURL.String())
 				}
 
-				sessionToken, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				sessionToken, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:   "Paste your token here:",
 					Secret: true,
 					Validate: func(token string) error {
@@ -270,7 +270,7 @@ func login() *clibase.Command {
 				return xerrors.Errorf("write server url: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), Caret+"Welcome to Coder, %s! You're authenticated.\n", cliui.Styles.Keyword.Render(resp.Username))
+			_, _ = fmt.Fprintf(inv.Stdout, Caret+"Welcome to Coder, %s! You're authenticated.\n", cliui.Styles.Keyword.Render(resp.Username))
 			return nil
 		},
 	}
@@ -295,7 +295,7 @@ func isWSL() (bool, error) {
 
 // openURL opens the provided URL via user's default browser
 func openURL(cmd *clibase.Command, urlToOpen string) error {
-	noOpen, err := cmd.Flags().GetBool(varNoOpen)
+	noOpen, err := inv.ParsedFlags().GetBool(varNoOpen)
 	if err != nil {
 		panic(err)
 	}

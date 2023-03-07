@@ -27,17 +27,17 @@ func TestList(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-		cmd, root := clitest.New(t, "ls")
+		inv, root := clitest.New(t, "ls")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.Stdin = pty.Input()
-		cmd.Stdout = pty.Output()
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()
 		done := make(chan any)
 		go func() {
-			errC := cmd.WithContext(ctx).Run()
+			errC := inv.WithContext(ctx).Run()
 			assert.NoError(t, errC)
 			close(done)
 		}()
@@ -57,15 +57,15 @@ func TestList(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		cmd, root := clitest.New(t, "list", "--output=json")
+		inv, root := clitest.New(t, "list", "--output=json")
 		clitest.SetupConfig(t, client, root)
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()
 
 		out := bytes.NewBuffer(nil)
-		cmd.Stdout = out
-		err := cmd.WithContext(ctx).Run()
+		inv.Stdout = out
+		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
 		var templates []codersdk.Workspace
