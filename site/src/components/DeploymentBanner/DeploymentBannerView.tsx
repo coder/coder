@@ -333,6 +333,7 @@ const useStyles = makeStyles((theme) => ({
     color: "unset",
     border: 0,
     minWidth: "unset",
+    fontFamily: "inherit",
 
     "& svg": {
       marginRight: theme.spacing(0.5),
