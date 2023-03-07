@@ -131,31 +131,6 @@ func TestTokenUserSetMaxLifetime(t *testing.T) {
 	require.ErrorContains(t, err, "lifetime must be less")
 }
 
-func TestTokenDefaultMaxLifetime(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-	dc := coderdtest.DeploymentValues(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues: dc,
-	})
-	_ = coderdtest.CreateFirstUser(t, client)
-
-	// success
-	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
-		Lifetime: time.Hour * 24 * 365,
-	})
-	require.NoError(t, err)
-
-	// fail - default --max-token-lifetime is the maximum value of time.Duration
-	// which is 24 * 365 * 290.
-	_, err = client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
-		Lifetime: time.Hour * 24 * 366 * 290,
-	})
-	require.ErrorContains(t, err, "lifetime must be less")
-}
-
 func TestSessionExpiry(t *testing.T) {
 	t.Parallel()
 

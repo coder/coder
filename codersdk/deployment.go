@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -1045,7 +1046,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Description: "The maximum lifetime duration users can specify when creating an API token.",
 			Flag:        "max-token-lifetime",
 			Env:         "MAX_TOKEN_LIFETIME",
-			Default:     (24 * 30 * time.Hour).String(),
+			Default:     time.Duration(math.MaxInt64).String(),
 			Value:       &c.MaxTokenLifetime,
 			Group:       &DeploymentGroupNetworkingHTTP,
 			YAML:        "maxTokenLifetime",
