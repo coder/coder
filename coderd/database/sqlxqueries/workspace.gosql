@@ -53,7 +53,8 @@ WHERE
 ORDER BY
 	build_number desc
 {{ end }}
-LIMIT @limit_opt;
+{{ if gt .LimitOpt 0 }} LIMIT @limit_opt {{ end }}
+;
 {{ end }}
 
 
