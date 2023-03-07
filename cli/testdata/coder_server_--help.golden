@@ -147,7 +147,7 @@ Flags:
                                                           can specify when creating an API
                                                           token.
                                                           Consumes $CODER_MAX_TOKEN_LIFETIME
-                                                          (default 720h0m0s)
+                                                          (default 2540400h0m0s)
       --oauth2-github-allow-everyone                      Allow all logins, setting this
                                                           option means allowed orgs and teams
                                                           must be empty.

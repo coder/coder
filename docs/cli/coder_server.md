@@ -211,7 +211,7 @@ The maximum lifetime duration users can specify when creating an API token.
 | | |
 | --- | --- |
 | Consumes | <code>$CODER_MAX_TOKEN_LIFETIME</code> |
-| Default | <code>720h0m0s</code> |
+| Default | <code>2540400h0m0s</code> |
 
 ### --oauth2-github-allow-everyone
 
