@@ -45,7 +45,7 @@ func TestAgent(t *testing.T) {
 			return err
 		},
 	}
-	cmd.SetOutput(ptty.Output())
+	cmd.Stdout = ptty.Output()
 	cmd.Stdin = ptty.Input()
 	done := make(chan struct{})
 	go func() {
@@ -92,7 +92,7 @@ func TestAgent_TimeoutWithTroubleshootingURL(t *testing.T) {
 		},
 	}
 	ptty := ptytest.New(t)
-	cmd.SetOutput(ptty.Output())
+	cmd.Stdout = ptty.Output()
 	cmd.Stdin = ptty.Input()
 	done := make(chan error, 1)
 	go func() {
@@ -145,7 +145,7 @@ func TestAgent_StartupTimeout(t *testing.T) {
 	}
 
 	ptty := ptytest.New(t)
-	cmd.SetOutput(ptty.Output())
+	cmd.Stdout = ptty.Output()
 	cmd.Stdin = ptty.Input()
 	done := make(chan error, 1)
 	go func() {
@@ -203,7 +203,7 @@ func TestAgent_StartErrorExit(t *testing.T) {
 	}
 
 	ptty := ptytest.New(t)
-	cmd.SetOutput(ptty.Output())
+	cmd.Stdout = ptty.Output()
 	cmd.Stdin = ptty.Input()
 	done := make(chan error, 1)
 	go func() {
@@ -258,7 +258,7 @@ func TestAgent_NoWait(t *testing.T) {
 	}
 
 	ptty := ptytest.New(t)
-	cmd.SetOutput(ptty.Output())
+	cmd.Stdout = ptty.Output()
 	cmd.Stdin = ptty.Input()
 	done := make(chan error, 1)
 	go func() {
@@ -327,7 +327,7 @@ func TestAgent_LoginBeforeReadyEnabled(t *testing.T) {
 	}
 
 	ptty := ptytest.New(t)
-	cmd.SetOutput(ptty.Output())
+	cmd.Stdout = ptty.Output()
 	cmd.Stdin = ptty.Input()
 	done := make(chan error, 1)
 	go func() {

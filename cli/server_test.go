@@ -119,8 +119,8 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t)
-		root.SetOutput(pty.Output())
-		root.SetErr(pty.Output())
+		root.Stdout = pty.Output()
+		root.Stderr = pty.Output()
 		errC := make(chan error, 1)
 		go func() {
 			errC <- root.WithContext(ctx).Run()
@@ -148,8 +148,8 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t)
-		root.SetOutput(pty.Output())
-		root.SetErr(pty.Output())
+		root.Stdout = pty.Output()
+		root.Stderr = pty.Output()
 		errC := make(chan error, 1)
 		go func() {
 			errC <- root.WithContext(ctx).Run()
@@ -166,7 +166,7 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 		root, _ := clitest.New(t, "server", "postgres-builtin-url")
 		pty := ptytest.New(t)
-		root.SetOutput(pty.Output())
+		root.Stdout = pty.Output()
 		err := root.Run()
 		require.NoError(t, err)
 
@@ -178,7 +178,7 @@ func TestServer(t *testing.T) {
 
 		root, _ := clitest.New(t, "server", "postgres-builtin-url", "--raw-url")
 		pty := ptytest.New(t)
-		root.SetOutput(pty.Output())
+		root.Stdout = pty.Output()
 		err := root.WithContext(ctx).Run()
 		require.NoError(t, err)
 
@@ -524,8 +524,8 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 		pty := ptytest.New(t)
-		root.SetOutput(pty.Output())
-		root.SetErr(pty.Output())
+		root.Stdout = pty.Output()
+		root.Stderr = pty.Output()
 
 		errC := make(chan error, 1)
 		go func() {
@@ -672,8 +672,8 @@ func TestServer(t *testing.T) {
 
 				root, _ := clitest.New(t, flags...)
 				pty := ptytest.New(t)
-				root.SetOutput(pty.Output())
-				root.SetErr(pty.Output())
+				root.Stdout = pty.Output()
+				root.Stderr = pty.Output()
 
 				errC := make(chan error, 1)
 				go func() {
@@ -762,8 +762,8 @@ func TestServer(t *testing.T) {
 		)
 
 		pty := ptytest.New(t)
-		root.SetOutput(pty.Output())
-		root.SetErr(pty.Output())
+		root.Stdout = pty.Output()
+		root.Stderr = pty.Output()
 		serverStop := make(chan error, 1)
 		go func() {
 			err := root.WithContext(ctx).Run()
@@ -792,8 +792,8 @@ func TestServer(t *testing.T) {
 		)
 
 		pty := ptytest.New(t)
-		root.SetOutput(pty.Output())
-		root.SetErr(pty.Output())
+		root.Stdout = pty.Output()
+		root.Stderr = pty.Output()
 		serverClose := make(chan struct{}, 1)
 		go func() {
 			err := root.WithContext(ctx).Run()
@@ -862,8 +862,8 @@ func TestServer(t *testing.T) {
 				"--cache-dir", t.TempDir(),
 			)
 			pty := ptytest.New(t)
-			root.SetOutput(pty.Output())
-			root.SetErr(pty.Output())
+			root.Stdout = pty.Output()
+			root.Stderr = pty.Output()
 			clitest.Start(ctx, t, root)
 
 			pty.ExpectMatch("is deprecated")
@@ -892,8 +892,8 @@ func TestServer(t *testing.T) {
 				"--cache-dir", t.TempDir(),
 			)
 			pty := ptytest.New(t)
-			root.SetOutput(pty.Output())
-			root.SetErr(pty.Output())
+			root.Stdout = pty.Output()
+			root.Stderr = pty.Output()
 			clitest.Start(ctx, t, root)
 
 			pty.ExpectMatch("is deprecated")
@@ -1288,7 +1288,7 @@ func TestServer(t *testing.T) {
 			// fails.
 			pty := ptytest.New(t)
 			root.Stdout = pty.Output()
-			root.SetErr(pty.Output())
+			root.Stderr = pty.Output()
 
 			serverErr := make(chan error, 1)
 			go func() {
@@ -1333,7 +1333,7 @@ func TestServer(t *testing.T) {
 			// fails.
 			pty := ptytest.New(t)
 			root.Stdout = pty.Output()
-			root.SetErr(pty.Output())
+			root.Stderr = pty.Output()
 
 			clitest.Start(ctx, t, root)
 

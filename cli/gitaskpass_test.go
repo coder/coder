@@ -32,14 +32,14 @@ func TestGitAskpass(t *testing.T) {
 		url := srv.URL
 		cmd, _ := clitest.New(t, "--agent-url", url, "Username for 'https://github.com':")
 		pty := ptytest.New(t)
-		cmd.SetOutput(pty.Output())
+		cmd.Stdout = pty.Output()
 		err := cmd.Run()
 		require.NoError(t, err)
 		pty.ExpectMatch("something")
 
 		cmd, _ = clitest.New(t, "--agent-url", url, "Password for 'https://potato@github.com':")
 		pty = ptytest.New(t)
-		cmd.SetOutput(pty.Output())
+		cmd.Stdout = pty.Output()
 		err = cmd.Run()
 		require.NoError(t, err)
 		pty.ExpectMatch("bananas")
@@ -55,7 +55,7 @@ func TestGitAskpass(t *testing.T) {
 		url := srv.URL
 		cmd, _ := clitest.New(t, "--agent-url", url, "--no-open", "Username for 'https://github.com':")
 		pty := ptytest.New(t)
-		cmd.SetOutput(pty.Output())
+		cmd.Stdout = pty.Output()
 		err := cmd.Run()
 		require.ErrorIs(t, err, cliui.Canceled)
 		pty.ExpectMatch("Nope!")
@@ -83,7 +83,7 @@ func TestGitAskpass(t *testing.T) {
 
 		cmd, _ := clitest.New(t, "--agent-url", url, "--no-open", "Username for 'https://github.com':")
 		pty := ptytest.New(t)
-		cmd.SetOutput(pty.Output())
+		cmd.Stdout = pty.Output()
 		go func() {
 			err := cmd.Run()
 			assert.NoError(t, err)

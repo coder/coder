@@ -129,8 +129,8 @@ func TestServerCreateAdminUser(t *testing.T) {
 			"--password", password,
 		)
 		pty := ptytest.New(t)
-		root.SetOutput(pty.Output())
-		root.SetErr(pty.Output())
+		root.Stdout = pty.Output()
+		root.Stderr = pty.Output()
 		errC := make(chan error, 1)
 		go func() {
 			err := root.WithContext(ctx).Run()
@@ -175,8 +175,8 @@ func TestServerCreateAdminUser(t *testing.T) {
 
 		root, _ := clitest.New(t, "server", "create-admin-user")
 		pty := ptytest.New(t)
-		root.SetOutput(pty.Output())
-		root.SetErr(pty.Output())
+		root.Stdout = pty.Output()
+		root.Stderr = pty.Output()
 		errC := make(chan error, 1)
 		go func() {
 			err := root.WithContext(ctx).Run()
@@ -217,8 +217,8 @@ func TestServerCreateAdminUser(t *testing.T) {
 		)
 		pty := ptytest.New(t)
 		root.Stdin = pty.Input()
-		root.SetOutput(pty.Output())
-		root.SetErr(pty.Output())
+		root.Stdout = pty.Output()
+		root.Stderr = pty.Output()
 		errC := make(chan error, 1)
 		go func() {
 			err := root.WithContext(ctx).Run()
@@ -267,8 +267,8 @@ func TestServerCreateAdminUser(t *testing.T) {
 			"--password", "x",
 		)
 		pty := ptytest.New(t)
-		root.SetOutput(pty.Output())
-		root.SetErr(pty.Output())
+		root.Stdout = pty.Output()
+		root.Stderr = pty.Output()
 
 		err = root.WithContext(ctx).Run()
 		require.Error(t, err)
