@@ -434,7 +434,8 @@ CREATE TABLE templates (
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     display_name character varying(64) DEFAULT ''::character varying NOT NULL,
-    allow_user_cancel_workspace_jobs boolean DEFAULT true NOT NULL
+    allow_user_cancel_workspace_jobs boolean DEFAULT true NOT NULL,
+    max_ttl bigint DEFAULT '0'::bigint NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for auto-stop for workspaces created from this template.';
@@ -579,7 +580,8 @@ CREATE TABLE workspace_builds (
     job_id uuid NOT NULL,
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
-    daily_cost integer DEFAULT 0 NOT NULL
+    daily_cost integer DEFAULT 0 NOT NULL,
+    max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_resource_metadata (

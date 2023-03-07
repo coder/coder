@@ -977,6 +977,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "description": "string",
   "display_name": "string",
   "icon": "string",
+  "max_ttl_ms": 0,
   "name": "string",
   "parameter_values": [
     {
@@ -1000,6 +1001,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `description`                                                                                                                                                                             | string                                                                      | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                |
 | `display_name`                                                                                                                                                                            | string                                                                      | false    |              | Display name is the displayed name of the template.                                                        |
 | `icon`                                                                                                                                                                                    | string                                                                      | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.           |
+| `max_ttl_ms`                                                                                                                                                                              | integer                                                                     | false    |              | Max ttl ms allows optionally specifying the max lifetime for workspaces created from this template.        |
 | `name`                                                                                                                                                                                    | string                                                                      | true     |              | Name is the name of the template.                                                                          |
 | `parameter_values`                                                                                                                                                                        | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.]                         |
 | `template_version_id`                                                                                                                                                                     | string                                                                      | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.       |
@@ -4583,6 +4585,7 @@ Parameter represents a set value for the scope.
   "display_name": "string",
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
@@ -4592,24 +4595,25 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                               | Type                                                               | Required | Restrictions | Description                                  |
-| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | -------------------------------------------- |
-| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading. |
-| `active_version_id`                | string                                                             | false    |              |                                              |
-| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                              |
-| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                              |
-| `created_at`                       | string                                                             | false    |              |                                              |
-| `created_by_id`                    | string                                                             | false    |              |                                              |
-| `created_by_name`                  | string                                                             | false    |              |                                              |
-| `default_ttl_ms`                   | integer                                                            | false    |              |                                              |
-| `description`                      | string                                                             | false    |              |                                              |
-| `display_name`                     | string                                                             | false    |              |                                              |
-| `icon`                             | string                                                             | false    |              |                                              |
-| `id`                               | string                                                             | false    |              |                                              |
-| `name`                             | string                                                             | false    |              |                                              |
-| `organization_id`                  | string                                                             | false    |              |                                              |
-| `provisioner`                      | string                                                             | false    |              |                                              |
-| `updated_at`                       | string                                                             | false    |              |                                              |
+| Name                               | Type                                                               | Required | Restrictions | Description                                                                                                                               |
+| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading.                                                                                              |
+| `active_version_id`                | string                                                             | false    |              |                                                                                                                                           |
+| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                                                                                                                           |
+| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                           |
+| `created_at`                       | string                                                             | false    |              |                                                                                                                                           |
+| `created_by_id`                    | string                                                             | false    |              |                                                                                                                                           |
+| `created_by_name`                  | string                                                             | false    |              |                                                                                                                                           |
+| `default_ttl_ms`                   | integer                                                            | false    |              |                                                                                                                                           |
+| `description`                      | string                                                             | false    |              |                                                                                                                                           |
+| `display_name`                     | string                                                             | false    |              |                                                                                                                                           |
+| `icon`                             | string                                                             | false    |              |                                                                                                                                           |
+| `id`                               | string                                                             | false    |              |                                                                                                                                           |
+| `max_ttl_ms`                       | integer                                                            | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature. |
+| `name`                             | string                                                             | false    |              |                                                                                                                                           |
+| `organization_id`                  | string                                                             | false    |              |                                                                                                                                           |
+| `provisioner`                      | string                                                             | false    |              |                                                                                                                                           |
+| `updated_at`                       | string                                                             | false    |              |                                                                                                                                           |
 
 #### Enumerated Values
 
@@ -5308,6 +5312,7 @@ Parameter represents a set value for the scope.
       },
       "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
+    "max_deadline": "2019-08-24T14:15:22Z",
     "reason": "initiator",
     "resources": [
       {
@@ -5776,6 +5781,7 @@ Parameter represents a set value for the scope.
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "max_deadline": "2019-08-24T14:15:22Z",
   "reason": "initiator",
   "resources": [
     {
@@ -5881,6 +5887,7 @@ Parameter represents a set value for the scope.
 | `initiator_id`          | string                                                            | false    |              |             |
 | `initiator_name`        | string                                                            | false    |              |             |
 | `job`                   | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |             |
+| `max_deadline`          | string                                                            | false    |              |             |
 | `reason`                | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |             |
 | `resources`             | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |             |
 | `status`                | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |             |
@@ -6144,6 +6151,7 @@ Parameter represents a set value for the scope.
           },
           "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
         },
+        "max_deadline": "2019-08-24T14:15:22Z",
         "reason": "initiator",
         "resources": [
           {

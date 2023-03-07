@@ -5875,6 +5875,10 @@ const docTemplate = `{
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
                     "type": "string"
                 },
+                "max_ttl_ms": {
+                    "description": "MaxTTLMillis allows optionally specifying the max lifetime for\nworkspaces created from this template.",
+                    "type": "integer"
+                },
                 "name": {
                     "description": "Name is the name of the template.",
                     "type": "string"
@@ -7729,6 +7733,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "max_ttl_ms": {
+                    "description": "MaxTTLMillis is an enterprise feature. It's value is only used if your\nlicense is entitled to use the advanced template scheduling feature.",
+                    "type": "integer"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -8652,6 +8660,10 @@ const docTemplate = `{
                 },
                 "job": {
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
+                },
+                "max_deadline": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "reason": {
                     "enum": [

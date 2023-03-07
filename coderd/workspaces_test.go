@@ -17,11 +17,11 @@ import (
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -331,7 +331,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		})
 		// TTL should be set by the template
 		require.Equal(t, template.DefaultTTLMillis, templateTTL)
-		require.Equal(t, template.DefaultTTLMillis, template.DefaultTTLMillis, workspace.TTLMillis)
+		require.Equal(t, template.DefaultTTLMillis, *workspace.TTLMillis)
 	})
 
 	t.Run("InvalidTTL", func(t *testing.T) {

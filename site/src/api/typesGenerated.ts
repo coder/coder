@@ -186,6 +186,7 @@ export interface CreateTemplateRequest {
   readonly template_version_id: string
   readonly parameter_values?: CreateParameterRequest[]
   readonly default_ttl_ms?: number
+  readonly max_ttl_ms?: number
   readonly allow_user_cancel_workspace_jobs?: boolean
 }
 
@@ -719,6 +720,7 @@ export interface Template {
   readonly description: string
   readonly icon: string
   readonly default_ttl_ms: number
+  readonly max_ttl_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
   readonly allow_user_cancel_workspace_jobs: boolean
@@ -878,6 +880,7 @@ export interface UpdateTemplateMeta {
   readonly description?: string
   readonly icon?: string
   readonly default_ttl_ms?: number
+  readonly max_ttl_ms?: number
   readonly allow_user_cancel_workspace_jobs?: boolean
 }
 
@@ -1044,6 +1047,7 @@ export interface WorkspaceBuild {
   readonly reason: BuildReason
   readonly resources: WorkspaceResource[]
   readonly deadline?: string
+  readonly max_deadline?: string
   readonly status: WorkspaceStatus
   readonly daily_cost: number
 }
@@ -1154,6 +1158,7 @@ export const Experiments: Experiment[] = ["authz_querier", "template_editor"]
 
 // From codersdk/deployment.go
 export type FeatureName =
+  | "advanced_template_scheduling"
   | "appearance"
   | "audit_log"
   | "browser_only"
@@ -1164,6 +1169,7 @@ export type FeatureName =
   | "template_rbac"
   | "user_limit"
 export const FeatureNames: FeatureName[] = [
+  "advanced_template_scheduling",
   "appearance",
   "audit_log",
   "browser_only",

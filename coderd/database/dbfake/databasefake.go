@@ -1686,8 +1686,8 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		return database.Template{}, err
 	}
 
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	for idx, tpl := range q.templates {
 		if tpl.ID != arg.ID {
@@ -1698,7 +1698,28 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.DisplayName = arg.DisplayName
 		tpl.Description = arg.Description
 		tpl.Icon = arg.Icon
+		q.templates[idx] = tpl
+		return tpl, nil
+	}
+
+	return database.Template{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.Template{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for idx, tpl := range q.templates {
+		if tpl.ID != arg.ID {
+			continue
+		}
+		tpl.UpdatedAt = database.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
+		tpl.MaxTTL = arg.MaxTTL
 		q.templates[idx] = tpl
 		return tpl, nil
 	}
@@ -2637,7 +2658,6 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		Provisioner:                  arg.Provisioner,
 		ActiveVersionID:              arg.ActiveVersionID,
 		Description:                  arg.Description,
-		DefaultTTL:                   arg.DefaultTTL,
 		CreatedBy:                    arg.CreatedBy,
 		UserACL:                      arg.UserACL,
 		GroupACL:                     arg.GroupACL,
@@ -3532,6 +3552,26 @@ func (q *fakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateWorkspaceTTLToBeWithinTemplateMax(_ context.Context, arg database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspace := range q.workspaces {
+		if workspace.TemplateID != arg.TemplateID || !workspace.Ttl.Valid || workspace.Ttl.Int64 < arg.TemplateMaxTTL {
+			continue
+		}
+
+		workspace.Ttl = sql.NullInt64{Int64: arg.TemplateMaxTTL, Valid: true}
+		q.workspaces[index] = workspace
+	}
+
+	return nil
+}
+
 func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceBuild{}, err
@@ -3547,6 +3587,7 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 		workspaceBuild.UpdatedAt = arg.UpdatedAt
 		workspaceBuild.ProvisionerState = arg.ProvisionerState
 		workspaceBuild.Deadline = arg.Deadline
+		workspaceBuild.MaxDeadline = arg.MaxDeadline
 		q.workspaceBuilds[index] = workspaceBuild
 		return workspaceBuild, nil
 	}

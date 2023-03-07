@@ -1423,7 +1423,8 @@ type Template struct {
 	// Display name is a custom, human-friendly template name that user can set.
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Allow users to cancel in-progress workspace jobs.
-	AllowUserCancelWorkspaceJobs bool `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
+	AllowUserCancelWorkspaceJobs bool  `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
+	MaxTTL                       int64 `db:"max_ttl" json:"max_ttl"`
 }
 
 type TemplateVersion struct {
@@ -1617,6 +1618,7 @@ type WorkspaceBuild struct {
 	Deadline          time.Time           `db:"deadline" json:"deadline"`
 	Reason            BuildReason         `db:"reason" json:"reason"`
 	DailyCost         int32               `db:"daily_cost" json:"daily_cost"`
+	MaxDeadline       time.Time           `db:"max_deadline" json:"max_deadline"`
 }
 
 type WorkspaceBuildParameter struct {

@@ -118,6 +118,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "display_name": "string",
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "max_ttl_ms": 0,
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "provisioner": "terraform",
@@ -136,28 +137,29 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 Status Code **200**
 
-| Name                                 | Type                                                                         | Required | Restrictions | Description                                  |
-| ------------------------------------ | ---------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------- |
-| `[array item]`                       | array                                                                        | false    |              |                                              |
-| `» active_user_count`                | integer                                                                      | false    |              | Active user count is set to -1 when loading. |
-| `» active_version_id`                | string(uuid)                                                                 | false    |              |                                              |
-| `» allow_user_cancel_workspace_jobs` | boolean                                                                      | false    |              |                                              |
-| `» build_time_stats`                 | [codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats) | false    |              |                                              |
-| `»» [any property]`                  | [codersdk.TransitionStats](schemas.md#codersdktransitionstats)               | false    |              |                                              |
-| `»»» p50`                            | integer                                                                      | false    |              |                                              |
-| `»»» p95`                            | integer                                                                      | false    |              |                                              |
-| `» created_at`                       | string(date-time)                                                            | false    |              |                                              |
-| `» created_by_id`                    | string(uuid)                                                                 | false    |              |                                              |
-| `» created_by_name`                  | string                                                                       | false    |              |                                              |
-| `» default_ttl_ms`                   | integer                                                                      | false    |              |                                              |
-| `» description`                      | string                                                                       | false    |              |                                              |
-| `» display_name`                     | string                                                                       | false    |              |                                              |
-| `» icon`                             | string                                                                       | false    |              |                                              |
-| `» id`                               | string(uuid)                                                                 | false    |              |                                              |
-| `» name`                             | string                                                                       | false    |              |                                              |
-| `» organization_id`                  | string(uuid)                                                                 | false    |              |                                              |
-| `» provisioner`                      | string                                                                       | false    |              |                                              |
-| `» updated_at`                       | string(date-time)                                                            | false    |              |                                              |
+| Name                                 | Type                                                                         | Required | Restrictions | Description                                                                                                                               |
+| ------------------------------------ | ---------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`                       | array                                                                        | false    |              |                                                                                                                                           |
+| `» active_user_count`                | integer                                                                      | false    |              | Active user count is set to -1 when loading.                                                                                              |
+| `» active_version_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                           |
+| `» allow_user_cancel_workspace_jobs` | boolean                                                                      | false    |              |                                                                                                                                           |
+| `» build_time_stats`                 | [codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                           |
+| `»» [any property]`                  | [codersdk.TransitionStats](schemas.md#codersdktransitionstats)               | false    |              |                                                                                                                                           |
+| `»»» p50`                            | integer                                                                      | false    |              |                                                                                                                                           |
+| `»»» p95`                            | integer                                                                      | false    |              |                                                                                                                                           |
+| `» created_at`                       | string(date-time)                                                            | false    |              |                                                                                                                                           |
+| `» created_by_id`                    | string(uuid)                                                                 | false    |              |                                                                                                                                           |
+| `» created_by_name`                  | string                                                                       | false    |              |                                                                                                                                           |
+| `» default_ttl_ms`                   | integer                                                                      | false    |              |                                                                                                                                           |
+| `» description`                      | string                                                                       | false    |              |                                                                                                                                           |
+| `» display_name`                     | string                                                                       | false    |              |                                                                                                                                           |
+| `» icon`                             | string                                                                       | false    |              |                                                                                                                                           |
+| `» id`                               | string(uuid)                                                                 | false    |              |                                                                                                                                           |
+| `» max_ttl_ms`                       | integer                                                                      | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature. |
+| `» name`                             | string                                                                       | false    |              |                                                                                                                                           |
+| `» organization_id`                  | string(uuid)                                                                 | false    |              |                                                                                                                                           |
+| `» provisioner`                      | string                                                                       | false    |              |                                                                                                                                           |
+| `» updated_at`                       | string(date-time)                                                            | false    |              |                                                                                                                                           |
 
 #### Enumerated Values
 
@@ -190,6 +192,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "description": "string",
   "display_name": "string",
   "icon": "string",
+  "max_ttl_ms": 0,
   "name": "string",
   "parameter_values": [
     {
@@ -238,6 +241,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "display_name": "string",
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
@@ -360,6 +364,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "display_name": "string",
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
@@ -681,6 +686,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "display_name": "string",
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
@@ -786,6 +792,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "display_name": "string",
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",

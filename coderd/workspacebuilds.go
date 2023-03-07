@@ -1149,6 +1149,7 @@ func (api *API) convertWorkspaceBuild(
 		InitiatorUsername:   initiator.Username,
 		Job:                 apiJob,
 		Deadline:            codersdk.NewNullTime(build.Deadline, !build.Deadline.IsZero()),
+		MaxDeadline:         codersdk.NewNullTime(build.MaxDeadline, !build.MaxDeadline.IsZero()),
 		Reason:              codersdk.BuildReason(build.Reason),
 		Resources:           apiResources,
 		Status:              convertWorkspaceStatus(apiJob.Status, transition),
