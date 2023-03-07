@@ -83,6 +83,21 @@ func (c *haCoordinator) Node(id uuid.UUID) *agpl.Node {
 // with the specified ID.
 func (c *haCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
 	c.mutex.Lock()
+	connectionSockets, ok := c.agentToConnectionSockets[agent]
+	if !ok {
+		connectionSockets = map[uuid.UUID]*agpl.TrackedConn{}
+		c.agentToConnectionSockets[agent] = connectionSockets
+	}
+
+	now := time.Now().Unix()
+	// Insert this connection into a map so the agent
+	// can publish node updates.
+	connectionSockets[id] = &agpl.TrackedConn{
+		Conn:      conn,
+		Start:     now,
+		LastWrite: now,
+	}
+
 	// When a new connection is requested, we update it with the latest
 	// node of the agent. This allows the connection to establish.
 	node, ok := c.nodes[agent]
@@ -102,23 +117,6 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID
 			return xerrors.Errorf("publish client hello: %w", err)
 		}
 	}
-
-	c.mutex.Lock()
-	connectionSockets, ok := c.agentToConnectionSockets[agent]
-	if !ok {
-		connectionSockets = map[uuid.UUID]*agpl.TrackedConn{}
-		c.agentToConnectionSockets[agent] = connectionSockets
-	}
-
-	now := time.Now().Unix()
-	// Insert this connection into a map so the agent
-	// can publish node updates.
-	connectionSockets[id] = &agpl.TrackedConn{
-		Conn:      conn,
-		Start:     now,
-		LastWrite: now,
-	}
-	c.mutex.Unlock()
 
 	defer func() {
 		c.mutex.Lock()
