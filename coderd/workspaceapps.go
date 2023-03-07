@@ -110,10 +110,6 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 				},
 				RedirectToLogin:             true,
 				DisableSessionExpiryRefresh: api.DeploymentConfig.DisableSessionExpiryRefresh.Value,
-				// Optional is true to allow for public apps. If an
-				// authorization check fails and the user is not authenticated,
-				// they will be redirected to the login page below.
-				Optional: false,
 			}),
 			httpmw.ExtractUserParam(api.Database, true),
 		})

@@ -11,8 +11,8 @@ import (
 )
 
 // Provider provides authentication and authorization for workspace apps.
-// TODO: also provide workspace apps as a whole to remove all app code from
-// coderd.
+// TODO(@deansheather): also provide workspace apps as a whole to remove all app
+// code from coderd.
 type Provider struct {
 	Logger slog.Logger
 

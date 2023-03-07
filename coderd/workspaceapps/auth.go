@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	// TODO: configurable expiry
+	// TODO(@deansheather): configurable expiry
 	TicketExpiry = time.Minute
 
 	// RedirectURIQueryParam is the query param for the app URL to be passed
@@ -90,14 +90,15 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 		ticketOK = false
 	)
 	httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
-		DB:            p.Database,
-		OAuth2Configs: p.OAuth2Configs,
-		// Optional is true to allow for public apps. If an authorization check
-		// fails and the user is not authenticated, they will be redirected to
-		// the login page below.
+		DB:                          p.Database,
+		OAuth2Configs:               p.OAuth2Configs,
 		RedirectToLogin:             false,
 		DisableSessionExpiryRefresh: p.DeploymentConfig.DisableSessionExpiryRefresh.Value,
-		Optional:                    true,
+		// Optional is true to allow for public apps. If an authorization check
+		// fails and the user is not authenticated, they will be redirected to
+		// the login page using code below (not the redirect from the
+		// middleware itself).
+		Optional: true,
 	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get user.
 		var (
@@ -486,7 +487,7 @@ func (p *Provider) writeWorkspaceApp500(rw http.ResponseWriter, r *http.Request,
 			slog.F("app_name_or_port", appReq.AppSlugOrPort),
 		)
 	}
-	p.Logger.Warn(r.Context(),
+	p.Logger.Warn(ctx,
 		"workspace app auth server error: "+msg,
 		slog.Error(err),
 	)

@@ -592,7 +592,7 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 			err = options.Database.InTx(func(tx database.Store) error {
 				// This will block until the lock is acquired, and will be
 				// automatically released when the transaction ends.
-				err := tx.AcquireLock(ctx, database.LockID("deployment_startup"))
+				err := tx.AcquireLock(ctx, database.LockIDDeploymentSetup)
 				if err != nil {
 					return xerrors.Errorf("acquire lock: %w", err)
 				}
