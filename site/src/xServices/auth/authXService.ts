@@ -79,7 +79,7 @@ export const permissionsToCheck = {
     object: {
       resource_type: "deployment_stats",
     },
-    action:  "read",
+    action: "read",
   },
 } as const
 

@@ -18,7 +18,6 @@ export const deploymentStatsMachine = createMachine(
           data: DeploymentStats
         }
       },
-
     },
     tsTypes: {} as import("./deploymentStatsMachine.typegen").Typegen0,
     initial: "stats",

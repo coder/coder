@@ -1,6 +1,9 @@
 import { Story } from "@storybook/react"
 import { MockDeploymentStats } from "testHelpers/entities"
-import { DeploymentBannerView, DeploymentBannerViewProps } from "./DeploymentBannerView"
+import {
+  DeploymentBannerView,
+  DeploymentBannerViewProps,
+} from "./DeploymentBannerView"
 
 export default {
   title: "components/DeploymentBannerView",

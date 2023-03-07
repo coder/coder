@@ -74,7 +74,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
       return "just now"
     }
     return dayjs().to(dayjs(stats.collected_at))
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- We want this to periodically update!
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- We want this to periodically update!
   }, [timeUntilRefresh, stats])
 
   return (
@@ -145,7 +145,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
           >
             <div className={styles.value}>
               <LatencyIcon />
-              {displayLatency > 0 ? displayLatency?.toFixed(2) + "ms" : "-"}
+              {displayLatency > 0 ? displayLatency?.toFixed(2) + " ms" : "-"}
             </div>
           </Tooltip>
         </div>
@@ -183,7 +183,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
         </div>
       </div>
       <div className={styles.refresh}>
-        <Tooltip title="The last time stats were aggregated">
+        <Tooltip title="The last time stats were aggregated. Workspaces report statistics periodically, so it may take a bit for these to update!">
           <div className={styles.value}>
             <CollectedIcon />
             {lastAggregated}
