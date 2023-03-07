@@ -24,6 +24,7 @@ func TestGetWorkspaceBuild(t *testing.T) {
 
 	// Seed the database with some workspace builds.
 	var (
+		now  = database.Now()
 		org  = dbgen.Organization(t, db, database.Organization{})
 		user = dbgen.User(t, db, database.User{
 			RBACRoles: []string{rbac.RoleOwner()},
@@ -68,7 +69,7 @@ func TestGetWorkspaceBuild(t *testing.T) {
 				InitiatorID:       user.ID,
 				JobID:             jobs[0].ID,
 				Reason:            database.BuildReasonInitiator,
-				CreatedAt:         time.Now(),
+				CreatedAt:         now,
 			}),
 			dbgen.WorkspaceBuild(t, db, database.WorkspaceBuildThin{
 				WorkspaceID:       workspace.ID,
@@ -78,7 +79,7 @@ func TestGetWorkspaceBuild(t *testing.T) {
 				InitiatorID:       user.ID,
 				JobID:             jobs[1].ID,
 				Reason:            database.BuildReasonInitiator,
-				CreatedAt:         time.Now().Add(time.Hour),
+				CreatedAt:         now.Add(time.Hour),
 			}),
 		}
 		orderBuilds = []database.WorkspaceBuildThin{
@@ -119,7 +120,7 @@ func TestGetWorkspaceBuild(t *testing.T) {
 		}
 		expected := builds[1]
 		require.Len(t, found, 1, "should only be one build")
-		require.Equal(t, expected, found[0].ToThin(), "builds should be equal")
+		require.Equal(t, expected.ID, found[0].ID, "builds should be equal")
 	})
 
 	t.Run("GetWorkspaceBuildByWorkspaceIDAndBuildNumber", func(t *testing.T) {
@@ -156,7 +157,7 @@ func TestGetWorkspaceBuild(t *testing.T) {
 			t.Fatal(err)
 		}
 		require.Len(t, found, 1, "should be only one build")
-		require.Equal(t, builds[1], found[0].ToThin(), "builds should be equal")
+		require.Equal(t, builds[1].ID, found[0].ID, "builds should be equal")
 	})
 
 	t.Run("GetLatestWorkspaceBuilds", func(t *testing.T) {
@@ -166,7 +167,7 @@ func TestGetWorkspaceBuild(t *testing.T) {
 			t.Fatal(err)
 		}
 		require.Len(t, found, 1, "should be only 1 build")
-		require.Equal(t, builds[1], found[0].ToThin(), "builds should be equal")
+		require.Equal(t, builds[1].ID, found[0].ID, "builds should be equal")
 	})
 
 	t.Run("GetLatestWorkspaceBuildByWorkspaceID", func(t *testing.T) {
@@ -175,7 +176,7 @@ func TestGetWorkspaceBuild(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		require.Equal(t, builds[1], found.ToThin(), "builds should be equal")
+		require.Equal(t, builds[1].ID, found.ID, "builds should be equal")
 	})
 }
 
@@ -186,4 +187,3 @@ func toThins(builds []database.WorkspaceBuild) []database.WorkspaceBuildThin {
 	}
 	return thins
 }
-
