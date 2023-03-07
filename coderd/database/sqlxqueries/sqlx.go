@@ -13,14 +13,14 @@ import (
 func SelectContext[RT any](ctx context.Context, q sqlx.QueryerContext, queryName string, argument interface{}) ([]RT, error) {
 	var empty []RT
 
-	query, err := query(queryName, argument)
-	if err != nil {
-		return empty, xerrors.Errorf("get query: %w", err)
-	}
-
 	// No argument was given, use an empty struct.
 	if argument == nil {
 		argument = struct{}{}
+	}
+
+	query, err := query(queryName, argument)
+	if err != nil {
+		return empty, xerrors.Errorf("get query: %w", err)
 	}
 
 	query, args, err := bindNamed(query, argument)
@@ -40,6 +40,11 @@ func SelectContext[RT any](ctx context.Context, q sqlx.QueryerContext, queryName
 // If the query returns no rows, sql.ErrNoRows is returned.
 func GetContext[RT any](ctx context.Context, q sqlx.QueryerContext, queryName string, argument interface{}) (RT, error) {
 	var empty RT
+
+	// No argument was given, use an empty struct.
+	if argument == nil {
+		argument = struct{}{}
+	}
 
 	query, err := query(queryName, argument)
 	if err != nil {

@@ -202,7 +202,7 @@ type getWorkspaceBuildParams struct {
 	WorkspaceID  uuid.UUID `db:"workspace_id"`
 	BuildNumber  int32     `db:"build_number"`
 	LimitOpt     int32     `db:"limit_opt"`
-	Latest       bool      `db:"-"` statu
+	Latest       bool      `db:"-"`
 }
 
 func (q *sqlQuerier) getWorkspaceBuild(ctx context.Context, arg getWorkspaceBuildParams) (WorkspaceBuild, error) {
