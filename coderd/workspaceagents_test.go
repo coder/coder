@@ -1178,12 +1178,17 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 		agentClient.SetSessionToken(authToken)
 
 		_, err := agentClient.PostStats(context.Background(), &agentsdk.Stats{
-			ConnectionsByProto: map[string]int64{"TCP": 1},
-			ConnectionCount:    1,
-			RxPackets:          1,
-			RxBytes:            1,
-			TxPackets:          1,
-			TxBytes:            1,
+			ConnectionsByProto:          map[string]int64{"TCP": 1},
+			ConnectionCount:             1,
+			RxPackets:                   1,
+			RxBytes:                     1,
+			TxPackets:                   1,
+			TxBytes:                     1,
+			SessionCountVSCode:          1,
+			SessionCountJetBrains:       1,
+			SessionCountReconnectingPTY: 1,
+			SessionCountSSH:             1,
+			ConnectionMedianLatencyMS:   10,
 		})
 		require.NoError(t, err)
 
@@ -1251,6 +1256,10 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 			{codersdk.WorkspaceAgentLifecycleStartTimeout, false},
 			{codersdk.WorkspaceAgentLifecycleStartError, false},
 			{codersdk.WorkspaceAgentLifecycleReady, false},
+			{codersdk.WorkspaceAgentLifecycleShuttingDown, false},
+			{codersdk.WorkspaceAgentLifecycleShutdownTimeout, false},
+			{codersdk.WorkspaceAgentLifecycleShutdownError, false},
+			{codersdk.WorkspaceAgentLifecycleOff, false},
 			{codersdk.WorkspaceAgentLifecycle("nonexistent_state"), true},
 			{codersdk.WorkspaceAgentLifecycle(""), true},
 		}

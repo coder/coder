@@ -70,6 +70,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"group_acl":                        ActionTrack,
 		"user_acl":                         ActionTrack,
 		"allow_user_cancel_workspace_jobs": ActionTrack,
+		"max_ttl":                          ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                 ActionTrack,
@@ -146,6 +147,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"lifetime_seconds": ActionIgnore,
 		"ip_address":       ActionIgnore,
 		"scope":            ActionIgnore,
+		"token_name":       ActionIgnore,
 	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012

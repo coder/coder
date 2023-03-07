@@ -186,3 +186,4 @@ func toThins(builds []database.WorkspaceBuild) []database.WorkspaceBuildThin {
 	}
 	return thins
 }
+

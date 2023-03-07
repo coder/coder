@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
@@ -26,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
 )
@@ -216,15 +218,16 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	}
 	mux := drpcmux.New()
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
-		AccessURL:    api.AccessURL,
-		ID:           daemon.ID,
-		Database:     api.Database,
-		Pubsub:       api.Pubsub,
-		Provisioners: daemon.Provisioners,
-		Telemetry:    api.Telemetry,
-		Auditor:      &api.AGPL.Auditor,
-		Logger:       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
-		Tags:         rawTags,
+		AccessURL:             api.AccessURL,
+		ID:                    daemon.ID,
+		Database:              api.Database,
+		Pubsub:                api.Pubsub,
+		Provisioners:          daemon.Provisioners,
+		Telemetry:             api.Telemetry,
+		Auditor:               &api.AGPL.Auditor,
+		TemplateScheduleStore: &api.AGPL.TemplateScheduleStore,
+		Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		Tags:                  rawTags,
 	})
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))
@@ -300,4 +303,56 @@ func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websock
 		cancel: cancel,
 		Conn:   nc,
 	}
+}
+
+type enterpriseTemplateScheduleStore struct{}
+
+var _ schedule.TemplateScheduleStore = &enterpriseTemplateScheduleStore{}
+
+func (*enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+	tpl, err := db.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return schedule.TemplateScheduleOptions{}, err
+	}
+
+	return schedule.TemplateScheduleOptions{
+		// TODO: make configurable at template level
+		UserSchedulingEnabled: true,
+		DefaultTTL:            time.Duration(tpl.DefaultTTL),
+		MaxTTL:                time.Duration(tpl.MaxTTL),
+	}, nil
+}
+
+func (*enterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts schedule.TemplateScheduleOptions) (database.Template, error) {
+	template, err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+		ID:         tpl.ID,
+		UpdatedAt:  database.Now(),
+		DefaultTTL: int64(opts.DefaultTTL),
+		MaxTTL:     int64(opts.MaxTTL),
+	})
+	if err != nil {
+		return database.Template{}, xerrors.Errorf("update template schedule: %w", err)
+	}
+
+	// Update all workspaces using the template to set the user defined schedule
+	// to be within the new bounds. This essentially does the following for each
+	// workspace using the template.
+	//   if (template.ttl != NULL) {
+	//     workspace.ttl = min(workspace.ttl, template.ttl)
+	//   }
+	//
+	// NOTE: this does not apply to currently running workspaces as their
+	// schedule information is committed to the workspace_build during start.
+	// This limitation is displayed to the user while editing the template.
+	if opts.MaxTTL > 0 {
+		err = db.UpdateWorkspaceTTLToBeWithinTemplateMax(ctx, database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams{
+			TemplateID:     template.ID,
+			TemplateMaxTTL: int64(opts.MaxTTL),
+		})
+		if err != nil {
+			return database.Template{}, xerrors.Errorf("update TTL of all workspaces on template to be within new template max TTL: %w", err)
+		}
+	}
+
+	return template, nil
 }

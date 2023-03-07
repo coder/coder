@@ -444,8 +444,8 @@ practices:
   URL](./admin/configure.md#access-url)
 - Manually connect to the resource and check the agent logs (e.g., `kubectl exec`, `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
-  - The Coder agent startup script logs are typically stored in
-    `/tmp/coder-startup-script.log`
+  - The Coder agent startup script logs are typically stored in `/tmp/coder-startup-script.log`
+  - The Coder agent shutdown script logs are typically stored in `/tmp/coder-shutdown-script.log`
 - This can also happen if the websockets are not being forwarded correctly when running Coder behind a reverse proxy. [Read our reverse-proxy docs](https://coder.com/docs/v2/latest/admin/configure#tls--reverse-proxy)
 
 ### Agent does not become ready

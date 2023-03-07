@@ -175,6 +175,8 @@
   },
   "git_auth_configs": 0,
   "motd_file": "string",
+  "shutdown_script": "string",
+  "shutdown_script_timeout": 0,
   "startup_script": "string",
   "startup_script_timeout": 0,
   "vscode_port_proxy_uri": "string"
@@ -183,18 +185,20 @@
 
 ### Properties
 
-| Name                     | Type                                                    | Required | Restrictions | Description                                                                                                                                                |
-| ------------------------ | ------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps`                   | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp) | false    |              |                                                                                                                                                            |
-| `derpmap`                | [tailcfg.DERPMap](#tailcfgderpmap)                      | false    |              |                                                                                                                                                            |
-| `directory`              | string                                                  | false    |              |                                                                                                                                                            |
-| `environment_variables`  | object                                                  | false    |              |                                                                                                                                                            |
-| » `[any property]`       | string                                                  | false    |              |                                                                                                                                                            |
-| `git_auth_configs`       | integer                                                 | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
-| `motd_file`              | string                                                  | false    |              |                                                                                                                                                            |
-| `startup_script`         | string                                                  | false    |              |                                                                                                                                                            |
-| `startup_script_timeout` | integer                                                 | false    |              |                                                                                                                                                            |
-| `vscode_port_proxy_uri`  | string                                                  | false    |              |                                                                                                                                                            |
+| Name                      | Type                                                    | Required | Restrictions | Description                                                                                                                                                |
+| ------------------------- | ------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                    | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp) | false    |              |                                                                                                                                                            |
+| `derpmap`                 | [tailcfg.DERPMap](#tailcfgderpmap)                      | false    |              |                                                                                                                                                            |
+| `directory`               | string                                                  | false    |              |                                                                                                                                                            |
+| `environment_variables`   | object                                                  | false    |              |                                                                                                                                                            |
+| » `[any property]`        | string                                                  | false    |              |                                                                                                                                                            |
+| `git_auth_configs`        | integer                                                 | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
+| `motd_file`               | string                                                  | false    |              |                                                                                                                                                            |
+| `shutdown_script`         | string                                                  | false    |              |                                                                                                                                                            |
+| `shutdown_script_timeout` | integer                                                 | false    |              |                                                                                                                                                            |
+| `startup_script`          | string                                                  | false    |              |                                                                                                                                                            |
+| `startup_script_timeout`  | integer                                                 | false    |              |                                                                                                                                                            |
+| `vscode_port_proxy_uri`   | string                                                  | false    |              |                                                                                                                                                            |
 
 ## agentsdk.PostAppHealthsRequest
 
@@ -248,13 +252,18 @@
 
 ```json
 {
-  "conns_by_proto": {
+  "connection_count": 0,
+  "connection_median_latency_ms": 0,
+  "connections_by_proto": {
     "property1": 0,
     "property2": 0
   },
-  "num_comms": 0,
   "rx_bytes": 0,
   "rx_packets": 0,
+  "session_count_jetbrains": 0,
+  "session_count_reconnecting_pty": 0,
+  "session_count_ssh": 0,
+  "session_count_vscode": 0,
   "tx_bytes": 0,
   "tx_packets": 0
 }
@@ -262,15 +271,20 @@
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description                                                  |
-| ------------------ | ------- | -------- | ------------ | ------------------------------------------------------------ |
-| `conns_by_proto`   | object  | false    |              | Conns by proto is a count of connections by protocol.        |
-| » `[any property]` | integer | false    |              |                                                              |
-| `num_comms`        | integer | false    |              | Num comms is the number of connections received by an agent. |
-| `rx_bytes`         | integer | false    |              | Rx bytes is the number of received bytes.                    |
-| `rx_packets`       | integer | false    |              | Rx packets is the number of received packets.                |
-| `tx_bytes`         | integer | false    |              | Tx bytes is the number of transmitted bytes.                 |
-| `tx_packets`       | integer | false    |              | Tx packets is the number of transmitted bytes.               |
+| Name                             | Type    | Required | Restrictions | Description                                                                                                                   |
+| -------------------------------- | ------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `connection_count`               | integer | false    |              | Connection count is the number of connections received by an agent.                                                           |
+| `connection_median_latency_ms`   | number  | false    |              | Connection median latency ms is the median latency of all connections in milliseconds.                                        |
+| `connections_by_proto`           | object  | false    |              | Connections by proto is a count of connections by protocol.                                                                   |
+| » `[any property]`               | integer | false    |              |                                                                                                                               |
+| `rx_bytes`                       | integer | false    |              | Rx bytes is the number of received bytes.                                                                                     |
+| `rx_packets`                     | integer | false    |              | Rx packets is the number of received packets.                                                                                 |
+| `session_count_jetbrains`        | integer | false    |              | Session count jetbrains is the number of connections received by an agent that are from our JetBrains extension.              |
+| `session_count_reconnecting_pty` | integer | false    |              | Session count reconnecting pty is the number of connections received by an agent that are from the reconnecting web terminal. |
+| `session_count_ssh`              | integer | false    |              | Session count ssh is the number of connections received by an agent that are normal, non-tagged SSH sessions.                 |
+| `session_count_vscode`           | integer | false    |              | Session count vscode is the number of connections received by an agent that are from our VS Code extension.                   |
+| `tx_bytes`                       | integer | false    |              | Tx bytes is the number of transmitted bytes.                                                                                  |
+| `tx_packets`                     | integer | false    |              | Tx packets is the number of transmitted bytes.                                                                                |
 
 ## agentsdk.StatsResponse
 
@@ -358,6 +372,7 @@
   "lifetime_seconds": 0,
   "login_type": "password",
   "scope": "all",
+  "token_name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
@@ -374,6 +389,7 @@
 | `lifetime_seconds` | integer                                      | true     |              |             |
 | `login_type`       | [codersdk.LoginType](#codersdklogintype)     | true     |              |             |
 | `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope) | true     |              |             |
+| `token_name`       | string                                       | true     |              |             |
 | `updated_at`       | string                                       | true     |              |             |
 | `user_id`          | string                                       | true     |              |             |
 
@@ -961,6 +977,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "description": "string",
   "display_name": "string",
   "icon": "string",
+  "max_ttl_ms": 0,
   "name": "string",
   "parameter_values": [
     {
@@ -984,6 +1001,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `description`                                                                                                                                                                             | string                                                                      | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                |
 | `display_name`                                                                                                                                                                            | string                                                                      | false    |              | Display name is the displayed name of the template.                                                        |
 | `icon`                                                                                                                                                                                    | string                                                                      | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.           |
+| `max_ttl_ms`                                                                                                                                                                              | integer                                                                     | false    |              | Max ttl ms allows optionally specifying the max lifetime for workspaces created from this template.        |
 | `name`                                                                                                                                                                                    | string                                                                      | true     |              | Name is the name of the template.                                                                          |
 | `parameter_values`                                                                                                                                                                        | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.]                         |
 | `template_version_id`                                                                                                                                                                     | string                                                                      | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.       |
@@ -1026,6 +1044,61 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |                                                                                    |
 | `user_variable_values`  | array of [codersdk.VariableValue](#codersdkvariablevalue)                     | false    |              |                                                                                    |
 | `workspace_name`        | string                                                                        | false    |              |                                                                                    |
+
+## codersdk.CreateTemplateVersionRequest
+
+```json
+{
+  "example_id": "string",
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "name": "string",
+  "parameter_values": [
+    {
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
+      "destination_scheme": "none",
+      "name": "string",
+      "source_scheme": "none",
+      "source_value": "string"
+    }
+  ],
+  "provisioner": "terraform",
+  "storage_method": "file",
+  "tags": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "user_variable_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                          |
+| ---------------------- | --------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------- |
+| `example_id`           | string                                                                      | false    |              |                                                                                                      |
+| `file_id`              | string                                                                      | false    |              |                                                                                                      |
+| `name`                 | string                                                                      | false    |              |                                                                                                      |
+| `parameter_values`     | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values allows for additional parameters to be provided during the dry-run provision stage. |
+| `provisioner`          | string                                                                      | true     |              |                                                                                                      |
+| `storage_method`       | [codersdk.ProvisionerStorageMethod](#codersdkprovisionerstoragemethod)      | true     |              |                                                                                                      |
+| `tags`                 | object                                                                      | false    |              |                                                                                                      |
+| » `[any property]`     | string                                                                      | false    |              |                                                                                                      |
+| `template_id`          | string                                                                      | false    |              | Template ID optionally associates a version with a template.                                         |
+| `user_variable_values` | array of [codersdk.VariableValue](#codersdkvariablevalue)                   | false    |              |                                                                                                      |
+
+#### Enumerated Values
+
+| Property         | Value       |
+| ---------------- | ----------- |
+| `provisioner`    | `terraform` |
+| `provisioner`    | `echo`      |
+| `storage_method` | `file`      |
 
 ## codersdk.CreateTestAuditLogRequest
 
@@ -1076,16 +1149,18 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "lifetime": 0,
-  "scope": "all"
+  "scope": "all",
+  "token_name": "string"
 }
 ```
 
 ### Properties
 
-| Name       | Type                                         | Required | Restrictions | Description |
-| ---------- | -------------------------------------------- | -------- | ------------ | ----------- |
-| `lifetime` | integer                                      | false    |              |             |
-| `scope`    | [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
+| Name         | Type                                         | Required | Restrictions | Description |
+| ------------ | -------------------------------------------- | -------- | ------------ | ----------- |
+| `lifetime`   | integer                                      | false    |              |             |
+| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
+| `token_name` | string                                       | false    |              |             |
 
 #### Enumerated Values
 
@@ -4076,6 +4151,20 @@ Parameter represents a set value for the scope.
 | `canceled`  |
 | `failed`    |
 
+## codersdk.ProvisionerStorageMethod
+
+```json
+"file"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value  |
+| ------ |
+| `file` |
+
 ## codersdk.PutExtendWorkspaceRequest
 
 ```json
@@ -4496,6 +4585,7 @@ Parameter represents a set value for the scope.
   "display_name": "string",
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
@@ -4505,24 +4595,25 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                               | Type                                                               | Required | Restrictions | Description                                  |
-| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | -------------------------------------------- |
-| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading. |
-| `active_version_id`                | string                                                             | false    |              |                                              |
-| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                              |
-| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                              |
-| `created_at`                       | string                                                             | false    |              |                                              |
-| `created_by_id`                    | string                                                             | false    |              |                                              |
-| `created_by_name`                  | string                                                             | false    |              |                                              |
-| `default_ttl_ms`                   | integer                                                            | false    |              |                                              |
-| `description`                      | string                                                             | false    |              |                                              |
-| `display_name`                     | string                                                             | false    |              |                                              |
-| `icon`                             | string                                                             | false    |              |                                              |
-| `id`                               | string                                                             | false    |              |                                              |
-| `name`                             | string                                                             | false    |              |                                              |
-| `organization_id`                  | string                                                             | false    |              |                                              |
-| `provisioner`                      | string                                                             | false    |              |                                              |
-| `updated_at`                       | string                                                             | false    |              |                                              |
+| Name                               | Type                                                               | Required | Restrictions | Description                                                                                                                               |
+| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading.                                                                                              |
+| `active_version_id`                | string                                                             | false    |              |                                                                                                                                           |
+| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                                                                                                                           |
+| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                           |
+| `created_at`                       | string                                                             | false    |              |                                                                                                                                           |
+| `created_by_id`                    | string                                                             | false    |              |                                                                                                                                           |
+| `created_by_name`                  | string                                                             | false    |              |                                                                                                                                           |
+| `default_ttl_ms`                   | integer                                                            | false    |              |                                                                                                                                           |
+| `description`                      | string                                                             | false    |              |                                                                                                                                           |
+| `display_name`                     | string                                                             | false    |              |                                                                                                                                           |
+| `icon`                             | string                                                             | false    |              |                                                                                                                                           |
+| `id`                               | string                                                             | false    |              |                                                                                                                                           |
+| `max_ttl_ms`                       | integer                                                            | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature. |
+| `name`                             | string                                                             | false    |              |                                                                                                                                           |
+| `organization_id`                  | string                                                             | false    |              |                                                                                                                                           |
+| `provisioner`                      | string                                                             | false    |              |                                                                                                                                           |
+| `updated_at`                       | string                                                             | false    |              |                                                                                                                                           |
 
 #### Enumerated Values
 
@@ -4755,6 +4846,7 @@ Parameter represents a set value for the scope.
       "value": "string"
     }
   ],
+  "required": true,
   "type": "string",
   "validation_error": "string",
   "validation_max": 0,
@@ -4775,6 +4867,7 @@ Parameter represents a set value for the scope.
 | `mutable`               | boolean                                                                                     | false    |              |             |
 | `name`                  | string                                                                                      | false    |              |             |
 | `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
+| `required`              | boolean                                                                                     | false    |              |             |
 | `type`                  | string                                                                                      | false    |              |             |
 | `validation_error`      | string                                                                                      | false    |              |             |
 | `validation_max`        | integer                                                                                     | false    |              |             |
@@ -5221,6 +5314,7 @@ Parameter represents a set value for the scope.
       },
       "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
+    "max_deadline": "2019-08-24T14:15:22Z",
     "reason": "initiator",
     "resources": [
       {
@@ -5274,6 +5368,8 @@ Parameter represents a set value for the scope.
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "shutdown_script": "string",
+            "shutdown_script_timeout_seconds": 0,
             "startup_script": "string",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
@@ -5397,6 +5493,8 @@ Parameter represents a set value for the scope.
   "name": "string",
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+  "shutdown_script": "string",
+  "shutdown_script_timeout_seconds": 0,
   "startup_script": "string",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",
@@ -5408,34 +5506,36 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                             | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                                |
-| -------------------------------- | -------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps`                           | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)              | false    |              |                                                                                                                                                                                                            |
-| `architecture`                   | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `connection_timeout_seconds`     | integer                                                              | false    |              |                                                                                                                                                                                                            |
-| `created_at`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `directory`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `disconnected_at`                | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `environment_variables`          | object                                                               | false    |              |                                                                                                                                                                                                            |
-| » `[any property]`               | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `expanded_directory`             | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `first_connected_at`             | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `id`                             | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `instance_id`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `last_connected_at`              | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `latency`                        | object                                                               | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                        |
-| » `[any property]`               | [codersdk.DERPRegion](#codersdkderpregion)                           | false    |              |                                                                                                                                                                                                            |
-| `lifecycle_state`                | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |                                                                                                                                                                                                            |
-| `login_before_ready`             | boolean                                                              | false    |              | Login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                       |
-| `name`                           | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `operating_system`               | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `resource_id`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `startup_script`                 | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `startup_script_timeout_seconds` | integer                                                              | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
-| `status`                         | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)       | false    |              |                                                                                                                                                                                                            |
-| `troubleshooting_url`            | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `updated_at`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `version`                        | string                                                               | false    |              |                                                                                                                                                                                                            |
+| Name                              | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                                |
+| --------------------------------- | -------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                            | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)              | false    |              |                                                                                                                                                                                                            |
+| `architecture`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `connection_timeout_seconds`      | integer                                                              | false    |              |                                                                                                                                                                                                            |
+| `created_at`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `directory`                       | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `disconnected_at`                 | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `environment_variables`           | object                                                               | false    |              |                                                                                                                                                                                                            |
+| » `[any property]`                | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `expanded_directory`              | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `first_connected_at`              | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `id`                              | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `instance_id`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `last_connected_at`               | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `latency`                         | object                                                               | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                        |
+| » `[any property]`                | [codersdk.DERPRegion](#codersdkderpregion)                           | false    |              |                                                                                                                                                                                                            |
+| `lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |                                                                                                                                                                                                            |
+| `login_before_ready`              | boolean                                                              | false    |              | Login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                       |
+| `name`                            | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `operating_system`                | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `resource_id`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `shutdown_script`                 | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `shutdown_script_timeout_seconds` | integer                                                              | false    |              |                                                                                                                                                                                                            |
+| `startup_script`                  | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `startup_script_timeout_seconds`  | integer                                                              | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
+| `status`                          | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)       | false    |              |                                                                                                                                                                                                            |
+| `troubleshooting_url`             | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `updated_at`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `version`                         | string                                                               | false    |              |                                                                                                                                                                                                            |
 
 ## codersdk.WorkspaceAgentConnectionInfo
 
@@ -5511,13 +5611,17 @@ Parameter represents a set value for the scope.
 
 #### Enumerated Values
 
-| Value           |
-| --------------- |
-| `created`       |
-| `starting`      |
-| `start_timeout` |
-| `start_error`   |
-| `ready`         |
+| Value              |
+| ------------------ |
+| `created`          |
+| `starting`         |
+| `start_timeout`    |
+| `start_error`      |
+| `ready`            |
+| `shutting_down`    |
+| `shutdown_timeout` |
+| `shutdown_error`   |
+| `off`              |
 
 ## codersdk.WorkspaceAgentListeningPort
 
@@ -5679,6 +5783,7 @@ Parameter represents a set value for the scope.
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "max_deadline": "2019-08-24T14:15:22Z",
   "reason": "initiator",
   "resources": [
     {
@@ -5732,6 +5837,8 @@ Parameter represents a set value for the scope.
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "shutdown_script": "string",
+          "shutdown_script_timeout_seconds": 0,
           "startup_script": "string",
           "startup_script_timeout_seconds": 0,
           "status": "connecting",
@@ -5782,6 +5889,7 @@ Parameter represents a set value for the scope.
 | `initiator_id`          | string                                                            | false    |              |             |
 | `initiator_name`        | string                                                            | false    |              |             |
 | `job`                   | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |             |
+| `max_deadline`          | string                                                            | false    |              |             |
 | `reason`                | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |             |
 | `resources`             | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |             |
 | `status`                | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |             |
@@ -5901,6 +6009,8 @@ Parameter represents a set value for the scope.
       "name": "string",
       "operating_system": "string",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+      "shutdown_script": "string",
+      "shutdown_script_timeout_seconds": 0,
       "startup_script": "string",
       "startup_script_timeout_seconds": 0,
       "status": "connecting",
@@ -6043,6 +6153,7 @@ Parameter represents a set value for the scope.
           },
           "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
         },
+        "max_deadline": "2019-08-24T14:15:22Z",
         "reason": "initiator",
         "resources": [
           {
@@ -6092,6 +6203,8 @@ Parameter represents a set value for the scope.
                 "name": "string",
                 "operating_system": "string",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+                "shutdown_script": "string",
+                "shutdown_script_timeout_seconds": 0,
                 "startup_script": "string",
                 "startup_script_timeout_seconds": 0,
                 "status": "connecting",

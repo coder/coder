@@ -22,7 +22,7 @@ Allow users to cancel in-progress workspace jobs.
 
 ### --default-ttl
 
-Edit the template default time before shutdown - workspaces created from this template to this value.
+Edit the template default time before shutdown - workspaces created from this template default to this value.
 <br/>
 | | |
 | --- | --- |
@@ -30,28 +30,36 @@ Edit the template default time before shutdown - workspaces created from this te
 
 ### --description
 
-Edit the template description
+Edit the template description.
 <br/>
 | | |
 | --- | --- |
 
 ### --display-name
 
-Edit the template display name
+Edit the template display name.
 <br/>
 | | |
 | --- | --- |
 
 ### --icon
 
-Edit the template icon path
+Edit the template icon path.
 <br/>
 | | |
 | --- | --- |
 
+### --max-ttl
+
+Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.
+<br/>
+| | |
+| --- | --- |
+| Default | <code>0s</code> |
+
 ### --name
 
-Edit the template name
+Edit the template name.
 <br/>
 | | |
 | --- | --- |

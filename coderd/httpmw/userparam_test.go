@@ -37,7 +37,7 @@ func TestUserParam(t *testing.T) {
 		t.Parallel()
 		db, rw, r := setup(t)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(http.HandlerFunc(func(rw http.ResponseWriter, returnedRequest *http.Request) {
@@ -56,7 +56,7 @@ func TestUserParam(t *testing.T) {
 		t.Parallel()
 		db, rw, r := setup(t)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(http.HandlerFunc(func(rw http.ResponseWriter, returnedRequest *http.Request) {
@@ -78,7 +78,7 @@ func TestUserParam(t *testing.T) {
 		t.Parallel()
 		db, rw, r := setup(t)
 
-		httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
 			RedirectToLogin: false,
 		})(http.HandlerFunc(func(rw http.ResponseWriter, returnedRequest *http.Request) {

@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -66,6 +67,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/ptr"
@@ -81,26 +83,31 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
+// AppSigningKey is a 64-byte key used to sign JWTs for workspace app tickets in
+// tests.
+var AppSigningKey = must(hex.DecodeString("64656164626565666465616462656566646561646265656664656164626565666465616462656566646561646265656664656164626565666465616462656566"))
+
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
 	// server's URL. Setting this may result in unexpected behavior (especially
 	// with running agents).
-	AccessURL            *url.URL
-	AppHostname          string
-	AWSCertificates      awsidentity.Certificates
-	Authorizer           rbac.Authorizer
-	AzureCertificates    x509.VerifyOptions
-	GithubOAuth2Config   *coderd.GithubOAuth2Config
-	RealIPConfig         *httpmw.RealIPConfig
-	OIDCConfig           *coderd.OIDCConfig
-	GoogleTokenValidator *idtoken.Validator
-	SSHKeygenAlgorithm   gitsshkey.Algorithm
-	AutobuildTicker      <-chan time.Time
-	AutobuildStats       chan<- executor.Stats
-	Auditor              audit.Auditor
-	TLSCertificates      []tls.Certificate
-	GitAuthConfigs       []*gitauth.Config
-	TrialGenerator       func(context.Context, string) error
+	AccessURL             *url.URL
+	AppHostname           string
+	AWSCertificates       awsidentity.Certificates
+	Authorizer            rbac.Authorizer
+	AzureCertificates     x509.VerifyOptions
+	GithubOAuth2Config    *coderd.GithubOAuth2Config
+	RealIPConfig          *httpmw.RealIPConfig
+	OIDCConfig            *coderd.OIDCConfig
+	GoogleTokenValidator  *idtoken.Validator
+	SSHKeygenAlgorithm    gitsshkey.Algorithm
+	AutobuildTicker       <-chan time.Time
+	AutobuildStats        chan<- executor.Stats
+	Auditor               audit.Auditor
+	TLSCertificates       []tls.Certificate
+	GitAuthConfigs        []*gitauth.Config
+	TrialGenerator        func(context.Context, string) error
+	TemplateScheduleStore schedule.TemplateScheduleStore
 
 	// All rate limits default to -1 (unlimited) in tests if not set.
 	APIRateLimit   int
@@ -287,22 +294,23 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			Pubsub:                         options.Pubsub,
 			GitAuthConfigs:                 options.GitAuthConfigs,
 
-			Auditor:              options.Auditor,
-			AWSCertificates:      options.AWSCertificates,
-			AzureCertificates:    options.AzureCertificates,
-			GithubOAuth2Config:   options.GithubOAuth2Config,
-			RealIPConfig:         options.RealIPConfig,
-			OIDCConfig:           options.OIDCConfig,
-			GoogleTokenValidator: options.GoogleTokenValidator,
-			SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
-			DERPServer:           derpServer,
-			APIRateLimit:         options.APIRateLimit,
-			LoginRateLimit:       options.LoginRateLimit,
-			FilesRateLimit:       options.FilesRateLimit,
-			Authorizer:           options.Authorizer,
-			Telemetry:            telemetry.NewNoop(),
-			TLSCertificates:      options.TLSCertificates,
-			TrialGenerator:       options.TrialGenerator,
+			Auditor:               options.Auditor,
+			AWSCertificates:       options.AWSCertificates,
+			AzureCertificates:     options.AzureCertificates,
+			GithubOAuth2Config:    options.GithubOAuth2Config,
+			RealIPConfig:          options.RealIPConfig,
+			OIDCConfig:            options.OIDCConfig,
+			GoogleTokenValidator:  options.GoogleTokenValidator,
+			SSHKeygenAlgorithm:    options.SSHKeygenAlgorithm,
+			DERPServer:            derpServer,
+			APIRateLimit:          options.APIRateLimit,
+			LoginRateLimit:        options.LoginRateLimit,
+			FilesRateLimit:        options.FilesRateLimit,
+			Authorizer:            options.Authorizer,
+			Telemetry:             telemetry.NewNoop(),
+			TemplateScheduleStore: options.TemplateScheduleStore,
+			TLSCertificates:       options.TLSCertificates,
+			TrialGenerator:        options.TrialGenerator,
 			DERPMap: &tailcfg.DERPMap{
 				Regions: map[int]*tailcfg.DERPRegion{
 					1: {
@@ -327,6 +335,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			DeploymentConfig:            options.DeploymentConfig,
 			UpdateCheckOptions:          options.UpdateCheckOptions,
 			SwaggerEndpoint:             options.SwaggerEndpoint,
+			AppSigningKey:               AppSigningKey,
 		}
 }
 

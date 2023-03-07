@@ -23,6 +23,16 @@ func (s *MethodTestSuite) TestAPIKey() {
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{})
 		check.Args(key.ID).Asserts(key, rbac.ActionRead).Returns(key)
 	}))
+	s.Run("GetAPIKeyByName", s.Subtest(func(db database.Store, check *expects) {
+		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
+			TokenName: "marge-cat",
+			LoginType: database.LoginTypeToken,
+		})
+		check.Args(database.GetAPIKeyByNameParams{
+			TokenName: key.TokenName,
+			UserID:    key.UserID,
+		}).Asserts(key, rbac.ActionRead).Returns(key)
+	}))
 	s.Run("GetAPIKeysByLoginType", s.Subtest(func(db database.Store, check *expects) {
 		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{LoginType: database.LoginTypePassword})
 		b, _ := dbgen.APIKey(s.T(), db, database.APIKey{LoginType: database.LoginTypePassword})

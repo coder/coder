@@ -53,6 +53,7 @@ type TemplateVersionParameter struct {
 	ValidationMin        int32                            `json:"validation_min,omitempty"`
 	ValidationMax        int32                            `json:"validation_max,omitempty"`
 	ValidationMonotonic  ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
+	Required             bool                             `json:"required"`
 }
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.

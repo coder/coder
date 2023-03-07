@@ -176,6 +176,7 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   },
   errorRoot: {
     color: theme.palette.error.main,
+    whiteSpace: "pre-wrap",
   },
   inputStyles: {
     height: "100%",

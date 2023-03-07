@@ -19,7 +19,7 @@ concurrency: pr-${{ github.ref }}
 
 jobs:
   # Dependabot is annoying, but this makes it a bit less so.
-  auto-approve:
+  auto-approve-dependabot:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request_target'
     permissions:

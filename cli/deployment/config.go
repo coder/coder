@@ -499,10 +499,11 @@ func newConfig() *codersdk.DeploymentConfig {
 			Default: flag.Lookup("test.v") == nil && !buildinfo.IsDev(),
 		},
 		MaxTokenLifetime: &codersdk.DeploymentConfigField[time.Duration]{
-			Name:    "Max Token Lifetime",
-			Usage:   "The maximum lifetime duration users can specify when creating an API token.",
-			Flag:    "max-token-lifetime",
-			Default: 24 * 30 * time.Hour,
+			Name:  "Max Token Lifetime",
+			Usage: "The maximum lifetime duration users can specify when creating an API token.",
+			Flag:  "max-token-lifetime",
+			// max time.Duration is 290 years
+			Default: 290 * 365 * 24 * time.Hour,
 		},
 		Swagger: &codersdk.SwaggerConfig{
 			Enable: &codersdk.DeploymentConfigField[bool]{

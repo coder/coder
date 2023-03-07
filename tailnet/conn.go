@@ -460,6 +460,18 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 	return nil
 }
 
+// NodeAddresses returns the addresses of a node from the NetworkMap.
+func (c *Conn) NodeAddresses(publicKey key.NodePublic) ([]netip.Prefix, bool) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	for _, node := range c.netMap.Peers {
+		if node.Key == publicKey {
+			return node.Addresses, true
+		}
+	}
+	return nil, false
+}
+
 // Status returns the current ipnstate of a connection.
 func (c *Conn) Status() *ipnstate.Status {
 	sb := &ipnstate.StatusBuilder{WantPeers: true}
@@ -645,11 +657,13 @@ func (c *Conn) selfNode() *Node {
 	}
 	var preferredDERP int
 	var derpLatency map[string]float64
-	var derpForcedWebsocket map[int]string
+	derpForcedWebsocket := make(map[int]string, 0)
 	if c.lastNetInfo != nil {
 		preferredDERP = c.lastNetInfo.PreferredDERP
 		derpLatency = c.lastNetInfo.DERPLatency
-		derpForcedWebsocket = c.lastDERPForcedWebsockets
+		for k, v := range c.lastDERPForcedWebsockets {
+			derpForcedWebsocket[k] = v
+		}
 	}
 
 	node := &Node{

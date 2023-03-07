@@ -12,10 +12,15 @@ INSERT INTO
 		rx_packets,
 		rx_bytes,
 		tx_packets,
-		tx_bytes
+		tx_bytes,
+		session_count_vscode,
+		session_count_jetbrains,
+		session_count_reconnecting_pty,
+		session_count_ssh,
+		connection_median_latency_ms
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *;
 
 -- name: GetTemplateDAUs :many
 SELECT
@@ -24,7 +29,8 @@ SELECT
 FROM
 	workspace_agent_stats
 WHERE
-	template_id = $1
+	template_id = $1 AND
+	connection_count > 0
 GROUP BY
 	date, user_id
 ORDER BY
@@ -36,6 +42,8 @@ SELECT
 	user_id
 FROM
 	workspace_agent_stats
+WHERE
+	connection_count > 0
 GROUP BY
 	date, user_id
 ORDER BY

@@ -18,6 +18,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -56,6 +57,14 @@ const (
 	// command just returning a nonzero exit code, and is chosen as an arbitrary, high number
 	// unlikely to shadow other exit codes, which are typically 1, 2, 3, etc.
 	MagicSessionErrorCode = 229
+
+	// MagicSSHSessionTypeEnvironmentVariable is used to track the purpose behind an SSH connection.
+	// This is stripped from any commands being executed, and is counted towards connection stats.
+	MagicSSHSessionTypeEnvironmentVariable = "__CODER_SSH_SESSION_TYPE"
+	// MagicSSHSessionTypeVSCode is set in the SSH config by the VS Code extension to identify itself.
+	MagicSSHSessionTypeVSCode = "vscode"
+	// MagicSSHSessionTypeJetBrains is set in the SSH config by the JetBrains extension to identify itself.
+	MagicSSHSessionTypeJetBrains = "jetbrains"
 )
 
 type Options struct {
@@ -112,7 +121,10 @@ func New(options Options) io.Closer {
 		logDir:                 options.LogDir,
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
-		connStatsChan:          make(chan *agentsdk.Stats, 1),
+		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
+		// TODO: This is a temporary hack to make tests not flake.
+		// @kylecarbs has a better solution in here: https://github.com/coder/coder/pull/6469
+		connStatsChan: make(chan *agentsdk.Stats, 8),
 	}
 	a.init(ctx)
 	return a
@@ -140,12 +152,22 @@ type agent struct {
 	sessionToken atomic.Pointer[string]
 	sshServer    *ssh.Server
 
-	lifecycleUpdate chan struct{}
-	lifecycleMu     sync.Mutex // Protects following.
-	lifecycleState  codersdk.WorkspaceAgentLifecycle
+	lifecycleUpdate   chan struct{}
+	lifecycleReported chan codersdk.WorkspaceAgentLifecycle
+	lifecycleMu       sync.RWMutex // Protects following.
+	lifecycleState    codersdk.WorkspaceAgentLifecycle
 
 	network       *tailnet.Conn
 	connStatsChan chan *agentsdk.Stats
+
+	statRxPackets            atomic.Int64
+	statRxBytes              atomic.Int64
+	statTxPackets            atomic.Int64
+	statTxBytes              atomic.Int64
+	connCountVSCode          atomic.Int64
+	connCountJetBrains       atomic.Int64
+	connCountReconnectingPTY atomic.Int64
+	connCountSSHSession      atomic.Int64
 }
 
 // runLoop attempts to start the agent in a retry loop.
@@ -189,9 +211,9 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 		}
 
 		for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
-			a.lifecycleMu.Lock()
+			a.lifecycleMu.RLock()
 			state := a.lifecycleState
-			a.lifecycleMu.Unlock()
+			a.lifecycleMu.RUnlock()
 
 			if state == lastReported {
 				break
@@ -204,6 +226,11 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 			})
 			if err == nil {
 				lastReported = state
+				select {
+				case a.lifecycleReported <- state:
+				case <-a.lifecycleReported:
+					a.lifecycleReported <- state
+				}
 				break
 			}
 			if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
@@ -215,13 +242,20 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 	}
 }
 
+// setLifecycle sets the lifecycle state and notifies the lifecycle loop.
+// The state is only updated if it's a valid state transition.
 func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentLifecycle) {
 	a.lifecycleMu.Lock()
-	defer a.lifecycleMu.Unlock()
-
-	a.logger.Debug(ctx, "set lifecycle state", slog.F("state", state), slog.F("previous", a.lifecycleState))
-
+	lastState := a.lifecycleState
+	if slices.Index(codersdk.WorkspaceAgentLifecycleOrder, lastState) > slices.Index(codersdk.WorkspaceAgentLifecycleOrder, state) {
+		a.logger.Warn(ctx, "attempted to set lifecycle state to a previous state", slog.F("last", lastState), slog.F("state", state))
+		a.lifecycleMu.Unlock()
+		return
+	}
 	a.lifecycleState = state
+	a.logger.Debug(ctx, "set lifecycle state", slog.F("state", state), slog.F("last", lastState))
+	a.lifecycleMu.Unlock()
+
 	select {
 	case a.lifecycleUpdate <- struct{}{}:
 	default:
@@ -281,9 +315,10 @@ func (a *agent) run(ctx context.Context) error {
 			}
 		}
 
+		lifecycleState := codersdk.WorkspaceAgentLifecycleReady
 		scriptDone := make(chan error, 1)
 		scriptStart := time.Now()
-		err := a.trackConnGoroutine(func() {
+		err = a.trackConnGoroutine(func() {
 			defer close(scriptDone)
 			scriptDone <- a.runStartupScript(ctx, metadata.StartupScript)
 		})
@@ -311,16 +346,17 @@ func (a *agent) run(ctx context.Context) error {
 			if errors.Is(err, context.Canceled) {
 				return
 			}
-			execTime := time.Since(scriptStart)
-			lifecycleStatus := codersdk.WorkspaceAgentLifecycleReady
-			if err != nil {
-				a.logger.Warn(ctx, "startup script failed", slog.F("execution_time", execTime), slog.Error(err))
-				lifecycleStatus = codersdk.WorkspaceAgentLifecycleStartError
-			} else {
-				a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
+			// Only log if there was a startup script.
+			if metadata.StartupScript != "" {
+				execTime := time.Since(scriptStart)
+				if err != nil {
+					a.logger.Warn(ctx, "startup script failed", slog.F("execution_time", execTime), slog.Error(err))
+					lifecycleState = codersdk.WorkspaceAgentLifecycleStartError
+				} else {
+					a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
+				}
 			}
-
-			a.setLifecycle(ctx, lifecycleStatus)
+			a.setLifecycle(ctx, lifecycleState)
 		}()
 	}
 
@@ -350,33 +386,7 @@ func (a *agent) run(ctx context.Context) error {
 			return xerrors.New("agent is closed")
 		}
 
-		setStatInterval := func(d time.Duration) {
-			network.SetConnStatsCallback(d, 2048,
-				func(_, _ time.Time, virtual, _ map[netlogtype.Connection]netlogtype.Counts) {
-					select {
-					case a.connStatsChan <- convertAgentStats(virtual):
-					default:
-						a.logger.Warn(ctx, "network stat dropped")
-					}
-				},
-			)
-		}
-
-		// Report statistics from the created network.
-		cl, err := a.client.ReportStats(ctx, a.logger, a.connStatsChan, setStatInterval)
-		if err != nil {
-			a.logger.Error(ctx, "report stats", slog.Error(err))
-		} else {
-			if err = a.trackConnGoroutine(func() {
-				// This is OK because the agent never re-creates the tailnet
-				// and the only shutdown indicator is agent.Close().
-				<-a.closed
-				_ = cl.Close()
-			}); err != nil {
-				a.logger.Debug(ctx, "report stats goroutine", slog.Error(err))
-				_ = cl.Close()
-			}
-		}
+		a.startReportingConnectionStats(ctx)
 	} else {
 		// Update the DERP map!
 		network.SetDERPMap(metadata.DERPMap)
@@ -614,14 +624,22 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 }
 
 func (a *agent) runStartupScript(ctx context.Context, script string) error {
+	return a.runScript(ctx, "startup", script)
+}
+
+func (a *agent) runShutdownScript(ctx context.Context, script string) error {
+	return a.runScript(ctx, "shutdown", script)
+}
+
+func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 	if script == "" {
 		return nil
 	}
 
-	a.logger.Info(ctx, "running startup script", slog.F("script", script))
-	writer, err := a.filesystem.OpenFile(filepath.Join(a.logDir, "coder-startup-script.log"), os.O_CREATE|os.O_RDWR, 0o600)
+	a.logger.Info(ctx, "running script", slog.F("lifecycle", lifecycle), slog.F("script", script))
+	writer, err := a.filesystem.OpenFile(filepath.Join(a.logDir, fmt.Sprintf("coder-%s-script.log", lifecycle)), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return xerrors.Errorf("open startup script log file: %w", err)
+		return xerrors.Errorf("open %s script log file: %w", lifecycle, err)
 	}
 	defer func() {
 		_ = writer.Close()
@@ -765,23 +783,6 @@ func (a *agent) init(ctx context.Context) {
 	go a.runLoop(ctx)
 }
 
-func convertAgentStats(counts map[netlogtype.Connection]netlogtype.Counts) *agentsdk.Stats {
-	stats := &agentsdk.Stats{
-		ConnectionsByProto: map[string]int64{},
-		ConnectionCount:    int64(len(counts)),
-	}
-
-	for conn, count := range counts {
-		stats.ConnectionsByProto[conn.Proto.String()]++
-		stats.RxPackets += int64(count.RxPackets)
-		stats.RxBytes += int64(count.RxBytes)
-		stats.TxPackets += int64(count.TxPackets)
-		stats.TxBytes += int64(count.TxBytes)
-	}
-
-	return stats
-}
-
 // createCommand processes raw command input with OpenSSH-like behavior.
 // If the rawCommand provided is empty, it will default to the users shell.
 // This injects environment variables specified by the user at launch too.
@@ -799,7 +800,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 
 	rawMetadata := a.metadata.Load()
 	if rawMetadata == nil {
-		return nil, xerrors.Errorf("no metadata was provided: %w", err)
+		return nil, xerrors.Errorf("no metadata was provided")
 	}
 	metadata, valid := rawMetadata.(agentsdk.Metadata)
 	if !valid {
@@ -892,7 +893,27 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 
 func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	ctx := session.Context()
-	cmd, err := a.createCommand(ctx, session.RawCommand(), session.Environ())
+	env := session.Environ()
+	var magicType string
+	for index, kv := range env {
+		if !strings.HasPrefix(kv, MagicSSHSessionTypeEnvironmentVariable) {
+			continue
+		}
+		magicType = strings.TrimPrefix(kv, MagicSSHSessionTypeEnvironmentVariable+"=")
+		env = append(env[:index], env[index+1:]...)
+	}
+	switch magicType {
+	case MagicSSHSessionTypeVSCode:
+		a.connCountVSCode.Add(1)
+	case MagicSSHSessionTypeJetBrains:
+		a.connCountJetBrains.Add(1)
+	case "":
+		a.connCountSSHSession.Add(1)
+	default:
+		a.logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("type", magicType))
+	}
+
+	cmd, err := a.createCommand(ctx, session.RawCommand(), env)
 	if err != nil {
 		return err
 	}
@@ -989,6 +1010,8 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 
 func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
 	defer conn.Close()
+
+	a.connCountReconnectingPTY.Add(1)
 
 	connectionID := uuid.NewString()
 	logger = logger.With(slog.F("id", msg.ID), slog.F("connection_id", connectionID))
@@ -1180,6 +1203,103 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	}
 }
 
+// startReportingConnectionStats runs the connection stats reporting goroutine.
+func (a *agent) startReportingConnectionStats(ctx context.Context) {
+	reportStats := func(networkStats map[netlogtype.Connection]netlogtype.Counts) {
+		stats := &agentsdk.Stats{
+			ConnectionCount:    int64(len(networkStats)),
+			ConnectionsByProto: map[string]int64{},
+		}
+		// Tailscale resets counts on every report!
+		// We'd rather have these compound, like Linux does!
+		for conn, counts := range networkStats {
+			stats.ConnectionsByProto[conn.Proto.String()]++
+			stats.RxBytes = a.statRxBytes.Add(int64(counts.RxBytes))
+			stats.RxPackets = a.statRxPackets.Add(int64(counts.RxPackets))
+			stats.TxBytes = a.statTxBytes.Add(int64(counts.TxBytes))
+			stats.TxPackets = a.statTxPackets.Add(int64(counts.TxPackets))
+		}
+
+		// Tailscale's connection stats are not cumulative, but it makes no sense to make
+		// ours temporary.
+		stats.SessionCountSSH = a.connCountSSHSession.Load()
+		stats.SessionCountVSCode = a.connCountVSCode.Load()
+		stats.SessionCountJetBrains = a.connCountJetBrains.Load()
+		stats.SessionCountReconnectingPTY = a.connCountReconnectingPTY.Load()
+
+		// Compute the median connection latency!
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		status := a.network.Status()
+		durations := []float64{}
+		ctx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
+		defer cancelFunc()
+		for nodeID, peer := range status.Peer {
+			if !peer.Active {
+				continue
+			}
+			addresses, found := a.network.NodeAddresses(nodeID)
+			if !found {
+				continue
+			}
+			if len(addresses) == 0 {
+				continue
+			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				duration, _, _, err := a.network.Ping(ctx, addresses[0].Addr())
+				if err != nil {
+					return
+				}
+				mu.Lock()
+				durations = append(durations, float64(duration.Microseconds()))
+				mu.Unlock()
+			}()
+		}
+		wg.Wait()
+		sort.Float64s(durations)
+		durationsLength := len(durations)
+		if durationsLength == 0 {
+			stats.ConnectionMedianLatencyMS = -1
+		} else if durationsLength%2 == 0 {
+			stats.ConnectionMedianLatencyMS = (durations[durationsLength/2-1] + durations[durationsLength/2]) / 2
+		} else {
+			stats.ConnectionMedianLatencyMS = durations[durationsLength/2]
+		}
+		// Convert from microseconds to milliseconds.
+		stats.ConnectionMedianLatencyMS /= 1000
+
+		select {
+		case a.connStatsChan <- stats:
+		default:
+			a.logger.Warn(ctx, "network stat dropped")
+		}
+	}
+
+	// Report statistics from the created network.
+	cl, err := a.client.ReportStats(ctx, a.logger, a.connStatsChan, func(d time.Duration) {
+		a.network.SetConnStatsCallback(d, 2048,
+			func(_, _ time.Time, virtual, _ map[netlogtype.Connection]netlogtype.Counts) {
+				reportStats(virtual)
+			},
+		)
+	})
+	if err != nil {
+		a.logger.Error(ctx, "report stats", slog.Error(err))
+	} else {
+		if err = a.trackConnGoroutine(func() {
+			// This is OK because the agent never re-creates the tailnet
+			// and the only shutdown indicator is agent.Close().
+			<-a.closed
+			_ = cl.Close()
+		}); err != nil {
+			a.logger.Debug(ctx, "report stats goroutine", slog.Error(err))
+			_ = cl.Close()
+		}
+	}
+}
+
 // isClosed returns whether the API is closed or not.
 func (a *agent) isClosed() bool {
 	select {
@@ -1196,13 +1316,73 @@ func (a *agent) Close() error {
 	if a.isClosed() {
 		return nil
 	}
+
+	ctx := context.Background()
+	a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleShuttingDown)
+
+	lifecycleState := codersdk.WorkspaceAgentLifecycleOff
+	if metadata, ok := a.metadata.Load().(agentsdk.Metadata); ok && metadata.ShutdownScript != "" {
+		scriptDone := make(chan error, 1)
+		scriptStart := time.Now()
+		go func() {
+			defer close(scriptDone)
+			scriptDone <- a.runShutdownScript(ctx, metadata.ShutdownScript)
+		}()
+
+		var timeout <-chan time.Time
+		// If timeout is zero, an older version of the coder
+		// provider was used. Otherwise a timeout is always > 0.
+		if metadata.ShutdownScriptTimeout > 0 {
+			t := time.NewTimer(metadata.ShutdownScriptTimeout)
+			defer t.Stop()
+			timeout = t.C
+		}
+
+		var err error
+		select {
+		case err = <-scriptDone:
+		case <-timeout:
+			a.logger.Warn(ctx, "shutdown script timed out")
+			a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleShutdownTimeout)
+			err = <-scriptDone // The script can still complete after a timeout.
+		}
+		execTime := time.Since(scriptStart)
+		if err != nil {
+			a.logger.Warn(ctx, "shutdown script failed", slog.F("execution_time", execTime), slog.Error(err))
+			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownError
+		} else {
+			a.logger.Info(ctx, "shutdown script completed", slog.F("execution_time", execTime))
+		}
+	}
+
+	// Set final state and wait for it to be reported because context
+	// cancellation will stop the report loop.
+	a.setLifecycle(ctx, lifecycleState)
+
+	// Wait for the lifecycle to be reported, but don't wait forever so
+	// that we don't break user expectations.
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+lifecycleWaitLoop:
+	for {
+		select {
+		case <-ctx.Done():
+			break lifecycleWaitLoop
+		case s := <-a.lifecycleReported:
+			if s == lifecycleState {
+				break lifecycleWaitLoop
+			}
+		}
+	}
+
 	close(a.closed)
 	a.closeCancel()
+	_ = a.sshServer.Close()
 	if a.network != nil {
 		_ = a.network.Close()
 	}
-	_ = a.sshServer.Close()
 	a.connCloseWait.Wait()
+
 	return nil
 }
 

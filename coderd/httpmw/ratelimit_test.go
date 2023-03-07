@@ -76,7 +76,7 @@ func TestRateLimit(t *testing.T) {
 		_, key := dbgen.APIKey(t, db, database.APIKey{UserID: u.ID})
 
 		rtr := chi.NewRouter()
-		rtr.Use(httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		rtr.Use(httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:       db,
 			Optional: false,
 		}))
@@ -122,7 +122,7 @@ func TestRateLimit(t *testing.T) {
 		_, key := dbgen.APIKey(t, db, database.APIKey{UserID: u.ID})
 
 		rtr := chi.NewRouter()
-		rtr.Use(httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+		rtr.Use(httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:       db,
 			Optional: false,
 		}))

@@ -95,12 +95,14 @@ export const WorkspacesPageView: FC<
           filter={filter}
           onFilter={onFilter}
           presetFilters={presetFilters}
+          error={error}
         />
       </Stack>
       <WorkspacesTable
         workspaces={workspaces}
         isUsingFilter={filter !== workspaceFilterQuery.me}
         onUpdateWorkspace={onUpdateWorkspace}
+        error={error}
       />
       {count !== undefined && (
         <PaginationWidgetBase

@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/parameter"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
@@ -43,17 +44,18 @@ var (
 )
 
 type Server struct {
-	AccessURL        *url.URL
-	ID               uuid.UUID
-	Logger           slog.Logger
-	Provisioners     []database.ProvisionerType
-	GitAuthProviders []string
-	Tags             json.RawMessage
-	Database         database.Store
-	Pubsub           database.Pubsub
-	Telemetry        telemetry.Reporter
-	QuotaCommitter   *atomic.Pointer[proto.QuotaCommitter]
-	Auditor          *atomic.Pointer[audit.Auditor]
+	AccessURL             *url.URL
+	ID                    uuid.UUID
+	Logger                slog.Logger
+	Provisioners          []database.ProvisionerType
+	GitAuthProviders      []string
+	Tags                  json.RawMessage
+	Database              database.Store
+	Pubsub                database.Pubsub
+	Telemetry             telemetry.Reporter
+	QuotaCommitter        *atomic.Pointer[proto.QuotaCommitter]
+	Auditor               *atomic.Pointer[audit.Auditor]
+	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 
 	AcquireJobDebounce time.Duration
 }
@@ -661,15 +663,31 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		if err != nil {
 			return nil, xerrors.Errorf("unmarshal workspace provision input: %w", err)
 		}
-		build, err := server.Database.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-			ID:               input.WorkspaceBuildID,
-			UpdatedAt:        database.Now(),
-			ProvisionerState: jobType.WorkspaceBuild.State,
-			// We are explicitly not updating deadline here.
-		})
+
+		var build database.WorkspaceBuild
+		err := server.Database.InTx(func(db database.Store) error {
+			workspaceBuild, err := db.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
+			if err != nil {
+				return xerrors.Errorf("get workspace build: %w", err)
+			}
+
+			build, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+				ID:               input.WorkspaceBuildID,
+				UpdatedAt:        database.Now(),
+				ProvisionerState: jobType.WorkspaceBuild.State,
+				Deadline:         workspaceBuild.Deadline,
+				MaxDeadline:      workspaceBuild.MaxDeadline,
+			})
+			if err != nil {
+				return xerrors.Errorf("update workspace build state: %w", err)
+			}
+
+			return nil
+		}, nil)
 		if err != nil {
-			return nil, xerrors.Errorf("update workspace build state: %w", err)
+			return nil, err
 		}
+
 		err = server.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), []byte{})
 		if err != nil {
 			return nil, xerrors.Errorf("update workspace: %w", err)
@@ -739,6 +757,8 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 }
 
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
+//
+//nolint:gocyclo
 func (server *Server) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
@@ -808,6 +828,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				ValidationMin:       richParameter.ValidationMin,
 				ValidationMax:       richParameter.ValidationMax,
 				ValidationMonotonic: richParameter.ValidationMonotonic,
+				Required:            richParameter.Required,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("insert parameter: %w", err)
@@ -867,18 +888,48 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		var getWorkspaceError error
 
 		err = server.Database.InTx(func(db database.Store) error {
-			now := database.Now()
-			var workspaceDeadline time.Time
+			var (
+				now = database.Now()
+				// deadline is the time when the workspace will be stopped. The
+				// value can be bumped by user activity or manually by the user
+				// via the UI.
+				deadline time.Time
+				// maxDeadline is the maximum value for deadline.
+				maxDeadline time.Time
+			)
+
 			workspace, getWorkspaceError = db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
-			if getWorkspaceError == nil {
-				if workspace.Ttl.Valid {
-					workspaceDeadline = now.Add(time.Duration(workspace.Ttl.Int64))
-				}
-			} else {
-				// Huh? Did the workspace get deleted?
-				// In any case, since this is just for the TTL, try and continue anyway.
-				server.Logger.Error(ctx, "fetch workspace for build", slog.F("workspace_build_id", workspaceBuild.ID), slog.F("workspace_id", workspaceBuild.WorkspaceID))
+			if getWorkspaceError != nil {
+				server.Logger.Error(ctx,
+					"fetch workspace for build",
+					slog.F("workspace_build_id", workspaceBuild.ID),
+					slog.F("workspace_id", workspaceBuild.WorkspaceID),
+				)
+				return getWorkspaceError
 			}
+			if workspace.Ttl.Valid {
+				deadline = now.Add(time.Duration(workspace.Ttl.Int64))
+			}
+
+			templateSchedule, err := (*server.TemplateScheduleStore.Load()).GetTemplateScheduleOptions(ctx, db, workspace.TemplateID)
+			if err != nil {
+				return xerrors.Errorf("get template schedule options: %w", err)
+			}
+			if !templateSchedule.UserSchedulingEnabled {
+				// The user is not permitted to set their own TTL.
+				deadline = time.Time{}
+			}
+			if templateSchedule.MaxTTL > 0 {
+				maxDeadline = now.Add(templateSchedule.MaxTTL)
+
+				if deadline.IsZero() || maxDeadline.Before(deadline) {
+					// If the workspace doesn't have a deadline or the max
+					// deadline is sooner than the workspace deadline, use the
+					// max deadline as the actual deadline.
+					deadline = maxDeadline
+				}
+			}
+
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID:        jobID,
 				UpdatedAt: database.Now(),
@@ -892,7 +943,8 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			}
 			_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               workspaceBuild.ID,
-				Deadline:         workspaceDeadline,
+				Deadline:         deadline,
+				MaxDeadline:      maxDeadline,
 				ProvisionerState: jobType.WorkspaceBuild.State,
 				UpdatedAt:        now,
 			})
@@ -1144,6 +1196,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			MOTDFile:                    prAgent.GetMotdFile(),
 			LoginBeforeReady:            prAgent.GetLoginBeforeReady(),
 			StartupScriptTimeoutSeconds: prAgent.GetStartupScriptTimeoutSeconds(),
+			ShutdownScript: sql.NullString{
+				String: prAgent.ShutdownScript,
+				Valid:  prAgent.ShutdownScript != "",
+			},
+			ShutdownScriptTimeoutSeconds: prAgent.GetShutdownScriptTimeoutSeconds(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)

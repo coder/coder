@@ -60,7 +60,6 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		Provisioner:                  takeFirst(seed.Provisioner, database.ProvisionerTypeEcho),
 		ActiveVersionID:              takeFirst(seed.ActiveVersionID, uuid.New()),
 		Description:                  takeFirst(seed.Description, namesgenerator.GetRandomName(1)),
-		DefaultTTL:                   takeFirst(seed.DefaultTTL, 3600),
 		CreatedBy:                    takeFirst(seed.CreatedBy, uuid.New()),
 		Icon:                         takeFirst(seed.Icon, namesgenerator.GetRandomName(1)),
 		UserACL:                      seed.UserACL,
@@ -90,6 +89,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 		UpdatedAt:       takeFirst(seed.UpdatedAt, database.Now()),
 		LoginType:       takeFirst(seed.LoginType, database.LoginTypePassword),
 		Scope:           takeFirst(seed.Scope, database.APIKeyScopeAll),
+		TokenName:       takeFirst(seed.TokenName),
 	})
 	require.NoError(t, err, "insert api key")
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)

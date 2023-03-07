@@ -43,7 +43,7 @@ func TestOrganizationParam(t *testing.T) {
 			rtr  = chi.NewRouter()
 		)
 		rtr.Use(
-			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 				DB:              db,
 				RedirectToLogin: false,
 			}),
@@ -66,7 +66,7 @@ func TestOrganizationParam(t *testing.T) {
 		)
 		chi.RouteContext(r.Context()).URLParams.Add("organization", uuid.NewString())
 		rtr.Use(
-			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 				DB:              db,
 				RedirectToLogin: false,
 			}),
@@ -89,7 +89,7 @@ func TestOrganizationParam(t *testing.T) {
 		)
 		chi.RouteContext(r.Context()).URLParams.Add("organization", "not-a-uuid")
 		rtr.Use(
-			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 				DB:              db,
 				RedirectToLogin: false,
 			}),
@@ -120,7 +120,7 @@ func TestOrganizationParam(t *testing.T) {
 		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())
 		chi.RouteContext(r.Context()).URLParams.Add("user", u.ID.String())
 		rtr.Use(
-			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 				DB:              db,
 				RedirectToLogin: false,
 			}),
@@ -151,7 +151,7 @@ func TestOrganizationParam(t *testing.T) {
 		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())
 		chi.RouteContext(r.Context()).URLParams.Add("user", user.ID.String())
 		rtr.Use(
-			httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 				DB:              db,
 				RedirectToLogin: false,
 			}),
