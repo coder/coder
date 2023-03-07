@@ -406,7 +406,7 @@ func TestServer(t *testing.T) {
 			"--tls-key-file", keyPath,
 			"--cache-dir", t.TempDir(),
 		)
-		clitest.Start(ctx, t, root)
+		clitest.Start(t, root.WithContext(ctx))
 
 		// Verify HTTPS
 		accessURL := waitAccessURL(t, cfg)
@@ -446,7 +446,7 @@ func TestServer(t *testing.T) {
 		)
 		pty := ptytest.New(t)
 		root.Stdout = pty.Output()
-		clitest.Start(ctx, t, root)
+		clitest.Start(t, root.WithContext(ctx))
 
 		accessURL := waitAccessURL(t, cfg)
 		require.Equal(t, "https", accessURL.Scheme)
@@ -864,7 +864,7 @@ func TestServer(t *testing.T) {
 			pty := ptytest.New(t)
 			root.Stdout = pty.Output()
 			root.Stderr = pty.Output()
-			clitest.Start(ctx, t, root)
+			clitest.Start(t, root.WithContext(ctx))
 
 			pty.ExpectMatch("is deprecated")
 
@@ -894,7 +894,7 @@ func TestServer(t *testing.T) {
 			pty := ptytest.New(t)
 			root.Stdout = pty.Output()
 			root.Stderr = pty.Output()
-			clitest.Start(ctx, t, root)
+			clitest.Start(t, root.WithContext(ctx))
 
 			pty.ExpectMatch("is deprecated")
 
@@ -1230,7 +1230,7 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-human", fiName,
 			)
-			clitest.Start(context.Background(), t, root)
+			clitest.Start(t, root)
 
 			waitFile(t, fiName, testutil.WaitShort)
 		})
@@ -1247,7 +1247,7 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-human", fi,
 			)
-			clitest.Start(context.Background(), t, root)
+			clitest.Start(t, root)
 
 			waitFile(t, fi, testutil.WaitShort)
 		})
@@ -1264,7 +1264,7 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-json", fi,
 			)
-			clitest.Start(context.Background(), t, root)
+			clitest.Start(t, root)
 
 			waitFile(t, fi, testutil.WaitShort)
 		})
@@ -1319,7 +1319,7 @@ func TestServer(t *testing.T) {
 			// which can take a long time and end up failing the test.
 			// This is why we wait extra long below for server to listen on
 			// HTTP.
-			root, _ := clitest.New(t,
+			inv, _ := clitest.New(t,
 				"server",
 				"--verbose",
 				"--in-memory",
@@ -1332,10 +1332,10 @@ func TestServer(t *testing.T) {
 			// Attach pty so we get debug output from the command if this test
 			// fails.
 			pty := ptytest.New(t)
-			root.Stdout = pty.Output()
-			root.Stderr = pty.Output()
+			inv.Stdout = pty.Output()
+			inv.Stderr = pty.Output()
 
-			clitest.Start(ctx, t, root)
+			clitest.Start(t, inv)
 
 			// Wait for server to listen on HTTP, this is a good
 			// starting point for expecting logs.
