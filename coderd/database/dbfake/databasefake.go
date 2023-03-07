@@ -2771,6 +2771,7 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 		ValidationMin:       arg.ValidationMin,
 		ValidationMax:       arg.ValidationMax,
 		ValidationMonotonic: arg.ValidationMonotonic,
+		Required:            arg.Required,
 	}
 	q.templateVersionParameters = append(q.templateVersionParameters, param)
 	return param, nil

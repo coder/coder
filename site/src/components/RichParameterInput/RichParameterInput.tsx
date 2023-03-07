@@ -169,6 +169,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
       type={parameter.type}
       size="small"
       disabled={disabled}
+      required={parameter.required}
       placeholder={parameter.default_value}
       value={parameterValue}
       onChange={(event) => {

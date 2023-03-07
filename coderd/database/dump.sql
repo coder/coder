@@ -351,6 +351,7 @@ CREATE TABLE template_version_parameters (
     validation_max integer NOT NULL,
     validation_error text DEFAULT ''::text NOT NULL,
     validation_monotonic text DEFAULT ''::text NOT NULL,
+    required boolean DEFAULT true NOT NULL,
     CONSTRAINT validation_monotonic_order CHECK ((validation_monotonic = ANY (ARRAY['increasing'::text, 'decreasing'::text, ''::text])))
 );
 
@@ -377,6 +378,8 @@ COMMENT ON COLUMN template_version_parameters.validation_max IS 'Validation: max
 COMMENT ON COLUMN template_version_parameters.validation_error IS 'Validation: error displayed when the regex does not match.';
 
 COMMENT ON COLUMN template_version_parameters.validation_monotonic IS 'Validation: consecutive values preserve the monotonic order';
+
+COMMENT ON COLUMN template_version_parameters.required IS 'Is parameter required?';
 
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,

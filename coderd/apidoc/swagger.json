@@ -7170,6 +7170,9 @@
             "$ref": "#/definitions/codersdk.TemplateVersionParameterOption"
           }
         },
+        "required": {
+          "type": "boolean"
+        },
         "type": {
           "type": "string",
           "enum": ["string", "number", "bool"]

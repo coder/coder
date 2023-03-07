@@ -4846,6 +4846,7 @@ Parameter represents a set value for the scope.
       "value": "string"
     }
   ],
+  "required": true,
   "type": "string",
   "validation_error": "string",
   "validation_max": 0,
@@ -4866,6 +4867,7 @@ Parameter represents a set value for the scope.
 | `mutable`               | boolean                                                                                     | false    |              |             |
 | `name`                  | string                                                                                      | false    |              |             |
 | `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
+| `required`              | boolean                                                                                     | false    |              |             |
 | `type`                  | string                                                                                      | false    |              |             |
 | `validation_error`      | string                                                                                      | false    |              |             |
 | `validation_max`        | integer                                                                                     | false    |              |             |
