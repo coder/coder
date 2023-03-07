@@ -13,18 +13,19 @@ import (
 	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
 var jwtRegexp = regexp.MustCompile(`^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$`)
 
-func licenses() *cobra.Command {
-	cmd := &cobra.Command{
+func licenses() *clibase.Command {
+	cmd := &clibase.Command{
 		Short:   "Add, delete, and list licenses",
 		Use:     "licenses",
 		Aliases: []string{"license"},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			return cmd.Help()
 		},
 	}
@@ -36,17 +37,17 @@ func licenses() *cobra.Command {
 	return cmd
 }
 
-func licenseAdd() *cobra.Command {
+func licenseAdd() *clibase.Command {
 	var (
 		filename string
 		license  string
 		debug    bool
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "add [-f file | -l license]",
 		Short: "Add license to Coder deployment",
 		Args:  cobra.ExactArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {
 				return err
@@ -91,7 +92,7 @@ func licenseAdd() *cobra.Command {
 			}
 
 			licResp, err := client.AddLicense(
-				cmd.Context(),
+				inv.Context(),
 				codersdk.AddLicenseRequest{License: license},
 			)
 			if err != nil {
@@ -119,19 +120,19 @@ func validJWT(s string) error {
 	return xerrors.New("Invalid license")
 }
 
-func licensesList() *cobra.Command {
-	cmd := &cobra.Command{
+func licensesList() *clibase.Command {
+	cmd := &clibase.Command{
 		Use:     "list",
 		Short:   "List licenses (including expired)",
 		Aliases: []string{"ls"},
 		Args:    cobra.ExactArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {
 				return err
 			}
 
-			licenses, err := client.Licenses(cmd.Context())
+			licenses, err := client.Licenses(inv.Context())
 			if err != nil {
 				return err
 			}
@@ -148,13 +149,13 @@ func licensesList() *cobra.Command {
 	return cmd
 }
 
-func licenseDelete() *cobra.Command {
-	cmd := &cobra.Command{
+func licenseDelete() *clibase.Command {
+	cmd := &clibase.Command{
 		Use:     "delete <id>",
 		Short:   "Delete license by ID",
 		Aliases: []string{"del", "rm"},
 		Args:    cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {
 				return err
@@ -163,7 +164,7 @@ func licenseDelete() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("license ID must be an integer: %s", args[0])
 			}
-			err = client.DeleteLicense(cmd.Context(), int32(id))
+			err = client.DeleteLicense(inv.Context(), int32(id))
 			if err != nil {
 				return err
 			}

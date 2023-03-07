@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
@@ -32,8 +32,8 @@ func TestSelect(t *testing.T) {
 
 func newSelect(ptty *ptytest.PTY, opts cliui.SelectOptions) (string, error) {
 	value := ""
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, args []string) error {
+	cmd := &clibase.Command{
+		Handler: func(inv *clibase.Invokation) error {
 			var err error
 			value, err = cliui.Select(cmd, opts)
 			return err
@@ -73,8 +73,8 @@ func TestRichSelect(t *testing.T) {
 
 func newRichSelect(ptty *ptytest.PTY, opts cliui.RichSelectOptions) (string, error) {
 	value := ""
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, args []string) error {
+	cmd := &clibase.Command{
+		Handler: func(inv *clibase.Invokation) error {
 			richOption, err := cliui.RichSelect(cmd, opts)
 			if err == nil {
 				value = richOption.Value

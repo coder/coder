@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
@@ -240,7 +240,7 @@ func TestLicensesDeleteReal(t *testing.T) {
 	})
 }
 
-func setupFakeLicenseServerTest(t *testing.T, args ...string) *cobra.Command {
+func setupFakeLicenseServerTest(t *testing.T, args ...string) *clibase.Command {
 	t.Helper()
 	s := httptest.NewServer(newFakeLicenseAPI(t))
 	t.Cleanup(s.Close)
@@ -252,7 +252,7 @@ func setupFakeLicenseServerTest(t *testing.T, args ...string) *cobra.Command {
 	return cmd
 }
 
-func attachPty(t *testing.T, cmd *cobra.Command) *ptytest.PTY {
+func attachPty(t *testing.T, cmd *clibase.Command) *ptytest.PTY {
 	pty := ptytest.New(t)
 	cmd.Stdin = pty.Input()
 	cmd.Stdout = pty.Output()

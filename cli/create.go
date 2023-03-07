@@ -6,17 +6,17 @@ import (
 	"io"
 	"time"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 )
 
-func create() *cobra.Command {
+func create() *clibase.Command {
 	var (
 		parameterFile     string
 		richParameterFile string
@@ -25,11 +25,11 @@ func create() *cobra.Command {
 		stopAfter         time.Duration
 		workspaceName     string
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Annotations: workspaceCommand,
 		Use:         "create [name]",
 		Short:       "Create a workspace",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -48,7 +48,7 @@ func create() *cobra.Command {
 				workspaceName, err = cliui.Prompt(cmd, cliui.PromptOptions{
 					Text: "Specify a name for your workspace:",
 					Validate: func(workspaceName string) error {
-						_, err = client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
+						_, err = client.WorkspaceByOwnerAndName(inv.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
 						if err == nil {
 							return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 						}
@@ -60,7 +60,7 @@ func create() *cobra.Command {
 				}
 			}
 
-			_, err = client.WorkspaceByOwnerAndName(cmd.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
+			_, err = client.WorkspaceByOwnerAndName(inv.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
 			if err == nil {
 				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 			}
@@ -69,7 +69,7 @@ func create() *cobra.Command {
 			if templateName == "" {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Wrap.Render("Select a template below to preview the provisioned infrastructure:"))
 
-				templates, err := client.TemplatesByOrganization(cmd.Context(), organization.ID)
+				templates, err := client.TemplatesByOrganization(inv.Context(), organization.ID)
 				if err != nil {
 					return err
 				}
@@ -108,7 +108,7 @@ func create() *cobra.Command {
 
 				template = templateByName[option]
 			} else {
-				template, err = client.TemplateByName(cmd.Context(), organization.ID, templateName)
+				template, err = client.TemplateByName(inv.Context(), organization.ID, templateName)
 				if err != nil {
 					return xerrors.Errorf("get template by name: %w", err)
 				}
@@ -142,7 +142,7 @@ func create() *cobra.Command {
 				return err
 			}
 
-			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			workspace, err := client.CreateWorkspace(inv.Context(), organization.ID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 				TemplateID:          template.ID,
 				Name:                workspaceName,
 				AutostartSchedule:   schedSpec,
@@ -154,7 +154,7 @@ func create() *cobra.Command {
 				return err
 			}
 
-			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, workspace.LatestBuild.ID)
+			err = cliui.WorkspaceBuild(inv.Context(), cmd.OutOrStdout(), client, workspace.LatestBuild.ID)
 			if err != nil {
 				return err
 			}
@@ -193,8 +193,8 @@ type buildParameters struct {
 
 // prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
 // Any missing params will be prompted to the user. It supports legacy and rich parameters.
-func prepWorkspaceBuild(cmd *cobra.Command, client *codersdk.Client, args prepWorkspaceBuildArgs) (*buildParameters, error) {
-	ctx := cmd.Context()
+func prepWorkspaceBuild(cmd *clibase.Command, client *codersdk.Client, args prepWorkspaceBuildArgs) (*buildParameters, error) {
+	ctx := inv.Context()
 
 	var useRichParameters bool
 	if len(args.ExistingRichParams) > 0 && len(args.RichParameterFile) > 0 {
@@ -273,7 +273,7 @@ PromptParamLoop:
 	}
 
 	// Rich parameters
-	templateVersionParameters, err := client.TemplateVersionRichParameters(cmd.Context(), templateVersion.ID)
+	templateVersionParameters, err := client.TemplateVersionRichParameters(inv.Context(), templateVersion.ID)
 	if err != nil {
 		return nil, xerrors.Errorf("get template version rich parameters: %w", err)
 	}
@@ -335,7 +335,7 @@ PromptRichParamLoop:
 	}
 
 	// Run a dry-run with the given parameters to check correctness
-	dryRun, err := client.CreateTemplateVersionDryRun(cmd.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
+	dryRun, err := client.CreateTemplateVersionDryRun(inv.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
 		WorkspaceName:       args.NewWorkspaceName,
 		ParameterValues:     legacyParameters,
 		RichParameterValues: richParameters,
@@ -344,15 +344,15 @@ PromptRichParamLoop:
 		return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
 	}
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Planning workspace...")
-	err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+	err = cliui.ProvisionerJob(inv.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
-			return client.TemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
+			return client.TemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
 		},
 		Cancel: func() error {
-			return client.CancelTemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
+			return client.CancelTemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
 		},
 		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
-			return client.TemplateVersionDryRunLogsAfter(cmd.Context(), templateVersion.ID, dryRun.ID, 0)
+			return client.TemplateVersionDryRunLogsAfter(inv.Context(), templateVersion.ID, dryRun.ID, 0)
 		},
 		// Don't show log output for the dry-run unless there's an error.
 		Silent: true,
@@ -363,7 +363,7 @@ PromptRichParamLoop:
 		return nil, xerrors.Errorf("dry-run workspace: %w", err)
 	}
 
-	resources, err := client.TemplateVersionDryRunResources(cmd.Context(), templateVersion.ID, dryRun.ID)
+	resources, err := client.TemplateVersionDryRunResources(inv.Context(), templateVersion.ID, dryRun.ID)
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace dry-run resources: %w", err)
 	}

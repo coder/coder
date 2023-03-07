@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
@@ -14,14 +15,14 @@ import (
 	"github.com/coder/coder/coderd/userpassword"
 )
 
-func resetPassword() *cobra.Command {
+func resetPassword() *clibase.Command {
 	var postgresURL string
 
-	root := &cobra.Command{
+	root := &clibase.Command{
 		Use:   "reset-password <username>",
 		Short: "Directly connect to the database to reset a user's password",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			username := args[0]
 
 			sqlDB, err := sql.Open("postgres", postgresURL)
@@ -40,7 +41,7 @@ func resetPassword() *cobra.Command {
 			}
 			db := database.New(sqlDB)
 
-			user, err := db.GetUserByEmailOrUsername(cmd.Context(), database.GetUserByEmailOrUsernameParams{
+			user, err := db.GetUserByEmailOrUsername(inv.Context(), database.GetUserByEmailOrUsernameParams{
 				Username: username,
 			})
 			if err != nil {
@@ -74,7 +75,7 @@ func resetPassword() *cobra.Command {
 				return xerrors.Errorf("hash password: %w", err)
 			}
 
-			err = db.UpdateUserHashedPassword(cmd.Context(), database.UpdateUserHashedPasswordParams{
+			err = db.UpdateUserHashedPassword(inv.Context(), database.UpdateUserHashedPasswordParams{
 				ID:             user.ID,
 				HashedPassword: []byte(hashedPassword),
 			})

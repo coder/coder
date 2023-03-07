@@ -6,13 +6,13 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/coder/coder/cli/clibase"
 	"golang.org/x/xerrors"
 )
 
 type OutputFormat interface {
 	ID() string
-	AttachFlags(cmd *cobra.Command)
+	AttachFlags(cmd *clibase.Command)
 	Format(ctx context.Context, data any) (string, error)
 }
 
@@ -47,7 +47,7 @@ func NewOutputFormatter(formats ...OutputFormat) *OutputFormatter {
 
 // AttachFlags attaches the --output flag to the given command, and any
 // additional flags required by the output formatters.
-func (f *OutputFormatter) AttachFlags(cmd *cobra.Command) {
+func (f *OutputFormatter) AttachFlags(cmd *clibase.Command) {
 	for _, format := range f.formats {
 		format.AttachFlags(cmd)
 	}
@@ -119,7 +119,7 @@ func (*tableFormat) ID() string {
 }
 
 // AttachFlags implements OutputFormat.
-func (f *tableFormat) AttachFlags(cmd *cobra.Command) {
+func (f *tableFormat) AttachFlags(cmd *clibase.Command) {
 	cmd.Flags().StringSliceVarP(&f.columns, "column", "c", f.defaultColumns, "Columns to display in table output. Available columns: "+strings.Join(f.allColumns, ", "))
 }
 
@@ -143,7 +143,7 @@ func (jsonFormat) ID() string {
 }
 
 // AttachFlags implements OutputFormat.
-func (jsonFormat) AttachFlags(_ *cobra.Command) {}
+func (jsonFormat) AttachFlags(_ *clibase.Command) {}
 
 // Format implements OutputFormat.
 func (jsonFormat) Format(_ context.Context, data any) (string, error) {

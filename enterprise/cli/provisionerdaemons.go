@@ -7,12 +7,12 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	agpl "github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
@@ -24,8 +24,8 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func provisionerDaemons() *cobra.Command {
-	cmd := &cobra.Command{
+func provisionerDaemons() *clibase.Command {
+	cmd := &clibase.Command{
 		Use:   "provisionerd",
 		Short: "Manage provisioner daemons",
 	}
@@ -34,18 +34,18 @@ func provisionerDaemons() *cobra.Command {
 	return cmd
 }
 
-func provisionerDaemonStart() *cobra.Command {
+func provisionerDaemonStart() *clibase.Command {
 	var (
 		cacheDir     string
 		rawTags      []string
 		pollInterval time.Duration
 		pollJitter   time.Duration
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "start",
 		Short: "Run a provisioner daemon",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := context.WithCancel(cmd.Context())
+		Handler: func(inv *clibase.Invokation) error {
+			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
 			notifyCtx, notifyStop := signal.NotifyContext(ctx, agpl.InterruptSignals...)
@@ -77,7 +77,7 @@ func provisionerDaemonStart() *cobra.Command {
 				_ = terraformServer.Close()
 			}()
 
-			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
+			logger := slog.Make(sloghuman.Sink(inv.Stderr))
 			errCh := make(chan error, 1)
 			go func() {
 				defer cancel()

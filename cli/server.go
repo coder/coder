@@ -41,7 +41,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
-	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
@@ -155,14 +154,14 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 
 // nolint:gocyclo
 func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Command {
-	root := &cobra.Command{
+	root := &clibase.Command{
 		Use:                "server",
 		Short:              "Start a Coder server",
 		DisableFlagParsing: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			// Main command context for managing cancellation of running
 			// services.
-			ctx, cancel := context.WithCancel(cmd.Context())
+			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
 			cfg := &codersdk.DeploymentValues{}
@@ -192,8 +191,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			flagSet := cliOpts.FlagSet()
 			// These parents and children will be moved once we convert the
 			// rest of the `cli` package to clibase.
-			flagSet.Usage = usageFn(cmd.ErrOrStderr(), &clibase.Cmd{
-				Parent: &clibase.Cmd{
+			flagSet.Usage = usageFn(inv.Stderr, &clibase.Command{
+				Parent: &clibase.Command{
 					Use: "coder",
 				},
 				Children: []*clibase.Cmd{
@@ -239,7 +238,7 @@ flags, and YAML configuration. The precedence is as follows:
 				if err != nil {
 					return xerrors.Errorf("generate yaml: %w", err)
 				}
-				enc := yaml.NewEncoder(cmd.ErrOrStderr())
+				enc := yaml.NewEncoder(inv.Stderr)
 				err = enc.Encode(n)
 				if err != nil {
 					return xerrors.Errorf("encode yaml: %w", err)
@@ -1166,10 +1165,10 @@ flags, and YAML configuration. The precedence is as follows:
 	}
 
 	var pgRawURL bool
-	postgresBuiltinURLCmd := &cobra.Command{
+	postgresBuiltinURLCmd := &clibase.Command{
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			cfg := createConfig(cmd)
 			url, err := embeddedPostgresURL(cfg)
 			if err != nil {
@@ -1183,14 +1182,14 @@ flags, and YAML configuration. The precedence is as follows:
 			return nil
 		},
 	}
-	postgresBuiltinServeCmd := &cobra.Command{
+	postgresBuiltinServeCmd := &clibase.Command{
 		Use:   "postgres-builtin-serve",
 		Short: "Run the built-in PostgreSQL deployment.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
+		Handler: func(inv *clibase.Invokation) error {
+			ctx := inv.Context()
 
 			cfg := createConfig(cmd)
-			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
+			logger := slog.Make(sloghuman.Sink(inv.Stderr))
 			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
@@ -1218,7 +1217,7 @@ flags, and YAML configuration. The precedence is as follows:
 	postgresBuiltinServeCmd.Flags().BoolVar(&pgRawURL, "raw-url", false, "Output the raw connection URL instead of a psql command.")
 
 	createAdminUserCommand := newCreateAdminUserCommand()
-	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+	root.SetHelpFunc(func(inv *clibase.Invokation) {
 		// Help is handled by clibase in command body.
 	})
 	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd, createAdminUserCommand)
@@ -1361,7 +1360,7 @@ func newProvisionerDaemon(
 }
 
 // nolint: revive
-func printLogo(cmd *cobra.Command) {
+func printLogo(cmd *clibase.Command) {
 	// Only print the logo in TTYs.
 	if !isTTYOut(cmd) {
 		return
@@ -1766,7 +1765,7 @@ func isLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentValues) (slog.Logger, func(), error) {
+func buildLogger(cmd *clibase.Command, cfg *codersdk.DeploymentValues) (slog.Logger, func(), error) {
 	var (
 		sinks   = []slog.Sink{}
 		closers = []func() error{}
@@ -1780,7 +1779,7 @@ func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentValues) (slog.Logge
 			sinks = append(sinks, sinkFn(cmd.OutOrStdout()))
 
 		case "/dev/stderr":
-			sinks = append(sinks, sinkFn(cmd.ErrOrStderr()))
+			sinks = append(sinks, sinkFn(inv.Stderr))
 
 		default:
 			fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)

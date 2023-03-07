@@ -6,17 +6,18 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func start() *cobra.Command {
-	cmd := &cobra.Command{
+func start() *clibase.Command {
+	cmd := &clibase.Command{
 		Annotations: workspaceCommand,
 		Use:         "start <workspace>",
 		Short:       "Start a workspace",
 		Args:        cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -25,14 +26,14 @@ func start() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStart,
 			})
 			if err != nil {
 				return err
 			}
 
-			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, build.ID)
+			err = cliui.WorkspaceBuild(inv.Context(), cmd.OutOrStdout(), client, build.ID)
 			if err != nil {
 				return err
 			}

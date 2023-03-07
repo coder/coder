@@ -4,23 +4,23 @@ import (
 	"fmt"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
 
-func userCreate() *cobra.Command {
+func userCreate() *clibase.Command {
 	var (
 		email    string
 		username string
 		password string
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use: "create",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -59,7 +59,7 @@ func userCreate() *cobra.Command {
 				}
 			}
 
-			_, err = client.CreateUser(cmd.Context(), codersdk.CreateUserRequest{
+			_, err = client.CreateUser(inv.Context(), codersdk.CreateUserRequest{
 				Email:          email,
 				Username:       username,
 				Password:       password,
@@ -68,7 +68,7 @@ func userCreate() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), `A new user has been created!
+			_, _ = fmt.Fprintln(inv.Stderr, `A new user has been created!
 Share the instructions below to get them started.
 `+cliui.Styles.Placeholder.Render("—————————————————————————————————————————————————")+`
 Download the Coder command line for your operating system:

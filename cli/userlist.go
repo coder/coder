@@ -9,30 +9,31 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func userList() *cobra.Command {
+func userList() *clibase.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created_at", "status"}),
 		cliui.JSONFormat(),
 	)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}
-			res, err := client.Users(cmd.Context(), codersdk.UsersRequest{})
+			res, err := client.Users(inv.Context(), codersdk.UsersRequest{})
 			if err != nil {
 				return err
 			}
 
-			out, err := formatter.Format(cmd.Context(), res.Users)
+			out, err := formatter.Format(inv.Context(), res.Users)
 			if err != nil {
 				return err
 			}
@@ -46,13 +47,13 @@ func userList() *cobra.Command {
 	return cmd
 }
 
-func userSingle() *cobra.Command {
+func userSingle() *clibase.Command {
 	formatter := cliui.NewOutputFormatter(
 		&userShowFormat{},
 		cliui.JSONFormat(),
 	)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "show <username|user_id|'me'>",
 		Short: "Show a single user. Use 'me' to indicate the currently authenticated user.",
 		Example: formatExamples(
@@ -61,20 +62,20 @@ func userSingle() *cobra.Command {
 			},
 		),
 		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}
 
-			user, err := client.User(cmd.Context(), args[0])
+			user, err := client.User(inv.Context(), args[0])
 			if err != nil {
 				return err
 			}
 
 			orgNames := make([]string, len(user.OrganizationIDs))
 			for i, orgID := range user.OrganizationIDs {
-				org, err := client.Organization(cmd.Context(), orgID)
+				org, err := client.Organization(inv.Context(), orgID)
 				if err != nil {
 					return xerrors.Errorf("get organization %q: %w", orgID.String(), err)
 				}
@@ -82,7 +83,7 @@ func userSingle() *cobra.Command {
 				orgNames[i] = org.Name
 			}
 
-			out, err := formatter.Format(cmd.Context(), userWithOrgNames{
+			out, err := formatter.Format(inv.Context(), userWithOrgNames{
 				User:              user,
 				OrganizationNames: orgNames,
 			})
@@ -114,7 +115,7 @@ func (*userShowFormat) ID() string {
 }
 
 // AttachFlags implements OutputFormat.
-func (*userShowFormat) AttachFlags(_ *cobra.Command) {}
+func (*userShowFormat) AttachFlags(_ *clibase.Command) {}
 
 // Format implements OutputFormat.
 func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error) {

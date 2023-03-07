@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -67,9 +66,9 @@ func TestAgent_TimeoutWithTroubleshootingURL(t *testing.T) {
 	wantURL := "https://coder.com/troubleshoot"
 
 	var connected, timeout atomic.Bool
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			err := cliui.Agent(cmd.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
+	cmd := &clibase.Command{
+		Handler: func(inv *clibase.Invokation) error {
+			err := cliui.Agent(inv.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
 				WorkspaceName: "example",
 				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
 					agent := codersdk.WorkspaceAgent{
@@ -116,9 +115,9 @@ func TestAgent_StartupTimeout(t *testing.T) {
 	var status, state atomic.String
 	setStatus := func(s codersdk.WorkspaceAgentStatus) { status.Store(string(s)) }
 	setState := func(s codersdk.WorkspaceAgentLifecycle) { state.Store(string(s)) }
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			err := cliui.Agent(cmd.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
+	cmd := &clibase.Command{
+		Handler: func(inv *clibase.Invokation) error {
+			err := cliui.Agent(inv.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
 				WorkspaceName: "example",
 				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
 					agent := codersdk.WorkspaceAgent{
@@ -174,9 +173,9 @@ func TestAgent_StartErrorExit(t *testing.T) {
 	var status, state atomic.String
 	setStatus := func(s codersdk.WorkspaceAgentStatus) { status.Store(string(s)) }
 	setState := func(s codersdk.WorkspaceAgentLifecycle) { state.Store(string(s)) }
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			err := cliui.Agent(cmd.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
+	cmd := &clibase.Command{
+		Handler: func(inv *clibase.Invokation) error {
+			err := cliui.Agent(inv.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
 				WorkspaceName: "example",
 				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
 					agent := codersdk.WorkspaceAgent{
@@ -229,9 +228,9 @@ func TestAgent_NoWait(t *testing.T) {
 	var status, state atomic.String
 	setStatus := func(s codersdk.WorkspaceAgentStatus) { status.Store(string(s)) }
 	setState := func(s codersdk.WorkspaceAgentLifecycle) { state.Store(string(s)) }
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			err := cliui.Agent(cmd.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
+	cmd := &clibase.Command{
+		Handler: func(inv *clibase.Invokation) error {
+			err := cliui.Agent(inv.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
 				WorkspaceName: "example",
 				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
 					agent := codersdk.WorkspaceAgent{
@@ -298,9 +297,9 @@ func TestAgent_LoginBeforeReadyEnabled(t *testing.T) {
 	var status, state atomic.String
 	setStatus := func(s codersdk.WorkspaceAgentStatus) { status.Store(string(s)) }
 	setState := func(s codersdk.WorkspaceAgentLifecycle) { state.Store(string(s)) }
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			err := cliui.Agent(cmd.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
+	cmd := &clibase.Command{
+		Handler: func(inv *clibase.Invokation) error {
+			err := cliui.Agent(inv.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
 				WorkspaceName: "example",
 				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
 					agent := codersdk.WorkspaceAgent{

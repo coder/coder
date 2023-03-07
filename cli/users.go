@@ -1,17 +1,17 @@
 package cli
 
 import (
-	"github.com/spf13/cobra"
-
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
+	"gvisor.dev/gvisor/runsc/cmd"
 )
 
-func users() *cobra.Command {
-	cmd := &cobra.Command{
+func users() *clibase.Command {
+	cmd := &clibase.Command{
 		Short:   "Manage users",
 		Use:     "users",
 		Aliases: []string{"user"},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			return cmd.Help()
 		},
 	}

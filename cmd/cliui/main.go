@@ -11,23 +11,23 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
 func main() {
-	root := &cobra.Command{
+	root := &clibase.Command{
 		Use:   "cliui",
 		Short: "Used for visually testing UI components for the CLI.",
 	}
 
-	root.AddCommand(&cobra.Command{
+	root.AddCommand(&clibase.Command{
 		Use: "prompt",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(cmd *clibase.Command, args []string) error {
 			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:    "What is our " + cliui.Styles.Field.Render("company name") + "?",
 				Default: "acme-corp",
@@ -63,9 +63,9 @@ func main() {
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	root.AddCommand(&clibase.Command{
 		Use: "select",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(cmd *clibase.Command, args []string) error {
 			value, err := cliui.Select(cmd, cliui.SelectOptions{
 				Options: []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
 				Size:    3,
@@ -75,9 +75,9 @@ func main() {
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	root.AddCommand(&clibase.Command{
 		Use: "job",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(cmd *clibase.Command, args []string) error {
 			job := codersdk.ProvisionerJob{
 				Status:    codersdk.ProvisionerJobPending,
 				CreatedAt: database.Now(),
@@ -161,9 +161,9 @@ func main() {
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	root.AddCommand(&clibase.Command{
 		Use: "agent",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(cmd *clibase.Command, args []string) error {
 			agent := codersdk.WorkspaceAgent{
 				Status:         codersdk.WorkspaceAgentDisconnected,
 				LifecycleState: codersdk.WorkspaceAgentLifecycleReady,
@@ -187,9 +187,9 @@ func main() {
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	root.AddCommand(&clibase.Command{
 		Use: "resources",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(cmd *clibase.Command, args []string) error {
 			disconnected := database.Now().Add(-4 * time.Second)
 			return cliui.WorkspaceResources(cmd.OutOrStdout(), []codersdk.WorkspaceResource{{
 				Transition: codersdk.WorkspaceTransitionStart,
@@ -237,9 +237,9 @@ func main() {
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	root.AddCommand(&clibase.Command{
 		Use: "git-auth",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(cmd *clibase.Command, args []string) error {
 			var count atomic.Int32
 			var githubAuthed atomic.Bool
 			var gitlabAuthed atomic.Bool

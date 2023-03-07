@@ -22,6 +22,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -132,7 +133,7 @@ func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (r
 	}
 }
 
-func configSSH() *cobra.Command {
+func configSSH() *clibase.Command {
 	var (
 		sshConfigFile    string
 		sshConfigOpts    sshConfigOptions
@@ -140,7 +141,7 @@ func configSSH() *cobra.Command {
 		dryRun           bool
 		skipProxyCommand bool
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
 		Short:       "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
@@ -155,13 +156,13 @@ func configSSH() *cobra.Command {
 			},
 		),
 		Args: cobra.ExactArgs(0),
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
 			}
 
-			recvWorkspaceConfigs := sshPrepareWorkspaceConfigs(cmd.Context(), client)
+			recvWorkspaceConfigs := sshPrepareWorkspaceConfigs(inv.Context(), client)
 
 			out := cmd.OutOrStdout()
 			if dryRun {

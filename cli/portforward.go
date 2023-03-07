@@ -16,17 +16,18 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func portForward() *cobra.Command {
+func portForward() *clibase.Command {
 	var (
 		tcpForwards []string // <port>:<port>
 		udpForwards []string // <port>:<port>
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:     "port-forward <workspace>",
 		Short:   "Forward ports from machine to a workspace",
 		Aliases: []string{"tunnel"},
@@ -49,8 +50,8 @@ func portForward() *cobra.Command {
 				Command:     "coder port-forward <workspace> --tcp 8080,9000:3000,9090-9092,10000-10002:10010-10012",
 			},
 		),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := context.WithCancel(cmd.Context())
+		Handler: func(inv *clibase.Invokation) error {
+			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
 			specs, err := parsePortForwards(tcpForwards, udpForwards)
@@ -78,13 +79,13 @@ func portForward() *cobra.Command {
 				return xerrors.New("workspace must be in start transition to port-forward")
 			}
 			if workspace.LatestBuild.Job.CompletedAt == nil {
-				err = cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID)
+				err = cliui.WorkspaceBuild(ctx, inv.Stderr, client, workspace.LatestBuild.ID)
 				if err != nil {
 					return err
 				}
 			}
 
-			err = cliui.Agent(ctx, cmd.ErrOrStderr(), cliui.AgentOptions{
+			err = cliui.Agent(ctx, inv.Stderr, cliui.AgentOptions{
 				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
@@ -156,7 +157,7 @@ func portForward() *cobra.Command {
 	return cmd
 }
 
-func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *codersdk.WorkspaceAgentConn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
+func listenAndPortForward(ctx context.Context, cmd *clibase.Command, conn *codersdk.WorkspaceAgentConn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
 	_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
 
 	var (

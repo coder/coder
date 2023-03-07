@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
@@ -33,7 +34,7 @@ func (pf *templateUploadFlags) stdin() bool {
 	return pf.directory == "-"
 }
 
-func (pf *templateUploadFlags) upload(cmd *cobra.Command, client *codersdk.Client) (*codersdk.UploadResponse, error) {
+func (pf *templateUploadFlags) upload(cmd *clibase.Command, client *codersdk.Client) (*codersdk.UploadResponse, error) {
 	var content io.Reader
 	if pf.stdin() {
 		content = cmd.InOrStdin()
@@ -63,7 +64,7 @@ func (pf *templateUploadFlags) upload(cmd *cobra.Command, client *codersdk.Clien
 	spin.Start()
 	defer spin.Stop()
 
-	resp, err := client.Upload(cmd.Context(), codersdk.ContentTypeTar, bufio.NewReader(content))
+	resp, err := client.Upload(inv.Context(), codersdk.ContentTypeTar, bufio.NewReader(content))
 	if err != nil {
 		return nil, xerrors.Errorf("upload: %w", err)
 	}
@@ -86,7 +87,7 @@ func (pf *templateUploadFlags) templateName(args []string) (string, error) {
 	return name, nil
 }
 
-func templatePush() *cobra.Command {
+func templatePush() *clibase.Command {
 	var (
 		versionName     string
 		provisioner     string
@@ -98,11 +99,11 @@ func templatePush() *cobra.Command {
 		uploadFlags     templateUploadFlags
 	)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "push [template]",
 		Args:  cobra.MaximumNArgs(1),
 		Short: "Push a new template version from the current directory or as specified by flag",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -117,7 +118,7 @@ func templatePush() *cobra.Command {
 				return err
 			}
 
-			template, err := client.TemplateByName(cmd.Context(), organization.ID, name)
+			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
 			if err != nil {
 				return err
 			}
@@ -153,7 +154,7 @@ func templatePush() *cobra.Command {
 				return xerrors.Errorf("job failed: %s", job.Job.Status)
 			}
 
-			err = client.UpdateActiveTemplateVersion(cmd.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
+			err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
 				ID: job.ID,
 			})
 			if err != nil {

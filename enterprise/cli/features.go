@@ -8,20 +8,20 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func features() *cobra.Command {
-	cmd := &cobra.Command{
+func features() *clibase.Command {
+	cmd := &clibase.Command{
 		Short:   "List Enterprise features",
 		Use:     "features",
 		Aliases: []string{"feature"},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			return cmd.Help()
 		},
 	}
@@ -31,22 +31,22 @@ func features() *cobra.Command {
 	return cmd
 }
 
-func featuresList() *cobra.Command {
+func featuresList() *clibase.Command {
 	var (
 		featureColumns = []string{"Name", "Entitlement", "Enabled", "Limit", "Actual"}
 		columns        []string
 		outputFormat   string
 	)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {
 				return err
 			}
-			entitlements, err := client.Entitlements(cmd.Context())
+			entitlements, err := client.Entitlements(inv.Context())
 			var apiError *codersdk.Error
 			if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
 				return xerrors.New("You are on the AGPL licensed version of Coder that does not have Enterprise functionality!")

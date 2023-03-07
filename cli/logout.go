@@ -5,17 +5,17 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 )
 
-func logout() *cobra.Command {
-	cmd := &cobra.Command{
+func logout() *clibase.Command {
+	cmd := &clibase.Command{
 		Use:   "logout",
 		Short: "Unauthenticate your local session",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -34,7 +34,7 @@ func logout() *cobra.Command {
 				return err
 			}
 
-			err = client.Logout(cmd.Context())
+			err = client.Logout(inv.Context())
 			if err != nil {
 				errors = append(errors, xerrors.Errorf("logout api: %w", err))
 			}

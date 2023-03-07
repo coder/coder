@@ -25,6 +25,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
@@ -38,7 +39,7 @@ var (
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 )
 
-func ssh() *cobra.Command {
+func ssh() *clibase.Command {
 	var (
 		stdio          bool
 		shuffle        bool
@@ -48,13 +49,13 @@ func ssh() *cobra.Command {
 		wsPollInterval time.Duration
 		noWait         bool
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace>",
 		Short:       "Start a shell into a workspace",
 		Args:        cobra.ArbitraryArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := context.WithCancel(cmd.Context())
+		Handler: func(inv *clibase.Invokation) error {
+			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
 			client, err := useClient(cmd)
@@ -81,12 +82,12 @@ func ssh() *cobra.Command {
 
 			updateWorkspaceBanner, outdated := verifyWorkspaceOutdated(client, workspace)
 			if outdated && isTTYErr(cmd) {
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), updateWorkspaceBanner)
+				_, _ = fmt.Fprintln(inv.Stderr, updateWorkspaceBanner)
 			}
 
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
-			err = cliui.Agent(ctx, cmd.ErrOrStderr(), cliui.AgentOptions{
+			err = cliui.Agent(ctx, inv.Stderr, cliui.AgentOptions{
 				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
@@ -168,7 +169,7 @@ func ssh() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("upload GPG public keys and ownertrust to workspace: %w", err)
 				}
-				closer, err := forwardGPGAgent(ctx, cmd.ErrOrStderr(), sshClient)
+				closer, err := forwardGPGAgent(ctx, inv.Stderr, sshClient)
 				if err != nil {
 					return xerrors.Errorf("forward GPG socket: %w", err)
 				}
@@ -210,7 +211,7 @@ func ssh() *cobra.Command {
 
 			sshSession.Stdin = cmd.InOrStdin()
 			sshSession.Stdout = cmd.OutOrStdout()
-			sshSession.Stderr = cmd.ErrOrStderr()
+			sshSession.Stderr = inv.Stderr
 
 			err = sshSession.Shell()
 			if err != nil {
@@ -257,7 +258,7 @@ func ssh() *cobra.Command {
 // getWorkspaceAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
 // if `shuffle` is true.
-func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+func getWorkspaceAndAgent(ctx context.Context, cmd *clibase.Command, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace      codersdk.Workspace
 		workspaceParts = strings.Split(in, ".")
@@ -289,7 +290,7 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *cobra.Command, client *coder
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("workspace must be in start transition to ssh")
 	}
 	if workspace.LatestBuild.Job.CompletedAt == nil {
-		err := cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID)
+		err := cliui.WorkspaceBuild(ctx, inv.Stderr, client, workspace.LatestBuild.ID)
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}

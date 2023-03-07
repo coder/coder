@@ -5,25 +5,26 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 )
 
-func update() *cobra.Command {
+func update() *clibase.Command {
 	var (
 		parameterFile     string
 		richParameterFile string
 		alwaysPrompt      bool
 	)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Annotations: workspaceCommand,
 		Use:         "update <workspace>",
 		Args:        cobra.ExactArgs(1),
 		Short:       "Will update and start a given workspace if it is out of date.",
 		Long: "Will update and start a given workspace if it is out of date. Use --always-prompt to change " +
 			"the parameter values of the workspace.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -36,7 +37,7 @@ func update() *cobra.Command {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Workspace isn't outdated!\n")
 				return nil
 			}
-			template, err := client.Template(cmd.Context(), workspace.TemplateID)
+			template, err := client.Template(inv.Context(), workspace.TemplateID)
 			if err != nil {
 				return nil
 			}
@@ -44,12 +45,12 @@ func update() *cobra.Command {
 			var existingParams []codersdk.Parameter
 			var existingRichParams []codersdk.WorkspaceBuildParameter
 			if !alwaysPrompt {
-				existingParams, err = client.Parameters(cmd.Context(), codersdk.ParameterWorkspace, workspace.ID)
+				existingParams, err = client.Parameters(inv.Context(), codersdk.ParameterWorkspace, workspace.ID)
 				if err != nil {
 					return nil
 				}
 
-				existingRichParams, err = client.WorkspaceBuildParameters(cmd.Context(), workspace.LatestBuild.ID)
+				existingRichParams, err = client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
 				if err != nil {
 					return nil
 				}
@@ -68,7 +69,7 @@ func update() *cobra.Command {
 				return nil
 			}
 
-			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID:   template.ActiveVersionID,
 				Transition:          codersdk.WorkspaceTransitionStart,
 				ParameterValues:     buildParams.parameters,
@@ -77,7 +78,7 @@ func update() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			logs, closer, err := client.WorkspaceBuildLogsAfter(cmd.Context(), build.ID, 0)
+			logs, closer, err := client.WorkspaceBuildLogsAfter(inv.Context(), build.ID, 0)
 			if err != nil {
 				return err
 			}

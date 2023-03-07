@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/userpassword"
@@ -38,7 +39,7 @@ func init() {
 	browser.Stdout = io.Discard
 }
 
-func login() *cobra.Command {
+func login() *clibase.Command {
 	const firstUserTrialEnv = "CODER_FIRST_USER_TRIAL"
 
 	var (
@@ -47,11 +48,11 @@ func login() *cobra.Command {
 		password string
 		trial    bool
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "login <url>",
 		Short: "Authenticate with Coder deployment",
 		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			rawURL := ""
 			if len(args) == 0 {
 				var err error
@@ -91,10 +92,10 @@ func login() *cobra.Command {
 			if err != nil {
 				// Checking versions isn't a fatal error so we print a warning
 				// and proceed.
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Warn.Render(err.Error()))
+				_, _ = fmt.Fprintln(inv.Stderr, cliui.Styles.Warn.Render(err.Error()))
 			}
 
-			hasInitialUser, err := client.HasFirstUser(cmd.Context())
+			hasInitialUser, err := client.HasFirstUser(inv.Context())
 			if err != nil {
 				return xerrors.Errorf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser? Error - has initial user: %w", serverURL.String(), err)
 			}
@@ -187,7 +188,7 @@ func login() *cobra.Command {
 					trial = v == "yes" || v == "y"
 				}
 
-				_, err = client.CreateFirstUser(cmd.Context(), codersdk.CreateFirstUserRequest{
+				_, err = client.CreateFirstUser(inv.Context(), codersdk.CreateFirstUserRequest{
 					Email:    email,
 					Username: username,
 					Password: password,
@@ -196,7 +197,7 @@ func login() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("create initial user: %w", err)
 				}
-				resp, err := client.LoginWithPassword(cmd.Context(), codersdk.LoginWithPasswordRequest{
+				resp, err := client.LoginWithPassword(inv.Context(), codersdk.LoginWithPasswordRequest{
 					Email:    email,
 					Password: password,
 				})
@@ -240,7 +241,7 @@ func login() *cobra.Command {
 					Secret: true,
 					Validate: func(token string) error {
 						client.SetSessionToken(token)
-						_, err := client.User(cmd.Context(), codersdk.Me)
+						_, err := client.User(inv.Context(), codersdk.Me)
 						if err != nil {
 							return xerrors.New("That's not a valid token!")
 						}
@@ -254,7 +255,7 @@ func login() *cobra.Command {
 
 			// Login to get user data - verify it is OK before persisting
 			client.SetSessionToken(sessionToken)
-			resp, err := client.User(cmd.Context(), codersdk.Me)
+			resp, err := client.User(inv.Context(), codersdk.Me)
 			if err != nil {
 				return xerrors.Errorf("get user: %w", err)
 			}
@@ -293,7 +294,7 @@ func isWSL() (bool, error) {
 }
 
 // openURL opens the provided URL via user's default browser
-func openURL(cmd *cobra.Command, urlToOpen string) error {
+func openURL(cmd *clibase.Command, urlToOpen string) error {
 	noOpen, err := cmd.Flags().GetBool(varNoOpen)
 	if err != nil {
 		panic(err)
@@ -314,7 +315,7 @@ func openURL(cmd *cobra.Command, urlToOpen string) error {
 	browserEnv := os.Getenv("BROWSER")
 	if browserEnv != "" {
 		browserSh := fmt.Sprintf("%s '%s'", browserEnv, urlToOpen)
-		cmd := exec.CommandContext(cmd.Context(), "sh", "-c", browserSh)
+		cmd := exec.CommandContext(inv.Context(), "sh", "-c", browserSh)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return xerrors.Errorf("failed to run %v (out: %q): %w", cmd.Args, out, err)

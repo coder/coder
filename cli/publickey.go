@@ -3,21 +3,21 @@ package cli
 import (
 	"strings"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func publickey() *cobra.Command {
+func publickey() *clibase.Command {
 	var reset bool
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:     "publickey",
 		Aliases: []string{"pubkey"},
 		Short:   "Output your Coder public key used for Git operations",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
@@ -36,13 +36,13 @@ func publickey() *cobra.Command {
 				}
 
 				// Reset the public key, let the retrieve re-read it.
-				_, err = client.RegenerateGitSSHKey(cmd.Context(), codersdk.Me)
+				_, err = client.RegenerateGitSSHKey(inv.Context(), codersdk.Me)
 				if err != nil {
 					return err
 				}
 			}
 
-			key, err := client.GitSSHKey(cmd.Context(), codersdk.Me)
+			key, err := client.GitSSHKey(inv.Context(), codersdk.Me)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}

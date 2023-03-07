@@ -9,22 +9,23 @@ import (
 	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func groupList() *cobra.Command {
+func groupList() *clibase.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]groupTableRow{}, nil),
 		cliui.JSONFormat(),
 	)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "list",
 		Short: "List user groups",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
+		Handler: func(inv *clibase.Invokation) error {
+			ctx := inv.Context()
 
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {
@@ -42,13 +43,13 @@ func groupList() *cobra.Command {
 			}
 
 			if len(groups) == 0 {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s No groups found in %s! Create one:\n\n", agpl.Caret, color.HiWhiteString(org.Name))
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), color.HiMagentaString("  $ coder groups create <name>\n"))
+				_, _ = fmt.Fprintf(inv.Stderr, "%s No groups found in %s! Create one:\n\n", agpl.Caret, color.HiWhiteString(org.Name))
+				_, _ = fmt.Fprintln(inv.Stderr, color.HiMagentaString("  $ coder groups create <name>\n"))
 				return nil
 			}
 
 			rows := groupsToRows(groups...)
-			out, err := formatter.Format(cmd.Context(), rows)
+			out, err := formatter.Format(inv.Context(), rows)
 			if err != nil {
 				return xerrors.Errorf("display groups: %w", err)
 			}

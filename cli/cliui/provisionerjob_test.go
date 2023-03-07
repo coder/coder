@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
@@ -125,9 +125,9 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 	}
 	jobLock := sync.Mutex{}
 	logs := make(chan codersdk.ProvisionerJobLog, 1)
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+	cmd := &clibase.Command{
+		Handler: func(inv *clibase.Invokation) error {
+			return cliui.ProvisionerJob(inv.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
 				FetchInterval: time.Millisecond,
 				Fetch: func() (codersdk.ProvisionerJob, error) {
 					jobLock.Lock()

@@ -12,24 +12,25 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func speedtest() *cobra.Command {
+func speedtest() *clibase.Command {
 	var (
 		direct    bool
 		duration  time.Duration
 		direction string
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Annotations: workspaceCommand,
 		Use:         "speedtest <workspace>",
 		Args:        cobra.ExactArgs(1),
 		Short:       "Run upload and download tests from your machine to a workspace",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := context.WithCancel(cmd.Context())
+		Handler: func(inv *clibase.Invokation) error {
+			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
 			client, err := useClient(cmd)
@@ -42,7 +43,7 @@ func speedtest() *cobra.Command {
 				return err
 			}
 
-			err = cliui.Agent(ctx, cmd.ErrOrStderr(), cliui.AgentOptions{
+			err = cliui.Agent(ctx, inv.Stderr, cliui.AgentOptions{
 				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
@@ -53,7 +54,7 @@ func speedtest() *cobra.Command {
 			}
 			logger, ok := LoggerFromContext(ctx)
 			if !ok {
-				logger = slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
+				logger = slog.Make(sloghuman.Sink(inv.Stderr))
 			}
 			if cliflag.IsSetBool(cmd, varVerbose) {
 				logger = logger.Leveled(slog.LevelDebug)

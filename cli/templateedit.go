@@ -8,11 +8,12 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func templateEdit() *cobra.Command {
+func templateEdit() *clibase.Command {
 	var (
 		name                         string
 		displayName                  string
@@ -23,18 +24,18 @@ func templateEdit() *cobra.Command {
 		allowUserCancelWorkspaceJobs bool
 	)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "edit <template> [flags]",
 		Args:  cobra.ExactArgs(1),
 		Short: "Edit the metadata of a template by name.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create client: %w", err)
 			}
 
 			if maxTTL != 0 {
-				entitlements, err := client.Entitlements(cmd.Context())
+				entitlements, err := client.Entitlements(inv.Context())
 				var sdkErr *codersdk.Error
 				if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
 					return xerrors.Errorf("your deployment appears to be an AGPL deployment, so you cannot set --max-ttl")
@@ -51,7 +52,7 @@ func templateEdit() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
-			template, err := client.TemplateByName(cmd.Context(), organization.ID, args[0])
+			template, err := client.TemplateByName(inv.Context(), organization.ID, args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace template: %w", err)
 			}
@@ -67,7 +68,7 @@ func templateEdit() *cobra.Command {
 				AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 			}
 
-			_, err = client.UpdateTemplateMeta(cmd.Context(), template.ID, req)
+			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
 			if err != nil {
 				return xerrors.Errorf("update template metadata: %w", err)
 			}

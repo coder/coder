@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/util/ptr"
@@ -53,12 +54,12 @@ When enabling scheduled stop, enter a duration in one of the following formats:
 `
 )
 
-func schedules() *cobra.Command {
-	scheduleCmd := &cobra.Command{
+func schedules() *clibase.Command {
+	scheduleCmd := &clibase.Command{
 		Annotations: workspaceCommand,
 		Use:         "schedule { show | start | stop | override } <workspace>",
 		Short:       "Schedule automated start and stop times for workspaces",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			return cmd.Help()
 		},
 	}
@@ -73,13 +74,13 @@ func schedules() *cobra.Command {
 	return scheduleCmd
 }
 
-func scheduleShow() *cobra.Command {
-	showCmd := &cobra.Command{
+func scheduleShow() *clibase.Command {
+	showCmd := &clibase.Command{
 		Use:   "show <workspace-name>",
 		Short: "Show workspace schedule",
 		Long:  scheduleShowDescriptionLong,
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -96,8 +97,8 @@ func scheduleShow() *cobra.Command {
 	return showCmd
 }
 
-func scheduleStart() *cobra.Command {
-	cmd := &cobra.Command{
+func scheduleStart() *clibase.Command {
+	cmd := &clibase.Command{
 		Use: "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
 		Example: formatExamples(
 			example{
@@ -108,7 +109,7 @@ func scheduleStart() *cobra.Command {
 		Short: "Edit workspace start schedule",
 		Long:  scheduleStartDescriptionLong,
 		Args:  cobra.RangeArgs(2, 4),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -129,7 +130,7 @@ func scheduleStart() *cobra.Command {
 				schedStr = ptr.Ref(sched.String())
 			}
 
-			err = client.UpdateWorkspaceAutostart(cmd.Context(), workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
+			err = client.UpdateWorkspaceAutostart(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
 				Schedule: schedStr,
 			})
 			if err != nil {
@@ -147,8 +148,8 @@ func scheduleStart() *cobra.Command {
 	return cmd
 }
 
-func scheduleStop() *cobra.Command {
-	return &cobra.Command{
+func scheduleStop() *clibase.Command {
+	return &clibase.Command{
 		Args: cobra.ExactArgs(2),
 		Use:  "stop <workspace-name> { <duration> | manual }",
 		Example: formatExamples(
@@ -158,7 +159,7 @@ func scheduleStop() *cobra.Command {
 		),
 		Short: "Edit workspace stop schedule",
 		Long:  scheduleStopDescriptionLong,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -178,7 +179,7 @@ func scheduleStop() *cobra.Command {
 				durMillis = ptr.Ref(dur.Milliseconds())
 			}
 
-			if err := client.UpdateWorkspaceTTL(cmd.Context(), workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
+			if err := client.UpdateWorkspaceTTL(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
 				TTLMillis: durMillis,
 			}); err != nil {
 				return err
@@ -193,8 +194,8 @@ func scheduleStop() *cobra.Command {
 	}
 }
 
-func scheduleOverride() *cobra.Command {
-	overrideCmd := &cobra.Command{
+func scheduleOverride() *clibase.Command {
+	overrideCmd := &clibase.Command{
 		Args: cobra.ExactArgs(2),
 		Use:  "override-stop <workspace-name> <duration from now>",
 		Example: formatExamples(
@@ -204,7 +205,7 @@ func scheduleOverride() *cobra.Command {
 		),
 		Short: "Edit stop time of active workspace",
 		Long:  scheduleOverrideDescriptionLong,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			overrideDuration, err := parseDuration(args[1])
 			if err != nil {
 				return err
@@ -234,7 +235,7 @@ func scheduleOverride() *cobra.Command {
 			}
 
 			newDeadline := time.Now().In(loc).Add(overrideDuration)
-			if err := client.PutExtendWorkspace(cmd.Context(), workspace.ID, codersdk.PutExtendWorkspaceRequest{
+			if err := client.PutExtendWorkspace(inv.Context(), workspace.ID, codersdk.PutExtendWorkspaceRequest{
 				Deadline: newDeadline,
 			}); err != nil {
 				return err

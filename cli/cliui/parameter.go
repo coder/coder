@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/spf13/cobra"
-
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/codersdk"
 )
 
-func ParameterSchema(cmd *cobra.Command, parameterSchema codersdk.ParameterSchema) (string, error) {
+func ParameterSchema(cmd *clibase.Command, parameterSchema codersdk.ParameterSchema) (string, error) {
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), Styles.Bold.Render("var."+parameterSchema.Name))
 	if parameterSchema.Description != "" {
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+strings.TrimSpace(strings.Join(strings.Split(parameterSchema.Description, "\n"), "\n  "))+"\n")
@@ -61,7 +60,7 @@ func ParameterSchema(cmd *cobra.Command, parameterSchema codersdk.ParameterSchem
 	return value, nil
 }
 
-func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
+func RichParameter(cmd *clibase.Command, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), Styles.Bold.Render(templateVersionParameter.Name))
 	if templateVersionParameter.DescriptionPlaintext != "" {
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+strings.TrimSpace(strings.Join(strings.Split(templateVersionParameter.DescriptionPlaintext, "\n"), "\n  "))+"\n")

@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
 
@@ -24,23 +23,24 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/agent/reaper"
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk/agentsdk"
 )
 
-func workspaceAgent() *cobra.Command {
+func workspaceAgent() *clibase.Command {
 	var (
 		auth         string
 		logDir       string
 		pprofAddress string
 		noReap       bool
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use: "agent",
 		// This command isn't useful to manually execute.
 		Hidden: true,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			ctx, cancel := context.WithCancel(cmd.Context())
+		Handler: func(inv *clibase.Invokation) error {
+			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
 			rawURL, err := cmd.Flags().GetString(varAgentURL)
@@ -62,7 +62,7 @@ func workspaceAgent() *cobra.Command {
 					MaxSize:  5, // MB
 				}
 				defer logWriter.Close()
-				logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
+				logger := slog.Make(sloghuman.Sink(inv.Stderr), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
 
 				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
@@ -104,7 +104,7 @@ func workspaceAgent() *cobra.Command {
 			logWriter := &closeWriter{w: ljLogger}
 			defer logWriter.Close()
 
-			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
+			logger := slog.Make(sloghuman.Sink(inv.Stderr), sloghuman.Sink(logWriter)).Leveled(slog.LevelDebug)
 
 			version := buildinfo.Version()
 			logger.Info(ctx, "starting agent",

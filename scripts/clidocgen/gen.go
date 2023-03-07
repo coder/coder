@@ -10,12 +10,12 @@ import (
 	"text/template"
 
 	"github.com/acarl005/stripansi"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	_ "embed"
 
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/flog"
 )
 
@@ -56,7 +56,7 @@ func init() {
 			},
 			"parseEnv": parseEnv,
 			"stripEnv": stripEnv,
-			"commandURI": func(cmd *cobra.Command) string {
+			"commandURI": func(cmd *clibase.Command) string {
 				return strings.TrimSuffix(
 					fmtDocFilename(cmd),
 					".md",
@@ -67,7 +67,7 @@ func init() {
 	)
 }
 
-func writeCommand(w io.Writer, cmd *cobra.Command) error {
+func writeCommand(w io.Writer, cmd *clibase.Command) error {
 	var (
 		flags          []*pflag.Flag
 		inheritedFlags []*pflag.Flag
@@ -91,8 +91,8 @@ func writeCommand(w io.Writer, cmd *cobra.Command) error {
 		"Flags":          flags,
 		"InheritedFlags": inheritedFlags,
 		"AtRoot":         cmd.Parent() == nil,
-		"VisibleSubcommands": func() []*cobra.Command {
-			var scs []*cobra.Command
+		"VisibleSubcommands": func() []*clibase.Command {
+			var scs []*clibase.Command
 			for _, sub := range cmd.Commands() {
 				if sub.Hidden {
 					continue
@@ -122,7 +122,7 @@ func writeCommand(w io.Writer, cmd *cobra.Command) error {
 	return err
 }
 
-func fullCommandName(cmd *cobra.Command) string {
+func fullCommandName(cmd *clibase.Command) string {
 	name := cmd.Name()
 	if cmd.Parent() != nil {
 		return fullCommandName(cmd.Parent()) + " " + name
@@ -130,7 +130,7 @@ func fullCommandName(cmd *cobra.Command) string {
 	return name
 }
 
-func fmtDocFilename(cmd *cobra.Command) string {
+func fmtDocFilename(cmd *clibase.Command) string {
 	fullName := fullCommandName(cmd)
 	if fullName == "coder" {
 		// Special case for index.
@@ -140,7 +140,7 @@ func fmtDocFilename(cmd *cobra.Command) string {
 	return fmt.Sprintf("%s.md", name)
 }
 
-func generateDocsTree(cmd *cobra.Command, basePath string) error {
+func generateDocsTree(cmd *clibase.Command, basePath string) error {
 	if cmd.Hidden {
 		return nil
 	}

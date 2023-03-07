@@ -6,18 +6,19 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func restart() *cobra.Command {
-	cmd := &cobra.Command{
+func restart() *clibase.Command {
+	cmd := &clibase.Command{
 		Annotations: workspaceCommand,
 		Use:         "restart <workspace>",
 		Short:       "Restart a workspace",
 		Args:        cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
+		Handler: func(inv *clibase.Invokation) error {
+			ctx := inv.Context()
 			out := cmd.OutOrStdout()
 
 			_, err := cliui.Prompt(cmd, cliui.PromptOptions{

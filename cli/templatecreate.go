@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/util/ptr"
@@ -20,7 +21,7 @@ import (
 	"github.com/coder/coder/provisionerd"
 )
 
-func templateCreate() *cobra.Command {
+func templateCreate() *clibase.Command {
 	var (
 		provisioner     string
 		provisionerTags []string
@@ -31,11 +32,11 @@ func templateCreate() *cobra.Command {
 
 		uploadFlags templateUploadFlags
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "create [name]",
 		Short: "Create a template from the current directory or as specified by flag",
 		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -55,7 +56,7 @@ func templateCreate() *cobra.Command {
 				return xerrors.Errorf("Template name must be less than 32 characters")
 			}
 
-			_, err = client.TemplateByName(cmd.Context(), organization.ID, templateName)
+			_, err = client.TemplateByName(inv.Context(), organization.ID, templateName)
 			if err == nil {
 				return xerrors.Errorf("A template already exists named %q!", templateName)
 			}
@@ -101,7 +102,7 @@ func templateCreate() *cobra.Command {
 				DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()),
 			}
 
-			_, err = client.CreateTemplate(cmd.Context(), organization.ID, createReq)
+			_, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
 			if err != nil {
 				return err
 			}
@@ -152,7 +153,7 @@ type createValidTemplateVersionArgs struct {
 	ProvisionerTags map[string]string
 }
 
-func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
+func createValidTemplateVersion(cmd *clibase.Command, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
 	client := args.Client
 
 	variableValues, err := loadVariableValuesFromFile(args.VariablesFile)
@@ -178,21 +179,21 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	if args.Template != nil {
 		req.TemplateID = args.Template.ID
 	}
-	version, err := client.CreateTemplateVersion(cmd.Context(), args.Organization.ID, req)
+	version, err := client.CreateTemplateVersion(inv.Context(), args.Organization.ID, req)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+	err = cliui.ProvisionerJob(inv.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
-			version, err := client.TemplateVersion(cmd.Context(), version.ID)
+			version, err := client.TemplateVersion(inv.Context(), version.ID)
 			return version.Job, err
 		},
 		Cancel: func() error {
-			return client.CancelTemplateVersion(cmd.Context(), version.ID)
+			return client.CancelTemplateVersion(inv.Context(), version.ID)
 		},
 		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
-			return client.TemplateVersionLogsAfter(cmd.Context(), version.ID, 0)
+			return client.TemplateVersionLogsAfter(inv.Context(), version.ID, 0)
 		},
 	})
 	if err != nil {
@@ -200,15 +201,15 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 			return nil, nil, err
 		}
 	}
-	version, err = client.TemplateVersion(cmd.Context(), version.ID)
+	version, err = client.TemplateVersion(inv.Context(), version.ID)
 	if err != nil {
 		return nil, nil, err
 	}
-	parameterSchemas, err := client.TemplateVersionSchema(cmd.Context(), version.ID)
+	parameterSchemas, err := client.TemplateVersionSchema(inv.Context(), version.ID)
 	if err != nil {
 		return nil, nil, err
 	}
-	parameterValues, err := client.TemplateVersionParameters(cmd.Context(), version.ID)
+	parameterValues, err := client.TemplateVersionParameters(inv.Context(), version.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -218,13 +219,13 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	// version instead of prompting if we are updating template versions.
 	lastParameterValues := make(map[string]codersdk.Parameter)
 	if args.ReuseParameters && args.Template != nil {
-		activeVersion, err := client.TemplateVersion(cmd.Context(), args.Template.ActiveVersionID)
+		activeVersion, err := client.TemplateVersion(inv.Context(), args.Template.ActiveVersionID)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("Fetch current active template version: %w", err)
 		}
 
 		// We don't want to compute the params, we only want to copy from this scope
-		values, err := client.Parameters(cmd.Context(), codersdk.ParameterImportJob, activeVersion.Job.ID)
+		values, err := client.Parameters(inv.Context(), codersdk.ParameterImportJob, activeVersion.Job.ID)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("Fetch previous version parameters: %w", err)
 		}
@@ -303,7 +304,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		return nil, nil, xerrors.New(version.Job.Error)
 	}
 
-	resources, err := client.TemplateVersionResources(cmd.Context(), version.ID)
+	resources, err := client.TemplateVersionResources(inv.Context(), version.ID)
 	if err != nil {
 		return nil, nil, err
 	}

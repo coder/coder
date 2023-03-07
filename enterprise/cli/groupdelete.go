@@ -7,17 +7,18 @@ import (
 	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 )
 
-func groupDelete() *cobra.Command {
-	cmd := &cobra.Command{
+func groupDelete() *clibase.Command {
+	cmd := &clibase.Command{
 		Use:   "delete <name>",
 		Short: "Delete a user group",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			var (
-				ctx       = cmd.Context()
+				ctx       = inv.Context()
 				groupName = args[0]
 			)
 

@@ -5,20 +5,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func templateDelete() *cobra.Command {
-	cmd := &cobra.Command{
+func templateDelete() *clibase.Command {
+	cmd := &clibase.Command{
 		Use:   "delete [name...]",
 		Short: "Delete templates",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			var (
-				ctx           = cmd.Context()
+				ctx           = inv.Context()
 				templateNames = []string{}
 				templates     = []codersdk.Template{}
 			)

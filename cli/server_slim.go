@@ -8,39 +8,38 @@ import (
 	"io"
 	"os"
 
-	"github.com/spf13/cobra"
-
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd"
 )
 
-func Server(_ func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
-	root := &cobra.Command{
+func Server(_ func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Command {
+	root := &clibase.Command{
 		Use:    "server",
 		Short:  "Start a Coder server",
 		Hidden: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			serverUnsupported(cmd.ErrOrStderr())
+		Handler: func(inv *clibase.Invokation) error {
+			serverUnsupported(inv.Stderr)
 			return nil
 		},
 	}
 
 	var pgRawURL bool
-	postgresBuiltinURLCmd := &cobra.Command{
+	postgresBuiltinURLCmd := &clibase.Command{
 		Use:    "postgres-builtin-url",
 		Short:  "Output the connection URL for the built-in PostgreSQL deployment.",
 		Hidden: true,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			serverUnsupported(cmd.ErrOrStderr())
+		Handler: func(inv *clibase.Invokation) error {
+			serverUnsupported(inv.Stderr)
 			return nil
 		},
 	}
-	postgresBuiltinServeCmd := &cobra.Command{
+	postgresBuiltinServeCmd := &clibase.Command{
 		Use:    "postgres-builtin-serve",
 		Short:  "Run the built-in PostgreSQL deployment.",
 		Hidden: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			serverUnsupported(cmd.ErrOrStderr())
+		Handler: func(inv *clibase.Invokation) error {
+			serverUnsupported(inv.Stderr)
 			return nil
 		},
 	}
@@ -52,12 +51,12 @@ func Server(_ func(context.Context, *coderd.Options) (*coderd.API, io.Closer, er
 		newUserEmail              string
 		newUserPassword           string
 	)
-	createAdminUserCommand := &cobra.Command{
+	createAdminUserCommand := &clibase.Command{
 		Use:    "create-admin-user",
 		Short:  "Create a new admin user with the given username, email and password and adds it to every organization.",
 		Hidden: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			serverUnsupported(cmd.ErrOrStderr())
+		Handler: func(inv *clibase.Invokation) error {
+			serverUnsupported(inv.Stderr)
 			return nil
 		},
 	}

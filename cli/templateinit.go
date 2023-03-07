@@ -6,19 +6,18 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/spf13/cobra"
-
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/examples"
 	"github.com/coder/coder/provisionersdk"
 )
 
-func templateInit() *cobra.Command {
-	return &cobra.Command{
+func templateInit() *clibase.Command {
+	return &clibase.Command{
 		Use:   "init [directory]",
 		Short: "Get started with a templated template.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			exampleList, err := examples.List()
 			if err != nil {
 				return err

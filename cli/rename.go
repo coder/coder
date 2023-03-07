@@ -6,17 +6,18 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func rename() *cobra.Command {
-	cmd := &cobra.Command{
+func rename() *clibase.Command {
+	cmd := &clibase.Command{
 		Annotations: workspaceCommand,
 		Use:         "rename <workspace> <new name>",
 		Short:       "Rename a workspace",
 		Args:        cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -43,7 +44,7 @@ func rename() *cobra.Command {
 				return err
 			}
 
-			err = client.UpdateWorkspace(cmd.Context(), workspace.ID, codersdk.UpdateWorkspaceRequest{
+			err = client.UpdateWorkspace(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceRequest{
 				Name: args[1],
 			})
 			if err != nil {

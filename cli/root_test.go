@@ -14,13 +14,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database/dbtestutil"
@@ -172,7 +172,7 @@ ExtractCommandPathsLoop:
 	}
 }
 
-func extractVisibleCommandPaths(cmdPath []string, cmds []*cobra.Command) [][]string {
+func extractVisibleCommandPaths(cmdPath []string, cmds []*clibase.Command) [][]string {
 	var cmdPaths [][]string
 	for _, c := range cmds {
 		if c.Hidden {
@@ -263,7 +263,7 @@ func TestRoot(t *testing.T) {
 
 				cmd, _ := clitest.New(t)
 
-				cmd.RunE = func(cmd *cobra.Command, args []string) error {
+				cmd.RunE = func(inv *clibase.Invokation) error {
 					var err error = &codersdk.Error{
 						Response: codersdk.Response{
 							Message: "This is a message.",
@@ -289,7 +289,7 @@ func TestRoot(t *testing.T) {
 
 				cmd, _ := clitest.New(t)
 
-				cmd.RunE = func(cmd *cobra.Command, args []string) error {
+				cmd.RunE = func(inv *clibase.Invokation) error {
 					return xerrors.Errorf("this is a non-codersdk error: %w", xerrors.Errorf("a wrapped error"))
 				}
 
@@ -305,7 +305,7 @@ func TestRoot(t *testing.T) {
 
 				cmd, _ := clitest.New(t, "--verbose")
 
-				cmd.RunE = func(cmd *cobra.Command, args []string) error {
+				cmd.RunE = func(inv *clibase.Invokation) error {
 					var err error = &codersdk.Error{
 						Response: codersdk.Response{
 							Message: "This is a message.",
@@ -330,7 +330,7 @@ func TestRoot(t *testing.T) {
 
 				cmd, _ := clitest.New(t, "--verbose")
 
-				cmd.RunE = func(cmd *cobra.Command, args []string) error {
+				cmd.RunE = func(inv *clibase.Invokation) error {
 					return xerrors.Errorf("this is a non-codersdk error: %w", xerrors.Errorf("a wrapped error"))
 				}
 

@@ -16,16 +16,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 )
 
 // IsSetBool returns the value of the boolean flag if it is set.
 // It returns false if the flag isn't set or if any error occurs attempting
 // to parse the value of the flag.
-func IsSetBool(cmd *cobra.Command, name string) bool {
+func IsSetBool(cmd *clibase.Command, name string) bool {
 	val, ok := IsSet(cmd, name)
 	if !ok {
 		return false
@@ -36,7 +36,7 @@ func IsSetBool(cmd *cobra.Command, name string) bool {
 }
 
 // IsSet returns the string value of the flag and whether it was set.
-func IsSet(cmd *cobra.Command, name string) (string, bool) {
+func IsSet(cmd *clibase.Command, name string) (string, bool) {
 	flag := cmd.Flag(name)
 	if flag == nil {
 		return "", false

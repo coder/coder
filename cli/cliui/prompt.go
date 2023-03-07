@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/bgentry/speakeasy"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/mattn/go-isatty"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 )
 
@@ -26,7 +26,7 @@ type PromptOptions struct {
 
 const skipPromptFlag = "yes"
 
-func AllowSkipPrompt(cmd *cobra.Command) {
+func AllowSkipPrompt(cmd *clibase.Command) {
 	cmd.Flags().BoolP(skipPromptFlag, "y", false, "Bypass prompts")
 }
 
@@ -36,7 +36,7 @@ const (
 )
 
 // Prompt asks the user for input.
-func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
+func Prompt(cmd *clibase.Command, opts PromptOptions) (string, error) {
 	// If the cmd has a "yes" flag for skipping confirm prompts, honor it.
 	// If it's not a "Confirm" prompt, then don't skip. As the default value of
 	// "yes" makes no sense.
@@ -114,8 +114,8 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 			}
 		}
 		return line, nil
-	case <-cmd.Context().Done():
-		return "", cmd.Context().Err()
+	case <-inv.Context().Done():
+		return "", inv.Context().Err()
 	case <-interrupt:
 		// Print a newline so that any further output starts properly on a new line.
 		_, _ = fmt.Fprintln(cmd.OutOrStdout())

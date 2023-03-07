@@ -6,20 +6,21 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
 // nolint
-func deleteWorkspace() *cobra.Command {
+func deleteWorkspace() *clibase.Command {
 	var orphan bool
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Annotations: workspaceCommand,
 		Use:         "delete <workspace>",
 		Short:       "Delete a workspace",
 		Aliases:     []string{"rm"},
 		Args:        cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      "Confirm delete workspace?",
 				IsConfirm: true,
@@ -42,12 +43,12 @@ func deleteWorkspace() *cobra.Command {
 
 			if orphan {
 				cliui.Warn(
-					cmd.ErrOrStderr(),
+					inv.Stderr,
 					"Orphaning workspace requires template edit permission",
 				)
 			}
 
-			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition:       codersdk.WorkspaceTransitionDelete,
 				ProvisionerState: state,
 				Orphan:           orphan,
@@ -56,7 +57,7 @@ func deleteWorkspace() *cobra.Command {
 				return err
 			}
 
-			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, build.ID)
+			err = cliui.WorkspaceBuild(inv.Context(), cmd.OutOrStdout(), client, build.ID)
 			if err != nil {
 				return err
 			}

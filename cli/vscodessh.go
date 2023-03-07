@@ -18,6 +18,7 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -27,14 +28,14 @@ import (
 // This command needs to remain stable for compatibility with
 // various VS Code versions, so it's kept separate from our
 // standard SSH command.
-func vscodeSSH() *cobra.Command {
+func vscodeSSH() *clibase.Command {
 	var (
 		sessionTokenFile    string
 		urlFile             string
 		networkInfoDir      string
 		networkInfoInterval time.Duration
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		// A SSH config entry is added by the VS Code extension that
 		// passes %h to ProxyCommand. The prefix of `coder-vscode--`
 		// is a magical string represented in our VS Cod extension.
@@ -42,7 +43,7 @@ func vscodeSSH() *cobra.Command {
 		Use:    "vscodessh <coder-vscode--<owner>-<workspace>-<agent?>>",
 		Hidden: true,
 		Args:   cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			if networkInfoDir == "" {
 				return xerrors.New("network-info-dir must be specified")
 			}
@@ -53,7 +54,7 @@ func vscodeSSH() *cobra.Command {
 				return xerrors.New("url-file must be specified")
 			}
 
-			fs, ok := cmd.Context().Value("fs").(afero.Fs)
+			fs, ok := inv.Context().Value("fs").(afero.Fs)
 			if !ok {
 				fs = afero.NewOsFs()
 			}
@@ -71,7 +72,7 @@ func vscodeSSH() *cobra.Command {
 				return xerrors.Errorf("parse url: %w", err)
 			}
 
-			ctx, cancel := context.WithCancel(cmd.Context())
+			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
 			err = fs.MkdirAll(networkInfoDir, 0o700)

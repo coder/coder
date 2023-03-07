@@ -1,13 +1,12 @@
 package cli
 
 import (
-	"github.com/spf13/cobra"
-
 	agpl "github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 )
 
-func enterpriseOnly() []*cobra.Command {
-	return []*cobra.Command{
+func enterpriseOnly() []*clibase.Command {
+	return []*clibase.Command{
 		server(),
 		features(),
 		licenses(),
@@ -16,7 +15,7 @@ func enterpriseOnly() []*cobra.Command {
 	}
 }
 
-func EnterpriseSubcommands() []*cobra.Command {
+func EnterpriseSubcommands() []*clibase.Command {
 	all := append(agpl.Core(), enterpriseOnly()...)
 	return all
 }

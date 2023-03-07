@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/httpapi"
@@ -33,12 +33,12 @@ import (
 
 const scaletestTracerName = "coder_scaletest"
 
-func scaletest() *cobra.Command {
-	cmd := &cobra.Command{
+func scaletest() *clibase.Command {
+	cmd := &clibase.Command{
 		Use:   "scaletest",
 		Short: "Run a scale test against the Coder API",
 		Long:  "Perform scale tests against the Coder server.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			return cmd.Help()
 		},
 	}
@@ -58,7 +58,7 @@ type scaletestTracingFlags struct {
 	tracePropagate       bool
 }
 
-func (s *scaletestTracingFlags) attach(cmd *cobra.Command) {
+func (s *scaletestTracingFlags) attach(cmd *clibase.Command) {
 	cliflag.BoolVarP(cmd.Flags(), &s.traceEnable, "trace", "", "CODER_LOADTEST_TRACE", false, "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md")
 	cliflag.BoolVarP(cmd.Flags(), &s.traceCoder, "trace-coder", "", "CODER_LOADTEST_TRACE_CODER", false, "Whether opentelemetry traces are sent to Coder. We recommend keeping this disabled unless we advise you to enable it.")
 	cliflag.StringVarP(cmd.Flags(), &s.traceHoneycombAPIKey, "trace-honeycomb-api-key", "", "CODER_LOADTEST_TRACE_HONEYCOMB_API_KEY", "", "Enables trace exporting to Honeycomb.io using the provided API key.")
@@ -101,7 +101,7 @@ type scaletestStrategyFlags struct {
 	timeoutPerJob time.Duration
 }
 
-func (s *scaletestStrategyFlags) attach(cmd *cobra.Command) {
+func (s *scaletestStrategyFlags) attach(cmd *clibase.Command) {
 	concurrencyLong, concurrencyEnv, concurrencyDescription := "concurrency", "CODER_LOADTEST_CONCURRENCY", "Number of concurrent jobs to run. 0 means unlimited."
 	timeoutLong, timeoutEnv, timeoutDescription := "timeout", "CODER_LOADTEST_TIMEOUT", "Timeout for the entire test run. 0 means unlimited."
 	jobTimeoutLong, jobTimeoutEnv, jobTimeoutDescription := "job-timeout", "CODER_LOADTEST_JOB_TIMEOUT", "Timeout per job. Jobs may take longer to complete under higher concurrency limits."
@@ -208,7 +208,7 @@ type scaletestOutputFlags struct {
 	outputSpecs []string
 }
 
-func (s *scaletestOutputFlags) attach(cmd *cobra.Command) {
+func (s *scaletestOutputFlags) attach(cmd *clibase.Command) {
 	cliflag.StringArrayVarP(cmd.Flags(), &s.outputSpecs, "output", "", "CODER_SCALETEST_OUTPUTS", []string{"text"}, `Output format specs in the format "<format>[:<path>]". Not specifying a path will default to stdout. Available formats: text, json.`)
 }
 
@@ -308,15 +308,15 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 	return nil
 }
 
-func scaletestCleanup() *cobra.Command {
+func scaletestCleanup() *clibase.Command {
 	cleanupStrategy := &scaletestStrategyFlags{cleanup: true}
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "cleanup",
 		Short: "Cleanup any orphaned scaletest resources",
 		Long:  "Cleanup scaletest workspaces, then cleanup scaletest users. The strategy flags will apply to each stage of the cleanup process.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
+		Handler: func(inv *clibase.Invokation) error {
+			ctx := inv.Context()
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -386,7 +386,7 @@ func scaletestCleanup() *cobra.Command {
 
 				cmd.Println("Done deleting scaletest workspaces:")
 				res := harness.Results()
-				res.PrintText(cmd.ErrOrStderr())
+				res.PrintText(inv.Stderr)
 
 				if res.TotalFail > 0 {
 					return xerrors.Errorf("failed to delete scaletest workspaces")
@@ -446,7 +446,7 @@ func scaletestCleanup() *cobra.Command {
 
 				cmd.Println("Done deleting scaletest users:")
 				res := harness.Results()
-				res.PrintText(cmd.ErrOrStderr())
+				res.PrintText(inv.Stderr)
 
 				if res.TotalFail > 0 {
 					return xerrors.Errorf("failed to delete scaletest users")
@@ -461,7 +461,7 @@ func scaletestCleanup() *cobra.Command {
 	return cmd
 }
 
-func scaletestCreateWorkspaces() *cobra.Command {
+func scaletestCreateWorkspaces() *clibase.Command {
 	var (
 		count          int
 		template       string
@@ -494,14 +494,14 @@ func scaletestCreateWorkspaces() *cobra.Command {
 		output          = &scaletestOutputFlags{}
 	)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "create-workspaces",
 		Short: "Creates many workspaces and waits for them to be ready",
 		Long: `Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
 
 It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
+		Handler: func(inv *clibase.Invokation) error {
+			ctx := inv.Context()
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -613,15 +613,15 @@ It is recommended that all rate limits are disabled on the server before running
 					return xerrors.Errorf("start dry run workspace creation: %w", err)
 				}
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Planning workspace...")
-				err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+				err = cliui.ProvisionerJob(inv.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
 					Fetch: func() (codersdk.ProvisionerJob, error) {
-						return client.TemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
+						return client.TemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
 					},
 					Cancel: func() error {
-						return client.CancelTemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
+						return client.CancelTemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
 					},
 					Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
-						return client.TemplateVersionDryRunLogsAfter(cmd.Context(), templateVersion.ID, dryRun.ID, 0)
+						return client.TemplateVersionDryRunLogsAfter(inv.Context(), templateVersion.ID, dryRun.ID, 0)
 					},
 					// Don't show log output for the dry-run unless there's an error.
 					Silent: true,
@@ -728,7 +728,7 @@ It is recommended that all rate limits are disabled on the server before running
 			}
 
 			// TODO: live progress output
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Running load test...")
+			_, _ = fmt.Fprintln(inv.Stderr, "Running load test...")
 			testCtx, testCancel := strategy.toContext(ctx)
 			defer testCancel()
 			err = th.Run(testCtx)
@@ -744,7 +744,7 @@ It is recommended that all rate limits are disabled on the server before running
 				}
 			}
 
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "\nCleaning up...")
+			_, _ = fmt.Fprintln(inv.Stderr, "\nCleaning up...")
 			cleanupCtx, cleanupCancel := cleanupStrategy.toContext(ctx)
 			defer cleanupCancel()
 			err = th.Cleanup(cleanupCtx)
@@ -754,12 +754,12 @@ It is recommended that all rate limits are disabled on the server before running
 
 			// Upload traces.
 			if tracingEnabled {
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "\nUploading traces...")
+				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
 				ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 				defer cancel()
 				err := closeTracing(ctx)
 				if err != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\nError uploading traces: %+v\n", err)
+					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
 				}
 			}
 

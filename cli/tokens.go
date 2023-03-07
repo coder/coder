@@ -10,13 +10,14 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func tokens() *cobra.Command {
-	cmd := &cobra.Command{
+func tokens() *clibase.Command {
+	cmd := &clibase.Command{
 		Use:     "tokens",
 		Short:   "Manage personal access tokens",
 		Long:    "Tokens are used to authenticate automated clients to Coder.",
@@ -35,7 +36,7 @@ func tokens() *cobra.Command {
 				Command:     "coder tokens rm WuoWs4ZsMX",
 			},
 		),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			return cmd.Help()
 		},
 	}
@@ -48,21 +49,21 @@ func tokens() *cobra.Command {
 	return cmd
 }
 
-func createToken() *cobra.Command {
+func createToken() *clibase.Command {
 	var (
 		tokenLifetime time.Duration
 		name          string
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "create",
 		Short: "Create a token",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			res, err := client.CreateToken(cmd.Context(), codersdk.Me, codersdk.CreateTokenRequest{
+			res, err := client.CreateToken(inv.Context(), codersdk.Me, codersdk.CreateTokenRequest{
 				Lifetime:  tokenLifetime,
 				TokenName: name,
 			})
@@ -116,7 +117,7 @@ func tokenListRowFromToken(token codersdk.APIKeyWithOwner) tokenListRow {
 	}
 }
 
-func listTokens() *cobra.Command {
+func listTokens() *clibase.Command {
 	// we only display the 'owner' column if the --all argument is passed in
 	defaultCols := []string{"id", "name", "last used", "expires at", "created at"}
 	if slices.Contains(os.Args, "-a") || slices.Contains(os.Args, "--all") {
@@ -131,17 +132,17 @@ func listTokens() *cobra.Command {
 			cliui.JSONFormat(),
 		)
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List tokens",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			tokens, err := client.Tokens(cmd.Context(), codersdk.Me, codersdk.TokensFilter{
+			tokens, err := client.Tokens(inv.Context(), codersdk.Me, codersdk.TokensFilter{
 				IncludeAll: all,
 			})
 			if err != nil {
@@ -160,7 +161,7 @@ func listTokens() *cobra.Command {
 				displayTokens[i] = tokenListRowFromToken(token)
 			}
 
-			out, err := formatter.Format(cmd.Context(), displayTokens)
+			out, err := formatter.Format(inv.Context(), displayTokens)
 			if err != nil {
 				return err
 			}
@@ -177,24 +178,24 @@ func listTokens() *cobra.Command {
 	return cmd
 }
 
-func removeToken() *cobra.Command {
-	cmd := &cobra.Command{
+func removeToken() *clibase.Command {
+	cmd := &clibase.Command{
 		Use:     "remove [name]",
 		Aliases: []string{"rm"},
 		Short:   "Delete a token",
 		Args:    cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			token, err := client.APIKeyByName(cmd.Context(), codersdk.Me, args[0])
+			token, err := client.APIKeyByName(inv.Context(), codersdk.Me, args[0])
 			if err != nil {
 				return xerrors.Errorf("fetch api key by name %s: %w", args[0], err)
 			}
 
-			err = client.DeleteAPIKey(cmd.Context(), codersdk.Me, token.ID)
+			err = client.DeleteAPIKey(inv.Context(), codersdk.Me, token.ID)
 			if err != nil {
 				return xerrors.Errorf("delete api key: %w", err)
 			}

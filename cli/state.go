@@ -8,15 +8,16 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func state() *cobra.Command {
-	cmd := &cobra.Command{
+func state() *clibase.Command {
+	cmd := &clibase.Command{
 		Use:   "state",
 		Short: "Manually manage Terraform state to fix broken workspaces",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			return cmd.Help()
 		},
 	}
@@ -24,13 +25,13 @@ func state() *cobra.Command {
 	return cmd
 }
 
-func statePull() *cobra.Command {
+func statePull() *clibase.Command {
 	var buildNumber int
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "pull <workspace> [file]",
 		Short: "Pull a Terraform state file from a workspace.",
 		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -43,13 +44,13 @@ func statePull() *cobra.Command {
 				}
 				build = workspace.LatestBuild
 			} else {
-				build, err = client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(cmd.Context(), codersdk.Me, args[0], strconv.Itoa(buildNumber))
+				build, err = client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(inv.Context(), codersdk.Me, args[0], strconv.Itoa(buildNumber))
 				if err != nil {
 					return err
 				}
 			}
 
-			state, err := client.WorkspaceBuildState(cmd.Context(), build.ID)
+			state, err := client.WorkspaceBuildState(inv.Context(), build.ID)
 			if err != nil {
 				return err
 			}
@@ -66,13 +67,13 @@ func statePull() *cobra.Command {
 	return cmd
 }
 
-func statePush() *cobra.Command {
+func statePush() *clibase.Command {
 	var buildNumber int
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "push <workspace> <file>",
 		Args:  cobra.ExactArgs(2),
 		Short: "Push a Terraform state file to a workspace.",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -85,7 +86,7 @@ func statePush() *cobra.Command {
 			if buildNumber == 0 {
 				build = workspace.LatestBuild
 			} else {
-				build, err = client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(cmd.Context(), codersdk.Me, args[0], strconv.Itoa(buildNumber))
+				build, err = client.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(inv.Context(), codersdk.Me, args[0], strconv.Itoa(buildNumber))
 				if err != nil {
 					return err
 				}
@@ -101,7 +102,7 @@ func statePush() *cobra.Command {
 				return err
 			}
 
-			build, err = client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			build, err = client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID: build.TemplateVersionID,
 				Transition:        build.Transition,
 				ProvisionerState:  state,
@@ -109,7 +110,7 @@ func statePush() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStderr(), client, build.ID)
+			return cliui.WorkspaceBuild(inv.Context(), cmd.OutOrStderr(), client, build.ID)
 		},
 	}
 	cmd.Flags().IntVarP(&buildNumber, "build", "b", 0, "Specify a workspace build to target by name.")

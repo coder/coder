@@ -13,13 +13,14 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 )
 
-func dotfiles() *cobra.Command {
+func dotfiles() *clibase.Command {
 	var symlinkDir string
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "dotfiles [git_repo_url]",
 		Args:  cobra.ExactArgs(1),
 		Short: "Checkout and install a dotfiles repository from a Git URL",
@@ -29,7 +30,7 @@ func dotfiles() *cobra.Command {
 				Command:     "coder dotfiles --yes git@github.com:example/dotfiles.git",
 			},
 		),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			var (
 				dotfilesRepoDir = "dotfiles"
 				gitRepo         = args[0]
@@ -123,11 +124,11 @@ func dotfiles() *cobra.Command {
 			}
 
 			// clone or pull repo
-			c := exec.CommandContext(cmd.Context(), "git", subcommands...)
+			c := exec.CommandContext(inv.Context(), "git", subcommands...)
 			c.Dir = gitCmdDir
 			c.Env = append(os.Environ(), fmt.Sprintf(`GIT_SSH_COMMAND=%s -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no`, gitsshCmd))
 			c.Stdout = cmd.OutOrStdout()
-			c.Stderr = cmd.ErrOrStderr()
+			c.Stderr = inv.Stderr
 			err = c.Run()
 			if err != nil {
 				if !dotfilesExists {
@@ -170,10 +171,10 @@ func dotfiles() *cobra.Command {
 				// it is safe to use a variable command here because it's from
 				// a filtered list of pre-approved install scripts
 				// nolint:gosec
-				scriptCmd := exec.CommandContext(cmd.Context(), filepath.Join(dotfilesDir, script))
+				scriptCmd := exec.CommandContext(inv.Context(), filepath.Join(dotfilesDir, script))
 				scriptCmd.Dir = dotfilesDir
 				scriptCmd.Stdout = cmd.OutOrStdout()
-				scriptCmd.Stderr = cmd.ErrOrStderr()
+				scriptCmd.Stderr = inv.Stderr
 				err = scriptCmd.Run()
 				if err != nil {
 					return xerrors.Errorf("running %s: %w", script, err)

@@ -9,25 +9,26 @@ import (
 	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func groupEdit() *cobra.Command {
+func groupEdit() *clibase.Command {
 	var (
 		avatarURL string
 		name      string
 		addUsers  []string
 		rmUsers   []string
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "edit <name>",
 		Short: "Edit a user group",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			var (
-				ctx       = cmd.Context()
+				ctx       = inv.Context()
 				groupName = args[0]
 			)
 

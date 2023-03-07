@@ -10,19 +10,20 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func templatePull() *cobra.Command {
+func templatePull() *clibase.Command {
 	var tarMode bool
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "pull <name> [destination]",
 		Short: "Download the latest version of a template to a path.",
 		Args:  cobra.RangeArgs(1, 2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			var (
-				ctx          = cmd.Context()
+				ctx          = inv.Context()
 				templateName = args[0]
 				dest         string
 			)

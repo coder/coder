@@ -6,15 +6,15 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 )
 
 type format struct {
 	id            string
-	attachFlagsFn func(cmd *cobra.Command)
+	attachFlagsFn func(cmd *clibase.Command)
 	formatFn      func(ctx context.Context, data any) (string, error)
 }
 
@@ -24,7 +24,7 @@ func (f *format) ID() string {
 	return f.id
 }
 
-func (f *format) AttachFlags(cmd *cobra.Command) {
+func (f *format) AttachFlags(cmd *clibase.Command) {
 	if f.attachFlagsFn != nil {
 		f.attachFlagsFn(cmd)
 	}
@@ -82,7 +82,7 @@ func Test_OutputFormatter(t *testing.T) {
 			cliui.JSONFormat(),
 			&format{
 				id: "foo",
-				attachFlagsFn: func(cmd *cobra.Command) {
+				attachFlagsFn: func(cmd *clibase.Command) {
 					cmd.Flags().StringP("foo", "f", "", "foo flag 1234")
 				},
 				formatFn: func(_ context.Context, _ any) (string, error) {
@@ -92,7 +92,7 @@ func Test_OutputFormatter(t *testing.T) {
 			},
 		)
 
-		cmd := &cobra.Command{}
+		cmd := &clibase.Command{}
 		f.AttachFlags(cmd)
 
 		selected, err := cmd.Flags().GetString("output")

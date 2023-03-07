@@ -9,11 +9,11 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -23,7 +23,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func newCreateAdminUserCommand() *cobra.Command {
+func newCreateAdminUserCommand() *clibase.Command {
 	var (
 		newUserDBURL              string
 		newUserSSHKeygenAlgorithm string
@@ -31,11 +31,11 @@ func newCreateAdminUserCommand() *cobra.Command {
 		newUserEmail              string
 		newUserPassword           string
 	)
-	createAdminUserCommand := &cobra.Command{
+	createAdminUserCommand := &clibase.Command{
 		Use:   "create-admin-user",
 		Short: "Create a new admin user with the given username, email and password and adds it to every organization.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
+		Handler: func(inv *clibase.Invokation) error {
+			ctx := inv.Context()
 
 			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(newUserSSHKeygenAlgorithm)
 			if err != nil {
@@ -59,7 +59,7 @@ func newCreateAdminUserCommand() *cobra.Command {
 			}
 
 			cfg := createConfig(cmd)
-			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
+			logger := slog.Make(sloghuman.Sink(inv.Stderr))
 			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
@@ -191,7 +191,7 @@ func newCreateAdminUserCommand() *cobra.Command {
 					return orgs[i].Name < orgs[j].Name
 				})
 
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Creating user...")
+				_, _ = fmt.Fprintln(inv.Stderr, "Creating user...")
 				newUser, err = tx.InsertUser(ctx, database.InsertUserParams{
 					ID:             uuid.New(),
 					Email:          newUserEmail,
@@ -206,7 +206,7 @@ func newCreateAdminUserCommand() *cobra.Command {
 					return xerrors.Errorf("insert user: %w", err)
 				}
 
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Generating user SSH key...")
+				_, _ = fmt.Fprintln(inv.Stderr, "Generating user SSH key...")
 				privateKey, publicKey, err := gitsshkey.Generate(sshKeygenAlgorithm)
 				if err != nil {
 					return xerrors.Errorf("generate user gitsshkey: %w", err)
@@ -223,7 +223,7 @@ func newCreateAdminUserCommand() *cobra.Command {
 				}
 
 				for _, org := range orgs {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Adding user to organization %q (%s) as admin...\n", org.Name, org.ID.String())
+					_, _ = fmt.Fprintf(inv.Stderr, "Adding user to organization %q (%s) as admin...\n", org.Name, org.ID.String())
 					_, err := tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 						OrganizationID: org.ID,
 						UserID:         newUser.ID,
@@ -242,12 +242,12 @@ func newCreateAdminUserCommand() *cobra.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "")
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "User created successfully.")
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "ID:       "+newUser.ID.String())
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Username: "+newUser.Username)
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Email:    "+newUser.Email)
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Password: ********")
+			_, _ = fmt.Fprintln(inv.Stderr, "")
+			_, _ = fmt.Fprintln(inv.Stderr, "User created successfully.")
+			_, _ = fmt.Fprintln(inv.Stderr, "ID:       "+newUser.ID.String())
+			_, _ = fmt.Fprintln(inv.Stderr, "Username: "+newUser.Username)
+			_, _ = fmt.Fprintln(inv.Stderr, "Email:    "+newUser.Email)
+			_, _ = fmt.Fprintln(inv.Stderr, "Password: ********")
 
 			return nil
 		},

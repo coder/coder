@@ -4,22 +4,22 @@ import (
 	"fmt"
 
 	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 )
 
-func templateList() *cobra.Command {
+func templateList() *clibase.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]templateTableRow{}, []string{"name", "last updated", "used by"}),
 		cliui.JSONFormat(),
 	)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:     "list",
 		Short:   "List all the templates available for the organization",
 		Aliases: []string{"ls"},
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -28,19 +28,19 @@ func templateList() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			templates, err := client.TemplatesByOrganization(cmd.Context(), organization.ID)
+			templates, err := client.TemplatesByOrganization(inv.Context(), organization.ID)
 			if err != nil {
 				return err
 			}
 
 			if len(templates) == 0 {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s No templates found in %s! Create one:\n\n", Caret, color.HiWhiteString(organization.Name))
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), color.HiMagentaString("  $ coder templates create <directory>\n"))
+				_, _ = fmt.Fprintf(inv.Stderr, "%s No templates found in %s! Create one:\n\n", Caret, color.HiWhiteString(organization.Name))
+				_, _ = fmt.Fprintln(inv.Stderr, color.HiMagentaString("  $ coder templates create <directory>\n"))
 				return nil
 			}
 
 			rows := templatesToRows(templates...)
-			out, err := formatter.Format(cmd.Context(), rows)
+			out, err := formatter.Format(inv.Context(), rows)
 			if err != nil {
 				return err
 			}

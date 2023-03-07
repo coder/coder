@@ -9,12 +9,13 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func templateVersions() *cobra.Command {
-	cmd := &cobra.Command{
+func templateVersions() *clibase.Command {
+	cmd := &clibase.Command{
 		Use:     "versions",
 		Short:   "Manage different versions of the specified template",
 		Aliases: []string{"version"},
@@ -24,7 +25,7 @@ func templateVersions() *cobra.Command {
 				Command:     "coder templates versions list my-template",
 			},
 		),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			return cmd.Help()
 		},
 	}
@@ -35,17 +36,17 @@ func templateVersions() *cobra.Command {
 	return cmd
 }
 
-func templateVersionsList() *cobra.Command {
+func templateVersionsList() *clibase.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]templateVersionRow{}, nil),
 		cliui.JSONFormat(),
 	)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:   "list <template>",
 		Args:  cobra.ExactArgs(1),
 		Short: "List all the versions of the specified template",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return xerrors.Errorf("create client: %w", err)
@@ -54,7 +55,7 @@ func templateVersionsList() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
-			template, err := client.TemplateByName(cmd.Context(), organization.ID, args[0])
+			template, err := client.TemplateByName(inv.Context(), organization.ID, args[0])
 			if err != nil {
 				return xerrors.Errorf("get template by name: %w", err)
 			}
@@ -62,13 +63,13 @@ func templateVersionsList() *cobra.Command {
 				TemplateID: template.ID,
 			}
 
-			versions, err := client.TemplateVersionsByTemplate(cmd.Context(), req)
+			versions, err := client.TemplateVersionsByTemplate(inv.Context(), req)
 			if err != nil {
 				return xerrors.Errorf("get template versions by template: %w", err)
 			}
 
 			rows := templateVersionsToRows(template.ActiveVersionID, versions...)
-			out, err := formatter.Format(cmd.Context(), rows)
+			out, err := formatter.Format(inv.Context(), rows)
 			if err != nil {
 				return xerrors.Errorf("render table: %w", err)
 			}

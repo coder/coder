@@ -6,12 +6,13 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
 // createUserStatusCommand sets a user status.
-func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
+func createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Command {
 	var verb string
 	var pastVerb string
 	var aliases []string
@@ -32,7 +33,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 	}
 
 	var columns []string
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:     fmt.Sprintf("%s <username|user_id>", verb),
 		Short:   short,
 		Args:    cobra.ExactArgs(1),
@@ -42,7 +43,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 				Command: fmt.Sprintf("coder users %s example_user", verb),
 			},
 		),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -53,7 +54,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 				return xerrors.Errorf("user identifier cannot be an empty string")
 			}
 
-			user, err := client.User(cmd.Context(), identifier)
+			user, err := client.User(inv.Context(), identifier)
 			if err != nil {
 				return xerrors.Errorf("fetch user: %w", err)
 			}
@@ -83,7 +84,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 				return err
 			}
 
-			_, err = client.UpdateUserStatus(cmd.Context(), user.ID.String(), sdkStatus)
+			_, err = client.UpdateUserStatus(inv.Context(), user.ID.String(), sdkStatus)
 			if err != nil {
 				return xerrors.Errorf("%s user: %w", verb, err)
 			}

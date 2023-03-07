@@ -6,17 +6,18 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func stop() *cobra.Command {
-	cmd := &cobra.Command{
+func stop() *clibase.Command {
+	cmd := &clibase.Command{
 		Annotations: workspaceCommand,
 		Use:         "stop <workspace>",
 		Short:       "Stop a workspace",
 		Args:        cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:      "Confirm stop workspace?",
 				IsConfirm: true,
@@ -33,14 +34,14 @@ func stop() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			build, err := client.CreateWorkspaceBuild(cmd.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStop,
 			})
 			if err != nil {
 				return err
 			}
 
-			err = cliui.WorkspaceBuild(cmd.Context(), cmd.OutOrStdout(), client, build.ID)
+			err = cliui.WorkspaceBuild(inv.Context(), cmd.OutOrStdout(), client, build.ID)
 			if err != nil {
 				return err
 			}

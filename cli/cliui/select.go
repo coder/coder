@@ -8,9 +8,9 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -53,7 +53,7 @@ type RichSelectOptions struct {
 }
 
 // RichSelect displays a list of user options including name and description.
-func RichSelect(cmd *cobra.Command, richOptions RichSelectOptions) (*codersdk.TemplateVersionParameterOption, error) {
+func RichSelect(cmd *clibase.Command, richOptions RichSelectOptions) (*codersdk.TemplateVersionParameterOption, error) {
 	opts := make([]string, len(richOptions.Options))
 	for i, option := range richOptions.Options {
 		line := option.Name
@@ -82,7 +82,7 @@ func RichSelect(cmd *cobra.Command, richOptions RichSelectOptions) (*codersdk.Te
 }
 
 // Select displays a list of user options.
-func Select(cmd *cobra.Command, opts SelectOptions) (string, error) {
+func Select(cmd *clibase.Command, opts SelectOptions) (string, error) {
 	// The survey library used *always* fails when testing on Windows,
 	// as it requires a live TTY (can't be a conpty). We should fork
 	// this library to add a dummy fallback, that simply reads/writes

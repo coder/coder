@@ -7,21 +7,22 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func parameterList() *cobra.Command {
+func parameterList() *clibase.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]codersdk.Parameter{}, []string{"name", "scope", "destination scheme"}),
 		cliui.JSONFormat(),
 	)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Args:    cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			scope, name := args[0], args[1]
 
 			client, err := useClient(cmd)
@@ -43,7 +44,7 @@ func parameterList() *cobra.Command {
 				}
 				scopeID = workspace.ID
 			case codersdk.ParameterTemplate:
-				template, err := client.TemplateByName(cmd.Context(), organization.ID, name)
+				template, err := client.TemplateByName(inv.Context(), organization.ID, name)
 				if err != nil {
 					return xerrors.Errorf("get workspace template: %w", err)
 				}
@@ -57,7 +58,7 @@ func parameterList() *cobra.Command {
 
 				// Could be a template_version id or a job id. Check for the
 				// version id.
-				tv, err := client.TemplateVersion(cmd.Context(), scopeID)
+				tv, err := client.TemplateVersion(inv.Context(), scopeID)
 				if err == nil {
 					scopeID = tv.Job.ID
 				}
@@ -68,12 +69,12 @@ func parameterList() *cobra.Command {
 				})
 			}
 
-			params, err := client.Parameters(cmd.Context(), codersdk.ParameterScope(scope), scopeID)
+			params, err := client.Parameters(inv.Context(), codersdk.ParameterScope(scope), scopeID)
 			if err != nil {
 				return xerrors.Errorf("fetch params: %w", err)
 			}
 
-			out, err := formatter.Format(cmd.Context(), params)
+			out, err := formatter.Format(inv.Context(), params)
 			if err != nil {
 				return xerrors.Errorf("render output: %w", err)
 			}

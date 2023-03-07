@@ -233,11 +233,11 @@ func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
 }
 
 // versionCmd prints the coder version
-func versionCmd() *cobra.Command {
-	return &cobra.Command{
+func versionCmd() *clibase.Command {
+	return &clibase.Command{
 		Use:   "version",
 		Short: "Show coder version",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			var str strings.Builder
 			_, _ = str.WriteString("Coder ")
 			if buildinfo.IsAGPL() {
@@ -383,7 +383,7 @@ func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Cli
 
 // createAgentClient returns a new client from the command context.
 // It works just like CreateClient, but uses the agent token and URL instead.
-func createAgentClient(cmd *cobra.Command) (*agentsdk.Client, error) {
+func createAgentClient(cmd *clibase.Command) (*agentsdk.Client, error) {
 	rawURL, err := cmd.Flags().GetString(varAgentURL)
 	if err != nil {
 		return nil, err
@@ -402,8 +402,8 @@ func createAgentClient(cmd *cobra.Command) (*agentsdk.Client, error) {
 }
 
 // CurrentOrganization returns the currently active organization for the authenticated user.
-func CurrentOrganization(cmd *cobra.Command, client *codersdk.Client) (codersdk.Organization, error) {
-	orgs, err := client.OrganizationsByUser(cmd.Context(), codersdk.Me)
+func CurrentOrganization(cmd *clibase.Command, client *codersdk.Client) (codersdk.Organization, error) {
+	orgs, err := client.OrganizationsByUser(inv.Context(), codersdk.Me)
 	if err != nil {
 		return codersdk.Organization{}, nil
 	}
@@ -441,7 +441,7 @@ func (r *RootCmd) createConfig() config.Root {
 // isTTY returns whether the passed reader is a TTY or not.
 // This accepts a reader to work with Cobra's "InOrStdin"
 // function for simple testing.
-func isTTY(cmd *cobra.Command) bool {
+func isTTY(cmd *clibase.Command) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
@@ -459,18 +459,18 @@ func isTTY(cmd *cobra.Command) bool {
 // isTTYOut returns whether the passed reader is a TTY or not.
 // This accepts a reader to work with Cobra's "OutOrStdout"
 // function for simple testing.
-func isTTYOut(cmd *cobra.Command) bool {
+func isTTYOut(cmd *clibase.Command) bool {
 	return isTTYWriter(cmd, cmd.OutOrStdout)
 }
 
 // isTTYErr returns whether the passed reader is a TTY or not.
 // This accepts a reader to work with Cobra's "ErrOrStderr"
 // function for simple testing.
-func isTTYErr(cmd *cobra.Command) bool {
+func isTTYErr(cmd *clibase.Command) bool {
 	return isTTYWriter(cmd, cmd.ErrOrStderr)
 }
 
-func isTTYWriter(cmd *cobra.Command, writer func() io.Writer) bool {
+func isTTYWriter(cmd *clibase.Command, writer func() io.Writer) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
@@ -496,12 +496,12 @@ func usageHeader(s string) string {
 	return cliui.Styles.Placeholder.Render(s)
 }
 
-func isWorkspaceCommand(cmd *cobra.Command) bool {
+func isWorkspaceCommand(cmd *clibase.Command) bool {
 	if _, ok := cmd.Annotations["workspaces"]; ok {
 		return true
 	}
 	var ws bool
-	cmd.VisitParents(func(cmd *cobra.Command) {
+	cmd.VisitParents(func(cmd *clibase.Command) {
 		if _, ok := cmd.Annotations["workspaces"]; ok {
 			ws = true
 		}
@@ -604,8 +604,8 @@ func formatExamples(examples ...example) string {
 	return sb.String()
 }
 
-// FormatCobraError colorizes and adds "--help" docs to cobra commands.
-func FormatCobraError(err error, cmd *cobra.Command) string {
+// FormatCobraError colorizes and adds "--help" docs to clibase.Commands.
+func FormatCobraError(err error, cmd *clibase.Command) string {
 	helpErrMsg := fmt.Sprintf("Run '%s --help' for usage.", cmd.CommandPath())
 
 	var (

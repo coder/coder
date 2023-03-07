@@ -4,14 +4,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
+	"gvisor.dev/gvisor/runsc/cmd"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func templates() *cobra.Command {
-	cmd := &cobra.Command{
+func templates() *clibase.Command {
+	cmd := &clibase.Command{
 		Use:     "templates",
 		Short:   "Manage templates",
 		Long:    "Templates are written in standard Terraform and describe the infrastructure for workspaces",
@@ -30,7 +31,7 @@ func templates() *cobra.Command {
 				Command:     "coder templates push my-template",
 			},
 		),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			return cmd.Help()
 		},
 	}

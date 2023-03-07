@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
@@ -59,9 +59,9 @@ func TestPtytest(t *testing.T) {
 			tt := tt
 			// nolint:paralleltest // Avoid parallel test to more easily identify the issue.
 			t.Run(tt.name, func(t *testing.T) {
-				cmd := cobra.Command{
+				cmd := clibase.Command{
 					Use: "test",
-					RunE: func(cmd *cobra.Command, args []string) error {
+					Handler: func(cmd *clibase.Command, args []string) error {
 						fmt.Fprint(cmd.OutOrStdout(), tt.output)
 						return nil
 					},

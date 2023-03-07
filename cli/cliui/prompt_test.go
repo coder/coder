@@ -8,10 +8,10 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/pty/ptytest"
@@ -77,7 +77,7 @@ func TestPrompt(t *testing.T) {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text:      "ShouldNotSeeThis",
 				IsConfirm: true,
-			}, func(cmd *cobra.Command) {
+			}, func(cmd *clibase.Command) {
 				cliui.AllowSkipPrompt(cmd)
 				cmd.SetArgs([]string{"-y"})
 			})
@@ -145,10 +145,10 @@ func TestPrompt(t *testing.T) {
 	})
 }
 
-func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, cmdOpt func(cmd *cobra.Command)) (string, error) {
+func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, cmdOpt func(cmd *clibase.Command)) (string, error) {
 	value := ""
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, args []string) error {
+	cmd := &clibase.Command{
+		Handler: func(inv *clibase.Invokation) error {
 			var err error
 			value, err = cliui.Prompt(cmd, opts)
 			return err
@@ -208,8 +208,8 @@ func TestPasswordTerminalState(t *testing.T) {
 
 // nolint:unused
 func passwordHelper() {
-	cmd := &cobra.Command{
-		Run: func(cmd *cobra.Command, args []string) {
+	cmd := &clibase.Command{
+		Run: func(inv *clibase.Invokation) {
 			cliui.Prompt(cmd, cliui.PromptOptions{
 				Text:   "Password:",
 				Secret: true,

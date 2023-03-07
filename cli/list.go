@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/util/ptr"
@@ -64,7 +65,7 @@ func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]coders
 	}
 }
 
-func list() *cobra.Command {
+func list() *clibase.Command {
 	var (
 		all               bool
 		defaultQuery      = "owner:me"
@@ -75,13 +76,13 @@ func list() *cobra.Command {
 			cliui.JSONFormat(),
 		)
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Command{
 		Annotations: workspaceCommand,
 		Use:         "list",
 		Short:       "List workspaces",
 		Aliases:     []string{"ls"},
 		Args:        cobra.ExactArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {
 				return err
@@ -94,19 +95,19 @@ func list() *cobra.Command {
 				filter.FilterQuery = ""
 			}
 
-			res, err := client.Workspaces(cmd.Context(), filter)
+			res, err := client.Workspaces(inv.Context(), filter)
 			if err != nil {
 				return err
 			}
 			if len(res.Workspaces) == 0 {
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), cliui.Styles.Prompt.String()+"No workspaces found! Create one:")
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "  "+cliui.Styles.Code.Render("coder create <name>"))
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr())
+				_, _ = fmt.Fprintln(inv.Stderr, cliui.Styles.Prompt.String()+"No workspaces found! Create one:")
+				_, _ = fmt.Fprintln(inv.Stderr)
+				_, _ = fmt.Fprintln(inv.Stderr, "  "+cliui.Styles.Code.Render("coder create <name>"))
+				_, _ = fmt.Fprintln(inv.Stderr)
 				return nil
 			}
 
-			userRes, err := client.Users(cmd.Context(), codersdk.UsersRequest{})
+			userRes, err := client.Users(inv.Context(), codersdk.UsersRequest{})
 			if err != nil {
 				return err
 			}
@@ -122,7 +123,7 @@ func list() *cobra.Command {
 				displayWorkspaces[i] = workspaceListRowFromWorkspace(now, usersByID, workspace)
 			}
 
-			out, err := formatter.Format(cmd.Context(), displayWorkspaces)
+			out, err := formatter.Format(inv.Context(), displayWorkspaces)
 			if err != nil {
 				return err
 			}
