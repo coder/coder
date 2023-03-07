@@ -341,7 +341,6 @@ export interface DeploymentConfig {
   readonly max_session_expiry: DeploymentConfigField<number>
   readonly disable_session_expiry_refresh: DeploymentConfigField<boolean>
   readonly disable_password_auth: DeploymentConfigField<boolean>
-  readonly insecure_app_signing_key_file: DeploymentConfigField<string>
   readonly address: DeploymentConfigField<string>
   readonly experimental: DeploymentConfigField<boolean>
   readonly support: SupportConfig
