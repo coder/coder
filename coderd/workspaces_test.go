@@ -1951,16 +1951,13 @@ func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
 	require.Equal(t, secondParameterRequired, templateRichParameters[1].Required)
 
 	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
-		{Name: firstParameterName, Value: firstParameterDefaultValue},
+		// First parameter is optional, so coder will pick the default value.
 		{Name: secondParameterName, Value: secondParameterValue},
 	}
 
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-		cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-			// First parameter is optional, so coder should pick the default value.
-			{Name: secondParameterName, Value: secondParameterValue},
-		}
+		cwr.RichParameterValues = expectedBuildParameters
 	})
 
 	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
