@@ -7,12 +7,13 @@ import (
 	"strings"
 
 	"github.com/coder/coder/cli/clibase"
+	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
 )
 
 type OutputFormat interface {
 	ID() string
-	AttachFlags(cmd *clibase.Command)
+	AttachFlags(fs *pflag.FlagSet)
 	Format(ctx context.Context, data any) (string, error)
 }
 
@@ -47,9 +48,10 @@ func NewOutputFormatter(formats ...OutputFormat) *OutputFormatter {
 
 // AttachFlags attaches the --output flag to the given command, and any
 // additional flags required by the output formatters.
-func (f *OutputFormatter) AttachFlags(cmd *clibase.Command) {
+func (f *OutputFormatter) AttachFlags(cmd *clibase.Command) *pflag.FlagSet {
+	fs := cmd.Options.FlagSet()
 	for _, format := range f.formats {
-		format.AttachFlags(cmd)
+		format.AttachFlags(fs)
 	}
 
 	formatNames := make([]string, 0, len(f.formats))
@@ -57,7 +59,8 @@ func (f *OutputFormatter) AttachFlags(cmd *clibase.Command) {
 		formatNames = append(formatNames, format.ID())
 	}
 
-	cmd.Flags().StringVarP(&f.formatID, "output", "o", f.formats[0].ID(), "Output format. Available formats: "+strings.Join(formatNames, ", "))
+	fs.StringVarP(&f.formatID, "output", "o", f.formats[0].ID(), "Output format. Available formats: "+strings.Join(formatNames, ", "))
+	return fs
 }
 
 // Format formats the given data using the format specified by the --output
@@ -119,8 +122,8 @@ func (*tableFormat) ID() string {
 }
 
 // AttachFlags implements OutputFormat.
-func (f *tableFormat) AttachFlags(cmd *clibase.Command) {
-	cmd.Flags().StringSliceVarP(&f.columns, "column", "c", f.defaultColumns, "Columns to display in table output. Available columns: "+strings.Join(f.allColumns, ", "))
+func (f *tableFormat) AttachFlags(fs *pflag.FlagSet) {
+	fs.StringSliceVarP(&f.columns, "column", "c", f.defaultColumns, "Columns to display in table output. Available columns: "+strings.Join(f.allColumns, ", "))
 }
 
 // Format implements OutputFormat.
@@ -143,7 +146,7 @@ func (jsonFormat) ID() string {
 }
 
 // AttachFlags implements OutputFormat.
-func (jsonFormat) AttachFlags(_ *clibase.Command) {}
+func (jsonFormat) AttachFlags(_ *pflag.FlagSet) {}
 
 // Format implements OutputFormat.
 func (jsonFormat) Format(_ context.Context, data any) (string, error) {

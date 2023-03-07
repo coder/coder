@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clibase"
@@ -14,7 +15,7 @@ import (
 
 type format struct {
 	id            string
-	attachFlagsFn func(cmd *clibase.Command)
+	attachFlagsFn func(fs *pflag.FlagSet)
 	formatFn      func(ctx context.Context, data any) (string, error)
 }
 
@@ -24,9 +25,9 @@ func (f *format) ID() string {
 	return f.id
 }
 
-func (f *format) AttachFlags(cmd *clibase.Command) {
+func (f *format) AttachFlags(fs *pflag.FlagSet) {
 	if f.attachFlagsFn != nil {
-		f.attachFlagsFn(cmd)
+		f.attachFlagsFn(fs)
 	}
 }
 
@@ -82,8 +83,8 @@ func Test_OutputFormatter(t *testing.T) {
 			cliui.JSONFormat(),
 			&format{
 				id: "foo",
-				attachFlagsFn: func(cmd *clibase.Command) {
-					cmd.Flags().StringP("foo", "f", "", "foo flag 1234")
+				attachFlagsFn: func(fs *pflag.FlagSet) {
+					fs.StringP("foo", "f", "", "foo flag 1234")
 				},
 				formatFn: func(_ context.Context, _ any) (string, error) {
 					atomic.AddInt64(&called, 1)
@@ -93,12 +94,12 @@ func Test_OutputFormatter(t *testing.T) {
 		)
 
 		cmd := &clibase.Command{}
-		f.AttachFlags(cmd)
+		fs := f.AttachFlags(cmd)
 
-		selected, err := cmd.Flags().GetString("output")
+		selected, err := fs.GetString("output")
 		require.NoError(t, err)
 		require.Equal(t, "json", selected)
-		usage := cmd.Flags().FlagUsages()
+		usage := fs.FlagUsages()
 		require.Contains(t, usage, "Available formats: json, foo")
 		require.Contains(t, usage, "foo flag 1234")
 
@@ -112,13 +113,13 @@ func Test_OutputFormatter(t *testing.T) {
 		require.Equal(t, data, got)
 		require.EqualValues(t, 0, atomic.LoadInt64(&called))
 
-		require.NoError(t, cmd.Flags().Set("output", "foo"))
+		require.NoError(t, fs.Set("output", "foo"))
 		out, err = f.Format(ctx, data)
 		require.NoError(t, err)
 		require.Equal(t, "foo", out)
 		require.EqualValues(t, 1, atomic.LoadInt64(&called))
 
-		require.NoError(t, cmd.Flags().Set("output", "bar"))
+		require.NoError(t, fs.Set("output", "bar"))
 		out, err = f.Format(ctx, data)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "bar")
