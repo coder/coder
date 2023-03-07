@@ -19,6 +19,7 @@ import { TerminalIcon } from "components/Icons/TerminalIcon"
 import dayjs from "dayjs"
 import CollectedIcon from "@material-ui/icons/Compare"
 import RefreshIcon from "@material-ui/icons/Refresh"
+import Button from "@material-ui/core/Button"
 
 export const bannerHeight = 36
 
@@ -192,11 +193,20 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
           </div>
         </Tooltip>
 
-        <Tooltip title="A countdown until stats are refetched">
-          <div className={styles.value}>
+        <Tooltip title="A countdown until stats are fetched again. Click to refresh!">
+          <Button
+            className={`${styles.value} ${styles.refreshButton}`}
+            title="Refresh"
+            onClick={() => {
+              if (fetchStats) {
+                fetchStats()
+              }
+            }}
+            variant="text"
+          >
             <RefreshIcon />
             {timeUntilRefresh}s
-          </div>
+          </Button>
         </Tooltip>
       </div>
     </div>
@@ -313,5 +323,19 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     gap: theme.spacing(2),
+  },
+  refreshButton: {
+    margin: 0,
+    padding: "0px 8px",
+    height: "unset",
+    minHeight: "unset",
+    fontSize: "unset",
+    color: "unset",
+    border: 0,
+    minWidth: "unset",
+
+    "& svg": {
+      marginRight: theme.spacing(0.5),
+    },
   },
 }))
