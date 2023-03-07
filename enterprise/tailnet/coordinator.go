@@ -197,12 +197,6 @@ func (c *haCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *js
 func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
 	c.agentNameCache.Add(id, name)
 
-	// Tell clients on other instances to send a callmemaybe to us.
-	err := c.publishAgentHello(id)
-	if err != nil {
-		return xerrors.Errorf("publish agent hello: %w", err)
-	}
-
 	// Publish all nodes on this instance that want to connect to this agent.
 	nodes := c.nodesSubscribedToAgent(id)
 	if len(nodes) > 0 {
@@ -240,6 +234,12 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 		Overwrites: overwrites,
 	}
 	c.mutex.Unlock()
+
+	// Tell clients on other instances to send a callmemaybe to us.
+	err := c.publishAgentHello(id)
+	if err != nil {
+		return xerrors.Errorf("publish agent hello: %w", err)
+	}
 
 	defer func() {
 		c.mutex.Lock()
