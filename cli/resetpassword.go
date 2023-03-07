@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/coderd/userpassword"
 )
 
-func resetPassword() *clibase.Cmd {
+func (r *RootCmd) resetPassword() *clibase.Cmd {
 	var postgresURL string
 
 	root := &clibase.Cmd{

@@ -245,5 +245,20 @@ func RequireNArgs(want int) MiddlewareFunc {
 	}
 }
 
+func RequireRangeArgs(start, end int) MiddlewareFunc {
+	return func(next HandlerFunc) HandlerFunc {
+		return func(i *Invokation) error {
+			if len(i.Args) < start || len(i.Args) > end {
+				return fmt.Errorf(
+					"wanted between %v and %v args but got %v",
+					start, end,
+					len(i.Args),
+				)
+			}
+			return next(i)
+		}
+	}
+}
+
 // HandlerFunc handles an Invokation of a command.
 type HandlerFunc func(i *Invokation) error

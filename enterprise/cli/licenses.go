@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/runsc/cmd"
 
@@ -21,7 +20,7 @@ import (
 
 var jwtRegexp = regexp.MustCompile(`^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$`)
 
-func licenses() *clibase.Cmd {
+func (r *RootCmd) licenses() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Short:   "Add, delete, and list licenses",
 		Use:     "licenses",
@@ -38,15 +37,15 @@ func licenses() *clibase.Cmd {
 	return cmd
 }
 
-func licenseAdd() *clibase.Cmd {
+func (r *RootCmd) licenseAdd() *clibase.Cmd {
 	var (
 		filename string
 		license  string
 		debug    bool
 	)
 	cmd := &clibase.Cmd{
-		Use:   "add [-f file | -l license]",
-		Short: "Add license to Coder deployment",
+		Use:        "add [-f file | -l license]",
+		Short:      "Add license to Coder deployment",
 		Middleware: clibase.RequireNArgs(0),
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := agpl.CreateClient(cmd)
@@ -121,12 +120,12 @@ func validJWT(s string) error {
 	return xerrors.New("Invalid license")
 }
 
-func licensesList() *clibase.Cmd {
+func (r *RootCmd) licensesList() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:        "list",
 		Short:      "List licenses (including expired)",
 		Aliases:    []string{"ls"},
-		Middleware: clibase.RequireNArgs(0),,
+		Middleware: clibase.RequireNArgs(0),
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {
@@ -150,12 +149,12 @@ func licensesList() *clibase.Cmd {
 	return cmd
 }
 
-func licenseDelete() *clibase.Cmd {
+func (r *RootCmd) licenseDelete() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:        "delete <id>",
 		Short:      "Delete license by ID",
 		Aliases:    []string{"del", "rm"},
-		Middleware: clibase.RequireNArgs(1),,
+		Middleware: clibase.RequireNArgs(1),
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {

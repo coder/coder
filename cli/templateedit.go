@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func templateEdit() *clibase.Cmd {
+func (r *RootCmd) templateEdit() *clibase.Cmd {
 	var (
 		name                         string
 		displayName                  string
@@ -47,7 +47,7 @@ func templateEdit() *clibase.Cmd {
 				}
 			}
 
-			organization, err := CurrentOrganization(cmd, client)
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}

@@ -17,7 +17,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func speedtest() *clibase.Cmd {
+func (r *RootCmd) speedtest() *clibase.Cmd {
 	var (
 		direct    bool
 		duration  time.Duration

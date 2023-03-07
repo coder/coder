@@ -9,18 +9,15 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func start() *clibase.Cmd {
+func (r *RootCmd) start() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "start <workspace>",
 		Short:       "Start a workspace",
 		Middleware:  clibase.RequireNArgs(1),
+		Middleware:  clibase.Chain(r.useClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}

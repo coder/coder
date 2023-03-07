@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func state() *clibase.Cmd {
+func (r *RootCmd) state() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "state",
 		Short: "Manually manage Terraform state to fix broken workspaces",
@@ -25,20 +25,17 @@ func state() *clibase.Cmd {
 	return cmd
 }
 
-func statePull() *clibase.Cmd {
+func (r *RootCmd) statePull() *clibase.Cmd {
 	var buildNumber int
 	cmd := &clibase.Cmd{
-		Use:   "pull <workspace> [file]",
-		Short: "Pull a Terraform state file from a workspace.",
-		Args:  cobra.MinimumNArgs(1),
+		Use:        "pull <workspace> [file]",
+		Short:      "Pull a Terraform state file from a workspace.",
+		Args:       cobra.MinimumNArgs(1),
+		Middleware: clibase.Chain(r.useClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
 			var build codersdk.WorkspaceBuild
 			if buildNumber == 0 {
-				workspace, err := namedWorkspace(cmd, client, inv.Args[0])
+				workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 				if err != nil {
 					return err
 				}
@@ -67,18 +64,15 @@ func statePull() *clibase.Cmd {
 	return cmd
 }
 
-func statePush() *clibase.Cmd {
+func (r *RootCmd) statePush() *clibase.Cmd {
 	var buildNumber int
 	cmd := &clibase.Cmd{
 		Use:        "push <workspace> <file>",
 		Middleware: clibase.RequireNArgs(2),
 		Short:      "Push a Terraform state file to a workspace.",
+		Middleware: clibase.Chain(r.useClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}

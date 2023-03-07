@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/cli/cliui"
 )
 
-func groupDelete() *clibase.Cmd {
+func (r *RootCmd) groupDelete() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:        "delete <name>",
 		Short:      "Delete a user group",
@@ -26,7 +26,7 @@ func groupDelete() *clibase.Cmd {
 				return xerrors.Errorf("create client: %w", err)
 			}
 
-			org, err := agpl.CurrentOrganization(cmd, client)
+			org, err := agpl.CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}

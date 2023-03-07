@@ -21,7 +21,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func portForward() *clibase.Cmd {
+func (r *RootCmd) portForward() *clibase.Cmd {
 	var (
 		tcpForwards []string // <port>:<port>
 		udpForwards []string // <port>:<port>
@@ -30,8 +30,8 @@ func portForward() *clibase.Cmd {
 		Use:        "port-forward <workspace>",
 		Short:      "Forward ports from machine to a workspace",
 		Aliases:    []string{"tunnel"},
-		Middleware: clibase.RequireNArgs(1),,
-		Example: formatExamples(
+		Middleware: clibase.RequireNArgs(1),
+		Long: formatExamples(
 			example{
 				Description: "Port forward a single TCP port from 1234 in the workspace to port 5678 on your local machine",
 				Command:     "coder port-forward <workspace> --tcp 5678:1234",

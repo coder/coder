@@ -12,20 +12,17 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
-func userCreate() *clibase.Cmd {
+func (r *RootCmd) userCreate() *clibase.Cmd {
 	var (
 		email    string
 		username string
 		password string
 	)
 	cmd := &clibase.Cmd{
-		Use: "create",
+		Use:        "create",
+		Middleware: clibase.Chain(r.useClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-			organization, err := CurrentOrganization(cmd, client)
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
 			}

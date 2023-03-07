@@ -5,10 +5,10 @@ import (
 	"gvisor.dev/gvisor/runsc/cmd"
 )
 
-func parameters() *clibase.Cmd {
+func (r *RootCmd) parameters() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Short: "List parameters for a given scope",
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Command: "coder parameters list workspace my-workspace",
 			},

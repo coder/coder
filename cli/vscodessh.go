@@ -27,7 +27,7 @@ import (
 // This command needs to remain stable for compatibility with
 // various VS Code versions, so it's kept separate from our
 // standard SSH command.
-func vscodeSSH() *clibase.Cmd {
+func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 	var (
 		sessionTokenFile    string
 		urlFile             string

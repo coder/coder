@@ -15,12 +15,12 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func templatePull() *clibase.Cmd {
+func (r *RootCmd) templatePull() *clibase.Cmd {
 	var tarMode bool
 	cmd := &clibase.Cmd{
 		Use:   "pull <name> [destination]",
 		Short: "Download the latest version of a template to a path.",
-		Args:  cobra.RangeArgs(1, 2),
+		Args: clibase.RequireRangArgs(1, 2)
 		Handler: func(inv *clibase.Invokation) error {
 			var (
 				ctx          = inv.Context()
@@ -38,7 +38,7 @@ func templatePull() *clibase.Cmd {
 			}
 
 			// TODO(JonA): Do we need to add a flag for organization?
-			organization, err := CurrentOrganization(cmd, client)
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}

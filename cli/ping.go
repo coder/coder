@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func ping() *clibase.Cmd {
+func (r *RootCmd) ping() *clibase.Cmd {
 	var (
 		pingNum     int
 		pingTimeout time.Duration

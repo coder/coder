@@ -23,7 +23,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func newCreateAdminUserCommand() *clibase.Cmd {
+func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 	var (
 		newUserDBURL              string
 		newUserSSHKeygenAlgorithm string

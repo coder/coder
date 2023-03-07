@@ -39,7 +39,7 @@ func init() {
 	browser.Stdout = io.Discard
 }
 
-func login() *clibase.Cmd {
+func (r *RootCmd) login() *clibase.Cmd {
 	const firstUserTrialEnv = "CODER_FIRST_USER_TRIAL"
 
 	var (

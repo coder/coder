@@ -5,7 +5,7 @@ import (
 	"gvisor.dev/gvisor/runsc/cmd"
 )
 
-func groups() *clibase.Cmd {
+func (r *RootCmd) groups() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:     "groups",
 		Short:   "Manage groups",

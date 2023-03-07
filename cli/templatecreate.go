@@ -21,7 +21,7 @@ import (
 	"github.com/coder/coder/provisionerd"
 )
 
-func templateCreate() *clibase.Cmd {
+func (r *RootCmd) templateCreate() *clibase.Cmd {
 	var (
 		provisioner     string
 		provisionerTags []string
@@ -36,13 +36,10 @@ func templateCreate() *clibase.Cmd {
 		Use:   "create [name]",
 		Short: "Create a template from the current directory or as specified by flag",
 		Args:  cobra.MaximumNArgs(1),
-		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
+		Middleware: clibase.Chain(r.useClient(client)),
+                      Handler: func(inv *clibase.Invokation) error {
 
-			organization, err := CurrentOrganization(cmd, client)
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
 			}

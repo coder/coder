@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/runsc/cmd"
 
@@ -55,7 +54,7 @@ When enabling scheduled stop, enter a duration in one of the following formats:
 `
 )
 
-func schedules() *clibase.Cmd {
+func (r *RootCmd) schedules() *clibase.Cmd {
 	scheduleCmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "schedule { show | start | stop | override } <workspace>",
@@ -75,19 +74,15 @@ func schedules() *clibase.Cmd {
 	return scheduleCmd
 }
 
-func scheduleShow() *clibase.Cmd {
+func (r *RootCmd) scheduleShow() *clibase.Cmd {
 	showCmd := &clibase.Cmd{
 		Use:        "show <workspace-name>",
 		Short:      "Show workspace schedule",
 		Long:       scheduleShowDescriptionLong,
 		Middleware: clibase.RequireNArgs(1),
+		Middleware: clibase.Chain(r.useClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-
-			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -98,25 +93,23 @@ func scheduleShow() *clibase.Cmd {
 	return showCmd
 }
 
-func scheduleStart() *clibase.Cmd {
+func (r *RootCmd) scheduleStart() *clibase.Cmd {
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
 		Use: "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
-		Example: formatExamples(
+		Long: scheduleStartDescriptionLong + "\n" + formatExamples(
 			example{
 				Description: "Set the workspace to start at 9:30am (in Dublin) from Monday to Friday",
 				Command:     "coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin",
 			},
 		),
 		Short: "Edit workspace start schedule",
-		Long:  scheduleStartDescriptionLong,
-		Args:  cobra.RangeArgs(2, 4),
+		Middleware: clibase.Chain(
+			clibase.RequireRangeArgs(2, 4),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-
-			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -138,7 +131,7 @@ func scheduleStart() *clibase.Cmd {
 				return err
 			}
 
-			updated, err := namedWorkspace(cmd, client, inv.Args[0])
+			updated, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -149,24 +142,20 @@ func scheduleStart() *clibase.Cmd {
 	return cmd
 }
 
-func scheduleStop() *clibase.Cmd {
+func (r *RootCmd) scheduleStop() *clibase.Cmd {
 	return &clibase.Cmd{
 		Middleware: clibase.RequireNArgs(2),
 		Use:        "stop <workspace-name> { <duration> | manual }",
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Command: "coder schedule stop my-workspace 2h30m",
 			},
 		),
-		Short: "Edit workspace stop schedule",
-		Long:  scheduleStopDescriptionLong,
+		Short:      "Edit workspace stop schedule",
+		Long:       scheduleStopDescriptionLong,
+		Middleware: clibase.Chain(r.useClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-
-			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -186,7 +175,7 @@ func scheduleStop() *clibase.Cmd {
 				return err
 			}
 
-			updated, err := namedWorkspace(cmd, client, inv.Args[0])
+			updated, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -195,11 +184,11 @@ func scheduleStop() *clibase.Cmd {
 	}
 }
 
-func scheduleOverride() *clibase.Cmd {
+func (r *RootCmd) scheduleOverride() *clibase.Cmd {
 	overrideCmd := &clibase.Cmd{
 		Middleware: clibase.RequireNArgs(2),
 		Use:        "override-stop <workspace-name> <duration from now>",
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Command: "coder schedule override-stop my-workspace 90m",
 			},
@@ -217,7 +206,7 @@ func scheduleOverride() *clibase.Cmd {
 				return xerrors.Errorf("create client: %w", err)
 			}
 
-			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
@@ -242,7 +231,7 @@ func scheduleOverride() *clibase.Cmd {
 				return err
 			}
 
-			updated, err := namedWorkspace(cmd, client, inv.Args[0])
+			updated, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}

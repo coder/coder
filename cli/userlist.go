@@ -13,20 +13,17 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func userList() *clibase.Cmd {
+func (r *RootCmd) userList() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created_at", "status"}),
 		cliui.JSONFormat(),
 	)
 
 	cmd := &clibase.Cmd{
-		Use:     "list",
-		Aliases: []string{"ls"},
+		Use:        "list",
+		Aliases:    []string{"ls"},
+		Middleware: clibase.Chain(r.useClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
 			res, err := client.Users(inv.Context(), codersdk.UsersRequest{})
 			if err != nil {
 				return err
@@ -46,7 +43,7 @@ func userList() *clibase.Cmd {
 	return cmd
 }
 
-func userSingle() *clibase.Cmd {
+func (r *RootCmd) userSingle() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		&userShowFormat{},
 		cliui.JSONFormat(),
@@ -55,18 +52,14 @@ func userSingle() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "show <username|user_id|'me'>",
 		Short: "Show a single user. Use 'me' to indicate the currently authenticated user.",
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Command: "coder users show me",
 			},
 		),
 		Middleware: clibase.RequireNArgs(1),
+		Middleware: clibase.Chain(r.useClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-
 			user, err := client.User(inv.Context(), inv.Args[0])
 			if err != nil {
 				return err

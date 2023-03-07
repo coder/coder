@@ -15,13 +15,13 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func tokens() *clibase.Cmd {
+func (r *RootCmd) tokens() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:     "tokens",
 		Short:   "Manage personal access tokens",
 		Long:    "Tokens are used to authenticate automated clients to Coder.",
 		Aliases: []string{"token"},
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Description: "Create a token for automation",
 				Command:     "coder tokens create",
@@ -48,7 +48,7 @@ func tokens() *clibase.Cmd {
 	return cmd
 }
 
-func createToken() *clibase.Cmd {
+func (r *RootCmd) createToken() *clibase.Cmd {
 	var (
 		tokenLifetime time.Duration
 		name          string
@@ -116,7 +116,7 @@ func tokenListRowFromToken(token codersdk.APIKeyWithOwner) tokenListRow {
 	}
 }
 
-func listTokens() *clibase.Cmd {
+func (r *RootCmd) listTokens() *clibase.Cmd {
 	// we only display the 'owner' column if the --all argument is passed in
 	defaultCols := []string{"id", "name", "last used", "expires at", "created at"}
 	if slices.Contains(os.Args, "-a") || slices.Contains(os.Args, "--all") {
@@ -177,12 +177,12 @@ func listTokens() *clibase.Cmd {
 	return cmd
 }
 
-func removeToken() *clibase.Cmd {
+func (r *RootCmd) removeToken() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:        "remove [name]",
 		Aliases:    []string{"rm"},
 		Short:      "Delete a token",
-		Middleware: clibase.RequireNArgs(1),,
+		Middleware: clibase.RequireNArgs(1),
 		Handler: func(inv *clibase.Invokation) error {
 			client, err := useClient(cmd)
 			if err != nil {

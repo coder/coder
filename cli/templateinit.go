@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/provisionersdk"
 )
 
-func templateInit() *clibase.Cmd {
+func (r *RootCmd) templateInit() *clibase.Cmd {
 	return &clibase.Cmd{
 		Use:   "init [directory]",
 		Short: "Get started with a templated template.",

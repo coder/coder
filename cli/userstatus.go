@@ -35,19 +35,15 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:        fmt.Sprintf("%s <username|user_id>", verb),
 		Short:      short,
-		Middleware: clibase.RequireNArgs(1),,
+		Middleware: clibase.RequireNArgs(1),
 		Aliases:    aliases,
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Command: fmt.Sprintf("coder users %s example_user", verb),
 			},
 		),
+		Middleware: clibase.Chain(r.useClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-
 			identifier := inv.Args[0]
 			if identifier == "" {
 				return xerrors.Errorf("user identifier cannot be an empty string")

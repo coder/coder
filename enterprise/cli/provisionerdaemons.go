@@ -24,7 +24,7 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-func provisionerDaemons() *clibase.Cmd {
+func (r *RootCmd) provisionerDaemons() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "provisionerd",
 		Short: "Manage provisioner daemons",
@@ -34,7 +34,7 @@ func provisionerDaemons() *clibase.Cmd {
 	return cmd
 }
 
-func provisionerDaemonStart() *clibase.Cmd {
+func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 	var (
 		cacheDir     string
 		rawTags      []string
@@ -55,7 +55,7 @@ func provisionerDaemonStart() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("create client: %w", err)
 			}
-			org, err := agpl.CurrentOrganization(cmd, client)
+			org, err := agpl.CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}

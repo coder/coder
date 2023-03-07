@@ -233,7 +233,7 @@ func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
 }
 
 // versionCmd prints the coder version
-func versionCmd() *clibase.Cmd {
+func (r *RootCmd) versionCmd() *clibase.Cmd {
 	return &clibase.Cmd{
 		Use:   "version",
 		Short: "Show coder version",
@@ -266,6 +266,7 @@ func isTest() bool {
 	return flag.Lookup("test.v") != nil
 }
 
+// RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
 	clientURL    clibase.URL
 	token        clibase.String
@@ -402,7 +403,7 @@ func createAgentClient(cmd *clibase.Cmd) (*agentsdk.Client, error) {
 }
 
 // CurrentOrganization returns the currently active organization for the authenticated user.
-func CurrentOrganization(cmd *clibase.Cmd, client *codersdk.Client) (codersdk.Organization, error) {
+func CurrentOrganization(inv *clibase.Invokation, client *codersdk.Client) (codersdk.Organization, error) {
 	orgs, err := client.OrganizationsByUser(inv.Context(), codersdk.Me)
 	if err != nil {
 		return codersdk.Organization{}, nil

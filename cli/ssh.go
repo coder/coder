@@ -39,7 +39,7 @@ var (
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 )
 
-func ssh() *clibase.Cmd {
+func (r *RootCmd) ssh() *clibase.Cmd {
 	var (
 		stdio          bool
 		shuffle        bool
@@ -280,7 +280,7 @@ func getWorkspaceAndAgent(ctx context.Context, cmd *clibase.Cmd, client *codersd
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}
 	} else {
-		workspace, err = namedWorkspace(cmd, client, workspaceParts[0])
+		workspace, err = namedWorkspace(inv.Context(), client, workspaceParts[0])
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}

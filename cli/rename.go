@@ -10,18 +10,15 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func rename() *clibase.Cmd {
+func (r *RootCmd) rename() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "rename <workspace> <new name>",
 		Short:       "Rename a workspace",
 		Middleware:  clibase.RequireNArgs(2),
+		Middleware:  clibase.Chain(r.useClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}

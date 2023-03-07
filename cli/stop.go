@@ -9,7 +9,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func stop() *clibase.Cmd {
+func (r *RootCmd) stop() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "stop <workspace>",
@@ -28,7 +28,7 @@ func stop() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}

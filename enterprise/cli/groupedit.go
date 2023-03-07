@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func groupEdit() *clibase.Cmd {
+func (r *RootCmd) groupEdit() *clibase.Cmd {
 	var (
 		avatarURL string
 		name      string
@@ -36,7 +36,7 @@ func groupEdit() *clibase.Cmd {
 				return xerrors.Errorf("create client: %w", err)
 			}
 
-			org, err := agpl.CurrentOrganization(cmd, client)
+			org, err := agpl.CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}

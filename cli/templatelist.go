@@ -9,22 +9,19 @@ import (
 	"github.com/coder/coder/cli/cliui"
 )
 
-func templateList() *clibase.Cmd {
+func (r *RootCmd) templateList() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]templateTableRow{}, []string{"name", "last updated", "used by"}),
 		cliui.JSONFormat(),
 	)
 
 	cmd := &clibase.Cmd{
-		Use:     "list",
-		Short:   "List all the templates available for the organization",
-		Aliases: []string{"ls"},
+		Use:        "list",
+		Short:      "List all the templates available for the organization",
+		Aliases:    []string{"ls"},
+		Middleware: clibase.Chain(r.useClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-			organization, err := CurrentOrganization(cmd, client)
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
 			}

@@ -132,7 +132,7 @@ func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (r
 	}
 }
 
-func configSSH() *clibase.Cmd {
+func (r *RootCmd) configSSH() *clibase.Cmd {
 	var (
 		sshConfigFile    string
 		sshConfigOpts    sshConfigOptions
@@ -140,11 +140,12 @@ func configSSH() *clibase.Cmd {
 		dryRun           bool
 		skipProxyCommand bool
 	)
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
 		Short:       "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Description: "You can use -o (or --ssh-option) so set SSH options to be used for all your workspaces",
 				Command:     "coder config-ssh -o ForwardAgent=yes",
@@ -154,13 +155,11 @@ func configSSH() *clibase.Cmd {
 				Command:     "coder config-ssh --dry-run",
 			},
 		),
-		Middleware: clibase.RequireNArgs(0),
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(0),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-
 			recvWorkspaceConfigs := sshPrepareWorkspaceConfigs(inv.Context(), client)
 
 			out := inv.Stdout

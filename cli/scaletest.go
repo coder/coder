@@ -33,7 +33,7 @@ import (
 
 const scaletestTracerName = "coder_scaletest"
 
-func scaletest() *clibase.Cmd {
+func (r *RootCmd) scaletest() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "scaletest",
 		Short: "Run a scale test against the Coder API",
@@ -308,7 +308,7 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 	return nil
 }
 
-func scaletestCleanup() *clibase.Cmd {
+func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 	cleanupStrategy := &scaletestStrategyFlags{cleanup: true}
 
 	cmd := &clibase.Cmd{
@@ -461,7 +461,7 @@ func scaletestCleanup() *clibase.Cmd {
 	return cmd
 }
 
-func scaletestCreateWorkspaces() *clibase.Cmd {
+func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 	var (
 		count          int
 		template       string

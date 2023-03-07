@@ -9,7 +9,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func restart() *clibase.Cmd {
+func (r *RootCmd) restart() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "restart <workspace>",
@@ -31,7 +31,7 @@ func restart() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}

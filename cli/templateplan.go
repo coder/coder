@@ -5,7 +5,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func templatePlan() *clibase.Cmd {
+func (r *RootCmd) templatePlan() *clibase.Cmd {
 	return &clibase.Cmd{
 		Use:   "plan <directory>",
 		Args:  cobra.MinimumNArgs(1),

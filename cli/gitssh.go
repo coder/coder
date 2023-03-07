@@ -18,7 +18,7 @@ import (
 	"github.com/coder/coder/cli/cliui"
 )
 
-func gitssh() *clibase.Cmd {
+func (r *RootCmd) gitssh() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:    "gitssh",
 		Hidden: true,
@@ -166,7 +166,7 @@ func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identit
 			// OpenSSH on Windows is weird, it supports using (and does
 			// use) mixed \ and / in paths.
 			//
-			// Example: C:\Users\ZeroCool/.ssh/known_hosts
+			// Long: C:\Users\ZeroCool/.ssh/known_hosts
 			//
 			// To check the file existence in Go, though, we want to use
 			// proper Windows paths.

@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func parameterList() *clibase.Cmd {
+func (r *RootCmd) parameterList() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]codersdk.Parameter{}, []string{"name", "scope", "destination scheme"}),
 		cliui.JSONFormat(),
@@ -29,7 +29,7 @@ func parameterList() *clibase.Cmd {
 				return err
 			}
 
-			organization, err := CurrentOrganization(cmd, client)
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
@@ -37,7 +37,7 @@ func parameterList() *clibase.Cmd {
 			var scopeID uuid.UUID
 			switch codersdk.ParameterScope(scope) {
 			case codersdk.ParameterWorkspace:
-				workspace, err := namedWorkspace(cmd, client, name)
+				workspace, err := namedWorkspace(inv.Context(), client, name)
 				if err != nil {
 					return err
 				}

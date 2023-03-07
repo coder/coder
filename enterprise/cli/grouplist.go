@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func groupList() *clibase.Cmd {
+func (r *RootCmd) groupList() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]groupTableRow{}, nil),
 		cliui.JSONFormat(),
@@ -32,7 +32,7 @@ func groupList() *clibase.Cmd {
 				return xerrors.Errorf("create client: %w", err)
 			}
 
-			org, err := agpl.CurrentOrganization(cmd, client)
+			org, err := agpl.CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}

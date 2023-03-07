@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func templateDelete() *clibase.Cmd {
+func (r *RootCmd) templateDelete() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "delete [name...]",
 		Short: "Delete templates",
@@ -27,7 +27,7 @@ func templateDelete() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			organization, err := CurrentOrganization(cmd, client)
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
 			}

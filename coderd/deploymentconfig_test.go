@@ -28,7 +28,7 @@ func TestDeploymentValues(t *testing.T) {
 		DeploymentValues: cfg,
 	})
 	_ = coderdtest.CreateFirstUser(t, client)
-	scrubbed, err := client.DeploymentValues(ctx)
+	scrubbed, err := client.DeploymentConfig(ctx)
 	require.NoError(t, err)
 	// ensure normal values pass through
 	require.EqualValues(t, true, scrubbed.Values.BrowserOnly.Value())

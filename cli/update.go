@@ -8,7 +8,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func update() *clibase.Cmd {
+func (r *RootCmd) update() *clibase.Cmd {
 	var (
 		parameterFile     string
 		richParameterFile string
@@ -22,12 +22,9 @@ func update() *clibase.Cmd {
 		Short:       "Will update and start a given workspace if it is out of date.",
 		Long: "Will update and start a given workspace if it is out of date. Use --always-prompt to change " +
 			"the parameter values of the workspace.",
+		Middleware: clibase.Chain(r.useClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}

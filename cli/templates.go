@@ -11,13 +11,13 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func templates() *clibase.Cmd {
+func (r *RootCmd) templates() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:     "templates",
 		Short:   "Manage templates",
 		Long:    "Templates are written in standard Terraform and describe the infrastructure for workspaces",
 		Aliases: []string{"template"},
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Description: "Create a template for developers to create workspaces",
 				Command:     "coder templates create",

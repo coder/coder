@@ -14,12 +14,12 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func templateVersions() *clibase.Cmd {
+func (r *RootCmd) templateVersions() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:     "versions",
 		Short:   "Manage different versions of the specified template",
 		Aliases: []string{"version"},
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Description: "List versions of a specific template",
 				Command:     "coder templates versions list my-template",
@@ -36,7 +36,7 @@ func templateVersions() *clibase.Cmd {
 	return cmd
 }
 
-func templateVersionsList() *clibase.Cmd {
+func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]templateVersionRow{}, nil),
 		cliui.JSONFormat(),
@@ -51,7 +51,7 @@ func templateVersionsList() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("create client: %w", err)
 			}
-			organization, err := CurrentOrganization(cmd, client)
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}

@@ -10,7 +10,7 @@ import (
 )
 
 // nolint
-func deleteWorkspace() *clibase.Cmd {
+func (r *RootCmd) deleteWorkspace() *clibase.Cmd {
 	var orphan bool
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
@@ -32,7 +32,7 @@ func deleteWorkspace() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			workspace, err := namedWorkspace(cmd, client, inv.Args[0])
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}

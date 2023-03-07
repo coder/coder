@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func publickey() *clibase.Cmd {
+func (r *RootCmd) publickey() *clibase.Cmd {
 	var reset bool
 
 	cmd := &clibase.Cmd{

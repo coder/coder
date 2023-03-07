@@ -87,7 +87,7 @@ func (pf *templateUploadFlags) templateName(inv.Args []string) (string, error) {
 	return name, nil
 }
 
-func templatePush() *clibase.Cmd {
+func (r *RootCmd) templatePush() *clibase.Cmd {
 	var (
 		versionName     string
 		provisioner     string
@@ -103,12 +103,9 @@ func templatePush() *clibase.Cmd {
 		Use:   "push [template]",
 		Args:  cobra.MaximumNArgs(1),
 		Short: "Push a new template version from the current directory or as specified by flag",
-		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-			organization, err := CurrentOrganization(cmd, client)
+		Middleware: clibase.Chain(r.useClient(client)),
+                      Handler: func(inv *clibase.Invokation) error {
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
 			}

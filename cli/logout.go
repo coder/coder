@@ -11,16 +11,12 @@ import (
 	"github.com/coder/coder/cli/cliui"
 )
 
-func logout() *clibase.Cmd {
+func (r *RootCmd) logout() *clibase.Cmd {
 	cmd := &clibase.Cmd{
-		Use:   "logout",
-		Short: "Unauthenticate your local session",
+		Use:        "logout",
+		Short:      "Unauthenticate your local session",
+		Middleware: clibase.Chain(r.useClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-
 			var errors []error
 
 			config := createConfig(cmd)

@@ -17,7 +17,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func features() *clibase.Cmd {
+func (r *RootCmd) features() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Short:   "List Enterprise features",
 		Use:     "features",
@@ -32,7 +32,7 @@ func features() *clibase.Cmd {
 	return cmd
 }
 
-func featuresList() *clibase.Cmd {
+func (r *RootCmd) featuresList() *clibase.Cmd {
 	var (
 		featureColumns = []string{"Name", "Entitlement", "Enabled", "Limit", "Actual"}
 		columns        []string

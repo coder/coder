@@ -64,7 +64,7 @@ func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]coders
 	}
 }
 
-func list() *clibase.Cmd {
+func (r *RootCmd) list() *clibase.Cmd {
 	var (
 		all               bool
 		defaultQuery      = "owner:me"
@@ -81,12 +81,8 @@ func list() *clibase.Cmd {
 		Short:       "List workspaces",
 		Aliases:     []string{"ls"},
 		Middleware:  clibase.RequireNArgs(0),
+		Middleware:  clibase.Chain(r.useClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
-
 			filter := codersdk.WorkspaceFilter{
 				FilterQuery: searchQuery,
 			}
