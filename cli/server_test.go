@@ -60,7 +60,6 @@ func TestServer(t *testing.T) {
 			"--access-url", "http://example.com",
 			"--postgres-url", connectionURL,
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		pty := ptytest.New(t)
 		root.SetOutput(pty.Output())
@@ -90,7 +89,6 @@ func TestServer(t *testing.T) {
 			"--http-address", ":0",
 			"--access-url", "http://example.com",
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		pty := ptytest.New(t)
 		root.SetOutput(pty.Output())
@@ -146,7 +144,6 @@ func TestServer(t *testing.T) {
 			"--http-address", ":0",
 			"--access-url", "http://localhost:3000/",
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
@@ -179,7 +176,6 @@ func TestServer(t *testing.T) {
 			"--http-address", ":0",
 			"--access-url", "https://foobarbaz.mydomain",
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
@@ -210,7 +206,6 @@ func TestServer(t *testing.T) {
 			"--http-address", ":0",
 			"--access-url", "https://google.com",
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		pty := ptytest.New(t)
 		root.SetIn(pty.Input())
@@ -240,7 +235,6 @@ func TestServer(t *testing.T) {
 			"--http-address", ":0",
 			"--access-url", "google.com",
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
@@ -260,7 +254,6 @@ func TestServer(t *testing.T) {
 			"--tls-address", ":0",
 			"--tls-min-version", "tls9",
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
@@ -279,7 +272,6 @@ func TestServer(t *testing.T) {
 			"--tls-address", ":0",
 			"--tls-client-auth", "something",
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
@@ -355,7 +347,6 @@ func TestServer(t *testing.T) {
 			"--tls-cert-file", certPath,
 			"--tls-key-file", keyPath,
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		errC := make(chan error, 1)
 		go func() {
@@ -400,7 +391,6 @@ func TestServer(t *testing.T) {
 			"--tls-cert-file", cert2Path,
 			"--tls-key-file", key2Path,
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		errC := make(chan error, 1)
 		go func() {
@@ -483,7 +473,6 @@ func TestServer(t *testing.T) {
 			"--tls-cert-file", certPath,
 			"--tls-key-file", keyPath,
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		pty := ptytest.New(t)
 		root.SetOutput(pty.Output())
@@ -615,7 +604,6 @@ func TestServer(t *testing.T) {
 					"--in-memory",
 					"--cache-dir", t.TempDir(),
 					"--http-address", httpListenAddr,
-					"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 				}
 				if c.tlsListener {
 					flags = append(flags,
@@ -722,7 +710,6 @@ func TestServer(t *testing.T) {
 			"--in-memory",
 			"--http-address", "0.0.0.0:0",
 			"--access-url", "http://example.com",
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 
 		pty := ptytest.New(t)
@@ -749,7 +736,6 @@ func TestServer(t *testing.T) {
 			"--in-memory",
 			"--http-address", "[::]:0",
 			"--access-url", "http://example.com",
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 
 		pty := ptytest.New(t)
@@ -777,7 +763,6 @@ func TestServer(t *testing.T) {
 			"--http-address", "",
 			"--tls-enable=false",
 			"--tls-address", "",
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
@@ -794,7 +779,6 @@ func TestServer(t *testing.T) {
 			"--in-memory",
 			"--tls-enable=true",
 			"--tls-address", "",
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
@@ -819,7 +803,6 @@ func TestServer(t *testing.T) {
 				"--address", ":0",
 				"--access-url", "http://example.com",
 				"--cache-dir", t.TempDir(),
-				"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 			)
 			pty := ptytest.New(t)
 			root.SetOutput(pty.Output())
@@ -856,7 +839,6 @@ func TestServer(t *testing.T) {
 				"--tls-cert-file", certPath,
 				"--tls-key-file", keyPath,
 				"--cache-dir", t.TempDir(),
-				"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 			)
 			pty := ptytest.New(t)
 			root.SetOutput(pty.Output())
@@ -905,7 +887,6 @@ func TestServer(t *testing.T) {
 			"--access-url", "http://example.com",
 			"--provisioner-daemons", "1",
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		serverErr := make(chan error, 1)
 		go func() {
@@ -933,7 +914,6 @@ func TestServer(t *testing.T) {
 			"--access-url", "http://example.com",
 			"--trace=true",
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		errC := make(chan error, 1)
 		go func() {
@@ -973,7 +953,6 @@ func TestServer(t *testing.T) {
 			"--telemetry",
 			"--telemetry-url", server.URL,
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		errC := make(chan error, 1)
 		go func() {
@@ -1006,7 +985,6 @@ func TestServer(t *testing.T) {
 			"--prometheus-enable",
 			"--prometheus-address", ":"+strconv.Itoa(randomPort),
 			"--cache-dir", t.TempDir(),
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		serverErr := make(chan error, 1)
 		go func() {
@@ -1060,7 +1038,6 @@ func TestServer(t *testing.T) {
 			"--oauth2-github-client-id", "fake",
 			"--oauth2-github-client-secret", "fake",
 			"--oauth2-github-enterprise-base-url", fakeRedirect,
-			"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 		)
 		serverErr := make(chan error, 1)
 		go func() {
@@ -1098,7 +1075,6 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 			)
 			serverErr := make(chan error, 1)
 			go func() {
@@ -1128,7 +1104,6 @@ func TestServer(t *testing.T) {
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--api-rate-limit", val,
-				"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 			)
 			serverErr := make(chan error, 1)
 			go func() {
@@ -1157,7 +1132,6 @@ func TestServer(t *testing.T) {
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--api-rate-limit", "-1",
-				"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 			)
 			serverErr := make(chan error, 1)
 			go func() {
@@ -1193,7 +1167,6 @@ func TestServer(t *testing.T) {
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--log-human", fiName,
-				"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 			)
 			serverErr := make(chan error, 1)
 			go func() {
@@ -1222,7 +1195,6 @@ func TestServer(t *testing.T) {
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--log-human", fi,
-				"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 			)
 			serverErr := make(chan error, 1)
 			go func() {
@@ -1251,7 +1223,6 @@ func TestServer(t *testing.T) {
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--log-json", fi,
-				"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 			)
 			serverErr := make(chan error, 1)
 			go func() {
@@ -1280,7 +1251,6 @@ func TestServer(t *testing.T) {
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--log-stackdriver", fi,
-				"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 			)
 			// Attach pty so we get debug output from the command if this test
 			// fails.
@@ -1329,7 +1299,6 @@ func TestServer(t *testing.T) {
 				"--log-human", fi1,
 				"--log-json", fi2,
 				"--log-stackdriver", fi3,
-				"--insecure-app-signing-key-file", clitest.AppSigningKeyPath(t),
 			)
 			// Attach pty so we get debug output from the command if this test
 			// fails.

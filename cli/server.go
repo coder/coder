@@ -7,11 +7,10 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
-	"encoding/pem"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -610,53 +609,34 @@ func Server(vip *viper.Viper, newAPI func(context.Context, *coderd.Options) (*co
 					}
 				}
 
+				// Read the app signing key from the DB. We store it hex
+				// encoded since the config table uses strings for the value and
+				// we don't want to deal with automatic encoding issues.
 				appSigningKeyStr, err := tx.GetAppSigningKey(ctx)
 				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 					return xerrors.Errorf("get app signing key: %w", err)
 				}
 				if appSigningKeyStr == "" {
-					if cfg.InsecureAppSigningKeyFile.Value != "" {
-						bytes, err := os.ReadFile(cfg.InsecureAppSigningKeyFile.Value)
-						if err != nil {
-							return xerrors.Errorf("read insecure app signing key file %q: %w", cfg.InsecureAppSigningKeyFile.Value, err)
-						}
-						appSigningKeyStr = string(bytes)
-					} else {
-						appSigningKey, err := rsa.GenerateKey(rand.Reader, 4096)
-						if err != nil {
-							return xerrors.Errorf("generate new app signing key: %w", err)
-						}
+					// Generate 64 byte secure random string.
+					b := make([]byte, 64)
+					_, err := rand.Read(b)
+					if err != nil {
+						return xerrors.Errorf("generate fresh app signing key: %w", err)
+					}
 
-						keyBytes, err := x509.MarshalPKCS8PrivateKey(appSigningKey)
-						if err != nil {
-							return xerrors.Errorf("marshal app signing key: %w", err)
-						}
-
-						pemBytes := pem.EncodeToMemory(&pem.Block{
-							Type:  "RSA PRIVATE KEY",
-							Bytes: keyBytes,
-						})
-
-						err = tx.InsertAppSigningKey(ctx, string(pemBytes))
-						if err != nil {
-							return xerrors.Errorf("insert app signing key: %w", err)
-						}
-
-						appSigningKeyStr = string(pemBytes)
+					appSigningKeyStr = hex.EncodeToString(b)
+					err = tx.InsertAppSigningKey(ctx, appSigningKeyStr)
+					if err != nil {
+						return xerrors.Errorf("insert freshly generated app signing key to database: %w", err)
 					}
 				}
 
-				pemBlock, _ := pem.Decode([]byte(appSigningKeyStr))
-				if pemBlock == nil {
-					return xerrors.New("failed to decode app signing key: no PEM block found")
-				}
-				appSigningKeyInterface, err := x509.ParsePKCS8PrivateKey(pemBlock.Bytes)
+				appSigningKey, err := hex.DecodeString(appSigningKeyStr)
 				if err != nil {
-					return xerrors.Errorf("failed to parse app signing key as RSA key: %w", err)
+					return xerrors.Errorf("decode app signing key from database as hex: %w", err)
 				}
-				appSigningKey, ok := appSigningKeyInterface.(*rsa.PrivateKey)
-				if !ok {
-					return xerrors.Errorf("app signing key is not an *rsa.PrivateKey, got %T", appSigningKeyInterface)
+				if len(appSigningKey) != 64 {
+					return xerrors.Errorf("app signing key must be 64 bytes, key in database is %d bytes", len(appSigningKey))
 				}
 
 				options.AppSigningKey = appSigningKey

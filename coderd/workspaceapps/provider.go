@@ -1,7 +1,6 @@
 package workspaceapps
 
 import (
-	"crypto/rsa"
 	"net/url"
 
 	"cdr.dev/slog"
@@ -22,10 +21,14 @@ type Provider struct {
 	Database         database.Store
 	DeploymentConfig *codersdk.DeploymentConfig
 	OAuth2Configs    *httpmw.OAuth2Configs
-	TicketSigningKey *rsa.PrivateKey
+	TicketSigningKey []byte
 }
 
-func New(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentConfig, oauth2Cfgs *httpmw.OAuth2Configs, ticketSigningKey *rsa.PrivateKey) *Provider {
+func New(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentConfig, oauth2Cfgs *httpmw.OAuth2Configs, ticketSigningKey []byte) *Provider {
+	if len(ticketSigningKey) != 64 {
+		panic("ticket signing key must be 64 bytes")
+	}
+
 	return &Provider{
 		Logger:           log,
 		AccessURL:        accessURL,

@@ -16,7 +16,6 @@ import (
 
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 )
@@ -49,17 +48,6 @@ func SetupConfig(t *testing.T, client *codersdk.Client, root config.Root) {
 	require.NoError(t, err)
 	err = root.URL().Write(client.URL.String())
 	require.NoError(t, err)
-}
-
-// TestAppSigningKey returns the path to a temporary file containing the test
-// app signing key. For use with the --insecure-app-signing-key-file flag.
-func AppSigningKeyPath(t *testing.T) string {
-	tmpDir := t.TempDir()
-	file := filepath.Join(tmpDir, "app-signing-key.pem")
-	err := os.WriteFile(file, []byte(coderdtest.TestAppSigningKey), 0o600)
-	require.NoError(t, err)
-
-	return file
 }
 
 // CreateTemplateVersionSource writes the echo provisioner responses into a

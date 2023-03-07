@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -119,8 +118,9 @@ type Options struct {
 	DERPServer         *derp.Server
 	DERPMap            *tailcfg.DERPMap
 	SwaggerEndpoint    bool
-	// AppSigningKey denotes the private RSA key to use for signing app tickets.
-	AppSigningKey *rsa.PrivateKey
+	// AppSigningKey denotes the symmetric key to use for signing app tickets.
+	// The key must be 64 bytes long.
+	AppSigningKey []byte
 	SetUserGroups func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
@@ -212,6 +212,9 @@ func New(options *Options) *API {
 	}
 	if options.SetUserGroups == nil {
 		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
+	}
+	if len(options.AppSigningKey) != 64 {
+		panic("coderd: AppSigningKey must be 64 bytes long")
 	}
 
 	siteCacheDir := options.CacheDir

@@ -9,6 +9,8 @@ import (
 	"gopkg.in/square/go-jose.v2"
 )
 
+const ticketSigningAlgorithm = jose.HS512
+
 // Ticket is the struct data contained inside a workspace app ticket JWE. It
 // contains the details of the workspace app that the ticket is valid for to
 // avoid database queries.
@@ -49,7 +51,10 @@ func (p *Provider) GenerateTicket(payload Ticket) (string, error) {
 
 	// We use symmetric signing with an RSA key to support satellites in the
 	// future.
-	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.PS512, Key: p.TicketSigningKey}, nil)
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: ticketSigningAlgorithm,
+		Key:       p.TicketSigningKey,
+	}, nil)
 	if err != nil {
 		return "", xerrors.Errorf("create signer: %w", err)
 	}
@@ -72,8 +77,14 @@ func (p *Provider) ParseTicket(ticketStr string) (Ticket, error) {
 	if err != nil {
 		return Ticket{}, xerrors.Errorf("parse JWS: %w", err)
 	}
+	if len(object.Signatures) != 1 {
+		return Ticket{}, xerrors.New("expected 1 signature")
+	}
+	if object.Signatures[0].Header.Algorithm != string(ticketSigningAlgorithm) {
+		return Ticket{}, xerrors.Errorf("expected ticket signing algorithm to be %q, got %q", ticketSigningAlgorithm, object.Signatures[0].Header.Algorithm)
+	}
 
-	output, err := object.Verify(&p.TicketSigningKey.PublicKey)
+	output, err := object.Verify(p.TicketSigningKey)
 	if err != nil {
 		return Ticket{}, xerrors.Errorf("verify JWS: %w", err)
 	}
