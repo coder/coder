@@ -657,11 +657,13 @@ func (c *Conn) selfNode() *Node {
 	}
 	var preferredDERP int
 	var derpLatency map[string]float64
-	var derpForcedWebsocket map[int]string
+	derpForcedWebsocket := make(map[int]string, 0)
 	if c.lastNetInfo != nil {
 		preferredDERP = c.lastNetInfo.PreferredDERP
 		derpLatency = c.lastNetInfo.DERPLatency
-		derpForcedWebsocket = c.lastDERPForcedWebsockets
+		for k, v := range c.lastDERPForcedWebsockets {
+			derpForcedWebsocket[k] = v
+		}
 	}
 
 	node := &Node{
