@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	jose "gopkg.in/square/go-jose.v2"
@@ -29,6 +28,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
 )
@@ -38,9 +38,6 @@ const (
 	// conflict with query parameters that users may use.
 	//nolint:gosec
 	subdomainProxyAPIKeyParam = "coder_application_connect_api_key_35e783"
-	// redirectURIQueryParam is the query param for the app URL to be passed
-	// back to the API auth endpoint on the main access URL.
-	redirectURIQueryParam = "redirect_uri"
 	// appLogoutHostname is the hostname to use for the logout redirect. When
 	// the dashboard logs out, it will redirect to this subdomain of the app
 	// hostname, and the server will remove the cookie and redirect to the main
@@ -66,13 +63,6 @@ var nonCanonicalHeaders = map[string]string{
 	"Sec-Websocket-Version":    "Sec-WebSocket-Version",
 }
 
-type workspaceAppAccessMethod string
-
-const (
-	workspaceAppAccessMethodPath      workspaceAppAccessMethod = "path"
-	workspaceAppAccessMethodSubdomain workspaceAppAccessMethod = "subdomain"
-)
-
 // @Summary Get applications host
 // @ID get-applications-host
 // @Security CoderSessionToken
@@ -94,10 +84,7 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 // workspaceAppsProxyPath proxies requests to a workspace application
 // through a relative URL path.
 func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
-	workspace := httpmw.WorkspaceParam(r)
-	agent := httpmw.WorkspaceAgentParam(r)
-
-	if api.DeploymentValues.DisablePathApps {
+	if api.DeploymentValues.DisablePathApps.Value() {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusUnauthorized,
 			Title:        "Unauthorized",
@@ -108,32 +95,24 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// We do not support port proxying on paths, so lookup the app by slug.
-	appSlug := chi.URLParam(r, "workspaceapp")
-	app, ok := api.lookupWorkspaceApp(rw, r, agent.ID, appSlug)
-	if !ok {
-		return
-	}
-
-	appSharingLevel := database.AppSharingLevelOwner
-	if app.SharingLevel != "" {
-		appSharingLevel = app.SharingLevel
-	}
-	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspaceAppAccessMethodPath, workspace, appSharingLevel)
-	if !ok {
-		return
-	}
-	if !authed {
-		_, hasAPIKey := httpmw.APIKeyOptional(r)
-		if hasAPIKey {
-			// The request has a valid API key but insufficient permissions.
-			renderApplicationNotFound(rw, r, api.AccessURL)
+	// If the username in the request is @me, then redirect to the current
+	// username. The resolveWorkspaceApp function does not accept @me for
+	// security purposes.
+	if chi.URLParam(r, "user") == codersdk.Me {
+		_, roles, ok := httpmw.ExtractAPIKey(rw, r, httpmw.ExtractAPIKeyConfig{
+			DB: api.Database,
+			OAuth2Configs: &httpmw.OAuth2Configs{
+				Github: api.GithubOAuth2Config,
+				OIDC:   api.OIDCConfig,
+			},
+			RedirectToLogin:             true,
+			DisableSessionExpiryRefresh: api.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		})
+		if !ok {
 			return
 		}
 
-		// Redirect to login as they don't have permission to access the app and
-		// they aren't signed in.
-		httpmw.RedirectToLogin(rw, r, httpmw.SignedOutErrorMessage)
+		http.Redirect(rw, r, strings.Replace(r.URL.Path, "@me", "@"+roles.Username, 1), http.StatusTemporaryRedirect)
 		return
 	}
 
@@ -145,14 +124,20 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		chiPath = "/" + chiPath
 	}
 
-	api.proxyWorkspaceApplication(proxyApplication{
-		AccessMethod: workspaceAppAccessMethodPath,
-		Workspace:    workspace,
-		Agent:        agent,
-		App:          &app,
-		Port:         0,
-		Path:         chiPath,
-	}, rw, r)
+	ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, workspaceapps.Request{
+		AccessMethod:      workspaceapps.AccessMethodPath,
+		BasePath:          basePath,
+		UsernameOrID:      chi.URLParam(r, "user"),
+		WorkspaceAndAgent: chi.URLParam(r, "workspace_and_agent"),
+		// We don't support port proxying on paths. The ResolveRequest method
+		// won't allow port proxying on path-based apps if the app is a number.
+		AppSlugOrPort: chi.URLParam(r, "workspaceapp"),
+	})
+	if !ok {
+		return
+	}
+
+	api.proxyWorkspaceApplication(rw, r, *ticket, chiPath)
 }
 
 // handleSubdomainApplications handles subdomain-based application proxy
@@ -226,449 +211,62 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				return
 			}
 
-			workspaceAgentKey := fmt.Sprintf("%s.%s", app.WorkspaceName, app.AgentName)
-			chiCtx := chi.RouteContext(ctx)
-			chiCtx.URLParams.Add("workspace_and_agent", workspaceAgentKey)
-			chiCtx.URLParams.Add("user", app.Username)
-
-			// Use the passed in app middlewares before passing to the proxy app.
-			mws := chi.Middlewares(middlewares)
-			mws.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-				workspace := httpmw.WorkspaceParam(r)
-				agent := httpmw.WorkspaceAgentParam(r)
-
-				var workspaceAppPtr *database.WorkspaceApp
-				if app.AppSlug != "" {
-					workspaceApp, ok := api.lookupWorkspaceApp(rw, r, agent.ID, app.AppSlug)
-					if !ok {
-						return
-					}
-
-					workspaceAppPtr = &workspaceApp
-				}
-
-				// Verify application auth. This function will redirect or
-				// return an error page if the user doesn't have permission.
-				sharingLevel := database.AppSharingLevelOwner
-				if workspaceAppPtr != nil && workspaceAppPtr.SharingLevel != "" {
-					sharingLevel = workspaceAppPtr.SharingLevel
-				}
-				if !api.verifyWorkspaceApplicationSubdomainAuth(rw, r, host, workspace, sharingLevel) {
+			// If the request has the special query param then we need to set a
+			// cookie and strip that query parameter.
+			if encryptedAPIKey := r.URL.Query().Get(subdomainProxyAPIKeyParam); encryptedAPIKey != "" {
+				// Exchange the encoded API key for a real one.
+				_, token, err := decryptAPIKey(r.Context(), api.Database, encryptedAPIKey)
+				if err != nil {
+					site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+						Status:      http.StatusBadRequest,
+						Title:       "Bad Request",
+						Description: "Could not decrypt API key. Please remove the query parameter and try again.",
+						// Retry is disabled because the user needs to remove
+						// the query parameter before they try again.
+						RetryEnabled: false,
+						DashboardURL: api.AccessURL.String(),
+					})
 					return
 				}
 
-				api.proxyWorkspaceApplication(proxyApplication{
-					AccessMethod: workspaceAppAccessMethodSubdomain,
-					Workspace:    workspace,
-					Agent:        agent,
-					App:          workspaceAppPtr,
-					Port:         app.Port,
-					Path:         r.URL.Path,
-				}, rw, r)
+				api.setWorkspaceAppCookie(rw, r, token)
+
+				// Strip the query parameter.
+				path := r.URL.Path
+				if path == "" {
+					path = "/"
+				}
+				q := r.URL.Query()
+				q.Del(subdomainProxyAPIKeyParam)
+				rawQuery := q.Encode()
+				if rawQuery != "" {
+					path += "?" + q.Encode()
+				}
+
+				http.Redirect(rw, r, path, http.StatusTemporaryRedirect)
+				return
+			}
+
+			ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				BasePath:          "/",
+				UsernameOrID:      app.Username,
+				WorkspaceNameOrID: app.WorkspaceName,
+				AgentNameOrID:     app.AgentName,
+				AppSlugOrPort:     app.AppSlugOrPort,
+			})
+			if !ok {
+				return
+			}
+
+			// Use the passed in app middlewares before passing to the proxy
+			// app.
+			mws := chi.Middlewares(middlewares)
+			mws.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				api.proxyWorkspaceApplication(rw, r, *ticket, r.URL.Path)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
-}
-
-func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *http.Request, next http.Handler, host string) (httpapi.ApplicationURL, bool) {
-	// Check if the hostname matches the access URL. If it does, the user was
-	// definitely trying to connect to the dashboard/API.
-	if httpapi.HostnamesMatch(api.AccessURL.Hostname(), host) {
-		next.ServeHTTP(rw, r)
-		return httpapi.ApplicationURL{}, false
-	}
-
-	// If there are no periods in the hostname, then it can't be a valid
-	// application URL.
-	if !strings.Contains(host, ".") {
-		next.ServeHTTP(rw, r)
-		return httpapi.ApplicationURL{}, false
-	}
-
-	// Split the subdomain so we can parse the application details and verify it
-	// matches the configured app hostname later.
-	subdomain, ok := httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, host)
-	if !ok {
-		// Doesn't match the regex, so it's not a valid application URL.
-		next.ServeHTTP(rw, r)
-		return httpapi.ApplicationURL{}, false
-	}
-
-	// Check if the request is part of a logout flow.
-	if subdomain == appLogoutHostname {
-		api.handleWorkspaceAppLogout(rw, r)
-		return httpapi.ApplicationURL{}, false
-	}
-
-	// Parse the application URL from the subdomain.
-	app, err := httpapi.ParseSubdomainAppURL(subdomain)
-	if err != nil {
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusBadRequest,
-			Title:        "Invalid application URL",
-			Description:  fmt.Sprintf("Could not parse subdomain application URL %q: %s", subdomain, err.Error()),
-			RetryEnabled: false,
-			DashboardURL: api.AccessURL.String(),
-		})
-		return httpapi.ApplicationURL{}, false
-	}
-
-	return app, true
-}
-
-func (api *API) handleWorkspaceAppLogout(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	// Delete the API key and cookie first before attempting to parse/validate
-	// the redirect URI.
-	cookie, err := r.Cookie(httpmw.DevURLSessionTokenCookie)
-	if err == nil && cookie.Value != "" {
-		id, secret, err := httpmw.SplitAPIToken(cookie.Value)
-		// If it's not a valid token then we don't need to delete it from the
-		// database, but we'll still delete the cookie.
-		if err == nil {
-			// To avoid a situation where someone overloads the API with
-			// different auth formats, and tricks this endpoint into deleting an
-			// unchecked API key, we validate that the secret matches the secret
-			// we store in the database.
-			//nolint:gocritic // needed for workspace app logout
-			apiKey, err := api.Database.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), id)
-			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to lookup API key.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			// This is wrapped in `err == nil` because if the API key doesn't
-			// exist, we still want to delete the cookie.
-			if err == nil {
-				hashedSecret := sha256.Sum256([]byte(secret))
-				if subtle.ConstantTimeCompare(apiKey.HashedSecret, hashedSecret[:]) != 1 {
-					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-						Message: httpmw.SignedOutErrorMessage,
-						Detail:  "API key secret is invalid.",
-					})
-					return
-				}
-				//nolint:gocritic // needed for workspace app logout
-				err = api.Database.DeleteAPIKeyByID(dbauthz.AsSystemRestricted(ctx), id)
-				if err != nil {
-					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-						Message: "Failed to delete API key.",
-						Detail:  err.Error(),
-					})
-					return
-				}
-			}
-		}
-	}
-	if !api.setWorkspaceAppCookie(rw, r, "") {
-		return
-	}
-
-	// Read the redirect URI from the query string.
-	redirectURI := r.URL.Query().Get(redirectURIQueryParam)
-	if redirectURI == "" {
-		redirectURI = api.AccessURL.String()
-	} else {
-		// Validate that the redirect URI is a valid URL and exists on the same
-		// host as the access URL or an app URL.
-		parsedRedirectURI, err := url.Parse(redirectURI)
-		if err != nil {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:       http.StatusBadRequest,
-				Title:        "Invalid redirect URI",
-				Description:  fmt.Sprintf("Could not parse redirect URI %q: %s", redirectURI, err.Error()),
-				RetryEnabled: false,
-				DashboardURL: api.AccessURL.String(),
-			})
-			return
-		}
-
-		// Check if the redirect URI is on the same host as the access URL or an
-		// app URL.
-		ok := httpapi.HostnamesMatch(api.AccessURL.Hostname(), parsedRedirectURI.Hostname())
-		if !ok && api.AppHostnameRegex != nil {
-			// We could also check that it's a valid application URL for
-			// completeness, but this check should be good enough.
-			_, ok = httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, parsedRedirectURI.Hostname())
-		}
-		if !ok {
-			// The redirect URI they provided is not allowed, but we don't want
-			// to return an error page because it'll interrupt the logout flow,
-			// so we just use the default access URL.
-			parsedRedirectURI = api.AccessURL
-		}
-
-		redirectURI = parsedRedirectURI.String()
-	}
-
-	http.Redirect(rw, r, redirectURI, http.StatusTemporaryRedirect)
-}
-
-// lookupWorkspaceApp looks up the workspace application by slug in the given
-// agent and returns it. If the application is not found or there was a server
-// error while looking it up, an HTML error page is returned and false is
-// returned so the caller can return early.
-func (api *API) lookupWorkspaceApp(rw http.ResponseWriter, r *http.Request, agentID uuid.UUID, appSlug string) (database.WorkspaceApp, bool) {
-	// dbauthz.AsSystemRestricted is allowed here as the app authz is checked later.
-	// The app authz is determined by the sharing level.
-	//nolint:gocritic
-	app, err := api.Database.GetWorkspaceAppByAgentIDAndSlug(dbauthz.AsSystemRestricted(r.Context()), database.GetWorkspaceAppByAgentIDAndSlugParams{
-		AgentID: agentID,
-		Slug:    appSlug,
-	})
-	if xerrors.Is(err, sql.ErrNoRows) {
-		renderApplicationNotFound(rw, r, api.AccessURL)
-		return database.WorkspaceApp{}, false
-	}
-	if err != nil {
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusInternalServerError,
-			Title:        "Internal Server Error",
-			Description:  "Could not fetch workspace application: " + err.Error(),
-			RetryEnabled: true,
-			DashboardURL: api.AccessURL.String(),
-		})
-		return database.WorkspaceApp{}, false
-	}
-
-	return app, true
-}
-
-//nolint:revive
-func (api *API) authorizeWorkspaceApp(r *http.Request, accessMethod workspaceAppAccessMethod, sharingLevel database.AppSharingLevel, workspace database.Workspace) (bool, error) {
-	ctx := r.Context()
-
-	if accessMethod == "" {
-		accessMethod = workspaceAppAccessMethodPath
-	}
-	isPathApp := accessMethod == workspaceAppAccessMethodPath
-
-	// If path-based app sharing is disabled (which is the default), we can
-	// force the sharing level to be "owner" so that the user can only access
-	// their own apps.
-	//
-	// Site owners are blocked from accessing path-based apps unless the
-	// Dangerous.AllowPathAppSiteOwnerAccess flag is enabled in the check below.
-	if isPathApp && !api.DeploymentValues.Dangerous.AllowPathAppSharing.Value() {
-		sharingLevel = database.AppSharingLevelOwner
-	}
-
-	// Short circuit if not authenticated.
-	roles, ok := httpmw.UserAuthorizationOptional(r)
-	if !ok {
-		// The user is not authenticated, so they can only access the app if it
-		// is public.
-		return sharingLevel == database.AppSharingLevelPublic, nil
-	}
-
-	// Block anyone from accessing workspaces they don't own in path-based apps
-	// unless the admin disables this security feature. This blocks site-owners
-	// from accessing any apps from any user's workspaces.
-	//
-	// When the Dangerous.AllowPathAppSharing flag is not enabled, the sharing
-	// level will be forced to "owner", so this check will always be true for
-	// workspaces owned by different users.
-	if isPathApp &&
-		sharingLevel == database.AppSharingLevelOwner &&
-		workspace.OwnerID.String() != roles.Actor.ID &&
-		!api.DeploymentValues.Dangerous.AllowPathAppSiteOwnerAccess.Value() {
-
-		return false, nil
-	}
-
-	// Do a standard RBAC check. This accounts for share level "owner" and any
-	// other RBAC rules that may be in place.
-	//
-	// Regardless of share level or whether it's enabled or not, the owner of
-	// the workspace can always access applications (as long as their API key's
-	// scope allows it).
-	err := api.Authorizer.Authorize(ctx, roles.Actor, rbac.ActionCreate, workspace.ApplicationConnectRBAC())
-	if err == nil {
-		return true, nil
-	}
-
-	switch sharingLevel {
-	case database.AppSharingLevelOwner:
-		// We essentially already did this above with the regular RBAC check.
-		// Owners can always access their own apps according to RBAC rules, so
-		// they have already been returned from this function.
-	case database.AppSharingLevelAuthenticated:
-		// The user is authenticated at this point, but we need to make sure
-		// that they have ApplicationConnect permissions to their own
-		// workspaces. This ensures that the key's scope has permission to
-		// connect to workspace apps.
-		object := rbac.ResourceWorkspaceApplicationConnect.WithOwner(roles.Actor.ID)
-		err := api.Authorizer.Authorize(ctx, roles.Actor, rbac.ActionCreate, object)
-		if err == nil {
-			return true, nil
-		}
-	case database.AppSharingLevelPublic:
-		// We don't really care about scopes and stuff if it's public anyways.
-		// Someone with a restricted-scope API key could just not submit the
-		// API key cookie in the request and access the page.
-		return true, nil
-	}
-
-	// No checks were successful.
-	return false, nil
-}
-
-// fetchWorkspaceApplicationAuth authorizes the user using api.AppAuthorizer
-// for a given app share level in the given workspace. The user's authorization
-// status is returned. If a server error occurs, a HTML error page is rendered
-// and false is returned so the caller can return early.
-func (api *API) fetchWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, accessMethod workspaceAppAccessMethod, workspace database.Workspace, appSharingLevel database.AppSharingLevel) (authed bool, ok bool) {
-	ok, err := api.authorizeWorkspaceApp(r, accessMethod, appSharingLevel, workspace)
-	if err != nil {
-		api.Logger.Error(r.Context(), "authorize workspace app", slog.Error(err))
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusInternalServerError,
-			Title:        "Internal Server Error",
-			Description:  "Could not verify authorization. Please try again or contact an administrator.",
-			RetryEnabled: true,
-			DashboardURL: api.AccessURL.String(),
-		})
-		return false, false
-	}
-
-	return ok, true
-}
-
-// checkWorkspaceApplicationAuth authorizes the user using api.AppAuthorizer
-// for a given app share level in the given workspace. If the user is not
-// authorized or a server error occurs, a discrete HTML error page is rendered
-// and false is returned so the caller can return early.
-func (api *API) checkWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, accessMethod workspaceAppAccessMethod, workspace database.Workspace, appSharingLevel database.AppSharingLevel) bool {
-	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, accessMethod, workspace, appSharingLevel)
-	if !ok {
-		return false
-	}
-	if !authed {
-		renderApplicationNotFound(rw, r, api.AccessURL)
-		return false
-	}
-
-	return true
-}
-
-// verifyWorkspaceApplicationSubdomainAuth checks that the request is authorized
-// to access the given application. If the user does not have a app session key,
-// they will be redirected to the route below. If the user does have a session
-// key but insufficient permissions a static error page will be rendered.
-func (api *API) verifyWorkspaceApplicationSubdomainAuth(rw http.ResponseWriter, r *http.Request, host string, workspace database.Workspace, appSharingLevel database.AppSharingLevel) bool {
-	authed, ok := api.fetchWorkspaceApplicationAuth(rw, r, workspaceAppAccessMethodSubdomain, workspace, appSharingLevel)
-	if !ok {
-		return false
-	}
-	if authed {
-		return true
-	}
-
-	_, hasAPIKey := httpmw.APIKeyOptional(r)
-	if hasAPIKey {
-		// The request has a valid API key but insufficient permissions.
-		renderApplicationNotFound(rw, r, api.AccessURL)
-		return false
-	}
-
-	// If the request has the special query param then we need to set a cookie
-	// and strip that query parameter.
-	if encryptedAPIKey := r.URL.Query().Get(subdomainProxyAPIKeyParam); encryptedAPIKey != "" {
-		// Exchange the encoded API key for a real one.
-		_, token, err := decryptAPIKey(r.Context(), api.Database, encryptedAPIKey)
-		if err != nil {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:      http.StatusBadRequest,
-				Title:       "Bad Request",
-				Description: "Could not decrypt API key. Please remove the query parameter and try again.",
-				// Retry is disabled because the user needs to remove the query
-				// parameter before they try again.
-				RetryEnabled: false,
-				DashboardURL: api.AccessURL.String(),
-			})
-			return false
-		}
-
-		api.setWorkspaceAppCookie(rw, r, token)
-
-		// Strip the query parameter.
-		path := r.URL.Path
-		if path == "" {
-			path = "/"
-		}
-		q := r.URL.Query()
-		q.Del(subdomainProxyAPIKeyParam)
-		rawQuery := q.Encode()
-		if rawQuery != "" {
-			path += "?" + q.Encode()
-		}
-
-		http.Redirect(rw, r, path, http.StatusTemporaryRedirect)
-		return false
-	}
-
-	// If the user doesn't have a session key, redirect them to the API endpoint
-	// for application auth.
-	redirectURI := *r.URL
-	redirectURI.Scheme = api.AccessURL.Scheme
-	redirectURI.Host = host
-
-	u := *api.AccessURL
-	u.Path = "/api/v2/applications/auth-redirect"
-	q := u.Query()
-	q.Add(redirectURIQueryParam, redirectURI.String())
-	u.RawQuery = q.Encode()
-
-	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
-	return false
-}
-
-// setWorkspaceAppCookie sets a cookie on the workspace app domain. If the app
-// hostname cannot be parsed properly, a static error page is rendered and false
-// is returned.
-//
-// If an empty token is supplied, it will clear the cookie.
-func (api *API) setWorkspaceAppCookie(rw http.ResponseWriter, r *http.Request, token string) bool {
-	hostSplit := strings.SplitN(api.AppHostname, ".", 2)
-	if len(hostSplit) != 2 {
-		// This should be impossible as we verify the app hostname on
-		// startup, but we'll check anyways.
-		api.Logger.Error(r.Context(), "could not split invalid app hostname", slog.F("hostname", api.AppHostname))
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusInternalServerError,
-			Title:        "Internal Server Error",
-			Description:  "The app is configured with an invalid app wildcard hostname. Please contact an administrator.",
-			RetryEnabled: false,
-			DashboardURL: api.AccessURL.String(),
-		})
-		return false
-	}
-
-	// Set the app cookie for all subdomains of api.AppHostname. This cookie is
-	// handled properly by the ExtractAPIKey middleware.
-	//
-	// We don't set an expiration because the key in the database already has an
-	// expiration.
-	maxAge := 0
-	if token == "" {
-		maxAge = -1
-	}
-	cookieHost := "." + hostSplit[1]
-	http.SetCookie(rw, &http.Cookie{
-		Name:     httpmw.DevURLSessionTokenCookie,
-		Value:    token,
-		Domain:   cookieHost,
-		Path:     "/",
-		MaxAge:   maxAge,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   api.SecureAuthCookie,
-	})
-
-	return true
 }
 
 // workspaceApplicationAuth is an endpoint on the main router that handles
@@ -701,7 +299,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	}
 
 	// Get the redirect URI from the query parameters and parse it.
-	redirectURI := r.URL.Query().Get(redirectURIQueryParam)
+	redirectURI := r.URL.Query().Get(workspaceapps.RedirectURIQueryParam)
 	if redirectURI == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Missing redirect_uri query parameter.",
@@ -781,35 +379,192 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
 }
 
-// proxyApplication are the required fields to proxy a workspace application.
-type proxyApplication struct {
-	AccessMethod workspaceAppAccessMethod
-	Workspace    database.Workspace
-	Agent        database.WorkspaceAgent
+func (api *API) parseWorkspaceApplicationHostname(rw http.ResponseWriter, r *http.Request, next http.Handler, host string) (httpapi.ApplicationURL, bool) {
+	// Check if the hostname matches the access URL. If it does, the user was
+	// definitely trying to connect to the dashboard/API.
+	if httpapi.HostnamesMatch(api.AccessURL.Hostname(), host) {
+		next.ServeHTTP(rw, r)
+		return httpapi.ApplicationURL{}, false
+	}
 
-	// Either App or Port must be set, but not both.
-	App  *database.WorkspaceApp
-	Port uint16
+	// If there are no periods in the hostname, then it can't be a valid
+	// application URL.
+	if !strings.Contains(host, ".") {
+		next.ServeHTTP(rw, r)
+		return httpapi.ApplicationURL{}, false
+	}
 
-	// SharingLevel MUST be set to database.AppSharingLevelOwner by default for
-	// ports.
-	SharingLevel database.AppSharingLevel
-	// Path must either be empty or have a leading slash.
-	Path string
+	// Split the subdomain so we can parse the application details and verify it
+	// matches the configured app hostname later.
+	subdomain, ok := httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, host)
+	if !ok {
+		// Doesn't match the regex, so it's not a valid application URL.
+		next.ServeHTTP(rw, r)
+		return httpapi.ApplicationURL{}, false
+	}
+
+	// Check if the request is part of a logout flow.
+	if subdomain == appLogoutHostname {
+		api.handleWorkspaceSubdomainAppLogout(rw, r)
+		return httpapi.ApplicationURL{}, false
+	}
+
+	// Parse the application URL from the subdomain.
+	app, err := httpapi.ParseSubdomainAppURL(subdomain)
+	if err != nil {
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:       http.StatusBadRequest,
+			Title:        "Invalid application URL",
+			Description:  fmt.Sprintf("Could not parse subdomain application URL %q: %s", subdomain, err.Error()),
+			RetryEnabled: false,
+			DashboardURL: api.AccessURL.String(),
+		})
+		return httpapi.ApplicationURL{}, false
+	}
+
+	return app, true
 }
 
-func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.ResponseWriter, r *http.Request) {
+func (api *API) handleWorkspaceSubdomainAppLogout(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	sharingLevel := database.AppSharingLevelOwner
-	if proxyApp.App != nil && proxyApp.App.SharingLevel != "" {
-		sharingLevel = proxyApp.App.SharingLevel
+	// Delete the API key and cookie first before attempting to parse/validate
+	// the redirect URI.
+	cookie, err := r.Cookie(codersdk.DevURLSessionTokenCookie)
+	if err == nil && cookie.Value != "" {
+		id, secret, err := httpmw.SplitAPIToken(cookie.Value)
+		// If it's not a valid token then we don't need to delete it from the
+		// database, but we'll still delete the cookie.
+		if err == nil {
+			// To avoid a situation where someone overloads the API with
+			// different auth formats, and tricks this endpoint into deleting an
+			// unchecked API key, we validate that the secret matches the secret
+			// we store in the database.
+			//nolint:gocritic // needed for workspace app logout
+			apiKey, err := api.Database.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), id)
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to lookup API key.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			// This is wrapped in `err == nil` because if the API key doesn't
+			// exist, we still want to delete the cookie.
+			if err == nil {
+				hashedSecret := sha256.Sum256([]byte(secret))
+				if subtle.ConstantTimeCompare(apiKey.HashedSecret, hashedSecret[:]) != 1 {
+					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+						Message: httpmw.SignedOutErrorMessage,
+						Detail:  "API key secret is invalid.",
+					})
+					return
+				}
+				//nolint:gocritic // needed for workspace app logout
+				err = api.Database.DeleteAPIKeyByID(dbauthz.AsSystemRestricted(ctx), id)
+				if err != nil {
+					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+						Message: "Failed to delete API key.",
+						Detail:  err.Error(),
+					})
+					return
+				}
+			}
+		}
 	}
-	if !api.checkWorkspaceApplicationAuth(rw, r, proxyApp.AccessMethod, proxyApp.Workspace, sharingLevel) {
+	if !api.setWorkspaceAppCookie(rw, r, "") {
 		return
 	}
 
-	// Filter IP headers from untrusted origins!
+	// Read the redirect URI from the query string.
+	redirectURI := r.URL.Query().Get(workspaceapps.RedirectURIQueryParam)
+	if redirectURI == "" {
+		redirectURI = api.AccessURL.String()
+	} else {
+		// Validate that the redirect URI is a valid URL and exists on the same
+		// host as the access URL or an app URL.
+		parsedRedirectURI, err := url.Parse(redirectURI)
+		if err != nil {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:       http.StatusBadRequest,
+				Title:        "Invalid redirect URI",
+				Description:  fmt.Sprintf("Could not parse redirect URI %q: %s", redirectURI, err.Error()),
+				RetryEnabled: false,
+				DashboardURL: api.AccessURL.String(),
+			})
+			return
+		}
+
+		// Check if the redirect URI is on the same host as the access URL or an
+		// app URL.
+		ok := httpapi.HostnamesMatch(api.AccessURL.Hostname(), parsedRedirectURI.Hostname())
+		if !ok && api.AppHostnameRegex != nil {
+			// We could also check that it's a valid application URL for
+			// completeness, but this check should be good enough.
+			_, ok = httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, parsedRedirectURI.Hostname())
+		}
+		if !ok {
+			// The redirect URI they provided is not allowed, but we don't want
+			// to return an error page because it'll interrupt the logout flow,
+			// so we just use the default access URL.
+			parsedRedirectURI = api.AccessURL
+		}
+
+		redirectURI = parsedRedirectURI.String()
+	}
+
+	http.Redirect(rw, r, redirectURI, http.StatusTemporaryRedirect)
+}
+
+// setWorkspaceAppCookie sets a cookie on the workspace app domain. If the app
+// hostname cannot be parsed properly, a static error page is rendered and false
+// is returned.
+//
+// If an empty token is supplied, it will clear the cookie.
+func (api *API) setWorkspaceAppCookie(rw http.ResponseWriter, r *http.Request, token string) bool {
+	hostSplit := strings.SplitN(api.AppHostname, ".", 2)
+	if len(hostSplit) != 2 {
+		// This should be impossible as we verify the app hostname on
+		// startup, but we'll check anyways.
+		api.Logger.Error(r.Context(), "could not split invalid app hostname", slog.F("hostname", api.AppHostname))
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:       http.StatusInternalServerError,
+			Title:        "Internal Server Error",
+			Description:  "The app is configured with an invalid app wildcard hostname. Please contact an administrator.",
+			RetryEnabled: false,
+			DashboardURL: api.AccessURL.String(),
+		})
+		return false
+	}
+
+	// Set the app cookie for all subdomains of api.AppHostname. This cookie is
+	// handled properly by the ExtractAPIKey middleware.
+	//
+	// We don't set an expiration because the key in the database already has an
+	// expiration.
+	maxAge := 0
+	if token == "" {
+		maxAge = -1
+	}
+	cookieHost := "." + hostSplit[1]
+	http.SetCookie(rw, &http.Cookie{
+		Name:     codersdk.DevURLSessionTokenCookie,
+		Value:    token,
+		Domain:   cookieHost,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   api.SecureAuthCookie,
+	})
+
+	return true
+}
+
+func (api *API) proxyWorkspaceApplication(rw http.ResponseWriter, r *http.Request, ticket workspaceapps.Ticket, path string) {
+	ctx := r.Context()
+
+	// Filter IP headers from untrusted origins.
 	httpmw.FilterUntrustedOriginHeaders(api.RealIPConfig, r)
 	// Ensure proper IP headers get sent to the forwarded application.
 	err := httpmw.EnsureXForwardedForHeader(r)
@@ -818,32 +573,12 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		return
 	}
 
-	// If the app does not exist, but the app slug is a port number, then route
-	// to the port as an "anonymous app". We only support HTTP for port-based
-	// URLs.
-	//
-	// This is only supported for subdomain-based applications.
-	internalURL := fmt.Sprintf("http://127.0.0.1:%d", proxyApp.Port)
-	if proxyApp.App != nil {
-		if !proxyApp.App.Url.Valid {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:       http.StatusBadRequest,
-				Title:        "Bad Request",
-				Description:  fmt.Sprintf("Application %q does not have a URL set.", proxyApp.App.Slug),
-				RetryEnabled: true,
-				DashboardURL: api.AccessURL.String(),
-			})
-			return
-		}
-		internalURL = proxyApp.App.Url.String
-	}
-
-	appURL, err := url.Parse(internalURL)
+	appURL, err := url.Parse(ticket.AppURL)
 	if err != nil {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusBadRequest,
 			Title:        "Bad Request",
-			Description:  fmt.Sprintf("Application has an invalid URL %q: %s", internalURL, err.Error()),
+			Description:  fmt.Sprintf("Application has an invalid URL %q: %s", ticket.AppURL, err.Error()),
 			RetryEnabled: true,
 			DashboardURL: api.AccessURL.String(),
 		})
@@ -857,7 +592,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		portInt, err := strconv.Atoi(port)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("App URL %q has an invalid port %q.", internalURL, port),
+				Message: fmt.Sprintf("App URL %q has an invalid port %q.", ticket.AppURL, port),
 				Detail:  err.Error(),
 			})
 			return
@@ -872,14 +607,14 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 	}
 
 	// Ensure path and query parameter correctness.
-	if proxyApp.Path == "" {
+	if path == "" {
 		// Web applications typically request paths relative to the
 		// root URL. This allows for routing behind a proxy or subpath.
 		// See https://github.com/coder/code-server/issues/241 for examples.
 		http.Redirect(rw, r, r.URL.Path+"/", http.StatusTemporaryRedirect)
 		return
 	}
-	if proxyApp.Path == "/" && r.URL.RawQuery == "" && appURL.RawQuery != "" {
+	if path == "/" && r.URL.RawQuery == "" && appURL.RawQuery != "" {
 		// If the application defines a default set of query parameters,
 		// we should always respect them. The reverse proxy will merge
 		// query parameters for server-side requests, but sometimes
@@ -890,7 +625,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		return
 	}
 
-	r.URL.Path = proxyApp.Path
+	r.URL.Path = path
 	appURL.RawQuery = ""
 
 	proxy := httputil.NewSingleHostReverseProxy(appURL)
@@ -904,7 +639,7 @@ func (api *API) proxyWorkspaceApplication(proxyApp proxyApplication, rw http.Res
 		})
 	}
 
-	conn, release, err := api.workspaceAgentCache.Acquire(r, proxyApp.Agent.ID)
+	conn, release, err := api.workspaceAgentCache.Acquire(r, ticket.AgentID)
 	if err != nil {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusBadGateway,
@@ -1059,16 +794,4 @@ func decryptAPIKey(ctx context.Context, db database.Store, encryptedAPIKey strin
 	}
 
 	return key, payload.APIKey, nil
-}
-
-// renderApplicationNotFound should always be used when the app is not found or
-// the current user doesn't have permission to access it.
-func renderApplicationNotFound(rw http.ResponseWriter, r *http.Request, accessURL *url.URL) {
-	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-		Status:       http.StatusNotFound,
-		Title:        "Application Not Found",
-		Description:  "The application or workspace you are trying to access does not exist or you do not have permission to access it.",
-		RetryEnabled: false,
-		DashboardURL: accessURL.String(),
-	})
 }

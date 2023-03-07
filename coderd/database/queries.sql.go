@@ -1437,6 +1437,38 @@ func (q *sqlQuerier) InsertLicense(ctx context.Context, arg InsertLicenseParams)
 	return i, err
 }
 
+const acquireLock = `-- name: AcquireLock :exec
+SELECT pg_advisory_xact_lock($1)
+`
+
+// Blocks until the lock is acquired.
+//
+// This must be called from within a transaction. The lock will be automatically
+// released when the transaction ends.
+//
+// Use database.LockID() to generate a unique lock ID from a string.
+func (q *sqlQuerier) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
+	_, err := q.db.ExecContext(ctx, acquireLock, pgAdvisoryXactLock)
+	return err
+}
+
+const tryAcquireLock = `-- name: TryAcquireLock :one
+SELECT pg_try_advisory_xact_lock($1)
+`
+
+// Non blocking lock. Returns true if the lock was acquired, false otherwise.
+//
+// This must be called from within a transaction. The lock will be automatically
+// released when the transaction ends.
+//
+// Use database.LockID() to generate a unique lock ID from a string.
+func (q *sqlQuerier) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error) {
+	row := q.db.QueryRowContext(ctx, tryAcquireLock, pgTryAdvisoryXactLock)
+	var pg_try_advisory_xact_lock bool
+	err := row.Scan(&pg_try_advisory_xact_lock)
+	return pg_try_advisory_xact_lock, err
+}
+
 const getOrganizationIDsByMemberIDs = `-- name: GetOrganizationIDsByMemberIDs :many
 SELECT
     user_id, array_agg(organization_id) :: uuid [ ] AS "organization_IDs"
@@ -2909,6 +2941,17 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 	return i, err
 }
 
+const getAppSigningKey = `-- name: GetAppSigningKey :one
+SELECT value FROM site_configs WHERE key = 'app_signing_key'
+`
+
+func (q *sqlQuerier) GetAppSigningKey(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getAppSigningKey)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getDERPMeshKey = `-- name: GetDERPMeshKey :one
 SELECT value FROM site_configs WHERE key = 'derp_mesh_key'
 `
@@ -2962,6 +3005,15 @@ func (q *sqlQuerier) GetServiceBanner(ctx context.Context) (string, error) {
 	var value string
 	err := row.Scan(&value)
 	return value, err
+}
+
+const insertAppSigningKey = `-- name: InsertAppSigningKey :exec
+INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
+`
+
+func (q *sqlQuerier) InsertAppSigningKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, insertAppSigningKey, value)
+	return err
 }
 
 const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
