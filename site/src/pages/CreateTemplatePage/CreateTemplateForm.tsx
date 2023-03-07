@@ -29,7 +29,6 @@ import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuild
 import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
 import { LazyIconField } from "components/IconField/LazyIconField"
 import { Maybe } from "components/Conditionals/Maybe"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
 import i18next from "i18next"
 import Link from "@material-ui/core/Link"
 import { FormFooter } from "components/FormFooter/FormFooter"
@@ -142,6 +141,7 @@ export interface CreateTemplateFormProps {
   error?: unknown
   jobError?: string
   logs?: ProvisionerJobLog[]
+  canSetMaxTTL: boolean
 }
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
@@ -155,12 +155,9 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   error,
   jobError,
   logs,
+  canSetMaxTTL,
 }) => {
   const styles = useStyles()
-  const { entitlements } = useDashboard()
-  const canSetMaxTTL =
-    entitlements.features["advanced_template_scheduling"].enabled
-
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues(canSetMaxTTL, starterTemplate),
     validationSchema,
