@@ -3547,6 +3547,50 @@ func (q *fakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	stat := database.GetDeploymentWorkspaceStatsRow{}
+	for _, workspace := range q.workspaces {
+		build, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+		if err != nil {
+			return stat, err
+		}
+		job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
+		if err != nil {
+			return stat, err
+		}
+		if !job.StartedAt.Valid {
+			stat.PendingWorkspaces++
+			continue
+		}
+		if job.StartedAt.Valid &&
+			!job.CanceledAt.Valid &&
+			time.Since(job.UpdatedAt) <= 30*time.Second &&
+			!job.CompletedAt.Valid {
+			stat.BuildingWorkspaces++
+			continue
+		}
+		if job.CompletedAt.Valid &&
+			!job.CanceledAt.Valid &&
+			!job.Error.Valid {
+			if build.Transition == database.WorkspaceTransitionStart {
+				stat.RunningWorkspaces++
+			}
+			if build.Transition == database.WorkspaceTransitionStop {
+				stat.StoppedWorkspaces++
+			}
+			continue
+		}
+		if job.CanceledAt.Valid || job.Error.Valid {
+			stat.FailedWorkspaces++
+			continue
+		}
+	}
+	return stat, nil
+}
+
 func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceBuild{}, err

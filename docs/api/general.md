@@ -1186,22 +1186,24 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
 
 ```json
 {
-  "aggregated_from": "string",
+  "aggregated_since": "string",
+  "building_workspaces": 0,
+  "collected_at": "string",
+  "failed_workspaces": 0,
+  "pending_workspaces": 0,
+  "refreshing_at": "string",
+  "running_workspaces": 0,
   "session_count_jetbrains": 0,
   "session_count_reconnecting_pty": 0,
   "session_count_ssh": 0,
   "session_count_vscode": 0,
-  "updated_at": "string",
+  "stopped_workspaces": 0,
   "workspace_connection_latency_ms": {
     "p50": 0,
     "p95": 0
   },
   "workspace_rx_bytes": 0,
-  "workspace_tx_bytes": 0,
-  "workspaces_by_transition": {
-    "property1": 0,
-    "property2": 0
-  }
+  "workspace_tx_bytes": 0
 }
 ```
 

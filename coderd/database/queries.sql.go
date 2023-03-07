@@ -6691,6 +6691,90 @@ func (q *sqlQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg In
 	return items, nil
 }
 
+const getDeploymentWorkspaceStats = `-- name: GetDeploymentWorkspaceStats :one
+WITH workspaces_with_jobs AS (
+	SELECT
+	latest_build.transition, latest_build.provisioner_job_id, latest_build.started_at, latest_build.updated_at, latest_build.canceled_at, latest_build.completed_at, latest_build.error FROM workspaces
+	LEFT JOIN LATERAL (
+		SELECT
+			workspace_builds.transition,
+			provisioner_jobs.id AS provisioner_job_id,
+			provisioner_jobs.started_at,
+			provisioner_jobs.updated_at,
+			provisioner_jobs.canceled_at,
+			provisioner_jobs.completed_at,
+			provisioner_jobs.error
+		FROM
+			workspace_builds
+		LEFT JOIN
+			provisioner_jobs
+		ON
+			provisioner_jobs.id = workspace_builds.job_id
+		WHERE
+			workspace_builds.workspace_id = workspaces.id
+		ORDER BY
+			build_number DESC
+		LIMIT
+			1
+	) latest_build ON TRUE
+), pending_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		started_at IS NULL
+), building_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		started_at IS NOT NULL AND
+		canceled_at IS NULL AND
+		updated_at - INTERVAL '30 seconds' < NOW() AND
+		completed_at IS NULL
+), running_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		completed_at IS NOT NULL AND
+		canceled_at IS NULL AND
+		error IS NULL AND
+		transition = 'start'::workspace_transition
+), failed_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		(canceled_at IS NOT NULL AND
+			error IS NOT NULL) OR
+		(completed_at IS NOT NULL AND
+			error IS NOT NULL)
+), stopped_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		completed_at IS NOT NULL AND
+		canceled_at IS NULL AND
+		error IS NULL AND
+		transition = 'stop'::workspace_transition
+)
+SELECT
+	pending_workspaces.count AS pending_workspaces,
+	building_workspaces.count AS building_workspaces,
+	running_workspaces.count AS running_workspaces,
+	failed_workspaces.count AS failed_workspaces,
+	stopped_workspaces.count AS stopped_workspaces
+FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspaces, stopped_workspaces
+`
+
+type GetDeploymentWorkspaceStatsRow struct {
+	PendingWorkspaces  int64 `db:"pending_workspaces" json:"pending_workspaces"`
+	BuildingWorkspaces int64 `db:"building_workspaces" json:"building_workspaces"`
+	RunningWorkspaces  int64 `db:"running_workspaces" json:"running_workspaces"`
+	FailedWorkspaces   int64 `db:"failed_workspaces" json:"failed_workspaces"`
+	StoppedWorkspaces  int64 `db:"stopped_workspaces" json:"stopped_workspaces"`
+}
+
+func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceStats)
+	var i GetDeploymentWorkspaceStatsRow
+	err := row.Scan(
+		&i.PendingWorkspaces,
+		&i.BuildingWorkspaces,
+		&i.RunningWorkspaces,
+		&i.FailedWorkspaces,
+		&i.StoppedWorkspaces,
+	)
+	return i, err
+}
+
 const getWorkspaceByAgentID = `-- name: GetWorkspaceByAgentID :one
 SELECT
 	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at

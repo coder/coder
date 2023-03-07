@@ -559,7 +559,12 @@ type DeploymentStats struct {
 	// be refreshed.
 	RefreshingAt time.Time `json:"refreshing_at"`
 
-	WorkspacesByTransition       map[WorkspaceTransition]int  `json:"workspaces_by_transition"`
+	PendingWorkspaces  int64 `json:"pending_workspaces"`
+	BuildingWorkspaces int64 `json:"building_workspaces"`
+	RunningWorkspaces  int64 `json:"running_workspaces"`
+	FailedWorkspaces   int64 `json:"failed_workspaces"`
+	StoppedWorkspaces  int64 `json:"stopped_workspaces"`
+
 	WorkspaceConnectionLatencyMS WorkspaceConnectionLatencyMS `json:"workspace_connection_latency_ms"`
 
 	SessionCountVSCode          int64 `json:"session_count_vscode"`

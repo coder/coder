@@ -363,9 +363,14 @@ export interface DeploymentDAUsResponse {
 
 // From codersdk/deployment.go
 export interface DeploymentStats {
-  readonly aggregated_from: string
-  readonly updated_at: string
-  readonly workspaces_by_transition: Record<WorkspaceTransition, number>
+  readonly aggregated_since: string
+  readonly collected_at: string
+  readonly refreshing_at: string
+  readonly pending_workspaces: number
+  readonly building_workspaces: number
+  readonly running_workspaces: number
+  readonly failed_workspaces: number
+  readonly stopped_workspaces: number
   readonly workspace_connection_latency_ms: WorkspaceConnectionLatencyMS
   readonly session_count_vscode: number
   readonly session_count_ssh: number

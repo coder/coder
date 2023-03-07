@@ -6624,8 +6624,29 @@ const docTemplate = `{
         "codersdk.DeploymentStats": {
             "type": "object",
             "properties": {
-                "aggregated_from": {
+                "aggregated_since": {
+                    "description": "AggregatedFrom is the time in which stats are aggregated from.\nThis might be back in time a specific duration or interval.",
                     "type": "string"
+                },
+                "building_workspaces": {
+                    "type": "integer"
+                },
+                "collected_at": {
+                    "description": "CollectedAt is the time in which stats are collected at.",
+                    "type": "string"
+                },
+                "failed_workspaces": {
+                    "type": "integer"
+                },
+                "pending_workspaces": {
+                    "type": "integer"
+                },
+                "refreshing_at": {
+                    "description": "RefreshingAt is the time when the next batch of stats will\nbe refreshed.",
+                    "type": "string"
+                },
+                "running_workspaces": {
+                    "type": "integer"
                 },
                 "session_count_jetbrains": {
                     "type": "integer"
@@ -6639,8 +6660,8 @@ const docTemplate = `{
                 "session_count_vscode": {
                     "type": "integer"
                 },
-                "updated_at": {
-                    "type": "string"
+                "stopped_workspaces": {
+                    "type": "integer"
                 },
                 "workspace_connection_latency_ms": {
                     "$ref": "#/definitions/codersdk.WorkspaceConnectionLatencyMS"
@@ -6650,12 +6671,6 @@ const docTemplate = `{
                 },
                 "workspace_tx_bytes": {
                     "type": "integer"
-                },
-                "workspaces_by_transition": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "integer"
-                    }
                 }
             }
         },

@@ -224,7 +224,11 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 
 func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 	from := database.Now().Add(-15 * time.Minute)
-	deploymentStats, err := c.database.GetDeploymentWorkspaceAgentStats(ctx, from)
+	agentStats, err := c.database.GetDeploymentWorkspaceAgentStats(ctx, from)
+	if err != nil {
+		return err
+	}
+	workspaceStats, err := c.database.GetDeploymentWorkspaceStats(ctx)
 	if err != nil {
 		return err
 	}
@@ -233,15 +237,21 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 		CollectedAt:    database.Now(),
 		RefreshingAt:   database.Now().Add(c.intervals.DeploymentStats),
 		WorkspaceConnectionLatencyMS: codersdk.WorkspaceConnectionLatencyMS{
-			P50: deploymentStats.WorkspaceConnectionLatency50,
-			P95: deploymentStats.WorkspaceConnectionLatency95,
+			P50: agentStats.WorkspaceConnectionLatency50,
+			P95: agentStats.WorkspaceConnectionLatency95,
 		},
-		SessionCountVSCode:          deploymentStats.SessionCountVSCode,
-		SessionCountSSH:             deploymentStats.SessionCountSSH,
-		SessionCountJetBrains:       deploymentStats.SessionCountJetBrains,
-		SessionCountReconnectingPTY: deploymentStats.SessionCountReconnectingPTY,
-		WorkspaceRxBytes:            deploymentStats.WorkspaceRxBytes,
-		WorkspaceTxBytes:            deploymentStats.WorkspaceTxBytes,
+		SessionCountVSCode:          agentStats.SessionCountVSCode,
+		SessionCountSSH:             agentStats.SessionCountSSH,
+		SessionCountJetBrains:       agentStats.SessionCountJetBrains,
+		SessionCountReconnectingPTY: agentStats.SessionCountReconnectingPTY,
+		WorkspaceRxBytes:            agentStats.WorkspaceRxBytes,
+		WorkspaceTxBytes:            agentStats.WorkspaceTxBytes,
+
+		PendingWorkspaces:  workspaceStats.PendingWorkspaces,
+		BuildingWorkspaces: workspaceStats.BuildingWorkspaces,
+		RunningWorkspaces:  workspaceStats.RunningWorkspaces,
+		FailedWorkspaces:   workspaceStats.FailedWorkspaces,
+		StoppedWorkspaces:  workspaceStats.StoppedWorkspaces,
 	})
 	return nil
 }
