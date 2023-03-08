@@ -1125,11 +1125,17 @@ func redactVariableValues(variableValues []*sdkproto.VariableValue) []*sdkproto.
 // logProvisionerJobLog logs a message from the provisioner daemon at the appropriate level.
 func (r *Runner) logProvisionerJobLog(ctx context.Context, logLevel sdkproto.LogLevel, msg string, fields ...slog.Field) {
 	switch logLevel {
+	case sdkproto.LogLevel_TRACE:
+		r.logger.Debug(ctx, msg, fields...) // There's no trace, so we'll just use debug.
 	case sdkproto.LogLevel_DEBUG:
 		r.logger.Debug(ctx, msg, fields...)
+	case sdkproto.LogLevel_INFO:
+		r.logger.Info(ctx, msg, fields...)
+	case sdkproto.LogLevel_WARN:
+		r.logger.Warn(ctx, msg, fields...)
 	case sdkproto.LogLevel_ERROR:
 		r.logger.Error(ctx, msg, fields...)
-	default:
+	default: // should never happen, but we should not explode either.
 		r.logger.Info(ctx, msg, fields...)
 	}
 }
