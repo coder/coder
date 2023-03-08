@@ -52,7 +52,7 @@ func bindNamed(query string, arg interface{}) (newQuery string, args []interface
 
 	// This comes straight from SQLx's implementation to get the values
 	// of the struct fields.
-	v := reflect.ValueOf(arg)
+	var v reflect.Value
 	for v = reflect.ValueOf(arg); v.Kind() == reflect.Ptr; {
 		v = v.Elem()
 	}

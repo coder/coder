@@ -14,8 +14,9 @@ var sqlxQueries embed.FS
 
 var (
 	// Only parse the queries once.
-	once        sync.Once
-	cached      *template.Template
+	once   sync.Once
+	cached *template.Template
+	//nolint:errname
 	cachedError error
 )
 
