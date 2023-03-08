@@ -6,8 +6,8 @@ This is a guide to help the Coder community and also Coder members contribute to
 
 You can run the UI and access the dashboard in two ways:
 
-- Build the UI pointing to an external Coder server: `CODER_HOST=https://mycoder.com yarn dev`. This is helpful when you are building something in the UI and already have the data on your deployed server.
-- Build the entire Coder server + UI locally: `./scripts/develop.sh`. It is useful when you have to contribute with features that are not deployed yet or when you have to work on both, frontend and backend.
+- Build the UI pointing to an external Coder server: `CODER_HOST=https://mycoder.com yarn dev` inside of the `site` folder. This is helpful when you are building something in the UI and already have the data on your deployed server.
+- Build the entire Coder server + UI locally: `./scripts/develop.sh` in the root folder. It is useful when you have to contribute with features that are not deployed yet or when you have to work on both, frontend and backend.
 
 In both cases, you can access the dashboard on `http://localhost:8080`. If you are running the `./scripts/develop.sh` you can log in using the default credentials: `admin@coder.com` and `SomeSecurePassword!`.
 
