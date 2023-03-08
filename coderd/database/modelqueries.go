@@ -190,6 +190,8 @@ type workspaceQuerier interface {
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspacedID uuid.UUID) (WorkspaceBuildRBAC, error)
 }
 
+// WorkspaceBuildRBAC extends WorkspaceBuild with fields that are used for RBAC.
+// This allows WorkspaceBuild to be used in Authorize() calls.
 type WorkspaceBuildRBAC struct {
 	WorkspaceBuild
 	OrganizationID   uuid.UUID `db:"organization_id" json:"organization_id"`

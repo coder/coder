@@ -601,25 +601,6 @@ CREATE TABLE workspaces (
     last_used_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
 );
 
-CREATE VIEW workspace_builds_rbac AS
- SELECT workspace_builds.id,
-    workspace_builds.created_at,
-    workspace_builds.updated_at,
-    workspace_builds.workspace_id,
-    workspace_builds.template_version_id,
-    workspace_builds.build_number,
-    workspace_builds.transition,
-    workspace_builds.initiator_id,
-    workspace_builds.provisioner_state,
-    workspace_builds.job_id,
-    workspace_builds.deadline,
-    workspace_builds.reason,
-    workspace_builds.daily_cost,
-    workspaces.organization_id,
-    workspaces.owner_id AS workspace_owner_id
-   FROM (public.workspace_builds
-     JOIN workspaces ON ((workspace_builds.workspace_id = workspaces.id)));
-
 CREATE TABLE workspace_resource_metadata (
     workspace_resource_id uuid NOT NULL,
     key character varying(1024) NOT NULL,

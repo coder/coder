@@ -1,6 +1,6 @@
 # Editor/IDE config
 
-To edit template files, it is best to configure your IDE to work with go template files.
+To edit template files, it is best to configure your IDE to work with go template files. VSCode gives better highlighting support, as the Goland highlighting tends to recognize the sql as invalid and shows many sql errors in the template file.
 
 ## VSCode
 
@@ -14,7 +14,7 @@ The default extension [supports syntax highlighting](https://github.com/golang/v
     },
 ```
 
-Unfortunately, the VSCode extension does not support both go template and postgres highlighting. You can switch between the two with:
+The VSCode extension does not support both go template and postgres highlighting. I suggest you use Postgres highlighting, as it is much easier to work with. You can switch between the two with:
 
 1. `ctl + shift + p`
 1. "Change language Mode"

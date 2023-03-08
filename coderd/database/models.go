@@ -1606,14 +1606,6 @@ type WorkspaceApp struct {
 	External             bool               `db:"external" json:"external"`
 }
 
-type WorkspaceBuildParameter struct {
-	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
-	// Parameter name
-	Name string `db:"name" json:"name"`
-	// Parameter value
-	Value string `db:"value" json:"value"`
-}
-
 type WorkspaceBuild struct {
 	ID                uuid.UUID           `db:"id" json:"id"`
 	CreatedAt         time.Time           `db:"created_at" json:"created_at"`
@@ -1631,22 +1623,12 @@ type WorkspaceBuild struct {
 	MaxDeadline       time.Time           `db:"max_deadline" json:"max_deadline"`
 }
 
-type WorkspaceBuildsRbac struct {
-	ID                uuid.UUID           `db:"id" json:"id"`
-	CreatedAt         time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`
-	WorkspaceID       uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BuildNumber       int32               `db:"build_number" json:"build_number"`
-	Transition        WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID       uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	ProvisionerState  []byte              `db:"provisioner_state" json:"provisioner_state"`
-	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
-	Deadline          time.Time           `db:"deadline" json:"deadline"`
-	Reason            BuildReason         `db:"reason" json:"reason"`
-	DailyCost         int32               `db:"daily_cost" json:"daily_cost"`
-	OrganizationID    uuid.UUID           `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID  uuid.UUID           `db:"workspace_owner_id" json:"workspace_owner_id"`
+type WorkspaceBuildParameter struct {
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	// Parameter name
+	Name string `db:"name" json:"name"`
+	// Parameter value
+	Value string `db:"value" json:"value"`
 }
 
 type WorkspaceResource struct {
