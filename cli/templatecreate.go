@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -196,8 +197,8 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		},
 	})
 	if err != nil {
-		jobErr, isJobErr := err.(*cliui.ProvisionerJobError)
-		if isJobErr && !provisionerd.IsMissingParameterError(jobErr.Code()) {
+		var jobErr *cliui.ProvisionerJobError
+		if errors.As(err, &jobErr) && !provisionerd.IsMissingParameterError(jobErr.Code()) {
 			return nil, nil, err
 		}
 	}
