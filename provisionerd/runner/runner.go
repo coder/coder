@@ -30,8 +30,11 @@ import (
 )
 
 const (
-	MissingParameterErrorCode = "TEMPLATE_MISSING_PARAMETER"
-	MissingParameterErrorText = "missing parameter"
+	MissingParameterErrorCode = "MISSING_TEMPLATE_PARAMETER"
+	missingParameterErrorText = "missing parameter"
+
+	RequiredTemplateVariablesErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
+	requiredTemplateVariablesErrorText = "required template variables"
 )
 
 var errUpdateSkipped = xerrors.New("update skipped; job complete or failed")
@@ -590,8 +593,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	for _, parameterSchema := range parameterSchemas {
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
-			return nil, r.failedJobWithCodef(MissingParameterErrorCode,
-				"%s: %s", MissingParameterErrorText, parameterSchema.Name)
+			return nil, r.failedJobf("%s: %s", missingParameterErrorText, parameterSchema.Name)
 		}
 	}
 
@@ -1053,16 +1055,17 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 }
 
 func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob {
-	return &proto.FailedJob{
-		JobId: r.job.JobId,
-		Error: fmt.Sprintf(format, args...),
-	}
-}
+	message := fmt.Sprintf(format, args...)
+	var code string
 
-func (r *Runner) failedJobWithCodef(code, format string, args ...interface{}) *proto.FailedJob {
+	if strings.Contains(message, missingParameterErrorText) {
+		code = MissingParameterErrorCode
+	} else if strings.Contains(message, requiredTemplateVariablesErrorText) {
+		code = RequiredTemplateVariablesErrorCode
+	}
 	return &proto.FailedJob{
 		JobId:     r.job.JobId,
-		Error:     fmt.Sprintf(format, args...),
+		Error:     message,
 		ErrorCode: code,
 	}
 }
