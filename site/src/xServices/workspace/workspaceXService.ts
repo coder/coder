@@ -137,7 +137,7 @@ export const workspaceMachine = createMachine(
         getTemplateParameters: {
           data: TypesGen.TemplateVersionParameter[]
         }
-        startWorkspaceWithLatestTemplate: {
+        updateWorkspace: {
           data: TypesGen.WorkspaceBuild
         }
         startWorkspace: {
@@ -306,7 +306,7 @@ export const workspaceMachine = createMachine(
                   START: "requestingStart",
                   STOP: "requestingStop",
                   ASK_DELETE: "askingDelete",
-                  UPDATE: "updatingWorkspace",
+                  UPDATE: "requestingUpdate",
                   CANCEL: "requestingCancel",
                 },
               },
@@ -320,40 +320,27 @@ export const workspaceMachine = createMachine(
                   },
                 },
               },
-              updatingWorkspace: {
-                tags: "updating",
-                initial: "refreshingTemplate",
-                states: {
-                  refreshingTemplate: {
-                    invoke: {
-                      id: "refreshTemplate",
-                      src: "getTemplate",
-                      onDone: {
-                        target: "startingWithLatestTemplate",
-                        actions: ["assignTemplate"],
-                      },
-                      onError: {
-                        target: "#workspaceState.ready.build.idle",
-                        actions: ["assignGetTemplateWarning"],
-                      },
-                    },
+              requestingUpdate: {
+                entry: ["clearBuildError", "updateStatusToPending"],
+                invoke: {
+                  src: "updateWorkspace",
+                  onDone: {
+                    target: "idle",
+                    actions: ["assignBuild"],
                   },
-                  startingWithLatestTemplate: {
-                    invoke: {
-                      id: "startWorkspaceWithLatestTemplate",
-                      src: "startWorkspaceWithLatestTemplate",
-                      onDone: {
-                        target: "#workspaceState.ready.build.idle",
-                        actions: ["assignBuild"],
-                      },
-                      onError: {
-                        target: "#workspaceState.ready.build.idle",
-                        actions: ["assignBuildError"],
-                      },
+                  onError: [
+                    {
+                      target: "askingForMissedBuildParameters",
+                      cond: "isMissingBuildParameterError",
                     },
-                  },
+                    {
+                      target: "idle",
+                      actions: ["assignBuildError"],
+                    },
+                  ],
                 },
               },
+              askingForMissedBuildParameters: {},
               requestingStart: {
                 entry: ["clearBuildError", "updateStatusToPending"],
                 invoke: {
@@ -652,6 +639,9 @@ export const workspaceMachine = createMachine(
     },
     guards: {
       moreBuildsAvailable,
+      isMissingBuildParameterError: (_, { data }) => {
+        return data instanceof API.MissingBuildParameters
+      },
     },
     services: {
       getWorkspace: async (_, event) => {
@@ -679,18 +669,16 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot get template parameters without workspace")
         }
       },
-      startWorkspaceWithLatestTemplate: (context) => async (send) => {
-        if (context.workspace && context.template) {
-          const startWorkspacePromise = await API.startWorkspace(
-            context.workspace.id,
-            context.template.active_version_id,
-          )
+      updateWorkspace:
+        ({ workspace }) =>
+        async (send) => {
+          if (!workspace) {
+            throw new Error("Workspace is not set")
+          }
+          const build = await API.updateWorkspace(workspace)
           send({ type: "REFRESH_TIMELINE" })
-          return startWorkspacePromise
-        } else {
-          throw Error("Cannot start workspace without workspace id")
-        }
-      },
+          return build
+        },
       startWorkspace: (context) => async (send) => {
         if (context.workspace) {
           const startWorkspacePromise = await API.startWorkspace(
