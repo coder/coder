@@ -293,7 +293,7 @@ func isWSL() (bool, error) {
 }
 
 // openURL opens the provided URL via user's default browser
-func openURL(cmd *clibase.Cmd, urlToOpen string) error {
+func openURL(inv *clibase.Invokation, urlToOpen string) error {
 	noOpen, err := inv.ParsedFlags().GetBool(varNoOpen)
 	if err != nil {
 		panic(err)

@@ -37,11 +37,11 @@ func (r *RootCmd) create() *clibase.Cmd {
 			}
 
 			if len(inv.Args) >= 1 {
-				workspaceName = clibase.String(inv.Args[0])
+				workspaceName = inv.Args[0]
 			}
 
 			if workspaceName == "" {
-				workspaceName, err := cliui.Prompt(inv, cliui.PromptOptions{
+				workspaceName, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Specify a name for your workspace:",
 					Validate: func(workspaceName string) error {
 						_, err = client.WorkspaceByOwnerAndName(inv.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
@@ -284,7 +284,7 @@ PromptParamLoop:
 			}
 		}
 
-		parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
+		parameterValue, err := getParameterValueFromMapOrInput(inv, parameterMapFromFile, parameterSchema)
 		if err != nil {
 			return nil, err
 		}
@@ -342,7 +342,7 @@ PromptRichParamLoop:
 			continue
 		}
 
-		parameterValue, err := getWorkspaceBuildParameterValueFromMapOrInput(cmd, parameterMapFromFile, templateVersionParameter)
+		parameterValue, err := getWorkspaceBuildParameterValueFromMapOrInput(inv, parameterMapFromFile, templateVersionParameter)
 		if err != nil {
 			return nil, err
 		}

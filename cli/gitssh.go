@@ -38,7 +38,7 @@ func (r *RootCmd) gitssh() *clibase.Cmd {
 				return err
 			}
 
-			client, err := createAgentClient(cmd)
+			client, err := createAgentClient(inv)
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
@@ -78,6 +78,7 @@ func (r *RootCmd) gitssh() *clibase.Cmd {
 				identityArgs = append(identityArgs, "-i", id)
 			}
 
+			args := inv.Args
 			args = append(identityArgs, args...)
 			c := exec.CommandContext(ctx, "ssh", args...)
 			c.Env = append(c.Env, env...)

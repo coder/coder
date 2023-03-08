@@ -25,18 +25,18 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
 		),
-		Handler: func(i *clibase.Invokation) error {
-			ctx := i.Context()
+		Handler: func(inv *clibase.Invokation) error {
+			ctx := inv.Context()
 
 			ctx, stop := signal.NotifyContext(ctx, InterruptSignals...)
 			defer stop()
 
-			user, host, err := gitauth.ParseAskpass(i.Args[0])
+			user, host, err := gitauth.ParseAskpass(inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("parse host: %w", err)
 			}
 
-			client, err := createAgentClient(cmd)
+			client, err := createAgentClient(inv)
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
@@ -47,16 +47,16 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 				if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
 					// This prevents the "Run 'coder --help' for usage"
 					// message from occurring.
-					cliui.Errorf(inv.Stderr, "%s\n", apiError.Message))
+					cliui.Errorf(inv.Stderr, "%s\n", apiError.Message)
 					return cliui.Canceled
 				}
 				return xerrors.Errorf("get git token: %w", err)
 			}
 			if token.URL != "" {
-				if err := openURL(cmd, token.URL); err == nil {
-					cliui.Infof(inv.Stdout, "Your browser has been opened to authenticate with Git:\n\n\t%s\n\n", token.URL))
+				if err := openURL(inv, token.URL); err == nil {
+					cliui.Infof(inv.Stdout, "Your browser has been opened to authenticate with Git:\n\n\t%s\n\n", token.URL)
 				} else {
-					cliui.Infof(inv.Stdout, "Open the following URL to authenticate with Git:\n\n\t%s\n\n", token.URL))
+					cliui.Infof(inv.Stdout, "Open the following URL to authenticate with Git:\n\n\t%s\n\n", token.URL)
 				}
 
 				for r := retry.New(250*time.Millisecond, 10*time.Second); r.Wait(ctx); {
@@ -64,7 +64,7 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 					if err != nil {
 						continue
 					}
-					cliui.Infof(inv.Stdout, "You've been authenticated with Git!\n"))
+					cliui.Infof(inv.Stdout, "You've been authenticated with Git!\n")
 					break
 				}
 			}

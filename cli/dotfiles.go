@@ -13,7 +13,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 )
 
@@ -172,9 +171,9 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				// nolint:gosec
 				scriptCmd := exec.CommandContext(inv.Context(), filepath.Join(dotfilesDir, script))
 				scriptCmd.Dir = dotfilesDir
-				scriptinv.Stdout = inv.Stdout
-				scriptinv.Stderr = inv.Stderr
-				err = scriptinv.Run()
+				scriptCmd.Stdout = inv.Stdout
+				scriptCmd.Stderr = inv.Stderr
+				err = scriptCmd.Run()
 				if err != nil {
 					return xerrors.Errorf("running %s: %w", script, err)
 				}
@@ -232,9 +231,15 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 			return nil
 		},
 	}
-	cliui.SkipPromptOption(inv)
-	cliflag.StringVarP(cmd.Flags(), &symlinkDir, "symlink-dir", "", "CODER_SYMLINK_DIR", "", "Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.")
-
+	cmd.Options = []clibase.Option{
+		{
+			Name:        "symlink-dir",
+			Env:         "CODER_SYMLINK_DIR",
+			Description: "Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.",
+			Value:       clibase.StringOf(&symlinkDir),
+		},
+		cliui.SkipPromptOption(),
+	}
 	return cmd
 }
 

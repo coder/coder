@@ -61,25 +61,27 @@ func (r *RootCmd) schedules() *clibase.Cmd {
 		Handler: func(inv *clibase.Invokation) error {
 			return inv.Command.HelpHandler(inv)
 		},
+		Children: []*clibase.Cmd{
+			r.scheduleShow(),
+			r.scheduleStart(),
+			r.scheduleStop(),
+			r.scheduleOverride(),
+		},
 	}
-
-	scheduleCmd.AddCommand(
-		scheduleShow(),
-		scheduleStart(),
-		scheduleStop(),
-		scheduleOverride(),
-	)
 
 	return scheduleCmd
 }
 
 func (r *RootCmd) scheduleShow() *clibase.Cmd {
+	client := new(codersdk.Client)
 	showCmd := &clibase.Cmd{
-		Use:        "show <workspace-name>",
-		Short:      "Show workspace schedule",
-		Long:       scheduleShowDescriptionLong,
-		Middleware: clibase.RequireNArgs(1),
-		Middleware: clibase.Chain(r.useClient(client)),
+		Use:   "show <workspace-name>",
+		Short: "Show workspace schedule",
+		Long:  scheduleShowDescriptionLong,
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
@@ -142,17 +144,19 @@ func (r *RootCmd) scheduleStart() *clibase.Cmd {
 }
 
 func (r *RootCmd) scheduleStop() *clibase.Cmd {
+	client := new(codersdk.Client)
 	return &clibase.Cmd{
-		Middleware: clibase.RequireNArgs(2),
-		Use:        "stop <workspace-name> { <duration> | manual }",
-		Long: formatExamples(
+		Use: "stop <workspace-name> { <duration> | manual }",
+		Long: scheduleStopDescriptionLong + "\n" + formatExamples(
 			example{
 				Command: "coder schedule stop my-workspace 2h30m",
 			},
 		),
-		Short:      "Edit workspace stop schedule",
-		Long:       scheduleStopDescriptionLong,
-		Middleware: clibase.Chain(r.useClient(client)),
+		Short: "Edit workspace stop schedule",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(2),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {

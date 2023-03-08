@@ -252,11 +252,44 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 			return nil
 		},
 	}
-	createAdminUserCommand.Flags().StringVar(&newUserDBURL, "postgres-url", "", "URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case). Consumes $CODER_POSTGRES_URL.")
-	createAdminUserCommand.Flags().StringVar(&newUserSSHKeygenAlgorithm, "ssh-keygen-algorithm", "ed25519", "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\". Consumes $CODER_SSH_KEYGEN_ALGORITHM.")
-	createAdminUserCommand.Flags().StringVar(&newUserUsername, "username", "", "The username of the new user. If not specified, you will be prompted via stdin. Consumes $CODER_USERNAME.")
-	createAdminUserCommand.Flags().StringVar(&newUserEmail, "email", "", "The email of the new user. If not specified, you will be prompted via stdin. Consumes $CODER_EMAIL.")
-	createAdminUserCommand.Flags().StringVar(&newUserPassword, "password", "", "The password of the new user. If not specified, you will be prompted via stdin. Consumes $CODER_PASSWORD.")
+
+	createAdminUserCommand.Options = []clibase.Option{
+		{
+			Name:        "postgres-url",
+			Env:         "CODER_POSTGRES_URL",
+			Flag:        "postgres-url",
+			Description: "URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case).",
+			Value:       clibase.StringOf(&newUserDBURL),
+		},
+		{
+			Name:        "ssh-keygen-algorithm",
+			Env:         "CODER_SSH_KEYGEN_ALGORITHM",
+			Flag:        "ssh-keygen-algorithm",
+			Description: "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
+			Default:     "ed25519",
+			Value:       clibase.StringOf(&newUserSSHKeygenAlgorithm),
+		},
+		{
+			Name:        "username",
+			Env:         "CODER_USERNAME",
+			Flag:        "username",
+			Description: "The username of the new user. If not specified, you will be prompted via stdin.",
+			Value:       clibase.StringOf(&newUserUsername),
+		},
+		{
+			Name:        "email",
+			Env:         "CODER_EMAIL",
+			Flag:        "email",
+			Description: "The email of the new user. If not specified, you will be prompted via stdin.",
+			Value:       clibase.StringOf(&newUserEmail),
+		},
+		{
+			Name:        "password",
+			Env:         "CODER_PASSWORD",
+			Flag:        "password",
+			Description: "The password of the new user. If not specified, you will be prompted via stdin.",
+		},
+	}
 
 	return createAdminUserCommand
 }

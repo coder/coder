@@ -64,10 +64,14 @@ func (r *RootCmd) deleteWorkspace() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&orphan, "orphan", false,
-		`Delete a workspace without deleting its resources. This can delete a
-workspace in a broken state, but may also lead to unaccounted cloud resources.`,
-	)
-	cliui.SkipPromptOption(inv)
+	cmd.Options = clibase.OptionSet{
+		{
+			Name:        "orphan",
+			Description: "Delete a workspace without deleting its resources. This can delete a workspace in a broken state, but may also lead to unaccounted cloud resources.",
+			Default:     "false",
+			Value:       clibase.BoolOf(&orphan),
+		},
+		cliui.SkipPromptOption(),
+	}
 	return cmd
 }

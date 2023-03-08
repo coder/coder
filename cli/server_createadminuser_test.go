@@ -120,7 +120,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		root, _ := clitest.New(t,
+		inv, _ := clitest.New(t,
 			"server", "create-admin-user",
 			"--postgres-url", connectionURL,
 			"--ssh-keygen-algorithm", "ed25519",
@@ -129,14 +129,9 @@ func TestServerCreateAdminUser(t *testing.T) {
 			"--password", password,
 		)
 		pty := ptytest.New(t)
-		root.Stdout = pty.Output()
-		root.Stderr = pty.Output()
-		errC := make(chan error, 1)
-		go func() {
-			err := root.WithContext(ctx).Run()
-			t.Log("root.WithContext() returned:", err).Run()
-			errC <- err
-		}()
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		clitest.Start(t, inv)
 
 		pty.ExpectMatchContext(ctx, "Creating user...")
 		pty.ExpectMatchContext(ctx, "Generating user SSH key...")
@@ -146,8 +141,6 @@ func TestServerCreateAdminUser(t *testing.T) {
 		pty.ExpectMatchContext(ctx, username)
 		pty.ExpectMatchContext(ctx, email)
 		pty.ExpectMatchContext(ctx, "****")
-
-		require.NoError(t, <-errC)
 
 		verifyUser(t, connectionURL, username, email, password)
 	})
@@ -177,19 +170,12 @@ func TestServerCreateAdminUser(t *testing.T) {
 		pty := ptytest.New(t)
 		root.Stdout = pty.Output()
 		root.Stderr = pty.Output()
-		errC := make(chan error, 1)
-		go func() {
-			err := root.WithContext(ctx).Run()
-			t.Log("root.WithContext() returned:", err).Run()
-			errC <- err
-		}()
+		clitest.Start(t, root)
 
 		pty.ExpectMatchContext(ctx, "User created successfully.")
 		pty.ExpectMatchContext(ctx, username)
 		pty.ExpectMatchContext(ctx, email)
 		pty.ExpectMatchContext(ctx, "****")
-
-		require.NoError(t, <-errC)
 
 		verifyUser(t, connectionURL, username, email, password)
 	})
@@ -219,12 +205,8 @@ func TestServerCreateAdminUser(t *testing.T) {
 		root.Stdin = pty.Input()
 		root.Stdout = pty.Output()
 		root.Stderr = pty.Output()
-		errC := make(chan error, 1)
-		go func() {
-			err := root.WithContext(ctx).Run()
-			t.Log("root.WithContext() returned:", err).Run()
-			errC <- err
-		}()
+
+		clitest.Start(t, root)
 
 		pty.ExpectMatchContext(ctx, "> Username")
 		pty.WriteLine(username)
@@ -239,8 +221,6 @@ func TestServerCreateAdminUser(t *testing.T) {
 		pty.ExpectMatchContext(ctx, username)
 		pty.ExpectMatchContext(ctx, email)
 		pty.ExpectMatchContext(ctx, "****")
-
-		require.NoError(t, <-errC)
 
 		verifyUser(t, connectionURL, username, email, password)
 	})

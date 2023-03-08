@@ -24,8 +24,15 @@ type Cmd struct {
 
 	// Short is a one-line description of the command.
 	Short string
+
 	// Hidden determines whether the command should be hidden from help.
 	Hidden bool
+
+	// RawArgs determines whether the command should receive unparsed arguments.
+	// No flags are parsed when set, and the command is responsible for parsing
+	// its own flags.
+	RawArgs bool
+
 	// Long is a detailed description of the command,
 	// presented on its help page. It may contain examples.
 	Long        string
@@ -102,39 +109,66 @@ func (i *Invokation) ParsedFlags() *pflag.FlagSet {
 	return i.parsedFlags
 }
 
+type runState struct {
+	allArgs      []string
+	commandDepth int
+
+	flagParseErr error
+}
+
 // run recursively executes the command and its children.
 // allArgs is wired through the stack so that global flags can be accepted
 // anywhere in the command invokation.
-func (i *Invokation) run(allArgs []string, flagSet *pflag.FlagSet) error {
+func (i *Invokation) run(state *runState) error {
 	err := i.Command.Options.SetDefaults()
 	if err != nil {
 		return xerrors.Errorf("setting defaults: %w", err)
 	}
 
-	childrenMap := make(map[string]*Cmd)
+	err = i.Command.Options.ParseEnv(i.Environ)
+	if err != nil {
+		return xerrors.Errorf("parsing env: %w", err)
+	}
+
+	// Now the fun part, argument parsing!
+
+	children := make(map[string]*Cmd)
 	for _, child := range i.Command.Children {
 		for _, name := range append(child.Aliases, child.Name()) {
-			if _, ok := childrenMap[name]; ok {
+			if _, ok := children[name]; ok {
 				return xerrors.Errorf("duplicate command name: %s", name)
 			}
-			childrenMap[name] = child
+			children[name] = child
 		}
 	}
 
-	if flagSet == nil {
-		flagSet = pflag.NewFlagSet(i.Command.Name(), pflag.ContinueOnError)
+	if i.parsedFlags == nil {
+		i.parsedFlags = pflag.NewFlagSet(i.Command.Name(), pflag.ContinueOnError)
 	}
 
-	additionalFlags := i.Command.Options.FlagSet()
-	flagSet.AddFlagSet(additionalFlags)
+	i.parsedFlags.AddFlagSet(i.Command.Options.FlagSet())
 
-	// Run child command if found.
-	for argI, arg := range i.Args {
-		if child, ok := childrenMap[arg]; ok {
-			i.Args = i.Args[argI+1:]
+	var parsedArgs []string
+
+	if !i.Command.RawArgs {
+		// Flag parsing will fail on intermediate commands in the command tree,
+		// so we check the error after looking for a child command.
+		state.flagParseErr = i.parsedFlags.Parse(state.allArgs)
+		parsedArgs = i.parsedFlags.Args()
+	}
+
+	// Run child command if found (next child only)
+	// We must do subcommand detection after flag parsing so we don't mistake flag
+	// values for subcommand names.
+	if len(parsedArgs) > 0 {
+		// _, _ = fmt.Printf("args: %v, %v\n", i.Args, state.flagParseErr)
+		nextArg := parsedArgs[0]
+		if child, ok := children[nextArg]; ok {
+			// _, _ = fmt.Printf("push args: %v\n", i.Args)
 			child.Parent = i.Command
 			i.Command = child
-			err := i.run(allArgs, flagSet)
+			state.commandDepth++
+			err = i.run(state)
 			if err != nil {
 				return xerrors.Errorf(
 					"subcommand %s: %w", child.Name(), err,
@@ -144,16 +178,31 @@ func (i *Invokation) run(allArgs []string, flagSet *pflag.FlagSet) error {
 		}
 	}
 
-	err = i.Command.Options.ParseEnv(i.Environ)
-	if err != nil {
-		return xerrors.Errorf("parsing env: %w", err)
+	// Flag parse errors are irrelevant for raw args commands.
+	if !i.Command.RawArgs && state.flagParseErr != nil {
+		return xerrors.Errorf(
+			"parsing flags (%v) for %q: %w",
+			state.allArgs,
+			i.Command.FullName(), state.flagParseErr,
+		)
 	}
 
-	err = flagSet.Parse(allArgs)
-	if err != nil {
-		return xerrors.Errorf("parsing flags: %w", err)
+	if i.Command.RawArgs {
+		// If we're at the root command, then the name is omitted
+		// from the arguments, so we can just use the entire slice.
+		if state.commandDepth == 0 {
+			i.Args = state.allArgs
+		} else {
+			argPos, err := findArg(i.Command.Name(), state.allArgs, i.parsedFlags)
+			if err != nil {
+				panic(err)
+			}
+			i.Args = state.allArgs[argPos+1:]
+		}
+	} else {
+		// In non-raw-arg mode, we want to skip over flags.
+		i.Args = parsedArgs[state.commandDepth:]
 	}
-	i.parsedFlags = flagSet
 
 	mw := i.Command.Middleware
 	if mw == nil {
@@ -161,33 +210,61 @@ func (i *Invokation) run(allArgs []string, flagSet *pflag.FlagSet) error {
 	}
 
 	if i.Command.Handler == nil {
-		if i.Command.HelpHandler != nil {
-			return i.Command.HelpHandler(i)
+		if i.Command.HelpHandler == nil {
+			return xerrors.Errorf("no handler or help for command %s", i.Command.FullName())
 		}
-		return xerrors.Errorf("no handler or help for command %s", i.Command.FullName())
+		return i.Command.HelpHandler(i)
 	}
 
-	i.Args = stripFlags(i.Args)
 	return mw(i.Command.Handler)(i)
 }
 
-func stripFlags(args []string) []string {
-	var stripped []string
-	for _, arg := range args {
+// findArg returns the index of the first occurrence of arg in args, skipping
+// over all flags.
+func findArg(want string, args []string, fs *pflag.FlagSet) (int, error) {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
 		if strings.HasPrefix(arg, "-") {
-			continue
+			// This is a flag!
+			if strings.Contains(arg, "=") {
+				// The flag contains the value in the same arg, just skip.
+				continue
+			}
+
+			// We need to check if NoOptValue is set, then we should not wait
+			// for the next arg to be the value.
+			f := fs.Lookup(strings.TrimLeft(arg, "-"))
+			if f == nil {
+				return -1, xerrors.Errorf("unknown flag: %s", arg)
+			}
+			if f.NoOptDefVal != "" {
+				continue
+			}
+
+			if i == len(args)-1 {
+				return -1, xerrors.Errorf("flag %s requires a value", arg)
+			}
+
+			// Skip the value.
+			i++
 		}
-		stripped = append(stripped, arg)
+
+		if arg == want {
+			return i, nil
+		}
 	}
-	return stripped
+
+	return -1, xerrors.Errorf("arg %s not found", want)
 }
 
 // Run executes the command.
-// If two command share a flag name, the deepest command wins.
+// If two command share a flag name, the first command wins.
 //
 //nolint:revive
 func (i *Invokation) Run() error {
-	return i.run(i.Args, nil)
+	return i.run(&runState{
+		allArgs: i.Args,
+	})
 }
 
 // WithContext returns a copy of the Invokation with the given context.
@@ -242,12 +319,13 @@ func RequireRangeArgs(start, end int) MiddlewareFunc {
 			case start == end && got != start:
 				switch start {
 				case 0:
-					return xerrors.Errorf("wanted no args but got %v", got)
+					return xerrors.Errorf("wanted no args but got %v %v", got, i.Args)
 				default:
 					return fmt.Errorf(
-						"wanted %v args but got %v",
+						"wanted %v args but got %v %v",
 						start,
 						got,
+						i.Args,
 					)
 				}
 			case start > 0 && end == -1:
