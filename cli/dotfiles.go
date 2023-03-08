@@ -232,7 +232,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 			return nil
 		},
 	}
-	cliui.AllowSkipPrompt(inv)
+	cliui.SkipPromptOption(inv)
 	cliflag.StringVarP(cmd.Flags(), &symlinkDir, "symlink-dir", "", "CODER_SYMLINK_DIR", "", "Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.")
 
 	return cmd

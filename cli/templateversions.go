@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"gvisor.dev/gvisor/runsc/cmd"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
@@ -26,7 +25,7 @@ func (r *RootCmd) templateVersions() *clibase.Cmd {
 			},
 		),
 		Handler: func(inv *clibase.Invokation) error {
-			return cmd.Help()
+			return inv.Command.HelpHandler(inv)
 		},
 	}
 	cmd.AddCommand(

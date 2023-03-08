@@ -325,7 +325,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			if dryRun {
 				_, _ = fmt.Fprintf(out, "Dry run, the following changes would be made to your SSH configuration:\n\n  * %s\n\n", strings.Join(changes, "\n  * "))
 
-				color := isTTYOut(cmd)
+				color := isTTYOut(inv.Stdout)
 				diff, err := diffBytes(sshConfigFile, configRaw, configModified, color)
 				if err != nil {
 					return xerrors.Errorf("diff failed: %w", err)
@@ -409,7 +409,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Description: "Specifies whether or not to keep options from previous run of config-ssh.",
 			Value:       clibase.BoolOf(&usePreviousOpts),
 		},
-		cliui.AllowSkipPrompt(),
+		cliui.SkipPromptOption(),
 	}
 
 	return cmd

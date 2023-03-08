@@ -36,7 +36,7 @@ func (r *RootCmd) tokens() *clibase.Cmd {
 			},
 		),
 		Handler: func(inv *clibase.Invokation) error {
-			return cmd.Help()
+			return inv.Command.HelpHandler(inv)
 		},
 	}
 	cmd.AddCommand(
@@ -71,7 +71,7 @@ func (r *RootCmd) createToken() *clibase.Cmd {
 				"Here is your token. 🪄",
 			))
 			cmd.Println()
-			cmd.Println(cliui.Styles.Code.Render(strings.TrimSpace(res.Key)))
+			cliui.Infof(inv.Stdout, cliui.Styles.Code.Render(strings.TrimSpace(res.Key))+"\n")
 			cmd.Println()
 			cmd.Println(cliui.Styles.Wrap.Render(
 				fmt.Sprintf("You can use this token by setting the --%s CLI flag, the %s environment variable, or the %q HTTP header.", varToken, envSessionToken, codersdk.SessionTokenHeader),

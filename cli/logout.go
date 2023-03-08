@@ -68,6 +68,6 @@ func (r *RootCmd) logout() *clibase.Cmd {
 		},
 	}
 
-	cliui.AllowSkipPrompt(inv)
+	cliui.SkipPromptOption(inv)
 	return cmd
 }

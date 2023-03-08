@@ -82,7 +82,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 	cmd.Flags().DurationVarP(&defaultTTL, "default-ttl", "", 0, "Edit the template default time before shutdown - workspaces created from this template default to this value.")
 	cmd.Flags().DurationVarP(&maxTTL, "max-ttl", "", 0, "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.")
 	cmd.Flags().BoolVarP(&allowUserCancelWorkspaceJobs, "allow-user-cancel-workspace-jobs", "", true, "Allow users to cancel in-progress workspace jobs.")
-	cliui.AllowSkipPrompt(inv)
+	cliui.SkipPromptOption(inv)
 
 	return cmd
 }

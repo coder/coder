@@ -7,7 +7,6 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"golang.org/x/xerrors"
-	"gvisor.dev/gvisor/runsc/cmd"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
@@ -60,7 +59,7 @@ func (r *RootCmd) schedules() *clibase.Cmd {
 		Use:         "schedule { show | start | stop | override } <workspace>",
 		Short:       "Schedule automated start and stop times for workspaces",
 		Handler: func(inv *clibase.Invokation) error {
-			return cmd.Help()
+			return inv.Command.HelpHandler(inv)
 		},
 	}
 

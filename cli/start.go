@@ -10,12 +10,18 @@ import (
 )
 
 func (r *RootCmd) start() *clibase.Cmd {
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "start <workspace>",
 		Short:       "Start a workspace",
-		Middleware:  clibase.RequireNArgs(1),
-		Middleware:  clibase.Chain(r.useClient(client)),
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			clibase.Chain(r.useClient(client)),
+		),
+		Options: []clibase.Option{
+			cliui.SkipPromptOption(),
+		},
 		Handler: func(inv *clibase.Invokation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
@@ -37,6 +43,5 @@ func (r *RootCmd) start() *clibase.Cmd {
 			return nil
 		},
 	}
-	cliui.AllowSkipPrompt(inv)
 	return cmd
 }

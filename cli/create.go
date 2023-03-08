@@ -196,7 +196,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 			Description: "Specify a duration after which the workspace should shut down (e.g. 8h).",
 			Value:       clibase.DurationOf(&stopAfter),
 		},
-		cliui.AllowSkipPrompt(),
+		cliui.SkipPromptOption(),
 	)
 
 	return cmd

@@ -27,9 +27,9 @@ type PromptOptions struct {
 
 const skipPromptFlag = "yes"
 
-// AllowSkipPrompt adds a "yes" flag to the cmd that can be used to skip
+// SkipPromptOption adds a "yes" flag to the cmd that can be used to skip
 // prompts.
-func AllowSkipPrompt() clibase.Option {
+func SkipPromptOption() clibase.Option {
 	return clibase.Option{
 		Name:          skipPromptFlag,
 		Flag:          skipPromptFlag,

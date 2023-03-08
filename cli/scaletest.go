@@ -39,7 +39,7 @@ func (r *RootCmd) scaletest() *clibase.Cmd {
 		Short: "Run a scale test against the Coder API",
 		Long:  "Perform scale tests against the Coder server.",
 		Handler: func(inv *clibase.Invokation) error {
-			return cmd.Help()
+			return inv.Command.HelpHandler(inv)
 		},
 	}
 
@@ -368,7 +368,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 
 			cmd.PrintErrf("Found %d scaletest workspaces\n", len(workspaces))
 			if len(workspaces) != 0 {
-				cmd.Println("Deleting scaletest workspaces...")
+				cliui.Infof(inv.Stdout, "Deleting scaletest workspaces..."+"\n")
 				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
 
 				for i, w := range workspaces {
@@ -384,7 +384,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 					return xerrors.Errorf("run test harness to delete workspaces (harness failure, not a test failure): %w", err)
 				}
 
-				cmd.Println("Done deleting scaletest workspaces:")
+				cliui.Infof(inv.Stdout, "Done deleting scaletest workspaces:"+"\n")
 				res := harness.Results()
 				res.PrintText(inv.Stderr)
 
@@ -425,7 +425,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 
 			cmd.PrintErrf("Found %d scaletest users\n", len(users))
 			if len(workspaces) != 0 {
-				cmd.Println("Deleting scaletest users...")
+				cliui.Infof(inv.Stdout, "Deleting scaletest users..."+"\n")
 				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
 
 				for i, u := range users {
@@ -444,7 +444,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 					return xerrors.Errorf("run test harness to delete users (harness failure, not a test failure): %w", err)
 				}
 
-				cmd.Println("Done deleting scaletest users:")
+				cliui.Infof(inv.Stdout, "Done deleting scaletest users:"+"\n")
 				res := harness.Results()
 				res.PrintText(inv.Stderr)
 

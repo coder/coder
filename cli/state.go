@@ -6,9 +6,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/spf13/cobra"
-	"gvisor.dev/gvisor/runsc/cmd"
-
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -19,7 +16,7 @@ func (r *RootCmd) state() *clibase.Cmd {
 		Use:   "state",
 		Short: "Manually manage Terraform state to fix broken workspaces",
 		Handler: func(inv *clibase.Invokation) error {
-			return cmd.Help()
+			return inv.Command.HelpHandler(inv)
 		},
 	}
 	cmd.AddCommand(statePull(), statePush())
@@ -28,11 +25,14 @@ func (r *RootCmd) state() *clibase.Cmd {
 
 func (r *RootCmd) statePull() *clibase.Cmd {
 	var buildNumber int
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
-		Use:        "pull <workspace> [file]",
-		Short:      "Pull a Terraform state file from a workspace.",
-		Args:       cobra.MinimumNArgs(1),
-		Middleware: clibase.Chain(r.useClient(client)),
+		Use:   "pull <workspace> [file]",
+		Short: "Pull a Terraform state file from a workspace.",
+		Middleware: clibase.Chain(
+			clibase.RequireRangeArgs(1, -1),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			var build codersdk.WorkspaceBuild
 			if buildNumber == 0 {

@@ -13,7 +13,6 @@ import (
 
 	"github.com/pion/udp"
 	"golang.org/x/xerrors"
-	"gvisor.dev/gvisor/runsc/cmd"
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clibase"
@@ -63,7 +62,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				return xerrors.Errorf("parse port-forward specs: %w", err)
 			}
 			if len(specs) == 0 {
-				err = cmd.Help()
+				err = inv.Command.HelpHandler(inv)
 				if err != nil {
 					return xerrors.Errorf("generate help output: %w", err)
 				}

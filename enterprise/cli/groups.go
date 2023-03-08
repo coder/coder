@@ -2,7 +2,6 @@ package cli
 
 import (
 	"github.com/coder/coder/cli/clibase"
-	"gvisor.dev/gvisor/runsc/cmd"
 )
 
 func (r *RootCmd) groups() *clibase.Cmd {
@@ -11,7 +10,7 @@ func (r *RootCmd) groups() *clibase.Cmd {
 		Short:   "Manage groups",
 		Aliases: []string{"group"},
 		Handler: func(inv *clibase.Invokation) error {
-			return cmd.Help()
+			return inv.Command.HelpHandler(inv)
 		},
 	}
 

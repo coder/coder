@@ -47,16 +47,16 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 				if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
 					// This prevents the "Run 'coder --help' for usage"
 					// message from occurring.
-					cmd.Printf("%s\n", apiError.Message)
+					cliui.Errorf(inv.Stderr, "%s\n", apiError.Message))
 					return cliui.Canceled
 				}
 				return xerrors.Errorf("get git token: %w", err)
 			}
 			if token.URL != "" {
 				if err := openURL(cmd, token.URL); err == nil {
-					cmd.Printf("Your browser has been opened to authenticate with Git:\n\n\t%s\n\n", token.URL)
+					cliui.Infof(inv.Stdout, "Your browser has been opened to authenticate with Git:\n\n\t%s\n\n", token.URL))
 				} else {
-					cmd.Printf("Open the following URL to authenticate with Git:\n\n\t%s\n\n", token.URL)
+					cliui.Infof(inv.Stdout, "Open the following URL to authenticate with Git:\n\n\t%s\n\n", token.URL))
 				}
 
 				for r := retry.New(250*time.Millisecond, 10*time.Second); r.Wait(ctx); {
@@ -64,7 +64,7 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 					if err != nil {
 						continue
 					}
-					cmd.Printf("You've been authenticated with Git!\n")
+					cliui.Infof(inv.Stdout, "You've been authenticated with Git!\n"))
 					break
 				}
 			}

@@ -225,37 +225,53 @@ func Chain(ms ...MiddlewareFunc) MiddlewareFunc {
 }
 
 func RequireNArgs(want int) MiddlewareFunc {
-	if want < 0 {
-		panic("want must be >= 0")
-	}
-	return func(next HandlerFunc) HandlerFunc {
-		return func(i *Invokation) error {
-			if len(i.Args) != want {
-				if want == 0 {
-					return xerrors.Errorf("wanted no args but got %v", len(i.Args))
-				}
-				return fmt.Errorf(
-					"wanted %v args but got %v",
-					want,
-					len(i.Args),
-				)
-			}
-			return next(i)
-		}
-	}
+	return RequireRangeArgs(want, want)
 }
 
+// RequireRangeArgs returns a Middleware that requires the number of arguments
+// to be between start and end (inclusive). If end is -1, then the number of
+// arguments must be at least start.
 func RequireRangeArgs(start, end int) MiddlewareFunc {
+	if start < 0 {
+		panic("start must be >= 0")
+	}
 	return func(next HandlerFunc) HandlerFunc {
 		return func(i *Invokation) error {
-			if len(i.Args) < start || len(i.Args) > end {
+			got := len(i.Args)
+			switch {
+			case start == end && got != start:
+				switch start {
+				case 0:
+					return xerrors.Errorf("wanted no args but got %v", got)
+				default:
+					return fmt.Errorf(
+						"wanted %v args but got %v",
+						start,
+						got,
+					)
+				}
+			case start > 0 && end == -1:
+				switch {
+				case got < start:
+					return fmt.Errorf(
+						"wanted at least %v args but got %v",
+						start,
+						got,
+					)
+				default:
+					return next(i)
+				}
+			case start > end:
+				panic("start must be <= end")
+			case got < start || got > end:
 				return fmt.Errorf(
 					"wanted between %v and %v args but got %v",
 					start, end,
-					len(i.Args),
+					got,
 				)
+			default:
+				return next(i)
 			}
-			return next(i)
 		}
 	}
 }

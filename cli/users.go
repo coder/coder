@@ -3,7 +3,6 @@ package cli
 import (
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
-	"gvisor.dev/gvisor/runsc/cmd"
 )
 
 func (r *RootCmd) users() *clibase.Cmd {
@@ -12,7 +11,7 @@ func (r *RootCmd) users() *clibase.Cmd {
 		Use:     "users",
 		Aliases: []string{"user"},
 		Handler: func(inv *clibase.Invokation) error {
-			return cmd.Help()
+			return inv.Command.HelpHandler(inv)
 		},
 	}
 	cmd.AddCommand(

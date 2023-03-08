@@ -44,12 +44,22 @@ func Warn(wtr io.Writer, header string, lines ...string) {
 	}.String())
 }
 
+// Warn writes a formatted log to the writer provided.
+func Warnf(wtr io.Writer, fmtStr string, args ...interface{}) {
+	Warn(wtr, fmt.Sprintf(fmtStr, args...))
+}
+
 // Info writes a log to the writer provided.
 func Info(wtr io.Writer, header string, lines ...string) {
 	_, _ = fmt.Fprint(wtr, cliMessage{
 		Header: header,
 		Lines:  lines,
 	}.String())
+}
+
+// Infof writes a formatted log to the writer provided.
+func Infof(wtr io.Writer, fmtStr string, args ...interface{}) {
+	Info(wtr, fmt.Sprintf(fmtStr, args...))
 }
 
 // Error writes a log to the writer provided.
@@ -60,4 +70,9 @@ func Error(wtr io.Writer, header string, lines ...string) {
 		Header: header,
 		Lines:  lines,
 	}.String())
+}
+
+// Errorf writes a formatted log to the writer provided.
+func Errorf(wtr io.Writer, fmtStr string, args ...interface{}) {
+	Error(wtr, fmt.Sprintf(fmtStr, args...))
 }

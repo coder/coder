@@ -10,7 +10,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -32,13 +31,15 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 
 		uploadFlags templateUploadFlags
 	)
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
 		Use:   "create [name]",
 		Short: "Create a template from the current directory or as specified by flag",
-		Args:  clibase.RequireRangeArgs(0,1),
-		Middleware: clibase.Chain(r.useClient(client)),
-                      Handler: func(inv *clibase.Invokation) error {
-
+		Middleware: clibase.Chain(
+			clibase.RequireRangeArgs(0, 1),
+			r.useClient(client),
+		),
+		Handler: func(inv *clibase.Invokation) error {
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
@@ -59,7 +60,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			}
 
 			// Confirm upload of the directory.
-			resp, err := uploadFlags.upload(cmd, client)
+			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
 				return err
 			}
@@ -69,7 +70,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				return err
 			}
 
-			job, _, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
+			job, _, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
 				Client:          client,
 				Organization:    organization,
 				Provisioner:     database.ProvisionerType(provisioner),
@@ -126,7 +127,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 	if err != nil {
 		panic(err)
 	}
-	cliui.AllowSkipPrompt(inv)
+	cliui.SkipPromptOption(inv)
 	return cmd
 }
 
@@ -150,33 +151,33 @@ type createValidTemplateVersionArgs struct {
 	ProvisionerTags map[string]string
 }
 
-func createValidTemplateVersion(cmd *clibase.Cmd, inv.Args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
-	client := inv.Args.Client
+func createValidTemplateVersion(inv *clibase.Invokation, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
+	client := args.Client
 
-	variableValues, err := loadVariableValuesFromFile(inv.Args.VariablesFile)
+	variableValues, err := loadVariableValuesFromFile(args.VariablesFile)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	variableValuesFromKeyValues, err := loadVariableValuesFromOptions(inv.Args.Variables)
+	variableValuesFromKeyValues, err := loadVariableValuesFromOptions(args.Variables)
 	if err != nil {
 		return nil, nil, err
 	}
 	variableValues = append(variableValues, variableValuesFromKeyValues...)
 
 	req := codersdk.CreateTemplateVersionRequest{
-		Name:               inv.Args.Name,
+		Name:               args.Name,
 		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
-		FileID:             inv.Args.FileID,
-		Provisioner:        codersdk.ProvisionerType(inv.Args.Provisioner),
+		FileID:             args.FileID,
+		Provisioner:        codersdk.ProvisionerType(args.Provisioner),
 		ParameterValues:    parameters,
-		ProvisionerTags:    inv.Args.ProvisionerTags,
+		ProvisionerTags:    args.ProvisionerTags,
 		UserVariableValues: variableValues,
 	}
-	if inv.Args.Template != nil {
-		req.TemplateID = inv.Args.Template.ID
+	if args.Template != nil {
+		req.TemplateID = args.Template.ID
 	}
-	version, err := client.CreateTemplateVersion(inv.Context(), inv.Args.Organization.ID, req)
+	version, err := client.CreateTemplateVersion(inv.Context(), args.Organization.ID, req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -215,8 +216,8 @@ func createValidTemplateVersion(cmd *clibase.Cmd, inv.Args createValidTemplateVe
 	// templateID is provided. This allows pulling params from the last
 	// version instead of prompting if we are updating template versions.
 	lastParameterValues := make(map[string]codersdk.Parameter)
-	if inv.Args.ReuseParameters && inv.Args.Template != nil {
-		activeVersion, err := client.TemplateVersion(inv.Context(), inv.Args.Template.ActiveVersionID)
+	if args.ReuseParameters && args.Template != nil {
+		activeVersion, err := client.TemplateVersion(inv.Context(), args.Template.ActiveVersionID)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("Fetch current active template version: %w", err)
 		}
@@ -239,9 +240,9 @@ func createValidTemplateVersion(cmd *clibase.Cmd, inv.Args createValidTemplateVe
 
 		// parameterMapFromFile can be nil if parameter file is not specified
 		var parameterMapFromFile map[string]string
-		if inv.Args.ParameterFile != "" {
+		if args.ParameterFile != "" {
 			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
-			parameterMapFromFile, err = createParameterMapFromFile(inv.Args.ParameterFile)
+			parameterMapFromFile, err = createParameterMapFromFile(args.ParameterFile)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -279,7 +280,7 @@ func createValidTemplateVersion(cmd *clibase.Cmd, inv.Args createValidTemplateVe
 		_, _ = fmt.Fprint(inv.Stdout, "\r\n")
 
 		for _, parameterSchema := range missingSchemas {
-			parameterValue, err := getParameterValueFromMapOrInput(cmd, parameterMapFromFile, parameterSchema)
+			parameterValue, err := getParameterValueFromMapOrInput(inv, parameterMapFromFile, parameterSchema)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -294,7 +295,7 @@ func createValidTemplateVersion(cmd *clibase.Cmd, inv.Args createValidTemplateVe
 
 		// This recursion is only 1 level deep in practice.
 		// The first pass populates the missing parameters, so it does not enter this `if` block again.
-		return createValidTemplateVersion(cmd, inv.Args, parameters...)
+		return createValidTemplateVersion(inv, args, parameters...)
 	}
 
 	if version.Job.Status != codersdk.ProvisionerJobSucceeded {

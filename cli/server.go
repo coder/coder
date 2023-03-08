@@ -323,7 +323,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			// Only use built-in if PostgreSQL URL isn't specified!
 			if !cfg.InMemoryDatabase && cfg.PostgresURL == "" {
 				var closeFunc func() error
-				cmd.Printf("Using built-in PostgreSQL (%s)\n", config.PostgresPath())
+				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)\n", config.PostgresPath())
 				pgURL, closeFunc, err := startBuiltinPostgres(ctx, config, logger)
 				if err != nil {
 					return err
@@ -335,12 +335,12 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				}
 				builtinPostgres = true
 				defer func() {
-					cmd.Printf("Stopping built-in PostgreSQL...\n")
+					cliui.Infof(inv.Stdout, "Stopping built-in PostgreSQL...\n")
 					// Gracefully shut PostgreSQL down!
 					if err := closeFunc(); err != nil {
-						cmd.Printf("Failed to stop built-in PostgreSQL: %v\n", err)
+						cliui.Errorf(inv.Stderr, "Failed to stop built-in PostgreSQL: %v\n", err)
 					} else {
-						cmd.Printf("Stopped built-in PostgreSQL\n")
+						cliui.Infof(inv.Stdout, "Stopped built-in PostgreSQL\n")
 					}
 				}()
 			}
@@ -367,7 +367,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 
 				// We want to print out the address the user supplied, not the
 				// loopback device.
-				cmd.Println("Started HTTP listener at", (&url.URL{Scheme: "http", Host: listenAddrStr}).String())
+				cliui.Infof(inv.Stdout, "Started HTTP listener at", (&url.URL{Scheme: "http", Host: listenAddrStr}).String()+"\n")
 
 				// Set the http URL we want to use when connecting to ourselves.
 				tcpAddr, tcpAddrValid := httpListener.Addr().(*net.TCPAddr)
@@ -431,7 +431,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 
 				// We want to print out the address the user supplied, not the
 				// loopback device.
-				cmd.Println("Started TLS/HTTPS listener at", (&url.URL{Scheme: "https", Host: listenAddrStr}).String())
+				cliui.Infof(inv.Stdout, "Started TLS/HTTPS listener at", (&url.URL{Scheme: "https", Host: listenAddrStr}).String()+"\n")
 
 				// Set the https URL we want to use when connecting to
 				// ourselves.
@@ -479,7 +479,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			// If the access URL is empty, we attempt to run a reverse-proxy
 			// tunnel to make the initial setup really simple.
 			if cfg.AccessURL.String() == "" {
-				cmd.Printf("Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
+				cliui.Infof(inv.Stdout, "Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
 				tunnel, tunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
@@ -531,7 +531,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			}
 
 			// A newline is added before for visibility in terminal output.
-			cmd.Printf("\nView the Web UI: %s\n", cfg.AccessURL.String())
+			cliui.Infof(inv.Stdout, "\nView the Web UI: %s\n", cfg.AccessURL.String())
 
 			// Used for zero-trust instance identity with Google Cloud.
 			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
@@ -983,13 +983,13 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 
 			hasFirstUser, err := client.HasFirstUser(ctx)
 			if err != nil {
-				cmd.Println("\nFailed to check for the first user: " + err.Error())
+				cliui.Errorf(inv.Stdout, "\nFailed to check for the first user: "+err.Error()+"\n")
 			} else if !hasFirstUser {
-				cmd.Println("\nGet started by creating the first user (in a new terminal):")
-				cmd.Println(cliui.Styles.Code.Render("coder login " + cfg.AccessURL.String()))
+				cliui.Infof(inv.Stdout, "\nGet started by creating the first user (in a new terminal):"+"\n")
+				cliui.Infof(inv.Stdout, cliui.Styles.Code.Render("coder login "+cfg.AccessURL.String())+"\n")
 			}
 
-			cmd.Println("\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
+			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):"+"\n")
 
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
@@ -1019,7 +1019,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			case exitErr = <-errCh:
 			}
 			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
-				cmd.Printf("Unexpected error, shutting down server: %s\n", exitErr)
+				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
 			}
 
 			// Begin clean shut down stage, we try to shut down services
@@ -1031,18 +1031,18 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 
 			_, err = daemon.SdNotify(false, daemon.SdNotifyStopping)
 			if err != nil {
-				cmd.Printf("Notify systemd failed: %s", err)
+				cliui.Errorf(inv.Stderr, "Notify systemd failed: %s", err)
 			}
 
 			// Stop accepting new connections without interrupting
 			// in-flight requests, give in-flight requests 5 seconds to
 			// complete.
-			cmd.Println("Shutting down API server...")
+			cliui.Infof(inv.Stdout, "Shutting down API server..."+"\n")
 			err = shutdownWithTimeout(httpServer.Shutdown, 3*time.Second)
 			if err != nil {
-				cmd.Printf("API server shutdown took longer than 3s: %s\n", err)
+				cliui.Errorf(inv.Stderr, "API server shutdown took longer than 3s: %s\n", err)
 			} else {
-				cmd.Printf("Gracefully shut down API server\n")
+				cliui.Infof(inv.Stdout, "Gracefully shut down API server\n")
 			}
 			// Cancel any remaining in-flight requests.
 			shutdownConns()
@@ -1058,7 +1058,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 					defer wg.Done()
 
 					if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
-						cmd.Printf("Shutting down provisioner daemon %d...\n", id)
+						cliui.Infof(inv.Stdout, "Shutting down provisioner daemon %d...\n", id)
 					}
 					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
 					if err != nil {
@@ -1071,22 +1071,22 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 						return
 					}
 					if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
-						cmd.Printf("Gracefully shut down provisioner daemon %d\n", id)
+						cliui.Infof(inv.Stdout, "Gracefully shut down provisioner daemon %d\n", id)
 					}
 				}()
 			}
 			wg.Wait()
 
-			cmd.Println("Waiting for WebSocket connections to close...")
+			cliui.Infof(inv.Stdout, "Waiting for WebSocket connections to close..."+"\n")
 			_ = coderAPICloser.Close()
-			cmd.Println("Done waiting for WebSocket connections")
+			cliui.Infof(inv.Stdout, "Done waiting for WebSocket connections"+"\n")
 
 			// Close tunnel after we no longer have in-flight connections.
 			if tunnel != nil {
-				cmd.Println("Waiting for tunnel to close...")
+				cliui.Infof(inv.Stdout, "Waiting for tunnel to close..."+"\n")
 				closeTunnel()
 				<-tunnelErr
-				cmd.Println("Done waiting for tunnel")
+				cliui.Infof(inv.Stdout, "Done waiting for tunnel"+"\n")
 			}
 
 			// Ensures a last report can be sent before exit!

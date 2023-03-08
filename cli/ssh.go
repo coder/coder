@@ -79,7 +79,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			}
 
 			updateWorkspaceBanner, outdated := verifyWorkspaceOutdated(client, workspace)
-			if outdated && isTTYErr(cmd) {
+			if outdated && isTTYErr(inv) {
 				_, _ = fmt.Fprintln(inv.Stderr, updateWorkspaceBanner)
 			}
 
@@ -256,7 +256,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 // getWorkspaceAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
 // if `shuffle` is true.
-func getWorkspaceAndAgent(ctx context.Context, cmd *clibase.Cmd, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invokation, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace      codersdk.Workspace
 		workspaceParts = strings.Split(in, ".")

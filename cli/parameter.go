@@ -36,20 +36,20 @@ func createParameterMapFromFile(parameterFile string) (map[string]string, error)
 
 // Returns a parameter value from a given map, if the map does not exist or does not contain the item, it takes input from the user.
 // Throws an error if there are any errors with the users input.
-func getParameterValueFromMapOrInput(cmd *clibase.Cmd, parameterMap map[string]string, parameterSchema codersdk.ParameterSchema) (string, error) {
+func getParameterValueFromMapOrInput(inv *clibase.Invokation, parameterMap map[string]string, parameterSchema codersdk.ParameterSchema) (string, error) {
 	var parameterValue string
 	var err error
 	if parameterMap != nil {
 		var ok bool
 		parameterValue, ok = parameterMap[parameterSchema.Name]
 		if !ok {
-			parameterValue, err = cliui.ParameterSchema(cmd, parameterSchema)
+			parameterValue, err = cliui.ParameterSchema(inv, parameterSchema)
 			if err != nil {
 				return "", err
 			}
 		}
 	} else {
-		parameterValue, err = cliui.ParameterSchema(cmd, parameterSchema)
+		parameterValue, err = cliui.ParameterSchema(inv, parameterSchema)
 		if err != nil {
 			return "", err
 		}

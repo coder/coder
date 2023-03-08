@@ -48,17 +48,17 @@ func (r *RootCmd) publickey() *clibase.Cmd {
 					"Coder. All clones with SSH will be authenticated automatically 🪄.",
 			))
 			cmd.Println()
-			cmd.Println(cliui.Styles.Code.Render(strings.TrimSpace(key.PublicKey)))
+			cliui.Infof(inv.Stdout, cliui.Styles.Code.Render(strings.TrimSpace(key.PublicKey))+"\n")
 			cmd.Println()
-			cmd.Println("Add to GitHub and GitLab:")
-			cmd.Println(cliui.Styles.Prompt.String() + "https://github.com/settings/ssh/new")
-			cmd.Println(cliui.Styles.Prompt.String() + "https://gitlab.com/-/profile/keys")
+			cliui.Infof(inv.Stdout, "Add to GitHub and GitLab:"+"\n")
+			cliui.Infof(inv.Stdout, cliui.Styles.Prompt.String()+"https://github.com/settings/ssh/new"+"\n")
+			cliui.Infof(inv.Stdout, cliui.Styles.Prompt.String()+"https://gitlab.com/-/profile/keys"+"\n")
 
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&reset, "reset", false, "Regenerate your public key. This will require updating the key on any services it's registered with.")
-	cliui.AllowSkipPrompt(inv)
+	cliui.SkipPromptOption(inv)
 
 	return cmd
 }

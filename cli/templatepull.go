@@ -115,7 +115,7 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 	}
 
 	cmd.Flags().BoolVar(&tarMode, "tar", false, "output the template as a tar archive to stdout")
-	cliui.AllowSkipPrompt(inv)
+	cliui.SkipPromptOption(inv)
 
 	return cmd
 }

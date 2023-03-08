@@ -12,7 +12,6 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
@@ -36,7 +35,7 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, inv.Args[0], false)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0], false)
 			if err != nil {
 				return err
 			}
@@ -54,7 +53,7 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 			if !ok {
 				logger = slog.Make(sloghuman.Sink(inv.Stderr))
 			}
-			if cliflag.IsSetBool(cmd, varVerbose) {
+			if r.verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
@@ -83,14 +82,14 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 					}
 					peer := status.Peer[status.Peers()[0]]
 					if !p2p && direct {
-						cmd.Printf("Waiting for a direct connection... (%dms via %s)\n", dur.Milliseconds(), peer.Relay)
+						cliui.Infof(inv.Stdout, "Waiting for a direct connection... (%dms via %s)\n", dur.Milliseconds(), peer.Relay)
 						continue
 					}
 					via := peer.Relay
 					if via == "" {
 						via = "direct"
 					}
-					cmd.Printf("%dms via %s\n", dur.Milliseconds(), via)
+					cliui.Infof(inv.Stdout, "%dms via %s\n", dur.Milliseconds(), via)
 					break
 				}
 			} else {
@@ -105,7 +104,7 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 			default:
 				return xerrors.Errorf("invalid direction: %q", direction)
 			}
-			cmd.Printf("Starting a %ds %s test...\n", int(duration.Seconds()), tsDir)
+			cliui.Infof(inv.Stdout, "Starting a %ds %s test...\n", int(duration.Seconds()), tsDir)
 			results, err := conn.Speedtest(ctx, tsDir, duration)
 			if err != nil {
 				return err
@@ -126,12 +125,29 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 			return err
 		},
 	}
-	cliflag.BoolVarP(cmd.Flags(), &direct, "direct", "d", "", false,
-		"Specifies whether to wait for a direct connection before testing speed.")
-	cliflag.StringVarP(cmd.Flags(), &direction, "direction", "", "", "down",
-		"Specifies whether to run in reverse mode where the client receives and the server sends. (up|down)",
-	)
-	cmd.Flags().DurationVarP(&duration, "time", "t", tsspeedtest.DefaultDuration,
-		"Specifies the duration to monitor traffic.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Name:        "direct",
+			Description: "Specifies whether to wait for a direct connection before testing speed.",
+			Flag:        "d",
+			Default:     "false",
+			Value:       clibase.BoolOf(&direct),
+		},
+		{
+			Name:        "direction",
+			Description: "Specifies whether to run in reverse mode where the client receives and the server sends. (up|down)",
+			Flag:        "direction",
+			Default:     "down",
+			Value:       clibase.StringOf(&direction),
+		},
+		{
+			Name:          "time",
+			Description:   "Specifies the duration to monitor traffic.",
+			Flag:          "time",
+			FlagShorthand: "t",
+			Default:       tsspeedtest.DefaultDuration.String(),
+			Value:         clibase.DurationOf(&duration),
+		},
+	}
 	return cmd
 }

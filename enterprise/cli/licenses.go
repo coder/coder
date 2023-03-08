@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"golang.org/x/xerrors"
-	"gvisor.dev/gvisor/runsc/cmd"
 
 	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
@@ -26,7 +25,7 @@ func (r *RootCmd) licenses() *clibase.Cmd {
 		Use:     "licenses",
 		Aliases: []string{"license"},
 		Handler: func(inv *clibase.Invokation) error {
-			return cmd.Help()
+			return inv.Command.HelpHandler(inv)
 		},
 	}
 	cmd.AddCommand(

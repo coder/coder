@@ -19,6 +19,9 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.useClient(client),
 		),
+		Options: []clibase.Option{
+			cliui.SkipPromptOption(),
+		},
 		Handler: func(inv *clibase.Invokation) error {
 			ctx := inv.Context()
 			out := inv.Stdout
@@ -62,6 +65,5 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			return nil
 		},
 	}
-	cliui.AllowSkipPrompt(inv)
 	return cmd
 }

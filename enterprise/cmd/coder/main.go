@@ -21,8 +21,7 @@ func main() {
 		if errors.Is(err, cliui.Canceled) {
 			os.Exit(1)
 		}
-		cobraErr := cli.FormatCobraError(err, cmd)
-		_, _ = fmt.Fprintln(os.Stderr, cobraErr)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

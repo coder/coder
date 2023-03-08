@@ -20,6 +20,9 @@ func (r *RootCmd) templateDelete() *clibase.Cmd {
 		Middleware: clibase.Chain(
 			r.useClient(client),
 		),
+		Options: clibase.OptionSet{
+			cliui.SkipPromptOption(),
+		},
 		Handler: func(inv *clibase.Invokation) error {
 			var (
 				ctx           = inv.Context()
@@ -95,6 +98,5 @@ func (r *RootCmd) templateDelete() *clibase.Cmd {
 		},
 	}
 
-	cliui.AllowSkipPrompt(inv)
 	return cmd
 }

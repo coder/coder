@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/cli/clibase/clibasetest"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
@@ -59,18 +60,20 @@ func TestPtytest(t *testing.T) {
 			tt := tt
 			// nolint:paralleltest // Avoid parallel test to more easily identify the issue.
 			t.Run(tt.name, func(t *testing.T) {
-				cmd := clibase.Cmd{
+				cmd := &clibase.Cmd{
 					Use: "test",
-					Handler: func(cmd *clibase.Cmd, args []string) error {
-						fmt.Fprint(cmd.OutOrStdout(), tt.output)
+					Handler: func(inv *clibase.Invokation) error {
+						fmt.Fprint(inv.Stdout, tt.output)
 						return nil
 					},
 				}
 
+				inv, _ := clibasetest.Invoke(cmd)
+
 				pty := ptytest.New(t)
-				cmd.SetIn(pty.Input())
-				cmd.SetOut(pty.Output())
-				err := cmd.Execute()
+				inv.Stdin = pty.Input()
+				inv.Stdout = pty.Output()
+				err := inv.Run()
 				require.NoError(t, err)
 			})
 		}

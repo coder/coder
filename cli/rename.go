@@ -50,7 +50,7 @@ func (r *RootCmd) rename() *clibase.Cmd {
 		},
 	}
 
-	cliui.AllowSkipPrompt(inv)
+	cliui.SkipPromptOption(inv)
 
 	return cmd
 }

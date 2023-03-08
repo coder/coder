@@ -2,7 +2,6 @@ package cli
 
 import (
 	"github.com/coder/coder/cli/clibase"
-	"gvisor.dev/gvisor/runsc/cmd"
 )
 
 func (r *RootCmd) parameters() *clibase.Cmd {
@@ -22,7 +21,7 @@ func (r *RootCmd) parameters() *clibase.Cmd {
 		Hidden:  true,
 		Aliases: []string{"params"},
 		Handler: func(inv *clibase.Invokation) error {
-			return cmd.Help()
+			return inv.Command.HelpHandler(inv)
 		},
 	}
 	cmd.AddCommand(

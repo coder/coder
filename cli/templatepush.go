@@ -34,7 +34,7 @@ func (pf *templateUploadFlags) stdin() bool {
 	return pf.directory == "-"
 }
 
-func (pf *templateUploadFlags) upload(cmd *clibase.Cmd, client *codersdk.Client) (*codersdk.UploadResponse, error) {
+func (pf *templateUploadFlags) upload(inv *clibase.Invokation, client *codersdk.Client) (*codersdk.UploadResponse, error) {
 	var content io.Reader
 	if pf.stdin() {
 		content = inv.Stdin
@@ -171,7 +171,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 	cmd.Flags().StringArrayVarP(&provisionerTags, "provisioner-tag", "", []string{}, "Specify a set of tags to target provisioner daemons.")
 	cmd.Flags().BoolVar(&alwaysPrompt, "always-prompt", false, "Always prompt all parameters. Does not pull parameter values from active template version")
 	uploadFlags.register(cmd.Flags())
-	cliui.AllowSkipPrompt(inv)
+	cliui.SkipPromptOption(inv)
 	// This is for testing!
 	err := inv.ParsedFlags().MarkHidden("test.provisioner")
 	if err != nil {

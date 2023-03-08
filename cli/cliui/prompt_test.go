@@ -79,7 +79,7 @@ func TestPrompt(t *testing.T) {
 				Text:      "ShouldNotSeeThis",
 				IsConfirm: true,
 			}, func(inv *clibase.Invokation) {
-				inv.Command.Options = append(inv.Command.Options, cliui.AllowSkipPrompt())
+				inv.Command.Options = append(inv.Command.Options, cliui.SkipPromptOption())
 				inv.Args = []string{"-y"}
 			})
 			assert.NoError(t, err)
