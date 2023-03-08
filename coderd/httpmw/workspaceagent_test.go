@@ -54,7 +54,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			resource = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 				JobID: job.ID,
 			})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuildThin{
 				WorkspaceID: workspace.ID,
 				JobID:       job.ID,
 			})

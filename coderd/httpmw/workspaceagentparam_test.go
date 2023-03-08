@@ -29,7 +29,7 @@ func TestWorkspaceAgentParam(t *testing.T) {
 			workspace = dbgen.Workspace(t, db, database.Workspace{
 				OwnerID: user.ID,
 			})
-			build = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			build = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuildThin{
 				WorkspaceID: workspace.ID,
 				Transition:  database.WorkspaceTransitionStart,
 				Reason:      database.BuildReasonInitiator,

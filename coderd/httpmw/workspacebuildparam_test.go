@@ -91,7 +91,7 @@ func TestWorkspaceBuildParam(t *testing.T) {
 		})
 
 		r, workspace := setupAuthentication(db)
-		workspaceBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		workspaceBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuildThin{
 			Transition:  database.WorkspaceTransitionStart,
 			Reason:      database.BuildReasonInitiator,
 			WorkspaceID: workspace.ID,

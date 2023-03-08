@@ -27,7 +27,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 			StorageMethod: database.ProvisionerStorageMethodFile,
 		})
 
-		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuildThin{
 			JobID:      job.ID,
 			Transition: database.WorkspaceTransitionStart,
 			Reason:     database.BuildReasonInitiator,

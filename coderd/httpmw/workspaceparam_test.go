@@ -350,7 +350,7 @@ func setupWorkspaceWithAgents(t testing.TB, cfg setupConfig) (database.Store, *h
 			OwnerID: user.ID,
 			Name:    cfg.WorkspaceName,
 		})
-		build = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		build = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuildThin{
 			WorkspaceID: workspace.ID,
 			Transition:  database.WorkspaceTransitionStart,
 			Reason:      database.BuildReasonInitiator,
