@@ -37,7 +37,7 @@ import (
 // @Router /users/first [get]
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	userCount, err := api.Database.GetUserCount(ctx)
+	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user count.",
@@ -78,7 +78,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// This should only function for the first user.
-	userCount, err := api.Database.GetUserCount(ctx)
+	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user count.",

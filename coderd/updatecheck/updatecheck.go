@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 )
 
 const (
@@ -224,7 +225,7 @@ func (c *Checker) notifyIfNewer(prev, next Result) {
 }
 
 func (c *Checker) lastUpdateCheck(ctx context.Context) (r Result, err error) {
-	s, err := c.db.GetLastUpdateCheck(ctx)
+	s, err := c.db.GetLastUpdateCheck(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return r, err
 	}
