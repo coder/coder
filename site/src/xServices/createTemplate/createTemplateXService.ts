@@ -475,14 +475,15 @@ export const createTemplateMachine =
 
 const isMissingParameter = (version: TemplateVersion) => {
   return Boolean(
-    version.job.error && version.job.error.includes("missing parameter"),
+    version.job.error_code &&
+      version.job.error_code === "MISSING_TEMPLATE_PARAMETER",
   )
 }
 
 const isMissingVariables = (version: TemplateVersion) => {
   return Boolean(
-    version.job.error &&
-      version.job.error.includes("required template variables"),
+    version.job.error_code &&
+      version.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
   )
 }
 

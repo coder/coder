@@ -57,6 +57,7 @@ message FailedJob {
         TemplateImport template_import = 4;
         TemplateDryRun template_dry_run = 5;
     }
+	string error_code = 6;
 }
 
 // CompletedJob is sent when the provisioner daemon completes a job.
