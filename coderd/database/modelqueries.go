@@ -180,18 +180,18 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 
 type workspaceQuerier interface {
 	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]GetWorkspacesRow, error)
-	GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error)
-	GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuild, error)
-	GetWorkspaceBuildsCreatedAfter(ctx context.Context, after time.Time) ([]WorkspaceBuild, error)
-	GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error)
-	GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuild, error)
-	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
-	GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error)
-	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspacedID uuid.UUID) (WorkspaceBuild, error)
+	GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (WorkspaceBuildRBAC, error)
+	GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuildRBAC, error)
+	GetWorkspaceBuildsCreatedAfter(ctx context.Context, after time.Time) ([]WorkspaceBuildRBAC, error)
+	GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuildRBAC, error)
+	GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuildRBAC, error)
+	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuildRBAC, error)
+	GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuildRBAC, error)
+	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspacedID uuid.UUID) (WorkspaceBuildRBAC, error)
 }
 
-type WorkspaceBuild struct {
-	WorkspaceBuildThin
+type WorkspaceBuildRBAC struct {
+	WorkspaceBuild
 	OrganizationID   uuid.UUID `db:"organization_id" json:"organization_id"`
 	WorkspaceOwnerID uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
 }
@@ -206,25 +206,25 @@ type getWorkspaceBuildParams struct {
 	Latest       bool      `db:"-"`
 }
 
-func (q *sqlQuerier) getWorkspaceBuild(ctx context.Context, arg getWorkspaceBuildParams) (WorkspaceBuild, error) {
+func (q *sqlQuerier) getWorkspaceBuild(ctx context.Context, arg getWorkspaceBuildParams) (WorkspaceBuildRBAC, error) {
 	arg.LimitOpt = 1
-	return sqlxqueries.GetContext[WorkspaceBuild](ctx, q.sdb, "GetWorkspaceBuild", arg)
+	return sqlxqueries.GetContext[WorkspaceBuildRBAC](ctx, q.sdb, "GetWorkspaceBuild", arg)
 }
 
-func (q *sqlQuerier) selectWorkspaceBuild(ctx context.Context, arg getWorkspaceBuildParams) ([]WorkspaceBuild, error) {
+func (q *sqlQuerier) selectWorkspaceBuild(ctx context.Context, arg getWorkspaceBuildParams) ([]WorkspaceBuildRBAC, error) {
 	arg.LimitOpt = -1
-	return sqlxqueries.SelectContext[WorkspaceBuild](ctx, q.sdb, "GetWorkspaceBuild", arg)
+	return sqlxqueries.SelectContext[WorkspaceBuildRBAC](ctx, q.sdb, "GetWorkspaceBuild", arg)
 }
 
-func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error) {
+func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (WorkspaceBuildRBAC, error) {
 	return q.getWorkspaceBuild(ctx, getWorkspaceBuildParams{BuildID: id})
 }
 
-func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuild, error) {
+func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UUID) (WorkspaceBuildRBAC, error) {
 	return q.getWorkspaceBuild(ctx, getWorkspaceBuildParams{JobID: jobID})
 }
 
-func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, after time.Time) ([]WorkspaceBuild, error) {
+func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, after time.Time) ([]WorkspaceBuildRBAC, error) {
 	return q.selectWorkspaceBuild(ctx, getWorkspaceBuildParams{CreatedAfter: after})
 }
 
@@ -233,7 +233,7 @@ type GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams struct {
 	WorkspaceID uuid.UUID
 }
 
-func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error) {
+func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuildRBAC, error) {
 	return q.getWorkspaceBuild(ctx, getWorkspaceBuildParams{
 		BuildNumber: arg.BuildNumber,
 		WorkspaceID: arg.WorkspaceID,
@@ -248,20 +248,20 @@ type GetWorkspaceBuildsByWorkspaceIDParams struct {
 	LimitOpt    int32     `db:"limit_opt" json:"limit_opt"`
 }
 
-func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuild, error) {
-	return sqlxqueries.SelectContext[WorkspaceBuild](ctx, q.sdb, "GetWorkspaceBuildsByWorkspaceID", arg)
+func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuildRBAC, error) {
+	return sqlxqueries.SelectContext[WorkspaceBuildRBAC](ctx, q.sdb, "GetWorkspaceBuildsByWorkspaceID", arg)
 }
 
-func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspacedID uuid.UUID) (WorkspaceBuild, error) {
+func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspacedID uuid.UUID) (WorkspaceBuildRBAC, error) {
 	return q.getWorkspaceBuild(ctx, getWorkspaceBuildParams{WorkspaceID: workspacedID, Latest: true})
 }
 
-func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error) {
-	return sqlxqueries.SelectContext[WorkspaceBuild](ctx, q.sdb, "GetLatestWorkspaceBuildsByWorkspaceIDs", ids)
+func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuildRBAC, error) {
+	return sqlxqueries.SelectContext[WorkspaceBuildRBAC](ctx, q.sdb, "GetLatestWorkspaceBuildsByWorkspaceIDs", ids)
 }
 
-func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error) {
-	return sqlxqueries.SelectContext[WorkspaceBuild](ctx, q.sdb, "GetLatestWorkspaceBuilds", nil)
+func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuildRBAC, error) {
+	return sqlxqueries.SelectContext[WorkspaceBuildRBAC](ctx, q.sdb, "GetLatestWorkspaceBuilds", nil)
 }
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.

@@ -147,7 +147,7 @@ func TestAcquireJob(t *testing.T) {
 			TemplateID: template.ID,
 			OwnerID:    user.ID,
 		})
-		build := dbgen.WorkspaceBuild(t, srv.Database, database.WorkspaceBuildThin{
+		build := dbgen.WorkspaceBuild(t, srv.Database, database.WorkspaceBuild{
 			WorkspaceID:       workspace.ID,
 			BuildNumber:       1,
 			JobID:             uuid.New(),

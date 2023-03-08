@@ -103,7 +103,7 @@ func (g Group) RBACObject() rbac.Object {
 		InOrg(g.OrganizationID)
 }
 
-func (b WorkspaceBuild) RBACObject() rbac.Object {
+func (b WorkspaceBuildRBAC) RBACObject() rbac.Object {
 	return rbac.ResourceWorkspace.WithID(b.WorkspaceID).
 		InOrg(b.OrganizationID).
 		WithOwner(b.WorkspaceOwnerID.String())
@@ -191,15 +191,15 @@ func (l License) RBACObject() rbac.Object {
 	return rbac.ResourceLicense.WithIDString(strconv.FormatInt(int64(l.ID), 10))
 }
 
-func (b WorkspaceBuildThin) WithWorkspace(workspace Workspace) WorkspaceBuild {
+func (b WorkspaceBuild) WithWorkspace(workspace Workspace) WorkspaceBuildRBAC {
 	return b.Expand(workspace.OrganizationID, workspace.OwnerID)
 }
 
-func (b WorkspaceBuildThin) Expand(orgID, ownerID uuid.UUID) WorkspaceBuild {
-	return WorkspaceBuild{
-		WorkspaceBuildThin: b,
-		OrganizationID:     orgID,
-		WorkspaceOwnerID:   ownerID,
+func (b WorkspaceBuild) Expand(orgID, ownerID uuid.UUID) WorkspaceBuildRBAC {
+	return WorkspaceBuildRBAC{
+		WorkspaceBuild:   b,
+		OrganizationID:   orgID,
+		WorkspaceOwnerID: ownerID,
 	}
 }
 

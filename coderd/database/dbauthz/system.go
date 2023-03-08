@@ -76,7 +76,7 @@ func (q *querier) GetUserLinkByUserIDLoginType(ctx context.Context, arg database
 	return q.db.GetUserLinkByUserIDLoginType(ctx, arg)
 }
 
-func (q *querier) GetLatestWorkspaceBuilds(ctx context.Context) ([]database.WorkspaceBuild, error) {
+func (q *querier) GetLatestWorkspaceBuilds(ctx context.Context) ([]database.WorkspaceBuildRBAC, error) {
 	// This function is a system function until we implement a join for workspace builds.
 	// This is because we need to query for all related workspaces to the returned builds.
 	// This is a very inefficient method of fetching the latest workspace builds.
@@ -162,7 +162,7 @@ func (q *querier) GetDeploymentDAUs(ctx context.Context) ([]database.GetDeployme
 }
 
 // UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.
-func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuildThin, error) {
+func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
 	return q.db.UpdateWorkspaceBuildCostByID(ctx, arg)
 }
 
@@ -177,7 +177,7 @@ func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 // Telemetry related functions. These functions are system functions for returning
 // telemetry data. Never called by a user.
 
-func (q *querier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceBuild, error) {
+func (q *querier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceBuildRBAC, error) {
 	return q.db.GetWorkspaceBuildsCreatedAfter(ctx, createdAt)
 }
 

@@ -153,15 +153,15 @@ func Workspace(t testing.TB, db database.Store, orig database.Workspace) databas
 }
 
 type AnyWorkspaceBuild interface {
-	database.WorkspaceBuild | database.WorkspaceBuildThin
+	database.WorkspaceBuildRBAC | database.WorkspaceBuild
 }
 
-func WorkspaceBuild[B AnyWorkspaceBuild](t testing.TB, db database.Store, orig B) database.WorkspaceBuildThin {
-	var thin database.WorkspaceBuildThin
+func WorkspaceBuild[B AnyWorkspaceBuild](t testing.TB, db database.Store, orig B) database.WorkspaceBuild {
+	var thin database.WorkspaceBuild
 	switch v := any(orig).(type) {
+	case database.WorkspaceBuildRBAC:
+		thin = v.WorkspaceBuild
 	case database.WorkspaceBuild:
-		thin = v.WorkspaceBuildThin
-	case database.WorkspaceBuildThin:
 		thin = v
 	default:
 		panic(fmt.Sprintf("developer error: invalid type %T", v))

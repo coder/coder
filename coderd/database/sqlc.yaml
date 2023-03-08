@@ -20,7 +20,6 @@ overrides:
         go_type:
           type: "TemplateACL"
     rename:
-      workspace_build: WorkspaceBuildThin
       api_key: APIKey
       api_key_scope: APIKeyScope
       api_key_scope_all: APIKeyScopeAll

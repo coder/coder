@@ -6017,7 +6017,7 @@ type InsertWorkspaceBuildParams struct {
 	Reason            BuildReason         `db:"reason" json:"reason"`
 }
 
-func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuildThin, error) {
+func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuild, error) {
 	row := q.db.QueryRowContext(ctx, insertWorkspaceBuild,
 		arg.ID,
 		arg.CreatedAt,
@@ -6033,7 +6033,7 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 		arg.MaxDeadline,
 		arg.Reason,
 	)
-	var i WorkspaceBuildThin
+	var i WorkspaceBuild
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
@@ -6073,7 +6073,7 @@ type UpdateWorkspaceBuildByIDParams struct {
 	MaxDeadline      time.Time `db:"max_deadline" json:"max_deadline"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) (WorkspaceBuildThin, error) {
+func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) (WorkspaceBuild, error) {
 	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildByID,
 		arg.ID,
 		arg.UpdatedAt,
@@ -6081,7 +6081,7 @@ func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWor
 		arg.Deadline,
 		arg.MaxDeadline,
 	)
-	var i WorkspaceBuildThin
+	var i WorkspaceBuild
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
@@ -6115,9 +6115,9 @@ type UpdateWorkspaceBuildCostByIDParams struct {
 	DailyCost int32     `db:"daily_cost" json:"daily_cost"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) (WorkspaceBuildThin, error) {
+func (q *sqlQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) (WorkspaceBuild, error) {
 	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildCostByID, arg.ID, arg.DailyCost)
-	var i WorkspaceBuildThin
+	var i WorkspaceBuild
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,

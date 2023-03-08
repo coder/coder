@@ -60,7 +60,7 @@ func TestTelemetry(t *testing.T) {
 			Health:       database.WorkspaceAppHealthDisabled,
 		})
 		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuildThin{
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			Transition: database.WorkspaceTransitionStart,
 			Reason:     database.BuildReasonAutostart,
 		})

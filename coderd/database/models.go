@@ -1614,7 +1614,7 @@ type WorkspaceBuildParameter struct {
 	Value string `db:"value" json:"value"`
 }
 
-type WorkspaceBuildThin struct {
+type WorkspaceBuild struct {
 	ID                uuid.UUID           `db:"id" json:"id"`
 	CreatedAt         time.Time           `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`

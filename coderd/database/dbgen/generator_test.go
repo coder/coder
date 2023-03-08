@@ -166,8 +166,8 @@ func TestGenerator(t *testing.T) {
 	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
-		exp := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{})
-		require.Equal(t, exp, must(db.GetWorkspaceBuildByID(context.Background(), exp.ID)).WorkspaceBuildThin)
+		exp := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuildRBAC{})
+		require.Equal(t, exp, must(db.GetWorkspaceBuildByID(context.Background(), exp.ID)).WorkspaceBuild)
 	})
 
 	t.Run("User", func(t *testing.T) {
