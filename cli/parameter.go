@@ -57,20 +57,20 @@ func getParameterValueFromMapOrInput(inv *clibase.Invokation, parameterMap map[s
 	return parameterValue, nil
 }
 
-func getWorkspaceBuildParameterValueFromMapOrInput(cmd *clibase.Cmd, parameterMap map[string]string, templateVersionParameter codersdk.TemplateVersionParameter) (*codersdk.WorkspaceBuildParameter, error) {
+func getWorkspaceBuildParameterValueFromMapOrInput(inv *clibase.Invokation, parameterMap map[string]string, templateVersionParameter codersdk.TemplateVersionParameter) (*codersdk.WorkspaceBuildParameter, error) {
 	var parameterValue string
 	var err error
 	if parameterMap != nil {
 		var ok bool
 		parameterValue, ok = parameterMap[templateVersionParameter.Name]
 		if !ok {
-			parameterValue, err = cliui.RichParameter(cmd, templateVersionParameter)
+			parameterValue, err = cliui.RichParameter(inv, templateVersionParameter)
 			if err != nil {
 				return nil, err
 			}
 		}
 	} else {
-		parameterValue, err = cliui.RichParameter(cmd, templateVersionParameter)
+		parameterValue, err = cliui.RichParameter(inv, templateVersionParameter)
 		if err != nil {
 			return nil, err
 		}

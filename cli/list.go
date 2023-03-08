@@ -75,13 +75,16 @@ func (r *RootCmd) list() *clibase.Cmd {
 			cliui.JSONFormat(),
 		)
 	)
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "list",
 		Short:       "List workspaces",
 		Aliases:     []string{"ls"},
-		Middleware:  clibase.RequireNArgs(0),
-		Middleware:  clibase.Chain(r.useClient(client)),
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(0),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			filter := codersdk.WorkspaceFilter{
 				FilterQuery: searchQuery,
@@ -127,10 +130,21 @@ func (r *RootCmd) list() *clibase.Cmd {
 			return err
 		},
 	}
-
-	cmd.Flags().BoolVarP(&all, "all", "a", false,
-		"Specifies whether all workspaces will be listed or not.")
-	cmd.Flags().StringVar(&searchQuery, "search", defaultQuery, "Search for a workspace with a query.")
+	cmd.Options = []clibase.Option{
+		{
+			Flag:          "all",
+			FlagShorthand: "a",
+			Description:   "Specifies whether all workspaces will be listed or not.",
+			Default:       "false",
+			Value:         clibase.BoolOf(&all),
+		},
+		{
+			Flag:        "search",
+			Description: "Search for a workspace with a query.",
+			Default:     defaultQuery,
+			Value:       clibase.StringOf(&searchQuery),
+		},
+	}
 
 	formatter.AttachFlags(cmd)
 	return cmd

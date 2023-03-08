@@ -12,11 +12,9 @@ import (
 
 func (r *RootCmd) templates() *clibase.Cmd {
 	cmd := &clibase.Cmd{
-		Use:     "templates",
-		Short:   "Manage templates",
-		Long:    "Templates are written in standard Terraform and describe the infrastructure for workspaces",
-		Aliases: []string{"template"},
-		Long: formatExamples(
+		Use:   "templates",
+		Short: "Manage templates",
+		Long: "Templates are written in standard Terraform and describe the infrastructure for workspaces\n" + formatExamples(
 			example{
 				Description: "Create a template for developers to create workspaces",
 				Command:     "coder templates create",
@@ -30,21 +28,22 @@ func (r *RootCmd) templates() *clibase.Cmd {
 				Command:     "coder templates push my-template",
 			},
 		),
+		Aliases: []string{"template"},
 		Handler: func(inv *clibase.Invokation) error {
 			return inv.Command.HelpHandler(inv)
 		},
+		Children: []*clibase.Cmd{
+			r.templateCreate(),
+			r.templateEdit(),
+			r.templateInit(),
+			r.templateList(),
+			r.templatePlan(),
+			r.templatePush(),
+			r.templateVersions(),
+			r.templateDelete(),
+			r.templatePull(),
+		},
 	}
-	cmd.AddCommand(
-		templateCreate(),
-		templateEdit(),
-		templateInit(),
-		templateList(),
-		templatePlan(),
-		templatePush(),
-		templateVersions(),
-		templateDelete(),
-		templatePull(),
-	)
 
 	return cmd
 }

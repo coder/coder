@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -25,9 +23,16 @@ type templateUploadFlags struct {
 	directory string
 }
 
-func (pf *templateUploadFlags) register(f *pflag.FlagSet) {
+func (pf *templateUploadFlags) option() clibase.Option {
 	currentDirectory, _ := os.Getwd()
-	f.StringVarP(&pf.directory, "directory", "d", currentDirectory, "Specify the directory to create from, use '-' to read tar from stdin")
+	return clibase.Option{
+		Name:          "directory",
+		Flag:          "directory",
+		FlagShorthand: "d",
+		Description:   "Specify the directory to create from, use '-' to read tar from stdin",
+		Default:       currentDirectory,
+		Value:         clibase.StringOf(&pf.directory),
+	}
 }
 
 func (pf *templateUploadFlags) stdin() bool {
@@ -71,18 +76,18 @@ func (pf *templateUploadFlags) upload(inv *clibase.Invokation, client *codersdk.
 	return &resp, nil
 }
 
-func (pf *templateUploadFlags) templateName(inv.Args []string) (string, error) {
+func (pf *templateUploadFlags) templateName(args []string) (string, error) {
 	if pf.stdin() {
 		// Can't infer name from directory if none provided.
-		if len(inv.Args) == 0 {
+		if len(args) == 0 {
 			return "", xerrors.New("template name argument must be provided")
 		}
-		return inv.Args[0], nil
+		return args[0], nil
 	}
 
-	name := filepath.Base(pf.directory)
-	if len(inv.Args) > 0 {
-		name = inv.Args[0]
+	name := filepath.Base(args[0])
+	if len(args) > 0 {
+		name = args[0]
 	}
 	return name, nil
 }
@@ -98,13 +103,15 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		provisionerTags []string
 		uploadFlags     templateUploadFlags
 	)
-
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:   "push [template]",
-		Args:  clibase.RequireRangeArgs(0,1),
 		Short: "Push a new template version from the current directory or as specified by flag",
-		Middleware: clibase.Chain(r.useClient(client)),
-                      Handler: func(inv *clibase.Invokation) error {
+		Middleware: clibase.Chain(
+			clibase.RequireRangeArgs(0, 1),
+			r.useClient(client),
+		),
+		Handler: func(inv *clibase.Invokation) error {
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
@@ -120,7 +127,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
-			resp, err := uploadFlags.upload(cmd, client)
+			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
 				return err
 			}
@@ -130,7 +137,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
-			job, _, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
+			job, _, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
 				Name:            versionName,
 				Client:          client,
 				Organization:    organization,
@@ -163,20 +170,58 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		},
 	}
 
-	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
-	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
-	cmd.Flags().StringVarP(&variablesFile, "variables-file", "", "", "Specify a file path with values for Terraform-managed variables.")
-	cmd.Flags().StringArrayVarP(&variables, "variable", "", []string{}, "Specify a set of values for Terraform-managed variables.")
-	cmd.Flags().StringVarP(&versionName, "name", "", "", "Specify a name for the new template version. It will be automatically generated if not provided.")
-	cmd.Flags().StringArrayVarP(&provisionerTags, "provisioner-tag", "", []string{}, "Specify a set of tags to target provisioner daemons.")
-	cmd.Flags().BoolVar(&alwaysPrompt, "always-prompt", false, "Always prompt all parameters. Does not pull parameter values from active template version")
-	uploadFlags.register(cmd.Flags())
-	cliui.SkipPromptOption(inv)
-	// This is for testing!
-	err := inv.ParsedFlags().MarkHidden("test.provisioner")
-	if err != nil {
-		panic(err)
+	cmd.Options = []clibase.Option{
+		{
+			Name:          "provisioner",
+			Flag:          "test.provisioner",
+			FlagShorthand: "p",
+			Description:   "Customize the provisioner backend",
+			Default:       "terraform",
+			Value:         clibase.StringOf(&provisioner),
+			// This is for testing!
+			Hidden: true,
+		},
+		{
+			Name:          "parameter-file",
+			Flag:          "parameter-file",
+			FlagShorthand: "f",
+			Description:   "Specify a file path with parameter values.",
+			Value:         clibase.StringOf(&parameterFile),
+		},
+		{
+			Name:          "variables-file",
+			Flag:          "variables-file",
+			FlagShorthand: "f",
+			Description:   "Specify a file path with values for Terraform-managed variables.",
+			Value:         clibase.StringOf(&variablesFile),
+		},
+		{
+			Name:        "variable",
+			Flag:        "variable",
+			Description: "Specify a set of values for Terraform-managed variables.",
+			Value:       clibase.StringsOf(&variables),
+		},
+		{
+			Name:          "provisioner-tag",
+			Flag:          "provisioner-tag",
+			FlagShorthand: "t",
+			Description:   "Specify a set of tags to target provisioner daemons.",
+			Value:         clibase.StringsOf(&provisionerTags),
+		},
+		{
+			Name:        "name",
+			Flag:        "name",
+			Description: "Specify a name for the new template version. It will be automatically generated if not provided.",
+			Value:       clibase.StringOf(&versionName),
+		},
+		{
+			Name:        "always-prompt",
+			Flag:        "always-prompt",
+			Description: "Always prompt all parameters. Does not pull parameter values from active template version",
+			Value:       clibase.BoolOf(&alwaysPrompt),
+		},
+		cliui.SkipPromptOption(),
+		uploadFlags.option(),
 	}
-
 	return cmd
 }
