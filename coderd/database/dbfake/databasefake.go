@@ -4551,15 +4551,6 @@ func (q *fakeQuerier) UpdateWorkspaceAgentLifecycleStateByID(_ context.Context, 
 	return sql.ErrNoRows
 }
 
-// expandWorkspaceThins must be called from a locked context.
-func (q *fakeQuerier) expandWorkspaceThins(thins []database.WorkspaceBuildThin) []database.WorkspaceBuild {
-	cpy := make([]database.WorkspaceBuild, 0, len(thins))
-	for _, thin := range thins {
-		cpy = append(cpy, q.expandWorkspaceThin(thin))
-	}
-	return cpy
-}
-
 // expandWorkspaceThin must be called from a locked context.
 func (q *fakeQuerier) expandWorkspaceThin(thin database.WorkspaceBuildThin) database.WorkspaceBuild {
 	w, _ := q.GetWorkspaceByID(context.Background(), thin.WorkspaceID)
