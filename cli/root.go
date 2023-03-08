@@ -128,20 +128,20 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Flag:        varURL,
 			Env:         envURL,
 			Description: "URL to a deployment.",
-			Value:       &r.clientURL,
+			Value:       clibase.URLOf(r.clientURL),
 		},
 		{
 			Name:        varToken,
 			Flag:        varToken,
 			Env:         envSessionToken,
 			Description: fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken),
-			Value:       &r.token,
+			Value:       clibase.StringOf(&r.token),
 		},
 		{
 			Name:        varAgentToken,
 			Flag:        varAgentToken,
 			Description: "An agent authentication token.",
-			Value:       &r.agentToken,
+			Value:       clibase.StringsOf(&r.agentToken),
 			Hidden:      true,
 		},
 		{
@@ -149,7 +149,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Flag:        varAgentURL,
 			Env:         "CODER_AGENT_URL",
 			Description: "URL for an agent to access your deployment",
-			Value:       &r.agentURL,
+			Value:       clibase.URLOf(r.agentURL),
 			Hidden:      true,
 		},
 		{
@@ -157,28 +157,28 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Flag:        varNoVersionCheck,
 			Env:         envNoVersionCheck,
 			Description: "Suppress warning when client and server versions do not match.",
-			Value:       &r.noVersionCheck,
+			Value:       clibase.BoolOf(&r.noVersionCheck),
 		},
 		{
 			Name:        varNoFeatureWarning,
 			Flag:        varNoFeatureWarning,
 			Env:         envNoFeatureWarning,
 			Description: "Suppress warnings about unlicensed features.",
-			Value:       &r.noFeatureWarning,
+			Value:       clibase.BoolOf(&r.noFeatureWarning),
 		},
 		{
 			Name:        varHeader,
 			Flag:        varHeader,
 			Env:         "CODER_HEADER",
 			Description: "Additional HTTP headers to send to the server.",
-			Value:       &r.header,
+			Value:       clibase.StringsOf(&r.header),
 		},
 		{
 			Name:        varNoOpen,
 			Flag:        varNoOpen,
 			Env:         "CODER_NO_OPEN",
 			Description: "Suppress opening the browser after logging in.",
-			Value:       &r.noOpen,
+			Value:       clibase.BoolOf(&r.noOpen),
 			Hidden:      true,
 		},
 		{
@@ -187,7 +187,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Env:         "CODER_FORCE_TTY",
 			Hidden:      true,
 			Description: "Force the use of a TTY.",
-			Value:       &r.forceTTY,
+			Value:       clibase.BoolOf(&r.forceTTY),
 		},
 		{
 			Name:          varVerbose,
@@ -195,14 +195,14 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			FlagShorthand: "v",
 			Env:           "CODER_VERBOSE",
 			Description:   "Enable verbose logging.",
-			Value:         &r.verbose,
+			Value:         clibase.BoolOf(&r.verbose),
 		},
 		{
 			Name:        config.FlagName,
 			Flag:        config.FlagName,
 			Env:         "CODER_CONFIG_DIR",
 			Description: "Path to the global `coder` config directory.",
-			Value:       &r.globalConfig,
+			Value:       clibase.StringOf(&r.globalConfig),
 		},
 	}
 
@@ -260,18 +260,18 @@ func isTest() bool {
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL    clibase.URL
-	token        clibase.String
-	globalConfig clibase.String
-	header       clibase.Strings
-	agentToken   clibase.String
-	agentURL     clibase.URL
-	forceTTY     clibase.Bool
-	noOpen       clibase.Bool
-	verbose      clibase.Bool
+	clientURL    *url.URL
+	token        string
+	globalConfig string
+	header       []string
+	agentToken   []string
+	agentURL     *url.URL
+	forceTTY     bool
+	noOpen       bool
+	verbose      bool
 
-	noVersionCheck   clibase.Bool
-	noFeatureWarning clibase.Bool
+	noVersionCheck   bool
+	noFeatureWarning bool
 }
 
 // useClient returns a new client from the command context.
@@ -281,9 +281,8 @@ func (r *RootCmd) useClient(c *codersdk.Client) clibase.MiddlewareFunc {
 		return clibase.HandlerFunc(
 			func(i *clibase.Invokation) error {
 				root := r.createConfig()
-				var clientURL *url.URL
 				var err error
-				if clientURL.String() == "" {
+				if r.clientURL.String() == "" {
 					rawURL, err := root.URL().Read()
 					// If the configuration files are absent, the user is logged out
 					if os.IsNotExist(err) {
@@ -293,17 +292,14 @@ func (r *RootCmd) useClient(c *codersdk.Client) clibase.MiddlewareFunc {
 						return err
 					}
 
-					clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+					r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
 					if err != nil {
 						return err
 					}
-				} else {
-					clientURL = r.clientURL.Value()
 				}
 
-				token := r.token.Value()
-				if token == "" {
-					token, err = root.Session().Read()
+				if r.token == "" {
+					r.token, err = root.Session().Read()
 					// If the configuration files are absent, the user is logged out
 					if os.IsNotExist(err) {
 						return (errUnauthenticated)
@@ -313,12 +309,12 @@ func (r *RootCmd) useClient(c *codersdk.Client) clibase.MiddlewareFunc {
 					}
 				}
 
-				client, err := r.createUnauthenticatedClient(clientURL)
+				client, err := r.createUnauthenticatedClient(r.clientURL)
 				if err != nil {
 					return err
 				}
 
-				client.SetSessionToken(token)
+				client.SetSessionToken(r.token)
 
 				// We send these requests in parallel to minimize latency.
 				var (

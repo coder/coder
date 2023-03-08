@@ -153,12 +153,12 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 }
 
 // nolint:gocyclo
-func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Cmd {
+func (root *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Cmd {
 	var (
-		cfg  codersdk.DeploymentValues
+		cfg  = new(codersdk.DeploymentValues)
 		opts = cfg.Options()
 	)
-	root := &clibase.Cmd{
+	serverCmd := &clibase.Cmd{
 		Use:     "server",
 		Short:   "Start a Coder server",
 		Options: opts,
@@ -203,8 +203,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				}
 				warnStr += "instead.\n"
 
-				cmd.PrintErr(
-					cliui.Styles.Warn.Render("WARN: ") + warnStr,
+				cliui.Warn(inv.Stderr,
+					warnStr,
 				)
 			}
 
@@ -242,8 +242,8 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				filesRateLimit = -1
 			}
 
-			printLogo(cmd)
-			logger, logCloser, err := buildLogger(cmd, cfg)
+			printLogo(inv)
+			logger, logCloser, err := buildLogger(inv, cfg)
 			if err != nil {
 				return xerrors.Errorf("make logger: %w", err)
 			}
@@ -396,7 +396,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				// DEPRECATED: This redirect used to default to true.
 				// It made more sense to have the redirect be opt-in.
 				if os.Getenv("CODER_TLS_REDIRECT_HTTP") == "true" || inv.ParsedFlags().Changed("tls-redirect-http-to-https") {
-					cmd.PrintErr(cliui.Styles.Warn.Render("WARN:") + " --tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead\n")
+					cliui.Warn(inv.Stderr, "--tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
 					cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
 				}
 
@@ -524,9 +524,10 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				if isLocal {
 					reason = "isn't externally reachable"
 				}
-				cmd.Printf(
-					"%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n",
-					cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(cfg.AccessURL.String()), reason,
+				cliui.Warnf(
+					inv.Stderr,
+					"The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n",
+					cliui.Styles.Field.Render(cfg.AccessURL.String()), reason,
 				)
 			}
 
@@ -1062,12 +1063,12 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 					}
 					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
 					if err != nil {
-						cmd.PrintErrf("Failed to shutdown provisioner daemon %d: %s\n", id, err)
+						cliui.Errorf(inv.Stderr, "Failed to shutdown provisioner daemon %d: %s\n", id, err)
 						return
 					}
 					err = provisionerDaemon.Close()
 					if err != nil {
-						cmd.PrintErrf("Close provisioner daemon %d: %s\n", id, err)
+						cliui.Errorf(inv.Stderr, "Close provisioner daemon %d: %s\n", id, err)
 						return
 					}
 					if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
@@ -1100,25 +1101,15 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			}
 			return exitErr
 		},
-		Children: []*clibase.Cmd{
-			{
-				Use:   "postgres-builtin-url",
-				Short: "Output the connection URL for the built-in PostgreSQL deployment.",
-			},
-			{
-				Use:   "postgres-builtin-serve",
-				Short: "Run the built-in PostgreSQL deployment.",
-			},
-		},
 	}
 
 	var pgRawURL bool
+
 	postgresBuiltinURLCmd := &clibase.Cmd{
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
 		Handler: func(inv *clibase.Invokation) error {
-			cfg := r.createConfig()
-			url, err := embeddedPostgresURL(cfg)
+			url, err := embeddedPostgresURL(root.createConfig())
 			if err != nil {
 				return err
 			}
@@ -1130,13 +1121,14 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			return nil
 		},
 	}
+
 	postgresBuiltinServeCmd := &clibase.Cmd{
 		Use:   "postgres-builtin-serve",
 		Short: "Run the built-in PostgreSQL deployment.",
 		Handler: func(inv *clibase.Invokation) error {
 			ctx := inv.Context()
 
-			cfg := r.createConfig()
+			cfg := root.createConfig()
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
 			if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
@@ -1161,16 +1153,25 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 			return nil
 		},
 	}
-	postgresBuiltinURLCmd.Flags().BoolVar(&pgRawURL, "raw-url", false, "Output the raw connection URL instead of a psql command.")
-	postgresBuiltinServeCmd.Flags().BoolVar(&pgRawURL, "raw-url", false, "Output the raw connection URL instead of a psql command.")
 
-	createAdminUserCommand := newCreateAdminUserCommand()
-	root.SetHelpFunc(func(inv *clibase.Invokation) {
-		// Help is handled by clibase in command body.
-	})
-	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd, createAdminUserCommand)
+	createAdminUserCmd := root.newCreateAdminUserCommand()
 
-	return root
+	rawUrlOpt := clibase.Option{
+		Flag:        "raw-url",
+		Default:     "false",
+		Value:       clibase.BoolOf(&pgRawURL),
+		Description: "Output the raw connection URL instead of a psql command.",
+	}
+	createAdminUserCmd.Options = append(createAdminUserCmd.Options, rawUrlOpt)
+	postgresBuiltinURLCmd.Options = append(postgresBuiltinURLCmd.Options, rawUrlOpt)
+	postgresBuiltinServeCmd.Options = append(postgresBuiltinURLCmd.Options, rawUrlOpt)
+
+	serverCmd.Children = append(
+		serverCmd.Children,
+		createAdminUserCmd, postgresBuiltinURLCmd, postgresBuiltinServeCmd,
+	)
+
+	return serverCmd
 }
 
 // parseURL parses a string into a URL.
@@ -1308,9 +1309,9 @@ func newProvisionerDaemon(
 }
 
 // nolint: revive
-func printLogo(cmd *clibase.Cmd) {
+func printLogo(inv *clibase.Invokation) {
 	// Only print the logo in TTYs.
-	if !isTTYOut(cmd) {
+	if !isTTYOut(inv) {
 		return
 	}
 
@@ -1713,7 +1714,7 @@ func isLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-func buildLogger(cmd *clibase.Cmd, cfg *codersdk.DeploymentValues) (slog.Logger, func(), error) {
+func buildLogger(inv *clibase.Invokation, cfg *codersdk.DeploymentValues) (slog.Logger, func(), error) {
 	var (
 		sinks   = []slog.Sink{}
 		closers = []func() error{}

@@ -366,7 +366,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 				workspaces = append(workspaces, pageWorkspaces...)
 			}
 
-			cmd.PrintErrf("Found %d scaletest workspaces\n", len(workspaces))
+			cliui.Errorf(inv.Stderr, "Found %d scaletest workspaces\n", len(workspaces))
 			if len(workspaces) != 0 {
 				cliui.Infof(inv.Stdout, "Deleting scaletest workspaces..."+"\n")
 				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
@@ -423,7 +423,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 				users = append(users, pageUsers...)
 			}
 
-			cmd.PrintErrf("Found %d scaletest users\n", len(users))
+			cliui.Errorf(inv.Stderr, "Found %d scaletest users\n", len(users))
 			if len(workspaces) != 0 {
 				cliui.Infof(inv.Stdout, "Deleting scaletest users..."+"\n")
 				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
