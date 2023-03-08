@@ -122,7 +122,7 @@ export const TokensPageView: FC<
                               onDelete(token.id)
                             }}
                             size="medium"
-                            aria-label={t("deleteToken.delete")}
+                            aria-label={t("tokenActions.deleteToken.delete")}
                           >
                             <DeleteOutlineIcon />
                           </IconButton>

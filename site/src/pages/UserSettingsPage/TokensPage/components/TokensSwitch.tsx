@@ -26,7 +26,7 @@ export const TokensSwitch: FC<{
               color="primary"
             />
           }
-          label={t("toggleLabel")}
+          label={t("tokenActions.toggleLabel")}
         />
       )}
     </FormGroup>
