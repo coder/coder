@@ -19,13 +19,12 @@ Unfortunately, the VSCode extension does not support both go template and postgr
 1. `ctl + shift + p`
 1. "Change language Mode"
 1. "Postgres" or "Go Template File"
-  - Feel free to create a permanent file association with `*.gosql` files.
 
+- Feel free to create a permanent file association with `*.gosql` files.
 
 ## Goland
 
 Goland supports [template highlighting](https://www.jetbrains.com/help/go/integration-with-go-templates.html) out of the box. To associate sql files, add a new file type in **Editor** settings. Select "Go template files". Add a new filename of `*.gosql` and select "postgres" as the "Template Data Language".
-
 
 ![Goland language configuration](./imgs/goland-gosql.png)
 
