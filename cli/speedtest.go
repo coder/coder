@@ -23,19 +23,18 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 		duration  time.Duration
 		direction string
 	)
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "speedtest <workspace>",
-		Middleware:  clibase.RequireNArgs(1),
 		Short:       "Run upload and download tests from your machine to a workspace",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-
-			client, err := useClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
-			}
 
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, inv.Args[0], false)
 			if err != nil {

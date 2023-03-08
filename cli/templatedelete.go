@@ -13,9 +13,13 @@ import (
 )
 
 func (r *RootCmd) templateDelete() *clibase.Cmd {
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
 		Use:   "delete [name...]",
 		Short: "Delete templates",
+		Middleware: clibase.Chain(
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			var (
 				ctx           = inv.Context()
@@ -23,10 +27,6 @@ func (r *RootCmd) templateDelete() *clibase.Cmd {
 				templates     = []codersdk.Template{}
 			)
 
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err

@@ -10,11 +10,15 @@ import (
 )
 
 func (r *RootCmd) stop() *clibase.Cmd {
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "stop <workspace>",
 		Short:       "Stop a workspace",
-		Middleware:  clibase.RequireNArgs(1),
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Confirm stop workspace?",
@@ -24,10 +28,6 @@ func (r *RootCmd) stop() *clibase.Cmd {
 				return err
 			}
 
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err

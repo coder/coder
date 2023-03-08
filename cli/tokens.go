@@ -53,15 +53,12 @@ func (r *RootCmd) createToken() *clibase.Cmd {
 		tokenLifetime time.Duration
 		name          string
 	)
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
-		Use:   "create",
-		Short: "Create a token",
+		Use:        "create",
+		Short:      "Create a token",
+		Middleware: r.useClient(client),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
-			}
-
 			res, err := client.CreateToken(inv.Context(), codersdk.Me, codersdk.CreateTokenRequest{
 				Lifetime:  tokenLifetime,
 				TokenName: name,
@@ -131,16 +128,14 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 			cliui.JSONFormat(),
 		)
 	)
-	cmd := &clibase.Cmd{
-		Use:     "list",
-		Aliases: []string{"ls"},
-		Short:   "List tokens",
-		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
-			}
 
+	var client *codersdk.Client
+	cmd := &clibase.Cmd{
+		Use:        "list",
+		Aliases:    []string{"ls"},
+		Short:      "List tokens",
+		Middleware: r.useClient(client),
+		Handler: func(inv *clibase.Invokation) error {
 			tokens, err := client.Tokens(inv.Context(), codersdk.Me, codersdk.TokensFilter{
 				IncludeAll: all,
 			})
@@ -178,17 +173,16 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 }
 
 func (r *RootCmd) removeToken() *clibase.Cmd {
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
-		Use:        "remove [name]",
-		Aliases:    []string{"rm"},
-		Short:      "Delete a token",
-		Middleware: clibase.RequireNArgs(1),
+		Use:     "remove [name]",
+		Aliases: []string{"rm"},
+		Short:   "Delete a token",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
-			}
-
 			token, err := client.APIKeyByName(inv.Context(), codersdk.Me, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("fetch api key by name %s: %w", inv.Args[0], err)

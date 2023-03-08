@@ -12,12 +12,16 @@ import (
 // nolint
 func (r *RootCmd) deleteWorkspace() *clibase.Cmd {
 	var orphan bool
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "delete <workspace>",
 		Short:       "Delete a workspace",
 		Aliases:     []string{"rm"},
-		Middleware:  clibase.RequireNArgs(1),
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Confirm delete workspace?",
@@ -28,10 +32,6 @@ func (r *RootCmd) deleteWorkspace() *clibase.Cmd {
 				return err
 			}
 
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err

@@ -22,17 +22,16 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		maxTTL                       time.Duration
 		allowUserCancelWorkspaceJobs bool
 	)
+	var client *codersdk.Client
 
 	cmd := &clibase.Cmd{
-		Use:        "edit <template> [flags]",
-		Middleware: clibase.RequireNArgs(1),
-		Short:      "Edit the metadata of a template by name.",
+		Use: "edit <template> [flags]",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.useClient(client),
+		),
+		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
-			}
-
 			if maxTTL != 0 {
 				entitlements, err := client.Entitlements(inv.Context())
 				var sdkErr *codersdk.Error

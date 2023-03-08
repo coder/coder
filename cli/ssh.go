@@ -49,19 +49,17 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		wsPollInterval time.Duration
 		noWait         bool
 	)
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace>",
 		Short:       "Start a shell into a workspace",
-		Args:        cobra.ArbitraryArgs,
+		Middleware: clibase.Chain(
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
 
 			if shuffle {
 				err := cobra.ExactArgs(0)(cmd, args)

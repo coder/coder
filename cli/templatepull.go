@@ -7,7 +7,6 @@ import (
 	"sort"
 
 	"github.com/codeclysm/extract"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -17,10 +16,15 @@ import (
 
 func (r *RootCmd) templatePull() *clibase.Cmd {
 	var tarMode bool
+
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
 		Use:   "pull <name> [destination]",
 		Short: "Download the latest version of a template to a path.",
-		Args: clibase.RequireRangArgs(1, 2)
+		Middleware: clibase.Chain(
+			clibase.RequireRangeArgs(1, 2),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			var (
 				ctx          = inv.Context()
@@ -30,11 +34,6 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 
 			if len(inv.Args) > 1 {
 				dest = inv.Args[1]
-			}
-
-			client, err := useClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
 			}
 
 			// TODO(JonA): Do we need to add a flag for organization?

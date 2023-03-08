@@ -41,16 +41,16 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 		cliui.TableFormat([]templateVersionRow{}, nil),
 		cliui.JSONFormat(),
 	)
+	var client *codersdk.Client
 
 	cmd := &clibase.Cmd{
-		Use:        "list <template>",
-		Middleware: clibase.RequireNArgs(1),
-		Short:      "List all the versions of the specified template",
+		Use: "list <template>",
+		Middleware: clibase.Chain(
+			r.useClient(client),
+			clibase.RequireNArgs(1),
+		),
+		Short: "List all the versions of the specified template",
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
-			}
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)

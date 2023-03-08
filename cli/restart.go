@@ -10,11 +10,15 @@ import (
 )
 
 func (r *RootCmd) restart() *clibase.Cmd {
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "restart <workspace>",
 		Short:       "Restart a workspace",
-		Middleware:  clibase.RequireNArgs(1),
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx := inv.Context()
 			out := inv.Stdout
@@ -27,10 +31,6 @@ func (r *RootCmd) restart() *clibase.Cmd {
 				return err
 			}
 
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err

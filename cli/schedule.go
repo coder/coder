@@ -185,25 +185,23 @@ func (r *RootCmd) scheduleStop() *clibase.Cmd {
 }
 
 func (r *RootCmd) scheduleOverride() *clibase.Cmd {
+	var client *codersdk.Client
 	overrideCmd := &clibase.Cmd{
-		Middleware: clibase.RequireNArgs(2),
-		Use:        "override-stop <workspace-name> <duration from now>",
-		Long: formatExamples(
+		Use:   "override-stop <workspace-name> <duration from now>",
+		Short: "Edit stop time of active workspace",
+		Long: scheduleOverrideDescriptionLong + "\n" + formatExamples(
 			example{
 				Command: "coder schedule override-stop my-workspace 90m",
 			},
 		),
-		Short: "Edit stop time of active workspace",
-		Long:  scheduleOverrideDescriptionLong,
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(2),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			overrideDuration, err := parseDuration(inv.Args[1])
 			if err != nil {
 				return err
-			}
-
-			client, err := useClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
 			}
 
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])

@@ -101,7 +101,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 
 	cmd := &clibase.Cmd{
 		Use:   "push [template]",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  clibase.RequireRangeArgs(0,1),
 		Short: "Push a new template version from the current directory or as specified by flag",
 		Middleware: clibase.Chain(r.useClient(client)),
                       Handler: func(inv *clibase.Invokation) error {

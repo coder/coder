@@ -310,19 +310,19 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 
 func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 	cleanupStrategy := &scaletestStrategyFlags{cleanup: true}
+	var client *codersdk.Client
 
 	cmd := &clibase.Cmd{
 		Use:   "cleanup",
 		Short: "Cleanup any orphaned scaletest resources",
 		Long:  "Cleanup scaletest workspaces, then cleanup scaletest users. The strategy flags will apply to each stage of the cleanup process.",
+		Middleware: clibase.Chain(
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx := inv.Context()
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
 
-			_, err = requireAdmin(ctx, client)
+			_, err := requireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -494,18 +494,17 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 		output          = &scaletestOutputFlags{}
 	)
 
+	var client *codersdk.Client
+
 	cmd := &clibase.Cmd{
 		Use:   "create-workspaces",
 		Short: "Creates many workspaces and waits for them to be ready",
 		Long: `Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
 
 It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
+		Middleware: r.useClient(client),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx := inv.Context()
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
 
 			me, err := requireAdmin(ctx, client)
 			if err != nil {

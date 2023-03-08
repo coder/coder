@@ -12,17 +12,13 @@ import (
 
 func (r *RootCmd) publickey() *clibase.Cmd {
 	var reset bool
-
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
-		Use:     "publickey",
-		Aliases: []string{"pubkey"},
-		Short:   "Output your Coder public key used for Git operations",
+		Use:        "publickey",
+		Aliases:    []string{"pubkey"},
+		Short:      "Output your Coder public key used for Git operations",
+		Middleware: r.useClient(client),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := useClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create codersdk client: %w", err)
-			}
-
 			if reset {
 				// Confirm prompt if using --reset. We don't want to accidentally
 				// reset our public key.

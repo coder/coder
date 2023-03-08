@@ -14,7 +14,6 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/pkg/browser"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -51,7 +50,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "login <url>",
 		Short: "Authenticate with Coder deployment",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  clibase.RequireRangeArgs(0,1),
 		Handler: func(inv *clibase.Invokation) error {
 			rawURL := ""
 			if len(inv.Args) == 0 {

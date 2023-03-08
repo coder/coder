@@ -35,7 +35,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "create [name]",
 		Short: "Create a template from the current directory or as specified by flag",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  clibase.RequireRangeArgs(0,1),
 		Middleware: clibase.Chain(r.useClient(client)),
                       Handler: func(inv *clibase.Invokation) error {
 

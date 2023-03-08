@@ -22,19 +22,19 @@ func (r *RootCmd) ping() *clibase.Cmd {
 		pingWait    time.Duration
 		verbose     bool
 	)
+
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "ping <workspace>",
 		Short:       "Ping a workspace",
-		Middleware:  clibase.RequireNArgs(1),
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
-			}
 
 			workspaceName := inv.Args[0]
 			_, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, workspaceName, false)

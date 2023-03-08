@@ -7,6 +7,7 @@ import (
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 )
 
 func (r *RootCmd) templateList() *clibase.Cmd {
@@ -15,11 +16,14 @@ func (r *RootCmd) templateList() *clibase.Cmd {
 		cliui.JSONFormat(),
 	)
 
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
-		Use:        "list",
-		Short:      "List all the templates available for the organization",
-		Aliases:    []string{"ls"},
-		Middleware: clibase.Chain(r.useClient(client)),
+		Use:     "list",
+		Short:   "List all the templates available for the organization",
+		Aliases: []string{"ls"},
+		Middleware: clibase.Chain(
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {

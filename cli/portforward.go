@@ -26,11 +26,11 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 		tcpForwards []string // <port>:<port>
 		udpForwards []string // <port>:<port>
 	)
+	var client *codersdk.Client
 	cmd := &clibase.Cmd{
-		Use:        "port-forward <workspace>",
-		Short:      "Forward ports from machine to a workspace",
-		Aliases:    []string{"tunnel"},
-		Middleware: clibase.RequireNArgs(1),
+		Use:     "port-forward <workspace>",
+		Short:   "Forward ports from machine to a workspace",
+		Aliases: []string{"tunnel"},
 		Long: formatExamples(
 			example{
 				Description: "Port forward a single TCP port from 1234 in the workspace to port 5678 on your local machine",
@@ -49,6 +49,10 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				Command:     "coder port-forward <workspace> --tcp 8080,9000:3000,9090-9092,10000-10002:10010-10012",
 			},
 		),
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.useClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
@@ -63,11 +67,6 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 					return xerrors.Errorf("generate help output: %w", err)
 				}
 				return xerrors.New("no port-forwards requested")
-			}
-
-			client, err := useClient(cmd)
-			if err != nil {
-				return err
 			}
 
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, inv.Args[0], false)
