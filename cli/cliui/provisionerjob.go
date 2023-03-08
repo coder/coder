@@ -42,18 +42,14 @@ type ProvisionerJobOptions struct {
 }
 
 type ProvisionerJobError struct {
-	message string
-	code    codersdk.JobErrorCode
+	Message string
+	Code    codersdk.JobErrorCode
 }
 
 var _ error = new(ProvisionerJobError)
 
 func (err *ProvisionerJobError) Error() string {
-	return err.message
-}
-
-func (err *ProvisionerJobError) Code() codersdk.JobErrorCode {
-	return err.code
+	return err.Message
 }
 
 // ProvisionerJob renders a provisioner job with interactive cancellation.
@@ -197,8 +193,8 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 				case codersdk.ProvisionerJobFailed:
 				}
 				err = &ProvisionerJobError{
-					message: job.Error,
-					code:    job.ErrorCode,
+					Message: job.Error,
+					Code:    job.ErrorCode,
 				}
 				jobMutex.Unlock()
 				flushLogBuffer()

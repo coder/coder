@@ -37,6 +37,11 @@ const (
 	requiredTemplateVariablesErrorText = "required template variables"
 )
 
+var errorCodes = map[string]string{
+	MissingParameterErrorCode:          missingParameterErrorText,
+	RequiredTemplateVariablesErrorCode: requiredTemplateVariablesErrorText,
+}
+
 var errUpdateSkipped = xerrors.New("update skipped; job complete or failed")
 
 type Runner struct {
@@ -1058,10 +1063,11 @@ func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob
 	message := fmt.Sprintf(format, args...)
 	var code string
 
-	if strings.Contains(message, missingParameterErrorText) {
-		code = MissingParameterErrorCode
-	} else if strings.Contains(message, requiredTemplateVariablesErrorText) {
-		code = RequiredTemplateVariablesErrorCode
+	for c, m := range errorCodes {
+		if strings.Contains(message, m) {
+			code = c
+			break
+		}
 	}
 	return &proto.FailedJob{
 		JobId:     r.job.JobId,

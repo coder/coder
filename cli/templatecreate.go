@@ -198,7 +198,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 	})
 	if err != nil {
 		var jobErr *cliui.ProvisionerJobError
-		if errors.As(err, &jobErr) && !provisionerd.IsMissingParameterError(string(jobErr.Code())) {
+		if errors.As(err, &jobErr) && !provisionerd.IsMissingParameterErrorCode(string(jobErr.Code)) {
 			return nil, nil, err
 		}
 	}
@@ -235,7 +235,7 @@ func createValidTemplateVersion(cmd *cobra.Command, args createValidTemplateVers
 		}
 	}
 
-	if provisionerd.IsMissingParameterError(string(version.Job.ErrorCode)) {
+	if provisionerd.IsMissingParameterErrorCode(string(version.Job.ErrorCode)) {
 		valuesBySchemaID := map[string]codersdk.ComputedParameter{}
 		for _, parameterValue := range parameterValues {
 			valuesBySchemaID[parameterValue.SchemaID.String()] = parameterValue
