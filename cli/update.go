@@ -51,7 +51,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 				}
 			}
 
-			buildParams, err := prepWorkspaceBuild(cmd, client, prepWorkspaceBuildArgs{
+			buildParams, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Template:           template,
 				ExistingParams:     existingParams,
 				ParameterFile:      parameterFile,

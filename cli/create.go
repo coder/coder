@@ -10,7 +10,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
@@ -38,11 +37,11 @@ func (r *RootCmd) create() *clibase.Cmd {
 			}
 
 			if len(inv.Args) >= 1 {
-				workspaceName = inv.Args[0]
+				workspaceName = clibase.String(inv.Args[0])
 			}
 
 			if workspaceName == "" {
-				workspaceName, err = cliui.Prompt(inv, cliui.PromptOptions{
+				workspaceName, err := cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Specify a name for your workspace:",
 					Validate: func(workspaceName string) error {
 						_, err = client.WorkspaceByOwnerAndName(inv.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
@@ -120,7 +119,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 				schedSpec = ptr.Ref(sched.String())
 			}
 
-			buildParams, err := prepWorkspaceBuild(cmd, client, prepWorkspaceBuildArgs{
+			buildParams, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Template:          template,
 				ExistingParams:    []codersdk.Parameter{},
 				ParameterFile:     parameterFile,
@@ -160,13 +159,46 @@ func (r *RootCmd) create() *clibase.Cmd {
 			return nil
 		},
 	}
+	cmd.Options = append(cmd.Options,
+		clibase.Option{
+			Name:          "template",
+			Flag:          "template",
+			FlagShorthand: "t",
+			Env:           "CODER_TEMPLATE_NAME",
+			Description:   "Specify a template name.",
+			Value:         clibase.StringOf(&templateName),
+		},
+		clibase.Option{
+			Name:        "parameter-file",
+			Flag:        "parameter-file",
+			Env:         "CODER_PARAMETER_FILE",
+			Description: "Specify a file path with parameter values.",
+			Value:       clibase.StringOf(&parameterFile),
+		},
+		clibase.Option{
+			Name:        "rich-parameter-file",
+			Flag:        "rich-parameter-file",
+			Env:         "CODER_RICH_PARAMETER_FILE",
+			Description: "Specify a file path with values for rich parameters defined in the template.",
+			Value:       clibase.StringOf(&richParameterFile),
+		},
+		clibase.Option{
+			Name:        "start-at",
+			Flag:        "start-at",
+			Env:         "CODER_WORKSPACE_START_AT",
+			Description: "Specify the workspace autostart schedule. Check `coder schedule start --help` for the syntax.",
+			Value:       clibase.StringOf(&startAt),
+		},
+		clibase.Option{
+			Name:        "stop-after",
+			Flag:        "stop-after",
+			Env:         "CODER_WORKSPACE_STOP_AFTER",
+			Description: "Specify a duration after which the workspace should shut down (e.g. 8h).",
+			Value:       clibase.DurationOf(&stopAfter),
+		},
+		cliui.AllowSkipPrompt(),
+	)
 
-	cliui.AllowSkipPrompt(inv)
-	cliflag.StringVarP(cmd.Flags(), &templateName, "template", "t", "CODER_TEMPLATE_NAME", "", "Specify a template name.")
-	cliflag.StringVarP(cmd.Flags(), &parameterFile, "parameter-file", "", "CODER_PARAMETER_FILE", "", "Specify a file path with parameter values.")
-	cliflag.StringVarP(cmd.Flags(), &richParameterFile, "rich-parameter-file", "", "CODER_RICH_PARAMETER_FILE", "", "Specify a file path with values for rich parameters defined in the template.")
-	cliflag.StringVarP(cmd.Flags(), &startAt, "start-at", "", "CODER_WORKSPACE_START_AT", "", "Specify the workspace autostart schedule. Check `coder schedule start --help` for the syntax.")
-	cliflag.DurationVarP(cmd.Flags(), &stopAfter, "stop-after", "", "CODER_WORKSPACE_STOP_AFTER", 8*time.Hour, "Specify a duration after which the workspace should shut down (e.g. 8h).")
 	return cmd
 }
 
@@ -190,16 +222,16 @@ type buildParameters struct {
 
 // prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
 // Any missing params will be prompted to the user. It supports legacy and rich parameters.
-func prepWorkspaceBuild(cmd *clibase.Cmd, client *codersdk.Client, args prepWorkspaceBuildArgs) (*buildParameters, error) {
+func prepWorkspaceBuild(inv *clibase.Invokation, client *codersdk.Client, args prepWorkspaceBuildArgs) (*buildParameters, error) {
 	ctx := inv.Context()
 
 	var useRichParameters bool
-	if len(inv.Args.ExistingRichParams) > 0 && len(inv.Args.RichParameterFile) > 0 {
+	if len(args.ExistingRichParams) > 0 && len(args.RichParameterFile) > 0 {
 		useRichParameters = true
 	}
 
 	var useLegacyParameters bool
-	if len(inv.Args.ExistingParams) > 0 || len(inv.Args.ParameterFile) > 0 {
+	if len(args.ExistingParams) > 0 || len(args.ParameterFile) > 0 {
 		useLegacyParameters = true
 	}
 
@@ -207,7 +239,7 @@ func prepWorkspaceBuild(cmd *clibase.Cmd, client *codersdk.Client, args prepWork
 		return nil, xerrors.Errorf("Rich parameters can't be used together with legacy parameters.")
 	}
 
-	templateVersion, err := client.TemplateVersion(ctx, inv.Args.Template.ActiveVersionID)
+	templateVersion, err := client.TemplateVersion(ctx, args.Template.ActiveVersionID)
 	if err != nil {
 		return nil, err
 	}
@@ -221,10 +253,10 @@ func prepWorkspaceBuild(cmd *clibase.Cmd, client *codersdk.Client, args prepWork
 	// parameterMapFromFile can be nil if parameter file is not specified
 	var parameterMapFromFile map[string]string
 	useParamFile := false
-	if inv.Args.ParameterFile != "" {
+	if args.ParameterFile != "" {
 		useParamFile = true
 		_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("Attempting to read the variables from the parameter file.")+"\r\n")
-		parameterMapFromFile, err = createParameterMapFromFile(inv.Args.ParameterFile)
+		parameterMapFromFile, err = createParameterMapFromFile(args.ParameterFile)
 		if err != nil {
 			return nil, err
 		}
@@ -243,7 +275,7 @@ PromptParamLoop:
 
 		// Param file is all or nothing
 		if !useParamFile {
-			for _, e := range inv.Args.ExistingParams {
+			for _, e := range args.ExistingParams {
 				if e.Name == parameterSchema.Name {
 					// If the param already exists, we do not need to prompt it again.
 					// The workspace scope will reuse params for each build.
@@ -277,10 +309,10 @@ PromptParamLoop:
 
 	parameterMapFromFile = map[string]string{}
 	useParamFile = false
-	if inv.Args.RichParameterFile != "" {
+	if args.RichParameterFile != "" {
 		useParamFile = true
 		_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Paragraph.Render("Attempting to read the variables from the rich parameter file.")+"\r\n")
-		parameterMapFromFile, err = createParameterMapFromFile(inv.Args.RichParameterFile)
+		parameterMapFromFile, err = createParameterMapFromFile(args.RichParameterFile)
 		if err != nil {
 			return nil, err
 		}
@@ -296,7 +328,7 @@ PromptRichParamLoop:
 
 		// Param file is all or nothing
 		if !useParamFile {
-			for _, e := range inv.Args.ExistingRichParams {
+			for _, e := range args.ExistingRichParams {
 				if e.Name == templateVersionParameter.Name {
 					// If the param already exists, we do not need to prompt it again.
 					// The workspace scope will reuse params for each build.
@@ -305,7 +337,7 @@ PromptRichParamLoop:
 			}
 		}
 
-		if inv.Args.UpdateWorkspace && !templateVersionParameter.Mutable {
+		if args.UpdateWorkspace && !templateVersionParameter.Mutable {
 			_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Warn.Render(fmt.Sprintf(`Parameter %q is not mutable, so can't be customized after workspace creation.`, templateVersionParameter.Name)))
 			continue
 		}
@@ -333,7 +365,7 @@ PromptRichParamLoop:
 
 	// Run a dry-run with the given parameters to check correctness
 	dryRun, err := client.CreateTemplateVersionDryRun(inv.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
-		WorkspaceName:       inv.Args.NewWorkspaceName,
+		WorkspaceName:       args.NewWorkspaceName,
 		ParameterValues:     legacyParameters,
 		RichParameterValues: richParameters,
 	})
@@ -366,7 +398,7 @@ PromptRichParamLoop:
 	}
 
 	err = cliui.WorkspaceResources(inv.Stdout, resources, cliui.WorkspaceResourcesOptions{
-		WorkspaceName: inv.Args.NewWorkspaceName,
+		WorkspaceName: args.NewWorkspaceName,
 		// Since agents haven't connected yet, hiding this makes more sense.
 		HideAgentState: true,
 		Title:          "Workspace Preview",

@@ -1117,7 +1117,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
 		Handler: func(inv *clibase.Invokation) error {
-			cfg := createConfig(cmd)
+			cfg := r.createConfig()
 			url, err := embeddedPostgresURL(cfg)
 			if err != nil {
 				return err
@@ -1136,7 +1136,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 		Handler: func(inv *clibase.Invokation) error {
 			ctx := inv.Context()
 
-			cfg := createConfig(cmd)
+			cfg := r.createConfig()
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
 			if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)

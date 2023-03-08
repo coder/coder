@@ -22,7 +22,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
@@ -166,7 +165,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			if dryRun {
 				// Print everything except diff to stderr so
 				// that it's possible to capture the diff.
-				out = cmd.OutOrStderr()
+				out = inv.Stderr
 			}
 			coderBinary, err := currentBinPath(out)
 			if err != nil {
@@ -177,7 +176,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 				return xerrors.Errorf("escape coder binary for ssh failed: %w", err)
 			}
 
-			root := createConfig(cmd)
+			root := r.createConfig()
 			escapedGlobalConfig, err := sshConfigExecEscape(string(root))
 			if err != nil {
 				return xerrors.Errorf("escape global config for ssh failed: %w", err)
@@ -369,13 +368,49 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			return nil
 		},
 	}
-	cliflag.StringVarP(cmd.Flags(), &sshConfigFile, "ssh-config-file", "", "CODER_SSH_CONFIG_FILE", sshDefaultConfigFileName, "Specifies the path to an SSH config.")
-	cmd.Flags().StringArrayVarP(&sshConfigOpts.sshOptions, "ssh-option", "o", []string{}, "Specifies additional SSH options to embed in each host stanza.")
-	cmd.Flags().BoolVarP(&dryRun, "dry-run", "n", false, "Perform a trial run with no changes made, showing a diff at the end.")
-	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
-	_ = inv.ParsedFlags().MarkHidden("skip-proxy-command")
-	cliflag.BoolVarP(cmd.Flags(), &usePreviousOpts, "use-previous-options", "", "CODER_SSH_USE_PREVIOUS_OPTIONS", false, "Specifies whether or not to keep options from previous run of config-ssh.")
-	cliui.AllowSkipPrompt(inv)
+
+	cmd.Options = []clibase.Option{
+		{
+			Name:        "ssh-config-file",
+			Flag:        "ssh-config-file",
+			Env:         "CODER_SSH_CONFIG_FILE",
+			Default:     sshDefaultConfigFileName,
+			Description: "Specifies the path to an SSH config.",
+			Value:       clibase.StringOf(&sshConfigFile),
+		},
+		{
+			Name:          "ssh-config-opts",
+			Flag:          "ssh-config-opts",
+			FlagShorthand: "o",
+			Env:           "CODER_SSH_CONFIG_OPTS",
+			Description:   "Specifies additional SSH options to embed in each host stanza.",
+			Value:         clibase.StringsOf(&sshConfigOpts.sshOptions),
+		},
+		{
+			Name:          "dry-run",
+			Flag:          "dry-run",
+			FlagShorthand: "n",
+			Env:           "CODER_SSH_DRY_RUN",
+			Description:   "Perform a trial run with no changes made, showing a diff at the end.",
+			Value:         clibase.BoolOf(&dryRun),
+		},
+		{
+			Name:        "skip-proxy-command",
+			Flag:        "skip-proxy-command",
+			Env:         "CODER_SSH_SKIP_PROXY_COMMAND",
+			Description: "Specifies whether the ProxyCommand option should be skipped. Useful for testing.",
+			Value:       clibase.BoolOf(&skipProxyCommand),
+			Hidden:      true,
+		},
+		{
+			Name:        "use-previous-options",
+			Flag:        "use-previous-options",
+			Env:         "CODER_SSH_USE_PREVIOUS_OPTIONS",
+			Description: "Specifies whether or not to keep options from previous run of config-ssh.",
+			Value:       clibase.BoolOf(&usePreviousOpts),
+		},
+		cliui.AllowSkipPrompt(),
+	}
 
 	return cmd
 }

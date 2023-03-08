@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/agent/reaper"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk/agentsdk"
 )
 
@@ -208,10 +207,36 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 		},
 	}
 
-	cliflag.StringVarP(cmd.Flags(), &auth, "auth", "", "CODER_AGENT_AUTH", "token", "Specify the authentication type to use for the agent")
-	cliflag.StringVarP(cmd.Flags(), &logDir, "log-dir", "", "CODER_AGENT_LOG_DIR", os.TempDir(), "Specify the location for the agent log files")
-	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
-	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Name:        "auth",
+			Default:     "token",
+			Description: "Specify the authentication type to use for the agent",
+			Env:         "CODER_AGENT_AUTH",
+			Value:       clibase.StringOf(&auth),
+		},
+		{
+			Name:        "log-dir",
+			Default:     os.TempDir(),
+			Description: "Specify the location for the agent log files",
+			Env:         "CODER_AGENT_LOG_DIR",
+			Value:       clibase.StringOf(&logDir),
+		},
+		{
+			Name:    "pprof-address",
+			Default: "127.0.0.1:6060",
+			Env:     "CODER_AGENT_PPROF_ADDRESS",
+			Value:   clibase.StringOf(&pprofAddress),
+		},
+		{
+			Name:        "no-reap",
+			Default:     "false",
+			Env:         "",
+			Description: "Do not start a process reaper.",
+			Value:       clibase.BoolOf(&noReap),
+		},
+	}
+
 	return cmd
 }
 

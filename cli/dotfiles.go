@@ -33,7 +33,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 			var (
 				dotfilesRepoDir = "dotfiles"
 				gitRepo         = inv.Args[0]
-				cfg             = createConfig(cmd)
+				cfg             = r.createConfig()
 				cfgDir          = string(cfg)
 				dotfilesDir     = filepath.Join(cfgDir, dotfilesRepoDir)
 				// This follows the same pattern outlined by others in the market:

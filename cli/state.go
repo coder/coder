@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
+	"gvisor.dev/gvisor/runsc/cmd"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
@@ -104,7 +105,7 @@ func (r *RootCmd) statePush() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			return cliui.WorkspaceBuild(inv.Context(), cmd.OutOrStderr(), client, build.ID)
+			return cliui.WorkspaceBuild(inv.Context(), inv.Stderr, client, build.ID)
 		},
 	}
 	cmd.Flags().IntVarP(&buildNumber, "build", "b", 0, "Specify a workspace build to target by name.")

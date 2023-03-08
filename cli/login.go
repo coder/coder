@@ -50,7 +50,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "login <url>",
 		Short: "Authenticate with Coder deployment",
-		Args:  clibase.RequireRangeArgs(0,1),
+		Args:  clibase.RequireRangeArgs(0, 1),
 		Handler: func(inv *clibase.Invokation) error {
 			rawURL := ""
 			if len(inv.Args) == 0 {
@@ -205,7 +205,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 				}
 
 				sessionToken := resp.SessionToken
-				config := createConfig(cmd)
+				config := r.createConfig()
 				err = config.Session().Write(sessionToken)
 				if err != nil {
 					return xerrors.Errorf("write session token: %w", err)
@@ -259,7 +259,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 				return xerrors.Errorf("get user: %w", err)
 			}
 
-			config := createConfig(cmd)
+			config := r.createConfig()
 			err = config.Session().Write(sessionToken)
 			if err != nil {
 				return xerrors.Errorf("write session token: %w", err)

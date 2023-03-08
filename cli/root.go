@@ -14,7 +14,6 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
-	"text/template"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -23,11 +22,9 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-isatty"
-	"github.com/spf13/cobra"
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
@@ -66,11 +63,6 @@ const (
 )
 
 var errUnauthenticated = xerrors.New(notLoggedInMessage)
-
-func init() {
-	// Set cobra template functions in init to avoid conflicts in tests.
-	cobra.AddTemplateFuncs(templateFunctions)
-}
 
 func Core() []*clibase.Cmd {
 	r := &RootCmd{}
@@ -113,7 +105,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			// with a `gitaskpass` subcommand, we override the entrypoint
 			// to check if the command was invoked.
 			if gitauth.CheckCommand(i.Args, i.Environ.ToOS()) {
-				return gitAskpass().Handler(i)
+				return r.gitAskpass().Handler(i)
 			}
 			return i.Command.HelpHandler(i)
 		},
@@ -384,7 +376,7 @@ func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Cli
 
 // createAgentClient returns a new client from the command context.
 // It works just like CreateClient, but uses the agent token and URL instead.
-func createAgentClient(cmd *clibase.Cmd) (*agentsdk.Client, error) {
+func createAgentClient(inv *clibase.Invokation) (*agentsdk.Client, error) {
 	rawURL, err := inv.ParsedFlags().GetString(varAgentURL)
 	if err != nil {
 		return nil, err
@@ -442,7 +434,7 @@ func (r *RootCmd) createConfig() config.Root {
 // isTTY returns whether the passed reader is a TTY or not.
 // This accepts a reader to work with Cobra's "InOrStdin"
 // function for simple testing.
-func isTTY(cmd *clibase.Cmd) bool {
+func isTTY(inv *clibase.Invokation) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
@@ -460,18 +452,18 @@ func isTTY(cmd *clibase.Cmd) bool {
 // isTTYOut returns whether the passed reader is a TTY or not.
 // This accepts a reader to work with Cobra's "OutOrStdout"
 // function for simple testing.
-func isTTYOut(cmd *clibase.Cmd) bool {
-	return isTTYWriter(cmd, cmd.OutOrStdout)
+func isTTYOut(inv *clibase.Invokation) bool {
+	return isTTYWriter(inv, inv.Stdout)
 }
 
 // isTTYErr returns whether the passed reader is a TTY or not.
 // This accepts a reader to work with Cobra's "ErrOrStderr"
 // function for simple testing.
-func isTTYErr(cmd *clibase.Cmd) bool {
-	return isTTYWriter(cmd, cmd.ErrOrStderr)
+func isTTYErr(inv *clibase.Invokation) bool {
+	return isTTYWriter(inv, inv.Stderr)
 }
 
-func isTTYWriter(cmd *clibase.Cmd, writer func() io.Writer) bool {
+func isTTYWriter(inv *clibase.Invokation, writer io.Writer) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
@@ -479,102 +471,11 @@ func isTTYWriter(cmd *clibase.Cmd, writer func() io.Writer) bool {
 	if forceTty && err == nil {
 		return true
 	}
-	file, ok := writer().(*os.File)
+	file, ok := writer.(*os.File)
 	if !ok {
 		return false
 	}
 	return isatty.IsTerminal(file.Fd())
-}
-
-var templateFunctions = template.FuncMap{
-	"usageHeader":        usageHeader,
-	"isWorkspaceCommand": isWorkspaceCommand,
-}
-
-func usageHeader(s string) string {
-	// Customizes the color of headings to make subcommands more visually
-	// appealing.
-	return cliui.Styles.Placeholder.Render(s)
-}
-
-func isWorkspaceCommand(cmd *clibase.Cmd) bool {
-	if _, ok := cmd.Annotations["workspaces"]; ok {
-		return true
-	}
-	var ws bool
-	cmd.VisitParents(func(cmd *clibase.Cmd) {
-		if _, ok := cmd.Annotations["workspaces"]; ok {
-			ws = true
-		}
-	})
-	return ws
-}
-
-// We will eventually replace this with the clibase template describedc
-// in usage.go. We don't want to continue working around
-// Cobra's feature-set.
-func usageTemplateCobra() string {
-	// usageHeader is defined in init().
-	return `{{usageHeader "Usage:"}}
-{{- if .Runnable}}
-  {{.UseLine}}
-{{end}}
-{{- if .HasAvailableSubCommands}}
-  {{.CommandPath}} [command]
-{{end}}
-
-{{- if gt (len .Aliases) 0}}
-{{usageHeader "Aliases:"}}
-  {{.NameAndAliases}}
-{{end}}
-
-{{- if .HasExample}}
-{{usageHeader "Get Started:"}}
-{{.Example}}
-{{end}}
-
-{{- $isRootHelp := (not .HasParent)}}
-{{- if .HasAvailableSubCommands}}
-{{usageHeader "Commands:"}}
-  {{- range .Commands}}
-    {{- $isRootWorkspaceCommand := (and $isRootHelp (isWorkspaceCommand .))}}
-    {{- if (or (and .IsAvailableCommand (not $isRootWorkspaceCommand)) (eq .Name "help"))}}
-  {{rpad .Name .NamePadding }} {{.Short}}
-    {{- end}}
-  {{- end}}
-{{end}}
-
-{{- if (and $isRootHelp .HasAvailableSubCommands)}}
-{{usageHeader "Workspace Commands:"}}
-  {{- range .Commands}}
-    {{- if (and .IsAvailableCommand (isWorkspaceCommand .))}}
-  {{rpad .Name .NamePadding }} {{.Short}}
-    {{- end}}
-  {{- end}}
-{{end}}
-
-{{- if .HasAvailableLocalFlags}}
-{{usageHeader "Flags:"}}
-{{.LocalFlags.FlagUsagesWrapped 100 | trimTrailingWhitespaces}}
-{{end}}
-
-{{- if .HasAvailableInheritedFlags}}
-{{usageHeader "Global Flags:"}}
-{{.InheritedFlags.FlagUsagesWrapped 100 | trimTrailingWhitespaces}}
-{{end}}
-
-{{- if .HasHelpSubCommands}}
-{{usageHeader "Additional help topics:"}}
-  {{- range .Commands}}
-    {{- if .IsAdditionalHelpTopicCommand}}
-  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}
-    {{- end}}
-  {{- end}}
-{{end}}
-
-{{- if .HasAvailableSubCommands}}
-Use "{{.CommandPath}} [command] --help" for more information about a command.
-{{end}}`
 }
 
 // example represents a standard example for command usage, to be used
@@ -603,30 +504,6 @@ func formatExamples(examples ...example) string {
 		}
 	}
 	return sb.String()
-}
-
-// FormatCobraError colorizes and adds "--help" docs to clibase.Cmds.
-func FormatCobraError(err error, cmd *clibase.Cmd) string {
-	helpErrMsg := fmt.Sprintf("Run '%s --help' for usage.", cmd.CommandPath())
-
-	var (
-		httpErr *codersdk.Error
-		output  strings.Builder
-	)
-
-	if xerrors.As(err, &httpErr) {
-		_, _ = fmt.Fprintln(&output, httpErr.Friendly())
-	}
-
-	// If the httpErr is nil then we just have a regular error in which
-	// case we want to print out what's happening.
-	if httpErr == nil || cliflag.IsSetBool(cmd, varVerbose) {
-		_, _ = fmt.Fprintln(&output, err.Error())
-	}
-
-	_, _ = fmt.Fprint(&output, helpErrMsg)
-
-	return cliui.Styles.Error.Render(output.String())
 }
 
 func (r *RootCmd) checkVersions(i *clibase.Invokation, client *codersdk.Client) error {

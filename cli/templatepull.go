@@ -108,7 +108,7 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 				}
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Extracting template to %q\n", dest)
+			_, _ = fmt.Fprintf(inv.Stderr, "Extracting template to %q\n", dest)
 			err = extract.Tar(ctx, bytes.NewReader(raw), dest, nil)
 			return err
 		},

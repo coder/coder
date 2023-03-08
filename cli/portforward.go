@@ -13,6 +13,7 @@ import (
 
 	"github.com/pion/udp"
 	"golang.org/x/xerrors"
+	"gvisor.dev/gvisor/runsc/cmd"
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clibase"
@@ -136,7 +137,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				case <-ctx.Done():
 					closeErr = ctx.Err()
 				case <-sigs:
-					_, _ = fmt.Fprintln(cmd.OutOrStderr(), "\nReceived signal, closing all listeners and active connections")
+					_, _ = fmt.Fprintln(inv.Stderr, "\nReceived signal, closing all listeners and active connections")
 				}
 
 				cancel()
@@ -144,7 +145,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 			}()
 
 			conn.AwaitReachable(ctx)
-			_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Ready!")
+			_, _ = fmt.Fprintln(inv.Stderr, "Ready!")
 			wg.Wait()
 			return closeErr
 		},
@@ -156,7 +157,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 }
 
 func listenAndPortForward(ctx context.Context, cmd *clibase.Cmd, conn *codersdk.WorkspaceAgentConn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
-	_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
+	_, _ = fmt.Fprintf(inv.Stderr, "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
 
 	var (
 		l   net.Listener
@@ -199,8 +200,8 @@ func listenAndPortForward(ctx context.Context, cmd *clibase.Cmd, conn *codersdk.
 				if xerrors.Is(err, net.ErrClosed) {
 					return
 				}
-				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Error accepting connection from '%v://%v': %v\n", spec.listenNetwork, spec.listenAddress, err)
-				_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Killing listener")
+				_, _ = fmt.Fprintf(inv.Stderr, "Error accepting connection from '%v://%v': %v\n", spec.listenNetwork, spec.listenAddress, err)
+				_, _ = fmt.Fprintln(inv.Stderr, "Killing listener")
 				return
 			}
 
@@ -208,7 +209,7 @@ func listenAndPortForward(ctx context.Context, cmd *clibase.Cmd, conn *codersdk.
 				defer netConn.Close()
 				remoteConn, err := conn.DialContext(ctx, spec.dialNetwork, spec.dialAddress)
 				if err != nil {
-					_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Failed to dial '%v://%v' in workspace: %s\n", spec.dialNetwork, spec.dialAddress, err)
+					_, _ = fmt.Fprintf(inv.Stderr, "Failed to dial '%v://%v' in workspace: %s\n", spec.dialNetwork, spec.dialAddress, err)
 					return
 				}
 				defer remoteConn.Close()

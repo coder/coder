@@ -58,7 +58,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 				newUserPassword = val
 			}
 
-			cfg := createConfig(cmd)
+			cfg := r.createConfig()
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
 			if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)

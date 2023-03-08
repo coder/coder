@@ -19,7 +19,7 @@ func (r *RootCmd) logout() *clibase.Cmd {
 		Handler: func(inv *clibase.Invokation) error {
 			var errors []error
 
-			config := createConfig(cmd)
+			config := r.createConfig()
 
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Are you sure you want to log out?",

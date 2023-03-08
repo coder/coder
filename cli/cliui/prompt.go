@@ -27,8 +27,17 @@ type PromptOptions struct {
 
 const skipPromptFlag = "yes"
 
-func AllowSkipPrompt(inv *clibase.Invokation) {
-	inv.ParsedFlags().BoolP(skipPromptFlag, "y", false, "Bypass prompts")
+// AllowSkipPrompt adds a "yes" flag to the cmd that can be used to skip
+// prompts.
+func AllowSkipPrompt() clibase.Option {
+	return clibase.Option{
+		Name:          skipPromptFlag,
+		Flag:          skipPromptFlag,
+		FlagShorthand: "y",
+		Description:   "Bypass prompts",
+		Env:           "CODER_SKIP_PROMPT",
+		Value:         &clibase.DiscardValue{},
+	}
 }
 
 const (
