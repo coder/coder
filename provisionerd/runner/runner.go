@@ -895,7 +895,7 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 			})
 		case *sdkproto.Provision_Response_Complete:
 			if msgType.Complete.Error != "" {
-				r.logger.Error(context.Background(), "provision failed; updating state",
+				r.logger.Warn(context.Background(), "provision failed; updating state",
 					slog.F("state_length", len(msgType.Complete.State)),
 					slog.F("error", msgType.Complete.Error),
 				)
