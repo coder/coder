@@ -125,6 +125,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"deadline":            ActionIgnore,
 		"reason":              ActionIgnore,
 		"daily_cost":          ActionIgnore,
+		"max_deadline":        ActionIgnore,
 	},
 	&database.AuditableGroup{}: {
 		"id":              ActionTrack,

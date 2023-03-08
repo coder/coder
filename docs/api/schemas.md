@@ -2497,6 +2497,21 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `threshold` | integer | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
 | `url`       | string  | false    |              | URL specifies the endpoint to check for the app health.                                          |
 
+## codersdk.JobErrorCode
+
+```json
+"MISSING_TEMPLATE_PARAMETER"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                         |
+| ----------------------------- |
+| `MISSING_TEMPLATE_PARAMETER`  |
+| `REQUIRED_TEMPLATE_VARIABLES` |
+
 ## codersdk.License
 
 ```json
@@ -3033,6 +3048,7 @@ Parameter represents a set value for the scope.
   "completed_at": "2019-08-24T14:15:22Z",
   "created_at": "2019-08-24T14:15:22Z",
   "error": "string",
+  "error_code": "MISSING_TEMPLATE_PARAMETER",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "started_at": "2019-08-24T14:15:22Z",
@@ -3053,6 +3069,7 @@ Parameter represents a set value for the scope.
 | `completed_at`     | string                                                         | false    |              |             |
 | `created_at`       | string                                                         | false    |              |             |
 | `error`            | string                                                         | false    |              |             |
+| `error_code`       | [codersdk.JobErrorCode](#codersdkjoberrorcode)                 | false    |              |             |
 | `file_id`          | string                                                         | false    |              |             |
 | `id`               | string                                                         | false    |              |             |
 | `started_at`       | string                                                         | false    |              |             |
@@ -3063,14 +3080,16 @@ Parameter represents a set value for the scope.
 
 #### Enumerated Values
 
-| Property | Value       |
-| -------- | ----------- |
-| `status` | `pending`   |
-| `status` | `running`   |
-| `status` | `succeeded` |
-| `status` | `canceling` |
-| `status` | `canceled`  |
-| `status` | `failed`    |
+| Property     | Value                         |
+| ------------ | ----------------------------- |
+| `error_code` | `MISSING_TEMPLATE_PARAMETER`  |
+| `error_code` | `REQUIRED_TEMPLATE_VARIABLES` |
+| `status`     | `pending`                     |
+| `status`     | `running`                     |
+| `status`     | `succeeded`                   |
+| `status`     | `canceling`                   |
+| `status`     | `canceled`                    |
+| `status`     | `failed`                      |
 
 ## codersdk.ProvisionerJobLog
 
@@ -3591,6 +3610,7 @@ Parameter represents a set value for the scope.
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
+    "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "started_at": "2019-08-24T14:15:22Z",
@@ -4089,6 +4109,7 @@ Parameter represents a set value for the scope.
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
+      "error_code": "MISSING_TEMPLATE_PARAMETER",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "started_at": "2019-08-24T14:15:22Z",
@@ -4558,6 +4579,7 @@ Parameter represents a set value for the scope.
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
+    "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "started_at": "2019-08-24T14:15:22Z",
@@ -4928,6 +4950,7 @@ Parameter represents a set value for the scope.
           "completed_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
           "error": "string",
+          "error_code": "MISSING_TEMPLATE_PARAMETER",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "started_at": "2019-08-24T14:15:22Z",
