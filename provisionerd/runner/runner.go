@@ -880,7 +880,7 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
-			r.logger.Info(context.Background(), "workspace provision job logged",
+			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "workspace provisioner job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 				slog.F("workspace_build_id", r.job.GetWorkspaceBuild().WorkspaceBuildId),
@@ -895,8 +895,9 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 			})
 		case *sdkproto.Provision_Response_Complete:
 			if msgType.Complete.Error != "" {
-				r.logger.Info(context.Background(), "provision failed; updating state",
+				r.logger.Warn(context.Background(), "provision failed; updating state",
 					slog.F("state_length", len(msgType.Complete.State)),
+					slog.F("error", msgType.Complete.Error),
 				)
 
 				return nil, &proto.FailedJob{
@@ -1119,4 +1120,16 @@ func redactVariableValues(variableValues []*sdkproto.VariableValue) []*sdkproto.
 		redacted = append(redacted, v)
 	}
 	return redacted
+}
+
+// logProvisionerJobLog logs a message from the provisioner daemon at the appropriate level.
+func (r *Runner) logProvisionerJobLog(ctx context.Context, logLevel sdkproto.LogLevel, msg string, fields ...slog.Field) {
+	switch logLevel {
+	case sdkproto.LogLevel_DEBUG:
+		r.logger.Debug(ctx, msg, fields...)
+	case sdkproto.LogLevel_ERROR:
+		r.logger.Error(ctx, msg, fields...)
+	default:
+		r.logger.Info(ctx, msg, fields...)
+	}
 }
