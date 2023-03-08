@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
@@ -186,9 +187,9 @@ func TestPostLogin(t *testing.T) {
 	t.Run("DisabledPasswordAuth", func(t *testing.T) {
 		t.Parallel()
 
-		dc := coderdtest.DeploymentConfig(t)
+		dc := coderdtest.DeploymentValues(t)
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: dc,
+			DeploymentValues: dc,
 		})
 
 		first := coderdtest.CreateFirstUser(t, client)
@@ -206,7 +207,7 @@ func TestPostLogin(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		dc.DisablePasswordAuth.Value = true
+		dc.DisablePasswordAuth = clibase.Bool(true)
 
 		userClient := codersdk.New(client.URL)
 		_, err = userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{

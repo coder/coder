@@ -23,6 +23,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
@@ -168,13 +169,13 @@ func setupProxyTest(t *testing.T, opts *setupProxyTestOpts) (*codersdk.Client, c
 	})
 	go server.Serve(ln)
 
-	deploymentConfig := coderdtest.DeploymentConfig(t)
-	deploymentConfig.DisablePathApps.Value = opts.DisablePathApps
-	deploymentConfig.Dangerous.AllowPathAppSharing.Value = opts.DangerousAllowPathAppSharing
-	deploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value = opts.DangerousAllowPathAppSiteOwnerAccess
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.DisablePathApps = clibase.Bool(opts.DisablePathApps)
+	deploymentValues.Dangerous.AllowPathAppSharing = clibase.Bool(opts.DangerousAllowPathAppSharing)
+	deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = clibase.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentConfig:            deploymentConfig,
+		DeploymentValues:            deploymentValues,
 		AppHostname:                 opts.AppHost,
 		IncludeProvisionerDaemon:    true,
 		AgentStatsRefreshInterval:   time.Millisecond * 100,
@@ -307,11 +308,11 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 	t.Run("Disabled", func(t *testing.T) {
 		t.Parallel()
 
-		deploymentConfig := coderdtest.DeploymentConfig(t)
-		deploymentConfig.DisablePathApps.Value = true
+		deploymentValues := coderdtest.DeploymentValues(t)
+		deploymentValues.DisablePathApps = true
 
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig:            deploymentConfig,
+			DeploymentValues:            deploymentValues,
 			IncludeProvisionerDaemon:    true,
 			AgentStatsRefreshInterval:   time.Millisecond * 100,
 			MetricsCacheRefreshInterval: time.Millisecond * 100,
@@ -1435,11 +1436,11 @@ func TestAppSharing(t *testing.T) {
 		siteOwnerCanAccess := !isPathApp || siteOwnerPathAppAccessEnabled
 		siteOwnerCanAccessShared := siteOwnerCanAccess || pathAppSharingEnabled
 
-		deploymentConfig, err := ownerClient.DeploymentConfig(context.Background())
+		deploymentValues, err := ownerClient.DeploymentValues(context.Background())
 		require.NoError(t, err)
 
-		assert.Equal(t, pathAppSharingEnabled, deploymentConfig.Dangerous.AllowPathAppSharing.Value)
-		assert.Equal(t, siteOwnerPathAppAccessEnabled, deploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value)
+		assert.Equal(t, pathAppSharingEnabled, deploymentValues.Values.Dangerous.AllowPathAppSharing.Value())
+		assert.Equal(t, siteOwnerPathAppAccessEnabled, deploymentValues.Values.Dangerous.AllowPathAppSiteOwnerAccess.Value())
 
 		t.Run("LevelOwner", func(t *testing.T) {
 			t.Parallel()

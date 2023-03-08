@@ -501,7 +501,8 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	yarn run format:write:only ../docs/admin/prometheus.md
 
 docs/cli.md: scripts/clidocgen/main.go $(GO_SRC_FILES) docs/manifest.json
-	rm -rf ./docs/cli/*.md
+	# TODO(@ammario): re-enable server.md once we finish clibase migration.
+	ls ./docs/cli/*.md | grep -vP "\/coder_server" | xargs rm
 	BASE_PATH="." go run ./scripts/clidocgen
 	cd site
 	yarn run format:write:only ../docs/cli.md ../docs/cli/*.md ../docs/manifest.json

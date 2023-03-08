@@ -17,7 +17,7 @@ import (
 // @Router /insights/daus [get]
 func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentConfig) {
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
 		httpapi.Forbidden(rw)
 		return
 	}

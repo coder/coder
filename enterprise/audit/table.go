@@ -111,7 +111,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"ttl":                ActionTrack,
 		"last_used_at":       ActionIgnore,
 	},
-	&database.WorkspaceBuildRBAC{}: {
+	&database.WorkspaceBuild{}: {
 		"id":                  ActionIgnore,
 		"created_at":          ActionIgnore,
 		"updated_at":          ActionIgnore,
@@ -125,6 +125,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"deadline":            ActionIgnore,
 		"reason":              ActionIgnore,
 		"daily_cost":          ActionIgnore,
+		"max_deadline":        ActionIgnore,
 		"organization_id":     ActionIgnore,
 		"workspace_owner_id":  ActionIgnore,
 	},

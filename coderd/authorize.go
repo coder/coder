@@ -60,7 +60,7 @@ func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objec
 		switch object.RBACObject().Type {
 		case rbac.ResourceWorkspaceExecution.Type:
 			// This is not a db resource, always in API layer
-		case rbac.ResourceDeploymentConfig.Type:
+		case rbac.ResourceDeploymentValues.Type:
 			// For metric cache items like DAU, we do not hit the DB.
 			// Some db actions are in asserted in the authz layer.
 		case rbac.ResourceReplicas.Type:
