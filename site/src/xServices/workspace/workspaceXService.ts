@@ -65,6 +65,7 @@ export interface WorkspaceContext {
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
+  missingParameters?: TypesGen.TemplateVersionParameter[]
   // error creating a new WorkspaceBuild
   buildError?: Error | unknown
   cancellationMessage?: Types.Message
@@ -332,6 +333,7 @@ export const workspaceMachine = createMachine(
                     {
                       target: "askingForMissedBuildParameters",
                       cond: "isMissingBuildParameterError",
+                      actions: ["assignMissingParameters"],
                     },
                     {
                       target: "idle",
@@ -634,6 +636,14 @@ export const workspaceMachine = createMachine(
               status: "pending" as TypesGen.WorkspaceStatus,
             },
           }
+        },
+      }),
+      assignMissingParameters: assign({
+        missingParameters: (_, { data }) => {
+          if (!(data instanceof API.MissingBuildParameters)) {
+            throw new Error("data is not a MissingBuildParameters error")
+          }
+          return data.parameters
         },
       }),
     },

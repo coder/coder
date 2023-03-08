@@ -25,6 +25,7 @@ import {
   WorkspaceEvent,
   workspaceMachine,
 } from "../../xServices/workspace/workspaceXService"
+import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog"
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
@@ -104,7 +105,7 @@ export const WorkspaceReadyPage = ({
             deadline,
           ),
         }}
-        isUpdating={workspaceState.hasTag("updating")}
+        isUpdating={workspaceState.matches("ready.build.requestingUpdate")}
         workspace={workspace}
         handleStart={() => workspaceSend({ type: "START" })}
         handleStop={() => workspaceSend({ type: "STOP" })}
@@ -141,6 +142,11 @@ export const WorkspaceReadyPage = ({
         onConfirm={() => {
           workspaceSend({ type: "DELETE" })
         }}
+      />
+      <UpdateBuildParametersDialog
+        open={workspaceState.matches(
+          "ready.build.askingForMissedBuildParameters",
+        )}
       />
     </>
   )
