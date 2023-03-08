@@ -666,7 +666,7 @@ export interface ProvisionerJob {
   readonly completed_at?: string
   readonly canceled_at?: string
   readonly error?: string
-  readonly error_code?: string
+  readonly error_code?: JobErrorCode
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string
   readonly file_id: string
@@ -1268,6 +1268,15 @@ export const GitProviders: GitProvider[] = [
   "bitbucket",
   "github",
   "gitlab",
+]
+
+// From codersdk/provisionerdaemons.go
+export type JobErrorCode =
+  | "MISSING_TEMPLATE_PARAMETER"
+  | "REQUIRED_TEMPLATE_VARIABLES"
+export const JobErrorCodes: JobErrorCode[] = [
+  "MISSING_TEMPLATE_PARAMETER",
+  "REQUIRED_TEMPLATE_VARIABLES",
 ]
 
 // From codersdk/provisionerdaemons.go

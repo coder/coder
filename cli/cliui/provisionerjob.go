@@ -43,7 +43,7 @@ type ProvisionerJobOptions struct {
 
 type ProvisionerJobError struct {
 	message string
-	code    string
+	code    codersdk.JobErrorCode
 }
 
 var _ error = new(ProvisionerJobError)
@@ -52,7 +52,7 @@ func (err *ProvisionerJobError) Error() string {
 	return err.message
 }
 
-func (err *ProvisionerJobError) Code() string {
+func (err *ProvisionerJobError) Code() codersdk.JobErrorCode {
 	return err.code
 }
 
