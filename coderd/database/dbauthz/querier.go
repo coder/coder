@@ -1279,7 +1279,7 @@ func (q *querier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg datab
 		return nil, err
 	}
 	if len(builds) == 0 {
-		return nil, sql.ErrNoRows
+		return []database.WorkspaceBuild{}, nil
 	}
 	// All builds come from the same workspace, so we only need to check the first one.
 	err = q.authorizeContext(ctx, rbac.ActionRead, builds[0])

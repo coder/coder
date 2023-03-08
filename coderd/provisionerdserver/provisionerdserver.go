@@ -671,7 +671,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 				return xerrors.Errorf("get workspace build: %w", err)
 			}
 
-			build, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+			thinBuild, err := db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               input.WorkspaceBuildID,
 				UpdatedAt:        database.Now(),
 				ProvisionerState: jobType.WorkspaceBuild.State,
@@ -681,6 +681,8 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 			if err != nil {
 				return xerrors.Errorf("update workspace build state: %w", err)
 			}
+			// Keep the same owner args as the original build.
+			build = thinBuild.Expand(workspaceBuild.OrganizationID, workspaceBuild.WorkspaceOwnerID)
 
 			return nil
 		}, nil)

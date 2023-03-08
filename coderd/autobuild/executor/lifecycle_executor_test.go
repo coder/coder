@@ -5,15 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/database/dbtestutil"
-
-	"go.uber.org/goleak"
-
 	"github.com/google/uuid"
+	"go.uber.org/goleak"
 
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"

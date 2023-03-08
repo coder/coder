@@ -229,8 +229,8 @@ func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, after t
 }
 
 type GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams struct {
-	BuildNumber int32     `db:"build_number"`
-	WorkspaceID uuid.UUID `db:"workspace_id""`
+	BuildNumber int32
+	WorkspaceID uuid.UUID
 }
 
 func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Context, arg GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (WorkspaceBuild, error) {
