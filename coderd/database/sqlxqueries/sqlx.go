@@ -33,6 +33,9 @@ func constructQuery(queryName string, argument any) (string, []any, error) {
 // If the query returns no rows, an empty slice is returned.
 func SelectContext[RT any](ctx context.Context, q sqlx.QueryerContext, queryName string, argument any) ([]RT, error) {
 	var empty []RT
+	if q == nil {
+		return empty, xerrors.New("queryer is nil")
+	}
 
 	query, args, err := constructQuery(queryName, argument)
 	if err != nil {
@@ -51,6 +54,9 @@ func SelectContext[RT any](ctx context.Context, q sqlx.QueryerContext, queryName
 // If the query returns no rows, sql.ErrNoRows is returned.
 func GetContext[RT any](ctx context.Context, q sqlx.QueryerContext, queryName string, argument interface{}) (RT, error) {
 	var empty RT
+	if q == nil {
+		return empty, xerrors.New("queryer is nil")
+	}
 
 	query, args, err := constructQuery(queryName, argument)
 	if err != nil {

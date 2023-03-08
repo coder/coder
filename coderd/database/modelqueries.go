@@ -210,12 +210,12 @@ type getWorkspaceBuildParams struct {
 
 func (q *sqlQuerier) getWorkspaceBuild(ctx context.Context, arg getWorkspaceBuildParams) (WorkspaceBuildRBAC, error) {
 	arg.LimitOpt = 1
-	return sqlxqueries.GetContext[WorkspaceBuildRBAC](ctx, q.sdb, "GetWorkspaceBuild", arg)
+	return sqlxqueries.GetContext[WorkspaceBuildRBAC](ctx, q.db, "GetWorkspaceBuild", arg)
 }
 
 func (q *sqlQuerier) selectWorkspaceBuild(ctx context.Context, arg getWorkspaceBuildParams) ([]WorkspaceBuildRBAC, error) {
 	arg.LimitOpt = -1
-	return sqlxqueries.SelectContext[WorkspaceBuildRBAC](ctx, q.sdb, "GetWorkspaceBuild", arg)
+	return sqlxqueries.SelectContext[WorkspaceBuildRBAC](ctx, q.db, "GetWorkspaceBuild", arg)
 }
 
 func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (WorkspaceBuildRBAC, error) {
@@ -251,7 +251,7 @@ type GetWorkspaceBuildsByWorkspaceIDParams struct {
 }
 
 func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuildRBAC, error) {
-	return sqlxqueries.SelectContext[WorkspaceBuildRBAC](ctx, q.sdb, "GetWorkspaceBuildsByWorkspaceID", arg)
+	return sqlxqueries.SelectContext[WorkspaceBuildRBAC](ctx, q.db, "GetWorkspaceBuildsByWorkspaceID", arg)
 }
 
 func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspacedID uuid.UUID) (WorkspaceBuildRBAC, error) {
@@ -259,11 +259,11 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 }
 
 func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuildRBAC, error) {
-	return sqlxqueries.SelectContext[WorkspaceBuildRBAC](ctx, q.sdb, "GetLatestWorkspaceBuildsByWorkspaceIDs", ids)
+	return sqlxqueries.SelectContext[WorkspaceBuildRBAC](ctx, q.db, "GetLatestWorkspaceBuildsByWorkspaceIDs", ids)
 }
 
 func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuildRBAC, error) {
-	return sqlxqueries.SelectContext[WorkspaceBuildRBAC](ctx, q.sdb, "GetLatestWorkspaceBuilds", nil)
+	return sqlxqueries.SelectContext[WorkspaceBuildRBAC](ctx, q.db, "GetLatestWorkspaceBuilds", nil)
 }
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.

@@ -37,6 +37,9 @@ type DBTX interface {
 	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
 	SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
 	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
+
+	// Extends the sqlx interface
+	sqlx.QueryerContext
 }
 
 // New creates a new database store using a SQL database connection.
