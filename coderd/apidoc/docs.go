@@ -7362,6 +7362,9 @@ const docTemplate = `{
                 "error": {
                     "type": "string"
                 },
+                "error_code": {
+                    "type": "string"
+                },
                 "file_id": {
                     "type": "string",
                     "format": "uuid"

@@ -30,6 +30,7 @@ import (
 )
 
 const (
+	MissingParameterErrorCode = "TEMPLATE_MISSING_PARAMETER"
 	MissingParameterErrorText = "missing parameter"
 )
 
@@ -589,7 +590,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	for _, parameterSchema := range parameterSchemas {
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
-			return nil, r.failedJobf("%s: %s", MissingParameterErrorText, parameterSchema.Name)
+			return nil, r.failedJobWithCodef(MissingParameterErrorCode,
+				"%s: %s", MissingParameterErrorText, parameterSchema.Name)
 		}
 	}
 
@@ -1054,6 +1056,14 @@ func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob
 	return &proto.FailedJob{
 		JobId: r.job.JobId,
 		Error: fmt.Sprintf(format, args...),
+	}
+}
+
+func (r *Runner) failedJobWithCodef(code, format string, args ...interface{}) *proto.FailedJob {
+	return &proto.FailedJob{
+		JobId:     r.job.JobId,
+		Error:     fmt.Sprintf(format, args...),
+		ErrorCode: code,
 	}
 }
 

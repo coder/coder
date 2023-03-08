@@ -317,6 +317,7 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 		ID:        provisionerJob.ID,
 		CreatedAt: provisionerJob.CreatedAt,
 		Error:     provisionerJob.Error.String,
+		ErrorCode: provisionerJob.ErrorCode.String,
 		FileID:    provisionerJob.FileID,
 		Tags:      provisionerJob.Tags,
 	}

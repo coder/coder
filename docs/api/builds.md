@@ -39,6 +39,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
+    "error_code": "string",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "started_at": "2019-08-24T14:15:22Z",
@@ -188,6 +189,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
+    "error_code": "string",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "started_at": "2019-08-24T14:15:22Z",
@@ -712,6 +714,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
+    "error_code": "string",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "started_at": "2019-08-24T14:15:22Z",
@@ -866,6 +869,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
+      "error_code": "string",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "started_at": "2019-08-24T14:15:22Z",
@@ -996,6 +1000,7 @@ Status Code **200**
 | `»» completed_at`                     | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» created_at`                       | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» error`                            | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» error_code`                       | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» file_id`                          | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» id`                               | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                       | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -1192,6 +1197,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
+    "error_code": "string",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "started_at": "2019-08-24T14:15:22Z",

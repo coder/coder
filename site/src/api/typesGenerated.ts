@@ -666,6 +666,7 @@ export interface ProvisionerJob {
   readonly completed_at?: string
   readonly canceled_at?: string
   readonly error?: string
+  readonly error_code?: string
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string
   readonly file_id: string
