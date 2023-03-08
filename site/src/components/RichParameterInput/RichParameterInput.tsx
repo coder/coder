@@ -2,7 +2,7 @@ import FormControlLabel from "@material-ui/core/FormControlLabel"
 import Radio from "@material-ui/core/Radio"
 import RadioGroup from "@material-ui/core/RadioGroup"
 import { makeStyles } from "@material-ui/core/styles"
-import TextField from "@material-ui/core/TextField"
+import TextField, { TextFieldProps } from "@material-ui/core/TextField"
 import { Stack } from "components/Stack/Stack"
 import { FC, useState } from "react"
 import { TemplateVersionParameter } from "../../api/typesGenerated"
@@ -50,9 +50,8 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ id, parameter }) => {
   )
 }
 
-export interface RichParameterInputProps {
+export type RichParameterInputProps = TextFieldProps & {
   index: number
-  disabled?: boolean
   parameter: TemplateVersionParameter
   onChange: (value: string) => void
   initialValue?: string

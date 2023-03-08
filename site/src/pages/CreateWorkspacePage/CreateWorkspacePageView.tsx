@@ -233,8 +233,7 @@ export const CreateWorkspacePageView: FC<
         {props.canCreateForUser && (
           <FormSection
             title="Workspace owner"
-            description=" The user that is going to own this workspace. If you are
-            admin, you can create workspace for others."
+            description="The user that is going to own this workspace. If you are admin, you can create workspace for others."
           >
             <FormFields>
               <UserAutocomplete
@@ -250,8 +249,7 @@ export const CreateWorkspacePageView: FC<
         {props.templateGitAuth && props.templateGitAuth.length > 0 && (
           <FormSection
             title="Git Authentication"
-            description="This template requires authentication to automatically perform
-            Git operations on create."
+            description="This template requires authentication to automatically perform Git operations on create."
           >
             <FormFields>
               {props.templateGitAuth.map((auth, index) => (
@@ -271,8 +269,7 @@ export const CreateWorkspacePageView: FC<
         {props.templateSchema && props.templateSchema.length > 0 && (
           <FormSection
             title="Template params"
-            description="Those values are provided by your template's Terraform
-            configuration."
+            description="Those values are provided by your template's Terraform configuration."
           >
             <FormFields>
               {props.templateSchema
@@ -301,9 +298,7 @@ export const CreateWorkspacePageView: FC<
           props.templateParameters.filter((p) => p.mutable).length > 0 && (
             <FormSection
               title="Parameters"
-              description="Those values are provided by your template's Terraform
-              configuration. Values can be changed after creating the
-              workspace."
+              description="Those values are provided by your template's Terraform configuration. Values can be changed after creating the workspace."
             >
               <FormFields>
                 {props.templateParameters.map(
