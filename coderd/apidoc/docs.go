@@ -6825,6 +6825,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.JobErrorCode": {
+            "type": "string",
+            "enum": [
+                "MISSING_TEMPLATE_PARAMETER",
+                "REQUIRED_TEMPLATE_VARIABLES"
+            ],
+            "x-enum-varnames": [
+                "MissingTemplateParameter",
+                "RequiredTemplateVariables"
+            ]
+        },
         "codersdk.License": {
             "type": "object",
             "properties": {
@@ -7361,6 +7372,17 @@ const docTemplate = `{
                 },
                 "error": {
                     "type": "string"
+                },
+                "error_code": {
+                    "enum": [
+                        "MISSING_TEMPLATE_PARAMETER",
+                        "REQUIRED_TEMPLATE_VARIABLES"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.JobErrorCode"
+                        }
+                    ]
                 },
                 "file_id": {
                     "type": "string",
