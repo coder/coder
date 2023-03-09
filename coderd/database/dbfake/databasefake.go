@@ -340,6 +340,9 @@ func (q *fakeQuerier) GetDeploymentWorkspaceAgentStats(_ context.Context, create
 
 	latencies := make([]float64, 0)
 	for _, agentStat := range agentStatsCreatedAfter {
+		if agentStat.ConnectionMedianLatencyMS <= 0 {
+			continue
+		}
 		stat.WorkspaceRxBytes += agentStat.RxBytes
 		stat.WorkspaceTxBytes += agentStat.TxBytes
 		latencies = append(latencies, agentStat.ConnectionMedianLatencyMS)
