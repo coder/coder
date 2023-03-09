@@ -963,6 +963,18 @@ func (q *querier) GetUserByID(ctx context.Context, id uuid.UUID) (database.User,
 	return fetch(q.log, q.auth, q.db.GetUserByID)(ctx, id)
 }
 
+// GetUsersByIDs is only used for usernames on workspace return data.
+// This function should be replaced by joining this data to the workspace query
+// itself.
+func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
+	for _, uid := range ids {
+		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(uid)); err != nil {
+			return nil, err
+		}
+	}
+	return q.db.GetUsersByIDs(ctx, ids)
+}
+
 func (q *querier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
 	return q.db.GetAuthorizedUserCount(ctx, arg, prepared)
 }

@@ -763,6 +763,13 @@ func (s *MethodTestSuite) TestUser() {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(u.ID).Asserts(u, rbac.ActionRead).Returns(u)
 	}))
+	s.Run("GetUsersByIDs", s.Subtest(func(db database.Store, check *expects) {
+		a := dbgen.User(s.T(), db, database.User{CreatedAt: database.Now().Add(-time.Hour)})
+		b := dbgen.User(s.T(), db, database.User{CreatedAt: database.Now()})
+		check.Args([]uuid.UUID{a.ID, b.ID}).
+			Asserts(a, rbac.ActionRead, b, rbac.ActionRead).
+			Returns(slice.New(a, b))
+	}))
 	s.Run("GetAuthorizedUserCount", s.Subtest(func(db database.Store, check *expects) {
 		_ = dbgen.User(s.T(), db, database.User{})
 		check.Args(database.GetFilteredUserCountParams{}, emptyPreparedAuthorized{}).Asserts().Returns(int64(1))

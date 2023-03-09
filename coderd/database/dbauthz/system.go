@@ -36,17 +36,6 @@ func (q *querier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context,
 	}
 	return q.db.GetWorkspaceResourceMetadataByResourceIDs(ctx, ids)
 }
-
-// GetUsersByIDs is only used for usernames on workspace return data.
-// This function should be replaced by joining this data to the workspace query
-// itself.
-func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetUsersByIDs(ctx, ids)
-}
-
 func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err

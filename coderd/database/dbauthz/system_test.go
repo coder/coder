@@ -157,13 +157,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Asserts(rbac.ResourceSystem, rbac.ActionRead).
 			Returns(slice.New(tv1, tv2, tv3))
 	}))
-	s.Run("GetUsersByIDs", s.Subtest(func(db database.Store, check *expects) {
-		a := dbgen.User(s.T(), db, database.User{CreatedAt: database.Now().Add(-time.Hour)})
-		b := dbgen.User(s.T(), db, database.User{CreatedAt: database.Now()})
-		check.Args([]uuid.UUID{a.ID, b.ID}).
-			Asserts(rbac.ResourceSystem, rbac.ActionRead).
-			Returns(slice.New(a, b))
-	}))
 	s.Run("GetWorkspaceAppsByAgentIDs", s.Subtest(func(db database.Store, check *expects) {
 		aWs := dbgen.Workspace(s.T(), db, database.Workspace{})
 		aBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: aWs.ID, JobID: uuid.New()})
