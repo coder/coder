@@ -22,16 +22,13 @@ func TestFeaturesList(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "features", "list")
-		clitest.SetupConfig(t, client, root)
+		var root cli.RootCmd
+		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(), "features", "list")
+		clitest.SetupConfig(t, client, conf)
 		pty := ptytest.New(t)
 		inv.Stdin = pty.Input()
 		inv.Stdout = pty.Output()
-		errC := make(chan error)
-		go func() {
-			errC <- inv.Run()
-		}()
-		require.NoError(t, <-errC)
+		clitest.Start(t, inv)
 		pty.ExpectMatch("user_limit")
 		pty.ExpectMatch("not_entitled")
 	})
@@ -40,8 +37,9 @@ func TestFeaturesList(t *testing.T) {
 
 		client := coderdenttest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "features", "list", "-o", "json")
-		clitest.SetupConfig(t, client, root)
+		var root cli.RootCmd
+		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(), "features", "list", "-o", "json")
+		clitest.SetupConfig(t, client, conf)
 		doneChan := make(chan struct{})
 
 		buf := bytes.NewBuffer(nil)

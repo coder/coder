@@ -39,23 +39,17 @@ func TestLicensesAddFake(t *testing.T) {
 	// so instead we have to fake the HTTP interaction.
 	t.Run("LFlag", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-		cmd := setupFakeLicenseServerTest(t, "licenses", "add", "-l", fakeLicenseJWT)
-		pty := attachPty(t, cmd)
-		errC := make(chan error)
-		go func() {
-			errC <- inv.WithContext(ctx).Run()
-		}()
-		require.NoError(t, <-errC)
+		inv := setupFakeLicenseServerTest(t, "licenses", "add", "-l", fakeLicenseJWT)
+		pty := attachPty(t, inv)
+		clitest.Start(t, inv)
 		pty.ExpectMatch("License with ID 1 added")
 	})
 	t.Run("Prompt", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		cmd := setupFakeLicenseServerTest(t, "license", "add")
-		pty := attachPty(t, cmd)
+		inv := setupFakeLicenseServerTest(t, "license", "add")
+		pty := attachPty(t, inv)
 		errC := make(chan error)
 		go func() {
 			errC <- inv.WithContext(ctx).Run()
@@ -73,8 +67,8 @@ func TestLicensesAddFake(t *testing.T) {
 		filename := filepath.Join(dir, "license.jwt")
 		err := os.WriteFile(filename, []byte(fakeLicenseJWT), 0o600)
 		require.NoError(t, err)
-		cmd := setupFakeLicenseServerTest(t, "license", "add", "-f", filename)
-		pty := attachPty(t, cmd)
+		inv := setupFakeLicenseServerTest(t, "license", "add", "-f", filename)
+		pty := attachPty(t, inv)
 		errC := make(chan error)
 		go func() {
 			errC <- inv.WithContext(ctx).Run()
@@ -84,7 +78,7 @@ func TestLicensesAddFake(t *testing.T) {
 	})
 	t.Run("StdIn", func(t *testing.T) {
 		t.Parallel()
-		cmd := setupFakeLicenseServerTest(t, "license", "add", "-f", "-")
+		inv := setupFakeLicenseServerTest(t, "license", "add", "-f", "-")
 		r, w := io.Pipe()
 		inv.Stdin = r
 		stdout := new(bytes.Buffer)
@@ -111,8 +105,8 @@ func TestLicensesAddFake(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		cmd := setupFakeLicenseServerTest(t, "licenses", "add", "-l", fakeLicenseJWT, "--debug")
-		pty := attachPty(t, cmd)
+		inv := setupFakeLicenseServerTest(t, "licenses", "add", "-l", fakeLicenseJWT, "--debug")
+		pty := attachPty(t, inv)
 		errC := make(chan error)
 		go func() {
 			errC <- inv.WithContext(ctx).Run()
@@ -128,17 +122,14 @@ func TestLicensesAddReal(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
-			"licenses", "add", "-l", fakeLicenseJWT)
-		clitest.SetupConfig(t, client, root)
+		var root cli.RootCmd
+		inv, conf := clitest.NewWithSubcommands(
+			t, root.EnterpriseSubcommands(),
+			"licenses", "add", "-l", fakeLicenseJWT,
+		)
+		clitest.SetupConfig(t, client, conf)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-		errC := make(chan error)
-		go func() {
-			errC <- inv.WithContext(ctx).Run()
-		}()
-		err := <-errC
+		err := <-clitest.StartErr(t, inv)
 		var coderError *codersdk.Error
 		require.True(t, xerrors.As(err, &coderError))
 		assert.Equal(t, 400, coderError.StatusCode())
@@ -154,7 +145,7 @@ func TestLicensesListFake(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		cmd := setupFakeLicenseServerTest(t, "licenses", "list")
+		inv := setupFakeLicenseServerTest(t, "licenses", "list")
 		stdout := new(bytes.Buffer)
 		inv.Stdout = stdout
 		errC := make(chan error)
@@ -179,13 +170,14 @@ func TestLicensesListReal(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
+		var root cli.RootCmd
+		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(),
 			"licenses", "list")
 		stdout := new(bytes.Buffer)
 		inv.Stdout = stdout
 		stderr := new(bytes.Buffer)
 		inv.Stderr = stderr
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, client, conf)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		errC := make(chan error)
@@ -204,15 +196,11 @@ func TestLicensesDeleteFake(t *testing.T) {
 	// so instead we have to fake the HTTP interaction.
 	t.Run("Mainline", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-		cmd := setupFakeLicenseServerTest(t, "licenses", "delete", "55")
-		pty := attachPty(t, cmd)
-		errC := make(chan error)
-		go func() {
-			errC <- inv.WithContext(ctx).Run()
-		}()
-		require.NoError(t, <-errC)
+
+		inv := setupFakeLicenseServerTest(t, "licenses", "delete", "55")
+		pty := attachPty(t, inv)
+
+		clitest.Start(t, inv)
 		pty.ExpectMatch("License with ID 55 deleted")
 	})
 }
@@ -223,16 +211,12 @@ func TestLicensesDeleteReal(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
+		var root cli.RootCmd
+		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(),
 			"licenses", "delete", "1")
-		clitest.SetupConfig(t, client, root)
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-		errC := make(chan error)
-		go func() {
-			errC <- inv.WithContext(ctx).Run()
-		}()
-		err := <-errC
+		clitest.SetupConfig(t, client, conf)
+
+		err := <-clitest.StartErr(t, inv)
 		var coderError *codersdk.Error
 		require.True(t, xerrors.As(err, &coderError))
 		assert.Equal(t, 404, coderError.StatusCode())
@@ -240,19 +224,23 @@ func TestLicensesDeleteReal(t *testing.T) {
 	})
 }
 
-func setupFakeLicenseServerTest(t *testing.T, args ...string) *clibase.Cmd {
+func setupFakeLicenseServerTest(t *testing.T, args ...string) *clibase.Invokation {
 	t.Helper()
 	s := httptest.NewServer(newFakeLicenseAPI(t))
 	t.Cleanup(s.Close)
-	inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), args...)
-	err := root.URL().Write(s.URL)
+	var root cli.RootCmd
+
+	inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(), args...)
+
+	err := conf.URL().Write(s.URL)
 	require.NoError(t, err)
-	err = root.Session().Write("sessiontoken")
+	err = conf.Session().Write("sessiontoken")
 	require.NoError(t, err)
-	return cmd
+
+	return inv
 }
 
-func attachPty(t *testing.T, cmd *clibase.Cmd) *ptytest.PTY {
+func attachPty(t *testing.T, inv *clibase.Invokation) *ptytest.PTY {
 	pty := ptytest.New(t)
 	inv.Stdin = pty.Input()
 	inv.Stdout = pty.Output()

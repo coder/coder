@@ -13,7 +13,6 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
@@ -28,8 +27,10 @@ func (r *RootCmd) provisionerDaemons() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "provisionerd",
 		Short: "Manage provisioner daemons",
+		Children: []*clibase.Cmd{
+			r.provisionerDaemonStart(),
+		},
 	}
-	cmd.AddCommand(provisionerDaemonStart())
 
 	return cmd
 }
@@ -41,9 +42,13 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 		pollInterval time.Duration
 		pollJitter   time.Duration
 	)
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:   "start",
 		Short: "Run a provisioner daemon",
+		Middleware: clibase.Chain(
+			r.UseClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
@@ -51,10 +56,6 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			notifyCtx, notifyStop := signal.NotifyContext(ctx, agpl.InterruptSignals...)
 			defer notifyStop()
 
-			client, err := agpl.CreateClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
-			}
 			org, err := agpl.CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
@@ -130,7 +131,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			case exitErr = <-errCh:
 			}
 			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
-				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr))
+				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
 			}
 
 			shutdown, shutdownCancel := context.WithTimeout(ctx, time.Minute)
@@ -148,14 +149,37 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 		},
 	}
 
-	cliflag.StringVarP(cmd.Flags(), &cacheDir, "cache-dir", "c", "CODER_CACHE_DIRECTORY", codersdk.DefaultCacheDir(),
-		"Specify a directory to cache provisioner job files.")
-	cliflag.StringArrayVarP(cmd.Flags(), &rawTags, "tag", "t", "CODER_PROVISIONERD_TAGS", []string{},
-		"Specify a list of tags to target provisioner jobs.")
-	cliflag.DurationVarP(cmd.Flags(), &pollInterval, "poll-interval", "", "CODER_PROVISIONERD_POLL_INTERVAL", time.Second,
-		"Specify the interval for which the provisioner daemon should poll for jobs.")
-	cliflag.DurationVarP(cmd.Flags(), &pollJitter, "poll-jitter", "", "CODER_PROVISIONERD_POLL_JITTER", 100*time.Millisecond,
-		"Random jitter added to the poll interval.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:          "cache-dir",
+			FlagShorthand: "c",
+			Env:           "CODER_CACHE_DIRECTORY",
+			Description:   "Directory to store cached data",
+			Default:       codersdk.DefaultCacheDir(),
+			Value:         clibase.StringOf(&cacheDir),
+		},
+		{
+			Flag:          "tag",
+			FlagShorthand: "t",
+			Env:           "CODER_PROVISIONERD_TAGS",
+			Description:   "Tags to filter provisioner jobs by",
+			Value:         clibase.StringsOf(&rawTags),
+		},
+		{
+			Flag:        "poll-interval",
+			Env:         "CODER_PROVISIONERD_POLL_INTERVAL",
+			Default:     time.Second.String(),
+			Description: "How often to poll for provisioner jobs",
+			Value:       clibase.DurationOf(&pollInterval),
+		},
+		{
+			Flag:        "poll-jitter",
+			Env:         "CODER_PROVISIONERD_POLL_JITTER",
+			Description: "How much to jitter the poll interval by",
+			Default:     "100ms",
+			Value:       clibase.DurationOf(&pollJitter),
+		},
+	}
 
 	return cmd
 }

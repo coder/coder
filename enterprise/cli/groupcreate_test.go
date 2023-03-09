@@ -35,14 +35,15 @@ func TestCreateGroup(t *testing.T) {
 			avatarURL = "https://example.com"
 		)
 
-		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "groups",
+		var root cli.RootCmd
+		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(), "groups",
 			"create", groupName,
 			"--avatar-url", avatarURL,
 		)
 
 		pty := ptytest.New(t)
 		inv.Stdout = pty.Output()
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, client, conf)
 
 		err := inv.Run()
 		require.NoError(t, err)

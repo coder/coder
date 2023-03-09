@@ -5,7 +5,6 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
@@ -20,17 +19,16 @@ func (r *RootCmd) groupList() *clibase.Cmd {
 		cliui.JSONFormat(),
 	)
 
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:   "list",
 		Short: "List user groups",
-		Args:  cobra.NoArgs,
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(0),
+			r.UseClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx := inv.Context()
-
-			client, err := agpl.CreateClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
-			}
 
 			org, err := agpl.CurrentOrganization(inv, client)
 			if err != nil {

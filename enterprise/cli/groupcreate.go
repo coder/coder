@@ -7,24 +7,22 @@ import (
 
 	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
 func (r *RootCmd) groupCreate() *clibase.Cmd {
 	var avatarURL string
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:        "create <name>",
-		Short:      "Create a user group",
-		Middleware: clibase.RequireNArgs(1),
+		Use:   "create <name>",
+		Short: "Create a user group",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.UseClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx := inv.Context()
-
-			client, err := agpl.CreateClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
-			}
 
 			org, err := agpl.CurrentOrganization(inv, client)
 			if err != nil {
@@ -44,7 +42,15 @@ func (r *RootCmd) groupCreate() *clibase.Cmd {
 		},
 	}
 
-	cliflag.StringVarP(cmd.Flags(), &avatarURL, "avatar-url", "u", "CODER_AVATAR_URL", "", "set an avatar for a group")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:          "avatar-url",
+			Description:   `set an avatar for a group`,
+			FlagShorthand: "u",
+			Env:           "CODER_AVATAR_URL",
+			Value:         clibase.StringOf(&avatarURL),
+		},
+	}
 
 	return cmd
 }

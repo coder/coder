@@ -10,17 +10,17 @@ type RootCmd struct {
 	cli.RootCmd
 }
 
-func enterpriseOnly() []*clibase.Cmd {
+func (r *RootCmd) enterpriseOnly() []*clibase.Cmd {
 	return []*clibase.Cmd{
-		server(),
-		features(),
-		licenses(),
-		groups(),
-		provisionerDaemons(),
+		r.server(),
+		r.features(),
+		r.licenses(),
+		r.groups(),
+		r.provisionerDaemons(),
 	}
 }
 
-func EnterpriseSubcommands() []*clibase.Cmd {
-	all := append(agpl.Core(), enterpriseOnly()...)
+func (r *RootCmd) EnterpriseSubcommands() []*clibase.Cmd {
+	all := append(agpl.Core(), r.enterpriseOnly()...)
 	return all
 }

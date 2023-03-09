@@ -7,5 +7,6 @@ import (
 )
 
 func main() {
-	cli.Main(cli.AGPL())
+	var rootCmd cli.RootCmd
+	cli.Main(cli.AGPL(&rootCmd))
 }

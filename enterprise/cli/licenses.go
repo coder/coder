@@ -11,7 +11,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -106,9 +105,25 @@ func (r *RootCmd) licenseAdd() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&filename, "file", "f", "", "Load license from file")
-	cmd.Flags().StringVarP(&license, "license", "l", "", "License string")
-	cmd.Flags().BoolVar(&debug, "debug", false, "Output license claims for debugging")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:          "file",
+			FlagShorthand: "f",
+			Description:   "Load license from file",
+			Value:         clibase.StringOf(&filename),
+		},
+		{
+			Flag:          "license",
+			FlagShorthand: "l",
+			Description:   "License string",
+			Value:         clibase.StringOf(&license),
+		},
+		{
+			Flag:        "debug",
+			Description: "Output license claims for debugging",
+			Value:       clibase.BoolOf(&debug),
+		},
+	}
 	return cmd
 }
 
@@ -120,17 +135,16 @@ func validJWT(s string) error {
 }
 
 func (r *RootCmd) licensesList() *clibase.Cmd {
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:        "list",
-		Short:      "List licenses (including expired)",
-		Aliases:    []string{"ls"},
-		Middleware: clibase.RequireNArgs(0),
+		Use:     "list",
+		Short:   "List licenses (including expired)",
+		Aliases: []string{"ls"},
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(0),
+			r.UseClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := agpl.CreateClient(cmd)
-			if err != nil {
-				return err
-			}
-
 			licenses, err := client.Licenses(inv.Context())
 			if err != nil {
 				return err
@@ -149,16 +163,16 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 }
 
 func (r *RootCmd) licenseDelete() *clibase.Cmd {
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:        "delete <id>",
-		Short:      "Delete license by ID",
-		Aliases:    []string{"del", "rm"},
-		Middleware: clibase.RequireNArgs(1),
+		Use:     "delete <id>",
+		Short:   "Delete license by ID",
+		Aliases: []string{"del", "rm"},
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.UseClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := agpl.CreateClient(cmd)
-			if err != nil {
-				return err
-			}
 			id, err := strconv.ParseInt(inv.Args[0], 10, 32)
 			if err != nil {
 				return xerrors.Errorf("license ID must be an integer: %s", inv.Args[0])

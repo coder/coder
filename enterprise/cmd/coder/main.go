@@ -8,5 +8,7 @@ import (
 )
 
 func main() {
-	cli.Main(entcli.EnterpriseSubcommands())
+	var rootCmd entcli.RootCmd
+
+	cli.Main(rootCmd.EnterpriseSubcommands())
 }

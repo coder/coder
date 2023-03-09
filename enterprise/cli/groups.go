@@ -12,14 +12,13 @@ func (r *RootCmd) groups() *clibase.Cmd {
 		Handler: func(inv *clibase.Invokation) error {
 			return inv.Command.HelpHandler(inv)
 		},
+		Children: []*clibase.Cmd{
+			r.groupCreate(),
+			r.groupList(),
+			r.groupEdit(),
+			r.groupDelete(),
+		},
 	}
-
-	cmd.AddCommand(
-		groupCreate(),
-		groupList(),
-		groupEdit(),
-		groupDelete(),
-	)
 
 	return cmd
 }

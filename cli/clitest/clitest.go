@@ -27,7 +27,8 @@ import (
 // New creates a CLI instance with a configuration pointed to a
 // temporary testing directory.
 func New(t *testing.T, args ...string) (*clibase.Invokation, config.Root) {
-	return NewWithSubcommands(t, cli.AGPL(), args...)
+	var root cli.RootCmd
+	return NewWithSubcommands(t, cli.AGPL(&root), args...)
 }
 
 type logWriter struct {
@@ -126,6 +127,25 @@ func Start(t *testing.T, inv *clibase.Invokation) {
 	t.Helper()
 
 	closeCh := make(chan struct{})
+	go func() {
+		defer close(closeCh)
+		err := <-StartErr(t, inv)
+		if err != nil {
+			assert.NoError(t, err)
+		}
+	}()
+
+	t.Cleanup(func() {
+		<-closeCh
+	})
+}
+
+// StartErr runs the command in a goroutine but returns the error
+// instead of asserting it. This is useful for testing error cases.
+func StartErr(t *testing.T, inv *clibase.Invokation) <-chan error {
+	t.Helper()
+
+	errCh := make(chan error, 1)
 
 	ctx := inv.Context()
 
@@ -139,16 +159,14 @@ func Start(t *testing.T, inv *clibase.Invokation) {
 
 	go func() {
 		defer cancel()
-		defer close(closeCh)
-		err := inv.Run()
-		if ctx.Err() == nil {
-			assert.NoError(t, err)
-		}
+		defer close(errCh)
+		errCh <- inv.Run()
 	}()
 
 	// Don't exit test routine until server is done.
 	t.Cleanup(func() {
 		cancel()
-		<-closeCh
+		<-errCh
 	})
+	return errCh
 }

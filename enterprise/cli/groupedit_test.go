@@ -51,7 +51,8 @@ func TestGroupEdit(t *testing.T) {
 
 		expectedName := "beta"
 
-		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
+		var root cli.RootCmd
+		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(),
 			"groups", "edit", group.Name,
 			"--name", expectedName,
 			"--avatar-url", "https://example.com",
@@ -63,7 +64,7 @@ func TestGroupEdit(t *testing.T) {
 		pty := ptytest.New(t)
 
 		inv.Stdout = pty.Output()
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, client, conf)
 
 		err = inv.Run()
 		require.NoError(t, err)
@@ -90,12 +91,13 @@ func TestGroupEdit(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
+		var root cli.RootCmd
+		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(),
 			"groups", "edit", group.Name,
 			"-a", "foo",
 		)
 
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, client, conf)
 
 		err = inv.Run()
 		require.Error(t, err)
@@ -114,9 +116,9 @@ func TestGroupEdit(t *testing.T) {
 			},
 		})
 
-		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "groups", "edit")
-
-		clitest.SetupConfig(t, client, root)
+		var root cli.RootCmd
+		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(), "groups", "edit")
+		clitest.SetupConfig(t, client, conf)
 
 		err := inv.Run()
 		require.Error(t, err)

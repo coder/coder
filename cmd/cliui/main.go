@@ -27,8 +27,8 @@ func main() {
 
 	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "prompt",
-		Handler: func(cmd *clibase.Cmd, args []string) error {
-			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+		Handler: func(inv *clibase.Invokation) error {
+			_, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:    "What is our " + cliui.Styles.Field.Render("company name") + "?",
 				Default: "acme-corp",
 				Validate: func(s string) error {
@@ -44,7 +44,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Do you want to accept?",
 				Default:   cliui.ConfirmYes,
 				IsConfirm: true,
@@ -55,7 +55,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:   "Enter password",
 				Secret: true,
 			})
@@ -70,7 +70,7 @@ func main() {
 				Options: []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
 				Size:    3,
 			})
-			fmt.Printf("Selected: %q\n", value)
+			_, _ = fmt.Printf("Selected: %q\n", value)
 			return err
 		},
 	})
@@ -182,7 +182,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Completed!\n")
+			_, _ = fmt.Printf("Completed!\n")
 			return nil
 		},
 	})

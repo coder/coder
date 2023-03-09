@@ -9,7 +9,6 @@ import (
 
 	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
@@ -21,20 +20,19 @@ func (r *RootCmd) groupEdit() *clibase.Cmd {
 		addUsers  []string
 		rmUsers   []string
 	)
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:        "edit <name>",
-		Short:      "Edit a user group",
-		Middleware: clibase.RequireNArgs(1),
+		Use:   "edit <name>",
+		Short: "Edit a user group",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.UseClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			var (
 				ctx       = inv.Context()
 				groupName = inv.Args[0]
 			)
-
-			client, err := agpl.CreateClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
-			}
 
 			org, err := agpl.CurrentOrganization(inv, client)
 			if err != nil {
@@ -79,10 +77,33 @@ func (r *RootCmd) groupEdit() *clibase.Cmd {
 		},
 	}
 
-	cliflag.StringVarP(cmd.Flags(), &name, "name", "n", "", "", "Update the group name")
-	cliflag.StringVarP(cmd.Flags(), &avatarURL, "avatar-url", "u", "", "", "Update the group avatar")
-	cliflag.StringArrayVarP(cmd.Flags(), &addUsers, "add-users", "a", "", nil, "Add users to the group. Accepts emails or IDs.")
-	cliflag.StringArrayVarP(cmd.Flags(), &rmUsers, "rm-users", "r", "", nil, "Remove users to the group. Accepts emails or IDs.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:  "name",
+			FlagShorthand: "n",
+			Description: "Update the group name",
+			Value: clibase.StringOf(&name),
+		},
+		{
+			Flag:  "avatar-url",
+			FlagShorthand: "u",
+			Description: "Update the group avatar",
+			Value: clibase.StringOf(&avatarURL),
+		},
+		{
+			Flag:  "add-users",
+			FlagShorthand: "a",
+			Description: "Add users to the group. Accepts emails or IDs.",
+			Value: clibase.StringsOf(&addUsers),
+		},
+		{
+			Flag:  "rm-users",
+			FlagShorthand: "r",
+			Description: "Remove users to the group. Accepts emails or IDs.",
+			Value: clibase.StringsOf(&rmUsers),
+		},
+	}
+
 	return cmd
 }
 

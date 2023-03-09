@@ -57,12 +57,13 @@ func TestGroupList(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "groups", "list")
+		var root cli.RootCmd
+		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(), "groups", "list")
 
 		pty := ptytest.New(t)
 
 		inv.Stdout = pty.Output()
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, client, conf)
 
 		err = inv.Run()
 		require.NoError(t, err)
@@ -90,12 +91,13 @@ func TestGroupList(t *testing.T) {
 			},
 		})
 
-		inv, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "groups", "list")
+		var root cli.RootCmd
+		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(), "groups", "list")
 
 		pty := ptytest.New(t)
 
 		inv.Stderr = pty.Output()
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, client, conf)
 
 		err := inv.Run()
 		require.NoError(t, err)

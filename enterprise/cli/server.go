@@ -21,12 +21,11 @@ import (
 	"github.com/coder/coder/enterprise/trialer"
 	"github.com/coder/coder/tailnet"
 
-	agpl "github.com/coder/coder/cli"
 	agplcoderd "github.com/coder/coder/coderd"
 )
 
 func (r *RootCmd) server() *clibase.Cmd {
-	cmd := agpl.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
+	cmd := r.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
 		if options.DeploymentValues.DERP.Server.RelayURL.String() != "" {
 			_, err := url.Parse(options.DeploymentValues.DERP.Server.RelayURL.String())
 			if err != nil {

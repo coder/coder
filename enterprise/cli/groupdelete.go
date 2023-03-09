@@ -8,23 +8,23 @@ import (
 	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 )
 
 func (r *RootCmd) groupDelete() *clibase.Cmd {
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:        "delete <name>",
-		Short:      "Delete a user group",
-		Middleware: clibase.RequireNArgs(1),
+		Use:   "delete <name>",
+		Short: "Delete a user group",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.UseClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			var (
 				ctx       = inv.Context()
 				groupName = inv.Args[0]
 			)
-
-			client, err := agpl.CreateClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
-			}
 
 			org, err := agpl.CurrentOrganization(inv, client)
 			if err != nil {

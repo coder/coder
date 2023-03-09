@@ -10,7 +10,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
@@ -37,15 +36,15 @@ func (r *RootCmd) featuresList() *clibase.Cmd {
 		columns        []string
 		outputFormat   string
 	)
+	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
 		Use:     "list",
 		Aliases: []string{"ls"},
+		Middleware: clibase.Chain(
+			r.UseClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := agpl.CreateClient(cmd)
-			if err != nil {
-				return err
-			}
 			entitlements, err := client.Entitlements(inv.Context())
 			var apiError *codersdk.Error
 			if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
@@ -82,10 +81,25 @@ func (r *RootCmd) featuresList() *clibase.Cmd {
 		},
 	}
 
-	cmd.Flags().StringArrayVarP(&columns, "column", "c", featureColumns,
-		fmt.Sprintf("Specify a column to filter in the table. Available columns are: %s",
-			strings.Join(featureColumns, ", ")))
-	cmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "Output format. Available formats are: table, json.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:          "column",
+			FlagShorthand: "c",
+			Description: fmt.Sprintf("Specify a column to filter in the table. Available columns are: %s",
+				strings.Join(featureColumns, ", "),
+			),
+			Default: strings.Join(featureColumns, ","),
+			Value:   clibase.StringsOf(&columns),
+		},
+		{
+			Flag:          "output",
+			FlagShorthand: "o",
+			Description:   "Output format. Available formats are: table, json.",
+			Default:       "table",
+			Value:         clibase.StringOf(&outputFormat),
+		},
+	}
+
 	return cmd
 }
 
