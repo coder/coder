@@ -2,7 +2,7 @@
 
 > Parameters are an [alpha feature](../contributing/feature-stages.md#alpha-features). See the [Rich Parameters Milestone](https://github.com/coder/coder/milestone/11) for more details.
 
-Templates can contain _parameters_, which prompt the user for additional information in the "create workspace" screen.
+Templates can contain _parameters_, which allow prompting the user for additional information when creating workspaces in both the UI and CLI.
 
 ![Parameters in Create Workspace screen](../images/parameters.png)
 
