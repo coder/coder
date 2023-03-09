@@ -42,7 +42,7 @@ provider "docker" {
 }
 ```
 
-There are a few parameter types supported - string, bool, and numbers.
+The following parameter types are supported: `string`, `bool`, and `number`.
 
 > For a complete list of supported parameter properties, see the
 > [coder_parameter Terraform reference](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter)
