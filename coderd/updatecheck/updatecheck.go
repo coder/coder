@@ -210,7 +210,8 @@ func (c *Checker) update() (r Result, err error) {
 		return r, xerrors.Errorf("json marshal result: %w", err)
 	}
 
-	err = c.db.InsertOrUpdateLastUpdateCheck(ctx, string(b))
+	// nolint:gocritic // Inserting the last update check is a system function.
+	err = c.db.InsertOrUpdateLastUpdateCheck(dbauthz.AsSystemRestricted(ctx), string(b))
 	if err != nil {
 		return r, err
 	}
