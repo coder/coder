@@ -125,7 +125,7 @@ data "coder_parameter" "region" {
 }
 ```
 
-It is allowed to modify the mutability state anytime. In case of emergency, admins can temporarily allow for changing immutable parameters to fix an operational issue, but it is not
+It is allowed to modify the mutability state anytime. In case of emergency, template authors can temporarily allow for changing immutable parameters to fix an operational issue, but it is not
 advised to overuse this opportunity.
 
 ## Validation
