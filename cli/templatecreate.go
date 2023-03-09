@@ -116,19 +116,43 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
-	cmd.Flags().StringVarP(&variablesFile, "variables-file", "", "", "Specify a file path with values for Terraform-managed variables.")
-	cmd.Flags().StringArrayVarP(&variables, "variable", "", []string{}, "Specify a set of values for Terraform-managed variables.")
-	cmd.Flags().StringArrayVarP(&provisionerTags, "provisioner-tag", "", []string{}, "Specify a set of tags to target provisioner daemons.")
-	cmd.Flags().DurationVarP(&defaultTTL, "default-ttl", "", 24*time.Hour, "Specify a default TTL for workspaces created from this template.")
-	uploadFlags.register(cmd.Flags())
-	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
-	// This is for testing!
-	err := inv.ParsedFlags().MarkHidden("test.provisioner")
-	if err != nil {
-		panic(err)
+	cmd.Options = []clibase.Option{
+		{
+			Flag:        "parameter-file",
+			Description: "Specify a file path with parameter values.",
+			Value:       clibase.StringOf(&parameterFile),
+		},
+		{
+			Flag:        "variables-file",
+			Description: "Specify a file path with values for Terraform-managed variables.",
+			Value:       clibase.StringOf(&variablesFile),
+		},
+		{
+			Flag:        "variable",
+			Description: "Specify a set of values for Terraform-managed variables.",
+			Value:       clibase.StringsOf(&variables),
+		},
+		{
+			Flag:        "provisioner-tag",
+			Description: "Specify a set of tags to target provisioner daemons.",
+			Value:       clibase.StringsOf(&provisionerTags),
+		},
+		{
+			Flag:        "default-ttl",
+			Description: "Specify a default TTL for workspaces created from this template.",
+			Default:     "24h",
+			Value:       clibase.DurationOf(&defaultTTL),
+		},
+		uploadFlags.option(),
+		{
+			Flag:        "test.provisioner",
+			Description: "Customize the provisioner backend",
+			Default:     "terraform",
+			Value:       clibase.StringOf(&provisioner),
+			Hidden:      true,
+		},
+		cliui.SkipPromptOption(),
 	}
-	cliui.SkipPromptOption(inv)
 	return cmd
 }
 

@@ -16,7 +16,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli"
@@ -78,9 +77,10 @@ func TestCommandHelp(t *testing.T) {
 		},
 	}
 
-	root := cli.Root(cli.AGPL())
+	rootCmd := new(cli.RootCmd)
+	root := rootCmd.Command(cli.AGPL(rootCmd))
 ExtractCommandPathsLoop:
-	for _, cp := range extractVisibleCommandPaths(nil, root.Commands()) {
+	for _, cp := range extractVisibleCommandPaths(nil, root.Children) {
 		name := fmt.Sprintf("coder %s --help", strings.Join(cp, " "))
 		cmd := append(cp, "--help")
 		for _, tt := range tests {
@@ -184,7 +184,7 @@ func extractVisibleCommandPaths(cmdPath []string, cmds []*clibase.Cmd) [][]strin
 		}
 		cmdPath := append(cmdPath, c.Name())
 		cmdPaths = append(cmdPaths, cmdPath)
-		cmdPaths = append(cmdPaths, extractVisibleCommandPaths(cmdPath, c.Commands())...)
+		cmdPaths = append(cmdPaths, extractVisibleCommandPaths(cmdPath, c.Children)...)
 	}
 	return cmdPaths
 }
@@ -241,106 +241,6 @@ func prepareTestData(t *testing.T) (*codersdk.Client, map[string]string) {
 
 func TestRoot(t *testing.T) {
 	t.Parallel()
-	t.Run("FormatCobraError", func(t *testing.T) {
-		t.Parallel()
-
-		t.Run("OK", func(t *testing.T) {
-			t.Parallel()
-
-			inv, _ := clitest.New(t, "delete")
-
-			cmd, err := cmd.RunC()
-			errStr := cli.FormatCobraError(err, cmd)
-			require.Contains(t, errStr, "Run 'coder delete --help' for usage.")
-		})
-
-		t.Run("Verbose", func(t *testing.T) {
-			t.Parallel()
-
-			// Test that the verbose error is masked without verbose flag.
-			t.Run("NoVerboseAPIError", func(t *testing.T) {
-				t.Parallel()
-
-				inv, _ := clitest.New(t)
-
-				cmd.RunE = func(inv *clibase.Invokation) error {
-					var err error = &codersdk.Error{
-						Response: codersdk.Response{
-							Message: "This is a message.",
-						},
-						Helper: "Try this instead.",
-					}
-
-					err = xerrors.Errorf("wrap me: %w", err)
-
-					return err
-				}
-
-				cmd, err := cmd.RunC()
-				errStr := cli.FormatCobraError(err, cmd)
-				require.Contains(t, errStr, "This is a message. Try this instead.")
-				require.NotContains(t, errStr, err.Error())
-			})
-
-			// Assert that a regular error is not masked when verbose is not
-			// specified.
-			t.Run("NoVerboseRegularError", func(t *testing.T) {
-				t.Parallel()
-
-				inv, _ := clitest.New(t)
-
-				cmd.RunE = func(inv *clibase.Invokation) error {
-					return xerrors.Errorf("this is a non-codersdk error: %w", xerrors.Errorf("a wrapped error"))
-				}
-
-				cmd, err := cmd.RunC()
-				errStr := cli.FormatCobraError(err, cmd)
-				require.Contains(t, errStr, err.Error())
-			})
-
-			// Test that both the friendly error and the verbose error are
-			// displayed when verbose is passed.
-			t.Run("APIError", func(t *testing.T) {
-				t.Parallel()
-
-				inv, _ := clitest.New(t, "--verbose")
-
-				cmd.RunE = func(inv *clibase.Invokation) error {
-					var err error = &codersdk.Error{
-						Response: codersdk.Response{
-							Message: "This is a message.",
-						},
-						Helper: "Try this instead.",
-					}
-
-					err = xerrors.Errorf("wrap me: %w", err)
-
-					return err
-				}
-
-				cmd, err := cmd.RunC()
-				errStr := cli.FormatCobraError(err, cmd)
-				require.Contains(t, errStr, "This is a message. Try this instead.")
-				require.Contains(t, errStr, err.Error())
-			})
-
-			// Assert that a regular error is not masked when verbose specified.
-			t.Run("RegularError", func(t *testing.T) {
-				t.Parallel()
-
-				inv, _ := clitest.New(t, "--verbose")
-
-				cmd.RunE = func(inv *clibase.Invokation) error {
-					return xerrors.Errorf("this is a non-codersdk error: %w", xerrors.Errorf("a wrapped error"))
-				}
-
-				cmd, err := cmd.RunC()
-				errStr := cli.FormatCobraError(err, cmd)
-				require.Contains(t, errStr, err.Error())
-			})
-		})
-	})
-
 	t.Run("Version", func(t *testing.T) {
 		t.Parallel()
 

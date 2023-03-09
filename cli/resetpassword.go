@@ -7,7 +7,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/migrations"
@@ -87,7 +86,14 @@ func (r *RootCmd) resetPassword() *clibase.Cmd {
 		},
 	}
 
-	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
+	root.Options = clibase.OptionSet{
+		{
+			Name:        "postgres-url",
+			Description: "URL of a PostgreSQL database to connect to",
+			Env:         "CODER_PG_CONNECTION_URL",
+			Value:       clibase.StringOf(&postgresURL),
+		},
+	}
 
 	return root
 }

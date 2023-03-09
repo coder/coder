@@ -16,7 +16,6 @@ import (
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
@@ -69,7 +68,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				return xerrors.New("no port-forwards requested")
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, inv.Args[0], false)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0], false)
 			if err != nil {
 				return err
 			}
@@ -115,7 +114,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 			defer closeAllListeners()
 
 			for i, spec := range specs {
-				l, err := listenAndPortForward(ctx, cmd, conn, wg, spec)
+				l, err := listenAndPortForward(ctx, inv, conn, wg, spec)
 				if err != nil {
 					return err
 				}
@@ -150,12 +149,26 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 		},
 	}
 
-	cliflag.StringArrayVarP(cmd.Flags(), &tcpForwards, "tcp", "p", "CODER_PORT_FORWARD_TCP", nil, "Forward TCP port(s) from the workspace to the local machine")
-	cliflag.StringArrayVarP(cmd.Flags(), &udpForwards, "udp", "", "CODER_PORT_FORWARD_UDP", nil, "Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols")
+	cmd.Options = []clibase.Option{
+		{
+			Flag:          "tcp",
+			FlagShorthand: "p",
+			Env:           "CODER_PORT_FORWARD_TCP",
+			Description:   "Forward TCP port(s) from the workspace to the local machine",
+			Value:         clibase.StringsOf(&tcpForwards),
+		},
+		{
+			Flag:        "udp",
+			Env:         "CODER_PORT_FORWARD_UDP",
+			Description: "Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols",
+			Value:       clibase.StringsOf(&udpForwards),
+		},
+	}
+
 	return cmd
 }
 
-func listenAndPortForward(ctx context.Context, cmd *clibase.Cmd, conn *codersdk.WorkspaceAgentConn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
+func listenAndPortForward(ctx context.Context, inv *clibase.Invokation, conn *codersdk.WorkspaceAgentConn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
 	_, _ = fmt.Fprintf(inv.Stderr, "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
 
 	var (

@@ -18,7 +18,6 @@ import (
 	"github.com/gofrs/flock"
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
-	"github.com/spf13/cobra"
 	gossh "golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
@@ -26,7 +25,6 @@ import (
 
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
 	"github.com/coder/coder/coderd/util/ptr"
@@ -61,19 +59,15 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			if shuffle {
-				err := cobra.ExactArgs(0)(cmd, args)
-				if err != nil {
-					return err
-				}
-			} else {
-				err := cobra.MinimumNArgs(1)(cmd, args)
-				if err != nil {
-					return err
-				}
+			if shuffle && len(inv.Args) > 0 {
+				return xerrors.New("cannot specify workspace name when using --shuffle")
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], shuffle)
+			if len(inv.Args) < 1 {
+				return xerrors.New("missing workspace name")
+			}
+
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0], shuffle)
 			if err != nil {
 				return err
 			}
@@ -242,14 +236,53 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			return nil
 		},
 	}
-	cliflag.BoolVarP(cmd.Flags(), &stdio, "stdio", "", "CODER_SSH_STDIO", false, "Specifies whether to emit SSH output over stdin/stdout.")
-	cliflag.BoolVarP(cmd.Flags(), &shuffle, "shuffle", "", "CODER_SSH_SHUFFLE", false, "Specifies whether to choose a random workspace")
-	_ = inv.ParsedFlags().MarkHidden("shuffle")
-	cliflag.BoolVarP(cmd.Flags(), &forwardAgent, "forward-agent", "A", "CODER_SSH_FORWARD_AGENT", false, "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK")
-	cliflag.BoolVarP(cmd.Flags(), &forwardGPG, "forward-gpg", "G", "CODER_SSH_FORWARD_GPG", false, "Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, but supports all clients. Requires gnupg (gpg, gpgconf) on both the client and workspace. The GPG agent must already be running locally and will not be started for you. If a GPG agent is already running in the workspace, it will be attempted to be killed.")
-	cliflag.StringVarP(cmd.Flags(), &identityAgent, "identity-agent", "", "CODER_SSH_IDENTITY_AGENT", "", "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled")
-	cliflag.DurationVarP(cmd.Flags(), &wsPollInterval, "workspace-poll-interval", "", "CODER_WORKSPACE_POLL_INTERVAL", workspacePollInterval, "Specifies how often to poll for workspace automated shutdown.")
-	cliflag.BoolVarP(cmd.Flags(), &noWait, "no-wait", "", "CODER_SSH_NO_WAIT", false, "Specifies whether to wait for a workspace to become ready before logging in (only applicable when the login before ready option has not been enabled). Note that the workspace agent may still be in the process of executing the startup script and the workspace may be in an incomplete state.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:        "stdio",
+			Env:         "CODER_SSH_STDIO",
+			Description: "Specifies whether to emit SSH output over stdin/stdout.",
+			Value:       clibase.BoolOf(&stdio),
+		},
+		{
+			Flag:        "shuffle",
+			Env:         "CODER_SSH_SHUFFLE",
+			Description: "Specifies whether to choose a random workspace",
+			Value:       clibase.BoolOf(&shuffle),
+			Hidden:      true,
+		},
+		{
+			Flag:          "forward-agent",
+			FlagShorthand: "A",
+			Env:           "CODER_SSH_FORWARD_AGENT",
+			Description:   "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK",
+			Value:         clibase.BoolOf(&forwardAgent),
+		},
+		{
+			Flag:          "forward-gpg",
+			FlagShorthand: "G",
+			Env:           "CODER_SSH_FORWARD_GPG",
+			Description:   "Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, but supports all clients. Requires gnupg (gpg, gpg2, gpgsm) and gpg-agent to be installed on the host.",
+			Value:         clibase.BoolOf(&forwardGPG),
+		},
+		{
+			Flag:        "identity-agent",
+			Env:         "CODER_SSH_IDENTITY_AGENT",
+			Description: "Specifies the path to the SSH agent socket to use for identity forwarding. Defaults to $SSH_AUTH_SOCK.",
+			Value:       clibase.StringOf(&identityAgent),
+		},
+		{
+			Flag:        "workspace-poll-interval",
+			Env:         "CODER_WORKSPACE_POLL_INTERVAL",
+			Description: "Specifies the interval at which to poll for a workspace to be ready. Defaults to 1s.",
+			Value:       clibase.DurationOf(&wsPollInterval),
+		},
+		{
+			Flag:        "no-wait",
+			Env:         "CODER_SSH_NO_WAIT",
+			Description: "Specifies whether to wait for the workspace to be ready before connecting. Defaults to false.",
+			Value:       clibase.BoolOf(&noWait),
+		},
+	}
 	return cmd
 }
 
