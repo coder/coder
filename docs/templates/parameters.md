@@ -80,7 +80,7 @@ data "coder_parameter" "docker_host" {
 
 ## Required and optional parameters
 
-A parameter is considered to be _required_ if it doesn't have the `default` property. It means that the workspace user needs to provide the parameter value before creating a workspace.
+A parameter is considered to be _required_ if it doesn't have the `default` property. The user **must** provide a value to this parameter before creating a workspace.
 
 ```hcl
 data "coder_parameter" "account_name" {
