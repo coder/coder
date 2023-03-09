@@ -27,10 +27,10 @@ func (r *RootCmd) templateVersions() *clibase.Cmd {
 		Handler: func(inv *clibase.Invokation) error {
 			return inv.Command.HelpHandler(inv)
 		},
+		Children: []*clibase.Cmd{
+			r.templateVersionsList(),
+		},
 	}
-	cmd.AddCommand(
-		templateVersionsList(),
-	)
 
 	return cmd
 }

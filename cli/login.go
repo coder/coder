@@ -17,7 +17,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
@@ -178,7 +177,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 					}
 				}
 
-				if !cmd.Flags().Changed("first-user-trial") && os.Getenv(firstUserTrialEnv) == "" {
+				if !inv.ParsedFlags().Changed("first-user-trial") && os.Getenv(firstUserTrialEnv) == "" {
 					v, _ := cliui.Prompt(inv, cliui.PromptOptions{
 						Text:      "Start a 30-day trial of Enterprise?",
 						IsConfirm: true,
@@ -273,10 +272,32 @@ func (r *RootCmd) login() *clibase.Cmd {
 			return nil
 		},
 	}
-	cliflag.StringVarP(cmd.Flags(), &email, "first-user-email", "", "CODER_FIRST_USER_EMAIL", "", "Specifies an email address to use if creating the first user for the deployment.")
-	cliflag.StringVarP(cmd.Flags(), &username, "first-user-username", "", "CODER_FIRST_USER_USERNAME", "", "Specifies a username to use if creating the first user for the deployment.")
-	cliflag.StringVarP(cmd.Flags(), &password, "first-user-password", "", "CODER_FIRST_USER_PASSWORD", "", "Specifies a password to use if creating the first user for the deployment.")
-	cliflag.BoolVarP(cmd.Flags(), &trial, "first-user-trial", "", firstUserTrialEnv, false, "Specifies whether a trial license should be provisioned for the Coder deployment or not.")
+	cmd.Options = []clibase.Option{
+		{
+			Flag:        "first-user-email",
+			Env:         "CODER_FIRST_USER_EMAIL",
+			Description: "Specifies an email address to use if creating the first user for the deployment.",
+			Value:       clibase.StringOf(&email),
+		},
+		{
+			Flag:        "first-user-username",
+			Env:         "CODER_FIRST_USER_USERNAME",
+			Description: "Specifies a username to use if creating the first user for the deployment.",
+			Value:       clibase.StringOf(&username),
+		},
+		{
+			Flag:        "first-user-password",
+			Env:         "CODER_FIRST_USER_PASSWORD",
+			Description: "Specifies a password to use if creating the first user for the deployment.",
+			Value:       clibase.StringOf(&password),
+		},
+		{
+			Flag:        "first-user-trial",
+			Env:         firstUserTrialEnv,
+			Description: "Specifies whether a trial license should be provisioned for the Coder deployment or not.",
+			Value:       clibase.BoolOf(&trial),
+		},
+	}
 	return cmd
 }
 

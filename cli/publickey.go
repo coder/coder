@@ -43,13 +43,11 @@ func (r *RootCmd) publickey() *clibase.Cmd {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			cmd.Println(cliui.Styles.Wrap.Render(
-				"This is your public key for using " + cliui.Styles.Field.Render("git") + " in " +
-					"Coder. All clones with SSH will be authenticated automatically 🪄.",
-			))
-			cmd.Println()
-			cliui.Infof(inv.Stdout, cliui.Styles.Code.Render(strings.TrimSpace(key.PublicKey))+"\n")
-			cmd.Println()
+			cliui.Infof(inv.Stdout,
+				"This is your public key for using "+cliui.Styles.Field.Render("git")+" in "+
+					"Coder. All clones with SSH will be authenticated automatically 🪄.\n\n",
+			)
+			cliui.Infof(inv.Stdout, cliui.Styles.Code.Render(strings.TrimSpace(key.PublicKey))+"\n\n")
 			cliui.Infof(inv.Stdout, "Add to GitHub and GitLab:"+"\n")
 			cliui.Infof(inv.Stdout, cliui.Styles.Prompt.String()+"https://github.com/settings/ssh/new"+"\n")
 			cliui.Infof(inv.Stdout, cliui.Styles.Prompt.String()+"https://gitlab.com/-/profile/keys"+"\n")
@@ -57,8 +55,15 @@ func (r *RootCmd) publickey() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&reset, "reset", false, "Regenerate your public key. This will require updating the key on any services it's registered with.")
-	cliui.SkipPromptOption(inv)
+
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:        "reset",
+			Description: "Regenerate your public key. This will require updating the key on any services it's registered with.",
+			Value:       clibase.BoolOf(&reset),
+		},
+		cliui.SkipPromptOption(),
+	}
 
 	return cmd
 }

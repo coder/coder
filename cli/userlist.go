@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -49,6 +50,7 @@ func (r *RootCmd) userSingle() *clibase.Cmd {
 		&userShowFormat{},
 		cliui.JSONFormat(),
 	)
+	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
 		Use:   "show <username|user_id|'me'>",
@@ -58,8 +60,10 @@ func (r *RootCmd) userSingle() *clibase.Cmd {
 				Command: "coder users show me",
 			},
 		),
-		Middleware: clibase.RequireNArgs(1),
-		Middleware: clibase.Chain(r.UseClient(client)),
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.UseClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			user, err := client.User(inv.Context(), inv.Args[0])
 			if err != nil {
@@ -108,7 +112,7 @@ func (*userShowFormat) ID() string {
 }
 
 // AttachFlags implements OutputFormat.
-func (*userShowFormat) AttachFlags(_ *clibase.Cmd) {}
+func (*userShowFormat) AttachFlags(_ *pflag.FlagSet) {}
 
 // Format implements OutputFormat.
 func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error) {

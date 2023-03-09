@@ -9,18 +9,23 @@ import (
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 )
 
 func (r *RootCmd) logout() *clibase.Cmd {
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:        "logout",
-		Short:      "Unauthenticate your local session",
-		Middleware: clibase.Chain(r.UseClient(client)),
+		Use:   "logout",
+		Short: "Unauthenticate your local session",
+		Middleware: clibase.Chain(
+			r.UseClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			var errors []error
 
 			config := r.createConfig()
 
+			var err error
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Are you sure you want to log out?",
 				IsConfirm: true,
@@ -67,7 +72,6 @@ func (r *RootCmd) logout() *clibase.Cmd {
 			return nil
 		},
 	}
-
-	cliui.SkipPromptOption(inv)
+	cmd.Options = append(cmd.Options, cliui.SkipPromptOption())
 	return cmd
 }

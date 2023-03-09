@@ -187,10 +187,29 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			}
 		},
 	}
-	cmd.Flags().StringVarP(&networkInfoDir, "network-info-dir", "", "", "Specifies a directory to write network information periodically.")
-	cmd.Flags().StringVarP(&sessionTokenFile, "session-token-file", "", "", "Specifies a file that contains a session token.")
-	cmd.Flags().StringVarP(&urlFile, "url-file", "", "", "Specifies a file that contains the Coder URL.")
-	cmd.Flags().DurationVarP(&networkInfoInterval, "network-info-interval", "", 5*time.Second, "Specifies the interval to update network information.")
+	cmd.Options = []clibase.Option{
+		{
+			Flag:        "network-info-dir",
+			Description: "Specifies a directory to write network information periodically. ",
+			Value:       clibase.StringOf(&networkInfoDir),
+		},
+		{
+			Flag:        "session-token-file",
+			Description: "Specifies a file that contains a session token.",
+			Value:       clibase.StringOf(&sessionTokenFile),
+		},
+		{
+			Flag:        "url-file",
+			Description: "Specifies a file that contains the Coder URL.",
+			Value:       clibase.StringOf(&urlFile),
+		},
+		{
+			Flag:        "network-info-interval",
+			Description: "Specifies the interval to update network information.",
+			Default:     "5s",
+			Value:       clibase.DurationOf(&networkInfoInterval),
+		},
+	}
 	return cmd
 }
 

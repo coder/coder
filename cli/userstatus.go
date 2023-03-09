@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -11,7 +12,7 @@ import (
 )
 
 // createUserStatusCommand sets a user status.
-func createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Cmd {
+func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Cmd {
 	var verb string
 	var pastVerb string
 	var aliases []string
@@ -31,18 +32,22 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Cmd {
 		panic(fmt.Sprintf("%s is not supported", sdkStatus))
 	}
 
+	client := new(codersdk.Client)
+
 	var columns []string
 	cmd := &clibase.Cmd{
-		Use:        fmt.Sprintf("%s <username|user_id>", verb),
-		Short:      short,
-		Middleware: clibase.RequireNArgs(1),
-		Aliases:    aliases,
+		Use:     fmt.Sprintf("%s <username|user_id>", verb),
+		Short:   short,
+		Aliases: aliases,
 		Long: formatExamples(
 			example{
 				Command: fmt.Sprintf("coder users %s example_user", verb),
 			},
 		),
-		Middleware: clibase.Chain(r.UseClient(client)),
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.UseClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			identifier := inv.Args[0]
 			if identifier == "" {
@@ -88,7 +93,14 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"username", "email", "created_at", "status"},
-		"Specify a column to filter in the table.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:          "column",
+			FlagShorthand: "c",
+			Description:   "Specify a column to filter in the table.",
+			Default:       strings.Join([]string{"username", "email", "created_at", "status"}, ","),
+			Value:         clibase.StringsOf(&columns),
+		},
+	}
 	return cmd
 }

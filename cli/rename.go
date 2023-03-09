@@ -11,12 +11,15 @@ import (
 )
 
 func (r *RootCmd) rename() *clibase.Cmd {
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "rename <workspace> <new name>",
 		Short:       "Rename a workspace",
-		Middleware:  clibase.RequireNArgs(2),
-		Middleware:  clibase.Chain(r.UseClient(client)),
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(2),
+			r.UseClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
@@ -50,7 +53,7 @@ func (r *RootCmd) rename() *clibase.Cmd {
 		},
 	}
 
-	cliui.SkipPromptOption(inv)
+	cmd.Options = append(cmd.Options, cliui.SkipPromptOption())
 
 	return cmd
 }

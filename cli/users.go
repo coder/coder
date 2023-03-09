@@ -13,13 +13,13 @@ func (r *RootCmd) users() *clibase.Cmd {
 		Handler: func(inv *clibase.Invokation) error {
 			return inv.Command.HelpHandler(inv)
 		},
+		Children: []*clibase.Cmd{
+			r.userCreate(),
+			r.userList(),
+			r.userSingle(),
+			r.createUserStatusCommand(codersdk.UserStatusActive),
+			r.createUserStatusCommand(codersdk.UserStatusSuspended),
+		},
 	}
-	cmd.AddCommand(
-		userCreate(),
-		userList(),
-		userSingle(),
-		createUserStatusCommand(codersdk.UserStatusActive),
-		createUserStatusCommand(codersdk.UserStatusSuspended),
-	)
 	return cmd
 }

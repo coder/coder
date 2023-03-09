@@ -17,7 +17,7 @@ import (
 
 func (r *RootCmd) ping() *clibase.Cmd {
 	var (
-		pingNum     int
+		pingNum     int64
 		pingTimeout time.Duration
 		pingWait    time.Duration
 		verbose     bool
@@ -37,7 +37,10 @@ func (r *RootCmd) ping() *clibase.Cmd {
 			defer cancel()
 
 			workspaceName := inv.Args[0]
-			_, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, workspaceName, false)
+			_, workspaceAgent, err := getWorkspaceAndAgent(
+				ctx, inv, client,
+				codersdk.Me, workspaceName, false,
+			)
 			if err != nil {
 				return err
 			}
@@ -71,7 +74,7 @@ func (r *RootCmd) ping() *clibase.Cmd {
 				if err != nil {
 					if xerrors.Is(err, context.DeadlineExceeded) {
 						_, _ = fmt.Fprintf(inv.Stdout, "ping to %q timed out \n", workspaceName)
-						if n == pingNum {
+						if n == int(pingNum) {
 							return nil
 						}
 						continue
@@ -85,7 +88,7 @@ func (r *RootCmd) ping() *clibase.Cmd {
 					}
 
 					_, _ = fmt.Fprintf(inv.Stdout, "ping to %q failed %s\n", workspaceName, err.Error())
-					if n == pingNum {
+					if n == int(pingNum) {
 						return nil
 					}
 					continue
@@ -123,16 +126,39 @@ func (r *RootCmd) ping() *clibase.Cmd {
 					cliui.Styles.DateTimeStamp.Render(dur.String()),
 				)
 
-				if n == pingNum {
+				if n == int(pingNum) {
 					return nil
 				}
 			}
 		},
 	}
 
-	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enables verbose logging.")
-	cmd.Flags().DurationVarP(&pingWait, "wait", "", time.Second, "Specifies how long to wait between pings.")
-	cmd.Flags().DurationVarP(&pingTimeout, "timeout", "t", 5*time.Second, "Specifies how long to wait for a ping to complete.")
-	cmd.Flags().IntVarP(&pingNum, "num", "n", 10, "Specifies the number of pings to perform.")
+	cmd.Options = []clibase.Option{
+		{
+			Flag:          "verbose",
+			FlagShorthand: "v",
+			Description:   "Enables verbose logging.",
+			Value:         clibase.BoolOf(&verbose),
+		},
+		{
+			Flag:        "wait",
+			Description: "Specifies how long to wait between pings.",
+			Value:       clibase.DurationOf(&pingWait),
+		},
+		{
+			Flag:          "timeout",
+			FlagShorthand: "t",
+			Default:       "5s",
+			Description:   "Specifies how long to wait for a ping to complete.",
+			Value:         clibase.DurationOf(&pingTimeout),
+		},
+		{
+			Flag:          "num",
+			FlagShorthand: "n",
+			Default:       "10",
+			Description:   "Specifies the number of pings to perform.",
+			Value:         clibase.Int64Of(&pingNum),
+		},
+	}
 	return cmd
 }

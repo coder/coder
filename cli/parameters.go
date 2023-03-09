@@ -23,9 +23,9 @@ func (r *RootCmd) parameters() *clibase.Cmd {
 		Handler: func(inv *clibase.Invokation) error {
 			return inv.Command.HelpHandler(inv)
 		},
+		Children: []*clibase.Cmd{
+			r.parameterList(),
+		},
 	}
-	cmd.AddCommand(
-		parameterList(),
-	)
 	return cmd
 }
