@@ -338,7 +338,7 @@ export const CreateWorkspacePageView: FC<
           props.templateParameters.filter((p) => !p.mutable).length > 0 && (
             <FormSection
               title="Immutable parameters"
-              className={styles.warningSection}
+              classes={{ root: styles.warningSection }}
               description={
                 <>
                   Those values are also parameters provided from your Terraform
