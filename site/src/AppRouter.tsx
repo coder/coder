@@ -127,6 +127,10 @@ const TemplateVariablesPage = lazy(
   () => import("./pages/TemplateVariablesPage/TemplateVariablesPage"),
 )
 
+const CreateTokenPage = lazy(
+  () => import("./pages/CreateTokenPage/CreateTokenPage"),
+)
+
 export const AppRouter: FC = () => {
   return (
     <Suspense fallback={<FullScreenLoader />}>
@@ -215,7 +219,10 @@ export const AppRouter: FC = () => {
                 <Route path="account" element={<AccountPage />} />
                 <Route path="security" element={<SecurityPage />} />
                 <Route path="ssh-keys" element={<SSHKeysPage />} />
-                <Route path="tokens" element={<TokensPage />} />
+                <Route path="tokens">
+                  <Route index element={<TokensPage />} />
+                  <Route path="new" element={<CreateTokenPage />} />
+                </Route>
               </Route>
 
               <Route path="/@:username">

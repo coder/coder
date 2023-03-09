@@ -11,7 +11,7 @@ import { makeStyles } from "@material-ui/core/styles"
 export interface FullPageHorizontalFormProps {
   title: string
   detail?: ReactNode
-  onCancel: () => void
+  onCancel?: () => void
 }
 
 export const FullPageHorizontalForm: FC<
@@ -23,9 +23,11 @@ export const FullPageHorizontalForm: FC<
     <Margins size="medium">
       <PageHeader
         actions={
-          <Button variant="outlined" size="small" onClick={onCancel}>
-            Cancel
-          </Button>
+          onCancel && (
+            <Button variant="outlined" size="small" onClick={onCancel}>
+              Cancel
+            </Button>
+          )
         }
       >
         <PageHeaderTitle>{title}</PageHeaderTitle>

@@ -153,8 +153,15 @@ export const getTokens = async (
   return response.data
 }
 
-export const deleteAPIKey = async (keyId: string): Promise<void> => {
+export const deleteToken = async (keyId: string): Promise<void> => {
   await axios.delete("/api/v2/users/me/keys/" + keyId)
+}
+
+export const createToken = async (
+  params: TypesGen.CreateTokenRequest,
+): Promise<TypesGen.GenerateAPIKeyResponse> => {
+  const response = await axios.post(`/api/v2/users/me/keys/tokens`, params)
+  return response.data
 }
 
 export const getUsers = async (

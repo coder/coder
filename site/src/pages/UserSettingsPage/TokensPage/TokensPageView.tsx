@@ -46,7 +46,7 @@ export const TokensPageView: FC<
 }) => {
   const theme = useTheme()
   const { t } = useTranslation("tokensPage")
-  const colWidth = viewAllTokens ? "20%" : "25%"
+  const colWidth = viewAllTokens ? "16.66%" : "20%"
 
   return (
     <Stack>
@@ -61,9 +61,10 @@ export const TokensPageView: FC<
           <TableHead>
             <TableRow>
               <TableCell width={colWidth}>{t("table.id")}</TableCell>
-              <TableCell width={colWidth}>{t("table.createdAt")}</TableCell>
+              <TableCell width={colWidth}>{t("table.name")}</TableCell>
               <TableCell width={colWidth}>{t("table.lastUsed")}</TableCell>
               <TableCell width={colWidth}>{t("table.expiresAt")}</TableCell>
+              <TableCell width={colWidth}>{t("table.createdAt")}</TableCell>
               {viewAllTokens && (
                 <TableCell width="20%">{t("table.owner")}</TableCell>
               )}
@@ -94,7 +95,7 @@ export const TokensPageView: FC<
 
                       <TableCell>
                         <span style={{ color: theme.palette.text.secondary }}>
-                          {dayjs(token.created_at).fromNow()}
+                          {token.token_name}
                         </span>
                       </TableCell>
 
@@ -108,6 +109,13 @@ export const TokensPageView: FC<
                           {dayjs(token.expires_at).fromNow()}
                         </span>
                       </TableCell>
+
+                      <TableCell>
+                        <span style={{ color: theme.palette.text.secondary }}>
+                          {dayjs(token.created_at).fromNow()}
+                        </span>
+                      </TableCell>
+
                       {viewAllTokens && (
                         <TableCell>
                           <span style={{ color: theme.palette.text.secondary }}>

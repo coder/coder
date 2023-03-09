@@ -39,6 +39,7 @@ import (
 // @Success 201 {object} codersdk.GenerateAPIKeyResponse
 // @Router /users/{user}/keys/tokens [post]
 func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
+	fmt.Println("in postToken!")
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 

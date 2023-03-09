@@ -12,12 +12,34 @@
     },
     "toggleLabel": "Show all tokens"
   },
-
   "table": {
     "id": "ID",
-    "createdAt": "Created At",
+    "name": "Name",
     "lastUsed": "Last Used",
     "expiresAt": "Expires At",
+    "createdAt": "Created At",
     "owner": "Owner"
+  },
+  "createToken": {
+    "title": "Create Token",
+    "detail": "Tokens are used to authenticate automated clients to Coder. All tokens are unscoped and therefore have full resource access.",
+    "nameSection": {
+      "title": "Name",
+      "description": "What is this token for?"
+    },
+    "lifetimeSection": {
+      "title": "Expiration",
+      "description": "Fill me out"
+    },
+    "fields": {
+      "name": "Name",
+      "lifetime": "Lifetime"
+    },
+    "footer": {
+      "retry": "Retry",
+      "submit": "Create token"
+    },
+    "createSuccess": "Token has been created",
+    "createError": "Failed to create token"
   }
 }
