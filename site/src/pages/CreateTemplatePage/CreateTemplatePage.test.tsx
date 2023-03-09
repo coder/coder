@@ -12,7 +12,7 @@ import {
   renderWithAuth,
 } from "testHelpers/renderHelpers"
 import CreateTemplatePage from "./CreateTemplatePage"
-import { screen, waitFor } from "@testing-library/react"
+import { screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
 
@@ -60,10 +60,11 @@ test("Create template with variables", async () => {
     ])
 
   // Render page, fill the name and submit
-  const { router } = await renderPage()
+  const { router, container } = await renderPage()
+  const form = container.querySelector("form") as HTMLFormElement
   await userEvent.type(screen.getByLabelText(/Name/), "my-template")
   await userEvent.click(
-    screen.getByRole("button", { name: /create template/i }),
+    within(form).getByRole("button", { name: /create template/i }),
   )
 
   // Wait for the variables form to be rendered and fill it
@@ -98,7 +99,7 @@ test("Create template with variables", async () => {
     .mockResolvedValue(MockTemplateVersion)
   jest.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate)
   await userEvent.click(
-    screen.getByRole("button", { name: /create template/i }),
+    within(form).getByRole("button", { name: /create template/i }),
   )
 
   await waitFor(() => expect(API.createTemplate).toBeCalledTimes(1))
