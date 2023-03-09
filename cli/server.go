@@ -367,7 +367,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 				// We want to print out the address the user supplied, not the
 				// loopback device.
-				cliui.Infof(inv.Stdout, "Started HTTP listener at", (&url.URL{Scheme: "http", Host: listenAddrStr}).String()+"\n")
+				cliui.Info(inv.Stdout, "Started HTTP listener at", (&url.URL{Scheme: "http", Host: listenAddrStr}).String()+"\n")
 
 				// Set the http URL we want to use when connecting to ourselves.
 				tcpAddr, tcpAddrValid := httpListener.Addr().(*net.TCPAddr)
@@ -431,7 +431,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 				// We want to print out the address the user supplied, not the
 				// loopback device.
-				cliui.Infof(inv.Stdout, "Started TLS/HTTPS listener at", (&url.URL{Scheme: "https", Host: listenAddrStr}).String()+"\n")
+				cliui.Info(inv.Stdout, "Started TLS/HTTPS listener at", (&url.URL{Scheme: "https", Host: listenAddrStr}).String()+"\n")
 
 				// Set the https URL we want to use when connecting to
 				// ourselves.
@@ -479,7 +479,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// If the access URL is empty, we attempt to run a reverse-proxy
 			// tunnel to make the initial setup really simple.
 			if cfg.AccessURL.String() == "" {
-				cliui.Infof(inv.Stdout, "Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
+				cliui.Info(inv.Stdout, "Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
 				tunnel, tunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
@@ -986,11 +986,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				cliui.Errorf(inv.Stdout, "\nFailed to check for the first user: "+err.Error()+"\n")
 			} else if !hasFirstUser {
-				cliui.Infof(inv.Stdout, "\nGet started by creating the first user (in a new terminal):"+"\n")
-				cliui.Infof(inv.Stdout, cliui.Styles.Code.Render("coder login "+cfg.AccessURL.String())+"\n")
+				cliui.Info(inv.Stdout, "\nGet started by creating the first user (in a new terminal):"+"\n")
+				cliui.Info(inv.Stdout, cliui.Styles.Code.Render("coder login "+cfg.AccessURL.String())+"\n")
 			}
 
-			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):"+"\n")
+			cliui.Info(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):"+"\n")
 
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
@@ -1038,12 +1038,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Stop accepting new connections without interrupting
 			// in-flight requests, give in-flight requests 5 seconds to
 			// complete.
-			cliui.Infof(inv.Stdout, "Shutting down API server..."+"\n")
+			cliui.Info(inv.Stdout, "Shutting down API server..."+"\n")
 			err = shutdownWithTimeout(httpServer.Shutdown, 3*time.Second)
 			if err != nil {
 				cliui.Errorf(inv.Stderr, "API server shutdown took longer than 3s: %s\n", err)
 			} else {
-				cliui.Infof(inv.Stdout, "Gracefully shut down API server\n")
+				cliui.Info(inv.Stdout, "Gracefully shut down API server\n")
 			}
 			// Cancel any remaining in-flight requests.
 			shutdownConns()
@@ -1078,9 +1078,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			wg.Wait()
 
-			cliui.Infof(inv.Stdout, "Waiting for WebSocket connections to close..."+"\n")
+			cliui.Info(inv.Stdout, "Waiting for WebSocket connections to close..."+"\n")
 			_ = coderAPICloser.Close()
-			cliui.Infof(inv.Stdout, "Done waiting for WebSocket connections"+"\n")
+			cliui.Info(inv.Stdout, "Done waiting for WebSocket connections"+"\n")
 
 			// Close tunnel after we no longer have in-flight connections.
 			if tunnel != nil {
@@ -1156,15 +1156,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	createAdminUserCmd := r.newCreateAdminUserCommand()
 
-	rawUrlOpt := clibase.Option{
+	rawURLOpt := clibase.Option{
 		Flag:        "raw-url",
 		Default:     "false",
 		Value:       clibase.BoolOf(&pgRawURL),
 		Description: "Output the raw connection URL instead of a psql command.",
 	}
-	createAdminUserCmd.Options = append(createAdminUserCmd.Options, rawUrlOpt)
-	postgresBuiltinURLCmd.Options = append(postgresBuiltinURLCmd.Options, rawUrlOpt)
-	postgresBuiltinServeCmd.Options = append(postgresBuiltinURLCmd.Options, rawUrlOpt)
+	createAdminUserCmd.Options = append(createAdminUserCmd.Options, rawURLOpt)
+	postgresBuiltinURLCmd.Options = append(postgresBuiltinURLCmd.Options, rawURLOpt)
+	postgresBuiltinServeCmd.Options = append(postgresBuiltinURLCmd.Options, rawURLOpt)
 
 	serverCmd.Children = append(
 		serverCmd.Children,

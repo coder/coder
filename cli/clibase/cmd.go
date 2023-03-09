@@ -113,6 +113,9 @@ type Invokation struct {
 }
 
 func (i *Invokation) Context() context.Context {
+	if i.ctx == nil {
+		return context.Background()
+	}
 	return i.ctx
 }
 
@@ -230,7 +233,11 @@ func (i *Invokation) run(state *runState) error {
 		return i.Command.HelpHandler(i)
 	}
 
-	return mw(i.Command.Handler)(i)
+	err = mw(i.Command.Handler)(i)
+	if err != nil {
+		return xerrors.Errorf("running command %s: %w", i.Command.FullName(), err)
+	}
+	return nil
 }
 
 // findArg returns the index of the first occurrence of arg in args, skipping

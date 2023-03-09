@@ -18,13 +18,10 @@ import (
 
 // gitAskpass is used by the Coder agent to automatically authenticate
 // with Git providers based on a hostname.
-func (r *RootCmd) gitAskpass() *clibase.Cmd {
+func (*RootCmd) gitAskpass() *clibase.Cmd {
 	return &clibase.Cmd{
 		Use:    "gitaskpass",
 		Hidden: true,
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
-		),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx := inv.Context()
 

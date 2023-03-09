@@ -160,7 +160,7 @@ func StartErr(t *testing.T, inv *clibase.Invokation) <-chan error {
 	go func() {
 		defer cancel()
 		defer close(errCh)
-		errCh <- inv.Run()
+		errCh <- inv.WithContext(ctx).Run()
 	}()
 
 	// Don't exit test routine until server is done.

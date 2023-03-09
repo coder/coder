@@ -33,15 +33,13 @@ func TestGitAskpass(t *testing.T) {
 		inv, _ := clitest.New(t, "--agent-url", url, "Username for 'https://github.com':")
 		pty := ptytest.New(t)
 		inv.Stdout = pty.Output()
-		err := inv.Run()
-		require.NoError(t, err)
+		clitest.Start(t, inv)
 		pty.ExpectMatch("something")
 
 		inv, _ = clitest.New(t, "--agent-url", url, "Password for 'https://potato@github.com':")
 		pty = ptytest.New(t)
 		inv.Stdout = pty.Output()
-		err = inv.Run()
-		require.NoError(t, err)
+		clitest.Start(t, inv)
 		pty.ExpectMatch("bananas")
 	})
 

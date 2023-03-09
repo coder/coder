@@ -96,6 +96,7 @@ func Core() []*clibase.Cmd {
 
 		// Hidden
 		r.workspaceAgent(),
+		r.scaletest(),
 	}
 }
 
@@ -146,9 +147,6 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 				Command:     "coder templates init",
 			},
 		),
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(0),
-		),
 		Handler: func(i *clibase.Invokation) error {
 			// The GIT_ASKPASS environment variable must point at
 			// a binary with no arguments. To prevent writing
@@ -172,6 +170,13 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			}
 		}
 	})
+
+	if r.agentURL == nil {
+		r.agentURL = new(url.URL)
+	}
+	if r.clientURL == nil {
+		r.clientURL = new(url.URL)
+	}
 
 	cmd.Options = []clibase.Option{
 		{
