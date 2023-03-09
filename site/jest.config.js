@@ -10,19 +10,18 @@ module.exports = {
   maxWorkers,
   projects: [
     {
-      globals: {
-        "ts-jest": {
-          tsconfig: "./tsconfig.test.json",
-        },
-      },
-      coverageReporters: ["text", "lcov"],
       displayName: "test",
-      preset: "ts-jest",
       roots: ["<rootDir>"],
       setupFilesAfterEnv: ["./jest.setup.ts"],
+      extensionsToTreatAsEsm: [".ts"],
+      moduleNameMapper: {
+        "^(\\.{1,2}/.*)\\.js$": "$1",
+      },
       transform: {
-        "^.+\\.tsx?$": "ts-jest",
-        "\\.m?jsx?$": "jest-esm-transformer",
+        "^.+\\.tsx?$": [
+          "ts-jest",
+          { tsconfig: "./tsconfig.test.json", useESM: true },
+        ],
       },
       testEnvironment: "jsdom",
       testRegex: "(/__tests__/.*|(\\.|/)(test|spec))\\.tsx?$",
