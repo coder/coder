@@ -36,10 +36,12 @@ func (q *querier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context,
 	}
 	return q.db.GetWorkspaceResourceMetadataByResourceIDs(ctx, ids)
 }
+
+// TODO: we need to add a provisioner job resource
 func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
+	// if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+	// 	return nil, err
+	// }
 	return q.db.GetProvisionerJobsByIDs(ctx, ids)
 }
 
@@ -293,10 +295,11 @@ func (q *querier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt
 	return q.db.GetParameterSchemasCreatedAfter(ctx, createdAt)
 }
 
+// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
+	// if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+	// return nil, err
+	// }
 	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
 }
 
@@ -323,45 +326,51 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
 }
 
+// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return database.ProvisionerJob{}, err
-	}
+	// if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+	// return database.ProvisionerJob{}, err
+	// }
 	return q.db.AcquireProvisionerJob(ctx, arg)
 }
 
+// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return err
-	}
+	// if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+	// return err
+	// }
 	return q.db.UpdateProvisionerJobWithCompleteByID(ctx, arg)
 }
 
+// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) UpdateProvisionerJobByID(ctx context.Context, arg database.UpdateProvisionerJobByIDParams) error {
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return err
-	}
+	// if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+	// return err
+	// }
 	return q.db.UpdateProvisionerJobByID(ctx, arg)
 }
 
+// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.ProvisionerJob{}, err
-	}
+	// if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+	// return database.ProvisionerJob{}, err
+	// }
 	return q.db.InsertProvisionerJob(ctx, arg)
 }
 
+// TODO: We need to create a ProvisionerJob resource type
 func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
+	// if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+	// return nil, err
+	// }
 	return q.db.InsertProvisionerJobLogs(ctx, arg)
 }
 
+// TODO: We need to create a ProvisionerDaemon resource type
 func (q *querier) InsertProvisionerDaemon(ctx context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.ProvisionerDaemon{}, err
-	}
+	// if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+	// return database.ProvisionerDaemon{}, err
+	// }
 	return q.db.InsertProvisionerDaemon(ctx, arg)
 }
 

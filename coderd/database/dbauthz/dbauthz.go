@@ -123,6 +123,7 @@ var (
 				Name:        "provisionerd",
 				DisplayName: "Provisioner Daemon",
 				Site: rbac.Permissions(map[string][]rbac.Action{
+					// TODO: Add ProvisionerJob resource type.
 					rbac.ResourceFile.Type:      {rbac.ActionRead},
 					rbac.ResourceSystem.Type:    {rbac.WildcardSymbol},
 					rbac.ResourceTemplate.Type:  {rbac.ActionRead, rbac.ActionUpdate},
@@ -142,6 +143,7 @@ var (
 				Name:        "autostart",
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]rbac.Action{
+					rbac.ResourceSystem.Type:    {rbac.WildcardSymbol},
 					rbac.ResourceTemplate.Type:  {rbac.ActionRead, rbac.ActionUpdate},
 					rbac.ResourceWorkspace.Type: {rbac.ActionRead, rbac.ActionUpdate},
 				}),
