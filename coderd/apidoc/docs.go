@@ -6487,51 +6487,21 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "building_workspaces": {
-                    "type": "integer"
-                },
                 "collected_at": {
                     "description": "CollectedAt is the time in which stats are collected at.",
                     "type": "string",
                     "format": "date-time"
-                },
-                "failed_workspaces": {
-                    "type": "integer"
                 },
                 "next_update_at": {
                     "description": "NextUpdateAt is the time when the next batch of stats will\nbe updated.",
                     "type": "string",
                     "format": "date-time"
                 },
-                "pending_workspaces": {
-                    "type": "integer"
+                "session_count": {
+                    "$ref": "#/definitions/codersdk.SessionCountDeploymentStats"
                 },
-                "running_workspaces": {
-                    "type": "integer"
-                },
-                "session_count_jetbrains": {
-                    "type": "integer"
-                },
-                "session_count_reconnecting_pty": {
-                    "type": "integer"
-                },
-                "session_count_ssh": {
-                    "type": "integer"
-                },
-                "session_count_vscode": {
-                    "type": "integer"
-                },
-                "stopped_workspaces": {
-                    "type": "integer"
-                },
-                "workspace_connection_latency_ms": {
-                    "$ref": "#/definitions/codersdk.WorkspaceConnectionLatencyMS"
-                },
-                "workspace_rx_bytes": {
-                    "type": "integer"
-                },
-                "workspace_tx_bytes": {
-                    "type": "integer"
+                "workspaces": {
+                    "$ref": "#/definitions/codersdk.WorkspaceDeploymentStats"
                 }
             }
         },
@@ -7695,6 +7665,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.SessionCountDeploymentStats": {
+            "type": "object",
+            "properties": {
+                "jetbrains": {
+                    "type": "integer"
+                },
+                "reconnecting_pty": {
+                    "type": "integer"
+                },
+                "ssh": {
+                    "type": "integer"
+                },
+                "vscode": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.SupportConfig": {
             "type": "object",
             "properties": {
@@ -8840,6 +8827,35 @@ const docTemplate = `{
                 },
                 "p95": {
                     "type": "number"
+                }
+            }
+        },
+        "codersdk.WorkspaceDeploymentStats": {
+            "type": "object",
+            "properties": {
+                "building": {
+                    "type": "integer"
+                },
+                "connection_latency_ms": {
+                    "$ref": "#/definitions/codersdk.WorkspaceConnectionLatencyMS"
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "pending": {
+                    "type": "integer"
+                },
+                "running": {
+                    "type": "integer"
+                },
+                "rx_bytes": {
+                    "type": "integer"
+                },
+                "stopped": {
+                    "type": "integer"
+                },
+                "tx_bytes": {
+                    "type": "integer"
                 }
             }
         },

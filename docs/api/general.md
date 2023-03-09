@@ -417,23 +417,27 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
 ```json
 {
   "aggregated_from": "2019-08-24T14:15:22Z",
-  "building_workspaces": 0,
   "collected_at": "2019-08-24T14:15:22Z",
-  "failed_workspaces": 0,
   "next_update_at": "2019-08-24T14:15:22Z",
-  "pending_workspaces": 0,
-  "running_workspaces": 0,
-  "session_count_jetbrains": 0,
-  "session_count_reconnecting_pty": 0,
-  "session_count_ssh": 0,
-  "session_count_vscode": 0,
-  "stopped_workspaces": 0,
-  "workspace_connection_latency_ms": {
-    "p50": 0,
-    "p95": 0
+  "session_count": {
+    "jetbrains": 0,
+    "reconnecting_pty": 0,
+    "ssh": 0,
+    "vscode": 0
   },
-  "workspace_rx_bytes": 0,
-  "workspace_tx_bytes": 0
+  "workspaces": {
+    "building": 0,
+    "connection_latency_ms": {
+      "p50": 0,
+      "p95": 0
+    },
+    "failed": 0,
+    "pending": 0,
+    "running": 0,
+    "rx_bytes": 0,
+    "stopped": 0,
+    "tx_bytes": 0
+  }
 }
 ```
 

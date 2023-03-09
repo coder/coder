@@ -1952,45 +1952,39 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "aggregated_from": "2019-08-24T14:15:22Z",
-  "building_workspaces": 0,
   "collected_at": "2019-08-24T14:15:22Z",
-  "failed_workspaces": 0,
   "next_update_at": "2019-08-24T14:15:22Z",
-  "pending_workspaces": 0,
-  "running_workspaces": 0,
-  "session_count_jetbrains": 0,
-  "session_count_reconnecting_pty": 0,
-  "session_count_ssh": 0,
-  "session_count_vscode": 0,
-  "stopped_workspaces": 0,
-  "workspace_connection_latency_ms": {
-    "p50": 0,
-    "p95": 0
+  "session_count": {
+    "jetbrains": 0,
+    "reconnecting_pty": 0,
+    "ssh": 0,
+    "vscode": 0
   },
-  "workspace_rx_bytes": 0,
-  "workspace_tx_bytes": 0
+  "workspaces": {
+    "building": 0,
+    "connection_latency_ms": {
+      "p50": 0,
+      "p95": 0
+    },
+    "failed": 0,
+    "pending": 0,
+    "running": 0,
+    "rx_bytes": 0,
+    "stopped": 0,
+    "tx_bytes": 0
+  }
 }
 ```
 
 ### Properties
 
-| Name                              | Type                                                                           | Required | Restrictions | Description                                                                                                                 |
-| --------------------------------- | ------------------------------------------------------------------------------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `aggregated_from`                 | string                                                                         | false    |              | Aggregated from is the time in which stats are aggregated from. This might be back in time a specific duration or interval. |
-| `building_workspaces`             | integer                                                                        | false    |              |                                                                                                                             |
-| `collected_at`                    | string                                                                         | false    |              | Collected at is the time in which stats are collected at.                                                                   |
-| `failed_workspaces`               | integer                                                                        | false    |              |                                                                                                                             |
-| `next_update_at`                  | string                                                                         | false    |              | Next update at is the time when the next batch of stats will be updated.                                                    |
-| `pending_workspaces`              | integer                                                                        | false    |              |                                                                                                                             |
-| `running_workspaces`              | integer                                                                        | false    |              |                                                                                                                             |
-| `session_count_jetbrains`         | integer                                                                        | false    |              |                                                                                                                             |
-| `session_count_reconnecting_pty`  | integer                                                                        | false    |              |                                                                                                                             |
-| `session_count_ssh`               | integer                                                                        | false    |              |                                                                                                                             |
-| `session_count_vscode`            | integer                                                                        | false    |              |                                                                                                                             |
-| `stopped_workspaces`              | integer                                                                        | false    |              |                                                                                                                             |
-| `workspace_connection_latency_ms` | [codersdk.WorkspaceConnectionLatencyMS](#codersdkworkspaceconnectionlatencyms) | false    |              |                                                                                                                             |
-| `workspace_rx_bytes`              | integer                                                                        | false    |              |                                                                                                                             |
-| `workspace_tx_bytes`              | integer                                                                        | false    |              |                                                                                                                             |
+| Name              | Type                                                                         | Required | Restrictions | Description                                                                                                                 |
+| ----------------- | ---------------------------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `aggregated_from` | string                                                                       | false    |              | Aggregated from is the time in which stats are aggregated from. This might be back in time a specific duration or interval. |
+| `collected_at`    | string                                                                       | false    |              | Collected at is the time in which stats are collected at.                                                                   |
+| `next_update_at`  | string                                                                       | false    |              | Next update at is the time when the next batch of stats will be updated.                                                    |
+| `session_count`   | [codersdk.SessionCountDeploymentStats](#codersdksessioncountdeploymentstats) | false    |              |                                                                                                                             |
+| `workspaces`      | [codersdk.WorkspaceDeploymentStats](#codersdkworkspacedeploymentstats)       | false    |              |                                                                                                                             |
 
 ## codersdk.DeploymentValues
 
@@ -3337,6 +3331,26 @@ Parameter represents a set value for the scope.
 | `background_color` | string  | false    |              |             |
 | `enabled`          | boolean | false    |              |             |
 | `message`          | string  | false    |              |             |
+
+## codersdk.SessionCountDeploymentStats
+
+```json
+{
+  "jetbrains": 0,
+  "reconnecting_pty": 0,
+  "ssh": 0,
+  "vscode": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `jetbrains`        | integer | false    |              |             |
+| `reconnecting_pty` | integer | false    |              |             |
+| `ssh`              | integer | false    |              |             |
+| `vscode`           | integer | false    |              |             |
 
 ## codersdk.SupportConfig
 
@@ -4806,6 +4820,37 @@ Parameter represents a set value for the scope.
 | ----- | ------ | -------- | ------------ | ----------- |
 | `p50` | number | false    |              |             |
 | `p95` | number | false    |              |             |
+
+## codersdk.WorkspaceDeploymentStats
+
+```json
+{
+  "building": 0,
+  "connection_latency_ms": {
+    "p50": 0,
+    "p95": 0
+  },
+  "failed": 0,
+  "pending": 0,
+  "running": 0,
+  "rx_bytes": 0,
+  "stopped": 0,
+  "tx_bytes": 0
+}
+```
+
+### Properties
+
+| Name                    | Type                                                                           | Required | Restrictions | Description |
+| ----------------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `building`              | integer                                                                        | false    |              |             |
+| `connection_latency_ms` | [codersdk.WorkspaceConnectionLatencyMS](#codersdkworkspaceconnectionlatencyms) | false    |              |             |
+| `failed`                | integer                                                                        | false    |              |             |
+| `pending`               | integer                                                                        | false    |              |             |
+| `running`               | integer                                                                        | false    |              |             |
+| `rx_bytes`              | integer                                                                        | false    |              |             |
+| `stopped`               | integer                                                                        | false    |              |             |
+| `tx_bytes`              | integer                                                                        | false    |              |             |
 
 ## codersdk.WorkspaceQuota
 
