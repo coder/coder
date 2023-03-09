@@ -68,7 +68,10 @@ func TestAgent_Stats_SSH(t *testing.T) {
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
 	defer session.Close()
-	require.NoError(t, session.Run("echo test"))
+	stdin, err := session.StdinPipe()
+	require.NoError(t, err)
+	err = session.Shell()
+	require.NoError(t, err)
 
 	var s *agentsdk.Stats
 	require.Eventuallyf(t, func() bool {
@@ -78,6 +81,9 @@ func TestAgent_Stats_SSH(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast,
 		"never saw stats: %+v", s,
 	)
+	_ = stdin.Close()
+	err = session.Wait()
+	require.NoError(t, err)
 }
 
 func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
@@ -112,43 +118,69 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 
 func TestAgent_Stats_Magic(t *testing.T) {
 	t.Parallel()
+	t.Run("StripsEnvironmentVariable", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		//nolint:dogsled
+		conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		session.Setenv(agent.MagicSSHSessionTypeEnvironmentVariable, agent.MagicSSHSessionTypeVSCode)
+		defer session.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	//nolint:dogsled
-	conn, _, stats, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
-	sshClient, err := conn.SSHClient(ctx)
-	require.NoError(t, err)
-	defer sshClient.Close()
-	session, err := sshClient.NewSession()
-	require.NoError(t, err)
-	session.Setenv(agent.MagicSSHSessionTypeEnvironmentVariable, agent.MagicSSHSessionTypeVSCode)
-	defer session.Close()
-
-	command := "sh -c 'echo $" + agent.MagicSSHSessionTypeEnvironmentVariable + "'"
-	expected := ""
-	if runtime.GOOS == "windows" {
-		expected = "%" + agent.MagicSSHSessionTypeEnvironmentVariable + "%"
-		command = "cmd.exe /c echo " + expected
-	}
-	output, err := session.Output(command)
-	require.NoError(t, err)
-	require.Equal(t, expected, strings.TrimSpace(string(output)))
-	var s *agentsdk.Stats
-	require.Eventuallyf(t, func() bool {
-		var ok bool
-		s, ok = <-stats
-		return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 &&
-			// Ensure that the connection didn't count as a "normal" SSH session.
-			// This was a special one, so it should be labeled specially in the stats!
-			s.SessionCountVSCode == 1 &&
-			// Ensure that connection latency is being counted!
-			// If it isn't, it's set to -1.
-			s.ConnectionMedianLatencyMS >= 0
-	}, testutil.WaitLong, testutil.IntervalFast,
-		"never saw stats: %+v", s,
-	)
+		command := "sh -c 'echo $" + agent.MagicSSHSessionTypeEnvironmentVariable + "'"
+		expected := ""
+		if runtime.GOOS == "windows" {
+			expected = "%" + agent.MagicSSHSessionTypeEnvironmentVariable + "%"
+			command = "cmd.exe /c echo " + expected
+		}
+		output, err := session.Output(command)
+		require.NoError(t, err)
+		require.Equal(t, expected, strings.TrimSpace(string(output)))
+	})
+	t.Run("Tracks", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "window" {
+			t.Skip("Sleeping for infinity doesn't work on Windows")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		//nolint:dogsled
+		conn, _, stats, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		session.Setenv(agent.MagicSSHSessionTypeEnvironmentVariable, agent.MagicSSHSessionTypeVSCode)
+		defer session.Close()
+		stdin, err := session.StdinPipe()
+		require.NoError(t, err)
+		err = session.Shell()
+		require.NoError(t, err)
+		var s *agentsdk.Stats
+		require.Eventuallyf(t, func() bool {
+			var ok bool
+			s, ok = <-stats
+			return ok && s.ConnectionCount > 0 && s.RxBytes > 0 && s.TxBytes > 0 &&
+				// Ensure that the connection didn't count as a "normal" SSH session.
+				// This was a special one, so it should be labeled specially in the stats!
+				s.SessionCountVSCode == 1 &&
+				// Ensure that connection latency is being counted!
+				// If it isn't, it's set to -1.
+				s.ConnectionMedianLatencyMS >= 0
+		}, testutil.WaitLong, testutil.IntervalFast,
+			"never saw stats: %+v", s,
+		)
+		// The shell will automatically exit if there is no stdin!
+		_ = stdin.Close()
+		err = session.Wait()
+		require.NoError(t, err)
+	})
 }
 
 func TestAgent_SessionExec(t *testing.T) {

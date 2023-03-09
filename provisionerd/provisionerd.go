@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"strings"
 	"sync"
 	"time"
 
@@ -30,11 +29,10 @@ import (
 	"github.com/coder/retry"
 )
 
-// IsMissingParameterError returns whether the error message provided
-// is a missing parameter error. This can indicate to consumers that
-// they should check parameters.
-func IsMissingParameterError(err string) bool {
-	return strings.Contains(err, runner.MissingParameterErrorText)
+// IsMissingParameterErrorCode returns whether the error is a missing parameter error.
+// This can indicate to consumers that they should check parameters.
+func IsMissingParameterErrorCode(code string) bool {
+	return code == runner.MissingParameterErrorCode
 }
 
 // Dialer represents the function to create a daemon client connection.

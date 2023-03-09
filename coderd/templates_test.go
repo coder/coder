@@ -704,6 +704,8 @@ func TestDeleteTemplate(t *testing.T) {
 func TestTemplateMetrics(t *testing.T) {
 	t.Parallel()
 
+	t.Skip("flaky test: https://github.com/coder/coder/issues/6481")
+
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon:    true,
 		AgentStatsRefreshInterval:   time.Millisecond * 100,

@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -37,7 +38,6 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
-	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -52,8 +52,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild/executor"
@@ -81,6 +79,10 @@ import (
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/coder/testutil"
 )
+
+// AppSigningKey is a 64-byte key used to sign JWTs for workspace app tickets in
+// tests.
+var AppSigningKey = must(hex.DecodeString("64656164626565666465616462656566646561646265656664656164626565666465616462656566646561646265656664656164626565666465616462656566"))
 
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
@@ -113,7 +115,7 @@ type Options struct {
 	IncludeProvisionerDaemon    bool
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
-	DeploymentConfig            *codersdk.DeploymentConfig
+	DeploymentValues            *codersdk.DeploymentValues
 
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
@@ -191,8 +193,8 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 		}
 		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	}
-	if options.DeploymentConfig == nil {
-		options.DeploymentConfig = DeploymentConfig(t)
+	if options.DeploymentValues == nil {
+		options.DeploymentValues = DeploymentValues(t)
 	}
 
 	// If no ratelimits are set, disable all rate limiting for tests.
@@ -327,9 +329,10 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			},
 			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
-			DeploymentConfig:            options.DeploymentConfig,
+			DeploymentValues:            options.DeploymentValues,
 			UpdateCheckOptions:          options.UpdateCheckOptions,
 			SwaggerEndpoint:             options.SwaggerEndpoint,
+			AppSigningKey:               AppSigningKey,
 		}
 }
 
@@ -1062,12 +1065,10 @@ sz9Di8sGIaUbLZI2rd0CQQCzlVwEtRtoNCyMJTTrkgUuNufLP19RZ5FpyXxBO5/u
 QastnN77KfUwdj3SJt44U/uh1jAIv4oSLBr8HYUkbnI8
 -----END RSA PRIVATE KEY-----`
 
-func DeploymentConfig(t *testing.T) *codersdk.DeploymentConfig {
-	vip := deployment.NewViper()
-	fs := pflag.NewFlagSet(randomUsername(), pflag.ContinueOnError)
-	fs.String(config.FlagName, randomUsername(), randomUsername())
-	cfg, err := deployment.Config(fs, vip)
+func DeploymentValues(t *testing.T) *codersdk.DeploymentValues {
+	var cfg codersdk.DeploymentValues
+	opts := cfg.Options()
+	err := opts.SetDefaults()
 	require.NoError(t, err)
-
-	return cfg
+	return &cfg
 }

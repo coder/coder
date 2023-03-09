@@ -89,7 +89,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 
 	// If password authentication is disabled and the user does not have the
 	// owner role, block the request.
-	if api.DeploymentConfig.DisablePasswordAuth.Value {
+	if api.DeploymentValues.DisablePasswordAuth {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Password authentication is disabled.",
 		})
@@ -197,11 +197,11 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	// Deployments should not host app tokens on the same domain as the
 	// primary deployment. But in the case they are, we should also delete this
 	// token.
-	if appCookie, _ := r.Cookie(httpmw.DevURLSessionTokenCookie); appCookie != nil {
+	if appCookie, _ := r.Cookie(codersdk.DevURLSessionTokenCookie); appCookie != nil {
 		appCookieRemove := &http.Cookie{
 			// MaxAge < 0 means to delete the cookie now.
 			MaxAge: -1,
-			Name:   httpmw.DevURLSessionTokenCookie,
+			Name:   codersdk.DevURLSessionTokenCookie,
 			Path:   "/",
 			Domain: "." + api.AccessURL.Hostname(),
 		}
@@ -285,7 +285,7 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
 		Password: codersdk.AuthMethod{
-			Enabled: !api.DeploymentConfig.DisablePasswordAuth.Value,
+			Enabled: !api.DeploymentValues.DisablePasswordAuth.Value(),
 		},
 		Github: codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
 		OIDC: codersdk.OIDCAuthMethod{

@@ -39,6 +39,9 @@ func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*tunnel
 	}
 
 	c := tunnelsdk.New(u)
+	if cfg.HTTPClient != nil {
+		c.HTTPClient = cfg.HTTPClient
+	}
 	return c.LaunchTunnel(ctx, tunnelsdk.TunnelConfig{
 		Log:        logger,
 		Version:    cfg.Version,
@@ -146,9 +149,14 @@ func GenerateConfig() (Config, error) {
 	spin.Suffix = " Finding the closest tunnel region..."
 	spin.Start()
 
-	node, err := FindClosestNode()
+	nodes, err := Nodes()
 	if err != nil {
-		// If we fail to find the closest node, default to US East.
+		return Config{}, xerrors.Errorf("get nodes: %w", err)
+	}
+	node, err := FindClosestNode(nodes)
+	if err != nil {
+		// If we fail to find the closest node, default to a random node from
+		// the first region.
 		region := Regions[0]
 		n, _ := cryptorand.Intn(len(region.Nodes))
 		node = region.Nodes[n]

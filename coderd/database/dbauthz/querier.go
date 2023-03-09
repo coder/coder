@@ -19,6 +19,14 @@ func (q *querier) Ping(ctx context.Context) (time.Duration, error) {
 	return q.db.Ping(ctx)
 }
 
+func (q *querier) AcquireLock(ctx context.Context, id int64) error {
+	return q.db.AcquireLock(ctx, id)
+}
+
+func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
+	return q.db.TryAcquireLock(ctx, id)
+}
+
 // InTx runs the given function in a transaction.
 func (q *querier) InTx(function func(querier database.Store) error, txOpts *sql.TxOptions) error {
 	return q.db.InTx(func(tx database.Store) error {
@@ -279,14 +287,14 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 }
 
 func (q *querier) InsertOrUpdateLogoURL(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
 		return err
 	}
 	return q.db.InsertOrUpdateLogoURL(ctx, value)
 }
 
 func (q *querier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
 		return err
 	}
 	return q.db.InsertOrUpdateServiceBanner(ctx, value)
@@ -315,6 +323,16 @@ func (q *querier) GetDeploymentID(ctx context.Context) (string, error) {
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetLogoURL(ctx)
+}
+
+func (q *querier) GetAppSigningKey(ctx context.Context) (string, error) {
+	// No authz checks
+	return q.db.GetAppSigningKey(ctx)
+}
+
+func (q *querier) InsertAppSigningKey(ctx context.Context, data string) error {
+	// No authz checks as this is done during startup
+	return q.db.InsertAppSigningKey(ctx, data)
 }
 
 func (q *querier) GetServiceBanner(ctx context.Context) (string, error) {
