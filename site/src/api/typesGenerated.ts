@@ -313,6 +313,15 @@ export interface DeploymentDAUsResponse {
 }
 
 // From codersdk/deployment.go
+export interface DeploymentStats {
+  readonly aggregated_from: string
+  readonly collected_at: string
+  readonly next_update_at: string
+  readonly workspaces: WorkspaceDeploymentStats
+  readonly session_count: SessionCountDeploymentStats
+}
+
+// From codersdk/deployment.go
 export interface DeploymentValues {
   // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.Bool")
   readonly verbose?: boolean
@@ -735,6 +744,14 @@ export interface ServiceBannerConfig {
 }
 
 // From codersdk/deployment.go
+export interface SessionCountDeploymentStats {
+  readonly vscode: number
+  readonly ssh: number
+  readonly jetbrains: number
+  readonly reconnecting_pty: number
+}
+
+// From codersdk/deployment.go
 export interface SupportConfig {
   // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.LinkConfig]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
@@ -1142,6 +1159,24 @@ export interface WorkspaceBuildParameter {
 export interface WorkspaceBuildsRequest extends Pagination {
   readonly WorkspaceID: string
   readonly Since: string
+}
+
+// From codersdk/deployment.go
+export interface WorkspaceConnectionLatencyMS {
+  readonly P50: number
+  readonly P95: number
+}
+
+// From codersdk/deployment.go
+export interface WorkspaceDeploymentStats {
+  readonly pending: number
+  readonly building: number
+  readonly running: number
+  readonly failed: number
+  readonly stopped: number
+  readonly connection_latency_ms: WorkspaceConnectionLatencyMS
+  readonly rx_bytes: number
+  readonly tx_bytes: number
 }
 
 // From codersdk/workspaces.go

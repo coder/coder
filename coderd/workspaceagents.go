@@ -980,7 +980,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		SessionCountJetBrains:       req.SessionCountJetBrains,
 		SessionCountReconnectingPTY: req.SessionCountReconnectingPTY,
 		SessionCountSSH:             req.SessionCountSSH,
-		ConnectionMedianLatencyMS:   int64(req.ConnectionMedianLatencyMS),
+		ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

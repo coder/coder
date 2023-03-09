@@ -233,7 +233,7 @@ func (r *remoteReporter) deployment() error {
 
 	// Tracks where Coder was installed from!
 	installSource := os.Getenv("CODER_TELEMETRY_INSTALL_SOURCE")
-	if installSource != "" && installSource != "aws_marketplace" {
+	if installSource != "" && installSource != "aws_marketplace" && installSource != "fly.io" {
 		return xerrors.Errorf("invalid installce source: %s", installSource)
 	}
 
