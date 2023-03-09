@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -110,6 +111,28 @@ type Invokation struct {
 	Stdout  io.Writer
 	Stderr  io.Writer
 	Stdin   io.Reader
+}
+
+// WithMain returns the invokation as a main package, filling in the invokation's unset
+// fields with OS defaults.
+func (i *Invokation) WithMain() *Invokation {
+	i2 := *i
+	if i2.Stdout == nil {
+		i2.Stdout = os.Stdout
+	}
+	if i2.Stderr == nil {
+		i2.Stderr = os.Stderr
+	}
+	if i2.Stdin == nil {
+		i2.Stdin = os.Stdin
+	}
+	if i2.Args == nil {
+		i2.Args = os.Args[1:]
+	}
+	if i2.Environ == nil {
+		i2.Environ = ParseEnviron(os.Environ(), "")
+	}
+	return &i2
 }
 
 func (i *Invokation) Context() context.Context {

@@ -18,7 +18,7 @@ import (
 
 // gitAskpass is used by the Coder agent to automatically authenticate
 // with Git providers based on a hostname.
-func (*RootCmd) gitAskpass() *clibase.Cmd {
+func (r *RootCmd) gitAskpass() *clibase.Cmd {
 	return &clibase.Cmd{
 		Use:    "gitaskpass",
 		Hidden: true,
@@ -33,7 +33,7 @@ func (*RootCmd) gitAskpass() *clibase.Cmd {
 				return xerrors.Errorf("parse host: %w", err)
 			}
 
-			client, err := createAgentClient(inv)
+			client, err := r.createAgentClient(inv)
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}

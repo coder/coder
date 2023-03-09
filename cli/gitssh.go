@@ -39,7 +39,7 @@ func (r *RootCmd) gitssh() *clibase.Cmd {
 				return err
 			}
 
-			client, err := createAgentClient(inv)
+			client, err := r.createAgentClient(inv)
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}

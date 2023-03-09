@@ -113,21 +113,14 @@ func Main(subcommands []*clibase.Cmd) {
 	rand.Seed(time.Now().UnixMicro())
 
 	var cmd RootCmd
-	i := clibase.Invokation{
-		Args:    os.Args[1:],
-		Command: cmd.Command(subcommands),
-		Environ: clibase.ParseEnviron(os.Environ(), ""),
-		Stdout:  os.Stdout,
-		Stderr:  os.Stderr,
-		Stdin:   os.Stdin,
-	}
-
-	err := i.Run()
+	err := cmd.Command(subcommands).Invoke().WithMain().Run()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {
+			//nolint:revive
 			os.Exit(1)
 		}
 		_, _ = fmt.Fprintln(os.Stderr, err)
+		//nolint:revive
 		os.Exit(1)
 	}
 }
@@ -148,6 +141,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			},
 		),
 		Handler: func(i *clibase.Invokation) error {
+			// fmt.Fprintf(i.Stderr, "env debug: %+v", i.Environ)
 			// The GIT_ASKPASS environment variable must point at
 			// a binary with no arguments. To prevent writing
 			// cross-platform scripts to invoke the Coder binary
@@ -197,7 +191,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Name:        varAgentToken,
 			Flag:        varAgentToken,
 			Description: "An agent authentication token.",
-			Value:       clibase.StringsOf(&r.agentToken),
+			Value:       clibase.StringOf(&r.agentToken),
 			Hidden:      true,
 		},
 		{
@@ -320,7 +314,7 @@ type RootCmd struct {
 	token        string
 	globalConfig string
 	header       []string
-	agentToken   []string
+	agentToken   string
 	agentURL     *url.URL
 	forceTTY     bool
 	noOpen       bool
@@ -430,21 +424,9 @@ func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Cli
 
 // createAgentClient returns a new client from the command context.
 // It works just like CreateClient, but uses the agent token and URL instead.
-func createAgentClient(inv *clibase.Invokation) (*agentsdk.Client, error) {
-	rawURL, err := inv.ParsedFlags().GetString(varAgentURL)
-	if err != nil {
-		return nil, err
-	}
-	serverURL, err := url.Parse(rawURL)
-	if err != nil {
-		return nil, err
-	}
-	token, err := inv.ParsedFlags().GetString(varAgentToken)
-	if err != nil {
-		return nil, err
-	}
-	client := agentsdk.New(serverURL)
-	client.SetSessionToken(token)
+func (r *RootCmd) createAgentClient(inv *clibase.Invokation) (*agentsdk.Client, error) {
+	client := agentsdk.New(r.agentURL)
+	client.SetSessionToken(r.agentToken)
 	return client, nil
 }
 

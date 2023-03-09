@@ -35,6 +35,25 @@ func (e Environ) ToOS() []string {
 	return env
 }
 
+func (e Environ) Lookup(name string) (string, bool) {
+	for _, v := range e {
+		if v.Name == name {
+			return v.Value, true
+		}
+	}
+	return "", false
+}
+
+func (e *Environ) Set(name, value string) {
+	for i, v := range *e {
+		if v.Name == name {
+			(*e)[i].Value = value
+			return
+		}
+	}
+	*e = append(*e, EnvVar{Name: name, Value: value})
+}
+
 // ParseEnviron returns all environment variables starting with
 // prefix without said prefix.
 func ParseEnviron(environ []string, prefix string) Environ {
