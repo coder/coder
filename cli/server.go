@@ -650,8 +650,9 @@ flags, and YAML configuration. The precedence is as follows:
 				return xerrors.Errorf("read git auth providers from env: %w", err)
 			}
 
+			cfg.GitAuthProviders.Value = append(cfg.GitAuthProviders.Value, gitAuthEnv...)
 			gitAuthConfigs, err := gitauth.ConvertConfig(
-				append(cfg.GitAuthProviders.Value, gitAuthEnv...),
+				cfg.GitAuthProviders.Value,
 				cfg.AccessURL.Value(),
 			)
 			if err != nil {
