@@ -75,11 +75,16 @@ func (s *OptionSet) FlagSet() *pflag.FlagSet {
 			}
 		}
 
+		val := opt.Value
+		if val == nil {
+			val = &DiscardValue{}
+		}
+
 		fs.AddFlag(&pflag.Flag{
 			Name:        opt.Flag,
 			Shorthand:   opt.FlagShorthand,
 			Usage:       opt.Description,
-			Value:       opt.Value,
+			Value:       val,
 			DefValue:    "",
 			Changed:     false,
 			Deprecated:  "",

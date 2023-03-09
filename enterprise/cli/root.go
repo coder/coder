@@ -2,7 +2,6 @@ package cli
 
 import (
 	"github.com/coder/coder/cli"
-	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
 )
 
@@ -21,6 +20,6 @@ func (r *RootCmd) enterpriseOnly() []*clibase.Cmd {
 }
 
 func (r *RootCmd) EnterpriseSubcommands() []*clibase.Cmd {
-	all := append(agpl.Core(), r.enterpriseOnly()...)
+	all := append(r.Core(), r.enterpriseOnly()...)
 	return all
 }

@@ -2,6 +2,7 @@ package clibase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -184,6 +185,7 @@ func (i *Invokation) run(state *runState) error {
 
 	if i.parsedFlags == nil {
 		i.parsedFlags = pflag.NewFlagSet(i.Command.Name(), pflag.ContinueOnError)
+		i.parsedFlags.Usage = func() {}
 	}
 
 	i.parsedFlags.AddFlagSet(i.Command.Options.FlagSet())
@@ -219,7 +221,7 @@ func (i *Invokation) run(state *runState) error {
 	}
 
 	// Flag parse errors are irrelevant for raw args commands.
-	if !i.Command.RawArgs && state.flagParseErr != nil {
+	if !i.Command.RawArgs && state.flagParseErr != nil && state.flagParseErr != pflag.ErrHelp {
 		return xerrors.Errorf(
 			"parsing flags (%v) for %q: %w",
 			state.allArgs,
@@ -249,7 +251,7 @@ func (i *Invokation) run(state *runState) error {
 		mw = Chain()
 	}
 
-	if i.Command.Handler == nil {
+	if i.Command.Handler == nil || errors.Is(state.flagParseErr, pflag.ErrHelp) {
 		if i.Command.HelpHandler == nil {
 			return xerrors.Errorf("no handler or help for command %s", i.Command.FullName())
 		}
