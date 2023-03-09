@@ -50,7 +50,7 @@ func TestCommand(t *testing.T) {
 							Value: clibase.BoolOf(&lower),
 						},
 					},
-					Handler: (func(i *clibase.Invokation) error {
+					Handler: (func(i *clibase.Invocation) error {
 						i.Stdout.Write([]byte(prefix))
 						w := i.Args[0]
 						if lower {
@@ -202,7 +202,7 @@ func TestCommand_MiddlewareOrder(t *testing.T) {
 
 	mw := func(letter string) clibase.MiddlewareFunc {
 		return func(next clibase.HandlerFunc) clibase.HandlerFunc {
-			return (func(i *clibase.Invokation) error {
+			return (func(i *clibase.Invocation) error {
 				_, _ = i.Stdout.Write([]byte(letter))
 				return next(i)
 			})
@@ -217,7 +217,7 @@ func TestCommand_MiddlewareOrder(t *testing.T) {
 			mw("B"),
 			mw("C"),
 		),
-		Handler: (func(i *clibase.Invokation) error {
+		Handler: (func(i *clibase.Invocation) error {
 			return nil
 		}),
 	}
@@ -248,7 +248,7 @@ func TestCommand_RawArgs(t *testing.T) {
 					Use:     "sushi <args...>",
 					Short:   "Throws back raw output",
 					RawArgs: true,
-					Handler: (func(i *clibase.Invokation) error {
+					Handler: (func(i *clibase.Invocation) error {
 						if v := i.ParsedFlags().Lookup("password").Value.String(); v != "codershack" {
 							return xerrors.Errorf("password %q is wrong!", v)
 						}
@@ -300,7 +300,7 @@ func TestCommand_RootRaw(t *testing.T) {
 	t.Parallel()
 	cmd := &clibase.Cmd{
 		RawArgs: true,
-		Handler: func(i *clibase.Invokation) error {
+		Handler: func(i *clibase.Invocation) error {
 			i.Stdout.Write([]byte(strings.Join(i.Args, " ")))
 			return nil
 		},
@@ -316,7 +316,7 @@ func TestCommand_RootRaw(t *testing.T) {
 func TestCommand_HyphenHypen(t *testing.T) {
 	t.Parallel()
 	cmd := &clibase.Cmd{
-		Handler: (func(i *clibase.Invokation) error {
+		Handler: (func(i *clibase.Invocation) error {
 			i.Stdout.Write([]byte(strings.Join(i.Args, " ")))
 			return nil
 		}),
@@ -335,7 +335,7 @@ func TestCommand_ContextCancels(t *testing.T) {
 	var gotCtx context.Context
 
 	cmd := &clibase.Cmd{
-		Handler: (func(i *clibase.Invokation) error {
+		Handler: (func(i *clibase.Invocation) error {
 			gotCtx = i.Context()
 			if err := gotCtx.Err(); err != nil {
 				return xerrors.Errorf("unexpected context error: %w", i.Context().Err())

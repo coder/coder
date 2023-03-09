@@ -83,12 +83,12 @@ func (c *Cmd) FullUsage() string {
 	return strings.Join(uses, " ")
 }
 
-// Invoke creates a new invokation of the command, with
+// Invoke creates a new invocation of the command, with
 // stdio discarded.
 //
-// The returned invokation is not live until Run() is called.
-func (c *Cmd) Invoke(args ...string) *Invokation {
-	return &Invokation{
+// The returned invocation is not live until Run() is called.
+func (c *Cmd) Invoke(args ...string) *Invocation {
+	return &Invocation{
 		Command: c,
 		Args:    args,
 		Stdout:  io.Discard,
@@ -97,9 +97,9 @@ func (c *Cmd) Invoke(args ...string) *Invokation {
 	}
 }
 
-// Invokation represents an instance of a command being executed.
-type Invokation struct {
-	parent *Invokation
+// Invocation represents an instance of a command being executed.
+type Invocation struct {
+	parent *Invocation
 
 	ctx         context.Context
 	Command     *Cmd
@@ -113,9 +113,9 @@ type Invokation struct {
 	Stdin   io.Reader
 }
 
-// WithMain returns the invokation as a main package, filling in the invokation's unset
+// WithMain returns the invocation as a main package, filling in the invocation's unset
 // fields with OS defaults.
-func (i *Invokation) WithMain() *Invokation {
+func (i *Invocation) WithMain() *Invocation {
 	i2 := *i
 	if i2.Stdout == nil {
 		i2.Stdout = os.Stdout
@@ -135,14 +135,14 @@ func (i *Invokation) WithMain() *Invokation {
 	return &i2
 }
 
-func (i *Invokation) Context() context.Context {
+func (i *Invocation) Context() context.Context {
 	if i.ctx == nil {
 		return context.Background()
 	}
 	return i.ctx
 }
 
-func (i *Invokation) ParsedFlags() *pflag.FlagSet {
+func (i *Invocation) ParsedFlags() *pflag.FlagSet {
 	if i.parsedFlags == nil {
 		panic("flags not parsed, has Run() been called?")
 	}
@@ -158,8 +158,8 @@ type runState struct {
 
 // run recursively executes the command and its children.
 // allArgs is wired through the stack so that global flags can be accepted
-// anywhere in the command invokation.
-func (i *Invokation) run(state *runState) error {
+// anywhere in the command invocation.
+func (i *Invocation) run(state *runState) error {
 	err := i.Command.Options.SetDefaults()
 	if err != nil {
 		return xerrors.Errorf("setting defaults: %w", err)
@@ -313,14 +313,14 @@ func findArg(want string, args []string, fs *pflag.FlagSet) (int, error) {
 // If two command share a flag name, the first command wins.
 //
 //nolint:revive
-func (i *Invokation) Run() error {
+func (i *Invocation) Run() error {
 	return i.run(&runState{
 		allArgs: i.Args,
 	})
 }
 
-// WithContext returns a copy of the Invokation with the given context.
-func (i *Invokation) WithContext(ctx context.Context) *Invokation {
+// WithContext returns a copy of the Invocation with the given context.
+func (i *Invocation) WithContext(ctx context.Context) *Invocation {
 	i2 := *i
 	i2.parent = i
 	i2.ctx = ctx
@@ -365,7 +365,7 @@ func RequireRangeArgs(start, end int) MiddlewareFunc {
 		panic("start must be >= 0")
 	}
 	return func(next HandlerFunc) HandlerFunc {
-		return func(i *Invokation) error {
+		return func(i *Invocation) error {
 			got := len(i.Args)
 			switch {
 			case start == end && got != start:
@@ -406,5 +406,5 @@ func RequireRangeArgs(start, end int) MiddlewareFunc {
 	}
 }
 
-// HandlerFunc handles an Invokation of a command.
-type HandlerFunc func(i *Invokation) error
+// HandlerFunc handles an Invocation of a command.
+type HandlerFunc func(i *Invocation) error
