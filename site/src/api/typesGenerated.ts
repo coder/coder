@@ -288,7 +288,6 @@ export interface DERPServerConfig {
   readonly region_id: number
   readonly region_code: string
   readonly region_name: string
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.Strings")
   readonly stun_addresses: string[]
   readonly relay_url: string
 }
@@ -315,9 +314,7 @@ export interface DeploymentValues {
   readonly derp?: DERP
   readonly prometheus?: PrometheusConfig
   readonly pprof?: PprofConfig
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.Strings")
   readonly proxy_trusted_headers?: string[]
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.Strings")
   readonly proxy_trusted_origins?: string[]
   readonly cache_directory?: string
   readonly in_memory_database?: boolean
@@ -329,7 +326,6 @@ export interface DeploymentValues {
   readonly trace?: TraceConfig
   readonly secure_auth_cookie?: boolean
   readonly strict_transport_security?: number
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.Strings")
   readonly strict_transport_security_options?: string[]
   readonly ssh_keygen_algorithm?: string
   readonly metrics_cache_refresh_interval?: number
@@ -340,7 +336,6 @@ export interface DeploymentValues {
   readonly scim_api_key?: string
   readonly provisioner?: ProvisionerConfig
   readonly rate_limit?: RateLimitConfig
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.Strings")
   readonly experiments?: string[]
   readonly update_check?: boolean
   readonly max_token_lifetime?: number
@@ -475,9 +470,7 @@ export interface OAuth2Config {
 export interface OAuth2GithubConfig {
   readonly client_id: string
   readonly client_secret: string
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.Strings")
   readonly allowed_orgs: string[]
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.Strings")
   readonly allowed_teams: string[]
   readonly allow_signups: boolean
   readonly allow_everyone: boolean
@@ -495,10 +488,8 @@ export interface OIDCConfig {
   readonly allow_signups: boolean
   readonly client_id: string
   readonly client_secret: string
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.Strings")
   readonly email_domain: string[]
   readonly issuer_url: string
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.Strings")
   readonly scopes: string[]
   readonly ignore_email_verified: boolean
   readonly username_field: string
@@ -699,11 +690,9 @@ export interface TLSConfig {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly address: any
   readonly redirect_http: boolean
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.Strings")
   readonly cert_file: string[]
   readonly client_auth: string
   readonly client_ca_file: string
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.Strings")
   readonly key_file: string[]
   readonly min_version: string
   readonly client_cert_file: string
