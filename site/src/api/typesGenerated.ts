@@ -314,21 +314,11 @@ export interface DeploymentDAUsResponse {
 
 // From codersdk/deployment.go
 export interface DeploymentStats {
-  readonly aggregated_since: string
+  readonly aggregated_from: string
   readonly collected_at: string
-  readonly refreshing_at: string
-  readonly pending_workspaces: number
-  readonly building_workspaces: number
-  readonly running_workspaces: number
-  readonly failed_workspaces: number
-  readonly stopped_workspaces: number
-  readonly workspace_connection_latency_ms: WorkspaceConnectionLatencyMS
-  readonly session_count_vscode: number
-  readonly session_count_ssh: number
-  readonly session_count_jetbrains: number
-  readonly session_count_reconnecting_pty: number
-  readonly workspace_rx_bytes: number
-  readonly workspace_tx_bytes: number
+  readonly next_update_at: string
+  readonly workspaces: WorkspaceDeploymentStats
+  readonly session_count: SessionCountDeploymentStats
 }
 
 // From codersdk/deployment.go
@@ -754,6 +744,14 @@ export interface ServiceBannerConfig {
 }
 
 // From codersdk/deployment.go
+export interface SessionCountDeploymentStats {
+  readonly vscode: number
+  readonly ssh: number
+  readonly jetbrains: number
+  readonly reconnecting_pty: number
+}
+
+// From codersdk/deployment.go
 export interface SupportConfig {
   // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.LinkConfig]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
@@ -1167,6 +1165,18 @@ export interface WorkspaceBuildsRequest extends Pagination {
 export interface WorkspaceConnectionLatencyMS {
   readonly P50: number
   readonly P95: number
+}
+
+// From codersdk/deployment.go
+export interface WorkspaceDeploymentStats {
+  readonly pending: number
+  readonly building: number
+  readonly running: number
+  readonly failed: number
+  readonly stopped: number
+  readonly connection_latency_ms: WorkspaceConnectionLatencyMS
+  readonly rx_bytes: number
+  readonly tx_bytes: number
 }
 
 // From codersdk/workspaces.go

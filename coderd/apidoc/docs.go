@@ -6482,7 +6482,7 @@ const docTemplate = `{
         "codersdk.DeploymentStats": {
             "type": "object",
             "properties": {
-                "aggregated_since": {
+                "aggregated_from": {
                     "description": "AggregatedFrom is the time in which stats are aggregated from.\nThis might be back in time a specific duration or interval.",
                     "type": "string",
                     "format": "date-time"
@@ -6498,13 +6498,13 @@ const docTemplate = `{
                 "failed_workspaces": {
                     "type": "integer"
                 },
-                "pending_workspaces": {
-                    "type": "integer"
-                },
-                "refreshing_at": {
-                    "description": "RefreshingAt is the time when the next batch of stats will\nbe refreshed.",
+                "next_update_at": {
+                    "description": "NextUpdateAt is the time when the next batch of stats will\nbe updated.",
                     "type": "string",
                     "format": "date-time"
+                },
+                "pending_workspaces": {
+                    "type": "integer"
                 },
                 "running_workspaces": {
                     "type": "integer"

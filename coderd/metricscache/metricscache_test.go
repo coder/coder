@@ -399,5 +399,5 @@ func TestCache_DeploymentStats(t *testing.T) {
 		stat, ok = cache.DeploymentStats()
 		return ok
 	}, testutil.WaitLong, testutil.IntervalMedium)
-	require.Equal(t, int64(1), stat.SessionCountVSCode)
+	require.Equal(t, int64(1), stat.SessionCount.VSCode)
 }

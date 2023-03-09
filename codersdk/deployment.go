@@ -1532,29 +1532,35 @@ type WorkspaceConnectionLatencyMS struct {
 	P95 float64
 }
 
+type WorkspaceDeploymentStats struct {
+	Pending  int64 `json:"pending"`
+	Building int64 `json:"building"`
+	Running  int64 `json:"running"`
+	Failed   int64 `json:"failed"`
+	Stopped  int64 `json:"stopped"`
+
+	ConnectionLatencyMS WorkspaceConnectionLatencyMS `json:"connection_latency_ms"`
+	RxBytes             int64                        `json:"rx_bytes"`
+	TxBytes             int64                        `json:"tx_bytes"`
+}
+
+type SessionCountDeploymentStats struct {
+	VSCode          int64 `json:"vscode"`
+	SSH             int64 `json:"ssh"`
+	JetBrains       int64 `json:"jetbrains"`
+	ReconnectingPTY int64 `json:"reconnecting_pty"`
+}
+
 type DeploymentStats struct {
 	// AggregatedFrom is the time in which stats are aggregated from.
 	// This might be back in time a specific duration or interval.
-	AggregatedFrom time.Time `json:"aggregated_since" format:"date-time"`
+	AggregatedFrom time.Time `json:"aggregated_from" format:"date-time"`
 	// CollectedAt is the time in which stats are collected at.
 	CollectedAt time.Time `json:"collected_at" format:"date-time"`
-	// RefreshingAt is the time when the next batch of stats will
-	// be refreshed.
-	RefreshingAt time.Time `json:"refreshing_at" format:"date-time"`
+	// NextUpdateAt is the time when the next batch of stats will
+	// be updated.
+	NextUpdateAt time.Time `json:"next_update_at" format:"date-time"`
 
-	PendingWorkspaces  int64 `json:"pending_workspaces"`
-	BuildingWorkspaces int64 `json:"building_workspaces"`
-	RunningWorkspaces  int64 `json:"running_workspaces"`
-	FailedWorkspaces   int64 `json:"failed_workspaces"`
-	StoppedWorkspaces  int64 `json:"stopped_workspaces"`
-
-	WorkspaceConnectionLatencyMS WorkspaceConnectionLatencyMS `json:"workspace_connection_latency_ms"`
-
-	SessionCountVSCode          int64 `json:"session_count_vscode"`
-	SessionCountSSH             int64 `json:"session_count_ssh"`
-	SessionCountJetBrains       int64 `json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY int64 `json:"session_count_reconnecting_pty"`
-
-	WorkspaceRxBytes int64 `json:"workspace_rx_bytes"`
-	WorkspaceTxBytes int64 `json:"workspace_tx_bytes"`
+	Workspaces   WorkspaceDeploymentStats    `json:"workspaces"`
+	SessionCount SessionCountDeploymentStats `json:"session_count"`
 }

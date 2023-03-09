@@ -1951,12 +1951,12 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-  "aggregated_since": "2019-08-24T14:15:22Z",
+  "aggregated_from": "2019-08-24T14:15:22Z",
   "building_workspaces": 0,
   "collected_at": "2019-08-24T14:15:22Z",
   "failed_workspaces": 0,
+  "next_update_at": "2019-08-24T14:15:22Z",
   "pending_workspaces": 0,
-  "refreshing_at": "2019-08-24T14:15:22Z",
   "running_workspaces": 0,
   "session_count_jetbrains": 0,
   "session_count_reconnecting_pty": 0,
@@ -1974,23 +1974,23 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name                              | Type                                                                           | Required | Restrictions | Description                                                                                                                  |
-| --------------------------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `aggregated_since`                | string                                                                         | false    |              | Aggregated since is the time in which stats are aggregated from. This might be back in time a specific duration or interval. |
-| `building_workspaces`             | integer                                                                        | false    |              |                                                                                                                              |
-| `collected_at`                    | string                                                                         | false    |              | Collected at is the time in which stats are collected at.                                                                    |
-| `failed_workspaces`               | integer                                                                        | false    |              |                                                                                                                              |
-| `pending_workspaces`              | integer                                                                        | false    |              |                                                                                                                              |
-| `refreshing_at`                   | string                                                                         | false    |              | Refreshing at is the time when the next batch of stats will be refreshed.                                                    |
-| `running_workspaces`              | integer                                                                        | false    |              |                                                                                                                              |
-| `session_count_jetbrains`         | integer                                                                        | false    |              |                                                                                                                              |
-| `session_count_reconnecting_pty`  | integer                                                                        | false    |              |                                                                                                                              |
-| `session_count_ssh`               | integer                                                                        | false    |              |                                                                                                                              |
-| `session_count_vscode`            | integer                                                                        | false    |              |                                                                                                                              |
-| `stopped_workspaces`              | integer                                                                        | false    |              |                                                                                                                              |
-| `workspace_connection_latency_ms` | [codersdk.WorkspaceConnectionLatencyMS](#codersdkworkspaceconnectionlatencyms) | false    |              |                                                                                                                              |
-| `workspace_rx_bytes`              | integer                                                                        | false    |              |                                                                                                                              |
-| `workspace_tx_bytes`              | integer                                                                        | false    |              |                                                                                                                              |
+| Name                              | Type                                                                           | Required | Restrictions | Description                                                                                                                 |
+| --------------------------------- | ------------------------------------------------------------------------------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `aggregated_from`                 | string                                                                         | false    |              | Aggregated from is the time in which stats are aggregated from. This might be back in time a specific duration or interval. |
+| `building_workspaces`             | integer                                                                        | false    |              |                                                                                                                             |
+| `collected_at`                    | string                                                                         | false    |              | Collected at is the time in which stats are collected at.                                                                   |
+| `failed_workspaces`               | integer                                                                        | false    |              |                                                                                                                             |
+| `next_update_at`                  | string                                                                         | false    |              | Next update at is the time when the next batch of stats will be updated.                                                    |
+| `pending_workspaces`              | integer                                                                        | false    |              |                                                                                                                             |
+| `running_workspaces`              | integer                                                                        | false    |              |                                                                                                                             |
+| `session_count_jetbrains`         | integer                                                                        | false    |              |                                                                                                                             |
+| `session_count_reconnecting_pty`  | integer                                                                        | false    |              |                                                                                                                             |
+| `session_count_ssh`               | integer                                                                        | false    |              |                                                                                                                             |
+| `session_count_vscode`            | integer                                                                        | false    |              |                                                                                                                             |
+| `stopped_workspaces`              | integer                                                                        | false    |              |                                                                                                                             |
+| `workspace_connection_latency_ms` | [codersdk.WorkspaceConnectionLatencyMS](#codersdkworkspaceconnectionlatencyms) | false    |              |                                                                                                                             |
+| `workspace_rx_bytes`              | integer                                                                        | false    |              |                                                                                                                             |
+| `workspace_tx_bytes`              | integer                                                                        | false    |              |                                                                                                                             |
 
 ## codersdk.DeploymentValues
 

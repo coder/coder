@@ -7,7 +7,7 @@ export const DeploymentBanner: React.FC = () => {
   const permissions = usePermissions()
   const [state, sendEvent] = useMachine(deploymentStatsMachine)
 
-  if (!permissions.viewDeploymentConfig || !state.context.deploymentStats) {
+  if (!permissions.viewDeploymentValues || !state.context.deploymentStats) {
     return null
   }
 

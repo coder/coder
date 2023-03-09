@@ -416,12 +416,12 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
 
 ```json
 {
-  "aggregated_since": "2019-08-24T14:15:22Z",
+  "aggregated_from": "2019-08-24T14:15:22Z",
   "building_workspaces": 0,
   "collected_at": "2019-08-24T14:15:22Z",
   "failed_workspaces": 0,
+  "next_update_at": "2019-08-24T14:15:22Z",
   "pending_workspaces": 0,
-  "refreshing_at": "2019-08-24T14:15:22Z",
   "running_workspaces": 0,
   "session_count_jetbrains": 0,
   "session_count_reconnecting_pty": 0,

@@ -37,16 +37,16 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
     if (!stats) {
       return
     }
-    return dayjs(stats.collected_at).diff(stats.aggregated_since, "minutes")
+    return dayjs(stats.collected_at).diff(stats.aggregated_from, "minutes")
   }, [stats])
-  const displayLatency = stats?.workspace_connection_latency_ms.P50 || -1
+  const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1
   const [timeUntilRefresh, setTimeUntilRefresh] = useState(0)
   useEffect(() => {
     if (!stats || !fetchStats) {
       return
     }
 
-    let timeUntilRefresh = dayjs(stats.refreshing_at).diff(
+    let timeUntilRefresh = dayjs(stats.next_update_at).diff(
       stats.collected_at,
       "seconds",
     )
@@ -92,27 +92,27 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
         <div className={styles.values}>
           <WorkspaceBuildValue
             status="pending"
-            count={stats?.pending_workspaces}
+            count={stats?.workspaces.pending}
           />
           <ValueSeparator />
           <WorkspaceBuildValue
             status="starting"
-            count={stats?.building_workspaces}
+            count={stats?.workspaces.building}
           />
           <ValueSeparator />
           <WorkspaceBuildValue
             status="running"
-            count={stats?.running_workspaces}
+            count={stats?.workspaces.running}
           />
           <ValueSeparator />
           <WorkspaceBuildValue
             status="stopped"
-            count={stats?.stopped_workspaces}
+            count={stats?.workspaces.stopped}
           />
           <ValueSeparator />
           <WorkspaceBuildValue
             status="failed"
-            count={stats?.failed_workspaces}
+            count={stats?.workspaces.failed}
           />
         </div>
       </div>
@@ -128,14 +128,14 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
           <Tooltip title="Data sent through workspace workspaces">
             <div className={styles.value}>
               <DownloadIcon />
-              {stats ? prettyBytes(stats.workspace_rx_bytes) : "-"}
+              {stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
             </div>
           </Tooltip>
           <ValueSeparator />
           <Tooltip title="Data sent from workspace connections">
             <div className={styles.value}>
               <UploadIcon />
-              {stats ? prettyBytes(stats.workspace_tx_bytes) : "-"}
+              {stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
             </div>
           </Tooltip>
           <ValueSeparator />
@@ -160,27 +160,27 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
           <Tooltip title="VS Code Editors with the Coder Remote Extension">
             <div className={styles.value}>
               <VSCodeIcon className={styles.iconStripColor} />
-              {typeof stats?.session_count_vscode === "undefined"
+              {typeof stats?.session_count.vscode === "undefined"
                 ? "-"
-                : stats?.session_count_vscode}
+                : stats?.session_count.vscode}
             </div>
           </Tooltip>
           <ValueSeparator />
           <Tooltip title="SSH Sessions">
             <div className={styles.value}>
               <TerminalIcon />
-              {typeof stats?.session_count_ssh === "undefined"
+              {typeof stats?.session_count.ssh === "undefined"
                 ? "-"
-                : stats?.session_count_ssh}
+                : stats?.session_count.ssh}
             </div>
           </Tooltip>
           <ValueSeparator />
           <Tooltip title="Web Terminal Sessions">
             <div className={styles.value}>
               <WebTerminalIcon />
-              {typeof stats?.session_count_reconnecting_pty === "undefined"
+              {typeof stats?.session_count.reconnecting_pty === "undefined"
                 ? "-"
-                : stats?.session_count_reconnecting_pty}
+                : stats?.session_count.reconnecting_pty}
             </div>
           </Tooltip>
         </div>

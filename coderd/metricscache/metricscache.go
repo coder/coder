@@ -235,23 +235,26 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 	c.deploymentStatsResponse.Store(&codersdk.DeploymentStats{
 		AggregatedFrom: from,
 		CollectedAt:    database.Now(),
-		RefreshingAt:   database.Now().Add(c.intervals.DeploymentStats),
-		WorkspaceConnectionLatencyMS: codersdk.WorkspaceConnectionLatencyMS{
-			P50: agentStats.WorkspaceConnectionLatency50,
-			P95: agentStats.WorkspaceConnectionLatency95,
+		NextUpdateAt:   database.Now().Add(c.intervals.DeploymentStats),
+		Workspaces: codersdk.WorkspaceDeploymentStats{
+			Pending:  workspaceStats.PendingWorkspaces,
+			Building: workspaceStats.BuildingWorkspaces,
+			Running:  workspaceStats.RunningWorkspaces,
+			Failed:   workspaceStats.FailedWorkspaces,
+			Stopped:  workspaceStats.StoppedWorkspaces,
+			ConnectionLatencyMS: codersdk.WorkspaceConnectionLatencyMS{
+				P50: agentStats.WorkspaceConnectionLatency50,
+				P95: agentStats.WorkspaceConnectionLatency95,
+			},
+			RxBytes: agentStats.WorkspaceRxBytes,
+			TxBytes: agentStats.WorkspaceTxBytes,
 		},
-		SessionCountVSCode:          agentStats.SessionCountVSCode,
-		SessionCountSSH:             agentStats.SessionCountSSH,
-		SessionCountJetBrains:       agentStats.SessionCountJetBrains,
-		SessionCountReconnectingPTY: agentStats.SessionCountReconnectingPTY,
-		WorkspaceRxBytes:            agentStats.WorkspaceRxBytes,
-		WorkspaceTxBytes:            agentStats.WorkspaceTxBytes,
-
-		PendingWorkspaces:  workspaceStats.PendingWorkspaces,
-		BuildingWorkspaces: workspaceStats.BuildingWorkspaces,
-		RunningWorkspaces:  workspaceStats.RunningWorkspaces,
-		FailedWorkspaces:   workspaceStats.FailedWorkspaces,
-		StoppedWorkspaces:  workspaceStats.StoppedWorkspaces,
+		SessionCount: codersdk.SessionCountDeploymentStats{
+			VSCode:          agentStats.SessionCountVSCode,
+			SSH:             agentStats.SessionCountSSH,
+			JetBrains:       agentStats.SessionCountJetBrains,
+			ReconnectingPTY: agentStats.SessionCountReconnectingPTY,
+		},
 	})
 	return nil
 }

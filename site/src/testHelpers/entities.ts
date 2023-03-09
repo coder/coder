@@ -1539,22 +1539,26 @@ export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
 }
 
 export const MockDeploymentStats: TypesGen.DeploymentStats = {
-  aggregated_since: "2023-03-06T19:08:55.211625Z",
+  aggregated_from: "2023-03-06T19:08:55.211625Z",
   collected_at: "2023-03-06T19:12:55.211625Z",
-  refreshing_at: "2023-03-06T19:20:55.211625Z",
-  session_count_jetbrains: 5,
-  session_count_reconnecting_pty: 15,
-  session_count_ssh: 32,
-  session_count_vscode: 128,
-  workspace_connection_latency_ms: {
-    P50: 32.56,
-    P95: 15.23,
+  next_update_at: "2023-03-06T19:20:55.211625Z",
+  session_count: {
+    vscode: 128,
+    jetbrains: 5,
+    ssh: 32,
+    reconnecting_pty: 15,
   },
-  workspace_rx_bytes: 15613513253,
-  workspace_tx_bytes: 36113513253,
-  building_workspaces: 15,
-  failed_workspaces: 12,
-  pending_workspaces: 5,
-  running_workspaces: 32,
-  stopped_workspaces: 16,
+  workspaces: {
+    building: 15,
+    failed: 12,
+    pending: 5,
+    running: 32,
+    stopped: 16,
+    connection_latency_ms: {
+      P50: 32.56,
+      P95: 15.23,
+    },
+    rx_bytes: 15613513253,
+    tx_bytes: 36113513253,
+  },
 }
