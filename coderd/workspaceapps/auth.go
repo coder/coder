@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -38,6 +39,12 @@ const (
 //
 // Upstream code should avoid any database calls ever.
 func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appReq Request) (*Ticket, bool) {
+	// nolint:gocritic // We need to make a number of database calls. Setting a system context here
+	//                 // is simpler than calling dbauthz.AsSystemRestricted on every call.
+	// 			       // dangerousSystemCtx is only used for database calls. The actual authentication
+	//                 // logic is handled in Provider.authorizeWorkspaceApp which directly checks the actor's
+	//                 // permissions.
+	dangerousSystemCtx := dbauthz.AsSystemRestricted(r.Context())
 	err := appReq.Validate()
 	if err != nil {
 		p.writeWorkspaceApp500(rw, r, &appReq, err, "invalid app request")
@@ -108,13 +115,14 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 		userErr error
 	)
 	if userID, uuidErr := uuid.Parse(appReq.UsernameOrID); uuidErr == nil {
-		user, userErr = p.Database.GetUserByID(r.Context(), userID)
+		user, userErr = p.Database.GetUserByID(dangerousSystemCtx, userID)
 	} else {
-		user, userErr = p.Database.GetUserByEmailOrUsername(r.Context(), database.GetUserByEmailOrUsernameParams{
+		user, userErr = p.Database.GetUserByEmailOrUsername(dangerousSystemCtx, database.GetUserByEmailOrUsernameParams{
 			Username: appReq.UsernameOrID,
 		})
 	}
 	if xerrors.Is(userErr, sql.ErrNoRows) {
+		// TODO: add coverage
 		p.writeWorkspaceApp404(rw, r, &appReq, fmt.Sprintf("user %q not found", appReq.UsernameOrID))
 		return nil, false
 	} else if userErr != nil {
@@ -129,9 +137,9 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 		workspaceErr error
 	)
 	if workspaceID, uuidErr := uuid.Parse(appReq.WorkspaceNameOrID); uuidErr == nil {
-		workspace, workspaceErr = p.Database.GetWorkspaceByID(r.Context(), workspaceID)
+		workspace, workspaceErr = p.Database.GetWorkspaceByID(dangerousSystemCtx, workspaceID)
 	} else {
-		workspace, workspaceErr = p.Database.GetWorkspaceByOwnerIDAndName(r.Context(), database.GetWorkspaceByOwnerIDAndNameParams{
+		workspace, workspaceErr = p.Database.GetWorkspaceByOwnerIDAndName(dangerousSystemCtx, database.GetWorkspaceByOwnerIDAndNameParams{
 			OwnerID: user.ID,
 			Name:    appReq.WorkspaceNameOrID,
 			Deleted: false,
@@ -153,15 +161,16 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 		trustAgent = false
 	)
 	if agentID, uuidErr := uuid.Parse(appReq.AgentNameOrID); uuidErr == nil {
-		agent, agentErr = p.Database.GetWorkspaceAgentByID(r.Context(), agentID)
+		agent, agentErr = p.Database.GetWorkspaceAgentByID(dangerousSystemCtx, agentID)
 	} else {
-		build, err := p.Database.GetLatestWorkspaceBuildByWorkspaceID(r.Context(), workspace.ID)
+		build, err := p.Database.GetLatestWorkspaceBuildByWorkspaceID(dangerousSystemCtx, workspace.ID)
 		if err != nil {
 			p.writeWorkspaceApp500(rw, r, &appReq, err, "get latest workspace build")
 			return nil, false
 		}
 
-		resources, err := p.Database.GetWorkspaceResourcesByJobID(r.Context(), build.JobID)
+		// nolint:gocritic // We need to fetch the agent to authenticate the request. This is a system function.
+		resources, err := p.Database.GetWorkspaceResourcesByJobID(dangerousSystemCtx, build.JobID)
 		if err != nil {
 			p.writeWorkspaceApp500(rw, r, &appReq, err, "get workspace resources")
 			return nil, false
@@ -171,7 +180,8 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 			resourcesIDs = append(resourcesIDs, resource.ID)
 		}
 
-		agents, err := p.Database.GetWorkspaceAgentsByResourceIDs(r.Context(), resourcesIDs)
+		// nolint:gocritic // We need to fetch the agent to authenticate the request. This is a system function.
+		agents, err := p.Database.GetWorkspaceAgentsByResourceIDs(dangerousSystemCtx, resourcesIDs)
 		if err != nil {
 			p.writeWorkspaceApp500(rw, r, &appReq, err, "get workspace agents")
 			return nil, false
@@ -209,12 +219,13 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 
 	// Verify the agent belongs to the workspace.
 	if !trustAgent {
-		agentResource, err := p.Database.GetWorkspaceResourceByID(r.Context(), agent.ResourceID)
+		//nolint:gocritic // We need to fetch the agent to authenticate the request. This is a system function.
+		agentResource, err := p.Database.GetWorkspaceResourceByID(dangerousSystemCtx, agent.ResourceID)
 		if err != nil {
 			p.writeWorkspaceApp500(rw, r, &appReq, err, "get agent resource")
 			return nil, false
 		}
-		build, err := p.Database.GetWorkspaceBuildByJobID(r.Context(), agentResource.JobID)
+		build, err := p.Database.GetWorkspaceBuildByJobID(dangerousSystemCtx, agentResource.JobID)
 		if err != nil {
 			p.writeWorkspaceApp500(rw, r, &appReq, err, "get agent workspace build")
 			return nil, false
@@ -324,7 +335,8 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 // error while looking it up, an HTML error page is returned and false is
 // returned so the caller can return early.
 func (p *Provider) lookupWorkspaceApp(rw http.ResponseWriter, r *http.Request, agentID uuid.UUID, appSlug string) (database.WorkspaceApp, bool) {
-	app, err := p.Database.GetWorkspaceAppByAgentIDAndSlug(r.Context(), database.GetWorkspaceAppByAgentIDAndSlugParams{
+	// nolint:gocritic // We need to fetch the workspace app to authorize the request.
+	app, err := p.Database.GetWorkspaceAppByAgentIDAndSlug(dbauthz.AsSystemRestricted(r.Context()), database.GetWorkspaceAppByAgentIDAndSlugParams{
 		AgentID: agentID,
 		Slug:    appSlug,
 	})
