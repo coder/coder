@@ -171,7 +171,7 @@ Prior to Coder v0.16.0 (Jan 2023), parameters were defined via Terraform `variab
 
 ```hcl
 variable "use_kubeconfig" {
-  sensitive   = true # Admin (template-level) parameter
+  sensitive   = true # Template-level parameter (not editable when creating a workspace)
   type        = bool
   description = <<-EOF
   Use host kubeconfig? (true/false)
