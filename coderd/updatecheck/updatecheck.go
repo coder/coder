@@ -225,6 +225,7 @@ func (c *Checker) notifyIfNewer(prev, next Result) {
 }
 
 func (c *Checker) lastUpdateCheck(ctx context.Context) (r Result, err error) {
+	// nolint:gocritic // Getting the last update check is a system function.
 	s, err := c.db.GetLastUpdateCheck(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return r, err
