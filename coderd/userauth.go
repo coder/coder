@@ -481,6 +481,7 @@ type OIDCConfig struct {
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
 	IconURL string
+	Group   string
 }
 
 // @Summary OpenID Connect Callback
@@ -653,6 +654,21 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		if !ok {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: fmt.Sprintf("Your email %q is not in domains %q !", email, api.OIDCConfig.EmailDomain),
+			})
+			return
+		}
+	}
+
+	if len(api.OIDCConfig.Group) > 0 {
+		ok = false
+		for _, group := range groups {
+			if group == api.OIDCConfig.Group {
+				ok = true
+			}
+		}
+		if !ok {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: fmt.Sprintf("You do not belong to the required group %q !", api.OIDCConfig.Group),
 			})
 			return
 		}

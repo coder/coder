@@ -559,6 +559,8 @@ export interface OIDCConfig {
   // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.String")
   readonly sign_in_text: string
   readonly icon_url: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.String")
+  readonly group: string
 }
 
 // From codersdk/organizations.go

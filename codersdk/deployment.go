@@ -222,6 +222,7 @@ type OIDCConfig struct {
 	UsernameField       clibase.String  `json:"username_field" typescript:",notnull"`
 	SignInText          clibase.String  `json:"sign_in_text" typescript:",notnull"`
 	IconURL             clibase.URL     `json:"icon_url" typescript:",notnull"`
+	Group               clibase.String  `json:"group" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -836,6 +837,16 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.IconURL,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "iconURL",
+		},
+		{
+			Name:        "OIDC Required Group",
+			Description: "Group that clients logging in with OIDC must match.",
+			Flag:        "oidc-group",
+			Env:         "OIDC_GROUP",
+			Default:     "",
+			Value:       &c.OIDC.Group,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "group",
 		},
 		// Telemetry settings
 		{
