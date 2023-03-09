@@ -217,7 +217,7 @@ data "coder_parameter" "cpu" {
 }
 ```
 
-Once users update their workspaces to the new template revision with rich parameters, the template admin can remove legacy variables, and strip `legacy_variable` properties.
+Once users update their workspaces to the new template revision with rich parameters, template authors can remove legacy variables, and strip `legacy_variable` properties.
 
 ### Managed Terraform variables
 
