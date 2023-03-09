@@ -29,7 +29,7 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 		Short:       "Run upload and download tests from your machine to a workspace",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.useClient(client),
+			r.UseClient(client),
 		),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx, cancel := context.WithCancel(inv.Context())

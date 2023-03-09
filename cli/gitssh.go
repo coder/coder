@@ -20,9 +20,10 @@ import (
 
 func (r *RootCmd) gitssh() *clibase.Cmd {
 	cmd := &clibase.Cmd{
-		Use:    "gitssh",
-		Hidden: true,
-		Short:  `Wraps the "ssh" command and uses the coder gitssh key for authentication`,
+		Use:     "gitssh",
+		Hidden:  true,
+		RawArgs: true,
+		Short:   `Wraps the "ssh" command and uses the coder gitssh key for authentication`,
 		Handler: func(inv *clibase.Invokation) error {
 			ctx := inv.Context()
 			env := os.Environ()
@@ -147,9 +148,9 @@ func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identit
 	args = append([]string{"-G"}, args...)
 	cmd := exec.CommandContext(ctx, "ssh", args...)
 	cmd.Env = append(cmd.Env, env...)
-	inv.Stdout = &outBuf
-	inv.Stderr = io.Discard
-	err = inv.Run()
+	cmd.Stdout = &outBuf
+	cmd.Stderr = io.Discard
+	err = cmd.Run()
 	if err != nil {
 		// If ssh -G failed, the SSH version is likely too old, fallback
 		// to using the default identity files.

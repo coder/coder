@@ -45,9 +45,6 @@ func TestWriter(t *testing.T, prefix string) io.Writer {
 
 // Invoke creates a fake invokation and IO.
 func Invoke(cmd *clibase.Cmd, args ...string) (*clibase.Invokation, *IO) {
-	i := clibase.Invokation{
-		Args:    args,
-		Command: cmd,
-	}
-	return &i, FakeIO(&i)
+	i := cmd.Invoke(args...)
+	return i, FakeIO(i)
 }

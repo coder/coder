@@ -51,7 +51,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 		),
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.useClient(client),
+			r.UseClient(client),
 		),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx, cancel := context.WithCancel(inv.Context())

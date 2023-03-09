@@ -156,9 +156,7 @@ func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, invOpt func(inv *cli
 		},
 	}
 
-	inv := (&clibase.Invokation{
-		Command: cmd,
-	})
+	inv := cmd.Invoke()
 	// Optionally modify the cmd
 	if invOpt != nil {
 		invOpt(inv)

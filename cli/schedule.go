@@ -80,7 +80,7 @@ func (r *RootCmd) scheduleShow() *clibase.Cmd {
 		Long:  scheduleShowDescriptionLong,
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.useClient(client),
+			r.UseClient(client),
 		),
 		Handler: func(inv *clibase.Invokation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
@@ -107,7 +107,7 @@ func (r *RootCmd) scheduleStart() *clibase.Cmd {
 		Short: "Edit workspace start schedule",
 		Middleware: clibase.Chain(
 			clibase.RequireRangeArgs(2, 4),
-			r.useClient(client),
+			r.UseClient(client),
 		),
 		Handler: func(inv *clibase.Invokation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
@@ -155,7 +155,7 @@ func (r *RootCmd) scheduleStop() *clibase.Cmd {
 		Short: "Edit workspace stop schedule",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(2),
-			r.useClient(client),
+			r.UseClient(client),
 		),
 		Handler: func(inv *clibase.Invokation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
@@ -199,7 +199,7 @@ func (r *RootCmd) scheduleOverride() *clibase.Cmd {
 		),
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(2),
-			r.useClient(client),
+			r.UseClient(client),
 		),
 		Handler: func(inv *clibase.Invokation) error {
 			overrideDuration, err := parseDuration(inv.Args[1])

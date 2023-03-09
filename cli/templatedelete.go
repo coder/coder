@@ -18,7 +18,7 @@ func (r *RootCmd) templateDelete() *clibase.Cmd {
 		Use:   "delete [name...]",
 		Short: "Delete templates",
 		Middleware: clibase.Chain(
-			r.useClient(client),
+			r.UseClient(client),
 		),
 		Options: clibase.OptionSet{
 			cliui.SkipPromptOption(),

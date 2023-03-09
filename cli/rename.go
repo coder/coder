@@ -16,7 +16,7 @@ func (r *RootCmd) rename() *clibase.Cmd {
 		Use:         "rename <workspace> <new name>",
 		Short:       "Rename a workspace",
 		Middleware:  clibase.RequireNArgs(2),
-		Middleware:  clibase.Chain(r.useClient(client)),
+		Middleware:  clibase.Chain(r.UseClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {

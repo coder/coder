@@ -48,9 +48,9 @@ func (r *RootCmd) login() *clibase.Cmd {
 		trial    bool
 	)
 	cmd := &clibase.Cmd{
-		Use:   "login <url>",
-		Short: "Authenticate with Coder deployment",
-		Args:  clibase.RequireRangeArgs(0, 1),
+		Use:        "login <url>",
+		Short:      "Authenticate with Coder deployment",
+		Middleware: clibase.RequireRangeArgs(0, 1),
 		Handler: func(inv *clibase.Invokation) error {
 			rawURL := ""
 			if len(inv.Args) == 0 {
@@ -79,7 +79,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 				serverURL.Scheme = "https"
 			}
 
-			client, err := createUnauthenticatedClient(cmd, serverURL)
+			client, err := r.createUnauthenticatedClient(serverURL)
 			if err != nil {
 				return err
 			}
@@ -87,7 +87,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 			// Try to check the version of the server prior to logging in.
 			// It may be useful to warn the user if they are trying to login
 			// on a very old client.
-			err = checkVersions(cmd, client)
+			err = r.checkVersions(inv, client)
 			if err != nil {
 				// Checking versions isn't a fatal error so we print a warning
 				// and proceed.
@@ -102,7 +102,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 				_, _ = fmt.Fprintf(inv.Stdout, Caret+"Your Coder deployment hasn't been set up!\n")
 
 				if username == "" {
-					if !isTTY(cmd) {
+					if !isTTY(inv) {
 						return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
 					}
 					_, err := cliui.Prompt(inv, cliui.PromptOptions{
@@ -229,7 +229,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 				// Don't use filepath.Join, we don't want to use the os separator
 				// for a url.
 				authURL.Path = path.Join(serverURL.Path, "/cli-auth")
-				if err := openURL(cmd, authURL.String()); err != nil {
+				if err := openURL(inv, authURL.String()); err != nil {
 					_, _ = fmt.Fprintf(inv.Stdout, "Open the following in your browser:\n\n\t%s\n\n", authURL.String())
 				} else {
 					_, _ = fmt.Fprintf(inv.Stdout, "Your browser has been opened to visit:\n\n\t%s\n\n", authURL.String())

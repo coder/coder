@@ -18,9 +18,10 @@ func (r *RootCmd) userCreate() *clibase.Cmd {
 		username string
 		password string
 	)
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:        "create",
-		Middleware: clibase.Chain(r.useClient(client)),
+		Middleware: clibase.Chain(r.UseClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
@@ -80,8 +81,25 @@ Create a workspace  `+cliui.Styles.Code.Render("coder create")+`!`)
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&email, "email", "e", "", "Specifies an email address for the new user.")
-	cmd.Flags().StringVarP(&username, "username", "u", "", "Specifies a username for the new user.")
-	cmd.Flags().StringVarP(&password, "password", "p", "", "Specifies a password for the new user.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:          "email",
+			FlagShorthand: "e",
+			Description:   "Specifies an email address for the new user.",
+			Value:         clibase.StringOf(&email),
+		},
+		{
+			Flag:          "username",
+			FlagShorthand: "u",
+			Description:   "Specifies a username for the new user.",
+			Value:         clibase.StringOf(&username),
+		},
+		{
+			Flag:          "password",
+			FlagShorthand: "p",
+			Description:   "Specifies a password for the new user.",
+			Value:         clibase.StringOf(&password),
+		},
+	}
 	return cmd
 }

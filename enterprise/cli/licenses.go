@@ -27,12 +27,12 @@ func (r *RootCmd) licenses() *clibase.Cmd {
 		Handler: func(inv *clibase.Invokation) error {
 			return inv.Command.HelpHandler(inv)
 		},
+		Children: []*clibase.Cmd{
+			r.licenseAdd(),
+			r.licensesList(),
+			r.licenseDelete(),
+		},
 	}
-	cmd.AddCommand(
-		licenseAdd(),
-		licensesList(),
-		licenseDelete(),
-	)
 	return cmd
 }
 
@@ -42,16 +42,16 @@ func (r *RootCmd) licenseAdd() *clibase.Cmd {
 		license  string
 		debug    bool
 	)
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:        "add [-f file | -l license]",
-		Short:      "Add license to Coder deployment",
-		Middleware: clibase.RequireNArgs(0),
+		Use:   "add [-f file | -l license]",
+		Short: "Add license to Coder deployment",
+		Middleware: clibase.Chain(
+			r.UseClient(client),
+			clibase.RequireNArgs(0),
+		),
 		Handler: func(inv *clibase.Invokation) error {
-			client, err := agpl.CreateClient(cmd)
-			if err != nil {
-				return err
-			}
-
+			var err error
 			switch {
 			case filename != "" && license != "":
 				return xerrors.New("only one of (--file, --license) may be specified")

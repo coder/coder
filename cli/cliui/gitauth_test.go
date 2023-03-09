@@ -41,9 +41,7 @@ func TestGitAuth(t *testing.T) {
 		},
 	}
 
-	inv := (&clibase.Invokation{
-		Command: cmd,
-	}).WithContext(ctx)
+	inv := cmd.Invoke().WithContext(ctx)
 
 	inv.Stdout = ptty.Output()
 	inv.Stdin = ptty.Input()

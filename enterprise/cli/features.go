@@ -24,10 +24,10 @@ func (r *RootCmd) features() *clibase.Cmd {
 		Handler: func(inv *clibase.Invokation) error {
 			return inv.Command.HelpHandler(inv)
 		},
+		Children: []*clibase.Cmd{
+			r.featuresList(),
+		},
 	}
-	cmd.AddCommand(
-		featuresList(),
-	)
 	return cmd
 }
 

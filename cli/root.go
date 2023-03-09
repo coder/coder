@@ -2,9 +2,11 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -78,6 +80,30 @@ func AGPL() []*clibase.Cmd {
 		return api, api, nil
 	}))
 	return all
+}
+
+// Main is the entrypoint for the Coder CLI.
+func Main(subcommands []*clibase.Cmd) {
+	rand.Seed(time.Now().UnixMicro())
+
+	var cmd RootCmd
+	i := clibase.Invokation{
+		Args:    os.Args[1:],
+		Command: cmd.Command(subcommands),
+		Environ: clibase.ParseEnviron(os.Environ(), ""),
+		Stdout:  os.Stdout,
+		Stderr:  os.Stderr,
+		Stdin:   os.Stdin,
+	}
+
+	err := i.Run()
+	if err != nil {
+		if errors.Is(err, cliui.Canceled) {
+			os.Exit(1)
+		}
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
 
 func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
@@ -274,9 +300,9 @@ type RootCmd struct {
 	noFeatureWarning bool
 }
 
-// useClient returns a new client from the command context.
+// UseClient returns a new client from the command context.
 // It reads from global configuration files if flags are not set.
-func (r *RootCmd) useClient(c *codersdk.Client) clibase.MiddlewareFunc {
+func (r *RootCmd) UseClient(c *codersdk.Client) clibase.MiddlewareFunc {
 	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
 		return clibase.HandlerFunc(
 			func(i *clibase.Invokation) error {

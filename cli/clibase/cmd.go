@@ -82,6 +82,20 @@ func (c *Cmd) FullUsage() string {
 	return strings.Join(uses, " ")
 }
 
+// Invoke creates a new invokation of the command, with
+// stdio discarded.
+//
+// The returned invokation is not live until Run() is called.
+func (c *Cmd) Invoke(args ...string) *Invokation {
+	return &Invokation{
+		Command: c,
+		Args:    args,
+		Stdout:  io.Discard,
+		Stderr:  io.Discard,
+		Stdin:   strings.NewReader(""),
+	}
+}
+
 // Invokation represents an instance of a command being executed.
 type Invokation struct {
 	parent *Invokation

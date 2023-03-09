@@ -17,7 +17,7 @@ func (r *RootCmd) stop() *clibase.Cmd {
 		Short:       "Stop a workspace",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.useClient(client),
+			r.UseClient(client),
 		),
 		Options: []clibase.Option{
 			cliui.SkipPromptOption(),

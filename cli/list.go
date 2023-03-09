@@ -83,7 +83,7 @@ func (r *RootCmd) list() *clibase.Cmd {
 		Aliases:     []string{"ls"},
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(0),
-			r.useClient(client),
+			r.UseClient(client),
 		),
 		Handler: func(inv *clibase.Invokation) error {
 			filter := codersdk.WorkspaceFilter{

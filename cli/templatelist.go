@@ -22,7 +22,7 @@ func (r *RootCmd) templateList() *clibase.Cmd {
 		Short:   "List all the templates available for the organization",
 		Aliases: []string{"ls"},
 		Middleware: clibase.Chain(
-			r.useClient(client),
+			r.UseClient(client),
 		),
 		Handler: func(inv *clibase.Invokation) error {
 			organization, err := CurrentOrganization(inv, client)

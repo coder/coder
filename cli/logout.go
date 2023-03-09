@@ -15,7 +15,7 @@ func (r *RootCmd) logout() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:        "logout",
 		Short:      "Unauthenticate your local session",
-		Middleware: clibase.Chain(r.useClient(client)),
+		Middleware: clibase.Chain(r.UseClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
 			var errors []error
 

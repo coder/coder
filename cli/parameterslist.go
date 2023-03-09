@@ -24,7 +24,7 @@ func (r *RootCmd) parameterList() *clibase.Cmd {
 		Aliases: []string{"ls"},
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(2),
-			r.useClient(client),
+			r.UseClient(client),
 		),
 		Handler: func(inv *clibase.Invokation) error {
 			scope, name := inv.Args[0], inv.Args[1]

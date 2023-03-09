@@ -18,11 +18,12 @@ func (r *RootCmd) userList() *clibase.Cmd {
 		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created_at", "status"}),
 		cliui.JSONFormat(),
 	)
+	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
 		Use:        "list",
 		Aliases:    []string{"ls"},
-		Middleware: clibase.Chain(r.useClient(client)),
+		Middleware: clibase.Chain(r.UseClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
 			res, err := client.Users(inv.Context(), codersdk.UsersRequest{})
 			if err != nil {
@@ -58,7 +59,7 @@ func (r *RootCmd) userSingle() *clibase.Cmd {
 			},
 		),
 		Middleware: clibase.RequireNArgs(1),
-		Middleware: clibase.Chain(r.useClient(client)),
+		Middleware: clibase.Chain(r.UseClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
 			user, err := client.User(inv.Context(), inv.Args[0])
 			if err != nil {

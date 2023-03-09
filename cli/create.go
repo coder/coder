@@ -29,7 +29,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 		Annotations: workspaceCommand,
 		Use:         "create [name]",
 		Short:       "Create a workspace",
-		Middleware:  clibase.Chain(r.useClient(client)),
+		Middleware:  clibase.Chain(r.UseClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {

@@ -28,7 +28,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		Use: "edit <template> [flags]",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.useClient(client),
+			r.UseClient(client),
 		),
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invokation) error {

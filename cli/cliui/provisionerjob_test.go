@@ -145,9 +145,7 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 			})
 		},
 	}
-	inv := (&clibase.Invokation{
-		Command: cmd,
-	})
+	inv := cmd.Invoke()
 
 	ptty := ptytest.New(t)
 	inv.Stdout = ptty.Output()

@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -15,14 +14,17 @@ func (r *RootCmd) update() *clibase.Cmd {
 		alwaysPrompt      bool
 	)
 
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "update <workspace>",
-		Middleware:  clibase.RequireNArgs(1),
 		Short:       "Will update and start a given workspace if it is out of date.",
 		Long: "Will update and start a given workspace if it is out of date. Use --always-prompt to change " +
 			"the parameter values of the workspace.",
-		Middleware: clibase.Chain(r.useClient(client)),
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.UseClient(client),
+		),
 		Handler: func(inv *clibase.Invokation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
@@ -89,8 +91,25 @@ func (r *RootCmd) update() *clibase.Cmd {
 		},
 	}
 
-	cmd.Flags().BoolVar(&alwaysPrompt, "always-prompt", false, "Always prompt all parameters. Does not pull parameter values from existing workspace")
-	cliflag.StringVarP(cmd.Flags(), &parameterFile, "parameter-file", "", "CODER_PARAMETER_FILE", "", "Specify a file path with parameter values.")
-	cliflag.StringVarP(cmd.Flags(), &richParameterFile, "rich-parameter-file", "", "CODER_RICH_PARAMETER_FILE", "", "Specify a file path with values for rich parameters defined in the template.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Name:        "always-prompt",
+			Description: "Always prompt all parameters. Does not pull parameter values from existing workspace",
+			Default:     "false",
+			Value:       clibase.BoolOf(&alwaysPrompt),
+		},
+		{
+			Name:        "parameter-file",
+			Description: "Specify a file path with parameter values.",
+			Env:         "CODER_PARAMETER_FILE",
+			Value:       clibase.StringOf(&parameterFile),
+		},
+		{
+			Name:        "rich-parameter-file",
+			Description: "Specify a file path with values for rich parameters defined in the template.",
+			Env:         "CODER_RICH_PARAMETER_FILE",
+			Value:       clibase.StringOf(&richParameterFile),
+		},
+	}
 	return cmd
 }

@@ -55,7 +55,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		Use:         "ssh <workspace>",
 		Short:       "Start a shell into a workspace",
 		Middleware: clibase.Chain(
-			r.useClient(client),
+			r.UseClient(client),
 		),
 		Handler: func(inv *clibase.Invokation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
@@ -400,7 +400,7 @@ func buildWorkspaceLink(serverURL *url.URL, workspace codersdk.Workspace) *url.U
 // runLocal runs a command on the local machine.
 func runLocal(ctx context.Context, stdin io.Reader, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
-	inv.Stdin = stdin
+	cmd.Stdin = stdin
 
 	out, err := cmd.Output()
 	if err != nil {

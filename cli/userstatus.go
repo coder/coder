@@ -42,7 +42,7 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Cmd {
 				Command: fmt.Sprintf("coder users %s example_user", verb),
 			},
 		),
-		Middleware: clibase.Chain(r.useClient(client)),
+		Middleware: clibase.Chain(r.UseClient(client)),
 		Handler: func(inv *clibase.Invokation) error {
 			identifier := inv.Args[0]
 			if identifier == "" {

@@ -10,18 +10,15 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
 func (r *RootCmd) tokens() *clibase.Cmd {
 	cmd := &clibase.Cmd{
-		Use:     "tokens",
-		Short:   "Manage personal access tokens",
-		Long:    "Tokens are used to authenticate automated clients to Coder.",
-		Aliases: []string{"token"},
-		Long: formatExamples(
+		Use:   "tokens",
+		Short: "Manage personal access tokens",
+		Long: "Tokens are used to authenticate automated clients to Coder.\n" + formatExamples(
 			example{
 				Description: "Create a token for automation",
 				Command:     "coder tokens create",
@@ -35,16 +32,16 @@ func (r *RootCmd) tokens() *clibase.Cmd {
 				Command:     "coder tokens rm WuoWs4ZsMX",
 			},
 		),
+		Aliases: []string{"token"},
 		Handler: func(inv *clibase.Invokation) error {
 			return inv.Command.HelpHandler(inv)
 		},
+		Children: []*clibase.Cmd{
+			r.createToken(),
+			r.listTokens(),
+			r.removeToken(),
+		},
 	}
-	cmd.AddCommand(
-		createToken(),
-		listTokens(),
-		removeToken(),
-	)
-
 	return cmd
 }
 
@@ -57,7 +54,7 @@ func (r *RootCmd) createToken() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:        "create",
 		Short:      "Create a token",
-		Middleware: r.useClient(client),
+		Middleware: r.UseClient(client),
 		Handler: func(inv *clibase.Invokation) error {
 			res, err := client.CreateToken(inv.Context(), codersdk.Me, codersdk.CreateTokenRequest{
 				Lifetime:  tokenLifetime,
@@ -67,22 +64,35 @@ func (r *RootCmd) createToken() *clibase.Cmd {
 				return xerrors.Errorf("create tokens: %w", err)
 			}
 
-			cmd.Println(cliui.Styles.Wrap.Render(
-				"Here is your token. 🪄",
-			))
-			cmd.Println()
-			cliui.Infof(inv.Stdout, cliui.Styles.Code.Render(strings.TrimSpace(res.Key))+"\n")
-			cmd.Println()
-			cmd.Println(cliui.Styles.Wrap.Render(
-				fmt.Sprintf("You can use this token by setting the --%s CLI flag, the %s environment variable, or the %q HTTP header.", varToken, envSessionToken, codersdk.SessionTokenHeader),
-			))
+			cliui.Infof(
+				inv.Stdout,
+				"Here is your token. 🪄\n\n",
+			)
+			cliui.Infof(inv.Stdout, cliui.Styles.Code.Render(strings.TrimSpace(res.Key))+"\n\n")
+			cliui.Infof(inv.Stdout,
+				"You can use this token by setting the --%s CLI flag, the %s environment variable, or the %q HTTP header.", varToken, envSessionToken, codersdk.SessionTokenHeader,
+			)
 
 			return nil
 		},
 	}
 
-	cliflag.DurationVarP(cmd.Flags(), &tokenLifetime, "lifetime", "", "CODER_TOKEN_LIFETIME", 30*24*time.Hour, "Specify a duration for the lifetime of the token.")
-	cmd.Flags().StringVarP(&name, "name", "n", "", "Specify a human-readable name.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Name:        "lifetime",
+			Flag:        "lifetime",
+			Env:         "CODER_TOKEN_LIFETIME",
+			Description: "Specify a duration for the lifetime of the token.",
+			Value:       clibase.DurationOf(&tokenLifetime),
+		},
+		{
+			Name:        "name",
+			Flag:        "name",
+			Env:         "CODER_TOKEN_NAME",
+			Description: "Specify a human-readable name.",
+			Value:       clibase.StringOf(&name),
+		},
+	}
 
 	return cmd
 }
@@ -134,7 +144,7 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 		Use:        "list",
 		Aliases:    []string{"ls"},
 		Short:      "List tokens",
-		Middleware: r.useClient(client),
+		Middleware: r.UseClient(client),
 		Handler: func(inv *clibase.Invokation) error {
 			tokens, err := client.Tokens(inv.Context(), codersdk.Me, codersdk.TokensFilter{
 				IncludeAll: all,
@@ -144,9 +154,10 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 			}
 
 			if len(tokens) == 0 {
-				cmd.Println(cliui.Styles.Wrap.Render(
-					"No tokens found.",
-				))
+				cliui.Infof(
+					inv.Stdout,
+					"No tokens found.\n",
+				)
 			}
 
 			displayTokens = make([]tokenListRow, len(tokens))
@@ -165,8 +176,15 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 		},
 	}
 
-	cmd.Flags().BoolVarP(&all, "all", "a", false,
-		"Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).")
+	cmd.Options = clibase.OptionSet{
+		{
+			Name:          "all",
+			Flag:          "all",
+			FlagShorthand: "a",
+			Description:   "Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).",
+			Value:         clibase.BoolOf(&all),
+		},
+	}
 
 	formatter.AttachFlags(cmd)
 	return cmd
@@ -180,7 +198,7 @@ func (r *RootCmd) removeToken() *clibase.Cmd {
 		Short:   "Delete a token",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.useClient(client),
+			r.UseClient(client),
 		),
 		Handler: func(inv *clibase.Invokation) error {
 			token, err := client.APIKeyByName(inv.Context(), codersdk.Me, inv.Args[0])
@@ -193,9 +211,10 @@ func (r *RootCmd) removeToken() *clibase.Cmd {
 				return xerrors.Errorf("delete api key: %w", err)
 			}
 
-			cmd.Println(cliui.Styles.Wrap.Render(
+			cliui.Infof(
+				inv.Stdout,
 				"Token has been deleted.",
-			))
+			)
 
 			return nil
 		},

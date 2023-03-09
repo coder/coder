@@ -45,9 +45,7 @@ func TestAgent(t *testing.T) {
 		},
 	}
 
-	inv := (&clibase.Invokation{
-		Command: cmd,
-	})
+	inv := cmd.Invoke()
 	inv.Stdout = ptty.Output()
 	inv.Stdin = ptty.Input()
 	done := make(chan struct{})
@@ -96,9 +94,7 @@ func TestAgent_TimeoutWithTroubleshootingURL(t *testing.T) {
 	}
 	ptty := ptytest.New(t)
 
-	inv := (&clibase.Invokation{
-		Command: cmd,
-	})
+	inv := cmd.Invoke()
 	inv.Stdout = ptty.Output()
 	inv.Stdin = ptty.Input()
 	done := make(chan error, 1)
@@ -154,9 +150,7 @@ func TestAgent_StartupTimeout(t *testing.T) {
 
 	ptty := ptytest.New(t)
 
-	inv := (&clibase.Invokation{
-		Command: cmd,
-	})
+	inv := cmd.Invoke()
 	inv.Stdout = ptty.Output()
 	inv.Stdin = ptty.Input()
 	done := make(chan error, 1)
@@ -216,9 +210,7 @@ func TestAgent_StartErrorExit(t *testing.T) {
 
 	ptty := ptytest.New(t)
 
-	inv := (&clibase.Invokation{
-		Command: cmd,
-	})
+	inv := cmd.Invoke()
 	inv.Stdout = ptty.Output()
 	inv.Stdin = ptty.Input()
 	done := make(chan error, 1)
@@ -275,9 +267,7 @@ func TestAgent_NoWait(t *testing.T) {
 
 	ptty := ptytest.New(t)
 
-	inv := (&clibase.Invokation{
-		Command: cmd,
-	})
+	inv := cmd.Invoke()
 	inv.Stdout = ptty.Output()
 	inv.Stdin = ptty.Input()
 	done := make(chan error, 1)
@@ -346,9 +336,7 @@ func TestAgent_LoginBeforeReadyEnabled(t *testing.T) {
 		},
 	}
 
-	inv := (&clibase.Invokation{
-		Command: cmd,
-	})
+	inv := cmd.Invoke()
 
 	ptty := ptytest.New(t)
 	inv.Stdout = ptty.Output()
