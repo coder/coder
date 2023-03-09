@@ -85,7 +85,7 @@ export type WorkspaceEvent =
   | { type: "ASK_DELETE" }
   | { type: "DELETE" }
   | { type: "CANCEL_DELETE" }
-  | { type: "UPDATE" }
+  | { type: "UPDATE"; buildParameters?: TypesGen.WorkspaceBuildParameter[] }
   | { type: "CANCEL" }
   | {
       type: "REFRESH_TIMELINE"
@@ -322,7 +322,7 @@ export const workspaceMachine = createMachine(
                 },
               },
               requestingUpdate: {
-                entry: ["clearBuildError", "updateStatusToPending"],
+                entry: ["clearBuildError"],
                 invoke: {
                   src: "updateWorkspace",
                   onDone: {
@@ -342,7 +342,12 @@ export const workspaceMachine = createMachine(
                   ],
                 },
               },
-              askingForMissedBuildParameters: {},
+              askingForMissedBuildParameters: {
+                on: {
+                  CANCEL: "idle",
+                  UPDATE: "requestingUpdate",
+                },
+              },
               requestingStart: {
                 entry: ["clearBuildError", "updateStatusToPending"],
                 invoke: {
@@ -680,12 +685,12 @@ export const workspaceMachine = createMachine(
         }
       },
       updateWorkspace:
-        ({ workspace }) =>
+        ({ workspace }, { buildParameters }) =>
         async (send) => {
           if (!workspace) {
             throw new Error("Workspace is not set")
           }
-          const build = await API.updateWorkspace(workspace)
+          const build = await API.updateWorkspace(workspace, buildParameters)
           send({ type: "REFRESH_TIMELINE" })
           return build
         },
