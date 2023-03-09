@@ -29,17 +29,14 @@ const { t } = i18next
 
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async () => {
-  console.time("initial render")
   jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
   jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([])
   renderWithAuth(<WorkspacePage />, {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
     path: "/@:username/:workspace",
   })
-  console.timeEnd("initial render")
-  console.time("waitForLoaderToBeRemoved")
+
   await waitForLoaderToBeRemoved()
-  console.timeEnd("waitForLoaderToBeRemoved")
 }
 
 /**
@@ -50,9 +47,9 @@ const renderWorkspacePage = async () => {
  */
 const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   const user = userEvent.setup()
-
   await renderWorkspacePage()
-  const button = await screen.findByRole("button", { name: label })
+  const workspaceActions = screen.getByTestId("workspace-actions")
+  const button = within(workspaceActions).getByRole("button", { name: label })
   await user.click(button)
   expect(actionMock).toBeCalled()
 }
@@ -89,52 +86,37 @@ afterAll(() => {
 })
 
 describe("WorkspacePage", () => {
-  it.only("requests a delete job when the user presses Delete and confirms", async () => {
-    console.time("render")
+  it("requests a delete job when the user presses Delete and confirms", async () => {
     const user = userEvent.setup({ delay: 0 })
     const deleteWorkspaceMock = jest
       .spyOn(api, "deleteWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild)
     await renderWorkspacePage()
-    console.timeEnd("render")
 
-    console.time("open popover")
     // open the workspace action popover so we have access to all available ctas
-    const trigger = await screen.findByTestId("workspace-actions-button")
+    const trigger = screen.getByTestId("workspace-actions-button")
     await user.click(trigger)
-    console.timeEnd("open popover")
-
-    console.time("click on delete")
     const buttonText = t("actionButton.delete", { ns: "workspacePage" })
+
+    // Click on delete
     const button = await screen.findByText(buttonText)
     await user.click(button)
-    console.timeEnd("click on delete")
 
-    console.time("confirm dialog")
-    console.time("first time to dialog shows up")
+    // Get dialog and confirm
+    const dialog = await screen.findByTestId("dialog")
     const labelText = t("deleteDialog.confirmLabel", {
       ns: "common",
       entity: "workspace",
     })
-    const textField = await screen.findByLabelText(labelText)
-    console.timeEnd("first time to dialog shows up")
-    console.time("type name")
+    const textField = within(dialog).getByLabelText(labelText)
     await user.type(textField, MockWorkspace.name)
-    console.timeEnd("type name")
-    console.time("click on confirm")
-    console.time("find button")
-    const confirmButton = screen.getByRole("button", {
+    const confirmButton = within(dialog).getByRole("button", {
       name: "Delete",
       hidden: false,
     })
-    console.timeEnd("find button")
-    console.time("click on confirm (Action)")
     await user.click(confirmButton)
-    console.timeEnd("click on confirm (Action)")
-    console.timeEnd("click on confirm")
     expect(deleteWorkspaceMock).toBeCalled()
-    console.timeEnd("confirm dialog")
-  }, 20_000)
+  })
 
   it("requests a start job when the user presses Start", async () => {
     server.use(
@@ -180,7 +162,8 @@ describe("WorkspacePage", () => {
 
     await renderWorkspacePage()
 
-    const cancelButton = await screen.findByRole("button", {
+    const workspaceActions = screen.getByTestId("workspace-actions")
+    const cancelButton = within(workspaceActions).getByRole("button", {
       name: "cancel action",
     })
 
