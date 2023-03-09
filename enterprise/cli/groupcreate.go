@@ -21,7 +21,7 @@ func (r *RootCmd) groupCreate() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
 			org, err := agpl.CurrentOrganization(inv, client)

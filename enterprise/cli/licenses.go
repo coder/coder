@@ -23,7 +23,7 @@ func (r *RootCmd) licenses() *clibase.Cmd {
 		Short:   "Add, delete, and list licenses",
 		Use:     "licenses",
 		Aliases: []string{"license"},
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*clibase.Cmd{
@@ -49,7 +49,7 @@ func (r *RootCmd) licenseAdd() *clibase.Cmd {
 			r.UseClient(client),
 			clibase.RequireNArgs(0),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			var err error
 			switch {
 			case filename != "" && license != "":
@@ -144,7 +144,7 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 			clibase.RequireNArgs(0),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			licenses, err := client.Licenses(inv.Context())
 			if err != nil {
 				return err
@@ -172,7 +172,7 @@ func (r *RootCmd) licenseDelete() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			id, err := strconv.ParseInt(inv.Args[0], 10, 32)
 			if err != nil {
 				return xerrors.Errorf("license ID must be an integer: %s", inv.Args[0])

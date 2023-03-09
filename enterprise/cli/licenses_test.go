@@ -224,7 +224,7 @@ func TestLicensesDeleteReal(t *testing.T) {
 	})
 }
 
-func setupFakeLicenseServerTest(t *testing.T, args ...string) *clibase.Invokation {
+func setupFakeLicenseServerTest(t *testing.T, args ...string) *clibase.Invocation {
 	t.Helper()
 	s := httptest.NewServer(newFakeLicenseAPI(t))
 	t.Cleanup(s.Close)
@@ -240,7 +240,7 @@ func setupFakeLicenseServerTest(t *testing.T, args ...string) *clibase.Invokatio
 	return inv
 }
 
-func attachPty(t *testing.T, inv *clibase.Invokation) *ptytest.PTY {
+func attachPty(t *testing.T, inv *clibase.Invocation) *ptytest.PTY {
 	pty := ptytest.New(t)
 	inv.Stdin = pty.Input()
 	inv.Stdout = pty.Output()

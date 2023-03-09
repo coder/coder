@@ -20,7 +20,7 @@ func (r *RootCmd) groupDelete() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			var (
 				ctx       = inv.Context()
 				groupName = inv.Args[0]

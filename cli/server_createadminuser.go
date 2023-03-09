@@ -34,7 +34,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 	createAdminUserCommand := &clibase.Cmd{
 		Use:   "create-admin-user",
 		Short: "Create a new admin user with the given username, email and password and adds it to every organization.",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
 			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(newUserSSHKeygenAlgorithm)

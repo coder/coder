@@ -15,7 +15,7 @@ func (r *RootCmd) state() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "state",
 		Short: "Manually manage Terraform state to fix broken workspaces",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*clibase.Cmd{
@@ -36,7 +36,7 @@ func (r *RootCmd) statePull() *clibase.Cmd {
 			clibase.RequireRangeArgs(1, -1),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			var err error
 			var build codersdk.WorkspaceBuild
 			if buildNumber == 0 {
@@ -91,7 +91,7 @@ func (r *RootCmd) statePush() *clibase.Cmd {
 			clibase.RequireNArgs(2),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err

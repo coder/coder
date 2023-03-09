@@ -39,7 +39,7 @@ func (pf *templateUploadFlags) stdin() bool {
 	return pf.directory == "-"
 }
 
-func (pf *templateUploadFlags) upload(inv *clibase.Invokation, client *codersdk.Client) (*codersdk.UploadResponse, error) {
+func (pf *templateUploadFlags) upload(inv *clibase.Invocation, client *codersdk.Client) (*codersdk.UploadResponse, error) {
 	var content io.Reader
 	if pf.stdin() {
 		content = inv.Stdin
@@ -111,7 +111,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			clibase.RequireRangeArgs(0, 1),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err

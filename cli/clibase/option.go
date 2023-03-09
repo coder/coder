@@ -121,7 +121,12 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 		}
 
 		envVal, ok := envs[opt.Env]
-		if !ok {
+		// Currently, empty values are treated as if the environment variable is
+		// unset. This behavior is technically not correct as there is now no
+		// way for a user to change a Default value to an empty string from
+		// the environment. Unfortunately, we have old configuration files
+		// that rely on the faulty behavior.
+		if !ok || envVal == "" {
 			continue
 		}
 

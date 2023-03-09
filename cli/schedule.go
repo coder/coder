@@ -58,7 +58,7 @@ func (r *RootCmd) schedules() *clibase.Cmd {
 		Annotations: workspaceCommand,
 		Use:         "schedule { show | start | stop | override } <workspace>",
 		Short:       "Schedule automated start and stop times for workspaces",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*clibase.Cmd{
@@ -82,7 +82,7 @@ func (r *RootCmd) scheduleShow() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -109,7 +109,7 @@ func (r *RootCmd) scheduleStart() *clibase.Cmd {
 			clibase.RequireRangeArgs(2, 4),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -157,7 +157,7 @@ func (r *RootCmd) scheduleStop() *clibase.Cmd {
 			clibase.RequireNArgs(2),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -201,7 +201,7 @@ func (r *RootCmd) scheduleOverride() *clibase.Cmd {
 			clibase.RequireNArgs(2),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			overrideDuration, err := parseDuration(inv.Args[1])
 			if err != nil {
 				return err

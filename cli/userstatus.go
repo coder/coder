@@ -48,7 +48,7 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 			clibase.RequireNArgs(1),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			identifier := inv.Args[0]
 			if identifier == "" {
 				return xerrors.Errorf("user identifier cannot be an empty string")

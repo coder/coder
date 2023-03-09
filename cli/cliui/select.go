@@ -53,7 +53,7 @@ type RichSelectOptions struct {
 }
 
 // RichSelect displays a list of user options including name and description.
-func RichSelect(inv *clibase.Invokation, richOptions RichSelectOptions) (*codersdk.TemplateVersionParameterOption, error) {
+func RichSelect(inv *clibase.Invocation, richOptions RichSelectOptions) (*codersdk.TemplateVersionParameterOption, error) {
 	opts := make([]string, len(richOptions.Options))
 	for i, option := range richOptions.Options {
 		line := option.Name
@@ -82,7 +82,7 @@ func RichSelect(inv *clibase.Invokation, richOptions RichSelectOptions) (*coders
 }
 
 // Select displays a list of user options.
-func Select(inv *clibase.Invokation, opts SelectOptions) (string, error) {
+func Select(inv *clibase.Invocation, opts SelectOptions) (string, error) {
 	// The survey library used *always* fails when testing on Windows,
 	// as it requires a live TTY (can't be a conpty). We should fork
 	// this library to add a dummy fallback, that simply reads/writes

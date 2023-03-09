@@ -42,7 +42,7 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 		Use:        "vscodessh <coder-vscode--<owner>-<workspace>-<agent?>>",
 		Hidden:     true,
 		Middleware: clibase.RequireNArgs(1),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			if networkInfoDir == "" {
 				return xerrors.New("network-info-dir must be specified")
 			}

@@ -49,7 +49,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 		Middleware: clibase.Chain(
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 

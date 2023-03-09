@@ -40,7 +40,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			clibase.RequireRangeArgs(0, 1),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
@@ -176,7 +176,7 @@ type createValidTemplateVersionArgs struct {
 	ProvisionerTags map[string]string
 }
 
-func createValidTemplateVersion(inv *clibase.Invokation, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
+func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplateVersionArgs, parameters ...codersdk.CreateParameterRequest) (*codersdk.TemplateVersion, []codersdk.CreateParameterRequest, error) {
 	client := args.Client
 
 	variableValues, err := loadVariableValuesFromFile(args.VariablesFile)

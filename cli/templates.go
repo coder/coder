@@ -29,7 +29,7 @@ func (r *RootCmd) templates() *clibase.Cmd {
 			},
 		),
 		Aliases: []string{"template"},
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*clibase.Cmd{

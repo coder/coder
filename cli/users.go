@@ -10,7 +10,7 @@ func (r *RootCmd) users() *clibase.Cmd {
 		Short:   "Manage users",
 		Use:     "users",
 		Aliases: []string{"user"},
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*clibase.Cmd{

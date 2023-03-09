@@ -37,7 +37,7 @@ func (r *RootCmd) scaletest() *clibase.Cmd {
 		Use:   "scaletest",
 		Short: "Run a scale test against the Coder API",
 		Long:  "Perform scale tests against the Coder server.",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*clibase.Cmd{
@@ -367,7 +367,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 		Middleware: clibase.Chain(
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
 			_, err := requireAdmin(ctx, client)
@@ -551,7 +551,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 
 It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
 		Middleware: r.UseClient(client),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
 			me, err := requireAdmin(ctx, client)

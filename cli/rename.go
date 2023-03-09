@@ -20,7 +20,7 @@ func (r *RootCmd) rename() *clibase.Cmd {
 			clibase.RequireNArgs(2),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)

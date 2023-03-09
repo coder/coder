@@ -36,7 +36,7 @@ func createParameterMapFromFile(parameterFile string) (map[string]string, error)
 
 // Returns a parameter value from a given map, if the map does not exist or does not contain the item, it takes input from the user.
 // Throws an error if there are any errors with the users input.
-func getParameterValueFromMapOrInput(inv *clibase.Invokation, parameterMap map[string]string, parameterSchema codersdk.ParameterSchema) (string, error) {
+func getParameterValueFromMapOrInput(inv *clibase.Invocation, parameterMap map[string]string, parameterSchema codersdk.ParameterSchema) (string, error) {
 	var parameterValue string
 	var err error
 	if parameterMap != nil {
@@ -57,7 +57,7 @@ func getParameterValueFromMapOrInput(inv *clibase.Invokation, parameterMap map[s
 	return parameterValue, nil
 }
 
-func getWorkspaceBuildParameterValueFromMapOrInput(inv *clibase.Invokation, parameterMap map[string]string, templateVersionParameter codersdk.TemplateVersionParameter) (*codersdk.WorkspaceBuildParameter, error) {
+func getWorkspaceBuildParameterValueFromMapOrInput(inv *clibase.Invocation, parameterMap map[string]string, templateVersionParameter codersdk.TemplateVersionParameter) (*codersdk.WorkspaceBuildParameter, error) {
 	var parameterValue string
 	var err error
 	if parameterMap != nil {

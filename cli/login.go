@@ -50,7 +50,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 		Use:        "login <url>",
 		Short:      "Authenticate with Coder deployment",
 		Middleware: clibase.RequireRangeArgs(0, 1),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			rawURL := ""
 			if len(inv.Args) == 0 {
 				var err error
@@ -314,7 +314,7 @@ func isWSL() (bool, error) {
 }
 
 // openURL opens the provided URL via user's default browser
-func openURL(inv *clibase.Invokation, urlToOpen string) error {
+func openURL(inv *clibase.Invocation, urlToOpen string) error {
 	noOpen, err := inv.ParsedFlags().GetBool(varNoOpen)
 	if err != nil {
 		panic(err)

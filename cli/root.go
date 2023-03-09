@@ -139,7 +139,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 				Command:     "coder templates init",
 			},
 		),
-		Handler: func(i *clibase.Invokation) error {
+		Handler: func(i *clibase.Invocation) error {
 			// fmt.Fprintf(i.Stderr, "env debug: %+v", i.Environ)
 			// The GIT_ASKPASS environment variable must point at
 			// a binary with no arguments. To prevent writing
@@ -157,7 +157,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 	// Set default help handler for all commands.
 	cmd.Walk(func(c *clibase.Cmd) {
 		if c.HelpHandler == nil {
-			c.HelpHandler = func(i *clibase.Invokation) error {
+			c.HelpHandler = func(i *clibase.Invocation) error {
 				usageFn(i.Stderr, c)()
 				return nil
 			}
@@ -279,7 +279,7 @@ func (r *RootCmd) version() *clibase.Cmd {
 	return &clibase.Cmd{
 		Use:   "version",
 		Short: "Show coder version",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			var str strings.Builder
 			_, _ = str.WriteString("Coder ")
 			if buildinfo.IsAGPL() {
@@ -328,7 +328,7 @@ type RootCmd struct {
 // It reads from global configuration files if flags are not set.
 func (r *RootCmd) UseClient(client *codersdk.Client) clibase.MiddlewareFunc {
 	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
-		return func(i *clibase.Invokation) error {
+		return func(i *clibase.Invocation) error {
 			root := r.createConfig()
 			var err error
 			if r.clientURL.String() == "" {
@@ -424,14 +424,14 @@ func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Cli
 
 // createAgentClient returns a new client from the command context.
 // It works just like CreateClient, but uses the agent token and URL instead.
-func (r *RootCmd) createAgentClient(inv *clibase.Invokation) (*agentsdk.Client, error) {
+func (r *RootCmd) createAgentClient(inv *clibase.Invocation) (*agentsdk.Client, error) {
 	client := agentsdk.New(r.agentURL)
 	client.SetSessionToken(r.agentToken)
 	return client, nil
 }
 
 // CurrentOrganization returns the currently active organization for the authenticated user.
-func CurrentOrganization(inv *clibase.Invokation, client *codersdk.Client) (codersdk.Organization, error) {
+func CurrentOrganization(inv *clibase.Invocation, client *codersdk.Client) (codersdk.Organization, error) {
 	orgs, err := client.OrganizationsByUser(inv.Context(), codersdk.Me)
 	if err != nil {
 		return codersdk.Organization{}, nil
@@ -470,7 +470,7 @@ func (r *RootCmd) createConfig() config.Root {
 // isTTY returns whether the passed reader is a TTY or not.
 // This accepts a reader to work with Cobra's "InOrStdin"
 // function for simple testing.
-func isTTY(inv *clibase.Invokation) bool {
+func isTTY(inv *clibase.Invocation) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
@@ -488,18 +488,18 @@ func isTTY(inv *clibase.Invokation) bool {
 // isTTYOut returns whether the passed reader is a TTY or not.
 // This accepts a reader to work with Cobra's "OutOrStdout"
 // function for simple testing.
-func isTTYOut(inv *clibase.Invokation) bool {
+func isTTYOut(inv *clibase.Invocation) bool {
 	return isTTYWriter(inv, inv.Stdout)
 }
 
 // isTTYErr returns whether the passed reader is a TTY or not.
 // This accepts a reader to work with Cobra's "ErrOrStderr"
 // function for simple testing.
-func isTTYErr(inv *clibase.Invokation) bool {
+func isTTYErr(inv *clibase.Invocation) bool {
 	return isTTYWriter(inv, inv.Stderr)
 }
 
-func isTTYWriter(inv *clibase.Invokation, writer io.Writer) bool {
+func isTTYWriter(inv *clibase.Invocation, writer io.Writer) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
@@ -542,7 +542,7 @@ func formatExamples(examples ...example) string {
 	return sb.String()
 }
 
-func (r *RootCmd) checkVersions(i *clibase.Invokation, client *codersdk.Client) error {
+func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client) error {
 	if r.noVersionCheck {
 		return nil
 	}
@@ -580,7 +580,7 @@ func (r *RootCmd) checkVersions(i *clibase.Invokation, client *codersdk.Client) 
 	return nil
 }
 
-func (r *RootCmd) checkWarnings(i *clibase.Invokation, client *codersdk.Client) error {
+func (r *RootCmd) checkWarnings(i *clibase.Invocation, client *codersdk.Client) error {
 	if r.noFeatureWarning {
 		return nil
 	}

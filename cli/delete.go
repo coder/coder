@@ -22,7 +22,7 @@ func (r *RootCmd) deleteWorkspace() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Confirm delete workspace?",
 				IsConfirm: true,

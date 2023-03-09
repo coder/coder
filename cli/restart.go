@@ -22,7 +22,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 		Options: []clibase.Option{
 			cliui.SkipPromptOption(),
 		},
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 			out := inv.Stdout
 

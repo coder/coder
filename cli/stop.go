@@ -22,7 +22,7 @@ func (r *RootCmd) stop() *clibase.Cmd {
 		Options: []clibase.Option{
 			cliui.SkipPromptOption(),
 		},
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Confirm stop workspace?",
 				IsConfirm: true,

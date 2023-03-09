@@ -26,7 +26,7 @@ func (r *RootCmd) parameterList() *clibase.Cmd {
 			clibase.RequireNArgs(2),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			scope, name := inv.Args[0], inv.Args[1]
 
 			organization, err := CurrentOrganization(inv, client)

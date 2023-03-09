@@ -26,7 +26,7 @@ import (
 
 // New creates a CLI instance with a configuration pointed to a
 // temporary testing directory.
-func New(t *testing.T, args ...string) (*clibase.Invokation, config.Root) {
+func New(t *testing.T, args ...string) (*clibase.Invocation, config.Root) {
 	return NewWithSubcommands(t, nil, args...)
 }
 
@@ -48,7 +48,7 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 
 func NewWithSubcommands(
 	t *testing.T, subcommands []*clibase.Cmd, args ...string,
-) (*clibase.Invokation, config.Root) {
+) (*clibase.Invocation, config.Root) {
 	var root cli.RootCmd
 	if subcommands == nil {
 		subcommands = root.AGPL()
@@ -56,7 +56,7 @@ func NewWithSubcommands(
 	cmd := root.Command(subcommands)
 
 	configDir := config.Root(t.TempDir())
-	i := &clibase.Invokation{
+	i := &clibase.Invocation{
 		Command: cmd,
 		Args:    append([]string{"--global-config", string(configDir)}, args...),
 		Stdout:  (&logWriter{prefix: "stdout", t: t}),
@@ -126,7 +126,7 @@ func extractTar(t *testing.T, data []byte, directory string) {
 
 // Start runs the command in a goroutine and cleans it up when
 // the test completed.
-func Start(t *testing.T, inv *clibase.Invokation) {
+func Start(t *testing.T, inv *clibase.Invocation) {
 	t.Helper()
 
 	closeCh := make(chan struct{})
@@ -145,7 +145,7 @@ func Start(t *testing.T, inv *clibase.Invokation) {
 
 // StartErr runs the command in a goroutine but returns the error
 // instead of asserting it. This is useful for testing error cases.
-func StartErr(t *testing.T, inv *clibase.Invokation) <-chan error {
+func StartErr(t *testing.T, inv *clibase.Invocation) <-chan error {
 	t.Helper()
 
 	errCh := make(chan error, 1)

@@ -22,7 +22,7 @@ func (r *RootCmd) userCreate() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:        "create",
 		Middleware: clibase.Chain(r.UseClient(client)),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err

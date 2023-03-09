@@ -20,7 +20,7 @@ func (r *RootCmd) features() *clibase.Cmd {
 		Short:   "List Enterprise features",
 		Use:     "features",
 		Aliases: []string{"feature"},
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*clibase.Cmd{
@@ -44,7 +44,7 @@ func (r *RootCmd) featuresList() *clibase.Cmd {
 		Middleware: clibase.Chain(
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			entitlements, err := client.Entitlements(inv.Context())
 			var apiError *codersdk.Error
 			if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {

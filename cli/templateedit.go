@@ -31,7 +31,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			r.UseClient(client),
 		),
 		Short: "Edit the metadata of a template by name.",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			if maxTTL != 0 {
 				entitlements, err := client.Entitlements(inv.Context())
 				var sdkErr *codersdk.Error

@@ -11,7 +11,7 @@ func (r *RootCmd) templatePlan() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 		),
 		Short: "Plan a template push from the current directory",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			return nil
 		},
 	}

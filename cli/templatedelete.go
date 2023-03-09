@@ -23,7 +23,7 @@ func (r *RootCmd) templateDelete() *clibase.Cmd {
 		Options: clibase.OptionSet{
 			cliui.SkipPromptOption(),
 		},
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			var (
 				ctx           = inv.Context()
 				templateNames = []string{}

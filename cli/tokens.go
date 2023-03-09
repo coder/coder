@@ -33,7 +33,7 @@ func (r *RootCmd) tokens() *clibase.Cmd {
 			},
 		),
 		Aliases: []string{"token"},
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*clibase.Cmd{
@@ -55,7 +55,7 @@ func (r *RootCmd) createToken() *clibase.Cmd {
 		Use:        "create",
 		Short:      "Create a token",
 		Middleware: r.UseClient(client),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			res, err := client.CreateToken(inv.Context(), codersdk.Me, codersdk.CreateTokenRequest{
 				Lifetime:  tokenLifetime,
 				TokenName: name,
@@ -145,7 +145,7 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 		Aliases:    []string{"ls"},
 		Short:      "List tokens",
 		Middleware: r.UseClient(client),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			tokens, err := client.Tokens(inv.Context(), codersdk.Me, codersdk.TokensFilter{
 				IncludeAll: all,
 			})
@@ -200,7 +200,7 @@ func (r *RootCmd) removeToken() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			token, err := client.APIKeyByName(inv.Context(), codersdk.Me, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("fetch api key by name %s: %w", inv.Args[0], err)

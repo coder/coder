@@ -9,7 +9,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func ParameterSchema(inv *clibase.Invokation, parameterSchema codersdk.ParameterSchema) (string, error) {
+func ParameterSchema(inv *clibase.Invocation, parameterSchema codersdk.ParameterSchema) (string, error) {
 	_, _ = fmt.Fprintln(inv.Stdout, Styles.Bold.Render("var."+parameterSchema.Name))
 	if parameterSchema.Description != "" {
 		_, _ = fmt.Fprintln(inv.Stdout, "  "+strings.TrimSpace(strings.Join(strings.Split(parameterSchema.Description, "\n"), "\n  "))+"\n")
@@ -60,7 +60,7 @@ func ParameterSchema(inv *clibase.Invokation, parameterSchema codersdk.Parameter
 	return value, nil
 }
 
-func RichParameter(inv *clibase.Invokation, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
+func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
 	_, _ = fmt.Fprintln(inv.Stdout, Styles.Bold.Render(templateVersionParameter.Name))
 	if templateVersionParameter.DescriptionPlaintext != "" {
 		_, _ = fmt.Fprintln(inv.Stdout, "  "+strings.TrimSpace(strings.Join(strings.Split(templateVersionParameter.DescriptionPlaintext, "\n"), "\n  "))+"\n")

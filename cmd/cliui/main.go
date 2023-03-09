@@ -27,7 +27,7 @@ func main() {
 
 	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "prompt",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:    "What is our " + cliui.Styles.Field.Render("company name") + "?",
 				Default: "acme-corp",
@@ -65,7 +65,7 @@ func main() {
 
 	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "select",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			value, err := cliui.Select(inv, cliui.SelectOptions{
 				Options: []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
 				Size:    3,
@@ -77,7 +77,7 @@ func main() {
 
 	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "job",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			job := codersdk.ProvisionerJob{
 				Status:    codersdk.ProvisionerJobPending,
 				CreatedAt: database.Now(),
@@ -163,7 +163,7 @@ func main() {
 
 	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "agent",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			agent := codersdk.WorkspaceAgent{
 				Status:         codersdk.WorkspaceAgentDisconnected,
 				LifecycleState: codersdk.WorkspaceAgentLifecycleReady,
@@ -189,7 +189,7 @@ func main() {
 
 	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "resources",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			disconnected := database.Now().Add(-4 * time.Second)
 			return cliui.WorkspaceResources(inv.Stdout, []codersdk.WorkspaceResource{{
 				Transition: codersdk.WorkspaceTransitionStart,
@@ -239,7 +239,7 @@ func main() {
 
 	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "git-auth",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			var count atomic.Int32
 			var githubAuthed atomic.Bool
 			var gitlabAuthed atomic.Bool

@@ -17,7 +17,7 @@ func (r *RootCmd) show() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.UseClient(client),
 		),
-		Handler: func(i *clibase.Invokation) error {
+		Handler: func(i *clibase.Invocation) error {
 			buildInfo, err := client.BuildInfo(i.Context())
 			if err != nil {
 				return xerrors.Errorf("get server version: %w", err)

@@ -30,7 +30,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 		Use:         "create [name]",
 		Short:       "Create a workspace",
 		Middleware:  clibase.Chain(r.UseClient(client)),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
@@ -222,7 +222,7 @@ type buildParameters struct {
 
 // prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
 // Any missing params will be prompted to the user. It supports legacy and rich parameters.
-func prepWorkspaceBuild(inv *clibase.Invokation, client *codersdk.Client, args prepWorkspaceBuildArgs) (*buildParameters, error) {
+func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args prepWorkspaceBuildArgs) (*buildParameters, error) {
 	ctx := inv.Context()
 
 	var useRichParameters bool

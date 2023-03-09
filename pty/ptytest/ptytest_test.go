@@ -62,7 +62,7 @@ func TestPtytest(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				cmd := &clibase.Cmd{
 					Use: "test",
-					Handler: func(inv *clibase.Invokation) error {
+					Handler: func(inv *clibase.Invocation) error {
 						fmt.Fprint(inv.Stdout, tt.output)
 						return nil
 					},

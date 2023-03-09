@@ -17,7 +17,7 @@ func (r *RootCmd) templateInit() *clibase.Cmd {
 	return &clibase.Cmd{
 		Use:   "init [directory]",
 		Short: "Get started with a templated template.",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			exampleList, err := examples.List()
 			if err != nil {
 				return err

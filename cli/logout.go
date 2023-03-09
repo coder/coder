@@ -20,7 +20,7 @@ func (r *RootCmd) logout() *clibase.Cmd {
 		Middleware: clibase.Chain(
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			var errors []error
 
 			config := r.createConfig()

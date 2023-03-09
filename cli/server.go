@@ -162,7 +162,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		Use:     "server",
 		Short:   "Start a Coder server",
 		Options: opts,
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			// Main command context for managing cancellation of running
 			// services.
 			ctx, cancel := context.WithCancel(inv.Context())
@@ -189,6 +189,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Print deprecation warnings.
 			for _, opt := range opts {
 				if opt.UseInstead == nil {
+					continue
+				}
+
+				if opt.Value.String() == opt.Default {
 					continue
 				}
 
@@ -583,8 +587,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("read git auth providers from env: %w", err)
 			}
 
+			cfg.GitAuthProviders.Value = append(cfg.GitAuthProviders.Value, gitAuthEnv...)
 			gitAuthConfigs, err := gitauth.ConvertConfig(
-				append(cfg.GitAuthProviders.Value, gitAuthEnv...),
+				cfg.GitAuthProviders.Value,
 				cfg.AccessURL.Value(),
 			)
 			if err != nil {
@@ -1099,7 +1104,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	postgresBuiltinURLCmd := &clibase.Cmd{
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			url, err := embeddedPostgresURL(r.createConfig())
 			if err != nil {
 				return err
@@ -1116,7 +1121,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	postgresBuiltinServeCmd := &clibase.Cmd{
 		Use:   "postgres-builtin-serve",
 		Short: "Run the built-in PostgreSQL deployment.",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
 			cfg := r.createConfig()
@@ -1300,7 +1305,7 @@ func newProvisionerDaemon(
 }
 
 // nolint: revive
-func printLogo(inv *clibase.Invokation) {
+func printLogo(inv *clibase.Invocation) {
 	// Only print the logo in TTYs.
 	if !isTTYOut(inv) {
 		return
@@ -1705,7 +1710,7 @@ func isLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-func buildLogger(inv *clibase.Invokation, cfg *codersdk.DeploymentValues) (slog.Logger, func(), error) {
+func buildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.Logger, func(), error) {
 	var (
 		sinks   = []slog.Sink{}
 		closers = []func() error{}

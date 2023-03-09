@@ -39,7 +39,7 @@ func (*RootCmd) workspaceAgent() *clibase.Cmd {
 		Use: "agent",
 		// This command isn't useful to manually execute.
 		Hidden: true,
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 

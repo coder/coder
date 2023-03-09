@@ -28,7 +28,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				Command:     "coder dotfiles --yes git@github.com:example/dotfiles.git",
 			},
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			var (
 				dotfilesRepoDir = "dotfiles"
 				gitRepo         = inv.Args[0]

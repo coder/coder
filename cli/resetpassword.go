@@ -20,7 +20,7 @@ func (r *RootCmd) resetPassword() *clibase.Cmd {
 		Use:        "reset-password <username>",
 		Short:      "Directly connect to the database to reset a user's password",
 		Middleware: clibase.RequireNArgs(1),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			username := inv.Args[0]
 
 			sqlDB, err := sql.Open("postgres", postgresURL)

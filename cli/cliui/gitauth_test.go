@@ -24,7 +24,7 @@ func TestGitAuth(t *testing.T) {
 
 	ptty := ptytest.New(t)
 	cmd := &clibase.Cmd{
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			var fetched atomic.Bool
 			return cliui.GitAuth(inv.Context(), inv.Stdout, cliui.GitAuthOptions{
 				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionGitAuth, error) {

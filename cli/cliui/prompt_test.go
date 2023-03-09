@@ -78,7 +78,7 @@ func TestPrompt(t *testing.T) {
 			resp, err := newPrompt(ptty, cliui.PromptOptions{
 				Text:      "ShouldNotSeeThis",
 				IsConfirm: true,
-			}, func(inv *clibase.Invokation) {
+			}, func(inv *clibase.Invocation) {
 				inv.Command.Options = append(inv.Command.Options, cliui.SkipPromptOption())
 				inv.Args = []string{"-y"}
 			})
@@ -146,10 +146,10 @@ func TestPrompt(t *testing.T) {
 	})
 }
 
-func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, invOpt func(inv *clibase.Invokation)) (string, error) {
+func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, invOpt func(inv *clibase.Invocation)) (string, error) {
 	value := ""
 	cmd := &clibase.Cmd{
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			var err error
 			value, err = cliui.Prompt(inv, opts)
 			return err
@@ -212,7 +212,7 @@ func TestPasswordTerminalState(t *testing.T) {
 // nolint:unused
 func passwordHelper() {
 	cmd := &clibase.Cmd{
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			cliui.Prompt(inv, cliui.PromptOptions{
 				Text:   "Password:",
 				Secret: true,

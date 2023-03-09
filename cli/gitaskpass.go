@@ -22,7 +22,7 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 	return &clibase.Cmd{
 		Use:    "gitaskpass",
 		Hidden: true,
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
 			ctx, stop := signal.NotifyContext(ctx, InterruptSignals...)

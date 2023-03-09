@@ -20,7 +20,7 @@ func Server(_ func(context.Context, *coderd.Options) (*coderd.API, io.Closer, er
 		// We accept RawArgs so all commands and flags are accepted.
 		RawArgs: true,
 		Hidden:  true,
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			serverUnsupported(inv.Stderr)
 			return nil
 		},

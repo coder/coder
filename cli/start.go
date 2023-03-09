@@ -22,7 +22,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 		Options: []clibase.Option{
 			cliui.SkipPromptOption(),
 		},
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err

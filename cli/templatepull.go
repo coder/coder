@@ -25,7 +25,7 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 			clibase.RequireRangeArgs(1, 2),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			var (
 				ctx          = inv.Context()
 				templateName = inv.Args[0]

@@ -20,7 +20,7 @@ func (r *RootCmd) parameters() *clibase.Cmd {
 		// constructing curl requests.
 		Hidden:  true,
 		Aliases: []string{"params"},
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*clibase.Cmd{

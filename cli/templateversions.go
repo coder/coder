@@ -24,7 +24,7 @@ func (r *RootCmd) templateVersions() *clibase.Cmd {
 				Command:     "coder templates versions list my-template",
 			},
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*clibase.Cmd{
@@ -49,7 +49,7 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 		),
 		Short: "List all the versions of the specified template",
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)

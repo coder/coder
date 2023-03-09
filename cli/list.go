@@ -85,7 +85,7 @@ func (r *RootCmd) list() *clibase.Cmd {
 			clibase.RequireNArgs(0),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			filter := codersdk.WorkspaceFilter{
 				FilterQuery: searchQuery,
 			}

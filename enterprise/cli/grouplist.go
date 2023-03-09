@@ -27,7 +27,7 @@ func (r *RootCmd) groupList() *clibase.Cmd {
 			clibase.RequireNArgs(0),
 			r.UseClient(client),
 		),
-		Handler: func(inv *clibase.Invokation) error {
+		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
 			org, err := agpl.CurrentOrganization(inv, client)
