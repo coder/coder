@@ -17,6 +17,7 @@ export const checks = {
   viewDeploymentValues: "viewDeploymentValues",
   createGroup: "createGroup",
   viewUpdateCheck: "viewUpdateCheck",
+  viewDeploymentStats: "viewDeploymentStats",
 } as const
 
 export const permissionsToCheck = {
@@ -71,6 +72,12 @@ export const permissionsToCheck = {
   [checks.viewUpdateCheck]: {
     object: {
       resource_type: "update_check",
+    },
+    action: "read",
+  },
+  [checks.viewDeploymentStats]: {
+    object: {
+      resource_type: "deployment_stats",
     },
     action: "read",
   },

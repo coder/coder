@@ -1582,7 +1582,7 @@ type WorkspaceAgentStat struct {
 	RxBytes                     int64           `db:"rx_bytes" json:"rx_bytes"`
 	TxPackets                   int64           `db:"tx_packets" json:"tx_packets"`
 	TxBytes                     int64           `db:"tx_bytes" json:"tx_bytes"`
-	ConnectionMedianLatencyMS   int64           `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	ConnectionMedianLatencyMS   float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
 	SessionCountVSCode          int64           `db:"session_count_vscode" json:"session_count_vscode"`
 	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
 	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`

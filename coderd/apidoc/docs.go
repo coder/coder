@@ -304,31 +304,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/config/deployment": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "General"
-                ],
-                "summary": "Get deployment config",
-                "operationId": "get-deployment-config",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.DeploymentConfig"
-                        }
-                    }
-                }
-            }
-        },
         "/csp/reports": {
             "post": {
                 "security": [
@@ -380,6 +355,56 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    }
+                }
+            }
+        },
+        "/deployment/config": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get deployment config",
+                "operationId": "get-deployment-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeploymentConfig"
+                        }
+                    }
+                }
+            }
+        },
+        "/deployment/stats": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get deployment stats",
+                "operationId": "get-deployment-stats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeploymentStats"
+                        }
                     }
                 }
             }
@@ -6454,6 +6479,32 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DeploymentStats": {
+            "type": "object",
+            "properties": {
+                "aggregated_from": {
+                    "description": "AggregatedFrom is the time in which stats are aggregated from.\nThis might be back in time a specific duration or interval.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "collected_at": {
+                    "description": "CollectedAt is the time in which stats are collected at.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "next_update_at": {
+                    "description": "NextUpdateAt is the time when the next batch of stats will\nbe updated.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "session_count": {
+                    "$ref": "#/definitions/codersdk.SessionCountDeploymentStats"
+                },
+                "workspaces": {
+                    "$ref": "#/definitions/codersdk.WorkspaceDeploymentStats"
+                }
+            }
+        },
         "codersdk.DeploymentValues": {
             "type": "object",
             "properties": {
@@ -7614,6 +7665,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.SessionCountDeploymentStats": {
+            "type": "object",
+            "properties": {
+                "jetbrains": {
+                    "type": "integer"
+                },
+                "reconnecting_pty": {
+                    "type": "integer"
+                },
+                "ssh": {
+                    "type": "integer"
+                },
+                "vscode": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.SupportConfig": {
             "type": "object",
             "properties": {
@@ -8748,6 +8816,46 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceConnectionLatencyMS": {
+            "type": "object",
+            "properties": {
+                "p50": {
+                    "type": "number"
+                },
+                "p95": {
+                    "type": "number"
+                }
+            }
+        },
+        "codersdk.WorkspaceDeploymentStats": {
+            "type": "object",
+            "properties": {
+                "building": {
+                    "type": "integer"
+                },
+                "connection_latency_ms": {
+                    "$ref": "#/definitions/codersdk.WorkspaceConnectionLatencyMS"
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "pending": {
+                    "type": "integer"
+                },
+                "running": {
+                    "type": "integer"
+                },
+                "rx_bytes": {
+                    "type": "integer"
+                },
+                "stopped": {
+                    "type": "integer"
+                },
+                "tx_bytes": {
+                    "type": "integer"
                 }
             }
         },
