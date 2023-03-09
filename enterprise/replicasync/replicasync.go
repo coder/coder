@@ -19,6 +19,7 @@ import (
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 )
 
 var PubsubEvent = "replica"
@@ -61,7 +62,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, pubsub data
 	if err != nil {
 		return nil, xerrors.Errorf("ping database: %w", err)
 	}
-	replica, err := db.InsertReplica(ctx, database.InsertReplicaParams{
+	replica, err := db.InsertReplica(dbauthz.AsSystemRestricted(ctx), database.InsertReplicaParams{
 		ID:              options.ID,
 		CreatedAt:       database.Now(),
 		StartedAt:       database.Now(),
@@ -141,7 +142,7 @@ func (m *Manager) loop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-deleteTicker.C:
-			err := m.db.DeleteReplicasUpdatedBefore(ctx, m.updateInterval())
+			err := m.db.DeleteReplicasUpdatedBefore(dbauthz.AsSystemRestricted(ctx), m.updateInterval())
 			if err != nil {
 				m.logger.Warn(ctx, "delete old replicas", slog.Error(err))
 			}
@@ -218,7 +219,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	defer m.closeWait.Done()
 	// Expect replicas to update once every three times the interval...
 	// If they don't, assume death!
-	replicas, err := m.db.GetReplicasUpdatedAfter(ctx, m.updateInterval())
+	replicas, err := m.db.GetReplicasUpdatedAfter(dbauthz.AsSystemRestricted(ctx), m.updateInterval())
 	if err != nil {
 		return xerrors.Errorf("get replicas: %w", err)
 	}
@@ -366,7 +367,7 @@ func (m *Manager) Close() error {
 	defer m.mutex.Unlock()
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFunc()
-	_, err := m.db.UpdateReplica(ctx, database.UpdateReplicaParams{
+	_, err := m.db.UpdateReplica(dbauthz.AsSystemRestricted(ctx), database.UpdateReplicaParams{
 		ID:        m.self.ID,
 		UpdatedAt: database.Now(),
 		StartedAt: m.self.StartedAt,
