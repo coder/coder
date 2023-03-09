@@ -90,7 +90,7 @@ data "coder_parameter" "account_name" {
 }
 ```
 
-If a parameter contains the `default` property, Coder will use this value 
+If a parameter contains the `default` property, Coder will use this value
  if the user does not specify any:
 
 ```hcl
@@ -194,32 +194,9 @@ variable "cpu" {
 }
 ```
 
-> ⚠️ Legacy (`variable`) parameters and rich parameters should not be used in the same template unless it is only for migration purposes.
+> ⚠️ Legacy (`variable`) parameters and rich parameters can't be used in the same template.
 
-## Migration
-
-Terraform variables shouldn't be used for parameters anymore, and it's recommended to convert variables to `coder_parameter` resources. To make the migration smoother, there was a special property introduced -
-`legacy_variable`, which can link `coder_parameter` with a legacy variable.
-
-```hcl
-variable "legacy_cpu" {
-  sensitive   = false
-  description = "CPU cores"
-  default     = 2
-}
-
-data "coder_parameter" "cpu" {
-  name        = "CPU cores"
-  type        = "number"
-  description = "Number of CPU cores"
-
-  legacy_variable = var.legacy_cpu
-}
-```
-
-Once users update their workspaces to the new template revision with rich parameters, template authors can remove legacy variables, and strip `legacy_variable` properties.
-
-### Managed Terraform variables
+## Managed Terraform variables
 
 As parameters are intended to be used only for workspace customization purposes, Terraform variables can be freely managed by the template author to build templates. Workspace users are not able to modify
 template variables.
