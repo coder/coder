@@ -257,6 +257,10 @@ flags, and YAML configuration. The precedence is as follows:
 					continue
 				}
 
+				if opt.Value.String() == opt.Default {
+					continue
+				}
+
 				warnStr := opt.Name + " is deprecated, please use "
 				for i, use := range opt.UseInstead {
 					warnStr += use.Name + " "
