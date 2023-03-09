@@ -7078,6 +7078,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "group": {
+                    "type": "string"
+                },
                 "icon_url": {
                     "$ref": "#/definitions/clibase.URL"
                 },
