@@ -90,7 +90,8 @@ data "coder_parameter" "account_name" {
 }
 ```
 
-If a parameter contains the `default` property, coder will use it when the workspace user doesn't specify the custom value:
+If a parameter contains the `default` property, Coder will use this value 
+ if the user does not specify any:
 
 ```hcl
 data "coder_parameter" "base_image" {
