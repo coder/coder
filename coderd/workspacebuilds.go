@@ -50,6 +50,24 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Ensure we have the job and template version for the workspace build.
+	// Otherwise we risk a panic in the api.convertWorkspaceBuild call below.
+	if len(data.jobs) == 0 {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Internal error getting workspace build data.",
+			Detail:  "No job found for workspace build.",
+		})
+		return
+	}
+
+	if len(data.templateVersions) == 0 {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Internal error getting workspace build data.",
+			Detail:  "No template version found for workspace build.",
+		})
+		return
+	}
+
 	apiBuild, err := api.convertWorkspaceBuild(
 		workspaceBuild,
 		workspace,
