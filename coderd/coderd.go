@@ -236,7 +236,10 @@ func New(options *Options) *API {
 	metricsCache := metricscache.New(
 		options.Database,
 		options.Logger.Named("metrics_cache"),
-		options.MetricsCacheRefreshInterval,
+		metricscache.Intervals{
+			TemplateDAUs:    options.MetricsCacheRefreshInterval,
+			DeploymentStats: options.AgentStatsRefreshInterval,
+		},
 	)
 
 	staticHandler := site.Handler(site.FS(), binFS, binHashes)
@@ -392,15 +395,16 @@ func New(options *Options) *API {
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
 		r.Get("/buildinfo", buildInfo)
+		r.Route("/deployment", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/config", api.deploymentValues)
+			r.Get("/stats", api.deploymentStats)
+		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.handleExperimentsGet)
 		})
 		r.Get("/updatecheck", api.updateCheck)
-		r.Route("/config", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Get("/deployment", api.deploymentValues)
-		})
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

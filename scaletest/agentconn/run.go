@@ -45,11 +45,12 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 }
 
 // Run implements Runnable.
-func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
+func (r *Runner) Run(ctx context.Context, _ string, w io.Writer) error {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	logs = loadtestutil.NewSyncWriter(logs)
+	logs := loadtestutil.NewSyncWriter(w)
+	defer logs.Close()
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 	r.client.Logger = logger
 	r.client.LogBodies = true

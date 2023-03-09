@@ -982,15 +982,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}()
 
-			hasFirstUser, err := client.HasFirstUser(ctx)
-			if err != nil {
-				cliui.Errorf(inv.Stdout, "\nFailed to check for the first user: "+err.Error()+"\n")
-			} else if !hasFirstUser {
-				cliui.Info(inv.Stdout, "\nGet started by creating the first user (in a new terminal):"+"\n")
-				cliui.Info(inv.Stdout, cliui.Styles.Code.Render("coder login "+cfg.AccessURL.String())+"\n")
-			}
-
-			cliui.Info(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):"+"\n")
+			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
@@ -1315,7 +1307,7 @@ func printLogo(inv *clibase.Invokation) {
 		return
 	}
 
-	_, _ = fmt.Fprintf(inv.Stdout, "%s - Software development on your infrastucture\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
+	_, _ = fmt.Fprintf(inv.Stdout, "%s - Your Self-Hosted Remote Development Platform\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
 }
 
 func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, error) {

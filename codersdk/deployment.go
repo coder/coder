@@ -1158,7 +1158,7 @@ when required by your organization's security policy.`,
 			Flag:        "agent-stats-refresh-interval",
 			Env:         "AGENT_STATS_REFRESH_INTERVAL",
 			Hidden:      true,
-			Default:     (10 * time.Minute).String(),
+			Default:     (30 * time.Second).String(),
 			Value:       &c.AgentStatRefreshInterval,
 		},
 		{
@@ -1320,9 +1320,9 @@ func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
 	return &ff, nil
 }
 
-// DeploymentConfig returns the deployment config for the coder server.
-func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/config/deployment", nil)
+// DeploymentValues returns the deployment config for the coder server.
+func (c *Client) DeploymentValues(ctx context.Context) (*DeploymentConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/config", nil)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}
@@ -1338,6 +1338,21 @@ func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentConfig, error
 		Options: conf.Options(),
 	}
 	return resp, json.NewDecoder(res.Body).Decode(resp)
+}
+
+func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/stats", nil)
+	if err != nil {
+		return DeploymentStats{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return DeploymentStats{}, ReadBodyAsError(res)
+	}
+
+	var df DeploymentStats
+	return df, json.NewDecoder(res.Body).Decode(&df)
 }
 
 type AppearanceConfig struct {
@@ -1510,4 +1525,42 @@ func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {
 
 	var host AppHostResponse
 	return host, json.NewDecoder(res.Body).Decode(&host)
+}
+
+type WorkspaceConnectionLatencyMS struct {
+	P50 float64
+	P95 float64
+}
+
+type WorkspaceDeploymentStats struct {
+	Pending  int64 `json:"pending"`
+	Building int64 `json:"building"`
+	Running  int64 `json:"running"`
+	Failed   int64 `json:"failed"`
+	Stopped  int64 `json:"stopped"`
+
+	ConnectionLatencyMS WorkspaceConnectionLatencyMS `json:"connection_latency_ms"`
+	RxBytes             int64                        `json:"rx_bytes"`
+	TxBytes             int64                        `json:"tx_bytes"`
+}
+
+type SessionCountDeploymentStats struct {
+	VSCode          int64 `json:"vscode"`
+	SSH             int64 `json:"ssh"`
+	JetBrains       int64 `json:"jetbrains"`
+	ReconnectingPTY int64 `json:"reconnecting_pty"`
+}
+
+type DeploymentStats struct {
+	// AggregatedFrom is the time in which stats are aggregated from.
+	// This might be back in time a specific duration or interval.
+	AggregatedFrom time.Time `json:"aggregated_from" format:"date-time"`
+	// CollectedAt is the time in which stats are collected at.
+	CollectedAt time.Time `json:"collected_at" format:"date-time"`
+	// NextUpdateAt is the time when the next batch of stats will
+	// be updated.
+	NextUpdateAt time.Time `json:"next_update_at" format:"date-time"`
+
+	Workspaces   WorkspaceDeploymentStats    `json:"workspaces"`
+	SessionCount SessionCountDeploymentStats `json:"session_count"`
 }
