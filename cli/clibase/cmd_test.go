@@ -1,6 +1,7 @@
 package clibase_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -326,4 +327,26 @@ func TestCommand_HyphenHypen(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "--verbose --friendly", stdio.Stdout.String())
+}
+
+func TestCommand_ContextCancels(t *testing.T) {
+	t.Parallel()
+
+	var gotCtx context.Context
+
+	cmd := &clibase.Cmd{
+		Handler: (func(i *clibase.Invokation) error {
+			gotCtx = i.Context()
+			if err := gotCtx.Err(); err != nil {
+				return xerrors.Errorf("unexpected context error: %w", i.Context().Err())
+			}
+			return nil
+		}),
+	}
+
+	inv, _ := clibasetest.Invoke(cmd)
+	err := inv.Run()
+	require.NoError(t, err)
+
+	require.Error(t, gotCtx.Err())
 }

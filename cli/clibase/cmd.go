@@ -251,6 +251,10 @@ func (i *Invokation) run(state *runState) error {
 		mw = Chain()
 	}
 
+	ctx, cancel := context.WithCancel(i.Context())
+	defer cancel()
+	i = i.WithContext(ctx)
+
 	if i.Command.Handler == nil || errors.Is(state.flagParseErr, pflag.ErrHelp) {
 		if i.Command.HelpHandler == nil {
 			return xerrors.Errorf("no handler or help for command %s", i.Command.FullName())
