@@ -1320,8 +1320,8 @@ func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
 	return &ff, nil
 }
 
-// DeploymentValues returns the deployment config for the coder server.
-func (c *Client) DeploymentValues(ctx context.Context) (*DeploymentConfig, error) {
+// DeploymentConfig returns the deployment config for the coder server.
+func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/config", nil)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
