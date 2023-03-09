@@ -5,7 +5,7 @@ import { pageTitle } from "util/page"
 import { NetworkSettingsPageView } from "./NetworkSettingsPageView"
 
 const NetworkSettingsPage: FC = () => {
-  const { deploymentConfig: deploymentConfig } = useDeploySettings()
+  const { deploymentValues: deploymentValues } = useDeploySettings()
 
   return (
     <>
@@ -13,7 +13,7 @@ const NetworkSettingsPage: FC = () => {
         <title>{pageTitle("Network Settings")}</title>
       </Helmet>
 
-      <NetworkSettingsPageView deploymentConfig={deploymentConfig} />
+      <NetworkSettingsPageView options={deploymentValues.options} />
     </>
   )
 }

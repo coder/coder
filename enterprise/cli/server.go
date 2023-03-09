@@ -14,7 +14,6 @@ import (
 	"tailscale.com/derp"
 	"tailscale.com/types/key"
 
-	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/enterprise/audit"
 	"github.com/coder/coder/enterprise/audit/backends"
@@ -27,10 +26,9 @@ import (
 )
 
 func server() *cobra.Command {
-	vip := deployment.NewViper()
-	cmd := agpl.Server(vip, func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
-		if options.DeploymentConfig.DERP.Server.RelayURL.Value != "" {
-			_, err := url.Parse(options.DeploymentConfig.DERP.Server.RelayURL.Value)
+	cmd := agpl.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
+		if options.DeploymentValues.DERP.Server.RelayURL.String() != "" {
+			_, err := url.Parse(options.DeploymentValues.DERP.Server.RelayURL.String())
 			if err != nil {
 				return nil, nil, xerrors.Errorf("derp-server-relay-address must be a valid HTTP URL: %w", err)
 			}
@@ -53,7 +51,7 @@ func server() *cobra.Command {
 		}
 		options.DERPServer.SetMeshKey(meshKey)
 
-		if options.DeploymentConfig.AuditLogging.Value {
+		if options.DeploymentValues.AuditLogging.Value() {
 			options.Auditor = audit.NewAuditor(audit.DefaultFilter,
 				backends.NewPostgres(options.Database, true),
 				backends.NewSlog(options.Logger),
@@ -63,14 +61,13 @@ func server() *cobra.Command {
 		options.TrialGenerator = trialer.New(options.Database, "https://v2-licensor.coder.com/trial", coderd.Keys)
 
 		o := &coderd.Options{
-			AuditLogging:           options.DeploymentConfig.AuditLogging.Value,
-			BrowserOnly:            options.DeploymentConfig.BrowserOnly.Value,
-			SCIMAPIKey:             []byte(options.DeploymentConfig.SCIMAPIKey.Value),
+			AuditLogging:           options.DeploymentValues.AuditLogging.Value(),
+			BrowserOnly:            options.DeploymentValues.BrowserOnly.Value(),
+			SCIMAPIKey:             []byte(options.DeploymentValues.SCIMAPIKey.Value()),
 			RBAC:                   true,
-			DERPServerRelayAddress: options.DeploymentConfig.DERP.Server.RelayURL.Value,
-			DERPServerRegionID:     options.DeploymentConfig.DERP.Server.RegionID.Value,
-
-			Options: options,
+			DERPServerRelayAddress: options.DeploymentValues.DERP.Server.RelayURL.String(),
+			DERPServerRegionID:     int(options.DeploymentValues.DERP.Server.RegionID.Value()),
+			Options:                options,
 		}
 
 		api, err := coderd.New(ctx, o)
@@ -79,8 +76,5 @@ func server() *cobra.Command {
 		}
 		return api.AGPL, api, nil
 	})
-
-	deployment.AttachFlags(cmd.Flags(), vip, true)
-
 	return cmd
 }

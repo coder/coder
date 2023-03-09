@@ -271,7 +271,7 @@ func splitResp(t *testing.T, values []reflect.Value) ([]reflect.Value, error) {
 			return outputs, err
 		}
 		outputs = append(outputs, r)
-	} //nolint: unreachable
+	}
 	t.Fatal("no expected error value found in responses (error can be nil)")
 	return nil, nil // unreachable, required to compile
 }

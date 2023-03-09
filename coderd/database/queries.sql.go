@@ -2426,7 +2426,7 @@ WHERE
 		SKIP LOCKED
 		LIMIT
 			1
-	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags
+	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code
 `
 
 type AcquireProvisionerJobParams struct {
@@ -2467,13 +2467,14 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		&i.WorkerID,
 		&i.FileID,
 		&i.Tags,
+		&i.ErrorCode,
 	)
 	return i, err
 }
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code
 FROM
 	provisioner_jobs
 WHERE
@@ -2500,13 +2501,14 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 		&i.WorkerID,
 		&i.FileID,
 		&i.Tags,
+		&i.ErrorCode,
 	)
 	return i, err
 }
 
 const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code
 FROM
 	provisioner_jobs
 WHERE
@@ -2539,6 +2541,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 			&i.WorkerID,
 			&i.FileID,
 			&i.Tags,
+			&i.ErrorCode,
 		); err != nil {
 			return nil, err
 		}
@@ -2554,7 +2557,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 }
 
 const getProvisionerJobsCreatedAfter = `-- name: GetProvisionerJobsCreatedAfter :many
-SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags FROM provisioner_jobs WHERE created_at > $1
+SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code FROM provisioner_jobs WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error) {
@@ -2583,6 +2586,7 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 			&i.WorkerID,
 			&i.FileID,
 			&i.Tags,
+			&i.ErrorCode,
 		); err != nil {
 			return nil, err
 		}
@@ -2613,7 +2617,7 @@ INSERT INTO
 		tags
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code
 `
 
 type InsertProvisionerJobParams struct {
@@ -2662,6 +2666,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		&i.WorkerID,
 		&i.FileID,
 		&i.Tags,
+		&i.ErrorCode,
 	)
 	return i, err
 }
@@ -2712,7 +2717,8 @@ UPDATE
 SET
 	updated_at = $2,
 	completed_at = $3,
-	error = $4
+	error = $4,
+	error_code = $5
 WHERE
 	id = $1
 `
@@ -2722,6 +2728,7 @@ type UpdateProvisionerJobWithCompleteByIDParams struct {
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	CompletedAt sql.NullTime   `db:"completed_at" json:"completed_at"`
 	Error       sql.NullString `db:"error" json:"error"`
+	ErrorCode   sql.NullString `db:"error_code" json:"error_code"`
 }
 
 func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteByIDParams) error {
@@ -2730,6 +2737,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 		arg.UpdatedAt,
 		arg.CompletedAt,
 		arg.Error,
+		arg.ErrorCode,
 	)
 	return err
 }

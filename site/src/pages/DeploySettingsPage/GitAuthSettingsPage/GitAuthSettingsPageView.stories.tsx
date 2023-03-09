@@ -8,18 +8,16 @@ export default {
   title: "pages/GitAuthSettingsPageView",
   component: GitAuthSettingsPageView,
   argTypes: {
-    deploymentConfig: {
+    config: {
       defaultValue: {
-        gitauth: {
-          name: "Git Auth",
-          usage: "Automatically authenticate Git inside workspaces.",
-          value: [
-            {
-              id: "123",
-              client_id: "575",
-            },
-          ],
-        },
+        git_auth: [
+          {
+            id: "0000-1111",
+            type: "GitHub",
+            client_id: "client_id",
+            regex: "regex",
+          },
+        ],
       },
     },
   },

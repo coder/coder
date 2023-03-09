@@ -135,7 +135,7 @@ type Options struct {
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	Experimental                bool
-	DeploymentConfig            *codersdk.DeploymentConfig
+	DeploymentValues            *codersdk.DeploymentValues
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 
 	HTTPClient *http.Client
@@ -163,7 +163,9 @@ func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}
 	}
-	experiments := initExperiments(options.Logger, options.DeploymentConfig.Experiments.Value, options.DeploymentConfig.Experimental.Value)
+	experiments := initExperiments(
+		options.Logger, options.DeploymentValues.Experiments.Value(),
+	)
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
@@ -267,7 +269,7 @@ func New(options *Options) *API {
 			options.AccessURL,
 			options.Authorizer,
 			options.Database,
-			options.DeploymentConfig,
+			options.DeploymentValues,
 			oauthConfigs,
 			options.AppSigningKey,
 		),
@@ -292,7 +294,7 @@ func New(options *Options) *API {
 		DB:                          options.Database,
 		OAuth2Configs:               oauthConfigs,
 		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
 	})
 	// Same as above but it redirects to the login page.
@@ -300,7 +302,7 @@ func New(options *Options) *API {
 		DB:                          options.Database,
 		OAuth2Configs:               oauthConfigs,
 		RedirectToLogin:             true,
-		DisableSessionExpiryRefresh: options.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
 	})
 
@@ -397,7 +399,7 @@ func New(options *Options) *API {
 		r.Get("/updatecheck", api.updateCheck)
 		r.Route("/config", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/deployment", api.deploymentConfig)
+			r.Get("/deployment", api.deploymentValues)
 		})
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(
@@ -853,7 +855,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 }
 
 // nolint:revive
-func initExperiments(log slog.Logger, raw []string, legacyAll bool) codersdk.Experiments {
+func initExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 	exps := make([]codersdk.Experiment, 0, len(raw))
 	for _, v := range raw {
 		switch v {
@@ -866,12 +868,6 @@ func initExperiments(log slog.Logger, raw []string, legacyAll bool) codersdk.Exp
 			}
 			exps = append(exps, ex)
 		}
-	}
-
-	// --experiments takes precedence over --experimental. It's deprecated.
-	if legacyAll && len(raw) == 0 {
-		log.Warn(context.Background(), "--experimental is deprecated, use --experiments='*' instead")
-		exps = append(exps, codersdk.ExperimentsAll...)
 	}
 	return exps
 }

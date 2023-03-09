@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -39,6 +40,62 @@ import (
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
+
+func TestReadGitAuthProvidersFromEnv(t *testing.T) {
+	t.Parallel()
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+			"HOME=/home/frodo",
+		})
+		require.NoError(t, err)
+		require.Empty(t, providers)
+	})
+	t.Run("InvalidKey", func(t *testing.T) {
+		t.Parallel()
+		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+			"CODER_GITAUTH_XXX=invalid",
+		})
+		require.Error(t, err, "providers: %+v", providers)
+		require.Empty(t, providers)
+	})
+	t.Run("SkipKey", func(t *testing.T) {
+		t.Parallel()
+		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+			"CODER_GITAUTH_0_ID=invalid",
+			"CODER_GITAUTH_2_ID=invalid",
+		})
+		require.Error(t, err, "%+v", providers)
+		require.Empty(t, providers)
+	})
+	t.Run("Valid", func(t *testing.T) {
+		t.Parallel()
+		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+			"CODER_GITAUTH_0_ID=1",
+			"CODER_GITAUTH_0_TYPE=gitlab",
+			"CODER_GITAUTH_1_ID=2",
+			"CODER_GITAUTH_1_CLIENT_ID=sid",
+			"CODER_GITAUTH_1_CLIENT_SECRET=hunter12",
+			"CODER_GITAUTH_1_TOKEN_URL=google.com",
+			"CODER_GITAUTH_1_VALIDATE_URL=bing.com",
+			"CODER_GITAUTH_1_SCOPES=repo:read repo:write",
+		})
+		require.NoError(t, err)
+		require.Len(t, providers, 2)
+
+		// Validate the first provider.
+		assert.Equal(t, "1", providers[0].ID)
+		assert.Equal(t, "gitlab", providers[0].Type)
+
+		// Validate the second provider.
+		assert.Equal(t, "2", providers[1].ID)
+		assert.Equal(t, "sid", providers[1].ClientID)
+		assert.Equal(t, "hunter12", providers[1].ClientSecret)
+		assert.Equal(t, "google.com", providers[1].TokenURL)
+		assert.Equal(t, "bing.com", providers[1].ValidateURL)
+		assert.Equal(t, []string{"repo:read", "repo:write"}, providers[1].Scopes)
+	})
+}
 
 // This cannot be ran in parallel because it uses a signal.
 // nolint:tparallel,paralleltest
@@ -327,6 +384,7 @@ func TestServer(t *testing.T) {
 				root, _ := clitest.New(t, args...)
 				err := root.ExecuteContext(ctx)
 				require.Error(t, err)
+				t.Logf("args: %v", args)
 				require.ErrorContains(t, err, c.errContains)
 			})
 		}
@@ -341,17 +399,14 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--http-address", "",
-			"--access-url", "http://example.com",
+			"--access-url", "https://example.com",
 			"--tls-enable",
 			"--tls-address", ":0",
 			"--tls-cert-file", certPath,
 			"--tls-key-file", keyPath,
 			"--cache-dir", t.TempDir(),
 		)
-		errC := make(chan error, 1)
-		go func() {
-			errC <- root.ExecuteContext(ctx)
-		}()
+		clitest.Start(ctx, t, root)
 
 		// Verify HTTPS
 		accessURL := waitAccessURL(t, cfg)
@@ -368,9 +423,6 @@ func TestServer(t *testing.T) {
 		defer client.HTTPClient.CloseIdleConnections()
 		_, err := client.HasFirstUser(ctx)
 		require.NoError(t, err)
-
-		cancelFunc()
-		require.NoError(t, <-errC)
 	})
 	t.Run("TLSValidMultiple", func(t *testing.T) {
 		t.Parallel()
@@ -383,7 +435,7 @@ func TestServer(t *testing.T) {
 			"server",
 			"--in-memory",
 			"--http-address", "",
-			"--access-url", "http://example.com",
+			"--access-url", "https://example.com",
 			"--tls-enable",
 			"--tls-address", ":0",
 			"--tls-cert-file", cert1Path,
@@ -392,10 +444,10 @@ func TestServer(t *testing.T) {
 			"--tls-key-file", key2Path,
 			"--cache-dir", t.TempDir(),
 		)
-		errC := make(chan error, 1)
-		go func() {
-			errC <- root.ExecuteContext(ctx)
-		}()
+		pty := ptytest.New(t)
+		root.SetOut(pty.Output())
+		clitest.Start(ctx, t, root)
+
 		accessURL := waitAccessURL(t, cfg)
 		require.Equal(t, "https", accessURL.Scheme)
 		originalHost := accessURL.Host
@@ -451,9 +503,6 @@ func TestServer(t *testing.T) {
 		_, err = client.HasFirstUser(ctx)
 		require.NoError(t, err)
 		require.EqualValues(t, 2, atomic.LoadInt64(&dials))
-
-		cancelFunc()
-		require.NoError(t, <-errC)
 	})
 
 	t.Run("TLSAndHTTP", func(t *testing.T) {
@@ -715,15 +764,19 @@ func TestServer(t *testing.T) {
 		pty := ptytest.New(t)
 		root.SetOutput(pty.Output())
 		root.SetErr(pty.Output())
-		errC := make(chan error, 1)
+		serverStop := make(chan error, 1)
 		go func() {
-			errC <- root.ExecuteContext(ctx)
+			err := root.ExecuteContext(ctx)
+			if err != nil {
+				t.Error(err)
+			}
+			close(serverStop)
 		}()
 
 		pty.ExpectMatch("Started HTTP listener at http://0.0.0.0:")
 
 		cancelFunc()
-		require.NoError(t, <-errC)
+		<-serverStop
 	})
 
 	t.Run("CanListenUnspecifiedv6", func(t *testing.T) {
@@ -741,15 +794,19 @@ func TestServer(t *testing.T) {
 		pty := ptytest.New(t)
 		root.SetOutput(pty.Output())
 		root.SetErr(pty.Output())
-		errC := make(chan error, 1)
+		serverClose := make(chan struct{}, 1)
 		go func() {
-			errC <- root.ExecuteContext(ctx)
+			err := root.ExecuteContext(ctx)
+			if err != nil {
+				t.Error(err)
+			}
+			close(serverClose)
 		}()
 
 		pty.ExpectMatch("Started HTTP listener at http://[::]:")
 
 		cancelFunc()
-		require.NoError(t, <-errC)
+		<-serverClose
 	})
 
 	t.Run("NoAddress", func(t *testing.T) {
@@ -760,13 +817,13 @@ func TestServer(t *testing.T) {
 		root, _ := clitest.New(t,
 			"server",
 			"--in-memory",
-			"--http-address", "",
+			"--http-address", ":80",
 			"--tls-enable=false",
 			"--tls-address", "",
 		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "TLS is disabled. Enable with --tls-enable or specify a HTTP address")
+		require.ErrorContains(t, err, "tls-address")
 	})
 
 	t.Run("NoTLSAddress", func(t *testing.T) {
@@ -782,7 +839,7 @@ func TestServer(t *testing.T) {
 		)
 		err := root.ExecuteContext(ctx)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "TLS address must be set if TLS is enabled")
+		require.ErrorContains(t, err, "must not be empty")
 	})
 
 	// DeprecatedAddress is a test for the deprecated --address flag. If
@@ -807,21 +864,15 @@ func TestServer(t *testing.T) {
 			pty := ptytest.New(t)
 			root.SetOutput(pty.Output())
 			root.SetErr(pty.Output())
-			errC := make(chan error, 1)
-			go func() {
-				errC <- root.ExecuteContext(ctx)
-			}()
+			clitest.Start(ctx, t, root)
 
-			pty.ExpectMatch("--address and -a are deprecated")
+			pty.ExpectMatch("is deprecated")
 
 			accessURL := waitAccessURL(t, cfg)
 			require.Equal(t, "http", accessURL.Scheme)
 			client := codersdk.New(accessURL)
 			_, err := client.HasFirstUser(ctx)
 			require.NoError(t, err)
-
-			cancelFunc()
-			require.NoError(t, <-errC)
 		})
 
 		t.Run("TLS", func(t *testing.T) {
@@ -834,7 +885,7 @@ func TestServer(t *testing.T) {
 				"server",
 				"--in-memory",
 				"--address", ":0",
-				"--access-url", "http://example.com",
+				"--access-url", "https://example.com",
 				"--tls-enable",
 				"--tls-cert-file", certPath,
 				"--tls-key-file", keyPath,
@@ -843,12 +894,9 @@ func TestServer(t *testing.T) {
 			pty := ptytest.New(t)
 			root.SetOutput(pty.Output())
 			root.SetErr(pty.Output())
-			errC := make(chan error, 1)
-			go func() {
-				errC <- root.ExecuteContext(ctx)
-			}()
+			clitest.Start(ctx, t, root)
 
-			pty.ExpectMatch("--address and -a are deprecated")
+			pty.ExpectMatch("is deprecated")
 
 			accessURL := waitAccessURL(t, cfg)
 			require.Equal(t, "https", accessURL.Scheme)
@@ -864,9 +912,6 @@ func TestServer(t *testing.T) {
 			defer client.HTTPClient.CloseIdleConnections()
 			_, err := client.HasFirstUser(ctx)
 			require.NoError(t, err)
-
-			cancelFunc()
-			require.NoError(t, <-errC)
 		})
 	})
 
@@ -1150,14 +1195,31 @@ func TestServer(t *testing.T) {
 		})
 	})
 
+	waitFile := func(t *testing.T, fiName string, dur time.Duration) {
+		var lastStat os.FileInfo
+		require.Eventually(t, func() bool {
+			var err error
+			lastStat, err = os.Stat(fiName)
+			if err != nil {
+				if !os.IsNotExist(err) {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return false
+			}
+			return lastStat.Size() > 0
+		},
+			testutil.WaitShort,
+			testutil.IntervalFast,
+			"file at %s should exist, last stat: %+v",
+			fiName, lastStat,
+		)
+	}
+
 	t.Run("Logging", func(t *testing.T) {
 		t.Parallel()
 
 		t.Run("CreatesFile", func(t *testing.T) {
 			t.Parallel()
-			ctx, cancelFunc := context.WithCancel(context.Background())
-			defer cancelFunc()
-
 			fiName := testutil.TempFile(t, "", "coder-logging-test-*")
 
 			root, _ := clitest.New(t,
@@ -1168,24 +1230,13 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-human", fiName,
 			)
-			serverErr := make(chan error, 1)
-			go func() {
-				serverErr <- root.ExecuteContext(ctx)
-			}()
+			clitest.Start(context.Background(), t, root)
 
-			assert.Eventually(t, func() bool {
-				stat, err := os.Stat(fiName)
-				return err == nil && stat.Size() > 0
-			}, testutil.WaitShort, testutil.IntervalFast)
-			cancelFunc()
-			<-serverErr
+			waitFile(t, fiName, testutil.WaitShort)
 		})
 
 		t.Run("Human", func(t *testing.T) {
 			t.Parallel()
-			ctx, cancelFunc := context.WithCancel(context.Background())
-			defer cancelFunc()
-
 			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
 			root, _ := clitest.New(t,
@@ -1196,24 +1247,13 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-human", fi,
 			)
-			serverErr := make(chan error, 1)
-			go func() {
-				serverErr <- root.ExecuteContext(ctx)
-			}()
+			clitest.Start(context.Background(), t, root)
 
-			assert.Eventually(t, func() bool {
-				stat, err := os.Stat(fi)
-				return err == nil && stat.Size() > 0
-			}, testutil.WaitShort, testutil.IntervalFast)
-			cancelFunc()
-			<-serverErr
+			waitFile(t, fi, testutil.WaitShort)
 		})
 
 		t.Run("JSON", func(t *testing.T) {
 			t.Parallel()
-			ctx, cancelFunc := context.WithCancel(context.Background())
-			defer cancelFunc()
-
 			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
 			root, _ := clitest.New(t,
@@ -1224,17 +1264,9 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--log-json", fi,
 			)
-			serverErr := make(chan error, 1)
-			go func() {
-				serverErr <- root.ExecuteContext(ctx)
-			}()
+			clitest.Start(context.Background(), t, root)
 
-			assert.Eventually(t, func() bool {
-				stat, err := os.Stat(fi)
-				return err == nil && stat.Size() > 0
-			}, testutil.WaitShort, testutil.IntervalFast)
-			cancelFunc()
-			<-serverErr
+			waitFile(t, fi, testutil.WaitShort)
 		})
 
 		t.Run("Stackdriver", func(t *testing.T) {
@@ -1271,10 +1303,7 @@ func TestServer(t *testing.T) {
 			// starting point for expecting logs.
 			_ = pty.ExpectMatchContext(ctx, "Started HTTP listener at ")
 
-			require.Eventually(t, func() bool {
-				stat, err := os.Stat(fi)
-				return err == nil && stat.Size() > 0
-			}, testutil.WaitLong, testutil.IntervalMedium)
+			waitFile(t, fi, testutil.WaitSuperLong)
 		})
 
 		t.Run("Multiple", func(t *testing.T) {
@@ -1306,31 +1335,15 @@ func TestServer(t *testing.T) {
 			root.SetOut(pty.Output())
 			root.SetErr(pty.Output())
 
-			serverErr := make(chan error, 1)
-			go func() {
-				serverErr <- root.ExecuteContext(ctx)
-			}()
-			defer func() {
-				cancelFunc()
-				<-serverErr
-			}()
+			clitest.Start(ctx, t, root)
 
 			// Wait for server to listen on HTTP, this is a good
 			// starting point for expecting logs.
 			_ = pty.ExpectMatchContext(ctx, "Started HTTP listener at ")
 
-			require.Eventually(t, func() bool {
-				stat, err := os.Stat(fi1)
-				return err == nil && stat.Size() > 0
-			}, testutil.WaitShort, testutil.IntervalMedium, "log human size > 0")
-			require.Eventually(t, func() bool {
-				stat, err := os.Stat(fi2)
-				return err == nil && stat.Size() > 0
-			}, testutil.WaitShort, testutil.IntervalMedium, "log json size > 0")
-			require.Eventually(t, func() bool {
-				stat, err := os.Stat(fi3)
-				return err == nil && stat.Size() > 0
-			}, testutil.WaitShort, testutil.IntervalMedium, "log stackdriver size > 0")
+			waitFile(t, fi1, testutil.WaitSuperLong)
+			waitFile(t, fi2, testutil.WaitSuperLong)
+			waitFile(t, fi3, testutil.WaitSuperLong)
 		})
 	})
 }
