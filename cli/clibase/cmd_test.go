@@ -313,7 +313,7 @@ func TestCommand_RootRaw(t *testing.T) {
 	require.Equal(t, "hello --verbose --friendly", stdio.Stdout.String())
 }
 
-func TestCommand_HyphenHypen(t *testing.T) {
+func TestCommand_HyphenHyphen(t *testing.T) {
 	t.Parallel()
 	cmd := &clibase.Cmd{
 		Handler: (func(i *clibase.Invocation) error {
