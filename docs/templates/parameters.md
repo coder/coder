@@ -42,7 +42,7 @@ provider "docker" {
 }
 ```
 
-There are few parameter types supported - string, bool, and numbers.
+There are a few parameter types supported - string, bool, and numbers.
 
 > For a complete list of supported parameter properties, see the
 > [coder_parameter Terraform reference](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter)
@@ -80,7 +80,7 @@ data "coder_parameter" "docker_host" {
 
 ## Required and optional parameters
 
-A parameter is consider to be _required_ if it doesn't have the `default` property. It means that the workspace user needs to provide the parameter value before creating a workspace.
+A parameter is considered to be _required_ if it doesn't have the `default` property. It means that the workspace user needs to provide the parameter value before creating a workspace.
 
 ```hcl
 data "coder_parameter" "account_name" {
@@ -100,7 +100,7 @@ data "coder_parameter" "base_image" {
 }
 ```
 
-Admins can also set the `default` property to an empty value, so that the parameter field can remain empty:
+Admins can also set the `default` property to an empty value so that the parameter field can remain empty:
 
 ```hcl
 data "coder_parameter" "dotfiles_url" {
@@ -133,8 +133,8 @@ Rich parameters support multiple validation modes - min, max, monotonic numbers,
 
 ### Number
 
-A _number_ parameter can be limited to boundaries - min, max. Additionally, the monotonicity (`increasing` or `decreasing`) between current parameter value and the new one can be verified too.
-Monotonicity can be enabled for resources that can't be shrinked without implications, for instance - disk volume size.
+A _number_ parameter can be limited to boundaries - min, max. Additionally, the monotonicity (`increasing` or `decreasing`) between the current parameter value and the new one can be verified too.
+Monotonicity can be enabled for resources that can't be shrunk without implications, for instance - disk volume size.
 
 ```hcl
 data "coder_parameter" "instances" {
@@ -163,16 +163,6 @@ data "coder_parameter" "project_id" {
   }
 }
 ```
-
-## Migration
-
-TODO
-
-### Terraform variables
-
-TODO
-
-TODO sensitive
 
 ## Legacy
 
@@ -203,4 +193,42 @@ variable "cpu" {
 }
 ```
 
-> ⚠️ Legacy (`variable`) parameters and rich parameters cannot be used in the same template.
+> ⚠️ Legacy (`variable`) parameters and rich parameters should not be used in the same template unless it is only for migration purposes.
+
+## Migration
+
+Terraform variables shouldn't be used for parameters anymore, and it's recommended to convert variables to `coder_parameter` resources. To make the migration smoother, there was a special property introduced -
+`legacy_variable`, which can link `coder_parameter` with a legacy variable.
+
+```hcl
+variable "legacy_cpu" {
+  sensitive   = false
+  description = "CPU cores"
+  default     = 2
+}
+
+data "coder_parameter" "cpu" {
+  name        = "CPU cores"
+  type        = "number"
+  description = "Number of CPU cores"
+
+  legacy_variable = var.legacy_cpu
+}
+```
+
+Once users update their workspaces to the new template revision with rich parameters, the template admin can remove legacy variables, and strip `legacy_variable` properties.
+
+### Managed Terraform variables
+
+As parameters are intended to be used only for workspace customization purposes, Terraform variables can be freely managed by the admin to build templates. Workspace users are not able to modify
+template variables.
+
+The admin user can enable managed Terraform variables mode by specifying the following flag:
+
+```hcl
+provider "coder" {
+  feature_use_managed_variables = "true"
+}
+```
+
+Once it's defined, coder will allow for modifying variables by using CLI and UI forms, but it will not be possible to use legacy parameters.
