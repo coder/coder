@@ -49,7 +49,7 @@ func TestCommand(t *testing.T) {
 							Value: clibase.BoolOf(&lower),
 						},
 					},
-					Handler: clibase.HandlerFunc(func(i *clibase.Invokation) error {
+					Handler: (func(i *clibase.Invokation) error {
 						i.Stdout.Write([]byte(prefix))
 						w := i.Args[0]
 						if lower {
@@ -74,10 +74,7 @@ func TestCommand(t *testing.T) {
 
 	t.Run("SimpleOK", func(t *testing.T) {
 		t.Parallel()
-		i := &clibase.Invokation{
-			Args:    []string{"toupper", "hello"},
-			Command: cmd(),
-		}
+		i := cmd().Invoke("toupper", "hello")
 		io := clibasetest.FakeIO(i)
 		i.Run()
 		require.Equal(t, "HELLO", io.Stdout.String())
@@ -85,10 +82,9 @@ func TestCommand(t *testing.T) {
 
 	t.Run("Alias", func(t *testing.T) {
 		t.Parallel()
-		i := &clibase.Invokation{
-			Args:    []string{"up", "hello"},
-			Command: cmd(),
-		}
+		i := cmd().Invoke(
+			"up", "hello",
+		)
 		io := clibasetest.FakeIO(i)
 		i.Run()
 		require.Equal(t, "HELLO", io.Stdout.String())
@@ -96,10 +92,9 @@ func TestCommand(t *testing.T) {
 
 	t.Run("NoSubcommand", func(t *testing.T) {
 		t.Parallel()
-		i := &clibase.Invokation{
-			Args:    []string{"na"},
-			Command: cmd(),
-		}
+		i := cmd().Invoke(
+			"na",
+		)
 		io := clibasetest.FakeIO(i)
 		err := i.Run()
 		require.Empty(t, io.Stdout.String())
@@ -108,10 +103,9 @@ func TestCommand(t *testing.T) {
 
 	t.Run("BadArgs", func(t *testing.T) {
 		t.Parallel()
-		i := &clibase.Invokation{
-			Args:    []string{"toupper"},
-			Command: cmd(),
-		}
+		i := cmd().Invoke(
+			"toupper",
+		)
 		io := clibasetest.FakeIO(i)
 		err := i.Run()
 		require.Empty(t, io.Stdout.String())
@@ -120,10 +114,9 @@ func TestCommand(t *testing.T) {
 
 	t.Run("UnknownFlags", func(t *testing.T) {
 		t.Parallel()
-		i := &clibase.Invokation{
-			Args:    []string{"toupper", "--unknown"},
-			Command: cmd(),
-		}
+		i := cmd().Invoke(
+			"toupper", "--unknown",
+		)
 		io := clibasetest.FakeIO(i)
 		err := i.Run()
 		require.Empty(t, io.Stdout.String())
@@ -132,10 +125,9 @@ func TestCommand(t *testing.T) {
 
 	t.Run("Verbose", func(t *testing.T) {
 		t.Parallel()
-		i := &clibase.Invokation{
-			Args:    []string{"--verbose", "toupper", "hello"},
-			Command: cmd(),
-		}
+		i := cmd().Invoke(
+			"--verbose", "toupper", "hello",
+		)
 		io := clibasetest.FakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t, "HELLO!!!", io.Stdout.String())
@@ -143,10 +135,9 @@ func TestCommand(t *testing.T) {
 
 	t.Run("Verbose=", func(t *testing.T) {
 		t.Parallel()
-		i := &clibase.Invokation{
-			Args:    []string{"--verbose=true", "toupper", "hello"},
-			Command: cmd(),
-		}
+		i := cmd().Invoke(
+			"--verbose=true", "toupper", "hello",
+		)
 		io := clibasetest.FakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t, "HELLO!!!", io.Stdout.String())
@@ -154,10 +145,9 @@ func TestCommand(t *testing.T) {
 
 	t.Run("PrefixSpace", func(t *testing.T) {
 		t.Parallel()
-		i := &clibase.Invokation{
-			Args:    []string{"--prefix", "conv: ", "toupper", "hello"},
-			Command: cmd(),
-		}
+		i := cmd().Invoke(
+			"--prefix", "conv: ", "toupper", "hello",
+		)
 		io := clibasetest.FakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t, "conv: HELLO", io.Stdout.String())
@@ -165,10 +155,9 @@ func TestCommand(t *testing.T) {
 
 	t.Run("GlobalFlagsAnywhere", func(t *testing.T) {
 		t.Parallel()
-		i := &clibase.Invokation{
-			Args:    []string{"toupper", "--prefix", "conv: ", "hello", "--verbose"},
-			Command: cmd(),
-		}
+		i := cmd().Invoke(
+			"toupper", "--prefix", "conv: ", "hello", "--verbose",
+		)
 		io := clibasetest.FakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t, "conv: HELLO!!!", io.Stdout.String())
@@ -176,10 +165,9 @@ func TestCommand(t *testing.T) {
 
 	t.Run("LowerVerbose", func(t *testing.T) {
 		t.Parallel()
-		i := &clibase.Invokation{
-			Args:    []string{"toupper", "--verbose", "hello", "--lower"},
-			Command: cmd(),
-		}
+		i := cmd().Invoke(
+			"toupper", "--verbose", "hello", "--lower",
+		)
 		io := clibasetest.FakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t, "hello!!!", io.Stdout.String())
@@ -187,10 +175,9 @@ func TestCommand(t *testing.T) {
 
 	t.Run("ParsedFlags", func(t *testing.T) {
 		t.Parallel()
-		i := &clibase.Invokation{
-			Args:    []string{"toupper", "--verbose", "hello", "--lower"},
-			Command: cmd(),
-		}
+		i := cmd().Invoke(
+			"toupper", "--verbose", "hello", "--lower",
+		)
 		_ = clibasetest.FakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t,
@@ -201,10 +188,9 @@ func TestCommand(t *testing.T) {
 
 	t.Run("NoDeepChild", func(t *testing.T) {
 		t.Parallel()
-		i := &clibase.Invokation{
-			Args:    []string{"root", "level", "level", "toupper", "--verbose", "hello", "--lower"},
-			Command: cmd(),
-		}
+		i := cmd().Invoke(
+			"root", "level", "level", "toupper", "--verbose", "hello", "--lower",
+		)
 		fio := clibasetest.FakeIO(i)
 		require.Error(t, i.Run(), fio.Stdout.String())
 	})
@@ -215,7 +201,7 @@ func TestCommand_MiddlewareOrder(t *testing.T) {
 
 	mw := func(letter string) clibase.MiddlewareFunc {
 		return func(next clibase.HandlerFunc) clibase.HandlerFunc {
-			return clibase.HandlerFunc(func(i *clibase.Invokation) error {
+			return (func(i *clibase.Invokation) error {
 				_, _ = i.Stdout.Write([]byte(letter))
 				return next(i)
 			})
@@ -230,15 +216,14 @@ func TestCommand_MiddlewareOrder(t *testing.T) {
 			mw("B"),
 			mw("C"),
 		),
-		Handler: clibase.HandlerFunc(func(i *clibase.Invokation) error {
+		Handler: (func(i *clibase.Invokation) error {
 			return nil
 		}),
 	}
 
-	i := &clibase.Invokation{
-		Args:    []string{"hello", "world"},
-		Command: cmd,
-	}
+	i := cmd.Invoke(
+		"hello", "world",
+	)
 	io := clibasetest.FakeIO(i)
 	require.NoError(t, i.Run())
 	require.Equal(t, "ABC", io.Stdout.String())
@@ -262,7 +247,7 @@ func TestCommand_RawArgs(t *testing.T) {
 					Use:     "sushi <args...>",
 					Short:   "Throws back raw output",
 					RawArgs: true,
-					Handler: clibase.HandlerFunc(func(i *clibase.Invokation) error {
+					Handler: (func(i *clibase.Invokation) error {
 						if v := i.ParsedFlags().Lookup("password").Value.String(); v != "codershack" {
 							return xerrors.Errorf("password %q is wrong!", v)
 						}
@@ -278,12 +263,9 @@ func TestCommand_RawArgs(t *testing.T) {
 		// Flag parsed before the raw arg command should still work.
 		t.Parallel()
 
-		i := &clibase.Invokation{
-			Args: []string{
-				"--password", "codershack", "sushi", "hello", "--verbose", "world",
-			},
-			Command: cmd(),
-		}
+		i := cmd().Invoke(
+			"--password", "codershack", "sushi", "hello", "--verbose", "world",
+		)
 		io := clibasetest.FakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t, "hello --verbose world", io.Stdout.String())
@@ -293,12 +275,9 @@ func TestCommand_RawArgs(t *testing.T) {
 		// Verbose before the raw arg command should fail.
 		t.Parallel()
 
-		i := &clibase.Invokation{
-			Args: []string{
-				"--password", "codershack", "--verbose", "sushi", "hello", "world",
-			},
-			Command: cmd(),
-		}
+		i := cmd().Invoke(
+			"--password", "codershack", "--verbose", "sushi", "hello", "world",
+		)
 		io := clibasetest.FakeIO(i)
 		require.Error(t, i.Run())
 		require.Empty(t, io.Stdout.String())
@@ -307,10 +286,9 @@ func TestCommand_RawArgs(t *testing.T) {
 	t.Run("NoPassword", func(t *testing.T) {
 		// Flag parsed before the raw arg command should still work.
 		t.Parallel()
-		i := &clibase.Invokation{
-			Args:    []string{"sushi", "hello", "--verbose", "world"},
-			Command: cmd(),
-		}
+		i := cmd().Invoke(
+			"sushi", "hello", "--verbose", "world",
+		)
 		_ = clibasetest.FakeIO(i)
 		i.Stdout = clibasetest.TestWriter(t, "stdout: ")
 		require.Error(t, i.Run())
@@ -321,10 +299,10 @@ func TestCommand_RootRaw(t *testing.T) {
 	t.Parallel()
 	cmd := &clibase.Cmd{
 		RawArgs: true,
-		Handler: clibase.HandlerFunc(func(i *clibase.Invokation) error {
+		Handler: func(i *clibase.Invokation) error {
 			i.Stdout.Write([]byte(strings.Join(i.Args, " ")))
 			return nil
-		}),
+		},
 	}
 
 	inv, stdio := clibasetest.Invoke(cmd, "hello", "--verbose", "--friendly")
@@ -337,7 +315,7 @@ func TestCommand_RootRaw(t *testing.T) {
 func TestCommand_HyphenHypen(t *testing.T) {
 	t.Parallel()
 	cmd := &clibase.Cmd{
-		Handler: clibase.HandlerFunc(func(i *clibase.Invokation) error {
+		Handler: (func(i *clibase.Invokation) error {
 			i.Stdout.Write([]byte(strings.Join(i.Args, " ")))
 			return nil
 		}),

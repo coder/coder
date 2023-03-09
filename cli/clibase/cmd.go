@@ -222,7 +222,7 @@ func (i *Invokation) run(state *runState) error {
 	}
 
 	// Flag parse errors are irrelevant for raw args commands.
-	if !i.Command.RawArgs && state.flagParseErr != nil && state.flagParseErr != pflag.ErrHelp {
+	if !i.Command.RawArgs && state.flagParseErr != nil && !errors.Is(state.flagParseErr, pflag.ErrHelp) {
 		return xerrors.Errorf(
 			"parsing flags (%v) for %q: %w",
 			state.allArgs,
