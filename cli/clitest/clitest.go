@@ -51,7 +51,7 @@ func NewWithSubcommands(
 ) (*clibase.Invokation, config.Root) {
 	var root cli.RootCmd
 	if subcommands == nil {
-		subcommands = cli.AGPL(&root)
+		subcommands = root.AGPL()
 	}
 	cmd := root.Command(subcommands)
 
@@ -62,6 +62,7 @@ func NewWithSubcommands(
 		Stdout:  (&logWriter{prefix: "stdout", t: t}),
 		Stderr:  (&logWriter{prefix: "stderr", t: t}),
 	}
+	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
 	// These can be overridden by the test.
 	return i, configDir
 }

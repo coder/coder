@@ -99,7 +99,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 	}
 }
 
-func AGPL(r *RootCmd) []*clibase.Cmd {
+func (r *RootCmd) AGPL() []*clibase.Cmd {
 	all := append(r.Core(), r.Server(func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
 		api := coderd.New(o)
 		return api, api, nil

@@ -168,8 +168,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			var configDir clibase.String
-
 			if cfg.WriteConfig {
 				// TODO: this should output to a file.
 				n, err := opts.ToYAML()
@@ -318,7 +316,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			config := config.Root(configDir)
+			config := r.createConfig()
+
 			builtinPostgres := false
 			// Only use built-in if PostgreSQL URL isn't specified!
 			if !cfg.InMemoryDatabase && cfg.PostgresURL == "" {

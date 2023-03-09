@@ -78,7 +78,7 @@ func TestCommandHelp(t *testing.T) {
 	}
 
 	rootCmd := new(cli.RootCmd)
-	root := rootCmd.Command(cli.AGPL(rootCmd))
+	root := rootCmd.Command(rootCmd.AGPL())
 ExtractCommandPathsLoop:
 	for _, cp := range extractVisibleCommandPaths(nil, root.Children) {
 		name := fmt.Sprintf("coder %s --help", strings.Join(cp, " "))

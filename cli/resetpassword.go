@@ -89,6 +89,7 @@ func (r *RootCmd) resetPassword() *clibase.Cmd {
 	root.Options = clibase.OptionSet{
 		{
 			Name:        "postgres-url",
+			Flag:        "postgres-url",
 			Description: "URL of a PostgreSQL database to connect to",
 			Env:         "CODER_PG_CONNECTION_URL",
 			Value:       clibase.StringOf(&postgresURL),
