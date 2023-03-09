@@ -185,6 +185,7 @@ func (i *Invokation) run(state *runState) error {
 
 	if i.parsedFlags == nil {
 		i.parsedFlags = pflag.NewFlagSet(i.Command.Name(), pflag.ContinueOnError)
+		// We handle Usage ourselves.
 		i.parsedFlags.Usage = func() {}
 	}
 

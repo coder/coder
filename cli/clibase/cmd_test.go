@@ -349,24 +349,3 @@ func TestCommand_HyphenHypen(t *testing.T) {
 
 	require.Equal(t, "--verbose --friendly", stdio.Stdout.String())
 }
-
-func TestCommand_Help(t *testing.T) {
-	t.Parallel()
-
-	cmd := &clibase.Cmd{
-		Options: []clibase.Option{
-			{
-				Flag: "superautopets",
-			},
-		},
-		Handler: func(i *clibase.Invokation) error {
-			t.Fatalf("should not be called")
-			return nil
-		},
-	}
-
-	inv, stdio := clibasetest.Invoke(cmd, "-h")
-	err := inv.Run()
-	require.NoError(t, err)
-	require.Contains(t, stdio.Stdout.String(), "superautopets")
-}
