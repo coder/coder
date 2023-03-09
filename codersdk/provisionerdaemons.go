@@ -67,6 +67,14 @@ const (
 	ProvisionerJobFailed    ProvisionerJobStatus = "failed"
 )
 
+// JobErrorCode defines the error code returned by job runner.
+type JobErrorCode string
+
+const (
+	MissingTemplateParameter  JobErrorCode = "MISSING_TEMPLATE_PARAMETER"
+	RequiredTemplateVariables JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
+)
+
 // ProvisionerJob describes the job executed by the provisioning daemon.
 type ProvisionerJob struct {
 	ID          uuid.UUID            `json:"id" format:"uuid"`
@@ -75,6 +83,7 @@ type ProvisionerJob struct {
 	CompletedAt *time.Time           `json:"completed_at,omitempty" format:"date-time"`
 	CanceledAt  *time.Time           `json:"canceled_at,omitempty" format:"date-time"`
 	Error       string               `json:"error,omitempty"`
+	ErrorCode   JobErrorCode         `json:"error_code,omitempty" enums:"MISSING_TEMPLATE_PARAMETER,REQUIRED_TEMPLATE_VARIABLES"`
 	Status      ProvisionerJobStatus `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed"`
 	WorkerID    *uuid.UUID           `json:"worker_id,omitempty" format:"uuid"`
 	FileID      uuid.UUID            `json:"file_id" format:"uuid"`
@@ -131,7 +140,8 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{
-		Jar: jar,
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
 	}
 	conn, res, err := websocket.Dial(ctx, followURL.String(), &websocket.DialOptions{
 		HTTPClient:      httpClient,
@@ -196,7 +206,8 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, organization uuid.U
 		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{
-		Jar: jar,
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
 	}
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,

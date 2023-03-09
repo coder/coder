@@ -313,6 +313,15 @@ export interface DeploymentDAUsResponse {
 }
 
 // From codersdk/deployment.go
+export interface DeploymentStats {
+  readonly aggregated_from: string
+  readonly collected_at: string
+  readonly next_update_at: string
+  readonly workspaces: WorkspaceDeploymentStats
+  readonly session_count: SessionCountDeploymentStats
+}
+
+// From codersdk/deployment.go
 export interface DeploymentValues {
   // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.Bool")
   readonly verbose?: boolean
@@ -666,6 +675,7 @@ export interface ProvisionerJob {
   readonly completed_at?: string
   readonly canceled_at?: string
   readonly error?: string
+  readonly error_code?: JobErrorCode
   readonly status: ProvisionerJobStatus
   readonly worker_id?: string
   readonly file_id: string
@@ -731,6 +741,14 @@ export interface ServiceBannerConfig {
   readonly enabled: boolean
   readonly message?: string
   readonly background_color?: string
+}
+
+// From codersdk/deployment.go
+export interface SessionCountDeploymentStats {
+  readonly vscode: number
+  readonly ssh: number
+  readonly jetbrains: number
+  readonly reconnecting_pty: number
 }
 
 // From codersdk/deployment.go
@@ -1143,6 +1161,24 @@ export interface WorkspaceBuildsRequest extends Pagination {
   readonly Since: string
 }
 
+// From codersdk/deployment.go
+export interface WorkspaceConnectionLatencyMS {
+  readonly P50: number
+  readonly P95: number
+}
+
+// From codersdk/deployment.go
+export interface WorkspaceDeploymentStats {
+  readonly pending: number
+  readonly building: number
+  readonly running: number
+  readonly failed: number
+  readonly stopped: number
+  readonly connection_latency_ms: WorkspaceConnectionLatencyMS
+  readonly rx_bytes: number
+  readonly tx_bytes: number
+}
+
 // From codersdk/workspaces.go
 export interface WorkspaceFilter {
   readonly q?: string
@@ -1267,6 +1303,15 @@ export const GitProviders: GitProvider[] = [
   "bitbucket",
   "github",
   "gitlab",
+]
+
+// From codersdk/provisionerdaemons.go
+export type JobErrorCode =
+  | "MISSING_TEMPLATE_PARAMETER"
+  | "REQUIRED_TEMPLATE_VARIABLES"
+export const JobErrorCodes: JobErrorCode[] = [
+  "MISSING_TEMPLATE_PARAMETER",
+  "REQUIRED_TEMPLATE_VARIABLES",
 ]
 
 // From codersdk/provisionerdaemons.go

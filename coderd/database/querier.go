@@ -53,6 +53,8 @@ type sqlcQuerier interface {
 	GetDERPMeshKey(ctx context.Context) (string, error)
 	GetDeploymentDAUs(ctx context.Context) ([]GetDeploymentDAUsRow, error)
 	GetDeploymentID(ctx context.Context) (string, error)
+	GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentStatsRow, error)
+	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
 	GetFileByHashAndCreator(ctx context.Context, arg GetFileByHashAndCreatorParams) (File, error)
 	GetFileByID(ctx context.Context, id uuid.UUID) (File, error)
 	// This will never count deleted users.

@@ -1947,6 +1947,45 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
 | `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
 
+## codersdk.DeploymentStats
+
+```json
+{
+  "aggregated_from": "2019-08-24T14:15:22Z",
+  "collected_at": "2019-08-24T14:15:22Z",
+  "next_update_at": "2019-08-24T14:15:22Z",
+  "session_count": {
+    "jetbrains": 0,
+    "reconnecting_pty": 0,
+    "ssh": 0,
+    "vscode": 0
+  },
+  "workspaces": {
+    "building": 0,
+    "connection_latency_ms": {
+      "p50": 0,
+      "p95": 0
+    },
+    "failed": 0,
+    "pending": 0,
+    "running": 0,
+    "rx_bytes": 0,
+    "stopped": 0,
+    "tx_bytes": 0
+  }
+}
+```
+
+### Properties
+
+| Name              | Type                                                                         | Required | Restrictions | Description                                                                                                                 |
+| ----------------- | ---------------------------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `aggregated_from` | string                                                                       | false    |              | Aggregated from is the time in which stats are aggregated from. This might be back in time a specific duration or interval. |
+| `collected_at`    | string                                                                       | false    |              | Collected at is the time in which stats are collected at.                                                                   |
+| `next_update_at`  | string                                                                       | false    |              | Next update at is the time when the next batch of stats will be updated.                                                    |
+| `session_count`   | [codersdk.SessionCountDeploymentStats](#codersdksessioncountdeploymentstats) | false    |              |                                                                                                                             |
+| `workspaces`      | [codersdk.WorkspaceDeploymentStats](#codersdkworkspacedeploymentstats)       | false    |              |                                                                                                                             |
+
 ## codersdk.DeploymentValues
 
 ```json
@@ -2497,6 +2536,21 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `threshold` | integer | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
 | `url`       | string  | false    |              | URL specifies the endpoint to check for the app health.                                          |
 
+## codersdk.JobErrorCode
+
+```json
+"MISSING_TEMPLATE_PARAMETER"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                         |
+| ----------------------------- |
+| `MISSING_TEMPLATE_PARAMETER`  |
+| `REQUIRED_TEMPLATE_VARIABLES` |
+
 ## codersdk.License
 
 ```json
@@ -3033,6 +3087,7 @@ Parameter represents a set value for the scope.
   "completed_at": "2019-08-24T14:15:22Z",
   "created_at": "2019-08-24T14:15:22Z",
   "error": "string",
+  "error_code": "MISSING_TEMPLATE_PARAMETER",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "started_at": "2019-08-24T14:15:22Z",
@@ -3053,6 +3108,7 @@ Parameter represents a set value for the scope.
 | `completed_at`     | string                                                         | false    |              |             |
 | `created_at`       | string                                                         | false    |              |             |
 | `error`            | string                                                         | false    |              |             |
+| `error_code`       | [codersdk.JobErrorCode](#codersdkjoberrorcode)                 | false    |              |             |
 | `file_id`          | string                                                         | false    |              |             |
 | `id`               | string                                                         | false    |              |             |
 | `started_at`       | string                                                         | false    |              |             |
@@ -3063,14 +3119,16 @@ Parameter represents a set value for the scope.
 
 #### Enumerated Values
 
-| Property | Value       |
-| -------- | ----------- |
-| `status` | `pending`   |
-| `status` | `running`   |
-| `status` | `succeeded` |
-| `status` | `canceling` |
-| `status` | `canceled`  |
-| `status` | `failed`    |
+| Property     | Value                         |
+| ------------ | ----------------------------- |
+| `error_code` | `MISSING_TEMPLATE_PARAMETER`  |
+| `error_code` | `REQUIRED_TEMPLATE_VARIABLES` |
+| `status`     | `pending`                     |
+| `status`     | `running`                     |
+| `status`     | `succeeded`                   |
+| `status`     | `canceling`                   |
+| `status`     | `canceled`                    |
+| `status`     | `failed`                      |
 
 ## codersdk.ProvisionerJobLog
 
@@ -3273,6 +3331,26 @@ Parameter represents a set value for the scope.
 | `background_color` | string  | false    |              |             |
 | `enabled`          | boolean | false    |              |             |
 | `message`          | string  | false    |              |             |
+
+## codersdk.SessionCountDeploymentStats
+
+```json
+{
+  "jetbrains": 0,
+  "reconnecting_pty": 0,
+  "ssh": 0,
+  "vscode": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `jetbrains`        | integer | false    |              |             |
+| `reconnecting_pty` | integer | false    |              |             |
+| `ssh`              | integer | false    |              |             |
+| `vscode`           | integer | false    |              |             |
 
 ## codersdk.SupportConfig
 
@@ -3591,6 +3669,7 @@ Parameter represents a set value for the scope.
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
+    "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "started_at": "2019-08-24T14:15:22Z",
@@ -4089,6 +4168,7 @@ Parameter represents a set value for the scope.
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
+      "error_code": "MISSING_TEMPLATE_PARAMETER",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "started_at": "2019-08-24T14:15:22Z",
@@ -4558,6 +4638,7 @@ Parameter represents a set value for the scope.
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
+    "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "started_at": "2019-08-24T14:15:22Z",
@@ -4723,6 +4804,53 @@ Parameter represents a set value for the scope.
 | ------- | ------ | -------- | ------------ | ----------- |
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
+
+## codersdk.WorkspaceConnectionLatencyMS
+
+```json
+{
+  "p50": 0,
+  "p95": 0
+}
+```
+
+### Properties
+
+| Name  | Type   | Required | Restrictions | Description |
+| ----- | ------ | -------- | ------------ | ----------- |
+| `p50` | number | false    |              |             |
+| `p95` | number | false    |              |             |
+
+## codersdk.WorkspaceDeploymentStats
+
+```json
+{
+  "building": 0,
+  "connection_latency_ms": {
+    "p50": 0,
+    "p95": 0
+  },
+  "failed": 0,
+  "pending": 0,
+  "running": 0,
+  "rx_bytes": 0,
+  "stopped": 0,
+  "tx_bytes": 0
+}
+```
+
+### Properties
+
+| Name                    | Type                                                                           | Required | Restrictions | Description |
+| ----------------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `building`              | integer                                                                        | false    |              |             |
+| `connection_latency_ms` | [codersdk.WorkspaceConnectionLatencyMS](#codersdkworkspaceconnectionlatencyms) | false    |              |             |
+| `failed`                | integer                                                                        | false    |              |             |
+| `pending`               | integer                                                                        | false    |              |             |
+| `running`               | integer                                                                        | false    |              |             |
+| `rx_bytes`              | integer                                                                        | false    |              |             |
+| `stopped`               | integer                                                                        | false    |              |             |
+| `tx_bytes`              | integer                                                                        | false    |              |             |
 
 ## codersdk.WorkspaceQuota
 
@@ -4928,6 +5056,7 @@ Parameter represents a set value for the scope.
           "completed_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
           "error": "string",
+          "error_code": "MISSING_TEMPLATE_PARAMETER",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "started_at": "2019-08-24T14:15:22Z",

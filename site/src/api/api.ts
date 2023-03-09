@@ -807,9 +807,15 @@ export const getAgentListeningPorts = async (
 }
 
 export const getDeploymentValues = async (): Promise<DeploymentConfig> => {
-  const response = await axios.get(`/api/v2/config/deployment`)
+  const response = await axios.get(`/api/v2/deployment/config`)
   return response.data
 }
+
+export const getDeploymentStats =
+  async (): Promise<TypesGen.DeploymentStats> => {
+    const response = await axios.get(`/api/v2/deployment/stats`)
+    return response.data
+  }
 
 export const getReplicas = async (): Promise<TypesGen.Replica[]> => {
   const response = await axios.get(`/api/v2/replicas`)

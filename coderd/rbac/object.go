@@ -147,6 +147,10 @@ var (
 		Type: "deployment_config",
 	}
 
+	ResourceDeploymentStats = Object{
+		Type: "deployment_stats",
+	}
+
 	ResourceReplicas = Object{
 		Type: "replicas",
 	}

@@ -315,7 +315,8 @@ CREATE TABLE provisioner_jobs (
     input jsonb NOT NULL,
     worker_id uuid,
     file_id uuid NOT NULL,
-    tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL
+    tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL,
+    error_code text
 );
 
 CREATE TABLE replicas (
@@ -484,7 +485,7 @@ CREATE TABLE workspace_agent_stats (
     rx_bytes bigint DEFAULT 0 NOT NULL,
     tx_packets bigint DEFAULT 0 NOT NULL,
     tx_bytes bigint DEFAULT 0 NOT NULL,
-    connection_median_latency_ms bigint DEFAULT '-1'::integer NOT NULL,
+    connection_median_latency_ms double precision DEFAULT '-1'::integer NOT NULL,
     session_count_vscode bigint DEFAULT 0 NOT NULL,
     session_count_jetbrains bigint DEFAULT 0 NOT NULL,
     session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,

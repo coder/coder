@@ -2426,7 +2426,7 @@ WHERE
 		SKIP LOCKED
 		LIMIT
 			1
-	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags
+	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code
 `
 
 type AcquireProvisionerJobParams struct {
@@ -2467,13 +2467,14 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		&i.WorkerID,
 		&i.FileID,
 		&i.Tags,
+		&i.ErrorCode,
 	)
 	return i, err
 }
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code
 FROM
 	provisioner_jobs
 WHERE
@@ -2500,13 +2501,14 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 		&i.WorkerID,
 		&i.FileID,
 		&i.Tags,
+		&i.ErrorCode,
 	)
 	return i, err
 }
 
 const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code
 FROM
 	provisioner_jobs
 WHERE
@@ -2539,6 +2541,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 			&i.WorkerID,
 			&i.FileID,
 			&i.Tags,
+			&i.ErrorCode,
 		); err != nil {
 			return nil, err
 		}
@@ -2554,7 +2557,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 }
 
 const getProvisionerJobsCreatedAfter = `-- name: GetProvisionerJobsCreatedAfter :many
-SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags FROM provisioner_jobs WHERE created_at > $1
+SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code FROM provisioner_jobs WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error) {
@@ -2583,6 +2586,7 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 			&i.WorkerID,
 			&i.FileID,
 			&i.Tags,
+			&i.ErrorCode,
 		); err != nil {
 			return nil, err
 		}
@@ -2613,7 +2617,7 @@ INSERT INTO
 		tags
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code
 `
 
 type InsertProvisionerJobParams struct {
@@ -2662,6 +2666,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		&i.WorkerID,
 		&i.FileID,
 		&i.Tags,
+		&i.ErrorCode,
 	)
 	return i, err
 }
@@ -2712,7 +2717,8 @@ UPDATE
 SET
 	updated_at = $2,
 	completed_at = $3,
-	error = $4
+	error = $4,
+	error_code = $5
 WHERE
 	id = $1
 `
@@ -2722,6 +2728,7 @@ type UpdateProvisionerJobWithCompleteByIDParams struct {
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	CompletedAt sql.NullTime   `db:"completed_at" json:"completed_at"`
 	Error       sql.NullString `db:"error" json:"error"`
+	ErrorCode   sql.NullString `db:"error_code" json:"error_code"`
 }
 
 func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteByIDParams) error {
@@ -2730,6 +2737,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 		arg.UpdatedAt,
 		arg.CompletedAt,
 		arg.Error,
+		arg.ErrorCode,
 	)
 	return err
 }
@@ -5536,6 +5544,57 @@ func (q *sqlQuerier) GetDeploymentDAUs(ctx context.Context) ([]GetDeploymentDAUs
 	return items, nil
 }
 
+const getDeploymentWorkspaceAgentStats = `-- name: GetDeploymentWorkspaceAgentStats :one
+WITH agent_stats AS (
+	SELECT
+		coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
+		coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
+		coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
+		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
+	 FROM workspace_agent_stats
+	 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
+		WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
+), latest_agent_stats AS (
+	SELECT
+		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
+	 FROM (
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		FROM workspace_agent_stats
+	) AS a WHERE a.rn = 1
+)
+SELECT workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats, latest_agent_stats
+`
+
+type GetDeploymentWorkspaceAgentStatsRow struct {
+	WorkspaceRxBytes             int64   `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
+	WorkspaceTxBytes             int64   `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
+	WorkspaceConnectionLatency50 float64 `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64 `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	SessionCountVSCode           int64   `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountSSH              int64   `db:"session_count_ssh" json:"session_count_ssh"`
+	SessionCountJetBrains        int64   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY  int64   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+}
+
+func (q *sqlQuerier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceAgentStats, createdAt)
+	var i GetDeploymentWorkspaceAgentStatsRow
+	err := row.Scan(
+		&i.WorkspaceRxBytes,
+		&i.WorkspaceTxBytes,
+		&i.WorkspaceConnectionLatency50,
+		&i.WorkspaceConnectionLatency95,
+		&i.SessionCountVSCode,
+		&i.SessionCountSSH,
+		&i.SessionCountJetBrains,
+		&i.SessionCountReconnectingPTY,
+	)
+	return i, err
+}
+
 const getTemplateDAUs = `-- name: GetTemplateDAUs :many
 SELECT
 	(created_at at TIME ZONE 'UTC')::date as date,
@@ -5621,7 +5680,7 @@ type InsertWorkspaceAgentStatParams struct {
 	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
 	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
-	ConnectionMedianLatencyMS   int64           `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	ConnectionMedianLatencyMS   float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWorkspaceAgentStatParams) (WorkspaceAgentStat, error) {
@@ -6833,6 +6892,90 @@ func (q *sqlQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg In
 		return nil, err
 	}
 	return items, nil
+}
+
+const getDeploymentWorkspaceStats = `-- name: GetDeploymentWorkspaceStats :one
+WITH workspaces_with_jobs AS (
+	SELECT
+	latest_build.transition, latest_build.provisioner_job_id, latest_build.started_at, latest_build.updated_at, latest_build.canceled_at, latest_build.completed_at, latest_build.error FROM workspaces
+	LEFT JOIN LATERAL (
+		SELECT
+			workspace_builds.transition,
+			provisioner_jobs.id AS provisioner_job_id,
+			provisioner_jobs.started_at,
+			provisioner_jobs.updated_at,
+			provisioner_jobs.canceled_at,
+			provisioner_jobs.completed_at,
+			provisioner_jobs.error
+		FROM
+			workspace_builds
+		LEFT JOIN
+			provisioner_jobs
+		ON
+			provisioner_jobs.id = workspace_builds.job_id
+		WHERE
+			workspace_builds.workspace_id = workspaces.id
+		ORDER BY
+			build_number DESC
+		LIMIT
+			1
+	) latest_build ON TRUE
+), pending_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		started_at IS NULL
+), building_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		started_at IS NOT NULL AND
+		canceled_at IS NULL AND
+		updated_at - INTERVAL '30 seconds' < NOW() AND
+		completed_at IS NULL
+), running_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		completed_at IS NOT NULL AND
+		canceled_at IS NULL AND
+		error IS NULL AND
+		transition = 'start'::workspace_transition
+), failed_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		(canceled_at IS NOT NULL AND
+			error IS NOT NULL) OR
+		(completed_at IS NOT NULL AND
+			error IS NOT NULL)
+), stopped_workspaces AS (
+	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
+		completed_at IS NOT NULL AND
+		canceled_at IS NULL AND
+		error IS NULL AND
+		transition = 'stop'::workspace_transition
+)
+SELECT
+	pending_workspaces.count AS pending_workspaces,
+	building_workspaces.count AS building_workspaces,
+	running_workspaces.count AS running_workspaces,
+	failed_workspaces.count AS failed_workspaces,
+	stopped_workspaces.count AS stopped_workspaces
+FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspaces, stopped_workspaces
+`
+
+type GetDeploymentWorkspaceStatsRow struct {
+	PendingWorkspaces  int64 `db:"pending_workspaces" json:"pending_workspaces"`
+	BuildingWorkspaces int64 `db:"building_workspaces" json:"building_workspaces"`
+	RunningWorkspaces  int64 `db:"running_workspaces" json:"running_workspaces"`
+	FailedWorkspaces   int64 `db:"failed_workspaces" json:"failed_workspaces"`
+	StoppedWorkspaces  int64 `db:"stopped_workspaces" json:"stopped_workspaces"`
+}
+
+func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceStats)
+	var i GetDeploymentWorkspaceStatsRow
+	err := row.Scan(
+		&i.PendingWorkspaces,
+		&i.BuildingWorkspaces,
+		&i.RunningWorkspaces,
+		&i.FailedWorkspaces,
+		&i.StoppedWorkspaces,
+	)
+	return i, err
 }
 
 const getWorkspaceByAgentID = `-- name: GetWorkspaceByAgentID :one
