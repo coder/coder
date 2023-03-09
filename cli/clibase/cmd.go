@@ -3,7 +3,6 @@ package clibase
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -370,7 +369,7 @@ func RequireRangeArgs(start, end int) MiddlewareFunc {
 				case 0:
 					return xerrors.Errorf("wanted no args but got %v %v", got, i.Args)
 				default:
-					return fmt.Errorf(
+					return xerrors.Errorf(
 						"wanted %v args but got %v %v",
 						start,
 						got,
@@ -380,7 +379,7 @@ func RequireRangeArgs(start, end int) MiddlewareFunc {
 			case start > 0 && end == -1:
 				switch {
 				case got < start:
-					return fmt.Errorf(
+					return xerrors.Errorf(
 						"wanted at least %v args but got %v",
 						start,
 						got,
@@ -391,7 +390,7 @@ func RequireRangeArgs(start, end int) MiddlewareFunc {
 			case start > end:
 				panic("start must be <= end")
 			case got < start || got > end:
-				return fmt.Errorf(
+				return xerrors.Errorf(
 					"wanted between %v and %v args but got %v",
 					start, end,
 					got,
