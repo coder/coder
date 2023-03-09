@@ -40,7 +40,7 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 		cliui.TableFormat([]templateVersionRow{}, nil),
 		cliui.JSONFormat(),
 	)
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
 		Use: "list <template>",

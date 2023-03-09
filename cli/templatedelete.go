@@ -13,7 +13,7 @@ import (
 )
 
 func (r *RootCmd) templateDelete() *clibase.Cmd {
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:   "delete [name...]",
 		Short: "Delete templates",

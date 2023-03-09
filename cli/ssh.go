@@ -47,7 +47,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		wsPollInterval time.Duration
 		noWait         bool
 	)
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace>",

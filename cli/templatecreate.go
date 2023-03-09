@@ -32,7 +32,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 
 		uploadFlags templateUploadFlags
 	)
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:   "create [name]",
 		Short: "Create a template from the current directory or as specified by flag",

@@ -95,7 +95,7 @@ func (r *RootCmd) scheduleShow() *clibase.Cmd {
 }
 
 func (r *RootCmd) scheduleStart() *clibase.Cmd {
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use: "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
 		Long: scheduleStartDescriptionLong + "\n" + formatExamples(
@@ -188,7 +188,7 @@ func (r *RootCmd) scheduleStop() *clibase.Cmd {
 }
 
 func (r *RootCmd) scheduleOverride() *clibase.Cmd {
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	overrideCmd := &clibase.Cmd{
 		Use:   "override-stop <workspace-name> <duration from now>",
 		Short: "Edit stop time of active workspace",

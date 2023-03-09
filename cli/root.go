@@ -70,7 +70,32 @@ func Core() []*clibase.Cmd {
 	r := &RootCmd{}
 	// Please re-sort this list alphabetically if you change it!
 	return []*clibase.Cmd{
-		show(r),
+		r.dotfiles(),
+		r.login(),
+		r.logout(),
+		r.portForward(),
+		r.publickey(),
+		r.resetPassword(),
+		r.state(),
+		r.templates(),
+		r.users(),
+		r.version(),
+
+		// Workspace Commands
+		r.configSSH(),
+		r.create(),
+		r.deleteWorkspace(),
+		r.list(),
+		r.schedules(),
+		r.show(),
+		r.speedtest(),
+		r.ssh(),
+		r.start(),
+		r.stop(),
+		r.update(),
+
+		// Hidden
+		r.workspaceAgent(),
 	}
 }
 
@@ -250,8 +275,8 @@ func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
 	return l, ok
 }
 
-// versionCmd prints the coder version
-func (r *RootCmd) versionCmd() *clibase.Cmd {
+// version prints the coder version
+func (r *RootCmd) version() *clibase.Cmd {
 	return &clibase.Cmd{
 		Use:   "version",
 		Short: "Show coder version",
@@ -302,85 +327,81 @@ type RootCmd struct {
 
 // UseClient returns a new client from the command context.
 // It reads from global configuration files if flags are not set.
-func (r *RootCmd) UseClient(c *codersdk.Client) clibase.MiddlewareFunc {
+func (r *RootCmd) UseClient(client *codersdk.Client) clibase.MiddlewareFunc {
 	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
-		return clibase.HandlerFunc(
-			func(i *clibase.Invokation) error {
-				root := r.createConfig()
-				var err error
-				if r.clientURL.String() == "" {
-					rawURL, err := root.URL().Read()
-					// If the configuration files are absent, the user is logged out
-					if os.IsNotExist(err) {
-						return (errUnauthenticated)
-					}
-					if err != nil {
-						return err
-					}
-
-					r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
-					if err != nil {
-						return err
-					}
+		return func(i *clibase.Invokation) error {
+			root := r.createConfig()
+			var err error
+			if r.clientURL.String() == "" {
+				rawURL, err := root.URL().Read()
+				// If the configuration files are absent, the user is logged out
+				if os.IsNotExist(err) {
+					return (errUnauthenticated)
 				}
-
-				if r.token == "" {
-					r.token, err = root.Session().Read()
-					// If the configuration files are absent, the user is logged out
-					if os.IsNotExist(err) {
-						return (errUnauthenticated)
-					}
-					if err != nil {
-						return err
-					}
-				}
-
-				client, err := r.createUnauthenticatedClient(r.clientURL)
 				if err != nil {
 					return err
 				}
 
-				client.SetSessionToken(r.token)
-
-				// We send these requests in parallel to minimize latency.
-				var (
-					versionErr = make(chan error)
-					warningErr = make(chan error)
-				)
-				go func() {
-					versionErr <- r.checkVersions(i, client)
-					close(versionErr)
-				}()
-
-				go func() {
-					warningErr <- r.checkWarnings(i, client)
-					close(warningErr)
-				}()
-
-				if err = <-versionErr; err != nil {
-					// Just log the error here. We never want to fail a command
-					// due to a pre-run.
-					_, _ = fmt.Fprintf(i.Stderr,
-						cliui.Styles.Warn.Render("check versions error: %s"), err)
-					_, _ = fmt.Fprintln(i.Stderr)
+				r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+				if err != nil {
+					return err
 				}
+			}
 
-				if err = <-warningErr; err != nil {
-					// Same as above
-					_, _ = fmt.Fprintf(i.Stderr,
-						cliui.Styles.Warn.Render("check entitlement warnings error: %s"), err)
-					_, _ = fmt.Fprintln(i.Stderr)
+			if r.token == "" {
+				r.token, err = root.Session().Read()
+				// If the configuration files are absent, the user is logged out
+				if os.IsNotExist(err) {
+					return (errUnauthenticated)
 				}
+				if err != nil {
+					return err
+				}
+			}
 
-				*c = *client
-				return nil
-			},
-		)
+			err = r.initClient(client)
+			if err != nil {
+				return err
+			}
+
+			client.SetSessionToken(r.token)
+
+			// We send these requests in parallel to minimize latency.
+			var (
+				versionErr = make(chan error)
+				warningErr = make(chan error)
+			)
+			go func() {
+				versionErr <- r.checkVersions(i, client)
+				close(versionErr)
+			}()
+
+			go func() {
+				warningErr <- r.checkWarnings(i, client)
+				close(warningErr)
+			}()
+
+			if err = <-versionErr; err != nil {
+				// Just log the error here. We never want to fail a command
+				// due to a pre-run.
+				_, _ = fmt.Fprintf(i.Stderr,
+					cliui.Styles.Warn.Render("check versions error: %s"), err)
+				_, _ = fmt.Fprintln(i.Stderr)
+			}
+
+			if err = <-warningErr; err != nil {
+				// Same as above
+				_, _ = fmt.Fprintf(i.Stderr,
+					cliui.Styles.Warn.Render("check entitlement warnings error: %s"), err)
+				_, _ = fmt.Fprintln(i.Stderr)
+			}
+
+			return nil
+		}
 	}
 }
 
-func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Client, error) {
-	client := codersdk.New(serverURL)
+func (r *RootCmd) initClient(client *codersdk.Client) error {
 	transport := &headerTransport{
 		transport: http.DefaultTransport,
 		headers:   map[string]string{},
@@ -388,12 +409,18 @@ func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Cli
 	for _, header := range r.header {
 		parts := strings.SplitN(header, "=", 2)
 		if len(parts) < 2 {
-			return nil, xerrors.Errorf("split header %q had less than two parts", header)
+			return xerrors.Errorf("split header %q had less than two parts", header)
 		}
 		transport.headers[parts[0]] = parts[1]
 	}
 	client.HTTPClient.Transport = transport
-	return client, nil
+	return nil
+}
+
+func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Client, error) {
+	var client codersdk.Client
+	r.initClient(&client)
+	return &client, nil
 }
 
 // createAgentClient returns a new client from the command context.

@@ -23,7 +23,7 @@ func (r *RootCmd) ping() *clibase.Cmd {
 		verbose     bool
 	)
 
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "ping <workspace>",

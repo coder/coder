@@ -12,7 +12,7 @@ import (
 
 func (r *RootCmd) publickey() *clibase.Cmd {
 	var reset bool
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:        "publickey",
 		Aliases:    []string{"pubkey"},

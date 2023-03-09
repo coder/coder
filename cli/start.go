@@ -10,7 +10,7 @@ import (
 )
 
 func (r *RootCmd) start() *clibase.Cmd {
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "start <workspace>",

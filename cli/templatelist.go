@@ -16,7 +16,7 @@ func (r *RootCmd) templateList() *clibase.Cmd {
 		cliui.JSONFormat(),
 	)
 
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:     "list",
 		Short:   "List all the templates available for the organization",

@@ -50,7 +50,7 @@ func (r *RootCmd) createToken() *clibase.Cmd {
 		tokenLifetime time.Duration
 		name          string
 	)
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:        "create",
 		Short:      "Create a token",
@@ -139,7 +139,7 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 		)
 	)
 
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:        "list",
 		Aliases:    []string{"ls"},
@@ -191,7 +191,7 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 }
 
 func (r *RootCmd) removeToken() *clibase.Cmd {
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:     "remove [name]",
 		Aliases: []string{"rm"},

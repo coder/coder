@@ -17,7 +17,7 @@ func (r *RootCmd) parameterList() *clibase.Cmd {
 		cliui.JSONFormat(),
 	)
 
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
 		Use:     "list",

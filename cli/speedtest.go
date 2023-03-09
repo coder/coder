@@ -22,7 +22,7 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 		duration  time.Duration
 		direction string
 	)
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "speedtest <workspace>",

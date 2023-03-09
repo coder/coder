@@ -17,7 +17,7 @@ import (
 func (r *RootCmd) templatePull() *clibase.Cmd {
 	var tarMode bool
 
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:   "pull <name> [destination]",
 		Short: "Download the latest version of a template to a path.",

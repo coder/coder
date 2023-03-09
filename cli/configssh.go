@@ -139,7 +139,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		dryRun           bool
 		skipProxyCommand bool
 	)
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",

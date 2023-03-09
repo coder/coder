@@ -8,14 +8,14 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func show(root *RootCmd) *clibase.Cmd {
-	var client *codersdk.Client
+func (r *RootCmd) show() *clibase.Cmd {
+	client := new(codersdk.Client)
 	return &clibase.Cmd{
 		Use:   "show <workspace>",
 		Short: "Display details of a workspace's resources and agents",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			root.UseClient(client),
+			r.UseClient(client),
 		),
 		Handler: func(i *clibase.Invokation) error {
 			buildInfo, err := client.BuildInfo(i.Context())

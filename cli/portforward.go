@@ -25,7 +25,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 		tcpForwards []string // <port>:<port>
 		udpForwards []string // <port>:<port>
 	)
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:     "port-forward <workspace>",
 		Short:   "Forward ports from machine to a workspace",

@@ -12,7 +12,7 @@ import (
 // nolint
 func (r *RootCmd) deleteWorkspace() *clibase.Cmd {
 	var orphan bool
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "delete <workspace>",

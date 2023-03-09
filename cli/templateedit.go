@@ -22,7 +22,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		maxTTL                       time.Duration
 		allowUserCancelWorkspaceJobs bool
 	)
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
 		Use: "edit <template> [flags]",

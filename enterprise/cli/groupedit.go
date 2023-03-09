@@ -79,28 +79,28 @@ func (r *RootCmd) groupEdit() *clibase.Cmd {
 
 	cmd.Options = clibase.OptionSet{
 		{
-			Flag:  "name",
+			Flag:          "name",
 			FlagShorthand: "n",
-			Description: "Update the group name",
-			Value: clibase.StringOf(&name),
+			Description:   "Update the group name",
+			Value:         clibase.StringOf(&name),
 		},
 		{
-			Flag:  "avatar-url",
+			Flag:          "avatar-url",
 			FlagShorthand: "u",
-			Description: "Update the group avatar",
-			Value: clibase.StringOf(&avatarURL),
+			Description:   "Update the group avatar",
+			Value:         clibase.StringOf(&avatarURL),
 		},
 		{
-			Flag:  "add-users",
+			Flag:          "add-users",
 			FlagShorthand: "a",
-			Description: "Add users to the group. Accepts emails or IDs.",
-			Value: clibase.StringsOf(&addUsers),
+			Description:   "Add users to the group. Accepts emails or IDs.",
+			Value:         clibase.StringsOf(&addUsers),
 		},
 		{
-			Flag:  "rm-users",
+			Flag:          "rm-users",
 			FlagShorthand: "r",
-			Description: "Remove users to the group. Accepts emails or IDs.",
-			Value: clibase.StringsOf(&rmUsers),
+			Description:   "Remove users to the group. Accepts emails or IDs.",
+			Value:         clibase.StringsOf(&rmUsers),
 		},
 	}
 

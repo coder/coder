@@ -18,7 +18,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/tracing"
@@ -41,12 +40,11 @@ func (r *RootCmd) scaletest() *clibase.Cmd {
 		Handler: func(inv *clibase.Invokation) error {
 			return inv.Command.HelpHandler(inv)
 		},
+		Children: []*clibase.Cmd{
+			r.scaletestCleanup(),
+			r.scaletestCreateWorkspaces(),
+		},
 	}
-
-	cmd.AddCommand(
-		scaletestCleanup(),
-		scaletestCreateWorkspaces(),
-	)
 
 	return cmd
 }
@@ -58,11 +56,34 @@ type scaletestTracingFlags struct {
 	tracePropagate       bool
 }
 
-func (s *scaletestTracingFlags) attach(cmd *clibase.Cmd) {
-	cliflag.BoolVarP(cmd.Flags(), &s.traceEnable, "trace", "", "CODER_LOADTEST_TRACE", false, "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md")
-	cliflag.BoolVarP(cmd.Flags(), &s.traceCoder, "trace-coder", "", "CODER_LOADTEST_TRACE_CODER", false, "Whether opentelemetry traces are sent to Coder. We recommend keeping this disabled unless we advise you to enable it.")
-	cliflag.StringVarP(cmd.Flags(), &s.traceHoneycombAPIKey, "trace-honeycomb-api-key", "", "CODER_LOADTEST_TRACE_HONEYCOMB_API_KEY", "", "Enables trace exporting to Honeycomb.io using the provided API key.")
-	cliflag.BoolVarP(cmd.Flags(), &s.tracePropagate, "trace-propagate", "", "CODER_LOADTEST_TRACE_PROPAGATE", false, "Enables trace propagation to the Coder backend, which will be used to correlate server-side spans with client-side spans. Only enable this if the server is configured with the exact same tracing configuration as the client.")
+func (s *scaletestTracingFlags) attach(opts *clibase.OptionSet) {
+	*opts = append(
+		*opts,
+		clibase.Option{
+			Flag:        "trace",
+			Env:         "CODER_LOADTEST_TRACE",
+			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md",
+			Value:       clibase.BoolOf(&s.traceEnable),
+		},
+		clibase.Option{
+			Flag:        "trace-coder",
+			Env:         "CODER_LOADTEST_TRACE_CODER",
+			Description: "Whether opentelemetry traces are sent to Coder. We recommend keeping this disabled unless we advise you to enable it.",
+			Value:       clibase.BoolOf(&s.traceCoder),
+		},
+		clibase.Option{
+			Flag:        "trace-honeycomb-api-key",
+			Env:         "CODER_LOADTEST_TRACE_HONEYCOMB_API_KEY",
+			Description: "Enables trace exporting to Honeycomb.io using the provided API key.",
+			Value:       clibase.StringOf(&s.traceHoneycombAPIKey),
+		},
+		clibase.Option{
+			Flag:        "trace-propagate",
+			Env:         "CODER_LOADTEST_TRACE_PROPAGATE",
+			Description: "Enables trace propagation to the Coder backend, which will be used to correlate server-side spans with client-side spans. Only enable this if the server is configured with the exact same tracing configuration as the client.",
+			Value:       clibase.BoolOf(&s.tracePropagate),
+		},
+	)
 }
 
 // provider returns a trace.TracerProvider, a close function and a bool showing
@@ -96,12 +117,12 @@ func (s *scaletestTracingFlags) provider(ctx context.Context) (trace.TracerProvi
 
 type scaletestStrategyFlags struct {
 	cleanup       bool
-	concurrency   int
+	concurrency   int64
 	timeout       time.Duration
 	timeoutPerJob time.Duration
 }
 
-func (s *scaletestStrategyFlags) attach(cmd *clibase.Cmd) {
+func (s *scaletestStrategyFlags) attach(opts *clibase.OptionSet) {
 	concurrencyLong, concurrencyEnv, concurrencyDescription := "concurrency", "CODER_LOADTEST_CONCURRENCY", "Number of concurrent jobs to run. 0 means unlimited."
 	timeoutLong, timeoutEnv, timeoutDescription := "timeout", "CODER_LOADTEST_TIMEOUT", "Timeout for the entire test run. 0 means unlimited."
 	jobTimeoutLong, jobTimeoutEnv, jobTimeoutDescription := "job-timeout", "CODER_LOADTEST_JOB_TIMEOUT", "Timeout per job. Jobs may take longer to complete under higher concurrency limits."
@@ -111,9 +132,30 @@ func (s *scaletestStrategyFlags) attach(cmd *clibase.Cmd) {
 		jobTimeoutLong, jobTimeoutEnv, jobTimeoutDescription = "cleanup-"+jobTimeoutLong, "CODER_LOADTEST_CLEANUP_JOB_TIMEOUT", strings.ReplaceAll(jobTimeoutDescription, "jobs", "cleanup jobs")
 	}
 
-	cliflag.IntVarP(cmd.Flags(), &s.concurrency, concurrencyLong, "", concurrencyEnv, 1, concurrencyDescription)
-	cliflag.DurationVarP(cmd.Flags(), &s.timeout, timeoutLong, "", timeoutEnv, 30*time.Minute, timeoutDescription)
-	cliflag.DurationVarP(cmd.Flags(), &s.timeoutPerJob, jobTimeoutLong, "", jobTimeoutEnv, 5*time.Minute, jobTimeoutDescription)
+	*opts = append(
+		*opts,
+		clibase.Option{
+			Flag:        concurrencyLong,
+			Env:         concurrencyEnv,
+			Description: concurrencyDescription,
+			Default:     "1",
+			Value:       clibase.Int64Of(&s.concurrency),
+		},
+		clibase.Option{
+			Flag:        timeoutLong,
+			Env:         timeoutEnv,
+			Description: timeoutDescription,
+			Default:     "30m",
+			Value:       clibase.DurationOf(&s.timeout),
+		},
+		clibase.Option{
+			Flag:        jobTimeoutLong,
+			Env:         jobTimeoutEnv,
+			Description: jobTimeoutDescription,
+			Default:     "5m",
+			Value:       clibase.DurationOf(&s.timeoutPerJob),
+		},
+	)
 }
 
 func (s *scaletestStrategyFlags) toStrategy() harness.ExecutionStrategy {
@@ -124,7 +166,7 @@ func (s *scaletestStrategyFlags) toStrategy() harness.ExecutionStrategy {
 		strategy = harness.ConcurrentExecutionStrategy{}
 	} else {
 		strategy = harness.ParallelExecutionStrategy{
-			Limit: s.concurrency,
+			Limit: int(s.concurrency),
 		}
 	}
 
@@ -208,8 +250,14 @@ type scaletestOutputFlags struct {
 	outputSpecs []string
 }
 
-func (s *scaletestOutputFlags) attach(cmd *clibase.Cmd) {
-	cliflag.StringArrayVarP(cmd.Flags(), &s.outputSpecs, "output", "", "CODER_SCALETEST_OUTPUTS", []string{"text"}, `Output format specs in the format "<format>[:<path>]". Not specifying a path will default to stdout. Available formats: text, json.`)
+func (s *scaletestOutputFlags) attach(opts *clibase.OptionSet) {
+	*opts = append(*opts, clibase.Option{
+		Flag:        "output",
+		Env:         "CODER_SCALETEST_OUTPUTS",
+		Description: `Output format specs in the format "<format>[:<path>]". Not specifying a path will default to stdout. Available formats: text, json.`,
+		Default:     "text",
+		Value:       clibase.StringsOf(&s.outputSpecs),
+	})
 }
 
 func (s *scaletestOutputFlags) parse() ([]scaleTestOutput, error) {
@@ -310,7 +358,7 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 
 func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 	cleanupStrategy := &scaletestStrategyFlags{cleanup: true}
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
 		Use:   "cleanup",
@@ -336,7 +384,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 				},
 			}
 
-			cmd.PrintErrln("Fetching scaletest workspaces...")
+			cliui.Infof(inv.Stdout, "Fetching scaletest workspaces...")
 			var (
 				pageNumber = 0
 				limit      = 100
@@ -393,7 +441,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 				}
 			}
 
-			cmd.PrintErrln("Fetching scaletest users...")
+			cliui.Infof(inv.Stdout, "Fetching scaletest users...")
 			pageNumber = 0
 			limit = 100
 			var users []codersdk.User
@@ -457,13 +505,13 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 		},
 	}
 
-	cleanupStrategy.attach(cmd)
+	cleanupStrategy.attach(&cmd.Options)
 	return cmd
 }
 
 func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 	var (
-		count          int
+		count          int64
 		template       string
 		parametersFile string
 		parameters     []string // key=value
@@ -494,7 +542,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 		output          = &scaletestOutputFlags{}
 	)
 
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
 		Use:   "create-workspaces",
@@ -644,7 +692,7 @@ It is recommended that all rate limits are disabled on the server before running
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
-			for i := 0; i < count; i++ {
+			for i := 0; i < int(count); i++ {
 				const name = "workspacebuild"
 				id := strconv.Itoa(i)
 
@@ -770,32 +818,144 @@ It is recommended that all rate limits are disabled on the server before running
 		},
 	}
 
-	cliflag.IntVarP(cmd.Flags(), &count, "count", "c", "CODER_LOADTEST_COUNT", 1, "Required: Number of workspaces to create.")
-	cliflag.StringVarP(cmd.Flags(), &template, "template", "t", "CODER_LOADTEST_TEMPLATE", "", "Required: Name or ID of the template to use for workspaces.")
-	cliflag.StringVarP(cmd.Flags(), &parametersFile, "parameters-file", "", "CODER_LOADTEST_PARAMETERS_FILE", "", "Path to a YAML file containing the parameters to use for each workspace.")
-	cliflag.StringArrayVarP(cmd.Flags(), &parameters, "parameter", "", "CODER_LOADTEST_PARAMETERS", []string{}, "Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value")
+	cmd.Options = clibase.OptionSet{
+		{
+			Name:          "count",
+			Flag:          "count",
+			FlagShorthand: "c",
+			Env:           "CODER_LOADTEST_COUNT",
+			Default:       "1",
+			Description:   "Required: Number of workspaces to create.",
+			Value:         clibase.Int64Of(&count),
+		},
+		{
+			Name:          "template",
+			Flag:          "template",
+			FlagShorthand: "t",
+			Env:           "CODER_LOADTEST_TEMPLATE",
+			Description:   "Required: Name or ID of the template to use for workspaces.",
+			Value:         clibase.StringOf(&template),
+		},
+		{
+			Name:        "parameters-file",
+			Flag:        "parameters-file",
+			Env:         "CODER_LOADTEST_PARAMETERS_FILE",
+			Description: "Path to a YAML file containing the parameters to use for each workspace.",
+			Value:       clibase.StringOf(&parametersFile),
+		},
+		{
+			Name:        "parameter",
+			Flag:        "parameter",
+			Env:         "CODER_LOADTEST_PARAMETERS",
+			Description: "Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value",
+			Value:       clibase.StringsOf(&parameters),
+		},
+		{
+			Name:          "no-plan",
+			Flag:          "no-plan",
+			FlagShorthand: "n",
+			Env:           "CODER_LOADTEST_NO_PLAN",
+			Description:   "Do not print a plan of the load test before running it.",
+			Value:         clibase.BoolOf(&noPlan),
+		},
+		{
+			Name: "no-cleanup",
+			Flag: "no-cleanup",
+			Env:  "CODER_LOADTEST_NO_CLEANUP",
+			Description: "Do not clean up workspaces after the load test has finished. " +
+				"Useful for debugging.",
+			Value: clibase.BoolOf(&noCleanup),
+		},
+		{
+			Name: "no-wait-for-agents",
+			Flag: "no-wait-for-agents",
+			Env:  "CODER_LOADTEST_NO_WAIT_FOR_AGENTS",
+			Description: "Do not wait for agents to be ready before starting the load test. " +
+				"Useful for debugging.",
+			Value: clibase.BoolOf(&noWaitForAgents),
+		},
+		{
+			Name: "run-command",
+			Flag: "run-command",
+			Env:  "CODER_LOADTEST_RUN_COMMAND",
+			Description: "Command to run inside each workspace using reconnecting-pty (i.e. web terminal protocol). " +
+				"If not specified, no command will be run.",
+			Value: clibase.StringOf(&runCommand),
+		},
+		{
+			Name:        "run-timeout",
+			Flag:        "run-timeout",
+			Env:         "CODER_LOADTEST_RUN_TIMEOUT",
+			Default:     "5s",
+			Description: "Timeout for the command to complete.",
+			Value:       clibase.DurationOf(&runTimeout),
+		},
+		{
+			Name:        "run-expect-timeout",
+			Flag:        "run-expect-timeout",
+			Env:         "CODER_LOADTEST_RUN_EXPECT_TIMEOUT",
+			Default:     "false",
+			Description: "Expect the command to timeout." + " If the command does not finish within the given --run-timeout, it will be marked as succeeded." + " If the command finishes before the timeout, it will be marked as failed.",
+			Value:       clibase.BoolOf(&runExpectTimeout),
+		},
+		{
+			Name:        "run-expect-output",
+			Flag:        "run-expect-output",
+			Env:         "CODER_LOADTEST_RUN_EXPECT_OUTPUT",
+			Description: "Expect the command to output the given string (on a single line). " + "If the command does not output the given string, it will be marked as failed.",
+			Value:       clibase.StringOf(&runExpectOutput),
+		},
+		{
+			Name:        "run-log-output",
+			Flag:        "run-log-output",
+			Env:         "CODER_LOADTEST_RUN_LOG_OUTPUT",
+			Description: "Log the output of the command to the test logs. " + "This should be left off unless you expect small amounts of output. " + "Large amounts of output will cause high memory usage.",
+			Value:       clibase.BoolOf(&runLogOutput),
+		},
+		{
+			Name:        "connect-url",
+			Flag:        "connect-url",
+			Env:         "CODER_LOADTEST_CONNECT_URL",
+			Description: "URL to connect to inside the the workspace over WireGuard. " + "If not specified, no connections will be made over WireGuard.",
+			Value:       clibase.StringOf(&connectURL),
+		},
+		{
+			Name:        "connect-mode",
+			Flag:        "connect-mode",
+			Env:         "CODER_LOADTEST_CONNECT_MODE",
+			Default:     "derp",
+			Description: "WireGuard connection mode. Must be one of: derp, udp, tcp.",
+			Value:       clibase.StringOf(&connectMode),
+		},
+		{
+			Name:        "connect-hold",
+			Flag:        "connect-hold",
+			Env:         "CODER_LOADTEST_CONNECT_HOLD",
+			Default:     "30s",
+			Description: "Time to hold the WireGuard connection open for.",
+			Value:       clibase.DurationOf(&connectHold),
+		},
+		{
+			Name:    "connect-interval",
+			Flag:    "connect-interval",
+			Env:     "CODER_LOADTEST_CONNECT_INTERVAL",
+			Default: "1s",
+			Value:   clibase.DurationOf(&connectInterval),
+		},
+		{
+			Name:        "connect-timeout",
+			Flag:        "connect-timeout",
+			Env:         "CODER_LOADTEST_CONNECT_TIMEOUT",
+			Default:     "5s",
+			Description: "Timeout for the WireGuard connection to complete.",
+			Value:       clibase.DurationOf(&connectTimeout),
+		},
+	}
 
-	cliflag.BoolVarP(cmd.Flags(), &noPlan, "no-plan", "", "CODER_LOADTEST_NO_PLAN", false, "Skip the dry-run step to plan the workspace creation. This step ensures that the given parameters are valid for the given template.")
-	cliflag.BoolVarP(cmd.Flags(), &noCleanup, "no-cleanup", "", "CODER_LOADTEST_NO_CLEANUP", false, "Do not clean up resources after the test completes. You can cleanup manually using `coder scaletest cleanup`.")
-	// cliflag.BoolVarP(cmd.Flags(), &noCleanupFailures, "no-cleanup-failures", "", "CODER_LOADTEST_NO_CLEANUP_FAILURES", false, "Do not clean up resources from failed jobs to aid in debugging failures. You can cleanup manually using `coder scaletest cleanup`.")
-	cliflag.BoolVarP(cmd.Flags(), &noWaitForAgents, "no-wait-for-agents", "", "CODER_LOADTEST_NO_WAIT_FOR_AGENTS", false, "Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly.")
-
-	cliflag.StringVarP(cmd.Flags(), &runCommand, "run-command", "", "CODER_LOADTEST_RUN_COMMAND", "", "Command to run inside each workspace using reconnecting-pty (i.e. web terminal protocol). If not specified, no command will be run.")
-	cliflag.DurationVarP(cmd.Flags(), &runTimeout, "run-timeout", "", "CODER_LOADTEST_RUN_TIMEOUT", 5*time.Second, "Timeout for the command to complete.")
-	cliflag.BoolVarP(cmd.Flags(), &runExpectTimeout, "run-expect-timeout", "", "CODER_LOADTEST_RUN_EXPECT_TIMEOUT", false, "Expect the command to timeout. If the command does not finish within the given --run-timeout, it will be marked as succeeded. If the command finishes before the timeout, it will be marked as failed.")
-	cliflag.StringVarP(cmd.Flags(), &runExpectOutput, "run-expect-output", "", "CODER_LOADTEST_RUN_EXPECT_OUTPUT", "", "Expect the command to output the given string (on a single line). If the command does not output the given string, it will be marked as failed.")
-	cliflag.BoolVarP(cmd.Flags(), &runLogOutput, "run-log-output", "", "CODER_LOADTEST_RUN_LOG_OUTPUT", false, "Log the output of the command to the test logs. This should be left off unless you expect small amounts of output. Large amounts of output will cause high memory usage.")
-
-	cliflag.StringVarP(cmd.Flags(), &connectURL, "connect-url", "", "CODER_LOADTEST_CONNECT_URL", "", "URL to connect to inside the the workspace over WireGuard. If not specified, no connections will be made over WireGuard.")
-	cliflag.StringVarP(cmd.Flags(), &connectMode, "connect-mode", "", "CODER_LOADTEST_CONNECT_MODE", "derp", "Mode to use for connecting to the workspace. Can be 'derp' or 'direct'.")
-	cliflag.DurationVarP(cmd.Flags(), &connectHold, "connect-hold", "", "CODER_LOADTEST_CONNECT_HOLD", 30*time.Second, "How long to hold the WireGuard connection open for.")
-	cliflag.DurationVarP(cmd.Flags(), &connectInterval, "connect-interval", "", "CODER_LOADTEST_CONNECT_INTERVAL", time.Second, "How long to wait between making requests to the --connect-url once the connection is established.")
-	cliflag.DurationVarP(cmd.Flags(), &connectTimeout, "connect-timeout", "", "CODER_LOADTEST_CONNECT_TIMEOUT", 5*time.Second, "Timeout for each request to the --connect-url.")
-
-	tracingFlags.attach(cmd)
-	strategy.attach(cmd)
-	cleanupStrategy.attach(cmd)
-	output.attach(cmd)
+	tracingFlags.attach(&cmd.Options)
+	strategy.attach(&cmd.Options)
+	cleanupStrategy.attach(&cmd.Options)
+	output.attach(&cmd.Options)
 	return cmd
 }
 

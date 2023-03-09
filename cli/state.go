@@ -28,7 +28,7 @@ func (r *RootCmd) state() *clibase.Cmd {
 
 func (r *RootCmd) statePull() *clibase.Cmd {
 	var buildNumber int64
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:   "pull <workspace> [file]",
 		Short: "Pull a Terraform state file from a workspace.",

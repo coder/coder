@@ -24,7 +24,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 		stopAfter         time.Duration
 		workspaceName     string
 	)
-	var client *codersdk.Client
+	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "create [name]",

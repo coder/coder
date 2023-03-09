@@ -27,7 +27,7 @@ import (
 	"github.com/coder/coder/codersdk/agentsdk"
 )
 
-func (r *RootCmd) workspaceAgent() *clibase.Cmd {
+func (_ *RootCmd) workspaceAgent() *clibase.Cmd {
 	var (
 		auth         string
 		logDir       string

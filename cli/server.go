@@ -153,7 +153,7 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 }
 
 // nolint:gocyclo
-func (root *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Cmd {
+func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Cmd {
 	var (
 		cfg  = new(codersdk.DeploymentValues)
 		opts = cfg.Options()
@@ -1109,7 +1109,7 @@ func (root *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*code
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
 		Handler: func(inv *clibase.Invokation) error {
-			url, err := embeddedPostgresURL(root.createConfig())
+			url, err := embeddedPostgresURL(r.createConfig())
 			if err != nil {
 				return err
 			}
@@ -1128,7 +1128,7 @@ func (root *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*code
 		Handler: func(inv *clibase.Invokation) error {
 			ctx := inv.Context()
 
-			cfg := root.createConfig()
+			cfg := r.createConfig()
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
 			if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
@@ -1154,7 +1154,7 @@ func (root *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*code
 		},
 	}
 
-	createAdminUserCmd := root.newCreateAdminUserCommand()
+	createAdminUserCmd := r.newCreateAdminUserCommand()
 
 	rawUrlOpt := clibase.Option{
 		Flag:        "raw-url",
