@@ -31,44 +31,42 @@ func constructQuery(queryName string, argument any) (string, []any, error) {
 
 // SelectContext runs the named query on the given database.
 // If the query returns no rows, an empty slice is returned.
-func SelectContext[RT any](ctx context.Context, q sqlx.QueryerContext, queryName string, argument any) ([]RT, error) {
-	var empty []RT
+func SelectContext(ctx context.Context, q sqlx.QueryerContext, queryName string, argument any, res any) error {
 	if q == nil {
-		return empty, xerrors.New("queryer is nil")
+		return xerrors.New("queryer is nil")
 	}
 
 	query, args, err := constructQuery(queryName, argument)
 	if err != nil {
-		return empty, xerrors.Errorf("get query: %w", err)
+		return xerrors.Errorf("get query: %w", err)
 	}
 
-	err = sqlx.SelectContext(ctx, q, &empty, query, args...)
+	err = sqlx.SelectContext(ctx, q, res, query, args...)
 	if err != nil {
-		return empty, xerrors.Errorf("%s: %w", queryName, err)
+		return xerrors.Errorf("%s: %w", queryName, err)
 	}
 
-	return empty, nil
+	return nil
 }
 
 // GetContext runs the named query on the given database.
 // If the query returns no rows, sql.ErrNoRows is returned.
-func GetContext[RT any](ctx context.Context, q sqlx.QueryerContext, queryName string, argument interface{}) (RT, error) {
-	var empty RT
+func GetContext(ctx context.Context, q sqlx.QueryerContext, queryName string, argument interface{}, res any) error {
 	if q == nil {
-		return empty, xerrors.New("queryer is nil")
+		return xerrors.New("queryer is nil")
 	}
 
 	query, args, err := constructQuery(queryName, argument)
 	if err != nil {
-		return empty, xerrors.Errorf("get query: %w", err)
+		return xerrors.Errorf("get query: %w", err)
 	}
 
 	// GetContext maps the results of the query to the items slice by struct
 	// db tags.
-	err = sqlx.GetContext(ctx, q, &empty, query, args...)
+	err = sqlx.GetContext(ctx, q, res, query, args...)
 	if err != nil {
-		return empty, xerrors.Errorf("%s: %w", queryName, err)
+		return xerrors.Errorf("%s: %w", queryName, err)
 	}
 
-	return empty, nil
+	return nil
 }
