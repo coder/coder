@@ -1373,6 +1373,7 @@ type ProvisionerJob struct {
 	WorkerID       uuid.NullUUID            `db:"worker_id" json:"worker_id"`
 	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
 	Tags           dbtype.StringMap         `db:"tags" json:"tags"`
+	ErrorCode      sql.NullString           `db:"error_code" json:"error_code"`
 }
 
 type ProvisionerJobLog struct {

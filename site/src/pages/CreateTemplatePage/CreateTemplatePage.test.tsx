@@ -45,7 +45,7 @@ test("Create template with variables", async () => {
     job: {
       ...MockTemplateVersion.job,
       status: "failed",
-      error: "required template variables",
+      error_code: "REQUIRED_TEMPLATE_VARIABLES",
     },
   })
   // Return the template variables

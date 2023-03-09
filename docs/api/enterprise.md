@@ -119,7 +119,6 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
 ```json
 {
   "errors": ["string"],
-  "experimental": true,
   "features": {
     "property1": {
       "actual": 0,

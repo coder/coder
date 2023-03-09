@@ -19,12 +19,12 @@ type Provider struct {
 	AccessURL        *url.URL
 	Authorizer       rbac.Authorizer
 	Database         database.Store
-	DeploymentConfig *codersdk.DeploymentConfig
+	DeploymentValues *codersdk.DeploymentValues
 	OAuth2Configs    *httpmw.OAuth2Configs
 	TicketSigningKey []byte
 }
 
-func New(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentConfig, oauth2Cfgs *httpmw.OAuth2Configs, ticketSigningKey []byte) *Provider {
+func New(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, ticketSigningKey []byte) *Provider {
 	if len(ticketSigningKey) != 64 {
 		panic("ticket signing key must be 64 bytes")
 	}
@@ -34,7 +34,7 @@ func New(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database
 		AccessURL:        accessURL,
 		Authorizer:       authz,
 		Database:         db,
-		DeploymentConfig: cfg,
+		DeploymentValues: cfg,
 		OAuth2Configs:    oauth2Cfgs,
 		TicketSigningKey: ticketSigningKey,
 	}

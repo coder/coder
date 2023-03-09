@@ -3,12 +3,22 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"flag"
+	"math"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
+
+	"github.com/coreos/go-oidc/v3/oidc"
+
+	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/cli/clibase"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -89,9 +99,6 @@ type Entitlements struct {
 	HasLicense       bool                    `json:"has_license"`
 	Trial            bool                    `json:"trial"`
 	RequireTelemetry bool                    `json:"require_telemetry"`
-
-	// DEPRECATED: use Experiments instead.
-	Experimental bool `json:"experimental"`
 }
 
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
@@ -107,137 +114,139 @@ func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
 	return ent, json.NewDecoder(res.Body).Decode(&ent)
 }
 
-// DeploymentConfig is the central configuration for the coder server.
-type DeploymentConfig struct {
-	AccessURL                       *DeploymentConfigField[string]          `json:"access_url" typescript:",notnull"`
-	WildcardAccessURL               *DeploymentConfigField[string]          `json:"wildcard_access_url" typescript:",notnull"`
-	RedirectToAccessURL             *DeploymentConfigField[bool]            `json:"redirect_to_access_url" typescript:",notnull"`
-	HTTPAddress                     *DeploymentConfigField[string]          `json:"http_address" typescript:",notnull"`
-	AutobuildPollInterval           *DeploymentConfigField[time.Duration]   `json:"autobuild_poll_interval" typescript:",notnull"`
-	DERP                            *DERP                                   `json:"derp" typescript:",notnull"`
-	GitAuth                         *DeploymentConfigField[[]GitAuthConfig] `json:"gitauth" typescript:",notnull"`
-	Prometheus                      *PrometheusConfig                       `json:"prometheus" typescript:",notnull"`
-	Pprof                           *PprofConfig                            `json:"pprof" typescript:",notnull"`
-	ProxyTrustedHeaders             *DeploymentConfigField[[]string]        `json:"proxy_trusted_headers" typescript:",notnull"`
-	ProxyTrustedOrigins             *DeploymentConfigField[[]string]        `json:"proxy_trusted_origins" typescript:",notnull"`
-	CacheDirectory                  *DeploymentConfigField[string]          `json:"cache_directory" typescript:",notnull"`
-	InMemoryDatabase                *DeploymentConfigField[bool]            `json:"in_memory_database" typescript:",notnull"`
-	PostgresURL                     *DeploymentConfigField[string]          `json:"pg_connection_url" typescript:",notnull"`
-	OAuth2                          *OAuth2Config                           `json:"oauth2" typescript:",notnull"`
-	OIDC                            *OIDCConfig                             `json:"oidc" typescript:",notnull"`
-	Telemetry                       *TelemetryConfig                        `json:"telemetry" typescript:",notnull"`
-	TLS                             *TLSConfig                              `json:"tls" typescript:",notnull"`
-	Trace                           *TraceConfig                            `json:"trace" typescript:",notnull"`
-	SecureAuthCookie                *DeploymentConfigField[bool]            `json:"secure_auth_cookie" typescript:",notnull"`
-	StrictTransportSecurity         *DeploymentConfigField[int]             `json:"strict_transport_security" typescript:",notnull"`
-	StrictTransportSecurityOptions  *DeploymentConfigField[[]string]        `json:"strict_transport_security_options" typescript:",notnull"`
-	SSHKeygenAlgorithm              *DeploymentConfigField[string]          `json:"ssh_keygen_algorithm" typescript:",notnull"`
-	MetricsCacheRefreshInterval     *DeploymentConfigField[time.Duration]   `json:"metrics_cache_refresh_interval" typescript:",notnull"`
-	AgentStatRefreshInterval        *DeploymentConfigField[time.Duration]   `json:"agent_stat_refresh_interval" typescript:",notnull"`
-	AgentFallbackTroubleshootingURL *DeploymentConfigField[string]          `json:"agent_fallback_troubleshooting_url" typescript:",notnull"`
-	AuditLogging                    *DeploymentConfigField[bool]            `json:"audit_logging" typescript:",notnull"`
-	BrowserOnly                     *DeploymentConfigField[bool]            `json:"browser_only" typescript:",notnull"`
-	SCIMAPIKey                      *DeploymentConfigField[string]          `json:"scim_api_key" typescript:",notnull"`
-	Provisioner                     *ProvisionerConfig                      `json:"provisioner" typescript:",notnull"`
-	RateLimit                       *RateLimitConfig                        `json:"rate_limit" typescript:",notnull"`
-	Experiments                     *DeploymentConfigField[[]string]        `json:"experiments" typescript:",notnull"`
-	UpdateCheck                     *DeploymentConfigField[bool]            `json:"update_check" typescript:",notnull"`
-	MaxTokenLifetime                *DeploymentConfigField[time.Duration]   `json:"max_token_lifetime" typescript:",notnull"`
-	Swagger                         *SwaggerConfig                          `json:"swagger" typescript:",notnull"`
-	Logging                         *LoggingConfig                          `json:"logging" typescript:",notnull"`
-	Dangerous                       *DangerousConfig                        `json:"dangerous" typescript:",notnull"`
-	DisablePathApps                 *DeploymentConfigField[bool]            `json:"disable_path_apps" typescript:",notnull"`
-	SessionDuration                 *DeploymentConfigField[time.Duration]   `json:"max_session_expiry" typescript:",notnull"`
-	DisableSessionExpiryRefresh     *DeploymentConfigField[bool]            `json:"disable_session_expiry_refresh" typescript:",notnull"`
-	DisablePasswordAuth             *DeploymentConfigField[bool]            `json:"disable_password_auth" typescript:",notnull"`
+// DeploymentValues is the central configuration values the coder server.
+type DeploymentValues struct {
+	Verbose             clibase.Bool `json:"verbose,omitempty"`
+	AccessURL           clibase.URL  `json:"access_url,omitempty"`
+	WildcardAccessURL   clibase.URL  `json:"wildcard_access_url,omitempty"`
+	RedirectToAccessURL clibase.Bool `json:"redirect_to_access_url,omitempty"`
+	// HTTPAddress is a string because it may be set to zero to disable.
+	HTTPAddress                     clibase.String                  `json:"http_address,omitempty" typescript:",notnull"`
+	AutobuildPollInterval           clibase.Duration                `json:"autobuild_poll_interval,omitempty"`
+	DERP                            DERP                            `json:"derp,omitempty" typescript:",notnull"`
+	Prometheus                      PrometheusConfig                `json:"prometheus,omitempty" typescript:",notnull"`
+	Pprof                           PprofConfig                     `json:"pprof,omitempty" typescript:",notnull"`
+	ProxyTrustedHeaders             clibase.Strings                 `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
+	ProxyTrustedOrigins             clibase.Strings                 `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
+	CacheDir                        clibase.String                  `json:"cache_directory,omitempty" typescript:",notnull"`
+	InMemoryDatabase                clibase.Bool                    `json:"in_memory_database,omitempty" typescript:",notnull"`
+	PostgresURL                     clibase.String                  `json:"pg_connection_url,omitempty" typescript:",notnull"`
+	OAuth2                          OAuth2Config                    `json:"oauth2,omitempty" typescript:",notnull"`
+	OIDC                            OIDCConfig                      `json:"oidc,omitempty" typescript:",notnull"`
+	Telemetry                       TelemetryConfig                 `json:"telemetry,omitempty" typescript:",notnull"`
+	TLS                             TLSConfig                       `json:"tls,omitempty" typescript:",notnull"`
+	Trace                           TraceConfig                     `json:"trace,omitempty" typescript:",notnull"`
+	SecureAuthCookie                clibase.Bool                    `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
+	StrictTransportSecurity         clibase.Int64                   `json:"strict_transport_security,omitempty" typescript:",notnull"`
+	StrictTransportSecurityOptions  clibase.Strings                 `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
+	SSHKeygenAlgorithm              clibase.String                  `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
+	MetricsCacheRefreshInterval     clibase.Duration                `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
+	AgentStatRefreshInterval        clibase.Duration                `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
+	AgentFallbackTroubleshootingURL clibase.URL                     `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
+	AuditLogging                    clibase.Bool                    `json:"audit_logging,omitempty" typescript:",notnull"`
+	BrowserOnly                     clibase.Bool                    `json:"browser_only,omitempty" typescript:",notnull"`
+	SCIMAPIKey                      clibase.String                  `json:"scim_api_key,omitempty" typescript:",notnull"`
+	Provisioner                     ProvisionerConfig               `json:"provisioner,omitempty" typescript:",notnull"`
+	RateLimit                       RateLimitConfig                 `json:"rate_limit,omitempty" typescript:",notnull"`
+	Experiments                     clibase.Strings                 `json:"experiments,omitempty" typescript:",notnull"`
+	UpdateCheck                     clibase.Bool                    `json:"update_check,omitempty" typescript:",notnull"`
+	MaxTokenLifetime                clibase.Duration                `json:"max_token_lifetime,omitempty" typescript:",notnull"`
+	Swagger                         SwaggerConfig                   `json:"swagger,omitempty" typescript:",notnull"`
+	Logging                         LoggingConfig                   `json:"logging,omitempty" typescript:",notnull"`
+	Dangerous                       DangerousConfig                 `json:"dangerous,omitempty" typescript:",notnull"`
+	DisablePathApps                 clibase.Bool                    `json:"disable_path_apps,omitempty" typescript:",notnull"`
+	SessionDuration                 clibase.Duration                `json:"max_session_expiry,omitempty" typescript:",notnull"`
+	DisableSessionExpiryRefresh     clibase.Bool                    `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
+	DisablePasswordAuth             clibase.Bool                    `json:"disable_password_auth,omitempty" typescript:",notnull"`
+	Support                         SupportConfig                   `json:"support,omitempty" typescript:",notnull"`
+	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
+
+	Config      clibase.String `json:"config,omitempty" typescript:",notnull"`
+	WriteConfig clibase.Bool   `json:"write_config,omitempty" typescript:",notnull"`
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
-	Address *DeploymentConfigField[string] `json:"address" typescript:",notnull"`
-	// DEPRECATED: Use Experiments instead.
-	Experimental *DeploymentConfigField[bool] `json:"experimental" typescript:",notnull"`
-
-	Support *SupportConfig `json:"support" typescript:",notnull"`
+	Address clibase.HostPort `json:"address,omitempty" typescript:",notnull"`
 }
 
 type DERP struct {
-	Server *DERPServerConfig `json:"server" typescript:",notnull"`
-	Config *DERPConfig       `json:"config" typescript:",notnull"`
+	Server DERPServerConfig `json:"server" typescript:",notnull"`
+	Config DERPConfig       `json:"config" typescript:",notnull"`
 }
 
 type DERPServerConfig struct {
-	Enable        *DeploymentConfigField[bool]     `json:"enable" typescript:",notnull"`
-	RegionID      *DeploymentConfigField[int]      `json:"region_id" typescript:",notnull"`
-	RegionCode    *DeploymentConfigField[string]   `json:"region_code" typescript:",notnull"`
-	RegionName    *DeploymentConfigField[string]   `json:"region_name" typescript:",notnull"`
-	STUNAddresses *DeploymentConfigField[[]string] `json:"stun_addresses" typescript:",notnull"`
-	RelayURL      *DeploymentConfigField[string]   `json:"relay_url" typescript:",notnull"`
+	Enable        clibase.Bool    `json:"enable" typescript:",notnull"`
+	RegionID      clibase.Int64   `json:"region_id" typescript:",notnull"`
+	RegionCode    clibase.String  `json:"region_code" typescript:",notnull"`
+	RegionName    clibase.String  `json:"region_name" typescript:",notnull"`
+	STUNAddresses clibase.Strings `json:"stun_addresses" typescript:",notnull"`
+	RelayURL      clibase.URL     `json:"relay_url" typescript:",notnull"`
 }
 
 type DERPConfig struct {
-	URL  *DeploymentConfigField[string] `json:"url" typescript:",notnull"`
-	Path *DeploymentConfigField[string] `json:"path" typescript:",notnull"`
+	URL  clibase.String `json:"url" typescript:",notnull"`
+	Path clibase.String `json:"path" typescript:",notnull"`
 }
 
 type PrometheusConfig struct {
-	Enable  *DeploymentConfigField[bool]   `json:"enable" typescript:",notnull"`
-	Address *DeploymentConfigField[string] `json:"address" typescript:",notnull"`
+	Enable  clibase.Bool     `json:"enable" typescript:",notnull"`
+	Address clibase.HostPort `json:"address" typescript:",notnull"`
 }
 
 type PprofConfig struct {
-	Enable  *DeploymentConfigField[bool]   `json:"enable" typescript:",notnull"`
-	Address *DeploymentConfigField[string] `json:"address" typescript:",notnull"`
+	Enable  clibase.Bool     `json:"enable" typescript:",notnull"`
+	Address clibase.HostPort `json:"address" typescript:",notnull"`
 }
 
 type OAuth2Config struct {
-	Github *OAuth2GithubConfig `json:"github" typescript:",notnull"`
+	Github OAuth2GithubConfig `json:"github" typescript:",notnull"`
 }
 
 type OAuth2GithubConfig struct {
-	ClientID          *DeploymentConfigField[string]   `json:"client_id" typescript:",notnull"`
-	ClientSecret      *DeploymentConfigField[string]   `json:"client_secret" typescript:",notnull"`
-	AllowedOrgs       *DeploymentConfigField[[]string] `json:"allowed_orgs" typescript:",notnull"`
-	AllowedTeams      *DeploymentConfigField[[]string] `json:"allowed_teams" typescript:",notnull"`
-	AllowSignups      *DeploymentConfigField[bool]     `json:"allow_signups" typescript:",notnull"`
-	AllowEveryone     *DeploymentConfigField[bool]     `json:"allow_everyone" typescript:",notnull"`
-	EnterpriseBaseURL *DeploymentConfigField[string]   `json:"enterprise_base_url" typescript:",notnull"`
+	ClientID          clibase.String  `json:"client_id" typescript:",notnull"`
+	ClientSecret      clibase.String  `json:"client_secret" typescript:",notnull"`
+	AllowedOrgs       clibase.Strings `json:"allowed_orgs" typescript:",notnull"`
+	AllowedTeams      clibase.Strings `json:"allowed_teams" typescript:",notnull"`
+	AllowSignups      clibase.Bool    `json:"allow_signups" typescript:",notnull"`
+	AllowEveryone     clibase.Bool    `json:"allow_everyone" typescript:",notnull"`
+	EnterpriseBaseURL clibase.String  `json:"enterprise_base_url" typescript:",notnull"`
 }
 
 type OIDCConfig struct {
-	AllowSignups        *DeploymentConfigField[bool]     `json:"allow_signups" typescript:",notnull"`
-	ClientID            *DeploymentConfigField[string]   `json:"client_id" typescript:",notnull"`
-	ClientSecret        *DeploymentConfigField[string]   `json:"client_secret" typescript:",notnull"`
-	EmailDomain         *DeploymentConfigField[[]string] `json:"email_domain" typescript:",notnull"`
-	IssuerURL           *DeploymentConfigField[string]   `json:"issuer_url" typescript:",notnull"`
-	Scopes              *DeploymentConfigField[[]string] `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified *DeploymentConfigField[bool]     `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField       *DeploymentConfigField[string]   `json:"username_field" typescript:",notnull"`
-	SignInText          *DeploymentConfigField[string]   `json:"sign_in_text" typescript:",notnull"`
-	IconURL             *DeploymentConfigField[string]   `json:"icon_url" typescript:",notnull"`
+	AllowSignups        clibase.Bool    `json:"allow_signups" typescript:",notnull"`
+	ClientID            clibase.String  `json:"client_id" typescript:",notnull"`
+	ClientSecret        clibase.String  `json:"client_secret" typescript:",notnull"`
+	EmailDomain         clibase.Strings `json:"email_domain" typescript:",notnull"`
+	IssuerURL           clibase.String  `json:"issuer_url" typescript:",notnull"`
+	Scopes              clibase.Strings `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified clibase.Bool    `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       clibase.String  `json:"username_field" typescript:",notnull"`
+	SignInText          clibase.String  `json:"sign_in_text" typescript:",notnull"`
+	IconURL             clibase.URL     `json:"icon_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
-	Enable *DeploymentConfigField[bool]   `json:"enable" typescript:",notnull"`
-	Trace  *DeploymentConfigField[bool]   `json:"trace" typescript:",notnull"`
-	URL    *DeploymentConfigField[string] `json:"url" typescript:",notnull"`
+	Enable clibase.Bool `json:"enable" typescript:",notnull"`
+	Trace  clibase.Bool `json:"trace" typescript:",notnull"`
+	URL    clibase.URL  `json:"url" typescript:",notnull"`
 }
 
 type TLSConfig struct {
-	Enable         *DeploymentConfigField[bool]     `json:"enable" typescript:",notnull"`
-	Address        *DeploymentConfigField[string]   `json:"address" typescript:",notnull"`
-	RedirectHTTP   *DeploymentConfigField[bool]     `json:"redirect_http" typescript:",notnull"`
-	CertFiles      *DeploymentConfigField[[]string] `json:"cert_file" typescript:",notnull"`
-	ClientAuth     *DeploymentConfigField[string]   `json:"client_auth" typescript:",notnull"`
-	ClientCAFile   *DeploymentConfigField[string]   `json:"client_ca_file" typescript:",notnull"`
-	KeyFiles       *DeploymentConfigField[[]string] `json:"key_file" typescript:",notnull"`
-	MinVersion     *DeploymentConfigField[string]   `json:"min_version" typescript:",notnull"`
-	ClientCertFile *DeploymentConfigField[string]   `json:"client_cert_file" typescript:",notnull"`
-	ClientKeyFile  *DeploymentConfigField[string]   `json:"client_key_file" typescript:",notnull"`
+	Enable         clibase.Bool     `json:"enable" typescript:",notnull"`
+	Address        clibase.HostPort `json:"address" typescript:",notnull"`
+	RedirectHTTP   clibase.Bool     `json:"redirect_http" typescript:",notnull"`
+	CertFiles      clibase.Strings  `json:"cert_file" typescript:",notnull"`
+	ClientAuth     clibase.String   `json:"client_auth" typescript:",notnull"`
+	ClientCAFile   clibase.String   `json:"client_ca_file" typescript:",notnull"`
+	KeyFiles       clibase.Strings  `json:"key_file" typescript:",notnull"`
+	MinVersion     clibase.String   `json:"min_version" typescript:",notnull"`
+	ClientCertFile clibase.String   `json:"client_cert_file" typescript:",notnull"`
+	ClientKeyFile  clibase.String   `json:"client_key_file" typescript:",notnull"`
 }
 
 type TraceConfig struct {
-	Enable          *DeploymentConfigField[bool]   `json:"enable" typescript:",notnull"`
-	HoneycombAPIKey *DeploymentConfigField[string] `json:"honeycomb_api_key" typescript:",notnull"`
-	CaptureLogs     *DeploymentConfigField[bool]   `json:"capture_logs" typescript:",notnull"`
+	Enable          clibase.Bool   `json:"enable" typescript:",notnull"`
+	HoneycombAPIKey clibase.String `json:"honeycomb_api_key" typescript:",notnull"`
+	CaptureLogs     clibase.Bool   `json:"capture_logs" typescript:",notnull"`
 }
 
 type GitAuthConfig struct {
@@ -254,109 +263,1081 @@ type GitAuthConfig struct {
 }
 
 type ProvisionerConfig struct {
-	Daemons             *DeploymentConfigField[int]           `json:"daemons" typescript:",notnull"`
-	DaemonPollInterval  *DeploymentConfigField[time.Duration] `json:"daemon_poll_interval" typescript:",notnull"`
-	DaemonPollJitter    *DeploymentConfigField[time.Duration] `json:"daemon_poll_jitter" typescript:",notnull"`
-	ForceCancelInterval *DeploymentConfigField[time.Duration] `json:"force_cancel_interval" typescript:",notnull"`
+	Daemons             clibase.Int64    `json:"daemons" typescript:",notnull"`
+	DaemonPollInterval  clibase.Duration `json:"daemon_poll_interval" typescript:",notnull"`
+	DaemonPollJitter    clibase.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
+	ForceCancelInterval clibase.Duration `json:"force_cancel_interval" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
-	DisableAll *DeploymentConfigField[bool] `json:"disable_all" typescript:",notnull"`
-	API        *DeploymentConfigField[int]  `json:"api" typescript:",notnull"`
+	DisableAll clibase.Bool  `json:"disable_all" typescript:",notnull"`
+	API        clibase.Int64 `json:"api" typescript:",notnull"`
 }
 
 type SwaggerConfig struct {
-	Enable *DeploymentConfigField[bool] `json:"enable" typescript:",notnull"`
+	Enable clibase.Bool `json:"enable" typescript:",notnull"`
 }
 
 type LoggingConfig struct {
-	Human       *DeploymentConfigField[string] `json:"human" typescript:",notnull"`
-	JSON        *DeploymentConfigField[string] `json:"json" typescript:",notnull"`
-	Stackdriver *DeploymentConfigField[string] `json:"stackdriver" typescript:",notnull"`
+	Human       clibase.String `json:"human" typescript:",notnull"`
+	JSON        clibase.String `json:"json" typescript:",notnull"`
+	Stackdriver clibase.String `json:"stackdriver" typescript:",notnull"`
 }
 
 type DangerousConfig struct {
-	AllowPathAppSharing         *DeploymentConfigField[bool] `json:"allow_path_app_sharing" typescript:",notnull"`
-	AllowPathAppSiteOwnerAccess *DeploymentConfigField[bool] `json:"allow_path_app_site_owner_access" typescript:",notnull"`
+	AllowPathAppSharing         clibase.Bool `json:"allow_path_app_sharing" typescript:",notnull"`
+	AllowPathAppSiteOwnerAccess clibase.Bool `json:"allow_path_app_site_owner_access" typescript:",notnull"`
+}
+
+const (
+	flagEnterpriseKey = "enterprise"
+	flagSecretKey     = "secret"
+)
+
+func IsSecretDeploymentOption(opt clibase.Option) bool {
+	return opt.Annotations.IsSet(flagSecretKey)
+}
+
+func DefaultCacheDir() string {
+	defaultCacheDir, err := os.UserCacheDir()
+	if err != nil {
+		defaultCacheDir = os.TempDir()
+	}
+	if dir := os.Getenv("CACHE_DIRECTORY"); dir != "" {
+		// For compatibility with systemd.
+		defaultCacheDir = dir
+	}
+
+	return filepath.Join(defaultCacheDir, "coder")
+}
+
+// DeploymentConfig contains both the deployment values and how they're set.
+//
+// @typescript-ignore DeploymentConfig
+// apitypings doesn't know how to generate the OptionSet... yet.
+type DeploymentConfig struct {
+	Values  *DeploymentValues `json:"config,omitempty"`
+	Options clibase.OptionSet `json:"options,omitempty"`
+}
+
+func (c *DeploymentValues) Options() clibase.OptionSet {
+	// The deploymentGroup variables are used to organize the myriad server options.
+	var (
+		deploymentGroupNetworking = clibase.Group{
+			Name: "Networking",
+		}
+		deploymentGroupNetworkingTLS = clibase.Group{
+			Parent: &deploymentGroupNetworking,
+			Name:   "TLS",
+			Description: `Configure TLS / HTTPS for your Coder deployment. If you're running
+ Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
+ secure link, you can safely ignore these settings.`,
+		}
+		deploymentGroupNetworkingHTTP = clibase.Group{
+			Parent: &deploymentGroupNetworking,
+			Name:   "HTTP",
+		}
+		deploymentGroupNetworkingDERP = clibase.Group{
+			Parent: &deploymentGroupNetworking,
+			Name:   "DERP",
+			Description: `Most Coder deployments never have to think about DERP because all connections
+ between workspaces and users are peer-to-peer. However, when Coder cannot establish
+ a peer to peer connection, Coder uses a distributed relay network backed by
+ Tailscale and WireGuard.`,
+		}
+		deploymentGroupIntrospection = clibase.Group{
+			Name:        "Introspection",
+			Description: `Configure logging, tracing, and metrics exporting.`,
+		}
+		deploymentGroupIntrospectionPPROF = clibase.Group{
+			Parent: &deploymentGroupIntrospection,
+			Name:   "pprof",
+		}
+		deploymentGroupIntrospectionPrometheus = clibase.Group{
+			Parent: &deploymentGroupIntrospection,
+			Name:   "Prometheus",
+		}
+		deploymentGroupIntrospectionTracing = clibase.Group{
+			Parent: &deploymentGroupIntrospection,
+			Name:   "Tracing",
+		}
+		deploymentGroupIntrospectionLogging = clibase.Group{
+			Parent: &deploymentGroupIntrospection,
+			Name:   "Logging",
+		}
+		deploymentGroupOAuth2 = clibase.Group{
+			Name:        "OAuth2",
+			Description: `Configure login and user-provisioning with GitHub via oAuth2.`,
+		}
+		deploymentGroupOAuth2GitHub = clibase.Group{
+			Parent: &deploymentGroupOAuth2,
+			Name:   "GitHub",
+		}
+		deploymentGroupOIDC = clibase.Group{
+			Name: "OIDC",
+		}
+		deploymentGroupTelemetry = clibase.Group{
+			Name: "Telemetry",
+			Description: `Telemetry is critical to our ability to improve Coder. We strip all personal
+information before sending data to our servers. Please only disable telemetry
+when required by your organization's security policy.`,
+		}
+		deploymentGroupProvisioning = clibase.Group{
+			Name:        "Provisioning",
+			Description: `Tune the behavior of the provisioner, which is responsible for creating, updating, and deleting workspace resources.`,
+		}
+		deploymentGroupDangerous = clibase.Group{
+			Name: "⚠️ Dangerous",
+		}
+		deploymentGroupConfig = clibase.Group{
+			Name:        "Config",
+			Description: `Use a YAML configuration file when your server launch become unwieldy.`,
+		}
+	)
+
+	httpAddress := clibase.Option{
+		Name:        "HTTP Address",
+		Description: "HTTP bind address of the server. Unset to disable the HTTP endpoint.",
+		Flag:        "http-address",
+		Env:         "HTTP_ADDRESS",
+		Default:     "127.0.0.1:3000",
+		Value:       &c.HTTPAddress,
+		Group:       &deploymentGroupNetworkingHTTP,
+		YAML:        "httpAddress",
+	}
+	tlsBindAddress := clibase.Option{
+		Name:        "TLS Address",
+		Description: "HTTPS bind address of the server.",
+		Flag:        "tls-address",
+		Env:         "TLS_ADDRESS",
+		Default:     "127.0.0.1:3443",
+		Value:       &c.TLS.Address,
+		Group:       &deploymentGroupNetworkingTLS,
+		YAML:        "address",
+	}
+	redirectToAccessURL := clibase.Option{
+		Name:        "Redirect to Access URL",
+		Description: "Specifies whether to redirect requests that do not match the access URL host.",
+		Flag:        "redirect-to-access-url",
+		Env:         "REDIRECT_TO_ACCESS_URL",
+		Value:       &c.RedirectToAccessURL,
+		Group:       &deploymentGroupNetworking,
+		YAML:        "redirectToAccessURL",
+	}
+	return clibase.OptionSet{
+		{
+			Name:        "Access URL",
+			Description: `The URL that users will use to access the Coder deployment.`,
+			Value:       &c.AccessURL,
+			Flag:        "access-url",
+			Env:         "ACCESS_URL",
+			Group:       &deploymentGroupNetworking,
+			YAML:        "accessURL",
+		},
+		{
+			Name:        "Wildcard Access URL",
+			Description: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
+			Flag:        "wildcard-access-url",
+			Env:         "WILDCARD_ACCESS_URL",
+			Value:       &c.WildcardAccessURL,
+			Group:       &deploymentGroupNetworking,
+			YAML:        "wildcardAccessURL",
+		},
+		redirectToAccessURL,
+		{
+			Name:        "Autobuild Poll Interval",
+			Description: "Interval to poll for scheduled workspace builds.",
+			Flag:        "autobuild-poll-interval",
+			Env:         "AUTOBUILD_POLL_INTERVAL",
+			Hidden:      true,
+			Default:     time.Minute.String(),
+			Value:       &c.AutobuildPollInterval,
+			YAML:        "autobuildPollInterval",
+		},
+		httpAddress,
+		tlsBindAddress,
+		{
+			Name:          "Address",
+			Description:   "Bind address of the server.",
+			Flag:          "address",
+			FlagShorthand: "a",
+			Env:           "ADDRESS",
+			Hidden:        true,
+			Value:         &c.Address,
+			UseInstead: []clibase.Option{
+				httpAddress,
+				tlsBindAddress,
+			},
+			Group: &deploymentGroupNetworking,
+		},
+		// TLS settings
+		{
+			Name:        "TLS Enable",
+			Description: "Whether TLS will be enabled.",
+			Flag:        "tls-enable",
+			Env:         "TLS_ENABLE",
+			Value:       &c.TLS.Enable,
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "enable",
+		},
+		{
+			Name:        "Redirect HTTP to HTTPS",
+			Description: "Whether HTTP requests will be redirected to the access URL (if it's a https URL and TLS is enabled). Requests to local IP addresses are never redirected regardless of this setting.",
+			Flag:        "tls-redirect-http-to-https",
+			Env:         "TLS_REDIRECT_HTTP_TO_HTTPS",
+			Default:     "true",
+			Hidden:      true,
+			Value:       &c.TLS.RedirectHTTP,
+			UseInstead:  []clibase.Option{redirectToAccessURL},
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "redirectHTTP",
+		},
+		{
+			Name:        "TLS Certificate Files",
+			Description: "Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.",
+			Flag:        "tls-cert-file",
+			Env:         "TLS_CERT_FILE",
+			Value:       &c.TLS.CertFiles,
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "certFiles",
+		},
+		{
+			Name:        "TLS Client CA Files",
+			Description: "PEM-encoded Certificate Authority file used for checking the authenticity of client",
+			Flag:        "tls-client-ca-file",
+			Env:         "TLS_CLIENT_CA_FILE",
+			Value:       &c.TLS.ClientCAFile,
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "clientCAFile",
+		},
+		{
+			Name:        "TLS Client Auth",
+			Description: "Policy the server will follow for TLS Client Authentication. Accepted values are \"none\", \"request\", \"require-any\", \"verify-if-given\", or \"require-and-verify\".",
+			Flag:        "tls-client-auth",
+			Env:         "TLS_CLIENT_AUTH",
+			Default:     "none",
+			Value:       &c.TLS.ClientAuth,
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "clientAuth",
+		},
+		{
+			Name:        "TLS Key Files",
+			Description: "Paths to the private keys for each of the certificates. It requires a PEM-encoded file.",
+			Flag:        "tls-key-file",
+			Env:         "TLS_KEY_FILE",
+			Value:       &c.TLS.KeyFiles,
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "keyFiles",
+		},
+		{
+			Name:        "TLS Minimum Version",
+			Description: "Minimum supported version of TLS. Accepted values are \"tls10\", \"tls11\", \"tls12\" or \"tls13\"",
+			Flag:        "tls-min-version",
+			Env:         "TLS_MIN_VERSION",
+			Default:     "tls12",
+			Value:       &c.TLS.MinVersion,
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "minVersion",
+		},
+		{
+			Name:        "TLS Client Cert File",
+			Description: "Path to certificate for client TLS authentication. It requires a PEM-encoded file.",
+			Flag:        "tls-client-cert-file",
+			Env:         "TLS_CLIENT_CERT_FILE",
+			Value:       &c.TLS.ClientCertFile,
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "clientCertFile",
+		},
+		{
+			Name:        "TLS Client Key File",
+			Description: "Path to key for client TLS authentication. It requires a PEM-encoded file.",
+			Flag:        "tls-client-key-file",
+			Env:         "TLS_CLIENT_KEY_FILE",
+			Value:       &c.TLS.ClientKeyFile,
+			Group:       &deploymentGroupNetworkingTLS,
+			YAML:        "clientKeyFile",
+		},
+		// Derp settings
+		{
+			Name:        "DERP Server Enable",
+			Description: "Whether to enable or disable the embedded DERP relay server.",
+			Flag:        "derp-server-enable",
+			Env:         "DERP_SERVER_ENABLE",
+			Default:     "true",
+			Value:       &c.DERP.Server.Enable,
+			Group:       &deploymentGroupNetworkingDERP,
+			YAML:        "enable",
+		},
+		{
+			Name:        "DERP Server Region ID",
+			Description: "Region ID to use for the embedded DERP server.",
+			Flag:        "derp-server-region-id",
+			Env:         "DERP_SERVER_REGION_ID",
+			Default:     "999",
+			Value:       &c.DERP.Server.RegionID,
+			Group:       &deploymentGroupNetworkingDERP,
+			YAML:        "regionID",
+		},
+		{
+			Name:        "DERP Server Region Code",
+			Description: "Region code to use for the embedded DERP server.",
+			Flag:        "derp-server-region-code",
+			Env:         "DERP_SERVER_REGION_CODE",
+			Default:     "coder",
+			Value:       &c.DERP.Server.RegionCode,
+			Group:       &deploymentGroupNetworkingDERP,
+			YAML:        "regionCode",
+		},
+		{
+			Name:        "DERP Server Region Name",
+			Description: "Region name that for the embedded DERP server.",
+			Flag:        "derp-server-region-name",
+			Env:         "DERP_SERVER_REGION_NAME",
+			Default:     "Coder Embedded Relay",
+			Value:       &c.DERP.Server.RegionName,
+			Group:       &deploymentGroupNetworkingDERP,
+			YAML:        "regionName",
+		},
+		{
+			Name:        "DERP Server STUN Addresses",
+			Description: "Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.",
+			Flag:        "derp-server-stun-addresses",
+			Env:         "DERP_SERVER_STUN_ADDRESSES",
+			Default:     "stun.l.google.com:19302",
+			Value:       &c.DERP.Server.STUNAddresses,
+			Group:       &deploymentGroupNetworkingDERP,
+			YAML:        "stunAddresses",
+		},
+		{
+			Name:        "DERP Server Relay URL",
+			Description: "An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.",
+			Flag:        "derp-server-relay-url",
+			Env:         "DERP_SERVER_RELAY_URL",
+			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
+			Value:       &c.DERP.Server.RelayURL,
+			Group:       &deploymentGroupNetworkingDERP,
+			YAML:        "relayURL",
+		},
+		{
+			Name:        "DERP Config URL",
+			Description: "URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/",
+			Flag:        "derp-config-url",
+			Env:         "DERP_CONFIG_URL",
+			Value:       &c.DERP.Config.URL,
+			Group:       &deploymentGroupNetworkingDERP,
+			YAML:        "url",
+		},
+		{
+			Name:        "DERP Config Path",
+			Description: "Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/",
+			Flag:        "derp-config-path",
+			Env:         "DERP_CONFIG_PATH",
+			Value:       &c.DERP.Config.Path,
+			Group:       &deploymentGroupNetworkingDERP,
+			YAML:        "configPath",
+		},
+		// TODO: support Git Auth settings.
+		// Prometheus settings
+		{
+			Name:        "Prometheus Enable",
+			Description: "Serve prometheus metrics on the address defined by prometheus address.",
+			Flag:        "prometheus-enable",
+			Env:         "PROMETHEUS_ENABLE",
+			Value:       &c.Prometheus.Enable,
+			Group:       &deploymentGroupIntrospectionPrometheus,
+			YAML:        "enable",
+		},
+		{
+			Name:        "Prometheus Address",
+			Description: "The bind address to serve prometheus metrics.",
+			Flag:        "prometheus-address",
+			Env:         "PROMETHEUS_ADDRESS",
+			Default:     "127.0.0.1:2112",
+			Value:       &c.Prometheus.Address,
+			Group:       &deploymentGroupIntrospectionPrometheus,
+			YAML:        "address",
+		},
+		// Pprof settings
+		{
+			Name:        "pprof Enable",
+			Description: "Serve pprof metrics on the address defined by pprof address.",
+			Flag:        "pprof-enable",
+			Env:         "PPROF_ENABLE",
+			Value:       &c.Pprof.Enable,
+			Group:       &deploymentGroupIntrospectionPPROF,
+			YAML:        "enable",
+		},
+		{
+			Name:        "pprof Address",
+			Description: "The bind address to serve pprof.",
+			Flag:        "pprof-address",
+			Env:         "PPROF_ADDRESS",
+			Default:     "127.0.0.1:6060",
+			Value:       &c.Pprof.Address,
+			Group:       &deploymentGroupIntrospectionPPROF,
+			YAML:        "address",
+		},
+		// oAuth settings
+		{
+			Name:        "OAuth2 GitHub Client ID",
+			Description: "Client ID for Login with GitHub.",
+			Flag:        "oauth2-github-client-id",
+			Env:         "OAUTH2_GITHUB_CLIENT_ID",
+			Value:       &c.OAuth2.Github.ClientID,
+			Group:       &deploymentGroupOAuth2GitHub,
+			YAML:        "clientID",
+		},
+		{
+			Name:        "OAuth2 GitHub Client Secret",
+			Description: "Client secret for Login with GitHub.",
+			Flag:        "oauth2-github-client-secret",
+			Env:         "OAUTH2_GITHUB_CLIENT_SECRET",
+			Value:       &c.OAuth2.Github.ClientSecret,
+			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
+			Group:       &deploymentGroupOAuth2GitHub,
+		},
+		{
+			Name:        "OAuth2 GitHub Allowed Orgs",
+			Description: "Organizations the user must be a member of to Login with GitHub.",
+			Flag:        "oauth2-github-allowed-orgs",
+			Env:         "OAUTH2_GITHUB_ALLOWED_ORGS",
+			Value:       &c.OAuth2.Github.AllowedOrgs,
+			Group:       &deploymentGroupOAuth2GitHub,
+			YAML:        "allowedOrgs",
+		},
+		{
+			Name:        "OAuth2 GitHub Allowed Teams",
+			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
+			Flag:        "oauth2-github-allowed-teams",
+			Env:         "OAUTH2_GITHUB_ALLOWED_TEAMS",
+			Value:       &c.OAuth2.Github.AllowedTeams,
+			Group:       &deploymentGroupOAuth2GitHub,
+			YAML:        "allowedTeams",
+		},
+		{
+			Name:        "OAuth2 GitHub Allow Signups",
+			Description: "Whether new users can sign up with GitHub.",
+			Flag:        "oauth2-github-allow-signups",
+			Env:         "OAUTH2_GITHUB_ALLOW_SIGNUPS",
+			Value:       &c.OAuth2.Github.AllowSignups,
+			Group:       &deploymentGroupOAuth2GitHub,
+			YAML:        "allowSignups",
+		},
+		{
+			Name:        "OAuth2 GitHub Allow Everyone",
+			Description: "Allow all logins, setting this option means allowed orgs and teams must be empty.",
+			Flag:        "oauth2-github-allow-everyone",
+			Env:         "OAUTH2_GITHUB_ALLOW_EVERYONE",
+			Value:       &c.OAuth2.Github.AllowEveryone,
+			Group:       &deploymentGroupOAuth2GitHub,
+			YAML:        "allowEveryone",
+		},
+		{
+			Name:        "OAuth2 GitHub Enterprise Base URL",
+			Description: "Base URL of a GitHub Enterprise deployment to use for Login with GitHub.",
+			Flag:        "oauth2-github-enterprise-base-url",
+			Env:         "OAUTH2_GITHUB_ENTERPRISE_BASE_URL",
+			Value:       &c.OAuth2.Github.EnterpriseBaseURL,
+			Group:       &deploymentGroupOAuth2GitHub,
+			YAML:        "enterpriseBaseURL",
+		},
+		// OIDC settings.
+		{
+			Name:        "OIDC Allow Signups",
+			Description: "Whether new users can sign up with OIDC.",
+			Flag:        "oidc-allow-signups",
+			Env:         "OIDC_ALLOW_SIGNUPS",
+			Default:     "true",
+			Value:       &c.OIDC.AllowSignups,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "allowSignups",
+		},
+		{
+			Name:        "OIDC Client ID",
+			Description: "Client ID to use for Login with OIDC.",
+			Flag:        "oidc-client-id",
+			Env:         "OIDC_CLIENT_ID",
+			Value:       &c.OIDC.ClientID,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "clientID",
+		},
+		{
+			Name:        "OIDC Client Secret",
+			Description: "Client secret to use for Login with OIDC.",
+			Flag:        "oidc-client-secret",
+			Env:         "OIDC_CLIENT_SECRET",
+			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
+			Value:       &c.OIDC.ClientSecret,
+			Group:       &deploymentGroupOIDC,
+		},
+		{
+			Name:        "OIDC Email Domain",
+			Description: "Email domains that clients logging in with OIDC must match.",
+			Flag:        "oidc-email-domain",
+			Env:         "OIDC_EMAIL_DOMAIN",
+			Value:       &c.OIDC.EmailDomain,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "emailDomain",
+		},
+		{
+			Name:        "OIDC Issuer URL",
+			Description: "Issuer URL to use for Login with OIDC.",
+			Flag:        "oidc-issuer-url",
+			Env:         "OIDC_ISSUER_URL",
+			Value:       &c.OIDC.IssuerURL,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "issuerURL",
+		},
+		{
+			Name:        "OIDC Scopes",
+			Description: "Scopes to grant when authenticating with OIDC.",
+			Flag:        "oidc-scopes",
+			Env:         "OIDC_SCOPES",
+			Default:     strings.Join([]string{oidc.ScopeOpenID, "profile", "email"}, ","),
+			Value:       &c.OIDC.Scopes,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "scopes",
+		},
+		{
+			Name:        "OIDC Ignore Email Verified",
+			Description: "Ignore the email_verified claim from the upstream provider.",
+			Flag:        "oidc-ignore-email-verified",
+			Env:         "OIDC_IGNORE_EMAIL_VERIFIED",
+			Default:     "false",
+			Value:       &c.OIDC.IgnoreEmailVerified,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "ignoreEmailVerified",
+		},
+		{
+			Name:        "OIDC Username Field",
+			Description: "OIDC claim field to use as the username.",
+			Flag:        "oidc-username-field",
+			Env:         "OIDC_USERNAME_FIELD",
+			Default:     "preferred_username",
+			Value:       &c.OIDC.UsernameField,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "usernameField",
+		},
+		{
+			Name:        "OpenID Connect sign in text",
+			Description: "The text to show on the OpenID Connect sign in button",
+			Flag:        "oidc-sign-in-text",
+			Env:         "OIDC_SIGN_IN_TEXT",
+			Default:     "OpenID Connect",
+			Value:       &c.OIDC.SignInText,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "signInText",
+		},
+		{
+			Name:        "OpenID connect icon URL",
+			Description: "URL pointing to the icon to use on the OepnID Connect login button",
+			Flag:        "oidc-icon-url",
+			Env:         "OIDC_ICON_URL",
+			Value:       &c.OIDC.IconURL,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "iconURL",
+		},
+		// Telemetry settings
+		{
+			Name:        "Telemetry Enable",
+			Description: "Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.",
+			Flag:        "telemetry",
+			Env:         "TELEMETRY_ENABLE",
+			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
+			Value:       &c.Telemetry.Enable,
+			Group:       &deploymentGroupTelemetry,
+			YAML:        "enable",
+		},
+		{
+			Name:        "Telemetry Trace",
+			Description: "Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.",
+			Flag:        "telemetry-trace",
+			Env:         "TELEMETRY_TRACE",
+			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
+			Value:       &c.Telemetry.Trace,
+			Group:       &deploymentGroupTelemetry,
+			YAML:        "trace",
+		},
+		{
+			Name:        "Telemetry URL",
+			Description: "URL to send telemetry.",
+			Flag:        "telemetry-url",
+			Env:         "TELEMETRY_URL",
+			Hidden:      true,
+			Default:     "https://telemetry.coder.com",
+			Value:       &c.Telemetry.URL,
+			Group:       &deploymentGroupTelemetry,
+			YAML:        "url",
+		},
+		// Trace settings
+		{
+			Name:        "Trace Enable",
+			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md",
+			Flag:        "trace",
+			Env:         "TRACE_ENABLE",
+			Value:       &c.Trace.Enable,
+			Group:       &deploymentGroupIntrospectionTracing,
+			YAML:        "enable",
+		},
+		{
+			Name:        "Trace Honeycomb API Key",
+			Description: "Enables trace exporting to Honeycomb.io using the provided API Key.",
+			Flag:        "trace-honeycomb-api-key",
+			Env:         "TRACE_HONEYCOMB_API_KEY",
+			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
+			Value:       &c.Trace.HoneycombAPIKey,
+			Group:       &deploymentGroupIntrospectionTracing,
+		},
+		{
+			Name:        "Capture Logs in Traces",
+			Description: "Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.",
+			Flag:        "trace-logs",
+			Env:         "TRACE_LOGS",
+			Value:       &c.Trace.CaptureLogs,
+			Group:       &deploymentGroupIntrospectionTracing,
+			YAML:        "captureLogs",
+		},
+		// Provisioner settings
+		{
+			Name:        "Provisioner Daemons",
+			Description: "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
+			Flag:        "provisioner-daemons",
+			Env:         "PROVISIONER_DAEMONS",
+			Default:     "3",
+			Value:       &c.Provisioner.Daemons,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "daemons",
+		},
+		{
+			Name:        "Poll Interval",
+			Description: "Time to wait before polling for a new job.",
+			Flag:        "provisioner-daemon-poll-interval",
+			Env:         "PROVISIONER_DAEMON_POLL_INTERVAL",
+			Default:     time.Second.String(),
+			Value:       &c.Provisioner.DaemonPollInterval,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "daemonPollInterval",
+		},
+		{
+			Name:        "Poll Jitter",
+			Description: "Random jitter added to the poll interval.",
+			Flag:        "provisioner-daemon-poll-jitter",
+			Env:         "PROVISIONER_DAEMON_POLL_JITTER",
+			Default:     (100 * time.Millisecond).String(),
+			Value:       &c.Provisioner.DaemonPollJitter,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "daemonPollJitter",
+		},
+		{
+			Name:        "Force Cancel Interval",
+			Description: "Time to force cancel provisioning tasks that are stuck.",
+			Flag:        "provisioner-force-cancel-interval",
+			Env:         "PROVISIONER_FORCE_CANCEL_INTERVAL",
+			Default:     (10 * time.Minute).String(),
+			Value:       &c.Provisioner.ForceCancelInterval,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "forceCancelInterval",
+		},
+		// RateLimit settings
+		{
+			Name:        "Disable All Rate Limits",
+			Description: "Disables all rate limits. This is not recommended in production.",
+			Flag:        "dangerous-disable-rate-limits",
+			Env:         "DANGEROUS_DISABLE_RATE_LIMITS",
+			Default:     "false",
+			Value:       &c.RateLimit.DisableAll,
+			Hidden:      true,
+		},
+		{
+			Name:        "API Rate Limit",
+			Description: "Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints have separate strict rate limits regardless of this value to prevent denial-of-service or brute force attacks.",
+			// Change the env from the auto-generated CODER_RATE_LIMIT_API to the
+			// old value to avoid breaking existing deployments.
+			Env:     "API_RATE_LIMIT",
+			Flag:    "api-rate-limit",
+			Default: "512",
+			Value:   &c.RateLimit.API,
+			Hidden:  true,
+		},
+		// Logging settings
+		{
+			Name:          "Verbose",
+			Description:   "Output debug-level logs.",
+			Flag:          "verbose",
+			Env:           "VERBOSE",
+			FlagShorthand: "v",
+			Default:       "false",
+			Value:         &c.Verbose,
+			Group:         &deploymentGroupIntrospectionLogging,
+			YAML:          "verbose",
+		},
+		{
+			Name:        "Human Log Location",
+			Description: "Output human-readable logs to a given file.",
+			Flag:        "log-human",
+			Env:         "LOGGING_HUMAN",
+			Default:     "/dev/stderr",
+			Value:       &c.Logging.Human,
+			Group:       &deploymentGroupIntrospectionLogging,
+			YAML:        "humanPath",
+		},
+		{
+			Name:        "JSON Log Location",
+			Description: "Output JSON logs to a given file.",
+			Flag:        "log-json",
+			Env:         "LOGGING_JSON",
+			Default:     "",
+			Value:       &c.Logging.JSON,
+			Group:       &deploymentGroupIntrospectionLogging,
+			YAML:        "jsonPath",
+		},
+		{
+			Name:        "Stackdriver Log Location",
+			Description: "Output Stackdriver compatible logs to a given file.",
+			Flag:        "log-stackdriver",
+			Env:         "LOGGING_STACKDRIVER",
+			Default:     "",
+			Value:       &c.Logging.Stackdriver,
+			Group:       &deploymentGroupIntrospectionLogging,
+			YAML:        "stackdriverPath",
+		},
+		// ☢️ Dangerous settings
+		{
+			Name:        "DANGEROUS: Allow Path App Sharing",
+			Description: "Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
+			Flag:        "dangerous-allow-path-app-sharing",
+			Env:         "DANGEROUS_ALLOW_PATH_APP_SHARING",
+			Default:     "false",
+			Value:       &c.Dangerous.AllowPathAppSharing,
+			Group:       &deploymentGroupDangerous,
+		},
+		{
+			Name:        "DANGEROUS: Allow Site Owners to Access Path Apps",
+			Description: "Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
+			Flag:        "dangerous-allow-path-app-site-owner-access",
+			Env:         "DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS",
+			Default:     "false",
+			Value:       &c.Dangerous.AllowPathAppSiteOwnerAccess,
+			Group:       &deploymentGroupDangerous,
+		},
+		// Misc. settings
+		{
+			Name:        "Experiments",
+			Description: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
+			Flag:        "experiments",
+			Env:         "EXPERIMENTS",
+			Value:       &c.Experiments,
+			YAML:        "experiments",
+		},
+		{
+			Name:        "Update Check",
+			Description: "Periodically check for new releases of Coder and inform the owner. The check is performed once per day.",
+			Flag:        "update-check",
+			Env:         "UPDATE_CHECK",
+			Default: strconv.FormatBool(
+				flag.Lookup("test.v") == nil && !buildinfo.IsDev(),
+			),
+			Value: &c.UpdateCheck,
+			YAML:  "updateCheck",
+		},
+		{
+			Name:        "Max Token Lifetime",
+			Description: "The maximum lifetime duration users can specify when creating an API token.",
+			Flag:        "max-token-lifetime",
+			Env:         "MAX_TOKEN_LIFETIME",
+			Default:     time.Duration(math.MaxInt64).String(),
+			Value:       &c.MaxTokenLifetime,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "maxTokenLifetime",
+		},
+		{
+			Name:        "Enable swagger endpoint",
+			Description: "Expose the swagger endpoint via /swagger.",
+			Flag:        "swagger-enable",
+			Env:         "SWAGGER_ENABLE",
+			Default:     "false",
+			Value:       &c.Swagger.Enable,
+			YAML:        "enableSwagger",
+		},
+		{
+			Name:        "Proxy Trusted Headers",
+			Flag:        "proxy-trusted-headers",
+			Env:         "PROXY_TRUSTED_HEADERS",
+			Description: "Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For",
+			Value:       &c.ProxyTrustedHeaders,
+			Group:       &deploymentGroupNetworking,
+			YAML:        "proxyTrustedHeaders",
+		},
+		{
+			Name:        "Proxy Trusted Origins",
+			Flag:        "proxy-trusted-origins",
+			Env:         "PROXY_TRUSTED_ORIGINS",
+			Description: "Origin addresses to respect \"proxy-trusted-headers\". e.g. 192.168.1.0/24",
+			Value:       &c.ProxyTrustedOrigins,
+			Group:       &deploymentGroupNetworking,
+			YAML:        "proxyTrustedOrigins",
+		},
+		{
+			Name:        "Cache Directory",
+			Description: "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.",
+			Flag:        "cache-dir",
+			Env:         "CACHE_DIRECTORY",
+			Default:     DefaultCacheDir(),
+			Value:       &c.CacheDir,
+			YAML:        "cacheDir",
+		},
+		{
+			Name:        "In Memory Database",
+			Description: "Controls whether data will be stored in an in-memory database.",
+			Flag:        "in-memory",
+			Env:         "IN_MEMORY",
+			Hidden:      true,
+			Value:       &c.InMemoryDatabase,
+			YAML:        "inMemoryDatabase",
+		},
+		{
+			Name:        "Postgres Connection URL",
+			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
+			Flag:        "postgres-url",
+			Env:         "PG_CONNECTION_URL",
+			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
+			Value:       &c.PostgresURL,
+		},
+		{
+			Name:        "Secure Auth Cookie",
+			Description: "Controls if the 'Secure' property is set on browser session cookies.",
+			Flag:        "secure-auth-cookie",
+			Env:         "SECURE_AUTH_COOKIE",
+			Value:       &c.SecureAuthCookie,
+			Group:       &deploymentGroupNetworking,
+			YAML:        "secureAuthCookie",
+		},
+		{
+			Name: "Strict-Transport-Security",
+			Description: "Controls if the 'Strict-Transport-Security' header is set on all static file responses. " +
+				"This header should only be set if the server is accessed via HTTPS. This value is the MaxAge in seconds of " +
+				"the header.",
+			Default: "0",
+			Flag:    "strict-transport-security",
+			Env:     "STRICT_TRANSPORT_SECURITY",
+			Value:   &c.StrictTransportSecurity,
+			Group:   &deploymentGroupNetworkingTLS,
+			YAML:    "strictTransportSecurity",
+		},
+		{
+			Name: "Strict-Transport-Security Options",
+			Description: "Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. " +
+				"The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.",
+			Flag:  "strict-transport-security-options",
+			Env:   "STRICT_TRANSPORT_SECURITY_OPTIONS",
+			Value: &c.StrictTransportSecurityOptions,
+			Group: &deploymentGroupNetworkingTLS,
+			YAML:  "strictTransportSecurityOptions",
+		},
+		{
+			Name:        "SSH Keygen Algorithm",
+			Description: "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
+			Flag:        "ssh-keygen-algorithm",
+			Env:         "SSH_KEYGEN_ALGORITHM",
+			Default:     "ed25519",
+			Value:       &c.SSHKeygenAlgorithm,
+			YAML:        "sshKeygenAlgorithm",
+		},
+		{
+			Name:        "Metrics Cache Refresh Interval",
+			Description: "How frequently metrics are refreshed",
+			Flag:        "metrics-cache-refresh-interval",
+			Env:         "METRICS_CACHE_REFRESH_INTERVAL",
+			Hidden:      true,
+			Default:     time.Hour.String(),
+			Value:       &c.MetricsCacheRefreshInterval,
+		},
+		{
+			Name:        "Agent Stat Refresh Interval",
+			Description: "How frequently agent stats are recorded",
+			Flag:        "agent-stats-refresh-interval",
+			Env:         "AGENT_STATS_REFRESH_INTERVAL",
+			Hidden:      true,
+			Default:     (30 * time.Second).String(),
+			Value:       &c.AgentStatRefreshInterval,
+		},
+		{
+			Name:        "Agent Fallback Troubleshooting URL",
+			Description: "URL to use for agent troubleshooting when not set in the template",
+			Flag:        "agent-fallback-troubleshooting-url",
+			Env:         "AGENT_FALLBACK_TROUBLESHOOTING_URL",
+			Hidden:      true,
+			Default:     "https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates",
+			Value:       &c.AgentFallbackTroubleshootingURL,
+			YAML:        "agentFallbackTroubleshootingURL",
+		},
+		{
+			Name:        "Audit Logging",
+			Description: "Specifies whether audit logging is enabled.",
+			Flag:        "audit-logging",
+			Env:         "AUDIT_LOGGING",
+			Default:     "true",
+			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
+			Value:       &c.AuditLogging,
+			YAML:        "auditLogging",
+		},
+		{
+			Name:        "Browser Only",
+			Description: "Whether Coder only allows connections to workspaces via the browser.",
+			Flag:        "browser-only",
+			Env:         "BROWSER_ONLY",
+			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
+			Value:       &c.BrowserOnly,
+			Group:       &deploymentGroupNetworking,
+			YAML:        "browserOnly",
+		},
+		{
+			Name:        "SCIM API Key",
+			Description: "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.",
+			Flag:        "scim-auth-header",
+			Env:         "SCIM_AUTH_HEADER",
+			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true").Mark(flagSecretKey, "true"),
+			Value:       &c.SCIMAPIKey,
+		},
+
+		{
+			Name:        "Disable Path Apps",
+			Description: "Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.",
+			Flag:        "disable-path-apps",
+			Env:         "DISABLE_PATH_APPS",
+			Default:     "false",
+			Value:       &c.DisablePathApps,
+			YAML:        "disablePathApps",
+		},
+		{
+			Name:        "Session Duration",
+			Description: "The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.",
+			Flag:        "session-duration",
+			Env:         "SESSION_DURATION",
+			Default:     (24 * time.Hour).String(),
+			Value:       &c.SessionDuration,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "sessionDuration",
+		},
+		{
+			Name:        "Disable Session Expiry Refresh",
+			Description: "Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.",
+			Flag:        "disable-session-expiry-refresh",
+			Env:         "DISABLE_SESSION_EXPIRY_REFRESH",
+			Default:     "false",
+			Value:       &c.DisableSessionExpiryRefresh,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "disableSessionExpiryRefresh",
+		},
+		{
+			Name:        "Disable Password Authentication",
+			Description: "Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.",
+			Flag:        "disable-password-auth",
+			Env:         "DISABLE_PASSWORD_AUTH",
+			Default:     "false",
+			Value:       &c.DisablePasswordAuth,
+			Group:       &deploymentGroupNetworkingHTTP,
+			YAML:        "disablePasswordAuth",
+		},
+		{
+			Name:          "Config Path",
+			Description:   `Specify a YAML file to load configuration from.`,
+			Flag:          "config",
+			Env:           "CONFIG_PATH",
+			FlagShorthand: "c",
+			Hidden:        true,
+			Group:         &deploymentGroupConfig,
+			Value:         &c.Config,
+		},
+		{
+			Name: "Write Config",
+			Description: `
+Write out the current server configuration to the path specified by --config.`,
+			Flag:   "write-config",
+			Env:    "WRITE_CONFIG",
+			Group:  &deploymentGroupConfig,
+			Hidden: true,
+			Value:  &c.WriteConfig,
+		},
+		{
+			Name:        "Support Links",
+			Description: "Support links to display in the top right drop down menu.",
+			YAML:        "supportLinks",
+			Value:       &c.Support.Links,
+		},
+		{
+			// Env handling is done in cli.ReadGitAuthFromEnvironment
+			Name:        "Git Auth Providers",
+			Description: "Git Authentication providers",
+			YAML:        "gitAuthProviders",
+			Value:       &c.GitAuthProviders,
+			Hidden:      true,
+		},
+	}
 }
 
 type SupportConfig struct {
-	Links *DeploymentConfigField[[]LinkConfig] `json:"links" typescript:",notnull"`
+	Links clibase.Struct[[]LinkConfig] `json:"links" typescript:",notnull"`
 }
 
 type LinkConfig struct {
-	Name   string `json:"name"`
-	Target string `json:"target"`
-	Icon   string `json:"icon"`
+	Name   string `json:"name" yaml:"name"`
+	Target string `json:"target" yaml:"target"`
+	Icon   string `json:"icon" yaml:"icon"`
 }
 
-type Flaggable interface {
-	string | time.Duration | bool | int | []string | []GitAuthConfig | []LinkConfig
-}
+// WithoutSecrets returns a copy of the config without secret values.
+func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
+	var ff DeploymentValues
 
-type DeploymentConfigField[T Flaggable] struct {
-	Name  string `json:"name"`
-	Usage string `json:"usage"`
-	Flag  string `json:"flag"`
-	// EnvOverride will override the automatically generated environment
-	// variable name. Useful if you're moving values around but need to keep
-	// backwards compatibility with old environment variable names.
-	//
-	// NOTE: this is not supported for array flags.
-	EnvOverride string `json:"-"`
-	Shorthand   string `json:"shorthand"`
-	Enterprise  bool   `json:"enterprise"`
-	Hidden      bool   `json:"hidden"`
-	Secret      bool   `json:"secret"`
-	Default     T      `json:"default"`
-	Value       T      `json:"value"`
-}
-
-// MarshalJSON removes the Value field from the JSON output of any fields marked Secret.
-// nolint:revive
-func (f *DeploymentConfigField[T]) MarshalJSON() ([]byte, error) {
-	copy := struct {
-		Name       string `json:"name"`
-		Usage      string `json:"usage"`
-		Flag       string `json:"flag"`
-		Shorthand  string `json:"shorthand"`
-		Enterprise bool   `json:"enterprise"`
-		Hidden     bool   `json:"hidden"`
-		Secret     bool   `json:"secret"`
-		Default    T      `json:"default"`
-		Value      T      `json:"value"`
-	}{
-		Name:       f.Name,
-		Usage:      f.Usage,
-		Flag:       f.Flag,
-		Shorthand:  f.Shorthand,
-		Enterprise: f.Enterprise,
-		Hidden:     f.Hidden,
-		Secret:     f.Secret,
+	// Create copy via JSON.
+	byt, err := json.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(byt, &ff)
+	if err != nil {
+		return nil, err
 	}
 
-	if !f.Secret {
-		copy.Default = f.Default
-		copy.Value = f.Value
+	for _, opt := range ff.Options() {
+		if !IsSecretDeploymentOption(opt) {
+			continue
+		}
+
+		// This only works with string values for now.
+		switch v := opt.Value.(type) {
+		case *clibase.String:
+			err := v.Set("")
+			if err != nil {
+				panic(err)
+			}
+		default:
+			return nil, xerrors.Errorf("unsupported type %T", v)
+		}
 	}
 
-	return json.Marshal(copy)
+	return &ff, nil
 }
 
-// DeploymentConfig returns the deployment config for the coder server.
-func (c *Client) DeploymentConfig(ctx context.Context) (DeploymentConfig, error) {
+// DeploymentValues returns the deployment config for the coder server.
+func (c *Client) DeploymentValues(ctx context.Context) (*DeploymentConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/config", nil)
 	if err != nil {
-		return DeploymentConfig{}, xerrors.Errorf("execute request: %w", err)
+		return nil, xerrors.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return DeploymentConfig{}, ReadBodyAsError(res)
+		return nil, ReadBodyAsError(res)
 	}
 
-	var df DeploymentConfig
-	return df, json.NewDecoder(res.Body).Decode(&df)
+	conf := &DeploymentValues{}
+	resp := &DeploymentConfig{
+		Values:  conf,
+		Options: conf.Options(),
+	}
+	return resp, json.NewDecoder(res.Body).Decode(resp)
 }
 
 func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {

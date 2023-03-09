@@ -84,7 +84,7 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 // workspaceAppsProxyPath proxies requests to a workspace application
 // through a relative URL path.
 func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
-	if api.DeploymentConfig.DisablePathApps.Value {
+	if api.DeploymentValues.DisablePathApps.Value() {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusUnauthorized,
 			Title:        "Unauthorized",
@@ -106,7 +106,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 				OIDC:   api.OIDCConfig,
 			},
 			RedirectToLogin:             true,
-			DisableSessionExpiryRefresh: api.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+			DisableSessionExpiryRefresh: api.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		})
 		if !ok {
 			return
@@ -340,9 +340,9 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	// the current session.
 	exp := apiKey.ExpiresAt
 	lifetimeSeconds := apiKey.LifetimeSeconds
-	if exp.IsZero() || time.Until(exp) > api.DeploymentConfig.SessionDuration.Value {
-		exp = database.Now().Add(api.DeploymentConfig.SessionDuration.Value)
-		lifetimeSeconds = int64(api.DeploymentConfig.SessionDuration.Value.Seconds())
+	if exp.IsZero() || time.Until(exp) > api.DeploymentValues.SessionDuration.Value() {
+		exp = database.Now().Add(api.DeploymentValues.SessionDuration.Value())
+		lifetimeSeconds = int64(api.DeploymentValues.SessionDuration.Value().Seconds())
 	}
 	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:          apiKey.UserID,

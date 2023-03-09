@@ -5,18 +5,23 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import { DeploymentConfigField, Flaggable } from "api/typesGenerated"
+import { DeploymentOption } from "api/types"
 import {
   OptionDescription,
   OptionName,
   OptionValue,
 } from "components/DeploySettingsLayout/Option"
 import { FC } from "react"
+import { DisabledBadge } from "./Badges"
 
 const OptionsTable: FC<{
-  options: Record<string, DeploymentConfigField<Flaggable>>
+  options: DeploymentOption[]
 }> = ({ options }) => {
   const styles = useStyles()
+
+  if (options.length === 0) {
+    return <DisabledBadge></DisabledBadge>
+  }
 
   return (
     <TableContainer>
@@ -29,15 +34,18 @@ const OptionsTable: FC<{
         </TableHead>
         <TableBody>
           {Object.values(options).map((option) => {
+            if (option.value === null || option.value === "") {
+              return null
+            }
             return (
               <TableRow key={option.flag}>
                 <TableCell>
                   <OptionName>{option.name}</OptionName>
-                  <OptionDescription>{option.usage}</OptionDescription>
+                  <OptionDescription>{option.description}</OptionDescription>
                 </TableCell>
 
                 <TableCell>
-                  <OptionValue>{option.value.toString()}</OptionValue>
+                  <OptionValue>{option.value}</OptionValue>
                 </TableCell>
               </TableRow>
             )

@@ -91,7 +91,7 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 		DB:                          p.Database,
 		OAuth2Configs:               p.OAuth2Configs,
 		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: p.DeploymentConfig.DisableSessionExpiryRefresh.Value,
+		DisableSessionExpiryRefresh: p.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		// Optional is true to allow for public apps. If an authorization check
 		// fails and the user is not authenticated, they will be redirected to
 		// the login page using code below (not the redirect from the
@@ -358,7 +358,7 @@ func (p *Provider) authorizeWorkspaceApp(ctx context.Context, roles *httpmw.Auth
 	//
 	// Site owners are blocked from accessing path-based apps unless the
 	// Dangerous.AllowPathAppSiteOwnerAccess flag is enabled in the check below.
-	if isPathApp && !p.DeploymentConfig.Dangerous.AllowPathAppSharing.Value {
+	if isPathApp && !p.DeploymentValues.Dangerous.AllowPathAppSharing.Value() {
 		sharingLevel = database.AppSharingLevelOwner
 	}
 
@@ -379,7 +379,7 @@ func (p *Provider) authorizeWorkspaceApp(ctx context.Context, roles *httpmw.Auth
 	if isPathApp &&
 		sharingLevel == database.AppSharingLevelOwner &&
 		workspace.OwnerID.String() != roles.Actor.ID &&
-		!p.DeploymentConfig.Dangerous.AllowPathAppSiteOwnerAccess.Value {
+		!p.DeploymentValues.Dangerous.AllowPathAppSiteOwnerAccess.Value() {
 		return false, nil
 	}
 

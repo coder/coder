@@ -6,7 +6,7 @@ import { pageTitle } from "util/page"
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView"
 
 const SecuritySettingsPage: FC = () => {
-  const { deploymentConfig: deploymentConfig } = useDeploySettings()
+  const { deploymentValues: deploymentValues } = useDeploySettings()
   const { entitlements } = useDashboard()
 
   return (
@@ -16,7 +16,7 @@ const SecuritySettingsPage: FC = () => {
       </Helmet>
 
       <SecuritySettingsPageView
-        deploymentConfig={deploymentConfig}
+        options={deploymentValues.options}
         featureAuditLogEnabled={entitlements.features["audit_log"].enabled}
         featureBrowserOnlyEnabled={
           entitlements.features["browser_only"].enabled

@@ -3563,6 +3563,7 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 		job.UpdatedAt = arg.UpdatedAt
 		job.CompletedAt = arg.CompletedAt
 		job.Error = arg.Error
+		job.ErrorCode = arg.ErrorCode
 		q.provisionerJobs[index] = job
 		return nil
 	}

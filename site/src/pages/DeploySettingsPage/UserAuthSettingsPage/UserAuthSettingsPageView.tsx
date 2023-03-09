@@ -1,4 +1,4 @@
-import { DeploymentConfig } from "api/typesGenerated"
+import { DeploymentOption } from "api/types"
 import {
   Badges,
   DisabledBadge,
@@ -7,13 +7,17 @@ import {
 import { Header } from "components/DeploySettingsLayout/Header"
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { Stack } from "components/Stack/Stack"
+import {
+  deploymentGroupHasParent,
+  useDeploymentOptions,
+} from "util/deployOptions"
 
 export type UserAuthSettingsPageViewProps = {
-  deploymentConfig: Pick<DeploymentConfig, "oidc" | "oauth2">
+  options: DeploymentOption[]
 }
 
 export const UserAuthSettingsPageView = ({
-  deploymentConfig,
+  options,
 }: UserAuthSettingsPageViewProps): JSX.Element => (
   <>
     <Stack direction="column" spacing={6}>
@@ -28,7 +32,7 @@ export const UserAuthSettingsPageView = ({
         />
 
         <Badges>
-          {deploymentConfig.oidc.client_id.value ? (
+          {useDeploymentOptions(options, "OIDC Client ID")[0].value ? (
             <EnabledBadge />
           ) : (
             <DisabledBadge />
@@ -36,13 +40,9 @@ export const UserAuthSettingsPageView = ({
         </Badges>
 
         <OptionsTable
-          options={{
-            client_id: deploymentConfig.oidc.client_id,
-            allow_signups: deploymentConfig.oidc.allow_signups,
-            email_domain: deploymentConfig.oidc.email_domain,
-            issuer_url: deploymentConfig.oidc.issuer_url,
-            scopes: deploymentConfig.oidc.scopes,
-          }}
+          options={options.filter((o) =>
+            deploymentGroupHasParent(o.group, "OIDC"),
+          )}
         />
       </div>
 
@@ -55,7 +55,7 @@ export const UserAuthSettingsPageView = ({
         />
 
         <Badges>
-          {deploymentConfig.oauth2.github.client_id.value ? (
+          {useDeploymentOptions(options, "OAuth2 GitHub Client ID")[0].value ? (
             <EnabledBadge />
           ) : (
             <DisabledBadge />
@@ -63,14 +63,9 @@ export const UserAuthSettingsPageView = ({
         </Badges>
 
         <OptionsTable
-          options={{
-            client_id: deploymentConfig.oauth2.github.client_id,
-            allow_signups: deploymentConfig.oauth2.github.allow_signups,
-            allowed_orgs: deploymentConfig.oauth2.github.allowed_orgs,
-            allowed_teams: deploymentConfig.oauth2.github.allowed_teams,
-            enterprise_base_url:
-              deploymentConfig.oauth2.github.enterprise_base_url,
-          }}
+          options={options.filter((o) =>
+            deploymentGroupHasParent(o.group, "GitHub"),
+          )}
         />
       </div>
     </Stack>

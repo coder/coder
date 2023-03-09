@@ -39,6 +39,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
+    "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "started_at": "2019-08-24T14:15:22Z",
@@ -188,6 +189,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
+    "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "started_at": "2019-08-24T14:15:22Z",
@@ -712,6 +714,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
+    "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "started_at": "2019-08-24T14:15:22Z",
@@ -866,6 +869,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
+      "error_code": "MISSING_TEMPLATE_PARAMETER",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "started_at": "2019-08-24T14:15:22Z",
@@ -996,6 +1000,7 @@ Status Code **200**
 | `»» completed_at`                     | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» created_at`                       | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» error`                            | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» error_code`                       | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                         | false    |              |                                                                                                                                                                                                                                                |
 | `»» file_id`                          | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» id`                               | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                       | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -1076,53 +1081,55 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property               | Value              |
-| ---------------------- | ------------------ |
-| `status`               | `pending`          |
-| `status`               | `running`          |
-| `status`               | `succeeded`        |
-| `status`               | `canceling`        |
-| `status`               | `canceled`         |
-| `status`               | `failed`           |
-| `reason`               | `initiator`        |
-| `reason`               | `autostart`        |
-| `reason`               | `autostop`         |
-| `health`               | `disabled`         |
-| `health`               | `initializing`     |
-| `health`               | `healthy`          |
-| `health`               | `unhealthy`        |
-| `sharing_level`        | `owner`            |
-| `sharing_level`        | `authenticated`    |
-| `sharing_level`        | `public`           |
-| `lifecycle_state`      | `created`          |
-| `lifecycle_state`      | `starting`         |
-| `lifecycle_state`      | `start_timeout`    |
-| `lifecycle_state`      | `start_error`      |
-| `lifecycle_state`      | `ready`            |
-| `lifecycle_state`      | `shutting_down`    |
-| `lifecycle_state`      | `shutdown_timeout` |
-| `lifecycle_state`      | `shutdown_error`   |
-| `lifecycle_state`      | `off`              |
-| `status`               | `connecting`       |
-| `status`               | `connected`        |
-| `status`               | `disconnected`     |
-| `status`               | `timeout`          |
-| `workspace_transition` | `start`            |
-| `workspace_transition` | `stop`             |
-| `workspace_transition` | `delete`           |
-| `status`               | `pending`          |
-| `status`               | `starting`         |
-| `status`               | `running`          |
-| `status`               | `stopping`         |
-| `status`               | `stopped`          |
-| `status`               | `failed`           |
-| `status`               | `canceling`        |
-| `status`               | `canceled`         |
-| `status`               | `deleting`         |
-| `status`               | `deleted`          |
-| `transition`           | `start`            |
-| `transition`           | `stop`             |
-| `transition`           | `delete`           |
+| Property               | Value                         |
+| ---------------------- | ----------------------------- |
+| `error_code`           | `MISSING_TEMPLATE_PARAMETER`  |
+| `error_code`           | `REQUIRED_TEMPLATE_VARIABLES` |
+| `status`               | `pending`                     |
+| `status`               | `running`                     |
+| `status`               | `succeeded`                   |
+| `status`               | `canceling`                   |
+| `status`               | `canceled`                    |
+| `status`               | `failed`                      |
+| `reason`               | `initiator`                   |
+| `reason`               | `autostart`                   |
+| `reason`               | `autostop`                    |
+| `health`               | `disabled`                    |
+| `health`               | `initializing`                |
+| `health`               | `healthy`                     |
+| `health`               | `unhealthy`                   |
+| `sharing_level`        | `owner`                       |
+| `sharing_level`        | `authenticated`               |
+| `sharing_level`        | `public`                      |
+| `lifecycle_state`      | `created`                     |
+| `lifecycle_state`      | `starting`                    |
+| `lifecycle_state`      | `start_timeout`               |
+| `lifecycle_state`      | `start_error`                 |
+| `lifecycle_state`      | `ready`                       |
+| `lifecycle_state`      | `shutting_down`               |
+| `lifecycle_state`      | `shutdown_timeout`            |
+| `lifecycle_state`      | `shutdown_error`              |
+| `lifecycle_state`      | `off`                         |
+| `status`               | `connecting`                  |
+| `status`               | `connected`                   |
+| `status`               | `disconnected`                |
+| `status`               | `timeout`                     |
+| `workspace_transition` | `start`                       |
+| `workspace_transition` | `stop`                        |
+| `workspace_transition` | `delete`                      |
+| `status`               | `pending`                     |
+| `status`               | `starting`                    |
+| `status`               | `running`                     |
+| `status`               | `stopping`                    |
+| `status`               | `stopped`                     |
+| `status`               | `failed`                      |
+| `status`               | `canceling`                   |
+| `status`               | `canceled`                    |
+| `status`               | `deleting`                    |
+| `status`               | `deleted`                     |
+| `transition`           | `start`                       |
+| `transition`           | `stop`                        |
+| `transition`           | `delete`                      |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1192,6 +1199,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
+    "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "started_at": "2019-08-24T14:15:22Z",
