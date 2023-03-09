@@ -1,7 +1,6 @@
-const maxWorkers = 8
-
 module.exports = {
-  maxWorkers,
+  testTimeout: 10_000,
+  maxWorkers: 8,
   projects: [
     {
       displayName: "test",
