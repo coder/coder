@@ -224,7 +224,7 @@ Once users update their workspaces to the new template revision with rich parame
 As parameters are intended to be used only for workspace customization purposes, Terraform variables can be freely managed by the template author to build templates. Workspace users are not able to modify
 template variables.
 
-The admin user can enable managed Terraform variables mode by specifying the following flag:
+The template author can enable managed Terraform variables mode by specifying the following flag:
 
 ```hcl
 provider "coder" {
