@@ -91,7 +91,7 @@ data "coder_parameter" "account_name" {
 ```
 
 If a parameter contains the `default` property, Coder will use this value
- if the user does not specify any:
+if the user does not specify any:
 
 ```hcl
 data "coder_parameter" "base_image" {
