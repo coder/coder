@@ -15,14 +15,16 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
-// nolint:paralleltest
 func TestDotfiles(t *testing.T) {
+	t.Parallel()
 	t.Run("MissingArg", func(t *testing.T) {
+		t.Parallel()
 		inv, _ := clitest.New(t, "dotfiles")
 		err := inv.Run()
 		require.Error(t, err)
 	})
 	t.Run("NoInstallScript", func(t *testing.T) {
+		t.Parallel()
 		_, root := clitest.New(t)
 		testRepo := testGitRepo(t, root)
 
@@ -49,6 +51,7 @@ func TestDotfiles(t *testing.T) {
 		require.Equal(t, string(b), "wow")
 	})
 	t.Run("InstallScript", func(t *testing.T) {
+		t.Parallel()
 		if runtime.GOOS == "windows" {
 			t.Skip("install scripts on windows require sh and aren't very practical")
 		}

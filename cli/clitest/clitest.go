@@ -27,8 +27,7 @@ import (
 // New creates a CLI instance with a configuration pointed to a
 // temporary testing directory.
 func New(t *testing.T, args ...string) (*clibase.Invokation, config.Root) {
-	var root cli.RootCmd
-	return NewWithSubcommands(t, cli.AGPL(&root), args...)
+	return NewWithSubcommands(t, nil, args...)
 }
 
 type logWriter struct {
@@ -51,6 +50,9 @@ func NewWithSubcommands(
 	t *testing.T, subcommands []*clibase.Cmd, args ...string,
 ) (*clibase.Invokation, config.Root) {
 	var root cli.RootCmd
+	if subcommands == nil {
+		subcommands = cli.AGPL(&root)
+	}
 	cmd := root.Command(subcommands)
 
 	configDir := config.Root(t.TempDir())

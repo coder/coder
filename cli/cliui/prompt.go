@@ -27,7 +27,7 @@ type PromptOptions struct {
 
 const skipPromptFlag = "yes"
 
-// SkipPromptOption adds a "yes" flag to the cmd that can be used to skip
+// SkipPromptOption adds a "--yes/-y" flag to the cmd that can be used to skip
 // prompts.
 func SkipPromptOption() clibase.Option {
 	return clibase.Option{
@@ -36,7 +36,8 @@ func SkipPromptOption() clibase.Option {
 		FlagShorthand: "y",
 		Description:   "Bypass prompts",
 		Env:           "CODER_SKIP_PROMPT",
-		Value:         &clibase.DiscardValue{},
+		// Discard
+		Value: clibase.BoolOf(new(bool)),
 	}
 }
 

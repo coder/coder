@@ -66,8 +66,7 @@ const (
 
 var errUnauthenticated = xerrors.New(notLoggedInMessage)
 
-func Core() []*clibase.Cmd {
-	r := &RootCmd{}
+func (r *RootCmd) Core() []*clibase.Cmd {
 	// Please re-sort this list alphabetically if you change it!
 	return []*clibase.Cmd{
 		r.dotfiles(),
@@ -101,7 +100,7 @@ func Core() []*clibase.Cmd {
 }
 
 func AGPL(r *RootCmd) []*clibase.Cmd {
-	all := append(Core(), r.Server(func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
+	all := append(r.Core(), r.Server(func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
 		api := coderd.New(o)
 		return api, api, nil
 	}))
@@ -252,6 +251,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Flag:        config.FlagName,
 			Env:         "CODER_CONFIG_DIR",
 			Description: "Path to the global `coder` config directory.",
+			Default:     config.DefaultDir(),
 			Value:       clibase.StringOf(&r.globalConfig),
 		},
 	}

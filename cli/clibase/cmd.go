@@ -256,6 +256,8 @@ func (i *Invokation) run(state *runState) error {
 		return i.Command.HelpHandler(i)
 	}
 
+	// fmt.Printf("running middleware with\ni.Args\t%+v\nallArgs\t%v\n", i.Args, state.allArgs)
+
 	err = mw(i.Command.Handler)(i)
 	if err != nil {
 		return xerrors.Errorf("running command %s: %w", i.Command.FullName(), err)

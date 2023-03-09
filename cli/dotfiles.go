@@ -19,7 +19,7 @@ import (
 func (r *RootCmd) dotfiles() *clibase.Cmd {
 	var symlinkDir string
 	cmd := &clibase.Cmd{
-		Use:        "dotfiles [git_repo_url]",
+		Use:        "dotfiles <git_repo_url>",
 		Middleware: clibase.RequireNArgs(1),
 		Short:      "Checkout and install a dotfiles repository from a Git URL",
 		Long: formatExamples(
@@ -48,6 +48,10 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 					"script/setup",
 				}
 			)
+
+			if cfg == "" {
+				return xerrors.Errorf("no config directory")
+			}
 
 			_, _ = fmt.Fprint(inv.Stdout, "Checking if dotfiles repository already exists...\n")
 			dotfilesExists, err := dirExists(dotfilesDir)
@@ -112,7 +116,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 			// ensure command dir exists
 			err = os.MkdirAll(gitCmdDir, 0o750)
 			if err != nil {
-				return xerrors.Errorf("ensuring dir at %s: %w", gitCmdDir, err)
+				return xerrors.Errorf("ensuring dir at %q: %w", gitCmdDir, err)
 			}
 
 			// check if git ssh command already exists so we can just wrap it
@@ -124,7 +128,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 			// clone or pull repo
 			c := exec.CommandContext(inv.Context(), "git", subcommands...)
 			c.Dir = gitCmdDir
-			c.Env = append(os.Environ(), fmt.Sprintf(`GIT_SSH_COMMAND=%s -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no`, gitsshCmd))
+			c.Env = append(inv.Environ.ToOS(), fmt.Sprintf(`GIT_SSH_COMMAND=%s -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no`, gitsshCmd))
 			c.Stdout = inv.Stdout
 			c.Stderr = inv.Stderr
 			err = c.Run()
@@ -234,6 +238,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 	cmd.Options = []clibase.Option{
 		{
 			Name:        "symlink-dir",
+			Flag:        "symlink-dir",
 			Env:         "CODER_SYMLINK_DIR",
 			Description: "Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.",
 			Value:       clibase.StringOf(&symlinkDir),
