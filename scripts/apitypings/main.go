@@ -695,6 +695,16 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 
 		// These are external named types that we handle uniquely.
 		switch n.String() {
+		case "github.com/coder/coder/cli/clibase.String":
+			return TypescriptType{ValueType: "string"}, nil
+		case "github.com/coder/coder/cli/clibase.Strings":
+			return TypescriptType{ValueType: "string[]"}, nil
+		case "github.com/coder/coder/cli/clibase.Int64":
+			return TypescriptType{ValueType: "number"}, nil
+		case "github.com/coder/coder/cli/clibase.Bool":
+			return TypescriptType{ValueType: "boolean"}, nil
+		case "github.com/coder/coder/cli/clibase.Duration":
+			return TypescriptType{ValueType: "number"}, nil
 		case "net/url.URL":
 			return TypescriptType{ValueType: "string"}, nil
 		case "time.Time":

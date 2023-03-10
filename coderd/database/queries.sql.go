@@ -960,25 +960,19 @@ func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteG
 
 const deleteGroupMembersByOrgAndUser = `-- name: DeleteGroupMembersByOrgAndUser :exec
 DELETE FROM
-    group_members
-USING
-    group_members AS gm
-LEFT JOIN
-    groups
-ON
-    groups.id = gm.group_id
+	group_members
 WHERE
-    groups.organization_id = $1 AND
-    gm.user_id = $2
+	group_members.user_id = $1
+	AND group_id = ANY(SELECT id FROM groups WHERE organization_id = $2)
 `
 
 type DeleteGroupMembersByOrgAndUserParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *sqlQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg DeleteGroupMembersByOrgAndUserParams) error {
-	_, err := q.db.ExecContext(ctx, deleteGroupMembersByOrgAndUser, arg.OrganizationID, arg.UserID)
+	_, err := q.db.ExecContext(ctx, deleteGroupMembersByOrgAndUser, arg.UserID, arg.OrganizationID)
 	return err
 }
 
@@ -5562,7 +5556,7 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
 	 FROM (
 		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
-		FROM workspace_agent_stats
+		FROM workspace_agent_stats WHERE created_at > $1
 	) AS a WHERE a.rn = 1
 )
 SELECT workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats, latest_agent_stats
