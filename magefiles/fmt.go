@@ -40,8 +40,10 @@ func (Fmt) Sh() error {
 	}
 	(&cmd{
 		exec.Command(
-			"shfmt",
-			append([]string{"-w"}, names...)...,
+			"go",
+			append(
+				[]string{"run", "mvdan.cc/sh/v3/cmd/shfmt@v3.5.0", "-w"}, names...,
+			)...,
 		),
 	}).run()
 	return nil

@@ -227,9 +227,6 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - name: Install shfmt
-        run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
-
       - name: make fmt
         run: |
           export PATH=${PATH}:$(go env GOPATH)/bin
