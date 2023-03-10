@@ -214,6 +214,8 @@ func entry[A audit.Auditable](v A, f map[string]Action) (string, map[string]Acti
 		delete(fcpy, jsonTag)
 	}
 
+	// If there are any fields left in fcpy, they are extra fields that don't
+	// exist in the struct. Don't track them.
 	if len(fcpy) > 0 {
 		panic(fmt.Sprintf("audit table entry has extra actions for type %q: %v", name, fcpy))
 	}
