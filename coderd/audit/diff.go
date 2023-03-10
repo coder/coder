@@ -14,7 +14,7 @@ type Auditable interface {
 		database.User |
 		database.Workspace |
 		database.GitSSHKey |
-		database.WorkspaceBuildRBAC |
+		database.WorkspaceBuild |
 		database.AuditableGroup |
 		database.License
 }

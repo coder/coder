@@ -204,7 +204,7 @@ func isEligibleForAutoStartStop(ws database.Workspace) bool {
 
 func getNextTransition(
 	ws database.Workspace,
-	priorHistory database.WorkspaceBuildRBAC,
+	priorHistory database.WorkspaceBuild,
 	priorJob database.ProvisionerJob,
 ) (
 	validTransition database.WorkspaceTransition,
@@ -239,7 +239,7 @@ func getNextTransition(
 
 // TODO(cian): this function duplicates most of api.postWorkspaceBuilds. Refactor.
 // See: https://github.com/coder/coder/issues/1401
-func build(ctx context.Context, store database.Store, workspace database.Workspace, trans database.WorkspaceTransition, priorHistory database.WorkspaceBuildRBAC, priorJob database.ProvisionerJob) error {
+func build(ctx context.Context, store database.Store, workspace database.Workspace, trans database.WorkspaceTransition, priorHistory database.WorkspaceBuild, priorJob database.ProvisionerJob) error {
 	template, err := store.GetTemplateByID(ctx, workspace.TemplateID)
 	if err != nil {
 		return xerrors.Errorf("get workspace template: %w", err)

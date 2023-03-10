@@ -34,8 +34,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts().Returns(l)
 	}))
 	s.Run("GetLatestWorkspaceBuilds", s.Subtest(func(db database.Store, check *expects) {
-		dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildRBAC{})
-		dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildRBAC{})
+		dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{})
+		dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{})
 		check.Args().Asserts()
 	}))
 	s.Run("GetWorkspaceAgentByAuthToken", s.Subtest(func(db database.Store, check *expects) {
@@ -92,7 +92,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts()
 	}))
 	s.Run("UpdateWorkspaceBuildCostByID", s.Subtest(func(db database.Store, check *expects) {
-		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuildRBAC{})
+		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{})
 		o := b
 		o.DailyCost = 10
 		check.Args(database.UpdateWorkspaceBuildCostByIDParams{

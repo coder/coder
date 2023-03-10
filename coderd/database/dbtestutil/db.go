@@ -13,16 +13,12 @@ import (
 	"github.com/coder/coder/coderd/database/postgres"
 )
 
-func UsingRealDatabase() bool {
-	return os.Getenv("DB") != ""
-}
-
 func NewDB(t *testing.T) (database.Store, database.Pubsub) {
 	t.Helper()
 
 	db := dbfake.New()
 	pubsub := database.NewPubsubInMemory()
-	if UsingRealDatabase() {
+	if os.Getenv("DB") != "" {
 		connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
 		if connectionURL == "" {
 			var (

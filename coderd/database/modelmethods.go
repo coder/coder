@@ -4,8 +4,6 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/google/uuid"
-
 	"github.com/coder/coder/coderd/rbac"
 )
 
@@ -103,12 +101,6 @@ func (g Group) RBACObject() rbac.Object {
 		InOrg(g.OrganizationID)
 }
 
-func (b WorkspaceBuildRBAC) RBACObject() rbac.Object {
-	return rbac.ResourceWorkspace.WithID(b.WorkspaceID).
-		InOrg(b.OrganizationID).
-		WithOwner(b.WorkspaceOwnerID.String())
-}
-
 func (w Workspace) RBACObject() rbac.Object {
 	return rbac.ResourceWorkspace.WithID(w.ID).
 		InOrg(w.OrganizationID).
@@ -189,18 +181,6 @@ func (u UserLink) RBACObject() rbac.Object {
 
 func (l License) RBACObject() rbac.Object {
 	return rbac.ResourceLicense.WithIDString(strconv.FormatInt(int64(l.ID), 10))
-}
-
-func (b WorkspaceBuild) WithWorkspace(workspace Workspace) WorkspaceBuildRBAC {
-	return b.Expand(workspace.OrganizationID, workspace.OwnerID)
-}
-
-func (b WorkspaceBuild) Expand(orgID, ownerID uuid.UUID) WorkspaceBuildRBAC {
-	return WorkspaceBuildRBAC{
-		WorkspaceBuild:   b,
-		OrganizationID:   orgID,
-		WorkspaceOwnerID: ownerID,
-	}
 }
 
 func ConvertUserRows(rows []GetUsersRow) []User {

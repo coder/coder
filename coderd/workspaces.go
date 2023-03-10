@@ -475,7 +475,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	tags := provisionerdserver.MutateTags(user.ID, templateVersionJob.Tags)
 	var (
 		provisionerJob database.ProvisionerJob
-		workspaceBuild database.WorkspaceBuildRBAC
+		workspaceBuild database.WorkspaceBuild
 	)
 	err = api.Database.InTx(func(db database.Store) error {
 		now := database.Now()
@@ -540,7 +540,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		if err != nil {
 			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
-		workspaceBuildThin, err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+		workspaceBuild, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 			ID:                workspaceBuildID,
 			CreatedAt:         now,
 			UpdatedAt:         now,
@@ -556,7 +556,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
 		}
-		workspaceBuild = workspaceBuildThin.WithWorkspace(workspace)
 
 		names := make([]string, 0, len(createWorkspace.RichParameterValues))
 		values := make([]string, 0, len(createWorkspace.RichParameterValues))
