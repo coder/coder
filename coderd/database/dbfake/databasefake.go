@@ -3905,13 +3905,22 @@ func (q *fakeQuerier) DeleteGroupMembersByOrgAndUser(_ context.Context, arg data
 
 	newMembers := q.groupMembers[:0]
 	for _, member := range q.groupMembers {
-		if member.UserID == arg.UserID {
+		if member.UserID != arg.UserID {
+			// Do not delete the other members
+			newMembers = append(newMembers, member)
+		} else if member.UserID == arg.UserID {
+			// We only want to delete from groups in the organization in the args.
 			for _, group := range q.groups {
-				if group.ID == member.GroupID && group.OrganizationID == arg.OrganizationID {
-					continue
+				// Find the group that the member is apartof.
+				if group.ID == member.GroupID {
+					// Only add back the member if the organization ID does not match
+					// the arg organization ID. Since the arg is saying which
+					// org to delete.
+					if group.OrganizationID != arg.OrganizationID {
+						newMembers = append(newMembers, member)
+					}
+					break
 				}
-
-				newMembers = append(newMembers, member)
 			}
 		}
 	}

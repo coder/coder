@@ -962,8 +962,8 @@ const deleteGroupMembersByOrgAndUser = `-- name: DeleteGroupMembersByOrgAndUser 
 DELETE FROM
 	group_members
 WHERE
-		group_members.user_id = $1
-  AND group_id = ANY(SELECT id FROM groups WHERE organization_id = $2)
+	group_members.user_id = $1
+	AND group_id = ANY(SELECT id FROM groups WHERE organization_id = $2)
 `
 
 type DeleteGroupMembersByOrgAndUserParams struct {

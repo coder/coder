@@ -37,8 +37,8 @@ FROM
 DELETE FROM
 	group_members
 WHERE
-		group_members.user_id = @user_id
-  AND group_id = ANY(SELECT id FROM groups WHERE organization_id = @organization_id);
+	group_members.user_id = @user_id
+	AND group_id = ANY(SELECT id FROM groups WHERE organization_id = @organization_id);
 
 -- name: InsertGroupMember :exec
 INSERT INTO
