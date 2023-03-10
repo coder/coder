@@ -621,7 +621,7 @@ flags, and YAML configuration. The precedence is as follows:
 				Nodes: []*tailcfg.DERPNode{{
 					Name:      fmt.Sprintf("%db", cfg.DERP.Server.RegionID),
 					RegionID:  int(cfg.DERP.Server.RegionID.Value()),
-					HostName:  cfg.AccessURL.Host,
+					HostName:  cfg.AccessURL.Value().Hostname(),
 					DERPPort:  accessURLPort,
 					STUNPort:  -1,
 					ForceHTTP: cfg.AccessURL.Scheme == "http",
