@@ -368,39 +368,9 @@ install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	cp "$<" "$$output_file"
 .PHONY: install
 
-fmt: fmt/prettier fmt/terraform fmt/shfmt fmt/go
+fmt:
+	go run ./magefiles/cmd/mage -v fmt:all 
 .PHONY: fmt
-
-fmt/go:
-	# VS Code users should check out
-	# https://github.com/mvdan/gofumpt#visual-studio-code
-	go run mvdan.cc/gofumpt@v0.4.0 -w -l .
-.PHONY: fmt/go
-
-fmt/prettier:
-	echo "--- prettier"
-	cd site
-# Avoid writing files in CI to reduce file write activity
-ifdef CI
-	yarn run format:check
-else
-	yarn run format:write
-endif
-.PHONY: fmt/prettier
-
-fmt/terraform: $(wildcard *.tf)
-	terraform fmt -recursive
-.PHONY: fmt/terraform
-
-fmt/shfmt: $(SHELL_SRC_FILES)
-	echo "--- shfmt"
-# Only do diff check in CI, errors on diff.
-ifdef CI
-	shfmt -d $(SHELL_SRC_FILES)
-else
-	shfmt -w $(SHELL_SRC_FILES)
-endif
-.PHONY: fmt/shfmt
 
 lint: lint/shellcheck lint/go
 .PHONY: lint

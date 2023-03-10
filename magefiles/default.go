@@ -15,5 +15,5 @@ func All() {
 var Default = All
 
 func inCI() bool {
-	return os.Getenv("CI") != ""
+	return os.Getenv("GITHUB_ENV") != "" || os.Getenv("CI") != ""
 }
