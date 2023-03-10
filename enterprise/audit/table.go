@@ -52,7 +52,7 @@ func (t *Table) Add(key string, value map[string]Action) *Table {
 // AuditableResources contains a definitive list of all auditable resources and
 // which fields are auditable. All resource types must be valid audit.Auditable
 // types.
-var AuditableResources = (&Table{}).
+var AuditableResources = *(&Table{}).
 	Add(entry(database.GitSSHKey{}, map[string]Action{
 		"user_id":     ActionTrack,
 		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
@@ -80,9 +80,7 @@ var AuditableResources = (&Table{}).
 		"description":                      ActionTrack,
 		"icon":                             ActionTrack,
 		"default_ttl":                      ActionTrack,
-		"min_autostart_interval":           ActionTrack,
 		"created_by":                       ActionTrack,
-		"is_private":                       ActionTrack,
 		"group_acl":                        ActionTrack,
 		"user_acl":                         ActionTrack,
 		"allow_user_cancel_workspace_jobs": ActionTrack,
@@ -192,19 +190,32 @@ func entry[A audit.Auditable](v A, f map[string]Action) (string, map[string]Acti
 	}
 
 	name := structName(vt)
-	// Ensure all json tags have a corresponding action.
-	for i := 0; i < vt.NumField(); i++ {
-		field := vt.Field(i)
-		if !field.IsExported() {
-			continue
-		}
-		if field.Tag.Get("json") == "-" {
+
+	// Use the flattenStructFields to recurse anonymously embedded structs
+	vv := reflect.ValueOf(v)
+	diffs, err := flattenStructFields(vv, vv)
+	if err != nil {
+		panic(fmt.Sprintf("audit table entry type %T failed to flatten", v))
+	}
+
+	fcpy := make(map[string]Action, len(f))
+	for k, v := range f {
+		fcpy[k] = v
+	}
+	for _, d := range diffs {
+		jsonTag := d.FieldType.Tag.Get("json")
+		if jsonTag == "-" {
 			// This field is explicitly ignored.
 			continue
 		}
-		if _, ok := f[field.Name]; !ok {
-			panic(fmt.Sprintf("audit table entry missing action for field %q in type %q", field.Name, name))
+		if _, ok := fcpy[jsonTag]; !ok {
+			panic(fmt.Sprintf("audit table entry missing action for field %q in type %q", d.FieldType.Name, name))
 		}
+		delete(fcpy, jsonTag)
+	}
+
+	if len(fcpy) > 0 {
+		panic(fmt.Sprintf("audit table entry has extra actions for type %q: %v", name, fcpy))
 	}
 
 	return structName(vt), f
