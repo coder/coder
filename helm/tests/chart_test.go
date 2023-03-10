@@ -11,10 +11,10 @@ import (
 
 // These tests render the chart with the given test case and compares the output
 // to the corresponding golden file.
-// To update golden files, run `go test . -update-golden-files`.
+// To update golden files, run `go test . -update`.
 
 // UpdateGoldenFiles is a flag that can be set to update golden files.
-var UpdateGoldenFiles = flag.Bool("update-golden-files", false, "Update golden files")
+var UpdateGoldenFiles = flag.Bool("update", false, "Update golden files")
 
 var TestCases = []TestCase{
 	{
@@ -79,7 +79,7 @@ func TestRenderChart(t *testing.T) {
 func TestUpdateGoldenFiles(t *testing.T) {
 	t.Parallel()
 	if !*UpdateGoldenFiles {
-		t.Skip("Run with -update-golden-files to update golden files")
+		t.Skip("Run with -update to update golden files")
 	}
 	for _, tc := range TestCases {
 		w, err := LoadChart()
