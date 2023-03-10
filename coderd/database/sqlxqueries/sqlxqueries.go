@@ -20,9 +20,9 @@ var (
 	cachedError error
 )
 
-// loadQueries parses the embedded queries and returns the template.
+// LoadQueries parses the embedded queries and returns the template.
 // Results are cached.
-func loadQueries() (*template.Template, error) {
+func LoadQueries() (*template.Template, error) {
 	once.Do(func() {
 		tpls, err := template.New("").
 			Funcs(template.FuncMap{
@@ -41,7 +41,7 @@ func loadQueries() (*template.Template, error) {
 // query executes the named template with the given data and returns the result.
 // The returned query string is SQL.
 func query(name string, data interface{}) (string, error) {
-	tpls, err := loadQueries()
+	tpls, err := LoadQueries()
 	if err != nil {
 		return "", err
 	}

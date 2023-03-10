@@ -16,6 +16,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/database/sqlxqueries"
 )
 
 // Store contains all queryable database functions.
@@ -45,6 +47,13 @@ type DBTX interface {
 // New creates a new database store using a SQL database connection.
 func New(sdb *sql.DB) Store {
 	dbx := sqlx.NewDb(sdb, "postgres")
+	// Load the embedded queries. If this fails, some of our queries
+	// will never work. This is a fatal developer error that should never
+	// happen.
+	_, err := sqlxqueries.LoadQueries()
+	if err != nil {
+		panic(xerrors.Errorf("load queries: %w", err))
+	}
 	return &sqlQuerier{
 		db:  dbx,
 		sdb: dbx,
