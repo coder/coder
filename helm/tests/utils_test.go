@@ -86,7 +86,8 @@ func dumpManifests(manifests map[string]string) string {
 		val := manifests[k]
 		_, _ = fmt.Fprintf(&sb, "--- # Source: %s\n%s\n", k, val)
 	}
-	return sb.String()
+	// Remove carriage returns to make tests pass on Windows.
+	return strings.Replace(sb.String(), "\r", "", -1)
 }
 
 // readGoldenFile reads the given golden file and returns its contents.
@@ -96,7 +97,9 @@ func readGoldenFile(name string) (string, error) {
 	if err != nil {
 		return "", xerrors.Errorf("failed to read golden file %q: %w", gf, err)
 	}
-	return string(b), nil
+	// Remove carriage returns to make tests pass on Windows.
+	s := strings.Replace(string(b), "\r", "", -1)
+	return s, nil
 }
 
 // writeGoldenFiles writes the given golden file with the given contents.
