@@ -295,7 +295,8 @@ flags, and YAML configuration. The precedence is as follows:
 				return xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
 			}
 
-			if cfg.AccessURL.String() != "" && cfg.AccessURL.Scheme == "" {
+			if cfg.AccessURL.String() != "" &&
+				!(cfg.AccessURL.Scheme == "http" || cfg.AccessURL.Scheme == "https") {
 				return xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
 			}
 
