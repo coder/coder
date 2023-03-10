@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/provisionerdserver"
@@ -46,6 +47,24 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
 			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Ensure we have the job and template version for the workspace build.
+	// Otherwise we risk a panic in the api.convertWorkspaceBuild call below.
+	if len(data.jobs) == 0 {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Internal error getting workspace build data.",
+			Detail:  "No job found for workspace build.",
+		})
+		return
+	}
+
+	if len(data.templateVersions) == 0 {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Internal error getting workspace build data.",
+			Detail:  "No template version found for workspace build.",
 		})
 		return
 	}
@@ -952,12 +971,15 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	for _, build := range workspaceBuilds {
 		templateVersionIDs = append(templateVersionIDs, build.TemplateVersionID)
 	}
-	templateVersions, err := api.Database.GetTemplateVersionsByIDs(ctx, templateVersionIDs)
+
+	// nolint:gocritic // Getting template versions by ID is a system function.
+	templateVersions, err := api.Database.GetTemplateVersionsByIDs(dbauthz.AsSystemRestricted(ctx), templateVersionIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get template versions: %w", err)
 	}
 
-	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(ctx, jobIDs)
+	// nolint:gocritic // Getting workspace resources by job ID is a system function.
+	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(dbauthz.AsSystemRestricted(ctx), jobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get workspace resources by job: %w", err)
 	}
@@ -975,12 +997,14 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 		resourceIDs = append(resourceIDs, resource.ID)
 	}
 
-	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(ctx, resourceIDs)
+	// nolint:gocritic // Getting workspace resource metadata by resource ID is a system function.
+	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("fetching resource metadata: %w", err)
 	}
 
-	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	// nolint:gocritic // Getting workspace agents by resource IDs is a system function.
+	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get workspace agents: %w", err)
 	}
@@ -1000,7 +1024,8 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 		agentIDs = append(agentIDs, agent.ID)
 	}
 
-	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(ctx, agentIDs)
+	// nolint:gocritic // Getting workspace apps by agent IDs is a system function.
+	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("fetching workspace apps: %w", err)
 	}
