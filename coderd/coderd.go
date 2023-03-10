@@ -795,7 +795,8 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}()
 
 	name := namesgenerator.GetRandomName(1)
-	daemon, err := api.Database.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
+	// nolint:gocritic // Inserting a provisioner daemon is a system function.
+	daemon, err := api.Database.InsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),
 		CreatedAt:    database.Now(),
 		Name:         name,
