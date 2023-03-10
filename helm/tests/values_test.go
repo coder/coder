@@ -1,4 +1,4 @@
-package tests
+package tests // nolint: testpackage
 
 import (
 	"golang.org/x/xerrors"

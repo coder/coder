@@ -1,4 +1,4 @@
-package tests
+package tests // nolint: testpackage
 
 // This file contains utility functions for testing the Helm chart.
 
