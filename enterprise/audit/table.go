@@ -1,8 +1,10 @@
 package audit
 
 import (
+	"fmt"
 	"reflect"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
@@ -41,17 +43,65 @@ const (
 // field's AuditType.
 type Table map[string]map[string]Action
 
+// Add adds a new entry to the table.
+func (t *Table) Add(key string, value map[string]Action) *Table {
+	(*t)[key] = value
+	return t
+}
+
+// entry is a helper function that ensures all entries in the table are valid
+// audit.Auditable types. It also ensures all json tags have a corresponding
+// action.
+func entry[A audit.Auditable](v A, f map[string]Action) (string, map[string]Action) {
+	vt := reflect.TypeOf(v)
+	for vt.Kind() == reflect.Ptr {
+		vt = vt.Elem()
+	}
+
+	// This should never happen because audit.Audible only allows structs in
+	// its union.
+	if vt.Kind() != reflect.Struct {
+		panic(fmt.Sprintf("audit table entry value must be a struct, got %T", v))
+	}
+
+	name := structName(vt)
+	// Ensure all json tags have a corresponding action.
+	for i := 0; i < vt.NumField(); i++ {
+		field := vt.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		if field.Tag.Get("json") == "-" {
+			// This field is explicitly ignored.
+			continue
+		}
+		if _, ok := f[field.Name]; !ok {
+			panic(fmt.Sprintf("audit table entry missing action for field %q in type %q", field.Name, name))
+		}
+	}
+
+	return structName(vt), f
+}
+
 // AuditableResources contains a definitive list of all auditable resources and
-// which fields are auditable.
-var AuditableResources = auditMap(map[any]map[string]Action{
-	&database.GitSSHKey{}: {
+// which fields are auditable. All resource types must be valid audit.Auditable
+// types.
+var AuditableResources = (&Table{}).
+	Add(entry(database.GitSSHKey{}, map[string]Action{
 		"user_id":     ActionTrack,
 		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":  ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"private_key": ActionSecret, // We don't want to expose private keys in diffs.
 		"public_key":  ActionTrack,  // Public keys are ok to expose in a diff.
-	},
-	&database.Template{}: {
+	})).
+	Add(entry(database.GitSSHKey{}, map[string]Action{
+		"user_id":     ActionTrack,
+		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":  ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"private_key": ActionSecret, // We don't want to expose private keys in diffs.
+		"public_key":  ActionTrack,  // Public keys are ok to expose in a diff.
+	})).
+	Add(entry(database.Template{}, map[string]Action{
 		"id":                               ActionTrack,
 		"created_at":                       ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":                       ActionIgnore, // Changes, but is implicit and not helpful in a diff.
@@ -71,8 +121,8 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"user_acl":                         ActionTrack,
 		"allow_user_cancel_workspace_jobs": ActionTrack,
 		"max_ttl":                          ActionTrack,
-	},
-	&database.TemplateVersion{}: {
+	})).
+	Add(entry(database.TemplateVersion{}, map[string]Action{
 		"id":                 ActionTrack,
 		"template_id":        ActionTrack,
 		"organization_id":    ActionIgnore, // Never changes.
@@ -83,8 +133,8 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"job_id":             ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
 		"created_by":         ActionTrack,
 		"git_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
-	},
-	&database.User{}: {
+	})).
+	Add(entry(database.User{}, map[string]Action{
 		"id":              ActionTrack,
 		"email":           ActionTrack,
 		"username":        ActionTrack,
@@ -97,8 +147,8 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"avatar_url":      ActionIgnore,
 		"last_seen_at":    ActionIgnore,
 		"deleted":         ActionTrack,
-	},
-	&database.Workspace{}: {
+	})).
+	Add(entry(database.Workspace{}, map[string]Action{
 		"id":                 ActionTrack,
 		"created_at":         ActionIgnore, // Never changes.
 		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
@@ -110,8 +160,8 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"autostart_schedule": ActionTrack,
 		"ttl":                ActionTrack,
 		"last_used_at":       ActionIgnore,
-	},
-	&database.WorkspaceBuild{}: {
+	})).
+	Add(entry(database.WorkspaceBuild{}, map[string]Action{
 		"id":                  ActionIgnore,
 		"created_at":          ActionIgnore,
 		"updated_at":          ActionIgnore,
@@ -126,17 +176,17 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"reason":              ActionIgnore,
 		"daily_cost":          ActionIgnore,
 		"max_deadline":        ActionIgnore,
-	},
-	&database.AuditableGroup{}: {
+	})).
+	Add(entry(database.AuditableGroup{}, map[string]Action{
 		"id":              ActionTrack,
 		"name":            ActionTrack,
 		"organization_id": ActionIgnore, // Never changes.
 		"avatar_url":      ActionTrack,
 		"quota_allowance": ActionTrack,
 		"members":         ActionTrack,
-	},
+	})).
 	// We don't show any diff for the APIKey resource
-	&database.APIKey{}: {
+	Add(entry(database.APIKey{}, map[string]Action{
 		"id":               ActionIgnore,
 		"hashed_secret":    ActionIgnore,
 		"user_id":          ActionIgnore,
@@ -149,17 +199,16 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"ip_address":       ActionIgnore,
 		"scope":            ActionIgnore,
 		"token_name":       ActionIgnore,
-	},
+	})).
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
-	&database.License{}: {
+	Add(entry(database.License{}, map[string]Action{
 		"id":          ActionIgnore,
 		"uploaded_at": ActionTrack,
 		"jwt":         ActionIgnore,
 		"exp":         ActionTrack,
 		"uuid":        ActionTrack,
-	},
-})
+	}))
 
 // auditMap converts a map of struct pointers to a map of struct names as
 // strings. It's a convenience wrapper so that structs can be passed in by value
