@@ -64,7 +64,12 @@ func ellipse(s string, n int) string {
 
 func (c *cmd) run() error {
 	log := flog.New()
-	cmdline := strings.Join(c.Args[2:], " ")
+	args := c.Args
+	// Omit the "sh -c" prefix.
+	if len(args) > 2 && args[0] == "sh" && args[1] == "-c" {
+		args = args[2:]
+	}
+	cmdline := strings.Join(args, " ")
 	if mg.Verbose() {
 		logPrefix := ellipse(cmdline, 16) + ": "
 		log.W = stderr
