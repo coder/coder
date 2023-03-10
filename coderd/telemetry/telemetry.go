@@ -503,7 +503,7 @@ func ConvertWorkspace(workspace database.Workspace) Workspace {
 }
 
 // ConvertWorkspaceBuild anonymizes a workspace build.
-func ConvertWorkspaceBuild(build database.WorkspaceBuildRBAC) WorkspaceBuild {
+func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 	return WorkspaceBuild{
 		ID:                build.ID,
 		CreatedAt:         build.CreatedAt,

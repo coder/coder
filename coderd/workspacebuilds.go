@@ -41,7 +41,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceBuildsData(ctx, []database.Workspace{workspace}, []database.WorkspaceBuildRBAC{workspaceBuild})
+	data, err := api.workspaceBuildsData(ctx, []database.Workspace{workspace}, []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -113,7 +113,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var workspaceBuilds []database.WorkspaceBuildRBAC
+	var workspaceBuilds []database.WorkspaceBuild
 	// Ensure all db calls happen in the same tx
 	err := api.Database.InTx(func(store database.Store) error {
 		var err error
@@ -253,7 +253,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data, err := api.workspaceBuildsData(ctx, []database.Workspace{workspace}, []database.WorkspaceBuildRBAC{workspaceBuild})
+	data, err := api.workspaceBuildsData(ctx, []database.Workspace{workspace}, []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -526,7 +526,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var workspaceBuild database.WorkspaceBuildRBAC
+	var workspaceBuild database.WorkspaceBuild
 	var provisionerJob database.ProvisionerJob
 	// This must happen in a transaction to ensure history can be inserted, and
 	// the prior history can update it's "after" column to point at the new.
@@ -584,7 +584,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("insert provisioner job: %w", err)
 		}
 
-		thinBuild, err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+		workspaceBuild, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 			ID:                workspaceBuildID,
 			CreatedAt:         database.Now(),
 			UpdatedAt:         database.Now(),
@@ -600,9 +600,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("insert workspace build: %w", err)
 		}
-
-		// Assign owning fields.
-		workspaceBuild = thinBuild.WithWorkspace(workspace)
 
 		names := make([]string, 0, len(parameters))
 		values := make([]string, 0, len(parameters))
@@ -926,7 +923,7 @@ type workspaceBuildsData struct {
 	apps             []database.WorkspaceApp
 }
 
-func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.Workspace, workspaceBuilds []database.WorkspaceBuildRBAC) (workspaceBuildsData, error) {
+func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.Workspace, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
 	userIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
 		userIDs = append(userIDs, build.InitiatorID)
@@ -1017,7 +1014,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 }
 
 func (api *API) convertWorkspaceBuilds(
-	workspaceBuilds []database.WorkspaceBuildRBAC,
+	workspaceBuilds []database.WorkspaceBuild,
 	workspaces []database.Workspace,
 	jobs []database.ProvisionerJob,
 	users []database.User,
@@ -1078,7 +1075,7 @@ func (api *API) convertWorkspaceBuilds(
 }
 
 func (api *API) convertWorkspaceBuild(
-	build database.WorkspaceBuildRBAC,
+	build database.WorkspaceBuild,
 	workspace database.Workspace,
 	job database.ProvisionerJob,
 	users []database.User,

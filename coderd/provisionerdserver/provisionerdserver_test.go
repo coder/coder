@@ -644,14 +644,13 @@ func TestFailJob(t *testing.T) {
 			ID: uuid.New(),
 		})
 		require.NoError(t, err)
-		buildThin, err := srv.Database.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+		build, err := srv.Database.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 			ID:          uuid.New(),
 			WorkspaceID: workspace.ID,
 			Transition:  database.WorkspaceTransitionStart,
 			Reason:      database.BuildReasonInitiator,
 		})
 		require.NoError(t, err)
-		build := buildThin.WithWorkspace(workspace)
 		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 			WorkspaceBuildID: build.ID,
 		})

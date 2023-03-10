@@ -153,34 +153,20 @@ func Workspace(t testing.TB, db database.Store, orig database.Workspace) databas
 	return workspace
 }
 
-type AnyWorkspaceBuild interface {
-	database.WorkspaceBuildRBAC | database.WorkspaceBuild
-}
-
-func WorkspaceBuild[B AnyWorkspaceBuild](t testing.TB, db database.Store, orig B) database.WorkspaceBuild {
-	var thin database.WorkspaceBuild
-	switch v := any(orig).(type) {
-	case database.WorkspaceBuildRBAC:
-		thin = v.WorkspaceBuild
-	case database.WorkspaceBuild:
-		thin = v
-	default:
-		panic(fmt.Sprintf("developer error: invalid type %T", v))
-	}
+func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuild) database.WorkspaceBuild {
 	build, err := db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
-		ID:                takeFirst(thin.ID, uuid.New()),
-		CreatedAt:         takeFirst(thin.CreatedAt, database.Now()),
-		UpdatedAt:         takeFirst(thin.UpdatedAt, database.Now()),
-		WorkspaceID:       takeFirst(thin.WorkspaceID, uuid.New()),
-		TemplateVersionID: takeFirst(thin.TemplateVersionID, uuid.New()),
-		BuildNumber:       takeFirst(thin.BuildNumber, 1),
-		Transition:        takeFirst(thin.Transition, database.WorkspaceTransitionStart),
-		InitiatorID:       takeFirst(thin.InitiatorID, uuid.New()),
-		JobID:             takeFirst(thin.JobID, uuid.New()),
-		ProvisionerState:  takeFirstSlice(thin.ProvisionerState, []byte{}),
-		Deadline:          takeFirst(thin.Deadline, database.Now().Add(time.Hour)),
-		MaxDeadline:       takeFirst(thin.MaxDeadline, database.Now().Add(time.Hour*24*7)),
-		Reason:            takeFirst(thin.Reason, database.BuildReasonInitiator),
+		ID:                takeFirst(orig.ID, uuid.New()),
+		CreatedAt:         takeFirst(orig.CreatedAt, database.Now()),
+		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
+		WorkspaceID:       takeFirst(orig.WorkspaceID, uuid.New()),
+		TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
+		BuildNumber:       takeFirst(orig.BuildNumber, 1),
+		Transition:        takeFirst(orig.Transition, database.WorkspaceTransitionStart),
+		InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
+		JobID:             takeFirst(orig.JobID, uuid.New()),
+		ProvisionerState:  takeFirstSlice(orig.ProvisionerState, []byte{}),
+		Deadline:          takeFirst(orig.Deadline, database.Now().Add(time.Hour)),
+		Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
 	})
 	require.NoError(t, err, "insert workspace build")
 	return build
@@ -233,7 +219,7 @@ func OrganizationMember(t testing.TB, db database.Store, orig database.Organizat
 		UpdatedAt:      takeFirst(orig.UpdatedAt, database.Now()),
 		Roles:          takeFirstSlice(orig.Roles, []string{}),
 	})
-	require.NoError(t, err, "insert organization member")
+	require.NoError(t, err, "insert organization")
 	return mem
 }
 
