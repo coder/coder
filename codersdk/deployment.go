@@ -220,6 +220,7 @@ type OIDCConfig struct {
 	Scopes              clibase.Strings `json:"scopes" typescript:",notnull"`
 	IgnoreEmailVerified clibase.Bool    `json:"ignore_email_verified" typescript:",notnull"`
 	UsernameField       clibase.String  `json:"username_field" typescript:",notnull"`
+	GroupField          clibase.String  `json:"group" typescript:",notnull"`
 	SignInText          clibase.String  `json:"sign_in_text" typescript:",notnull"`
 	IconURL             clibase.URL     `json:"icon_url" typescript:",notnull"`
 }
@@ -817,6 +818,16 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.UsernameField,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "usernameField",
+		},
+		{
+			Name:        "OIDC Group Field",
+			Description: "OIDC claim field to use as the user's groups. Set to \"\" to disable OIDC group support.",
+			Flag:        "oidc-group-field",
+			Env:         "OIDC_GROUP_FIELD",
+			Default:     "group",
+			Value:       &c.OIDC.GroupField,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "groupField",
 		},
 		{
 			Name:        "OpenID Connect sign in text",

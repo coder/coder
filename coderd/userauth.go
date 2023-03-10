@@ -477,6 +477,10 @@ type OIDCConfig struct {
 	// UsernameField selects the claim field to be used as the created user's
 	// username.
 	UsernameField string
+	// GroupField selects the claim field to be used as the created user's
+	// groups. If the group field is the empty string, then no group updates
+	// will ever come from the OIDC provider.
+	GroupField string
 	// SignInText is the text to display on the OIDC login button
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
@@ -610,8 +614,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var groups []string
-	groupsRaw, ok := claims["groups"]
-	if ok {
+	groupsRaw, ok := claims[api.OIDCConfig.GroupField]
+	if ok && api.OIDCConfig.GroupField != "" {
 		// Convert the []interface{} we get to a []string.
 		groupsInterface, ok := groupsRaw.([]interface{})
 		if ok {
