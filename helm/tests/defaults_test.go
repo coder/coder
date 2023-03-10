@@ -13,10 +13,8 @@ import (
 // to the corresponding golden file.
 // To update golden files, run `go test . -update-golden-files`.
 
-var (
-	// UpdateGoldenFiles is a flag that can be set to update golden files.
-	UpdateGoldenFiles = flag.Bool("update-golden-files", false, "Update golden files")
-)
+// UpdateGoldenFiles is a flag that can be set to update golden files.
+var UpdateGoldenFiles = flag.Bool("update-golden-files", false, "Update golden files")
 
 var TestCases = []TestCase{
 	{

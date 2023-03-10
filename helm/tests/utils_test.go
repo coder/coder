@@ -102,7 +102,7 @@ func readGoldenFile(name string) (string, error) {
 // writeGoldenFiles writes the given golden file with the given contents.
 func writeGoldenFile(name string, manifests map[string]string) error {
 	gf := filepath.Join("testdata", name+".golden")
-	return os.WriteFile(gf, []byte(dumpManifests(manifests)), 0644) // nolint:gosec
+	return os.WriteFile(gf, []byte(dumpManifests(manifests)), 0o644) // nolint:gosec
 }
 
 // mapToValues converts a map to a Values struct.
