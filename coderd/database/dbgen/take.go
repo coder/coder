@@ -13,9 +13,14 @@ func takeFirstIP(values ...net.IPNet) net.IPNet {
 // takeFirstSlice implements takeFirst for []any.
 // []any is not a comparable type.
 func takeFirstSlice[T any](values ...[]T) []T {
-	return takeFirstF(values, func(v []T) bool {
+	out := takeFirstF(values, func(v []T) bool {
 		return len(v) != 0
 	})
+	// Prevent nil slices
+	if out == nil {
+		return []T{}
+	}
+	return out
 }
 
 // takeFirstF takes the first value that returns true

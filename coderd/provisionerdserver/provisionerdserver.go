@@ -670,14 +670,14 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 			return nil, xerrors.Errorf("unmarshal workspace provision input: %w", err)
 		}
 
-		var build database.WorkspaceBuild
+		var build database.WorkspaceBuildRBAC
 		err := server.Database.InTx(func(db database.Store) error {
 			workspaceBuild, err := db.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
 			if err != nil {
 				return xerrors.Errorf("get workspace build: %w", err)
 			}
 
-			build, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+			thinBuild, err := db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               input.WorkspaceBuildID,
 				UpdatedAt:        database.Now(),
 				ProvisionerState: jobType.WorkspaceBuild.State,
@@ -687,6 +687,8 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 			if err != nil {
 				return xerrors.Errorf("update workspace build state: %w", err)
 			}
+			// Keep the same owner args as the original build.
+			build = thinBuild.Expand(workspaceBuild.OrganizationID, workspaceBuild.WorkspaceOwnerID)
 
 			return nil
 		}, nil)
@@ -719,7 +721,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 					BuildNumber: previousBuildNumber,
 				})
 				if prevBuildErr != nil {
-					previousBuild = database.WorkspaceBuild{}
+					previousBuild = database.WorkspaceBuildRBAC{}
 				}
 
 				// We pass the below information to the Auditor so that it
@@ -735,7 +737,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 					server.Logger.Error(ctx, "marshal workspace resource info for failed job", slog.Error(err))
 				}
 
-				audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
+				audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuildRBAC]{
 					Audit:            *auditor,
 					Log:              server.Logger,
 					UserID:           job.InitiatorID,
@@ -1039,7 +1041,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				BuildNumber: previousBuildNumber,
 			})
 			if prevBuildErr != nil {
-				previousBuild = database.WorkspaceBuild{}
+				previousBuild = database.WorkspaceBuildRBAC{}
 			}
 
 			// We pass the below information to the Auditor so that it
@@ -1055,7 +1057,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				server.Logger.Error(ctx, "marshal resource info for successful job", slog.Error(err))
 			}
 
-			audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
+			audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuildRBAC]{
 				Audit:            *auditor,
 				Log:              server.Logger,
 				UserID:           job.InitiatorID,
