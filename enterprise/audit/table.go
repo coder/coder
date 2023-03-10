@@ -70,17 +70,19 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"group_acl":                        ActionTrack,
 		"user_acl":                         ActionTrack,
 		"allow_user_cancel_workspace_jobs": ActionTrack,
+		"max_ttl":                          ActionTrack,
 	},
 	&database.TemplateVersion{}: {
-		"id":              ActionTrack,
-		"template_id":     ActionTrack,
-		"organization_id": ActionIgnore, // Never changes.
-		"created_at":      ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"name":            ActionTrack,
-		"readme":          ActionTrack,
-		"job_id":          ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
-		"created_by":      ActionTrack,
+		"id":                 ActionTrack,
+		"template_id":        ActionTrack,
+		"organization_id":    ActionIgnore, // Never changes.
+		"created_at":         ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"name":               ActionTrack,
+		"readme":             ActionTrack,
+		"job_id":             ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
+		"created_by":         ActionTrack,
+		"git_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
 	},
 	&database.User{}: {
 		"id":              ActionTrack,
@@ -123,6 +125,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"deadline":            ActionIgnore,
 		"reason":              ActionIgnore,
 		"daily_cost":          ActionIgnore,
+		"max_deadline":        ActionIgnore,
 	},
 	&database.AuditableGroup{}: {
 		"id":              ActionTrack,
@@ -145,6 +148,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"lifetime_seconds": ActionIgnore,
 		"ip_address":       ActionIgnore,
 		"scope":            ActionIgnore,
+		"token_name":       ActionIgnore,
 	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012

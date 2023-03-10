@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbtestutil"
@@ -24,7 +25,7 @@ func TestTokenCRUD(t *testing.T) {
 	defer cancel()
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
-	keys, err := client.Tokens(ctx, codersdk.Me)
+	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
 	require.Empty(t, keys)
 
@@ -32,7 +33,7 @@ func TestTokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, len(res.Key), 2)
 
-	keys, err = client.Tokens(ctx, codersdk.Me)
+	keys, err = client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
 	require.EqualValues(t, len(keys), 1)
 	require.Contains(t, res.Key, keys[0].ID)
@@ -45,7 +46,7 @@ func TestTokenCRUD(t *testing.T) {
 
 	err = client.DeleteAPIKey(ctx, codersdk.Me, keys[0].ID)
 	require.NoError(t, err)
-	keys, err = client.Tokens(ctx, codersdk.Me)
+	keys, err = client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
 	require.Empty(t, keys)
 }
@@ -64,14 +65,14 @@ func TestTokenScoped(t *testing.T) {
 	require.NoError(t, err)
 	require.Greater(t, len(res.Key), 2)
 
-	keys, err := client.Tokens(ctx, codersdk.Me)
+	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
 	require.EqualValues(t, len(keys), 1)
 	require.Contains(t, res.Key, keys[0].ID)
 	require.Equal(t, keys[0].Scope, codersdk.APIKeyScopeApplicationConnect)
 }
 
-func TestTokenDuration(t *testing.T) {
+func TestUserSetTokenDuration(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -83,21 +84,37 @@ func TestTokenDuration(t *testing.T) {
 		Lifetime: time.Hour * 24 * 7,
 	})
 	require.NoError(t, err)
-	keys, err := client.Tokens(ctx, codersdk.Me)
+	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
 	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*6*24))
 	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*8*24))
 }
 
-func TestTokenMaxLifetime(t *testing.T) {
+func TestDefaultTokenDuration(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	dc := coderdtest.DeploymentConfig(t)
-	dc.MaxTokenLifetime.Value = time.Hour * 24 * 7
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
+	require.NoError(t, err)
+	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
+	require.NoError(t, err)
+	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*29*24))
+	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*31*24))
+}
+
+func TestTokenUserSetMaxLifetime(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	dc := coderdtest.DeploymentValues(t)
+	dc.MaxTokenLifetime = clibase.Duration(time.Hour * 24 * 7)
 	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentConfig: dc,
+		DeploymentValues: dc,
 	})
 	_ = coderdtest.CreateFirstUser(t, client)
 
@@ -119,11 +136,11 @@ func TestSessionExpiry(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	dc := coderdtest.DeploymentConfig(t)
+	dc := coderdtest.DeploymentValues(t)
 
 	db, pubsub := dbtestutil.NewDB(t)
 	adminClient := coderdtest.New(t, &coderdtest.Options{
-		DeploymentConfig: dc,
+		DeploymentValues: dc,
 		Database:         db,
 		Pubsub:           pubsub,
 	})
@@ -135,7 +152,7 @@ func TestSessionExpiry(t *testing.T) {
 	//
 	// We don't support updating the deployment config after startup, but for
 	// this test it works because we don't copy the value (and we use pointers).
-	dc.SessionDuration.Value = time.Second
+	dc.SessionDuration = clibase.Duration(time.Second)
 
 	userClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 
@@ -144,8 +161,8 @@ func TestSessionExpiry(t *testing.T) {
 	apiKey, err := db.GetAPIKeyByID(ctx, strings.Split(token, "-")[0])
 	require.NoError(t, err)
 
-	require.EqualValues(t, dc.SessionDuration.Value.Seconds(), apiKey.LifetimeSeconds)
-	require.WithinDuration(t, apiKey.CreatedAt.Add(dc.SessionDuration.Value), apiKey.ExpiresAt, 2*time.Second)
+	require.EqualValues(t, dc.SessionDuration.Value().Seconds(), apiKey.LifetimeSeconds)
+	require.WithinDuration(t, apiKey.CreatedAt.Add(dc.SessionDuration.Value()), apiKey.ExpiresAt, 2*time.Second)
 
 	// Update the session token to be expired so we can test that it is
 	// rejected for extra points.

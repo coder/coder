@@ -48,7 +48,6 @@ export const WorkspaceReadyPage = ({
     workspace,
     template,
     templateParameters,
-    refreshWorkspaceWarning,
     builds,
     getBuildsError,
     buildError,
@@ -121,7 +120,6 @@ export const WorkspaceReadyPage = ({
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{
-          [WorkspaceErrors.GET_RESOURCES_ERROR]: refreshWorkspaceWarning,
           [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,
           [WorkspaceErrors.BUILD_ERROR]: buildError,
           [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,

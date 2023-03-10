@@ -22,7 +22,9 @@ func StripCoderCookies(header string) string {
 		name, _, _ := strings.Cut(part, "=")
 		if name == codersdk.SessionTokenCookie ||
 			name == codersdk.OAuth2StateCookie ||
-			name == codersdk.OAuth2RedirectCookie {
+			name == codersdk.OAuth2RedirectCookie ||
+			name == codersdk.DevURLSessionTokenCookie ||
+			name == codersdk.DevURLSessionTicketCookie {
 			continue
 		}
 		cookies = append(cookies, part)

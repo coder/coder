@@ -193,7 +193,6 @@ const useStyles = makeStyles((theme) => ({
   cancelButton: {
     "&.MuiButton-root": {
       padding: "0px 0px !important",
-      border: "none",
       borderLeft: `1px solid ${theme.palette.divider}`,
       borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
       width: "63px", // matching dropdown button so button grouping doesn't grow in size

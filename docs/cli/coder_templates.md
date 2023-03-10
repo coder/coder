@@ -1,18 +1,18 @@
-## coder templates
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 
-Manage templates
-
-### Synopsis
+# coder templates
 
 Templates are written in standard Terraform and describe the infrastructure for workspaces
 
-```
+## Usage
+
+```console
 coder templates [flags]
 ```
 
-### Examples
+## Examples
 
-```
+```console
   - Create a template for developers to create workspaces:
 
       $ coder templates create
@@ -26,40 +26,16 @@ coder templates [flags]
       $ coder templates push my-template
 ```
 
-### Options
+## Subcommands
 
-```
-  -h, --help   help for templates
-```
-
-### Options inherited from parent commands
-
-```
-      --global-config coder   Path to the global coder config directory.
-                              Consumes $CODER_CONFIG_DIR (default "~/.config/coderv2")
-      --header stringArray    HTTP headers added to all requests. Provide as "Key=Value".
-                              Consumes $CODER_HEADER
-      --no-feature-warning    Suppress warnings about unlicensed features.
-                              Consumes $CODER_NO_FEATURE_WARNING
-      --no-version-warning    Suppress warning when client and server versions do not match.
-                              Consumes $CODER_NO_VERSION_WARNING
-      --token string          Specify an authentication token. For security reasons setting CODER_SESSION_TOKEN is preferred.
-                              Consumes $CODER_SESSION_TOKEN
-      --url string            URL to a deployment.
-                              Consumes $CODER_URL
-  -v, --verbose               Enable verbose output.
-                              Consumes $CODER_VERBOSE
-```
-
-### SEE ALSO
-
-- [coder](coder.md) -
-- [coder templates create](coder_templates_create.md) - Create a template from the current directory or as specified by flag
-- [coder templates delete](coder_templates_delete.md) - Delete templates
-- [coder templates edit](coder_templates_edit.md) - Edit the metadata of a template by name.
-- [coder templates init](coder_templates_init.md) - Get started with a templated template.
-- [coder templates list](coder_templates_list.md) - List all the templates available for the organization
-- [coder templates plan](coder_templates_plan.md) - Plan a template push from the current directory
-- [coder templates pull](coder_templates_pull.md) - Download the latest version of a template to a path.
-- [coder templates push](coder_templates_push.md) - Push a new template version from the current directory or as specified by flag
-- [coder templates versions](coder_templates_versions.md) - Manage different versions of the specified template
+| Name                                                | Purpose                                                                        |
+| --------------------------------------------------- | ------------------------------------------------------------------------------ |
+| [<code>create</code>](./coder_templates_create)     | Create a template from the current directory or as specified by flag           |
+| [<code>delete</code>](./coder_templates_delete)     | Delete templates                                                               |
+| [<code>edit</code>](./coder_templates_edit)         | Edit the metadata of a template by name.                                       |
+| [<code>init</code>](./coder_templates_init)         | Get started with a templated template.                                         |
+| [<code>list</code>](./coder_templates_list)         | List all the templates available for the organization                          |
+| [<code>plan</code>](./coder_templates_plan)         | Plan a template push from the current directory                                |
+| [<code>pull</code>](./coder_templates_pull)         | Download the latest version of a template to a path.                           |
+| [<code>push</code>](./coder_templates_push)         | Push a new template version from the current directory or as specified by flag |
+| [<code>versions</code>](./coder_templates_versions) | Manage different versions of the specified template                            |

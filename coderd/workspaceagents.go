@@ -61,7 +61,10 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
+	apiAgent, err := convertWorkspaceAgent(
+		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -83,7 +86,10 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
+	apiAgent, err := convertWorkspaceAgent(
+		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -144,15 +150,17 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Metadata{
-		Apps:                 convertApps(dbApps),
-		DERPMap:              api.DERPMap,
-		GitAuthConfigs:       len(api.GitAuthConfigs),
-		EnvironmentVariables: apiAgent.EnvironmentVariables,
-		StartupScript:        apiAgent.StartupScript,
-		Directory:            apiAgent.Directory,
-		VSCodePortProxyURI:   vscodeProxyURI,
-		MOTDFile:             workspaceAgent.MOTDFile,
-		StartupScriptTimeout: time.Duration(apiAgent.StartupScriptTimeoutSeconds) * time.Second,
+		Apps:                  convertApps(dbApps),
+		DERPMap:               api.DERPMap,
+		GitAuthConfigs:        len(api.GitAuthConfigs),
+		EnvironmentVariables:  apiAgent.EnvironmentVariables,
+		StartupScript:         apiAgent.StartupScript,
+		Directory:             apiAgent.Directory,
+		VSCodePortProxyURI:    vscodeProxyURI,
+		MOTDFile:              workspaceAgent.MOTDFile,
+		StartupScriptTimeout:  time.Duration(apiAgent.StartupScriptTimeoutSeconds) * time.Second,
+		ShutdownScript:        apiAgent.ShutdownScript,
+		ShutdownScriptTimeout: time.Duration(apiAgent.ShutdownScriptTimeoutSeconds) * time.Second,
 	})
 }
 
@@ -169,7 +177,10 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
+	apiAgent, err := convertWorkspaceAgent(
+		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -274,7 +285,11 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
+
+	apiAgent, err := convertWorkspaceAgent(
+		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -355,7 +370,10 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
+	apiAgent, err := convertWorkspaceAgent(
+		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -446,6 +464,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 }
 
 func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+	ctx := r.Context()
 	clientConn, serverConn := net.Pipe()
 
 	derpMap := api.DERPMap.Clone()
@@ -495,32 +514,32 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	}
 
 	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		err := conn.RemoveAllPeers()
-		if err != nil {
-			return xerrors.Errorf("remove all peers: %w", err)
-		}
-
-		err = conn.UpdateNodes(node)
+		err = conn.UpdateNodes(node, true)
 		if err != nil {
 			return xerrors.Errorf("update nodes: %w", err)
 		}
 		return nil
 	})
 	conn.SetNodeCallback(sendNodes)
-	go func() {
-		err := (*api.TailnetCoordinator.Load()).ServeClient(serverConn, uuid.New(), agentID)
-		if err != nil {
-			api.Logger.Warn(r.Context(), "tailnet coordinator client error", slog.Error(err))
-			_ = conn.Close()
-		}
-	}()
-	return &codersdk.WorkspaceAgentConn{
+	agentConn := &codersdk.WorkspaceAgentConn{
 		Conn: conn,
 		CloseFunc: func() {
 			_ = clientConn.Close()
 			_ = serverConn.Close()
 		},
-	}, nil
+	}
+	go func() {
+		err := (*api.TailnetCoordinator.Load()).ServeClient(serverConn, uuid.New(), agentID)
+		if err != nil {
+			api.Logger.Warn(r.Context(), "tailnet coordinator client error", slog.Error(err))
+			_ = agentConn.Close()
+		}
+	}()
+	if !agentConn.AwaitReachable(ctx) {
+		_ = agentConn.Close()
+		return nil, xerrors.Errorf("agent not reachable")
+	}
+	return agentConn, nil
 }
 
 // @Summary Get connection info for workspace agent
@@ -844,25 +863,27 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		troubleshootingURL = dbAgent.TroubleshootingURL
 	}
 	workspaceAgent := codersdk.WorkspaceAgent{
-		ID:                          dbAgent.ID,
-		CreatedAt:                   dbAgent.CreatedAt,
-		UpdatedAt:                   dbAgent.UpdatedAt,
-		ResourceID:                  dbAgent.ResourceID,
-		InstanceID:                  dbAgent.AuthInstanceID.String,
-		Name:                        dbAgent.Name,
-		Architecture:                dbAgent.Architecture,
-		OperatingSystem:             dbAgent.OperatingSystem,
-		StartupScript:               dbAgent.StartupScript.String,
-		Version:                     dbAgent.Version,
-		EnvironmentVariables:        envs,
-		Directory:                   dbAgent.Directory,
-		ExpandedDirectory:           dbAgent.ExpandedDirectory,
-		Apps:                        apps,
-		ConnectionTimeoutSeconds:    dbAgent.ConnectionTimeoutSeconds,
-		TroubleshootingURL:          troubleshootingURL,
-		LifecycleState:              codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
-		LoginBeforeReady:            dbAgent.LoginBeforeReady,
-		StartupScriptTimeoutSeconds: dbAgent.StartupScriptTimeoutSeconds,
+		ID:                           dbAgent.ID,
+		CreatedAt:                    dbAgent.CreatedAt,
+		UpdatedAt:                    dbAgent.UpdatedAt,
+		ResourceID:                   dbAgent.ResourceID,
+		InstanceID:                   dbAgent.AuthInstanceID.String,
+		Name:                         dbAgent.Name,
+		Architecture:                 dbAgent.Architecture,
+		OperatingSystem:              dbAgent.OperatingSystem,
+		StartupScript:                dbAgent.StartupScript.String,
+		Version:                      dbAgent.Version,
+		EnvironmentVariables:         envs,
+		Directory:                    dbAgent.Directory,
+		ExpandedDirectory:            dbAgent.ExpandedDirectory,
+		Apps:                         apps,
+		ConnectionTimeoutSeconds:     dbAgent.ConnectionTimeoutSeconds,
+		TroubleshootingURL:           troubleshootingURL,
+		LifecycleState:               codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
+		LoginBeforeReady:             dbAgent.LoginBeforeReady,
+		StartupScriptTimeoutSeconds:  dbAgent.StartupScriptTimeoutSeconds,
+		ShutdownScript:               dbAgent.ShutdownScript.String,
+		ShutdownScriptTimeoutSeconds: dbAgent.ShutdownScriptTimeoutSeconds,
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {
@@ -958,7 +979,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if req.RxBytes == 0 && req.TxBytes == 0 {
+	// An empty stat means it's just looking for the report interval.
+	if req.ConnectionsByProto == nil {
 		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.StatsResponse{
 			ReportInterval: api.AgentStatsRefreshInterval,
 		})
@@ -972,36 +994,50 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		slog.F("payload", req),
 	)
 
-	activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID)
+	if req.ConnectionCount > 0 {
+		activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID)
+	}
 
-	payload, err := json.Marshal(req)
+	payload, err := json.Marshal(req.ConnectionsByProto)
 	if err != nil {
-		api.Logger.Error(ctx, "marshal agent stats report", slog.Error(err))
+		api.Logger.Error(ctx, "marshal agent connections by proto", slog.F("workspace_agent", workspaceAgent.ID), slog.Error(err))
 		payload = json.RawMessage("{}")
 	}
 
 	now := database.Now()
-	_, err = api.Database.InsertAgentStat(ctx, database.InsertAgentStatParams{
-		ID:          uuid.New(),
-		CreatedAt:   now,
-		AgentID:     workspaceAgent.ID,
-		WorkspaceID: workspace.ID,
-		UserID:      workspace.OwnerID,
-		TemplateID:  workspace.TemplateID,
-		Payload:     payload,
+	_, err = api.Database.InsertWorkspaceAgentStat(ctx, database.InsertWorkspaceAgentStatParams{
+		ID:                          uuid.New(),
+		CreatedAt:                   now,
+		AgentID:                     workspaceAgent.ID,
+		WorkspaceID:                 workspace.ID,
+		UserID:                      workspace.OwnerID,
+		TemplateID:                  workspace.TemplateID,
+		ConnectionsByProto:          payload,
+		ConnectionCount:             req.ConnectionCount,
+		RxPackets:                   req.RxPackets,
+		RxBytes:                     req.RxBytes,
+		TxPackets:                   req.TxPackets,
+		TxBytes:                     req.TxBytes,
+		SessionCountVSCode:          req.SessionCountVSCode,
+		SessionCountJetBrains:       req.SessionCountJetBrains,
+		SessionCountReconnectingPTY: req.SessionCountReconnectingPTY,
+		SessionCountSSH:             req.SessionCountSSH,
+		ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
-	err = api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
-		ID:         workspace.ID,
-		LastUsedAt: now,
-	})
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
+	if req.ConnectionCount > 0 {
+		err = api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+			ID:         workspace.ID,
+			LastUsedAt: now,
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.StatsResponse{
@@ -1354,13 +1390,28 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// If the token is expired and refresh is disabled, we prompt
-	// the user to authenticate again.
-	if gitAuthConfig.NoRefresh && gitAuthLink.OAuthExpiry.Before(database.Now()) {
+	gitAuthLink, updated, err := refreshGitToken(ctx, api.Database, workspace.OwnerID, gitAuthConfig, gitAuthLink)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to refresh git auth token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !updated {
 		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
 			URL: redirectURL.String(),
 		})
 		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, gitAuthLink.OAuthAccessToken))
+}
+
+func refreshGitToken(ctx context.Context, db database.Store, owner uuid.UUID, gitAuthConfig *gitauth.Config, gitAuthLink database.GitAuthLink) (database.GitAuthLink, bool, error) {
+	// If the token is expired and refresh is disabled, we prompt
+	// the user to authenticate again.
+	if gitAuthConfig.NoRefresh && gitAuthLink.OAuthExpiry.Before(database.Now()) {
+		return gitAuthLink, false, nil
 	}
 
 	token, err := gitAuthConfig.TokenSource(ctx, &oauth2.Token{
@@ -1369,49 +1420,35 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		Expiry:       gitAuthLink.OAuthExpiry,
 	}).Token()
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
-			URL: redirectURL.String(),
-		})
-		return
+		return gitAuthLink, false, nil
 	}
 
 	if gitAuthConfig.ValidateURL != "" {
 		valid, err := validateGitToken(ctx, gitAuthConfig.ValidateURL, token.AccessToken)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate Git authentication token.",
-				Detail:  err.Error(),
-			})
-			return
+			return gitAuthLink, false, xerrors.Errorf("validate git auth token: %w", err)
 		}
 		if !valid {
 			// The token is no longer valid!
-			httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
-				URL: redirectURL.String(),
-			})
-			return
+			return gitAuthLink, false, nil
 		}
 	}
 
 	if token.AccessToken != gitAuthLink.OAuthAccessToken {
 		// Update it
-		err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
+		gitAuthLink, err = db.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
 			ProviderID:        gitAuthConfig.ID,
-			UserID:            workspace.OwnerID,
+			UserID:            owner,
 			UpdatedAt:         database.Now(),
 			OAuthAccessToken:  token.AccessToken,
 			OAuthRefreshToken: token.RefreshToken,
 			OAuthExpiry:       token.Expiry,
 		})
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to update git auth link.",
-				Detail:  err.Error(),
-			})
-			return
+			return gitAuthLink, false, xerrors.Errorf("update git auth link: %w", err)
 		}
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, token.AccessToken))
+	return gitAuthLink, true, nil
 }
 
 // validateGitToken ensures the git token provided is valid
@@ -1433,7 +1470,7 @@ func validateGitToken(ctx context.Context, validateURL, token string) (bool, err
 	}
 	if res.StatusCode != http.StatusOK {
 		data, _ := io.ReadAll(res.Body)
-		return false, xerrors.Errorf("git token validation failed: status %d: body: %s", res.StatusCode, data)
+		return false, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
 	}
 	return true, nil
 }
@@ -1500,7 +1537,7 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 				return
 			}
 		} else {
-			err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
+			_, err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
 				ProviderID:        gitAuthConfig.ID,
 				UserID:            apiKey.UserID,
 				UpdatedAt:         database.Now(),
@@ -1526,8 +1563,12 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 			return
 		}
 
+		redirect := state.Redirect
+		if redirect == "" {
+			redirect = "/gitauth"
+		}
 		// This is a nicely rendered screen on the frontend
-		http.Redirect(rw, r, "/gitauth", http.StatusTemporaryRedirect)
+		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 	}
 }
 

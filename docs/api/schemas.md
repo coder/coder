@@ -189,6 +189,8 @@
   },
   "git_auth_configs": 0,
   "motd_file": "string",
+  "shutdown_script": "string",
+  "shutdown_script_timeout": 0,
   "startup_script": "string",
   "startup_script_timeout": 0,
   "vscode_port_proxy_uri": "string"
@@ -197,18 +199,20 @@
 
 ### Properties
 
-| Name                     | Type                                                    | Required | Restrictions | Description                                                                                                                                                |
-| ------------------------ | ------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps`                   | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp) | false    |              |                                                                                                                                                            |
-| `derpmap`                | [tailcfg.DERPMap](#tailcfgderpmap)                      | false    |              |                                                                                                                                                            |
-| `directory`              | string                                                  | false    |              |                                                                                                                                                            |
-| `environment_variables`  | object                                                  | false    |              |                                                                                                                                                            |
-| » `[any property]`       | string                                                  | false    |              |                                                                                                                                                            |
-| `git_auth_configs`       | integer                                                 | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
-| `motd_file`              | string                                                  | false    |              |                                                                                                                                                            |
-| `startup_script`         | string                                                  | false    |              |                                                                                                                                                            |
-| `startup_script_timeout` | integer                                                 | false    |              |                                                                                                                                                            |
-| `vscode_port_proxy_uri`  | string                                                  | false    |              |                                                                                                                                                            |
+| Name                      | Type                                                    | Required | Restrictions | Description                                                                                                                                                |
+| ------------------------- | ------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                    | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp) | false    |              |                                                                                                                                                            |
+| `derpmap`                 | [tailcfg.DERPMap](#tailcfgderpmap)                      | false    |              |                                                                                                                                                            |
+| `directory`               | string                                                  | false    |              |                                                                                                                                                            |
+| `environment_variables`   | object                                                  | false    |              |                                                                                                                                                            |
+| » `[any property]`        | string                                                  | false    |              |                                                                                                                                                            |
+| `git_auth_configs`        | integer                                                 | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
+| `motd_file`               | string                                                  | false    |              |                                                                                                                                                            |
+| `shutdown_script`         | string                                                  | false    |              |                                                                                                                                                            |
+| `shutdown_script_timeout` | integer                                                 | false    |              |                                                                                                                                                            |
+| `startup_script`          | string                                                  | false    |              |                                                                                                                                                            |
+| `startup_script_timeout`  | integer                                                 | false    |              |                                                                                                                                                            |
+| `vscode_port_proxy_uri`   | string                                                  | false    |              |                                                                                                                                                            |
 
 ## agentsdk.PostAppHealthsRequest
 
@@ -262,13 +266,18 @@
 
 ```json
 {
-  "conns_by_proto": {
+  "connection_count": 0,
+  "connection_median_latency_ms": 0,
+  "connections_by_proto": {
     "property1": 0,
     "property2": 0
   },
-  "num_comms": 0,
   "rx_bytes": 0,
   "rx_packets": 0,
+  "session_count_jetbrains": 0,
+  "session_count_reconnecting_pty": 0,
+  "session_count_ssh": 0,
+  "session_count_vscode": 0,
   "tx_bytes": 0,
   "tx_packets": 0
 }
@@ -276,15 +285,20 @@
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description                                                  |
-| ------------------ | ------- | -------- | ------------ | ------------------------------------------------------------ |
-| `conns_by_proto`   | object  | false    |              | Conns by proto is a count of connections by protocol.        |
-| » `[any property]` | integer | false    |              |                                                              |
-| `num_comms`        | integer | false    |              | Num comms is the number of connections received by an agent. |
-| `rx_bytes`         | integer | false    |              | Rx bytes is the number of received bytes.                    |
-| `rx_packets`       | integer | false    |              | Rx packets is the number of received packets.                |
-| `tx_bytes`         | integer | false    |              | Tx bytes is the number of transmitted bytes.                 |
-| `tx_packets`       | integer | false    |              | Tx packets is the number of transmitted bytes.               |
+| Name                             | Type    | Required | Restrictions | Description                                                                                                                   |
+| -------------------------------- | ------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `connection_count`               | integer | false    |              | Connection count is the number of connections received by an agent.                                                           |
+| `connection_median_latency_ms`   | number  | false    |              | Connection median latency ms is the median latency of all connections in milliseconds.                                        |
+| `connections_by_proto`           | object  | false    |              | Connections by proto is a count of connections by protocol.                                                                   |
+| » `[any property]`               | integer | false    |              |                                                                                                                               |
+| `rx_bytes`                       | integer | false    |              | Rx bytes is the number of received bytes.                                                                                     |
+| `rx_packets`                     | integer | false    |              | Rx packets is the number of received packets.                                                                                 |
+| `session_count_jetbrains`        | integer | false    |              | Session count jetbrains is the number of connections received by an agent that are from our JetBrains extension.              |
+| `session_count_reconnecting_pty` | integer | false    |              | Session count reconnecting pty is the number of connections received by an agent that are from the reconnecting web terminal. |
+| `session_count_ssh`              | integer | false    |              | Session count ssh is the number of connections received by an agent that are normal, non-tagged SSH sessions.                 |
+| `session_count_vscode`           | integer | false    |              | Session count vscode is the number of connections received by an agent that are from our VS Code extension.                   |
+| `tx_bytes`                       | integer | false    |              | Tx bytes is the number of transmitted bytes.                                                                                  |
+| `tx_packets`                     | integer | false    |              | Tx packets is the number of transmitted bytes.                                                                                |
 
 ## agentsdk.StatsResponse
 
@@ -299,6 +313,240 @@
 | Name              | Type    | Required | Restrictions | Description                                                                    |
 | ----------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------ |
 | `report_interval` | integer | false    |              | Report interval is the duration after which the agent should send stats again. |
+
+## clibase.Annotations
+
+```json
+{
+  "property1": "string",
+  "property2": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `[any property]` | string | false    |              |             |
+
+## clibase.Group
+
+```json
+{
+  "children": [
+    {
+      "children": [],
+      "description": "string",
+      "name": "string",
+      "parent": {}
+    }
+  ],
+  "description": "string",
+  "name": "string",
+  "parent": {
+    "children": [{}],
+    "description": "string",
+    "name": "string",
+    "parent": {}
+  }
+}
+```
+
+### Properties
+
+| Name          | Type                                    | Required | Restrictions | Description |
+| ------------- | --------------------------------------- | -------- | ------------ | ----------- |
+| `children`    | array of [clibase.Group](#clibasegroup) | false    |              |             |
+| `description` | string                                  | false    |              |             |
+| `name`        | string                                  | false    |              |             |
+| `parent`      | [clibase.Group](#clibasegroup)          | false    |              |             |
+
+## clibase.HostPort
+
+```json
+{
+  "host": "string",
+  "port": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| `host` | string | false    |              |             |
+| `port` | string | false    |              |             |
+
+## clibase.Option
+
+```json
+{
+  "annotations": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "default": "string",
+  "description": "string",
+  "env": "string",
+  "flag": "string",
+  "flag_shorthand": "string",
+  "group": {
+    "children": [
+      {
+        "children": [],
+        "description": "string",
+        "name": "string",
+        "parent": {}
+      }
+    ],
+    "description": "string",
+    "name": "string",
+    "parent": {
+      "children": [{}],
+      "description": "string",
+      "name": "string",
+      "parent": {}
+    }
+  },
+  "hidden": true,
+  "name": "string",
+  "use_instead": [
+    {
+      "annotations": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "default": "string",
+      "description": "string",
+      "env": "string",
+      "flag": "string",
+      "flag_shorthand": "string",
+      "group": {
+        "children": [
+          {
+            "children": [],
+            "description": "string",
+            "name": "string",
+            "parent": {}
+          }
+        ],
+        "description": "string",
+        "name": "string",
+        "parent": {
+          "children": [{}],
+          "description": "string",
+          "name": "string",
+          "parent": {}
+        }
+      },
+      "hidden": true,
+      "name": "string",
+      "use_instead": [],
+      "value": null,
+      "yaml": "string"
+    }
+  ],
+  "value": null,
+  "yaml": "string"
+}
+```
+
+### Properties
+
+| Name             | Type                                       | Required | Restrictions | Description                                                                                                                    |
+| ---------------- | ------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `annotations`    | [clibase.Annotations](#clibaseannotations) | false    |              | Annotations enable extensions to clibase higher up in the stack. It's useful for help formatting and documentation generation. |
+| `default`        | string                                     | false    |              | Default is parsed into Value if set.                                                                                           |
+| `description`    | string                                     | false    |              |                                                                                                                                |
+| `env`            | string                                     | false    |              | Env is the environment variable used to configure this option. If unset, environment configuring is disabled.                  |
+| `flag`           | string                                     | false    |              | Flag is the long name of the flag used to configure this option. If unset, flag configuring is disabled.                       |
+| `flag_shorthand` | string                                     | false    |              | Flag shorthand is the one-character shorthand for the flag. If unset, no shorthand is used.                                    |
+| `group`          | [clibase.Group](#clibasegroup)             | false    |              | Group is a group hierarchy that helps organize this option in help, configs and other documentation.                           |
+| `hidden`         | boolean                                    | false    |              |                                                                                                                                |
+| `name`           | string                                     | false    |              |                                                                                                                                |
+| `use_instead`    | array of [clibase.Option](#clibaseoption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning. |
+| `value`          | any                                        | false    |              | Value includes the types listed in values.go.                                                                                  |
+| `yaml`           | string                                     | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                    |
+
+## clibase.Struct-array_codersdk_GitAuthConfig
+
+```json
+{
+  "value": [
+    {
+      "auth_url": "string",
+      "client_id": "string",
+      "id": "string",
+      "no_refresh": true,
+      "regex": "string",
+      "scopes": ["string"],
+      "token_url": "string",
+      "type": "string",
+      "validate_url": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                      | Required | Restrictions | Description |
+| ------- | --------------------------------------------------------- | -------- | ------------ | ----------- |
+| `value` | array of [codersdk.GitAuthConfig](#codersdkgitauthconfig) | false    |              |             |
+
+## clibase.Struct-array_codersdk_LinkConfig
+
+```json
+{
+  "value": [
+    {
+      "icon": "string",
+      "name": "string",
+      "target": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                | Required | Restrictions | Description |
+| ------- | --------------------------------------------------- | -------- | ------------ | ----------- |
+| `value` | array of [codersdk.LinkConfig](#codersdklinkconfig) | false    |              |             |
+
+## clibase.URL
+
+```json
+{
+  "forceQuery": true,
+  "fragment": "string",
+  "host": "string",
+  "omitHost": true,
+  "opaque": "string",
+  "path": "string",
+  "rawFragment": "string",
+  "rawPath": "string",
+  "rawQuery": "string",
+  "scheme": "string",
+  "user": {}
+}
+```
+
+### Properties
+
+| Name          | Type                         | Required | Restrictions | Description                                        |
+| ------------- | ---------------------------- | -------- | ------------ | -------------------------------------------------- |
+| `forceQuery`  | boolean                      | false    |              | append a query ('?') even if RawQuery is empty     |
+| `fragment`    | string                       | false    |              | fragment for references, without '#'               |
+| `host`        | string                       | false    |              | host or host:port                                  |
+| `omitHost`    | boolean                      | false    |              | do not emit empty host (authority)                 |
+| `opaque`      | string                       | false    |              | encoded opaque data                                |
+| `path`        | string                       | false    |              | path (relative paths may omit leading slash)       |
+| `rawFragment` | string                       | false    |              | encoded fragment hint (see EscapedFragment method) |
+| `rawPath`     | string                       | false    |              | encoded path hint (see EscapedPath method)         |
+| `rawQuery`    | string                       | false    |              | encoded query values, without '?'                  |
+| `scheme`      | string                       | false    |              |                                                    |
+| `user`        | [url.Userinfo](#urluserinfo) | false    |              | username and password information                  |
 
 ## coderd.SCIMUser
 
@@ -372,6 +620,7 @@
   "lifetime_seconds": 0,
   "login_type": "password",
   "scope": "all",
+  "token_name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
@@ -388,6 +637,7 @@
 | `lifetime_seconds` | integer                                      | true     |              |             |
 | `login_type`       | [codersdk.LoginType](#codersdklogintype)     | true     |              |             |
 | `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope) | true     |              |             |
+| `token_name`       | string                                       | true     |              |             |
 | `updated_at`       | string                                       | true     |              |             |
 | `user_id`          | string                                       | true     |              |             |
 
@@ -454,7 +704,14 @@
     "background_color": "string",
     "enabled": true,
     "message": "string"
-  }
+  },
+  "support_links": [
+    {
+      "icon": "string",
+      "name": "string",
+      "target": "string"
+    }
+  ]
 }
 ```
 
@@ -464,6 +721,7 @@
 | ---------------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
 | `logo_url`       | string                                                       | false    |              |             |
 | `service_banner` | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
+| `support_links`  | array of [codersdk.LinkConfig](#codersdklinkconfig)          | false    |              |             |
 
 ## codersdk.AssignableRoles
 
@@ -967,6 +1225,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "description": "string",
   "display_name": "string",
   "icon": "string",
+  "max_ttl_ms": 0,
   "name": "string",
   "parameter_values": [
     {
@@ -990,6 +1249,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `description`                                                                                                                                                                             | string                                                                      | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                |
 | `display_name`                                                                                                                                                                            | string                                                                      | false    |              | Display name is the displayed name of the template.                                                        |
 | `icon`                                                                                                                                                                                    | string                                                                      | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.           |
+| `max_ttl_ms`                                                                                                                                                                              | integer                                                                     | false    |              | Max ttl ms allows optionally specifying the max lifetime for workspaces created from this template.        |
 | `name`                                                                                                                                                                                    | string                                                                      | true     |              | Name is the name of the template.                                                                          |
 | `parameter_values`                                                                                                                                                                        | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.]                         |
 | `template_version_id`                                                                                                                                                                     | string                                                                      | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.       |
@@ -1032,6 +1292,61 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |                                                                                    |
 | `user_variable_values`  | array of [codersdk.VariableValue](#codersdkvariablevalue)                     | false    |              |                                                                                    |
 | `workspace_name`        | string                                                                        | false    |              |                                                                                    |
+
+## codersdk.CreateTemplateVersionRequest
+
+```json
+{
+  "example_id": "string",
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "name": "string",
+  "parameter_values": [
+    {
+      "copy_from_parameter": "000e07d6-021d-446c-be14-48a9c20bca0b",
+      "destination_scheme": "none",
+      "name": "string",
+      "source_scheme": "none",
+      "source_value": "string"
+    }
+  ],
+  "provisioner": "terraform",
+  "storage_method": "file",
+  "tags": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "user_variable_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                          |
+| ---------------------- | --------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------- |
+| `example_id`           | string                                                                      | false    |              |                                                                                                      |
+| `file_id`              | string                                                                      | false    |              |                                                                                                      |
+| `name`                 | string                                                                      | false    |              |                                                                                                      |
+| `parameter_values`     | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values allows for additional parameters to be provided during the dry-run provision stage. |
+| `provisioner`          | string                                                                      | true     |              |                                                                                                      |
+| `storage_method`       | [codersdk.ProvisionerStorageMethod](#codersdkprovisionerstoragemethod)      | true     |              |                                                                                                      |
+| `tags`                 | object                                                                      | false    |              |                                                                                                      |
+| » `[any property]`     | string                                                                      | false    |              |                                                                                                      |
+| `template_id`          | string                                                                      | false    |              | Template ID optionally associates a version with a template.                                         |
+| `user_variable_values` | array of [codersdk.VariableValue](#codersdkvariablevalue)                   | false    |              |                                                                                                      |
+
+#### Enumerated Values
+
+| Property         | Value       |
+| ---------------- | ----------- |
+| `provisioner`    | `terraform` |
+| `provisioner`    | `echo`      |
+| `storage_method` | `file`      |
 
 ## codersdk.CreateTestAuditLogRequest
 
@@ -1082,16 +1397,18 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "lifetime": 0,
-  "scope": "all"
+  "scope": "all",
+  "token_name": "string"
 }
 ```
 
 ### Properties
 
-| Name       | Type                                         | Required | Restrictions | Description |
-| ---------- | -------------------------------------------- | -------- | ------------ | ----------- |
-| `lifetime` | integer                                      | false    |              |             |
-| `scope`    | [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
+| Name         | Type                                         | Required | Restrictions | Description |
+| ------------ | -------------------------------------------- | -------- | ------------ | ----------- |
+| `lifetime`   | integer                                      | false    |              |             |
+| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
+| `token_name` | string                                       | false    |              |             |
 
 #### Enumerated Values
 
@@ -1226,96 +1543,28 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "config": {
-    "path": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
+    "path": "string",
+    "url": "string"
   },
   "server": {
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "region_code": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "region_id": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    },
-    "region_name": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
+    "enable": true,
+    "region_code": "string",
+    "region_id": 0,
+    "region_name": "string",
     "relay_url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
     },
-    "stun_addresses": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    }
+    "stun_addresses": ["string"]
   }
 }
 ```
@@ -1331,37 +1580,17 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-  "path": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  }
+  "path": "string",
+  "url": "string"
 }
 ```
 
 ### Properties
 
-| Name   | Type                                                                           | Required | Restrictions | Description |
-| ------ | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `path` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
-| `url`  | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| `path` | string | false    |              |             |
+| `url`  | string | false    |              |             |
 
 ## codersdk.DERPRegion
 
@@ -1383,1225 +1612,325 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-  "enable": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "region_code": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "region_id": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "region_name": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
+  "enable": true,
+  "region_code": "string",
+  "region_id": 0,
+  "region_name": "string",
   "relay_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
   },
-  "stun_addresses": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  }
+  "stun_addresses": ["string"]
 }
 ```
 
 ### Properties
 
-| Name             | Type                                                                                       | Required | Restrictions | Description |
-| ---------------- | ------------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `enable`         | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
-| `region_code`    | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `region_id`      | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)                   | false    |              |             |
-| `region_name`    | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `relay_url`      | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `stun_addresses` | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
+| Name             | Type                       | Required | Restrictions | Description |
+| ---------------- | -------------------------- | -------- | ------------ | ----------- |
+| `enable`         | boolean                    | false    |              |             |
+| `region_code`    | string                     | false    |              |             |
+| `region_id`      | integer                    | false    |              |             |
+| `region_name`    | string                     | false    |              |             |
+| `relay_url`      | [clibase.URL](#clibaseurl) | false    |              |             |
+| `stun_addresses` | array of string            | false    |              |             |
 
 ## codersdk.DangerousConfig
 
 ```json
 {
-  "allow_path_app_sharing": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "allow_path_app_site_owner_access": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  }
+  "allow_path_app_sharing": true,
+  "allow_path_app_site_owner_access": true
 }
 ```
 
 ### Properties
 
-| Name                               | Type                                                                       | Required | Restrictions | Description |
-| ---------------------------------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `allow_path_app_sharing`           | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool) | false    |              |             |
-| `allow_path_app_site_owner_access` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool) | false    |              |             |
+| Name                               | Type    | Required | Restrictions | Description |
+| ---------------------------------- | ------- | -------- | ------------ | ----------- |
+| `allow_path_app_sharing`           | boolean | false    |              |             |
+| `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
 ## codersdk.DeploymentConfig
 
 ```json
 {
-  "access_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "address": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "agent_fallback_troubleshooting_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "agent_stat_refresh_interval": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "audit_logging": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "autobuild_poll_interval": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "browser_only": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "cache_directory": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "dangerous": {
-    "allow_path_app_sharing": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
+  "config": {
+    "access_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
     },
-    "allow_path_app_site_owner_access": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
-  },
-  "derp": {
-    "config": {
-      "path": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
+    "address": {
+      "host": "string",
+      "port": "string"
+    },
+    "agent_fallback_troubleshooting_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
+    "agent_stat_refresh_interval": 0,
+    "audit_logging": true,
+    "autobuild_poll_interval": 0,
+    "browser_only": true,
+    "cache_directory": "string",
+    "config": "string",
+    "dangerous": {
+      "allow_path_app_sharing": true,
+      "allow_path_app_site_owner_access": true
+    },
+    "derp": {
+      "config": {
+        "path": "string",
+        "url": "string"
       },
+      "server": {
+        "enable": true,
+        "region_code": "string",
+        "region_id": 0,
+        "region_name": "string",
+        "relay_url": {
+          "forceQuery": true,
+          "fragment": "string",
+          "host": "string",
+          "omitHost": true,
+          "opaque": "string",
+          "path": "string",
+          "rawFragment": "string",
+          "rawPath": "string",
+          "rawQuery": "string",
+          "scheme": "string",
+          "user": {}
+        },
+        "stun_addresses": ["string"]
+      }
+    },
+    "disable_password_auth": true,
+    "disable_path_apps": true,
+    "disable_session_expiry_refresh": true,
+    "experiments": ["string"],
+    "git_auth": {
+      "value": [
+        {
+          "auth_url": "string",
+          "client_id": "string",
+          "id": "string",
+          "no_refresh": true,
+          "regex": "string",
+          "scopes": ["string"],
+          "token_url": "string",
+          "type": "string",
+          "validate_url": "string"
+        }
+      ]
+    },
+    "http_address": "string",
+    "in_memory_database": true,
+    "logging": {
+      "human": "string",
+      "json": "string",
+      "stackdriver": "string"
+    },
+    "max_session_expiry": 0,
+    "max_token_lifetime": 0,
+    "metrics_cache_refresh_interval": 0,
+    "oauth2": {
+      "github": {
+        "allow_everyone": true,
+        "allow_signups": true,
+        "allowed_orgs": ["string"],
+        "allowed_teams": ["string"],
+        "client_id": "string",
+        "client_secret": "string",
+        "enterprise_base_url": "string"
+      }
+    },
+    "oidc": {
+      "allow_signups": true,
+      "client_id": "string",
+      "client_secret": "string",
+      "email_domain": ["string"],
+      "groups_field": "string",
+      "icon_url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      },
+      "ignore_email_verified": true,
+      "issuer_url": "string",
+      "scopes": ["string"],
+      "sign_in_text": "string",
+      "username_field": "string"
+    },
+    "pg_connection_url": "string",
+    "pprof": {
+      "address": {
+        "host": "string",
+        "port": "string"
+      },
+      "enable": true
+    },
+    "prometheus": {
+      "address": {
+        "host": "string",
+        "port": "string"
+      },
+      "enable": true
+    },
+    "provisioner": {
+      "daemon_poll_interval": 0,
+      "daemon_poll_jitter": 0,
+      "daemons": 0,
+      "force_cancel_interval": 0
+    },
+    "proxy_trusted_headers": ["string"],
+    "proxy_trusted_origins": ["string"],
+    "rate_limit": {
+      "api": 0,
+      "disable_all": true
+    },
+    "redirect_to_access_url": true,
+    "scim_api_key": "string",
+    "secure_auth_cookie": true,
+    "ssh_keygen_algorithm": "string",
+    "strict_transport_security": 0,
+    "strict_transport_security_options": ["string"],
+    "support": {
+      "links": {
+        "value": [
+          {
+            "icon": "string",
+            "name": "string",
+            "target": "string"
+          }
+        ]
+      }
+    },
+    "swagger": {
+      "enable": true
+    },
+    "telemetry": {
+      "enable": true,
+      "trace": true,
       "url": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
       }
     },
-    "server": {
-      "enable": {
-        "default": true,
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": true
+    "tls": {
+      "address": {
+        "host": "string",
+        "port": "string"
       },
-      "region_code": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "region_id": {
-        "default": 0,
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": 0
-      },
-      "region_name": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "relay_url": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "stun_addresses": {
-        "default": ["string"],
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": ["string"]
-      }
-    }
-  },
-  "disable_password_auth": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "disable_path_apps": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "disable_session_expiry_refresh": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "experimental": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "experiments": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "gitauth": {
-    "default": [
-      {
-        "auth_url": "string",
-        "client_id": "string",
-        "id": "string",
-        "no_refresh": true,
-        "regex": "string",
-        "scopes": ["string"],
-        "token_url": "string",
-        "type": "string",
-        "validate_url": "string"
-      }
-    ],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": [
-      {
-        "auth_url": "string",
-        "client_id": "string",
-        "id": "string",
-        "no_refresh": true,
-        "regex": "string",
-        "scopes": ["string"],
-        "token_url": "string",
-        "type": "string",
-        "validate_url": "string"
-      }
-    ]
-  },
-  "http_address": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "in_memory_database": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "logging": {
-    "human": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "json": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "stackdriver": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
-  },
-  "max_session_expiry": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "max_token_lifetime": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "metrics_cache_refresh_interval": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "oauth2": {
-    "github": {
-      "allow_everyone": {
-        "default": true,
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": true
-      },
-      "allow_signups": {
-        "default": true,
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": true
-      },
-      "allowed_orgs": {
-        "default": ["string"],
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": ["string"]
-      },
-      "allowed_teams": {
-        "default": ["string"],
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": ["string"]
-      },
-      "client_id": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "client_secret": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "enterprise_base_url": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      }
-    }
-  },
-  "oidc": {
-    "allow_signups": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "client_id": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "client_secret": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "email_domain": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "icon_url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "ignore_email_verified": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "issuer_url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "scopes": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "sign_in_text": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "username_field": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
-  },
-  "pg_connection_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "pprof": {
-    "address": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
-  },
-  "prometheus": {
-    "address": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
-  },
-  "provisioner": {
-    "daemon_poll_interval": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    },
-    "daemon_poll_jitter": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    },
-    "daemons": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    },
-    "force_cancel_interval": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    }
-  },
-  "proxy_trusted_headers": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "proxy_trusted_origins": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "rate_limit": {
-    "api": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    },
-    "disable_all": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
-  },
-  "redirect_to_access_url": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "scim_api_key": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "secure_auth_cookie": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "ssh_keygen_algorithm": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "strict_transport_security": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "strict_transport_security_options": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "swagger": {
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
-  },
-  "telemetry": {
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
+      "cert_file": ["string"],
+      "client_auth": "string",
+      "client_ca_file": "string",
+      "client_cert_file": "string",
+      "client_key_file": "string",
+      "enable": true,
+      "key_file": ["string"],
+      "min_version": "string",
+      "redirect_http": true
     },
     "trace": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
+      "capture_logs": true,
+      "enable": true,
+      "honeycomb_api_key": "string"
     },
-    "url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
+    "update_check": true,
+    "verbose": true,
+    "wildcard_access_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
+    "write_config": true
   },
-  "tls": {
-    "address": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "cert_file": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "client_auth": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "client_ca_file": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "client_cert_file": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "client_key_file": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "key_file": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "min_version": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "redirect_http": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
-  },
-  "trace": {
-    "capture_logs": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "honeycomb_api_key": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
-  },
-  "update_check": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "wildcard_access_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  }
-}
-```
-
-### Properties
-
-| Name                                 | Type                                                                                                                       | Required | Restrictions | Description                                     |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------- |
-| `access_url`                         | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-| `address`                            | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              | Address Use HTTPAddress or TLS.Address instead. |
-| `agent_fallback_troubleshooting_url` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-| `agent_stat_refresh_interval`        | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
-| `audit_logging`                      | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `autobuild_poll_interval`            | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
-| `browser_only`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `cache_directory`                    | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-| `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                                       | false    |              |                                                 |
-| `derp`                               | [codersdk.DERP](#codersdkderp)                                                                                             | false    |              |                                                 |
-| `disable_password_auth`              | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `disable_path_apps`                  | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `disable_session_expiry_refresh`     | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `experimental`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              | Experimental Use Experiments instead.           |
-| `experiments`                        | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
-| `gitauth`                            | [codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig](#codersdkdeploymentconfigfield-array_codersdk_gitauthconfig) | false    |              |                                                 |
-| `http_address`                       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-| `in_memory_database`                 | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                                           | false    |              |                                                 |
-| `max_session_expiry`                 | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
-| `max_token_lifetime`                 | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
-| `metrics_cache_refresh_interval`     | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration)                               | false    |              |                                                 |
-| `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                                                             | false    |              |                                                 |
-| `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                                                 | false    |              |                                                 |
-| `pg_connection_url`                  | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-| `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                                                               | false    |              |                                                 |
-| `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                                                     | false    |              |                                                 |
-| `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                                                   | false    |              |                                                 |
-| `proxy_trusted_headers`              | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
-| `proxy_trusted_origins`              | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
-| `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                                                       | false    |              |                                                 |
-| `redirect_to_access_url`             | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `scim_api_key`                       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-| `secure_auth_cookie`                 | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `ssh_keygen_algorithm`               | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-| `strict_transport_security`          | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)                                                   | false    |              |                                                 |
-| `strict_transport_security_options`  | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string)                                 | false    |              |                                                 |
-| `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                                           | false    |              |                                                 |
-| `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                                       | false    |              |                                                 |
-| `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                                                   | false    |              |                                                 |
-| `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                                                               | false    |              |                                                 |
-| `update_check`                       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                                                 | false    |              |                                                 |
-| `wildcard_access_url`                | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)                                             | false    |              |                                                 |
-
-## codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig
-
-```json
-{
-  "default": [
+  "options": [
     {
-      "auth_url": "string",
-      "client_id": "string",
-      "id": "string",
-      "no_refresh": true,
-      "regex": "string",
-      "scopes": ["string"],
-      "token_url": "string",
-      "type": "string",
-      "validate_url": "string"
-    }
-  ],
-  "enterprise": true,
-  "flag": "string",
-  "hidden": true,
-  "name": "string",
-  "secret": true,
-  "shorthand": "string",
-  "usage": "string",
-  "value": [
-    {
-      "auth_url": "string",
-      "client_id": "string",
-      "id": "string",
-      "no_refresh": true,
-      "regex": "string",
-      "scopes": ["string"],
-      "token_url": "string",
-      "type": "string",
-      "validate_url": "string"
+      "annotations": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "default": "string",
+      "description": "string",
+      "env": "string",
+      "flag": "string",
+      "flag_shorthand": "string",
+      "group": {
+        "children": [
+          {
+            "children": [],
+            "description": "string",
+            "name": "string",
+            "parent": {}
+          }
+        ],
+        "description": "string",
+        "name": "string",
+        "parent": {
+          "children": [{}],
+          "description": "string",
+          "name": "string",
+          "parent": {}
+        }
+      },
+      "hidden": true,
+      "name": "string",
+      "use_instead": [{}],
+      "value": null,
+      "yaml": "string"
     }
   ]
 }
@@ -2609,167 +1938,10 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name         | Type                                                      | Required | Restrictions | Description |
-| ------------ | --------------------------------------------------------- | -------- | ------------ | ----------- |
-| `default`    | array of [codersdk.GitAuthConfig](#codersdkgitauthconfig) | false    |              |             |
-| `enterprise` | boolean                                                   | false    |              |             |
-| `flag`       | string                                                    | false    |              |             |
-| `hidden`     | boolean                                                   | false    |              |             |
-| `name`       | string                                                    | false    |              |             |
-| `secret`     | boolean                                                   | false    |              |             |
-| `shorthand`  | string                                                    | false    |              |             |
-| `usage`      | string                                                    | false    |              |             |
-| `value`      | array of [codersdk.GitAuthConfig](#codersdkgitauthconfig) | false    |              |             |
-
-## codersdk.DeploymentConfigField-array_string
-
-```json
-{
-  "default": ["string"],
-  "enterprise": true,
-  "flag": "string",
-  "hidden": true,
-  "name": "string",
-  "secret": true,
-  "shorthand": "string",
-  "usage": "string",
-  "value": ["string"]
-}
-```
-
-### Properties
-
-| Name         | Type            | Required | Restrictions | Description |
-| ------------ | --------------- | -------- | ------------ | ----------- |
-| `default`    | array of string | false    |              |             |
-| `enterprise` | boolean         | false    |              |             |
-| `flag`       | string          | false    |              |             |
-| `hidden`     | boolean         | false    |              |             |
-| `name`       | string          | false    |              |             |
-| `secret`     | boolean         | false    |              |             |
-| `shorthand`  | string          | false    |              |             |
-| `usage`      | string          | false    |              |             |
-| `value`      | array of string | false    |              |             |
-
-## codersdk.DeploymentConfigField-bool
-
-```json
-{
-  "default": true,
-  "enterprise": true,
-  "flag": "string",
-  "hidden": true,
-  "name": "string",
-  "secret": true,
-  "shorthand": "string",
-  "usage": "string",
-  "value": true
-}
-```
-
-### Properties
-
-| Name         | Type    | Required | Restrictions | Description |
-| ------------ | ------- | -------- | ------------ | ----------- |
-| `default`    | boolean | false    |              |             |
-| `enterprise` | boolean | false    |              |             |
-| `flag`       | string  | false    |              |             |
-| `hidden`     | boolean | false    |              |             |
-| `name`       | string  | false    |              |             |
-| `secret`     | boolean | false    |              |             |
-| `shorthand`  | string  | false    |              |             |
-| `usage`      | string  | false    |              |             |
-| `value`      | boolean | false    |              |             |
-
-## codersdk.DeploymentConfigField-int
-
-```json
-{
-  "default": 0,
-  "enterprise": true,
-  "flag": "string",
-  "hidden": true,
-  "name": "string",
-  "secret": true,
-  "shorthand": "string",
-  "usage": "string",
-  "value": 0
-}
-```
-
-### Properties
-
-| Name         | Type    | Required | Restrictions | Description |
-| ------------ | ------- | -------- | ------------ | ----------- |
-| `default`    | integer | false    |              |             |
-| `enterprise` | boolean | false    |              |             |
-| `flag`       | string  | false    |              |             |
-| `hidden`     | boolean | false    |              |             |
-| `name`       | string  | false    |              |             |
-| `secret`     | boolean | false    |              |             |
-| `shorthand`  | string  | false    |              |             |
-| `usage`      | string  | false    |              |             |
-| `value`      | integer | false    |              |             |
-
-## codersdk.DeploymentConfigField-string
-
-```json
-{
-  "default": "string",
-  "enterprise": true,
-  "flag": "string",
-  "hidden": true,
-  "name": "string",
-  "secret": true,
-  "shorthand": "string",
-  "usage": "string",
-  "value": "string"
-}
-```
-
-### Properties
-
-| Name         | Type    | Required | Restrictions | Description |
-| ------------ | ------- | -------- | ------------ | ----------- |
-| `default`    | string  | false    |              |             |
-| `enterprise` | boolean | false    |              |             |
-| `flag`       | string  | false    |              |             |
-| `hidden`     | boolean | false    |              |             |
-| `name`       | string  | false    |              |             |
-| `secret`     | boolean | false    |              |             |
-| `shorthand`  | string  | false    |              |             |
-| `usage`      | string  | false    |              |             |
-| `value`      | string  | false    |              |             |
-
-## codersdk.DeploymentConfigField-time_Duration
-
-```json
-{
-  "default": 0,
-  "enterprise": true,
-  "flag": "string",
-  "hidden": true,
-  "name": "string",
-  "secret": true,
-  "shorthand": "string",
-  "usage": "string",
-  "value": 0
-}
-```
-
-### Properties
-
-| Name         | Type    | Required | Restrictions | Description |
-| ------------ | ------- | -------- | ------------ | ----------- |
-| `default`    | integer | false    |              |             |
-| `enterprise` | boolean | false    |              |             |
-| `flag`       | string  | false    |              |             |
-| `hidden`     | boolean | false    |              |             |
-| `name`       | string  | false    |              |             |
-| `secret`     | boolean | false    |              |             |
-| `shorthand`  | string  | false    |              |             |
-| `usage`      | string  | false    |              |             |
-| `value`      | integer | false    |              |             |
+| Name      | Type                                                   | Required | Restrictions | Description |
+| --------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
+| `config`  | [codersdk.DeploymentValues](#codersdkdeploymentvalues) | false    |              |             |
+| `options` | array of [clibase.Option](#clibaseoption)              | false    |              |             |
 
 ## codersdk.DeploymentDAUsResponse
 
@@ -2789,6 +1961,334 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Name      | Type                                            | Required | Restrictions | Description |
 | --------- | ----------------------------------------------- | -------- | ------------ | ----------- |
 | `entries` | array of [codersdk.DAUEntry](#codersdkdauentry) | false    |              |             |
+
+## codersdk.DeploymentStats
+
+```json
+{
+  "aggregated_from": "2019-08-24T14:15:22Z",
+  "collected_at": "2019-08-24T14:15:22Z",
+  "next_update_at": "2019-08-24T14:15:22Z",
+  "session_count": {
+    "jetbrains": 0,
+    "reconnecting_pty": 0,
+    "ssh": 0,
+    "vscode": 0
+  },
+  "workspaces": {
+    "building": 0,
+    "connection_latency_ms": {
+      "p50": 0,
+      "p95": 0
+    },
+    "failed": 0,
+    "pending": 0,
+    "running": 0,
+    "rx_bytes": 0,
+    "stopped": 0,
+    "tx_bytes": 0
+  }
+}
+```
+
+### Properties
+
+| Name              | Type                                                                         | Required | Restrictions | Description                                                                                                                 |
+| ----------------- | ---------------------------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `aggregated_from` | string                                                                       | false    |              | Aggregated from is the time in which stats are aggregated from. This might be back in time a specific duration or interval. |
+| `collected_at`    | string                                                                       | false    |              | Collected at is the time in which stats are collected at.                                                                   |
+| `next_update_at`  | string                                                                       | false    |              | Next update at is the time when the next batch of stats will be updated.                                                    |
+| `session_count`   | [codersdk.SessionCountDeploymentStats](#codersdksessioncountdeploymentstats) | false    |              |                                                                                                                             |
+| `workspaces`      | [codersdk.WorkspaceDeploymentStats](#codersdkworkspacedeploymentstats)       | false    |              |                                                                                                                             |
+
+## codersdk.DeploymentValues
+
+```json
+{
+  "access_url": {
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
+  },
+  "address": {
+    "host": "string",
+    "port": "string"
+  },
+  "agent_fallback_troubleshooting_url": {
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
+  },
+  "agent_stat_refresh_interval": 0,
+  "audit_logging": true,
+  "autobuild_poll_interval": 0,
+  "browser_only": true,
+  "cache_directory": "string",
+  "config": "string",
+  "dangerous": {
+    "allow_path_app_sharing": true,
+    "allow_path_app_site_owner_access": true
+  },
+  "derp": {
+    "config": {
+      "path": "string",
+      "url": "string"
+    },
+    "server": {
+      "enable": true,
+      "region_code": "string",
+      "region_id": 0,
+      "region_name": "string",
+      "relay_url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      },
+      "stun_addresses": ["string"]
+    }
+  },
+  "disable_password_auth": true,
+  "disable_path_apps": true,
+  "disable_session_expiry_refresh": true,
+  "experiments": ["string"],
+  "git_auth": {
+    "value": [
+      {
+        "auth_url": "string",
+        "client_id": "string",
+        "id": "string",
+        "no_refresh": true,
+        "regex": "string",
+        "scopes": ["string"],
+        "token_url": "string",
+        "type": "string",
+        "validate_url": "string"
+      }
+    ]
+  },
+  "http_address": "string",
+  "in_memory_database": true,
+  "logging": {
+    "human": "string",
+    "json": "string",
+    "stackdriver": "string"
+  },
+  "max_session_expiry": 0,
+  "max_token_lifetime": 0,
+  "metrics_cache_refresh_interval": 0,
+  "oauth2": {
+    "github": {
+      "allow_everyone": true,
+      "allow_signups": true,
+      "allowed_orgs": ["string"],
+      "allowed_teams": ["string"],
+      "client_id": "string",
+      "client_secret": "string",
+      "enterprise_base_url": "string"
+    }
+  },
+  "oidc": {
+    "allow_signups": true,
+    "client_id": "string",
+    "client_secret": "string",
+    "email_domain": ["string"],
+    "groups_field": "string",
+    "icon_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
+    "ignore_email_verified": true,
+    "issuer_url": "string",
+    "scopes": ["string"],
+    "sign_in_text": "string",
+    "username_field": "string"
+  },
+  "pg_connection_url": "string",
+  "pprof": {
+    "address": {
+      "host": "string",
+      "port": "string"
+    },
+    "enable": true
+  },
+  "prometheus": {
+    "address": {
+      "host": "string",
+      "port": "string"
+    },
+    "enable": true
+  },
+  "provisioner": {
+    "daemon_poll_interval": 0,
+    "daemon_poll_jitter": 0,
+    "daemons": 0,
+    "force_cancel_interval": 0
+  },
+  "proxy_trusted_headers": ["string"],
+  "proxy_trusted_origins": ["string"],
+  "rate_limit": {
+    "api": 0,
+    "disable_all": true
+  },
+  "redirect_to_access_url": true,
+  "scim_api_key": "string",
+  "secure_auth_cookie": true,
+  "ssh_keygen_algorithm": "string",
+  "strict_transport_security": 0,
+  "strict_transport_security_options": ["string"],
+  "support": {
+    "links": {
+      "value": [
+        {
+          "icon": "string",
+          "name": "string",
+          "target": "string"
+        }
+      ]
+    }
+  },
+  "swagger": {
+    "enable": true
+  },
+  "telemetry": {
+    "enable": true,
+    "trace": true,
+    "url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    }
+  },
+  "tls": {
+    "address": {
+      "host": "string",
+      "port": "string"
+    },
+    "cert_file": ["string"],
+    "client_auth": "string",
+    "client_ca_file": "string",
+    "client_cert_file": "string",
+    "client_key_file": "string",
+    "enable": true,
+    "key_file": ["string"],
+    "min_version": "string",
+    "redirect_http": true
+  },
+  "trace": {
+    "capture_logs": true,
+    "enable": true,
+    "honeycomb_api_key": "string"
+  },
+  "update_check": true,
+  "verbose": true,
+  "wildcard_access_url": {
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
+  },
+  "write_config": true
+}
+```
+
+### Properties
+
+| Name                                 | Type                                                                                       | Required | Restrictions | Description                                                        |
+| ------------------------------------ | ------------------------------------------------------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------ |
+| `access_url`                         | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
+| `address`                            | [clibase.HostPort](#clibasehostport)                                                       | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
+| `agent_fallback_troubleshooting_url` | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
+| `agent_stat_refresh_interval`        | integer                                                                                    | false    |              |                                                                    |
+| `audit_logging`                      | boolean                                                                                    | false    |              |                                                                    |
+| `autobuild_poll_interval`            | integer                                                                                    | false    |              |                                                                    |
+| `browser_only`                       | boolean                                                                                    | false    |              |                                                                    |
+| `cache_directory`                    | string                                                                                     | false    |              |                                                                    |
+| `config`                             | string                                                                                     | false    |              |                                                                    |
+| `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                       | false    |              |                                                                    |
+| `derp`                               | [codersdk.DERP](#codersdkderp)                                                             | false    |              |                                                                    |
+| `disable_password_auth`              | boolean                                                                                    | false    |              |                                                                    |
+| `disable_path_apps`                  | boolean                                                                                    | false    |              |                                                                    |
+| `disable_session_expiry_refresh`     | boolean                                                                                    | false    |              |                                                                    |
+| `experiments`                        | array of string                                                                            | false    |              |                                                                    |
+| `git_auth`                           | [clibase.Struct-array_codersdk_GitAuthConfig](#clibasestruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
+| `http_address`                       | string                                                                                     | false    |              | Http address is a string because it may be set to zero to disable. |
+| `in_memory_database`                 | boolean                                                                                    | false    |              |                                                                    |
+| `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                           | false    |              |                                                                    |
+| `max_session_expiry`                 | integer                                                                                    | false    |              |                                                                    |
+| `max_token_lifetime`                 | integer                                                                                    | false    |              |                                                                    |
+| `metrics_cache_refresh_interval`     | integer                                                                                    | false    |              |                                                                    |
+| `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                             | false    |              |                                                                    |
+| `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                 | false    |              |                                                                    |
+| `pg_connection_url`                  | string                                                                                     | false    |              |                                                                    |
+| `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                               | false    |              |                                                                    |
+| `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                     | false    |              |                                                                    |
+| `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                   | false    |              |                                                                    |
+| `proxy_trusted_headers`              | array of string                                                                            | false    |              |                                                                    |
+| `proxy_trusted_origins`              | array of string                                                                            | false    |              |                                                                    |
+| `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                       | false    |              |                                                                    |
+| `redirect_to_access_url`             | boolean                                                                                    | false    |              |                                                                    |
+| `scim_api_key`                       | string                                                                                     | false    |              |                                                                    |
+| `secure_auth_cookie`                 | boolean                                                                                    | false    |              |                                                                    |
+| `ssh_keygen_algorithm`               | string                                                                                     | false    |              |                                                                    |
+| `strict_transport_security`          | integer                                                                                    | false    |              |                                                                    |
+| `strict_transport_security_options`  | array of string                                                                            | false    |              |                                                                    |
+| `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                           | false    |              |                                                                    |
+| `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                           | false    |              |                                                                    |
+| `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                       | false    |              |                                                                    |
+| `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                   | false    |              |                                                                    |
+| `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                               | false    |              |                                                                    |
+| `update_check`                       | boolean                                                                                    | false    |              |                                                                    |
+| `verbose`                            | boolean                                                                                    | false    |              |                                                                    |
+| `wildcard_access_url`                | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
+| `write_config`                       | boolean                                                                                    | false    |              |                                                                    |
 
 ## codersdk.Entitlement
 
@@ -2811,7 +2311,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "errors": ["string"],
-  "experimental": true,
   "features": {
     "property1": {
       "actual": 0,
@@ -2835,16 +2334,15 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name                | Type                                 | Required | Restrictions | Description                           |
-| ------------------- | ------------------------------------ | -------- | ------------ | ------------------------------------- |
-| `errors`            | array of string                      | false    |              |                                       |
-| `experimental`      | boolean                              | false    |              | Experimental use Experiments instead. |
-| `features`          | object                               | false    |              |                                       |
-| » `[any property]`  | [codersdk.Feature](#codersdkfeature) | false    |              |                                       |
-| `has_license`       | boolean                              | false    |              |                                       |
-| `require_telemetry` | boolean                              | false    |              |                                       |
-| `trial`             | boolean                              | false    |              |                                       |
-| `warnings`          | array of string                      | false    |              |                                       |
+| Name                | Type                                 | Required | Restrictions | Description |
+| ------------------- | ------------------------------------ | -------- | ------------ | ----------- |
+| `errors`            | array of string                      | false    |              |             |
+| `features`          | object                               | false    |              |             |
+| » `[any property]`  | [codersdk.Feature](#codersdkfeature) | false    |              |             |
+| `has_license`       | boolean                              | false    |              |             |
+| `require_telemetry` | boolean                              | false    |              |             |
+| `trial`             | boolean                              | false    |              |             |
+| `warnings`          | array of string                      | false    |              |             |
 
 ## codersdk.Experiment
 
@@ -2958,6 +2456,23 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `type`         | string          | false    |              |             |
 | `validate_url` | string          | false    |              |             |
 
+## codersdk.GitProvider
+
+```json
+"azure-devops"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+| -------------- |
+| `azure-devops` |
+| `github`       |
+| `gitlab`       |
+| `bitbucket`    |
+
 ## codersdk.GitSSHKey
 
 ```json
@@ -3037,6 +2552,21 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `threshold` | integer | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
 | `url`       | string  | false    |              | URL specifies the endpoint to check for the app health.                                          |
 
+## codersdk.JobErrorCode
+
+```json
+"MISSING_TEMPLATE_PARAMETER"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                         |
+| ----------------------------- |
+| `MISSING_TEMPLATE_PARAMETER`  |
+| `REQUIRED_TEMPLATE_VARIABLES` |
+
 ## codersdk.License
 
 ```json
@@ -3056,6 +2586,24 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `id`          | integer | false    |              |                                                                                                                                                                                                        |
 | `uploaded_at` | string  | false    |              |                                                                                                                                                                                                        |
 | `uuid`        | string  | false    |              |                                                                                                                                                                                                        |
+
+## codersdk.LinkConfig
+
+```json
+{
+  "icon": "string",
+  "name": "string",
+  "target": "string"
+}
+```
+
+### Properties
+
+| Name     | Type   | Required | Restrictions | Description |
+| -------- | ------ | -------- | ------------ | ----------- |
+| `icon`   | string | false    |              |             |
+| `name`   | string | false    |              |             |
+| `target` | string | false    |              |             |
 
 ## codersdk.LogLevel
 
@@ -3094,49 +2642,19 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-  "human": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "json": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "stackdriver": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  }
+  "human": "string",
+  "json": "string",
+  "stackdriver": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                                           | Required | Restrictions | Description |
-| ------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `human`       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
-| `json`        | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
-| `stackdriver` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
+| Name          | Type   | Required | Restrictions | Description |
+| ------------- | ------ | -------- | ------------ | ----------- |
+| `human`       | string | false    |              |             |
+| `json`        | string | false    |              |             |
+| `stackdriver` | string | false    |              |             |
 
 ## codersdk.LoginType
 
@@ -3190,83 +2708,13 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "github": {
-    "allow_everyone": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "allow_signups": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "allowed_orgs": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "allowed_teams": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "client_id": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "client_secret": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "enterprise_base_url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
+    "allow_everyone": true,
+    "allow_signups": true,
+    "allowed_orgs": ["string"],
+    "allowed_teams": ["string"],
+    "client_id": "string",
+    "client_secret": "string",
+    "enterprise_base_url": "string"
   }
 }
 ```
@@ -3281,97 +2729,27 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-  "allow_everyone": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "allow_signups": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "allowed_orgs": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "allowed_teams": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "client_id": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "client_secret": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "enterprise_base_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  }
+  "allow_everyone": true,
+  "allow_signups": true,
+  "allowed_orgs": ["string"],
+  "allowed_teams": ["string"],
+  "client_id": "string",
+  "client_secret": "string",
+  "enterprise_base_url": "string"
 }
 ```
 
 ### Properties
 
-| Name                  | Type                                                                                       | Required | Restrictions | Description |
-| --------------------- | ------------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `allow_everyone`      | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
-| `allow_signups`       | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
-| `allowed_orgs`        | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
-| `allowed_teams`       | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
-| `client_id`           | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `client_secret`       | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `enterprise_base_url` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
+| Name                  | Type            | Required | Restrictions | Description |
+| --------------------- | --------------- | -------- | ------------ | ----------- |
+| `allow_everyone`      | boolean         | false    |              |             |
+| `allow_signups`       | boolean         | false    |              |             |
+| `allowed_orgs`        | array of string | false    |              |             |
+| `allowed_teams`       | array of string | false    |              |             |
+| `client_id`           | string          | false    |              |             |
+| `client_secret`       | string          | false    |              |             |
+| `enterprise_base_url` | string          | false    |              |             |
 
 ## codersdk.OIDCAuthMethod
 
@@ -3395,133 +2773,47 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
-  "allow_signups": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "client_id": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "client_secret": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "email_domain": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
+  "allow_signups": true,
+  "client_id": "string",
+  "client_secret": "string",
+  "email_domain": ["string"],
+  "groups_field": "string",
   "icon_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
   },
-  "ignore_email_verified": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "issuer_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "scopes": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "sign_in_text": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "username_field": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  }
+  "ignore_email_verified": true,
+  "issuer_url": "string",
+  "scopes": ["string"],
+  "sign_in_text": "string",
+  "username_field": "string"
 }
 ```
 
 ### Properties
 
-| Name                    | Type                                                                                       | Required | Restrictions | Description |
-| ----------------------- | ------------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `allow_signups`         | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
-| `client_id`             | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `client_secret`         | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `email_domain`          | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
-| `icon_url`              | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `ignore_email_verified` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
-| `issuer_url`            | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `scopes`                | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
-| `sign_in_text`          | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `username_field`        | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
+| Name                    | Type                       | Required | Restrictions | Description |
+| ----------------------- | -------------------------- | -------- | ------------ | ----------- |
+| `allow_signups`         | boolean                    | false    |              |             |
+| `client_id`             | string                     | false    |              |             |
+| `client_secret`         | string                     | false    |              |             |
+| `email_domain`          | array of string            | false    |              |             |
+| `groups_field`          | string                     | false    |              |             |
+| `icon_url`              | [clibase.URL](#clibaseurl) | false    |              |             |
+| `ignore_email_verified` | boolean                    | false    |              |             |
+| `issuer_url`            | string                     | false    |              |             |
+| `scopes`                | array of string            | false    |              |             |
+| `sign_in_text`          | string                     | false    |              |             |
+| `username_field`        | string                     | false    |              |             |
 
 ## codersdk.Organization
 
@@ -3721,132 +3013,58 @@ Parameter represents a set value for the scope.
 ```json
 {
   "address": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "host": "string",
+    "port": "string"
   },
-  "enable": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  }
+  "enable": true
 }
 ```
 
 ### Properties
 
-| Name      | Type                                                                           | Required | Restrictions | Description |
-| --------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `address` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
-| `enable`  | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)     | false    |              |             |
+| Name      | Type                                 | Required | Restrictions | Description |
+| --------- | ------------------------------------ | -------- | ------------ | ----------- |
+| `address` | [clibase.HostPort](#clibasehostport) | false    |              |             |
+| `enable`  | boolean                              | false    |              |             |
 
 ## codersdk.PrometheusConfig
 
 ```json
 {
   "address": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "host": "string",
+    "port": "string"
   },
-  "enable": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  }
+  "enable": true
 }
 ```
 
 ### Properties
 
-| Name      | Type                                                                           | Required | Restrictions | Description |
-| --------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `address` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
-| `enable`  | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)     | false    |              |             |
+| Name      | Type                                 | Required | Restrictions | Description |
+| --------- | ------------------------------------ | -------- | ------------ | ----------- |
+| `address` | [clibase.HostPort](#clibasehostport) | false    |              |             |
+| `enable`  | boolean                              | false    |              |             |
 
 ## codersdk.ProvisionerConfig
 
 ```json
 {
-  "daemon_poll_interval": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "daemon_poll_jitter": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "daemons": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "force_cancel_interval": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  }
+  "daemon_poll_interval": 0,
+  "daemon_poll_jitter": 0,
+  "daemons": 0,
+  "force_cancel_interval": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type                                                                                         | Required | Restrictions | Description |
-| ----------------------- | -------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `daemon_poll_interval`  | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration) | false    |              |             |
-| `daemon_poll_jitter`    | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration) | false    |              |             |
-| `daemons`               | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)                     | false    |              |             |
-| `force_cancel_interval` | [codersdk.DeploymentConfigField-time_Duration](#codersdkdeploymentconfigfield-time_duration) | false    |              |             |
+| Name                    | Type    | Required | Restrictions | Description |
+| ----------------------- | ------- | -------- | ------------ | ----------- |
+| `daemon_poll_interval`  | integer | false    |              |             |
+| `daemon_poll_jitter`    | integer | false    |              |             |
+| `daemons`               | integer | false    |              |             |
+| `force_cancel_interval` | integer | false    |              |             |
 
 ## codersdk.ProvisionerDaemon
 
@@ -3887,6 +3105,7 @@ Parameter represents a set value for the scope.
   "completed_at": "2019-08-24T14:15:22Z",
   "created_at": "2019-08-24T14:15:22Z",
   "error": "string",
+  "error_code": "MISSING_TEMPLATE_PARAMETER",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "started_at": "2019-08-24T14:15:22Z",
@@ -3907,6 +3126,7 @@ Parameter represents a set value for the scope.
 | `completed_at`     | string                                                         | false    |              |             |
 | `created_at`       | string                                                         | false    |              |             |
 | `error`            | string                                                         | false    |              |             |
+| `error_code`       | [codersdk.JobErrorCode](#codersdkjoberrorcode)                 | false    |              |             |
 | `file_id`          | string                                                         | false    |              |             |
 | `id`               | string                                                         | false    |              |             |
 | `started_at`       | string                                                         | false    |              |             |
@@ -3917,14 +3137,16 @@ Parameter represents a set value for the scope.
 
 #### Enumerated Values
 
-| Property | Value       |
-| -------- | ----------- |
-| `status` | `pending`   |
-| `status` | `running`   |
-| `status` | `succeeded` |
-| `status` | `canceling` |
-| `status` | `canceled`  |
-| `status` | `failed`    |
+| Property     | Value                         |
+| ------------ | ----------------------------- |
+| `error_code` | `MISSING_TEMPLATE_PARAMETER`  |
+| `error_code` | `REQUIRED_TEMPLATE_VARIABLES` |
+| `status`     | `pending`                     |
+| `status`     | `running`                     |
+| `status`     | `succeeded`                   |
+| `status`     | `canceling`                   |
+| `status`     | `canceled`                    |
+| `status`     | `failed`                      |
 
 ## codersdk.ProvisionerJobLog
 
@@ -3979,6 +3201,20 @@ Parameter represents a set value for the scope.
 | `canceled`  |
 | `failed`    |
 
+## codersdk.ProvisionerStorageMethod
+
+```json
+"file"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value  |
+| ------ |
+| `file` |
+
 ## codersdk.PutExtendWorkspaceRequest
 
 ```json
@@ -3997,37 +3233,17 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "api": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "disable_all": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  }
+  "api": 0,
+  "disable_all": true
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                                       | Required | Restrictions | Description |
-| ------------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `api`         | [codersdk.DeploymentConfigField-int](#codersdkdeploymentconfigfield-int)   | false    |              |             |
-| `disable_all` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool) | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description |
+| ------------- | ------- | -------- | ------------ | ----------- |
+| `api`         | integer | false    |              |             |
+| `disable_all` | boolean | false    |              |             |
 
 ## codersdk.Replica
 
@@ -4134,225 +3350,144 @@ Parameter represents a set value for the scope.
 | `enabled`          | boolean | false    |              |             |
 | `message`          | string  | false    |              |             |
 
+## codersdk.SessionCountDeploymentStats
+
+```json
+{
+  "jetbrains": 0,
+  "reconnecting_pty": 0,
+  "ssh": 0,
+  "vscode": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `jetbrains`        | integer | false    |              |             |
+| `reconnecting_pty` | integer | false    |              |             |
+| `ssh`              | integer | false    |              |             |
+| `vscode`           | integer | false    |              |             |
+
 ## codersdk.StartupScriptLog
 
 ```json
 {
-  "name": "string",
+  "agent_id": "string",
+  "job_id": "string",
   "output": "string"
 }
 ```
 
 ### Properties
 
-| Name     | Type   | Required | Restrictions | Description |
-| -------- | ------ | -------- | ------------ | ----------- |
-| `name`   | string | false    |              |             |
-| `output` | string | false    |              |             |
+| Name       | Type   | Required | Restrictions | Description |
+| ---------- | ------ | -------- | ------------ | ----------- |
+| `agent_id` | string | false    |              |             |
+| `job_id`   | string | false    |              |             |
+| `output`   | string | false    |              |             |
 
-## codersdk.SwaggerConfig
+## codersdk.SupportConfig
 
 ```json
 {
-  "enable": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
+  "links": {
+    "value": [
+      {
+        "icon": "string",
+        "name": "string",
+        "target": "string"
+      }
+    ]
   }
 }
 ```
 
 ### Properties
 
-| Name     | Type                                                                       | Required | Restrictions | Description |
-| -------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `enable` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool) | false    |              |             |
+| Name    | Type                                                                                 | Required | Restrictions | Description |
+| ------- | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `links` | [clibase.Struct-array_codersdk_LinkConfig](#clibasestruct-array_codersdk_linkconfig) | false    |              |             |
+
+## codersdk.SwaggerConfig
+
+```json
+{
+  "enable": true
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+| -------- | ------- | -------- | ------------ | ----------- |
+| `enable` | boolean | false    |              |             |
 
 ## codersdk.TLSConfig
 
 ```json
 {
   "address": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "host": "string",
+    "port": "string"
   },
-  "cert_file": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "client_auth": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "client_ca_file": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "client_cert_file": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "client_key_file": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "enable": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "key_file": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "min_version": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "redirect_http": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  }
+  "cert_file": ["string"],
+  "client_auth": "string",
+  "client_ca_file": "string",
+  "client_cert_file": "string",
+  "client_key_file": "string",
+  "enable": true,
+  "key_file": ["string"],
+  "min_version": "string",
+  "redirect_http": true
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                                                       | Required | Restrictions | Description |
-| ------------------ | ------------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `address`          | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `cert_file`        | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
-| `client_auth`      | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `client_ca_file`   | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `client_cert_file` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `client_key_file`  | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `enable`           | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
-| `key_file`         | [codersdk.DeploymentConfigField-array_string](#codersdkdeploymentconfigfield-array_string) | false    |              |             |
-| `min_version`      | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string)             | false    |              |             |
-| `redirect_http`    | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)                 | false    |              |             |
+| Name               | Type                                 | Required | Restrictions | Description |
+| ------------------ | ------------------------------------ | -------- | ------------ | ----------- |
+| `address`          | [clibase.HostPort](#clibasehostport) | false    |              |             |
+| `cert_file`        | array of string                      | false    |              |             |
+| `client_auth`      | string                               | false    |              |             |
+| `client_ca_file`   | string                               | false    |              |             |
+| `client_cert_file` | string                               | false    |              |             |
+| `client_key_file`  | string                               | false    |              |             |
+| `enable`           | boolean                              | false    |              |             |
+| `key_file`         | array of string                      | false    |              |             |
+| `min_version`      | string                               | false    |              |             |
+| `redirect_http`    | boolean                              | false    |              |             |
 
 ## codersdk.TelemetryConfig
 
 ```json
 {
-  "enable": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "trace": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
+  "enable": true,
+  "trace": true,
   "url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
   }
 }
 ```
 
 ### Properties
 
-| Name     | Type                                                                           | Required | Restrictions | Description |
-| -------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `enable` | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)     | false    |              |             |
-| `trace`  | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)     | false    |              |             |
-| `url`    | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
+| Name     | Type                       | Required | Restrictions | Description |
+| -------- | -------------------------- | -------- | ------------ | ----------- |
+| `enable` | boolean                    | false    |              |             |
+| `trace`  | boolean                    | false    |              |             |
+| `url`    | [clibase.URL](#clibaseurl) | false    |              |             |
 
 ## codersdk.Template
 
@@ -4379,6 +3514,7 @@ Parameter represents a set value for the scope.
   "display_name": "string",
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
@@ -4388,24 +3524,25 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                               | Type                                                               | Required | Restrictions | Description                                  |
-| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | -------------------------------------------- |
-| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading. |
-| `active_version_id`                | string                                                             | false    |              |                                              |
-| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                              |
-| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                              |
-| `created_at`                       | string                                                             | false    |              |                                              |
-| `created_by_id`                    | string                                                             | false    |              |                                              |
-| `created_by_name`                  | string                                                             | false    |              |                                              |
-| `default_ttl_ms`                   | integer                                                            | false    |              |                                              |
-| `description`                      | string                                                             | false    |              |                                              |
-| `display_name`                     | string                                                             | false    |              |                                              |
-| `icon`                             | string                                                             | false    |              |                                              |
-| `id`                               | string                                                             | false    |              |                                              |
-| `name`                             | string                                                             | false    |              |                                              |
-| `organization_id`                  | string                                                             | false    |              |                                              |
-| `provisioner`                      | string                                                             | false    |              |                                              |
-| `updated_at`                       | string                                                             | false    |              |                                              |
+| Name                               | Type                                                               | Required | Restrictions | Description                                                                                                                               |
+| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading.                                                                                              |
+| `active_version_id`                | string                                                             | false    |              |                                                                                                                                           |
+| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                                                                                                                           |
+| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                           |
+| `created_at`                       | string                                                             | false    |              |                                                                                                                                           |
+| `created_by_id`                    | string                                                             | false    |              |                                                                                                                                           |
+| `created_by_name`                  | string                                                             | false    |              |                                                                                                                                           |
+| `default_ttl_ms`                   | integer                                                            | false    |              |                                                                                                                                           |
+| `description`                      | string                                                             | false    |              |                                                                                                                                           |
+| `display_name`                     | string                                                             | false    |              |                                                                                                                                           |
+| `icon`                             | string                                                             | false    |              |                                                                                                                                           |
+| `id`                               | string                                                             | false    |              |                                                                                                                                           |
+| `max_ttl_ms`                       | integer                                                            | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature. |
+| `name`                             | string                                                             | false    |              |                                                                                                                                           |
+| `organization_id`                  | string                                                             | false    |              |                                                                                                                                           |
+| `provisioner`                      | string                                                             | false    |              |                                                                                                                                           |
+| `updated_at`                       | string                                                             | false    |              |                                                                                                                                           |
 
 #### Enumerated Values
 
@@ -4568,6 +3705,7 @@ Parameter represents a set value for the scope.
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
+    "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "started_at": "2019-08-24T14:15:22Z",
@@ -4600,6 +3738,26 @@ Parameter represents a set value for the scope.
 | `template_id`     | string                                             | false    |              |             |
 | `updated_at`      | string                                             | false    |              |             |
 
+## codersdk.TemplateVersionGitAuth
+
+```json
+{
+  "authenticate_url": "string",
+  "authenticated": true,
+  "id": "string",
+  "type": "azure-devops"
+}
+```
+
+### Properties
+
+| Name               | Type                                         | Required | Restrictions | Description |
+| ------------------ | -------------------------------------------- | -------- | ------------ | ----------- |
+| `authenticate_url` | string                                       | false    |              |             |
+| `authenticated`    | boolean                                      | false    |              |             |
+| `id`               | string                                       | false    |              |             |
+| `type`             | [codersdk.GitProvider](#codersdkgitprovider) | false    |              |             |
+
 ## codersdk.TemplateVersionParameter
 
 ```json
@@ -4618,6 +3776,7 @@ Parameter represents a set value for the scope.
       "value": "string"
     }
   ],
+  "required": true,
   "type": "string",
   "validation_error": "string",
   "validation_max": 0,
@@ -4638,6 +3797,7 @@ Parameter represents a set value for the scope.
 | `mutable`               | boolean                                                                                     | false    |              |             |
 | `name`                  | string                                                                                      | false    |              |             |
 | `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
+| `required`              | boolean                                                                                     | false    |              |             |
 | `type`                  | string                                                                                      | false    |              |             |
 | `validation_error`      | string                                                                                      | false    |              |             |
 | `validation_max`        | integer                                                                                     | false    |              |             |
@@ -4713,49 +3873,19 @@ Parameter represents a set value for the scope.
 
 ```json
 {
-  "capture_logs": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "enable": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "honeycomb_api_key": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  }
+  "capture_logs": true,
+  "enable": true,
+  "honeycomb_api_key": "string"
 }
 ```
 
 ### Properties
 
-| Name                | Type                                                                           | Required | Restrictions | Description |
-| ------------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `capture_logs`      | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)     | false    |              |             |
-| `enable`            | [codersdk.DeploymentConfigField-bool](#codersdkdeploymentconfigfield-bool)     | false    |              |             |
-| `honeycomb_api_key` | [codersdk.DeploymentConfigField-string](#codersdkdeploymentconfigfield-string) | false    |              |             |
+| Name                | Type    | Required | Restrictions | Description |
+| ------------------- | ------- | -------- | ------------ | ----------- |
+| `capture_logs`      | boolean | false    |              |             |
+| `enable`            | boolean | false    |              |             |
+| `honeycomb_api_key` | string  | false    |              |             |
 
 ## codersdk.TransitionStats
 
@@ -4786,6 +3916,26 @@ Parameter represents a set value for the scope.
 | Name | Type   | Required | Restrictions | Description |
 | ---- | ------ | -------- | ------------ | ----------- |
 | `id` | string | true     |              |             |
+
+## codersdk.UpdateAppearanceConfig
+
+```json
+{
+  "logo_url": "string",
+  "service_banner": {
+    "background_color": "string",
+    "enabled": true,
+    "message": "string"
+  }
+}
+```
+
+### Properties
+
+| Name             | Type                                                         | Required | Restrictions | Description |
+| ---------------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `logo_url`       | string                                                       | false    |              |             |
+| `service_banner` | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
 
 ## codersdk.UpdateCheckResponse
 
@@ -5054,6 +4204,7 @@ Parameter represents a set value for the scope.
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
+      "error_code": "MISSING_TEMPLATE_PARAMETER",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "started_at": "2019-08-24T14:15:22Z",
@@ -5064,6 +4215,7 @@ Parameter represents a set value for the scope.
       },
       "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
+    "max_deadline": "2019-08-24T14:15:22Z",
     "reason": "initiator",
     "resources": [
       {
@@ -5117,6 +4269,8 @@ Parameter represents a set value for the scope.
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "shutdown_script": "string",
+            "shutdown_script_timeout_seconds": 0,
             "startup_script": "string",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
@@ -5240,6 +4394,8 @@ Parameter represents a set value for the scope.
   "name": "string",
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+  "shutdown_script": "string",
+  "shutdown_script_timeout_seconds": 0,
   "startup_script": "string",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",
@@ -5251,34 +4407,36 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                             | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                                |
-| -------------------------------- | -------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps`                           | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)              | false    |              |                                                                                                                                                                                                            |
-| `architecture`                   | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `connection_timeout_seconds`     | integer                                                              | false    |              |                                                                                                                                                                                                            |
-| `created_at`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `directory`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `disconnected_at`                | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `environment_variables`          | object                                                               | false    |              |                                                                                                                                                                                                            |
-| » `[any property]`               | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `expanded_directory`             | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `first_connected_at`             | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `id`                             | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `instance_id`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `last_connected_at`              | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `latency`                        | object                                                               | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                        |
-| » `[any property]`               | [codersdk.DERPRegion](#codersdkderpregion)                           | false    |              |                                                                                                                                                                                                            |
-| `lifecycle_state`                | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |                                                                                                                                                                                                            |
-| `login_before_ready`             | boolean                                                              | false    |              | Login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                       |
-| `name`                           | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `operating_system`               | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `resource_id`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `startup_script`                 | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `startup_script_timeout_seconds` | integer                                                              | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
-| `status`                         | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)       | false    |              |                                                                                                                                                                                                            |
-| `troubleshooting_url`            | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `updated_at`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `version`                        | string                                                               | false    |              |                                                                                                                                                                                                            |
+| Name                              | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                                |
+| --------------------------------- | -------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                            | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)              | false    |              |                                                                                                                                                                                                            |
+| `architecture`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `connection_timeout_seconds`      | integer                                                              | false    |              |                                                                                                                                                                                                            |
+| `created_at`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `directory`                       | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `disconnected_at`                 | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `environment_variables`           | object                                                               | false    |              |                                                                                                                                                                                                            |
+| » `[any property]`                | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `expanded_directory`              | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `first_connected_at`              | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `id`                              | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `instance_id`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `last_connected_at`               | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `latency`                         | object                                                               | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                        |
+| » `[any property]`                | [codersdk.DERPRegion](#codersdkderpregion)                           | false    |              |                                                                                                                                                                                                            |
+| `lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |                                                                                                                                                                                                            |
+| `login_before_ready`              | boolean                                                              | false    |              | Login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                       |
+| `name`                            | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `operating_system`                | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `resource_id`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `shutdown_script`                 | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `shutdown_script_timeout_seconds` | integer                                                              | false    |              |                                                                                                                                                                                                            |
+| `startup_script`                  | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `startup_script_timeout_seconds`  | integer                                                              | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
+| `status`                          | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)       | false    |              |                                                                                                                                                                                                            |
+| `troubleshooting_url`             | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `updated_at`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
+| `version`                         | string                                                               | false    |              |                                                                                                                                                                                                            |
 
 ## codersdk.WorkspaceAgentConnectionInfo
 
@@ -5354,13 +4512,17 @@ Parameter represents a set value for the scope.
 
 #### Enumerated Values
 
-| Value           |
-| --------------- |
-| `created`       |
-| `starting`      |
-| `start_timeout` |
-| `start_error`   |
-| `ready`         |
+| Value              |
+| ------------------ |
+| `created`          |
+| `starting`         |
+| `start_timeout`    |
+| `start_error`      |
+| `ready`            |
+| `shutting_down`    |
+| `shutdown_timeout` |
+| `shutdown_error`   |
+| `off`              |
 
 ## codersdk.WorkspaceAgentListeningPort
 
@@ -5512,6 +4674,7 @@ Parameter represents a set value for the scope.
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
+    "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "started_at": "2019-08-24T14:15:22Z",
@@ -5522,6 +4685,7 @@ Parameter represents a set value for the scope.
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "max_deadline": "2019-08-24T14:15:22Z",
   "reason": "initiator",
   "resources": [
     {
@@ -5575,6 +4739,8 @@ Parameter represents a set value for the scope.
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "shutdown_script": "string",
+          "shutdown_script_timeout_seconds": 0,
           "startup_script": "string",
           "startup_script_timeout_seconds": 0,
           "status": "connecting",
@@ -5625,6 +4791,7 @@ Parameter represents a set value for the scope.
 | `initiator_id`          | string                                                            | false    |              |             |
 | `initiator_name`        | string                                                            | false    |              |             |
 | `job`                   | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |             |
+| `max_deadline`          | string                                                            | false    |              |             |
 | `reason`                | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |             |
 | `resources`             | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |             |
 | `status`                | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |             |
@@ -5673,6 +4840,53 @@ Parameter represents a set value for the scope.
 | ------- | ------ | -------- | ------------ | ----------- |
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
+
+## codersdk.WorkspaceConnectionLatencyMS
+
+```json
+{
+  "p50": 0,
+  "p95": 0
+}
+```
+
+### Properties
+
+| Name  | Type   | Required | Restrictions | Description |
+| ----- | ------ | -------- | ------------ | ----------- |
+| `p50` | number | false    |              |             |
+| `p95` | number | false    |              |             |
+
+## codersdk.WorkspaceDeploymentStats
+
+```json
+{
+  "building": 0,
+  "connection_latency_ms": {
+    "p50": 0,
+    "p95": 0
+  },
+  "failed": 0,
+  "pending": 0,
+  "running": 0,
+  "rx_bytes": 0,
+  "stopped": 0,
+  "tx_bytes": 0
+}
+```
+
+### Properties
+
+| Name                    | Type                                                                           | Required | Restrictions | Description |
+| ----------------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `building`              | integer                                                                        | false    |              |             |
+| `connection_latency_ms` | [codersdk.WorkspaceConnectionLatencyMS](#codersdkworkspaceconnectionlatencyms) | false    |              |             |
+| `failed`                | integer                                                                        | false    |              |             |
+| `pending`               | integer                                                                        | false    |              |             |
+| `running`               | integer                                                                        | false    |              |             |
+| `rx_bytes`              | integer                                                                        | false    |              |             |
+| `stopped`               | integer                                                                        | false    |              |             |
+| `tx_bytes`              | integer                                                                        | false    |              |             |
 
 ## codersdk.WorkspaceQuota
 
@@ -5744,6 +4958,8 @@ Parameter represents a set value for the scope.
       "name": "string",
       "operating_system": "string",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+      "shutdown_script": "string",
+      "shutdown_script_timeout_seconds": 0,
       "startup_script": "string",
       "startup_script_timeout_seconds": 0,
       "status": "connecting",
@@ -5876,6 +5092,7 @@ Parameter represents a set value for the scope.
           "completed_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
           "error": "string",
+          "error_code": "MISSING_TEMPLATE_PARAMETER",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "started_at": "2019-08-24T14:15:22Z",
@@ -5886,6 +5103,7 @@ Parameter represents a set value for the scope.
           },
           "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
         },
+        "max_deadline": "2019-08-24T14:15:22Z",
         "reason": "initiator",
         "resources": [
           {
@@ -5935,6 +5153,8 @@ Parameter represents a set value for the scope.
                 "name": "string",
                 "operating_system": "string",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+                "shutdown_script": "string",
+                "shutdown_script_timeout_seconds": 0,
                 "startup_script": "string",
                 "startup_script_timeout_seconds": 0,
                 "status": "connecting",
@@ -6239,3 +5459,13 @@ It corresponds to the legacy derpN.tailscale.com hostnames used by older clients
 RegionIDs must be non-zero, positive, and guaranteed to fit in a JavaScript number.
 RegionIDs in range 900-999 are reserved for end users to run their own DERP nodes.|
 |`regionName`|string|false||Regionname is a long English name for the region: "New York City", "San Francisco", "Singapore", "Frankfurt", etc.|
+
+## url.Userinfo
+
+```json
+{}
+```
+
+### Properties
+
+_None_

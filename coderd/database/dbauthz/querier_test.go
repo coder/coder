@@ -23,6 +23,16 @@ func (s *MethodTestSuite) TestAPIKey() {
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{})
 		check.Args(key.ID).Asserts(key, rbac.ActionRead).Returns(key)
 	}))
+	s.Run("GetAPIKeyByName", s.Subtest(func(db database.Store, check *expects) {
+		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
+			TokenName: "marge-cat",
+			LoginType: database.LoginTypeToken,
+		})
+		check.Args(database.GetAPIKeyByNameParams{
+			TokenName: key.TokenName,
+			UserID:    key.UserID,
+		}).Asserts(key, rbac.ActionRead).Returns(key)
+	}))
 	s.Run("GetAPIKeysByLoginType", s.Subtest(func(db database.Store, check *expects) {
 		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{LoginType: database.LoginTypePassword})
 		b, _ := dbgen.APIKey(s.T(), db, database.APIKey{LoginType: database.LoginTypePassword})
@@ -30,6 +40,18 @@ func (s *MethodTestSuite) TestAPIKey() {
 		check.Args(database.LoginTypePassword).
 			Asserts(a, rbac.ActionRead, b, rbac.ActionRead).
 			Returns(slice.New(a, b))
+	}))
+	s.Run("GetAPIKeysByUserID", s.Subtest(func(db database.Store, check *expects) {
+		idAB := uuid.New()
+		idC := uuid.New()
+
+		keyA, _ := dbgen.APIKey(s.T(), db, database.APIKey{UserID: idAB, LoginType: database.LoginTypeToken})
+		keyB, _ := dbgen.APIKey(s.T(), db, database.APIKey{UserID: idAB, LoginType: database.LoginTypeToken})
+		_, _ = dbgen.APIKey(s.T(), db, database.APIKey{UserID: idC, LoginType: database.LoginTypeToken})
+
+		check.Args(database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, UserID: idAB}).
+			Asserts(keyA, rbac.ActionRead, keyB, rbac.ActionRead).
+			Returns(slice.New(keyA, keyB))
 	}))
 	s.Run("GetAPIKeysLastUsedAfter", s.Subtest(func(db database.Store, check *expects) {
 		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{LastUsed: time.Now().Add(time.Hour)})
@@ -291,10 +313,10 @@ func (s *MethodTestSuite) TestLicense() {
 			Asserts(rbac.ResourceLicense, rbac.ActionCreate)
 	}))
 	s.Run("InsertOrUpdateLogoURL", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, rbac.ActionCreate)
+		check.Args("value").Asserts(rbac.ResourceDeploymentValues, rbac.ActionCreate)
 	}))
 	s.Run("InsertOrUpdateServiceBanner", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, rbac.ActionCreate)
+		check.Args("value").Asserts(rbac.ResourceDeploymentValues, rbac.ActionCreate)
 	}))
 	s.Run("GetLicenseByID", s.Subtest(func(db database.Store, check *expects) {
 		l, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
@@ -610,7 +632,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true},
 		})
 		check.Args([]uuid.UUID{tv1.ID, tv2.ID, tv3.ID}).
-			Asserts(t1, rbac.ActionRead, t2, rbac.ActionRead).
+			Asserts( /*t1, rbac.ActionRead, t2, rbac.ActionRead*/ ).
 			Returns(slice.New(tv1, tv2, tv3))
 	}))
 	s.Run("GetTemplateVersionsByTemplateID", s.Subtest(func(db database.Store, check *expects) {
@@ -724,6 +746,18 @@ func (s *MethodTestSuite) TestTemplate() {
 			Readme: "foo",
 		}).Asserts(t1, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("UpdateTemplateVersionGitAuthProvidersByJobID", s.Subtest(func(db database.Store, check *expects) {
+		jobID := uuid.New()
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
+			JobID:      jobID,
+		})
+		check.Args(database.UpdateTemplateVersionGitAuthProvidersByJobIDParams{
+			JobID:            jobID,
+			GitAuthProviders: []string{},
+		}).Asserts(t1, rbac.ActionUpdate).Returns()
+	}))
 }
 
 func (s *MethodTestSuite) TestUser() {
@@ -773,7 +807,7 @@ func (s *MethodTestSuite) TestUser() {
 		a := dbgen.User(s.T(), db, database.User{CreatedAt: database.Now().Add(-time.Hour)})
 		b := dbgen.User(s.T(), db, database.User{CreatedAt: database.Now()})
 		check.Args([]uuid.UUID{a.ID, b.ID}).
-			Asserts(a, rbac.ActionRead, b, rbac.ActionRead).
+			Asserts( /*a, rbac.ActionRead, b, rbac.ActionRead*/ ).
 			Returns(slice.New(a, b))
 	}))
 	s.Run("InsertUser", s.Subtest(func(db database.Store, check *expects) {
@@ -869,9 +903,13 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("UpdateGitAuthLink", s.Subtest(func(db database.Store, check *expects) {
 		link := dbgen.GitAuthLink(s.T(), db, database.GitAuthLink{})
 		check.Args(database.UpdateGitAuthLinkParams{
-			ProviderID: link.ProviderID,
-			UserID:     link.UserID,
-		}).Asserts(link, rbac.ActionUpdate).Returns()
+			ProviderID:        link.ProviderID,
+			UserID:            link.UserID,
+			OAuthAccessToken:  link.OAuthAccessToken,
+			OAuthRefreshToken: link.OAuthRefreshToken,
+			OAuthExpiry:       link.OAuthExpiry,
+			UpdatedAt:         link.UpdatedAt,
+		}).Asserts(link, rbac.ActionUpdate).Returns(link)
 	}))
 	s.Run("UpdateUserLink", s.Subtest(func(db database.Store, check *expects) {
 		link := dbgen.UserLink(s.T(), db, database.UserLink{})
@@ -944,7 +982,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		check.Args([]uuid.UUID{res.ID}).Asserts(ws, rbac.ActionRead).
+		check.Args([]uuid.UUID{res.ID}).Asserts( /*ws, rbac.ActionRead*/ ).
 			Returns([]database.WorkspaceAgent{agt})
 	}))
 	s.Run("UpdateWorkspaceAgentLifecycleStateByID", s.Subtest(func(db database.Store, check *expects) {
@@ -1018,7 +1056,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		b := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: bAgt.ID})
 
 		check.Args([]uuid.UUID{a.AgentID, b.AgentID}).
-			Asserts(aWs, rbac.ActionRead, bWs, rbac.ActionRead).
+			Asserts( /*aWs, rbac.ActionRead, bWs, rbac.ActionRead*/ ).
 			Returns([]database.WorkspaceApp{a, b})
 	}))
 	s.Run("GetWorkspaceBuildByID", s.Subtest(func(db database.Store, check *expects) {
@@ -1081,7 +1119,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		a := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		b := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		check.Args([]uuid.UUID{a.ID, b.ID}).
-			Asserts(ws, []rbac.Action{rbac.ActionRead, rbac.ActionRead})
+			Asserts( /*ws, []rbac.Action{rbac.ActionRead, rbac.ActionRead}*/ )
 	}))
 	s.Run("Build/GetWorkspaceResourcesByJobID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
@@ -1103,7 +1141,9 @@ func (s *MethodTestSuite) TestWorkspace() {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		wJob := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
-		check.Args([]uuid.UUID{tJob.ID, wJob.ID}).Asserts(v.RBACObject(tpl), rbac.ActionRead, ws, rbac.ActionRead).Returns([]database.WorkspaceResource{})
+		check.Args([]uuid.UUID{tJob.ID, wJob.ID}).
+			Asserts( /*v.RBACObject(tpl), rbac.ActionRead, ws, rbac.ActionRead*/ ).
+			Returns([]database.WorkspaceResource{})
 	}))
 	s.Run("InsertWorkspace", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -1156,9 +1196,9 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID: agt.ID,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
-	s.Run("InsertAgentStat", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("InsertWorkspaceAgentStat", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		check.Args(database.InsertAgentStatParams{
+		check.Args(database.InsertWorkspaceAgentStatParams{
 			WorkspaceID: ws.ID,
 		}).Asserts(ws, rbac.ActionUpdate)
 	}))

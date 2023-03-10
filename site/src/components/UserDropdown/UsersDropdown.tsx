@@ -13,12 +13,14 @@ import { UserDropdownContent } from "../UserDropdownContent/UserDropdownContent"
 export interface UserDropdownProps {
   user: TypesGen.User
   buildInfo?: TypesGen.BuildInfoResponse
+  supportLinks?: TypesGen.LinkConfig[]
   onSignOut: () => void
 }
 
 export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
   buildInfo,
   user,
+  supportLinks,
   onSignOut,
 }: UserDropdownProps) => {
   const styles = useStyles()
@@ -69,6 +71,7 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
         <UserDropdownContent
           user={user}
           buildInfo={buildInfo}
+          supportLinks={supportLinks}
           onPopoverClose={onPopoverClose}
           onSignOut={onSignOut}
         />

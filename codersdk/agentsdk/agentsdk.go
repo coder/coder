@@ -69,15 +69,17 @@ type Metadata struct {
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.
-	GitAuthConfigs       int                     `json:"git_auth_configs"`
-	VSCodePortProxyURI   string                  `json:"vscode_port_proxy_uri"`
-	Apps                 []codersdk.WorkspaceApp `json:"apps"`
-	DERPMap              *tailcfg.DERPMap        `json:"derpmap"`
-	EnvironmentVariables map[string]string       `json:"environment_variables"`
-	StartupScript        string                  `json:"startup_script"`
-	StartupScriptTimeout time.Duration           `json:"startup_script_timeout"`
-	Directory            string                  `json:"directory"`
-	MOTDFile             string                  `json:"motd_file"`
+	GitAuthConfigs        int                     `json:"git_auth_configs"`
+	VSCodePortProxyURI    string                  `json:"vscode_port_proxy_uri"`
+	Apps                  []codersdk.WorkspaceApp `json:"apps"`
+	DERPMap               *tailcfg.DERPMap        `json:"derpmap"`
+	EnvironmentVariables  map[string]string       `json:"environment_variables"`
+	StartupScript         string                  `json:"startup_script"`
+	StartupScriptTimeout  time.Duration           `json:"startup_script_timeout"`
+	Directory             string                  `json:"directory"`
+	MOTDFile              string                  `json:"motd_file"`
+	ShutdownScript        string                  `json:"shutdown_script"`
+	ShutdownScriptTimeout time.Duration           `json:"shutdown_script_timeout"`
 }
 
 // Metadata fetches metadata for the currently authenticated workspace agent.
@@ -397,7 +399,7 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 	}
 
 	// Send an empty stat to get the interval.
-	postStat(&Stats{ConnsByProto: map[string]int64{}})
+	postStat(&Stats{})
 
 	go func() {
 		defer close(exited)
@@ -426,10 +428,12 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 // Stats records the Agent's network connection statistics for use in
 // user-facing metrics and debugging.
 type Stats struct {
-	// ConnsByProto is a count of connections by protocol.
-	ConnsByProto map[string]int64 `json:"conns_by_proto"`
-	// NumConns is the number of connections received by an agent.
-	NumConns int64 `json:"num_comms"`
+	// ConnectionsByProto is a count of connections by protocol.
+	ConnectionsByProto map[string]int64 `json:"connections_by_proto"`
+	// ConnectionCount is the number of connections received by an agent.
+	ConnectionCount int64 `json:"connection_count"`
+	// ConnectionMedianLatencyMS is the median latency of all connections in milliseconds.
+	ConnectionMedianLatencyMS float64 `json:"connection_median_latency_ms"`
 	// RxPackets is the number of received packets.
 	RxPackets int64 `json:"rx_packets"`
 	// RxBytes is the number of received bytes.
@@ -438,6 +442,19 @@ type Stats struct {
 	TxPackets int64 `json:"tx_packets"`
 	// TxBytes is the number of transmitted bytes.
 	TxBytes int64 `json:"tx_bytes"`
+
+	// SessionCountVSCode is the number of connections received by an agent
+	// that are from our VS Code extension.
+	SessionCountVSCode int64 `json:"session_count_vscode"`
+	// SessionCountJetBrains is the number of connections received by an agent
+	// that are from our JetBrains extension.
+	SessionCountJetBrains int64 `json:"session_count_jetbrains"`
+	// SessionCountReconnectingPTY is the number of connections received by an agent
+	// that are from the reconnecting web terminal.
+	SessionCountReconnectingPTY int64 `json:"session_count_reconnecting_pty"`
+	// SessionCountSSH is the number of connections received by an agent
+	// that are normal, non-tagged SSH sessions.
+	SessionCountSSH int64 `json:"session_count_ssh"`
 }
 
 type StatsResponse struct {

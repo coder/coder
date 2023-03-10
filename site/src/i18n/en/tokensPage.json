@@ -1,0 +1,19 @@
+{
+  "title": "Tokens",
+  "description": "Tokens are used to authenticate with the Coder API. You can create a token with the Coder CLI using the <1>{{cliCreateCommand}}</1> command.",
+  "emptyState": "No tokens found",
+  "deleteToken": {
+    "delete": "Delete Token",
+    "deleteCaption": "Are you sure you want to delete this token?<br/><br/><4>{{tokenId}}</4>",
+    "deleteSuccess": "Token has been deleted",
+    "deleteFailure": "Failed to delete token"
+  },
+  "toggleLabel": "Show all tokens",
+  "table": {
+    "id": "ID",
+    "createdAt": "Created At",
+    "lastUsed": "Last Used",
+    "expiresAt": "Expires At",
+    "owner": "Owner"
+  }
+}

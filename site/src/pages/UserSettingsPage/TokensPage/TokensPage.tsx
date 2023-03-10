@@ -1,79 +1,81 @@
-import { FC, PropsWithChildren } from "react"
-import { Section } from "../../../components/SettingsLayout/Section"
+import { FC, PropsWithChildren, useState } from "react"
+import { Section } from "components/SettingsLayout/Section"
 import { TokensPageView } from "./TokensPageView"
-import { tokensMachine } from "xServices/tokens/tokensXService"
-import { useMachine } from "@xstate/react"
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { Typography } from "components/Typography/Typography"
 import makeStyles from "@material-ui/core/styles/makeStyles"
-
-export const Language = {
-  title: "Tokens",
-  descriptionPrefix:
-    "Tokens are used to authenticate with the Coder API. You can create a token with the Coder CLI using the ",
-  deleteTitle: "Delete Token",
-  deleteDescription: "Are you sure you want to delete this token?",
-}
+import { useTranslation, Trans } from "react-i18next"
+import { useTokensData, useCheckTokenPermissions } from "./hooks"
+import { TokensSwitch, ConfirmDeleteDialog } from "./components"
 
 export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
-  const [tokensState, tokensSend] = useMachine(tokensMachine)
-  const isLoading = tokensState.matches("gettingTokens")
-  const hasLoaded = tokensState.matches("loaded")
-  const { getTokensError, tokens, deleteTokenId } = tokensState.context
   const styles = useStyles()
+  const { t } = useTranslation("tokensPage")
+
+  const cliCreateCommand = "coder tokens create"
   const description = (
-    <>
-      {Language.descriptionPrefix}{" "}
-      <code className={styles.code}>coder tokens create</code> command.
-    </>
+    <Trans t={t} i18nKey="description" values={{ cliCreateCommand }}>
+      Tokens are used to authenticate with the Coder API. You can create a token
+      with the Coder CLI using the <code>{{ cliCreateCommand }}</code> command.
+    </Trans>
   )
 
-  const content = (
-    <Typography>
-      {Language.deleteDescription}
-      <br />
-      <br />
-      {deleteTokenId}
-    </Typography>
+  const [tokenIdToDelete, setTokenIdToDelete] = useState<string | undefined>(
+    undefined,
   )
+  const [viewAllTokens, setViewAllTokens] = useState<boolean>(false)
+  const { data: perms } = useCheckTokenPermissions()
+
+  const {
+    data: tokens,
+    error: getTokensError,
+    isFetching,
+    isFetched,
+    queryKey,
+  } = useTokensData({
+    include_all: viewAllTokens,
+  })
 
   return (
     <>
-      <Section title={Language.title} description={description} layout="fluid">
+      <Section
+        title={t("title")}
+        className={styles.section}
+        description={description}
+        layout="fluid"
+      >
+        <TokensSwitch
+          hasReadAll={perms?.readAllApiKeys ?? false}
+          viewAllTokens={viewAllTokens}
+          setViewAllTokens={setViewAllTokens}
+        />
         <TokensPageView
           tokens={tokens}
-          isLoading={isLoading}
-          hasLoaded={hasLoaded}
+          viewAllTokens={viewAllTokens}
+          isLoading={isFetching}
+          hasLoaded={isFetched}
           getTokensError={getTokensError}
           onDelete={(id) => {
-            tokensSend({ type: "DELETE_TOKEN", id })
+            setTokenIdToDelete(id)
           }}
         />
       </Section>
-
-      <ConfirmDialog
-        title={Language.deleteTitle}
-        description={content}
-        open={tokensState.matches("confirmTokenDelete")}
-        confirmLoading={tokensState.matches("deletingToken")}
-        onConfirm={() => {
-          tokensSend("CONFIRM_DELETE_TOKEN")
-        }}
-        onClose={() => {
-          tokensSend("CANCEL_DELETE_TOKEN")
-        }}
+      <ConfirmDeleteDialog
+        queryKey={queryKey}
+        tokenId={tokenIdToDelete}
+        setTokenId={setTokenIdToDelete}
       />
     </>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  code: {
-    background: theme.palette.divider,
-    fontSize: 12,
-    padding: "2px 4px",
-    color: theme.palette.text.primary,
-    borderRadius: 2,
+  section: {
+    "& code": {
+      background: theme.palette.divider,
+      fontSize: 12,
+      padding: "2px 4px",
+      color: theme.palette.text.primary,
+      borderRadius: 2,
+    },
   },
 }))
 

@@ -233,7 +233,7 @@ func (r *remoteReporter) deployment() error {
 
 	// Tracks where Coder was installed from!
 	installSource := os.Getenv("CODER_TELEMETRY_INSTALL_SOURCE")
-	if installSource != "" && installSource != "aws_marketplace" {
+	if installSource != "" && installSource != "aws_marketplace" && installSource != "fly.io" {
 		return xerrors.Errorf("invalid installce source: %s", installSource)
 	}
 
@@ -550,6 +550,7 @@ func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
 		StartupScript:            agent.StartupScript.Valid,
 		Directory:                agent.Directory != "",
 		ConnectionTimeoutSeconds: agent.ConnectionTimeoutSeconds,
+		ShutdownScript:           agent.ShutdownScript.Valid,
 	}
 	if agent.FirstConnectedAt.Valid {
 		snapAgent.FirstConnectedAt = &agent.FirstConnectedAt.Time
@@ -750,6 +751,7 @@ type WorkspaceAgent struct {
 	LastConnectedAt          *time.Time `json:"last_connected_at"`
 	DisconnectedAt           *time.Time `json:"disconnected_at"`
 	ConnectionTimeoutSeconds int32      `json:"connection_timeout_seconds"`
+	ShutdownScript           bool       `json:"shutdown_script"`
 }
 
 type WorkspaceApp struct {
