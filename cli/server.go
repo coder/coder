@@ -257,6 +257,10 @@ flags, and YAML configuration. The precedence is as follows:
 					continue
 				}
 
+				if opt.Value.String() == opt.Default {
+					continue
+				}
+
 				warnStr := opt.Name + " is deprecated, please use "
 				for i, use := range opt.UseInstead {
 					warnStr += use.Name + " "
@@ -291,7 +295,8 @@ flags, and YAML configuration. The precedence is as follows:
 				return xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
 			}
 
-			if cfg.AccessURL.String() != "" && cfg.AccessURL.Scheme == "" {
+			if cfg.AccessURL.String() != "" &&
+				!(cfg.AccessURL.Scheme == "http" || cfg.AccessURL.Scheme == "https") {
 				return xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
 			}
 
@@ -646,8 +651,9 @@ flags, and YAML configuration. The precedence is as follows:
 				return xerrors.Errorf("read git auth providers from env: %w", err)
 			}
 
+			cfg.GitAuthProviders.Value = append(cfg.GitAuthProviders.Value, gitAuthEnv...)
 			gitAuthConfigs, err := gitauth.ConvertConfig(
-				append(cfg.GitAuthProviders.Value, gitAuthEnv...),
+				cfg.GitAuthProviders.Value,
 				cfg.AccessURL.Value(),
 			)
 			if err != nil {
@@ -1044,14 +1050,6 @@ flags, and YAML configuration. The precedence is as follows:
 				}
 			}()
 
-			hasFirstUser, err := client.HasFirstUser(ctx)
-			if err != nil {
-				cmd.Println("\nFailed to check for the first user: " + err.Error())
-			} else if !hasFirstUser {
-				cmd.Println("\nGet started by creating the first user (in a new terminal):")
-				cmd.Println(cliui.Styles.Code.Render("coder login " + cfg.AccessURL.String()))
-			}
-
 			cmd.Println("\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
 			// Updates the systemd status from activating to activated.
@@ -1367,7 +1365,7 @@ func printLogo(cmd *cobra.Command) {
 		return
 	}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s - Software development on your infrastucture\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s - Your Self-Hosted Remote Development Platform\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
 }
 
 func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, error) {

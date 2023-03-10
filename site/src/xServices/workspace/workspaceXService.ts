@@ -58,8 +58,6 @@ export interface WorkspaceContext {
   templateParameters?: TypesGen.TemplateVersionParameter[]
   build?: TypesGen.WorkspaceBuild
   getWorkspaceError?: Error | unknown
-  // these are labeled as warnings because they don't make the page unusable
-  refreshWorkspaceWarning?: Error | unknown
   getTemplateWarning: Error | unknown
   getTemplateParametersWarning: Error | unknown
   // Builds
@@ -278,10 +276,7 @@ export const workspaceMachine = createMachine(
                 },
                 on: {
                   REFRESH_WORKSPACE: {
-                    actions: [
-                      "refreshWorkspace",
-                      "clearRefreshWorkspaceWarning",
-                    ],
+                    actions: ["refreshWorkspace"],
                   },
                   EVENT_SOURCE_ERROR: {
                     target: "error",
@@ -289,7 +284,7 @@ export const workspaceMachine = createMachine(
                 },
               },
               error: {
-                entry: "assignRefreshWorkspaceWarning",
+                entry: "logWatchWorkspaceWarning",
                 after: {
                   "2000": {
                     target: "gettingEvents",
@@ -586,12 +581,9 @@ export const workspaceMachine = createMachine(
       refreshWorkspace: assign({
         workspace: (_, event) => event.data,
       }),
-      assignRefreshWorkspaceWarning: assign({
-        refreshWorkspaceWarning: (_, event) => event,
-      }),
-      clearRefreshWorkspaceWarning: assign({
-        refreshWorkspaceWarning: (_) => undefined,
-      }),
+      logWatchWorkspaceWarning: (_, event) => {
+        console.error("Watch workspace error:", event)
+      },
       assignGetTemplateWarning: assign({
         getTemplateWarning: (_, event) => event.data,
       }),

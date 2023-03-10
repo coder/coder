@@ -1445,6 +1445,7 @@ export const MockPermissions: Permissions = {
   viewAuditLog: true,
   viewDeploymentValues: true,
   viewUpdateCheck: true,
+  viewDeploymentStats: true,
 }
 
 export const MockAppearance: TypesGen.AppearanceConfig = {
@@ -1535,4 +1536,29 @@ export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
   type: "github",
   authenticate_url: "https://example.com/gitauth/github",
   authenticated: false,
+}
+
+export const MockDeploymentStats: TypesGen.DeploymentStats = {
+  aggregated_from: "2023-03-06T19:08:55.211625Z",
+  collected_at: "2023-03-06T19:12:55.211625Z",
+  next_update_at: "2023-03-06T19:20:55.211625Z",
+  session_count: {
+    vscode: 128,
+    jetbrains: 5,
+    ssh: 32,
+    reconnecting_pty: 15,
+  },
+  workspaces: {
+    building: 15,
+    failed: 12,
+    pending: 5,
+    running: 32,
+    stopped: 16,
+    connection_latency_ms: {
+      P50: 32.56,
+      P95: 15.23,
+    },
+    rx_bytes: 15613513253,
+    tx_bytes: 36113513253,
+  },
 }

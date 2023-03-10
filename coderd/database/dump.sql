@@ -485,7 +485,7 @@ CREATE TABLE workspace_agent_stats (
     rx_bytes bigint DEFAULT 0 NOT NULL,
     tx_packets bigint DEFAULT 0 NOT NULL,
     tx_bytes bigint DEFAULT 0 NOT NULL,
-    connection_median_latency_ms bigint DEFAULT '-1'::integer NOT NULL,
+    connection_median_latency_ms double precision DEFAULT '-1'::integer NOT NULL,
     session_count_vscode bigint DEFAULT 0 NOT NULL,
     session_count_jetbrains bigint DEFAULT 0 NOT NULL,
     session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,

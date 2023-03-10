@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -51,6 +52,7 @@ func workspaceAgent() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("parse %q: %w", rawURL, err)
 			}
+			agentPorts := map[int]string{}
 
 			isLinux := runtime.GOOS == "linux"
 
@@ -122,6 +124,10 @@ func workspaceAgent() *cobra.Command {
 			_ = pprof.Handler
 			pprofSrvClose := serveHandler(ctx, logger, nil, pprofAddress, "pprof")
 			defer pprofSrvClose()
+			// Do a best effort here. If this fails, it's not a big deal.
+			if port, err := urlPort(pprofAddress); err == nil {
+				agentPorts[port] = "pprof"
+			}
 
 			// exchangeToken returns a session token.
 			// This is abstracted to allow for the same looping condition
@@ -202,6 +208,7 @@ func workspaceAgent() *cobra.Command {
 				EnvironmentVariables: map[string]string{
 					"GIT_ASKPASS": executablePath,
 				},
+				AgentPorts: agentPorts,
 			})
 			<-ctx.Done()
 			return closer.Close()
@@ -263,4 +270,36 @@ func (c *closeWriter) Write(p []byte) (int, error) {
 		return 0, io.ErrClosedPipe
 	}
 	return c.w.Write(p)
+}
+
+// extractPort handles different url strings.
+// - localhost:6060
+// - http://localhost:6060
+func extractPort(u string) (int, error) {
+	port, firstError := urlPort(u)
+	if firstError == nil {
+		return port, nil
+	}
+
+	// Try with a scheme
+	port, err := urlPort("http://" + u)
+	if err == nil {
+		return port, nil
+	}
+	return -1, xerrors.Errorf("invalid url %q: %w", u, firstError)
+}
+
+// urlPort extracts the port from a valid URL.
+func urlPort(u string) (int, error) {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return -1, xerrors.Errorf("invalid url %q: %w", u, err)
+	}
+	if parsed.Port() != "" {
+		port, err := strconv.ParseInt(parsed.Port(), 10, 64)
+		if err == nil && port > 0 {
+			return int(port), nil
+		}
+	}
+	return -1, xerrors.Errorf("invalid port: %s", u)
 }

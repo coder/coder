@@ -140,7 +140,8 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{
-		Jar: jar,
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
 	}
 	conn, res, err := websocket.Dial(ctx, followURL.String(), &websocket.DialOptions{
 		HTTPClient:      httpClient,
@@ -205,7 +206,8 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, organization uuid.U
 		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{
-		Jar: jar,
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
 	}
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
