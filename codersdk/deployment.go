@@ -821,13 +821,18 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "OIDC Group Field",
-			Description: "OIDC claim field to use as the user's groups. Set to \"\" to disable OIDC group support.",
+			Description: "Change the OIDC default 'groups' claim field. By default, will be 'groups' if present in the oidc scopes argument.",
 			Flag:        "oidc-group-field",
 			Env:         "OIDC_GROUP_FIELD",
-			Default:     "groups",
-			Value:       &c.OIDC.GroupField,
-			Group:       &deploymentGroupOIDC,
-			YAML:        "groupField",
+			// This value is intentionally blank. If this is empty, then OIDC group
+			// behavior is disabled. If 'oidc-scopes' contains 'groups', then the
+			// default value will be 'groups'. If the user wants to use a different claim
+			// such as 'memberOf', they can override the default 'groups' claim value
+			// that comes from the oidc scopes.
+			Default: "",
+			Value:   &c.OIDC.GroupField,
+			Group:   &deploymentGroupOIDC,
+			YAML:    "groupField",
 		},
 		{
 			Name:        "OpenID Connect sign in text",

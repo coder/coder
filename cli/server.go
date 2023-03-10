@@ -75,6 +75,7 @@ import (
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/updatecheck"
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -763,6 +764,11 @@ flags, and YAML configuration. The precedence is as follows:
 				redirectURL, err := cfg.AccessURL.Value().Parse("/api/v2/users/oidc/callback")
 				if err != nil {
 					return xerrors.Errorf("parse oidc oauth callback url: %w", err)
+				}
+				// If the scopes contain 'groups', we enable group support.
+				// Do not override any custom value set by the user.
+				if slice.Contains(cfg.OIDC.Scopes, "groups") && cfg.OIDC.GroupField == "" {
+					cfg.OIDC.GroupField = "groups"
 				}
 				options.OIDCConfig = &coderd.OIDCConfig{
 					OAuth2Config: &oauth2.Config{
