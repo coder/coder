@@ -34,18 +34,14 @@ func (Fmt) Prettier() error {
 }
 
 func (Fmt) Sh() error {
-	info, err := find(regexp.MustCompile(`\.sh$`))
+	names, err := find(regexp.MustCompile(`\.sh$`))
 	if err != nil {
 		return err
-	}
-	flag := "-w"
-	if inCI() {
-		flag = "-d"
 	}
 	(&cmd{
 		exec.Command(
 			"shfmt",
-			append([]string{flag}, info...)...,
+			append([]string{"-w"}, names...)...,
 		),
 	}).run()
 	return nil

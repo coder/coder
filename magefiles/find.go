@@ -13,6 +13,7 @@ var findExclusions = []*regexp.Regexp{
 	regexp.MustCompile(`^\build`),
 	regexp.MustCompile(`^\vendor`),
 	regexp.MustCompile(`^\site/out`),
+	regexp.MustCompile(`^\site/node_modules`),
 }
 
 func find(match *regexp.Regexp) ([]string, error) {
