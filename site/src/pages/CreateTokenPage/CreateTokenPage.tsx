@@ -1,4 +1,4 @@
-import { FC, useState } from "react"
+import { FC, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
@@ -17,14 +17,36 @@ import MenuItem from "@material-ui/core/MenuItem"
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils"
 import { useMutation } from "@tanstack/react-query"
 import { createToken } from "api/api"
+import i18next from "i18next"
+import dayjs from "dayjs"
 
 const NANO_HOUR = 3600000000000
 
 const lifetimes = [
-  { label: "7 days", lifetimeDays: 7 },
-  { label: "30 days", lifetimeDays: 30 },
-  { label: "60 days", lifetimeDays: 60 },
-  { label: "90 days", lifetimeDays: 60 },
+  {
+    label: i18next.t("tokensPage:createToken.lifetimeSection.7"),
+    lifetimeDays: 7,
+  },
+  {
+    label: i18next.t("tokensPage:createToken.lifetimeSection.30"),
+    lifetimeDays: 30,
+  },
+  {
+    label: i18next.t("tokensPage:createToken.lifetimeSection.60"),
+    lifetimeDays: 60,
+  },
+  {
+    label: i18next.t("tokensPage:createToken.lifetimeSection.90"),
+    lifetimeDays: 90,
+  },
+  {
+    label: i18next.t("tokensPage:createToken.lifetimeSection.custom"),
+    lifetimeDays: 120, // fix
+  },
+  {
+    label: i18next.t("tokensPage:createToken.lifetimeSection.noExpiration"),
+    lifetimeDays: 365 * 290, // fix
+  },
 ]
 
 interface CreateTokenData {
@@ -42,7 +64,10 @@ const CreateTokenPage: FC = () => {
   const navigate = useNavigate()
   const navigateBack = () => navigate(-1)
   const useCreateToken = () => useMutation(createToken)
-  const [formErr, setFormErr] = useState<unknown | undefined>(undefined)
+  const [formError, setFormError] = useState<unknown | undefined>(undefined)
+  const [expDate, setExpDate] = useState<string>(
+    dayjs().add(initialValues.lifetime, "days").utc().format("MMMM DD, YYYY"),
+  )
 
   const { mutate: saveToken, isLoading, isError } = useCreateToken()
 
@@ -52,7 +77,7 @@ const CreateTokenPage: FC = () => {
   }
 
   const onCreateError = (error: unknown) => {
-    setFormErr(error)
+    setFormError(error)
     displayError(t("createToken.createError"))
   }
 
@@ -73,7 +98,13 @@ const CreateTokenPage: FC = () => {
     },
   })
 
-  const getFieldHelpers = getFormHelpers<CreateTokenData>(form, formErr)
+  useEffect(() => {
+    setExpDate(
+      dayjs().add(form.values.lifetime, "days").utc().format("MMMM DD, YYYY"),
+    )
+  }, [form.values.lifetime])
+
+  const getFieldHelpers = getFormHelpers<CreateTokenData>(form, formError)
 
   return (
     <>
@@ -92,7 +123,7 @@ const CreateTokenPage: FC = () => {
             <FormFields>
               <TextField
                 {...getFieldHelpers("name")}
-                onChange={onChangeTrimmed(form)}
+                onChange={onChangeTrimmed(form, () => setFormError(undefined))}
                 autoFocus
                 fullWidth
                 required
@@ -103,7 +134,9 @@ const CreateTokenPage: FC = () => {
           </FormSection>
           <FormSection
             title={t("createToken.lifetimeSection.title")}
-            description={t("createToken.lifetimeSection.description")}
+            description={t("createToken.lifetimeSection.description", {
+              date: expDate,
+            })}
           >
             <FormFields>
               <TextField
