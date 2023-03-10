@@ -122,7 +122,6 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 		})
 	}
 	if xerrors.Is(userErr, sql.ErrNoRows) {
-		// TODO: add coverage
 		p.writeWorkspaceApp404(rw, r, &appReq, fmt.Sprintf("user %q not found", appReq.UsernameOrID))
 		return nil, false
 	} else if userErr != nil {

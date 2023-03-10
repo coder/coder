@@ -18,7 +18,6 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
 	agplaudit "github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -182,8 +181,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		ServerName:   options.AccessURL.Hostname(),
 	}
 	var err error
-	// nolint:gocritic // ReplicaManager needs system permissions.
-	api.replicaManager, err = replicasync.New(dbauthz.AsSystemRestricted(ctx), options.Logger, options.Database, options.Pubsub, &replicasync.Options{
+	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
 		ID:           api.AGPL.ID,
 		RelayAddress: options.DERPServerRelayAddress,
 		RegionID:     int32(options.DERPServerRegionID),
