@@ -79,7 +79,7 @@ type Values struct {
 	ExtraTemplates map[string]interface{} `json:"extraTemplates" yaml:"extraTemplates"`
 }
 
-// Values must implment fmt.Stringer
+// Values must implement fmt.Stringer
 var _ = fmt.Stringer(&Values{})
 
 // String returns a JSON representation of v.
