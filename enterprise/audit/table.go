@@ -44,7 +44,7 @@ const (
 type Table map[string]map[string]Action
 
 // Add adds a new entry to the table.
-func (t *Table) Add(key string, value map[string]Action) *Table {
+func (t *Table) add(key string, value map[string]Action) *Table {
 	(*t)[key] = value
 	return t
 }
@@ -53,21 +53,21 @@ func (t *Table) Add(key string, value map[string]Action) *Table {
 // which fields are auditable. All resource types must be valid audit.Auditable
 // types.
 var AuditableResources = *(&Table{}).
-	Add(entry(database.GitSSHKey{}, map[string]Action{
+	add(entry(database.GitSSHKey{}, map[string]Action{
 		"user_id":     ActionTrack,
 		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":  ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"private_key": ActionSecret, // We don't want to expose private keys in diffs.
 		"public_key":  ActionTrack,  // Public keys are ok to expose in a diff.
 	})).
-	Add(entry(database.GitSSHKey{}, map[string]Action{
+	add(entry(database.GitSSHKey{}, map[string]Action{
 		"user_id":     ActionTrack,
 		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":  ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"private_key": ActionSecret, // We don't want to expose private keys in diffs.
 		"public_key":  ActionTrack,  // Public keys are ok to expose in a diff.
 	})).
-	Add(entry(database.Template{}, map[string]Action{
+	add(entry(database.Template{}, map[string]Action{
 		"id":                               ActionTrack,
 		"created_at":                       ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":                       ActionIgnore, // Changes, but is implicit and not helpful in a diff.
@@ -86,7 +86,7 @@ var AuditableResources = *(&Table{}).
 		"allow_user_cancel_workspace_jobs": ActionTrack,
 		"max_ttl":                          ActionTrack,
 	})).
-	Add(entry(database.TemplateVersion{}, map[string]Action{
+	add(entry(database.TemplateVersion{}, map[string]Action{
 		"id":                 ActionTrack,
 		"template_id":        ActionTrack,
 		"organization_id":    ActionIgnore, // Never changes.
@@ -98,7 +98,7 @@ var AuditableResources = *(&Table{}).
 		"created_by":         ActionTrack,
 		"git_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
 	})).
-	Add(entry(database.User{}, map[string]Action{
+	add(entry(database.User{}, map[string]Action{
 		"id":              ActionTrack,
 		"email":           ActionTrack,
 		"username":        ActionTrack,
@@ -112,7 +112,7 @@ var AuditableResources = *(&Table{}).
 		"last_seen_at":    ActionIgnore,
 		"deleted":         ActionTrack,
 	})).
-	Add(entry(database.Workspace{}, map[string]Action{
+	add(entry(database.Workspace{}, map[string]Action{
 		"id":                 ActionTrack,
 		"created_at":         ActionIgnore, // Never changes.
 		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
@@ -125,7 +125,7 @@ var AuditableResources = *(&Table{}).
 		"ttl":                ActionTrack,
 		"last_used_at":       ActionIgnore,
 	})).
-	Add(entry(database.WorkspaceBuild{}, map[string]Action{
+	add(entry(database.WorkspaceBuild{}, map[string]Action{
 		"id":                  ActionIgnore,
 		"created_at":          ActionIgnore,
 		"updated_at":          ActionIgnore,
@@ -141,7 +141,7 @@ var AuditableResources = *(&Table{}).
 		"daily_cost":          ActionIgnore,
 		"max_deadline":        ActionIgnore,
 	})).
-	Add(entry(database.AuditableGroup{}, map[string]Action{
+	add(entry(database.AuditableGroup{}, map[string]Action{
 		"id":              ActionTrack,
 		"name":            ActionTrack,
 		"organization_id": ActionIgnore, // Never changes.
@@ -150,7 +150,7 @@ var AuditableResources = *(&Table{}).
 		"members":         ActionTrack,
 	})).
 	// We don't show any diff for the APIKey resource
-	Add(entry(database.APIKey{}, map[string]Action{
+	add(entry(database.APIKey{}, map[string]Action{
 		"id":               ActionIgnore,
 		"hashed_secret":    ActionIgnore,
 		"user_id":          ActionIgnore,
@@ -166,7 +166,7 @@ var AuditableResources = *(&Table{}).
 	})).
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
-	Add(entry(database.License{}, map[string]Action{
+	add(entry(database.License{}, map[string]Action{
 		"id":          ActionIgnore,
 		"uploaded_at": ActionTrack,
 		"jwt":         ActionIgnore,
