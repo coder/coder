@@ -3610,7 +3610,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required FROM template_version_parameters WHERE template_version_id = $1
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name FROM template_version_parameters WHERE template_version_id = $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -3637,6 +3637,7 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.ValidationError,
 			&i.ValidationMonotonic,
 			&i.Required,
+			&i.LegacyVariableName,
 		); err != nil {
 			return nil, err
 		}
@@ -3667,7 +3668,8 @@ INSERT INTO
         validation_max,
         validation_error,
         validation_monotonic,
-        required
+        required,
+        legacy_variable_name
     )
 VALUES
     (
@@ -3684,8 +3686,9 @@ VALUES
         $11,
         $12,
         $13,
-        $14
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required
+        $14,
+        $15
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name
 `
 
 type InsertTemplateVersionParameterParams struct {
@@ -3703,6 +3706,7 @@ type InsertTemplateVersionParameterParams struct {
 	ValidationError     string          `db:"validation_error" json:"validation_error"`
 	ValidationMonotonic string          `db:"validation_monotonic" json:"validation_monotonic"`
 	Required            bool            `db:"required" json:"required"`
+	LegacyVariableName  string          `db:"legacy_variable_name" json:"legacy_variable_name"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -3721,6 +3725,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.ValidationError,
 		arg.ValidationMonotonic,
 		arg.Required,
+		arg.LegacyVariableName,
 	)
 	var i TemplateVersionParameter
 	err := row.Scan(
@@ -3738,6 +3743,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.ValidationError,
 		&i.ValidationMonotonic,
 		&i.Required,
+		&i.LegacyVariableName,
 	)
 	return i, err
 }
