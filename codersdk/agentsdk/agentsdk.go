@@ -520,7 +520,12 @@ type InsertOrUpdateStartupLogsRequest struct {
 	Output string
 }
 
-func (c *Client) InsertOrUpdateStartupLogs(ctx context.Context, req InsertOrUpdateStartupLogsRequest) error {
+type StartupLog struct {
+	CreatedAt time.Time `json:"created_at"`
+	Output    string    `json:"output"`
+}
+
+func (c *Client) AppendStartupLogs(ctx context.Context, req []StartupLog) error {
 	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/startup/logs", req)
 	if err != nil {
 		return err

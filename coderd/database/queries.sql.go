@@ -3066,61 +3066,6 @@ func (q *sqlQuerier) InsertOrUpdateServiceBanner(ctx context.Context, value stri
 	return err
 }
 
-const getStartupScriptLogsByJobID = `-- name: GetStartupScriptLogsByJobID :many
-SELECT
-	agent_id, job_id, output
-FROM
-	startup_script_logs
-WHERE
-	job_id = $1
-`
-
-func (q *sqlQuerier) GetStartupScriptLogsByJobID(ctx context.Context, jobID uuid.UUID) ([]StartupScriptLog, error) {
-	rows, err := q.db.QueryContext(ctx, getStartupScriptLogsByJobID, jobID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []StartupScriptLog
-	for rows.Next() {
-		var i StartupScriptLog
-		if err := rows.Scan(&i.AgentID, &i.JobID, &i.Output); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const insertOrUpdateStartupScriptLog = `-- name: InsertOrUpdateStartupScriptLog :exec
-INSERT INTO
-	startup_script_logs (agent_id, job_id, output)
-VALUES ($1, $2, $3)
-ON CONFLICT (agent_id, job_id) DO UPDATE
-	SET
-		output = $3
-	WHERE
-		startup_script_logs.agent_id = $1
-		AND startup_script_logs.job_id = $2
-`
-
-type InsertOrUpdateStartupScriptLogParams struct {
-	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
-	JobID   uuid.UUID `db:"job_id" json:"job_id"`
-	Output  string    `db:"output" json:"output"`
-}
-
-func (q *sqlQuerier) InsertOrUpdateStartupScriptLog(ctx context.Context, arg InsertOrUpdateStartupScriptLogParams) error {
-	_, err := q.db.ExecContext(ctx, insertOrUpdateStartupScriptLog, arg.AgentID, arg.JobID, arg.Output)
-	return err
-}
-
 const getTemplateAverageBuildTime = `-- name: GetTemplateAverageBuildTime :one
 WITH build_times AS (
 SELECT
@@ -5240,6 +5185,53 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 	return i, err
 }
 
+const getWorkspaceAgentStartupLogsBetween = `-- name: GetWorkspaceAgentStartupLogsBetween :many
+SELECT
+	agent_id, id, created_at, output
+FROM
+	workspace_agent_startup_logs
+WHERE
+	agent_id = $1
+	AND (
+		id > $2
+		OR id < $3
+	) ORDER BY id ASC
+`
+
+type GetWorkspaceAgentStartupLogsBetweenParams struct {
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
+	CreatedAfter  int64     `db:"created_after" json:"created_after"`
+	CreatedBefore int64     `db:"created_before" json:"created_before"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentStartupLogsBetween(ctx context.Context, arg GetWorkspaceAgentStartupLogsBetweenParams) ([]WorkspaceAgentStartupLog, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStartupLogsBetween, arg.AgentID, arg.CreatedAfter, arg.CreatedBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentStartupLog
+	for rows.Next() {
+		var i WorkspaceAgentStartupLog
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.ID,
+			&i.CreatedAt,
+			&i.Output,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
 	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds
@@ -5466,6 +5458,49 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.ShutdownScriptTimeoutSeconds,
 	)
 	return i, err
+}
+
+const insertWorkspaceAgentStartupLogs = `-- name: InsertWorkspaceAgentStartupLogs :many
+INSERT INTO
+	workspace_agent_startup_logs
+SELECT
+	$1 :: uuid AS agent_id,
+	unnest($2 :: timestamptz [ ]) AS created_at,
+	unnest($3 :: VARCHAR(1024) [ ]) AS output RETURNING agent_id, id, created_at, output
+`
+
+type InsertWorkspaceAgentStartupLogsParams struct {
+	AgentID   uuid.UUID   `db:"agent_id" json:"agent_id"`
+	CreatedAt []time.Time `db:"created_at" json:"created_at"`
+	Output    []string    `db:"output" json:"output"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg InsertWorkspaceAgentStartupLogsParams) ([]WorkspaceAgentStartupLog, error) {
+	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentStartupLogs, arg.AgentID, pq.Array(arg.CreatedAt), pq.Array(arg.Output))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentStartupLog
+	for rows.Next() {
+		var i WorkspaceAgentStartupLog
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.ID,
+			&i.CreatedAt,
+			&i.Output,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateWorkspaceAgentConnectionByID = `-- name: UpdateWorkspaceAgentConnectionByID :exec

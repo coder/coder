@@ -589,7 +589,7 @@ func New(options *Options) *API {
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Route("/startup", func(r chi.Router) {
 					r.Post("/", api.postWorkspaceAgentStartup)
-					r.Patch("/logs", api.insertOrUpdateStartupScriptLogs)
+					r.Patch("/logs", api.patchWorkspaceAgentStartupLogs)
 				})
 				r.Post("/app-health", api.postWorkspaceAppHealth)
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)

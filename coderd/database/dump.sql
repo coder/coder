@@ -338,12 +338,6 @@ CREATE TABLE site_configs (
     value character varying(8192) NOT NULL
 );
 
-CREATE TABLE startup_script_logs (
-    agent_id uuid NOT NULL,
-    job_id uuid NOT NULL,
-    output text NOT NULL
-);
-
 CREATE TABLE template_version_parameters (
     template_version_id uuid NOT NULL,
     name text NOT NULL,
@@ -476,6 +470,13 @@ CREATE TABLE users (
     avatar_url text,
     deleted boolean DEFAULT false NOT NULL,
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
+);
+
+CREATE TABLE workspace_agent_startup_logs (
+    agent_id uuid NOT NULL,
+    id bigint NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    output text NOT NULL
 );
 
 CREATE TABLE workspace_agent_stats (
@@ -713,9 +714,6 @@ ALTER TABLE ONLY provisioner_jobs
 ALTER TABLE ONLY site_configs
     ADD CONSTRAINT site_configs_key_key UNIQUE (key);
 
-ALTER TABLE ONLY startup_script_logs
-    ADD CONSTRAINT startup_script_logs_agent_id_job_id_key UNIQUE (agent_id, job_id);
-
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
 
@@ -736,6 +734,9 @@ ALTER TABLE ONLY user_links
 
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_agent_startup_logs
+    ADD CONSTRAINT workspace_agent_startup_logs_agent_id_id_key UNIQUE (agent_id, id);
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
@@ -808,6 +809,8 @@ CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WH
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 
+CREATE INDEX workspace_agent_startup_logs_id_agent_id_idx ON workspace_agent_startup_logs USING btree (agent_id, id);
+
 CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
@@ -846,12 +849,6 @@ ALTER TABLE ONLY provisioner_job_logs
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY startup_script_logs
-    ADD CONSTRAINT startup_script_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY startup_script_logs
-    ADD CONSTRAINT startup_script_logs_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
@@ -875,6 +872,9 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_startup_logs
+    ADD CONSTRAINT workspace_agent_startup_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;

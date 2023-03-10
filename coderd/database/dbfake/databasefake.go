@@ -52,7 +52,6 @@ func New() database.Store {
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			parameterValues:           make([]database.ParameterValue, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
-			startupScriptLogs:         make([]database.StartupScriptLog, 0),
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
 			provisionerJobLogs:        make([]database.ProvisionerJobLog, 0),
 			workspaceResources:        make([]database.WorkspaceResource, 0),
@@ -61,6 +60,7 @@ func New() database.Store {
 			templateVersions:          make([]database.TemplateVersion, 0),
 			templates:                 make([]database.Template, 0),
 			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
+			workspaceAgentLogs:        make([]database.WorkspaceAgentStartupLog, 0),
 			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
@@ -119,12 +119,12 @@ type data struct {
 	provisionerJobLogs        []database.ProvisionerJobLog
 	provisionerJobs           []database.ProvisionerJob
 	replicas                  []database.Replica
-	startupScriptLogs         []database.StartupScriptLog
 	templateVersions          []database.TemplateVersion
 	templateVersionParameters []database.TemplateVersionParameter
 	templateVersionVariables  []database.TemplateVersionVariable
 	templates                 []database.Template
 	workspaceAgents           []database.WorkspaceAgent
+	workspaceAgentLogs        []database.WorkspaceAgentStartupLog
 	workspaceApps             []database.WorkspaceApp
 	workspaceBuilds           []database.WorkspaceBuild
 	workspaceBuildParameters  []database.WorkspaceBuildParameter
@@ -3514,42 +3514,54 @@ func (q *fakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetStartupScriptLogsByJobID(_ context.Context, jobID uuid.UUID) ([]database.StartupScriptLog, error) {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	logs := []database.StartupScriptLog{}
-	for _, log := range q.startupScriptLogs {
-		if log.JobID == jobID {
-			logs = append(logs, log)
-		}
-	}
-	return logs, sql.ErrNoRows
-}
-
-func (q *fakeQuerier) InsertOrUpdateStartupScriptLog(_ context.Context, arg database.InsertOrUpdateStartupScriptLogParams) error {
+func (q *fakeQuerier) GetWorkspaceAgentStartupLogsBetween(ctx context.Context, arg database.GetWorkspaceAgentStartupLogsBetweenParams) ([]database.WorkspaceAgentStartupLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return err
+		return nil, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for index, log := range q.startupScriptLogs {
-		if log.JobID != arg.JobID {
+	logs := []database.WorkspaceAgentStartupLog{}
+	for _, log := range q.workspaceAgentLogs {
+		if log.AgentID != arg.AgentID {
 			continue
 		}
-
-		log.Output = arg.Output
-		q.startupScriptLogs[index] = log
-		return nil
+		if arg.CreatedBefore != 0 && log.ID > arg.CreatedBefore {
+			continue
+		}
+		if arg.CreatedAfter != 0 && log.ID < arg.CreatedAfter {
+			continue
+		}
+		logs = append(logs, log)
 	}
-	q.startupScriptLogs = append(q.startupScriptLogs, database.StartupScriptLog{
-		AgentID: arg.AgentID,
-		JobID:   arg.JobID,
-		Output:  arg.Output,
-	})
-	return nil
+	return logs, nil
+}
+
+func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]database.WorkspaceAgentStartupLog, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	logs := []database.WorkspaceAgentStartupLog{}
+	id := int64(1)
+	if len(q.workspaceAgentLogs) > 0 {
+		id = q.workspaceAgentLogs[len(q.workspaceAgentLogs)-1].ID
+	}
+	for index, output := range arg.Output {
+		id++
+		logs = append(logs, database.WorkspaceAgentStartupLog{
+			ID:        id,
+			AgentID:   arg.AgentID,
+			CreatedAt: arg.CreatedAt[index],
+			Output:    output,
+		})
+	}
+	q.workspaceAgentLogs = append(q.workspaceAgentLogs, logs...)
+	return logs, nil
 }
 
 func (q *fakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.UpdateProvisionerJobByIDParams) error {

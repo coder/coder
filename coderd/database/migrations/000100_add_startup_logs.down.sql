@@ -1,1 +1,0 @@
-DROP TABLE startup_script_logs

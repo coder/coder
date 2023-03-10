@@ -88,7 +88,7 @@ type Client interface {
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
-	InsertOrUpdateStartupLogs(ctx context.Context, req agentsdk.InsertOrUpdateStartupLogsRequest) error
+	AppendStartupLogs(ctx context.Context, req []agentsdk.StartupLog) error
 }
 
 func New(options Options) io.Closer {

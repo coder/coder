@@ -93,3 +93,23 @@ SET
 	lifecycle_state = $2
 WHERE
 	id = $1;
+
+-- name: GetWorkspaceAgentStartupLogsBetween :many
+SELECT
+	*
+FROM
+	workspace_agent_startup_logs
+WHERE
+	agent_id = $1
+	AND (
+		id > @created_after
+		OR id < @created_before
+	) ORDER BY id ASC;
+
+-- name: InsertWorkspaceAgentStartupLogs :many
+INSERT INTO
+	workspace_agent_startup_logs
+SELECT
+	@agent_id :: uuid AS agent_id,
+	unnest(@created_at :: timestamptz [ ]) AS created_at,
+	unnest(@output :: VARCHAR(1024) [ ]) AS output RETURNING *;

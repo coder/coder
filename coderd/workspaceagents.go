@@ -229,28 +229,27 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 // @Success 200
 // @Router /workspaceagents/me/startup/logs [patch]
 // @x-apidocgen {"skip": true}
-func (api *API) insertOrUpdateStartupScriptLogs(rw http.ResponseWriter, r *http.Request) {
+func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to upload startup logs",
-			Detail:  err.Error(),
-		})
-		return
-	}
 
-	var req agentsdk.InsertOrUpdateStartupLogsRequest
+	var req []agentsdk.StartupLog
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	if err := api.Database.InsertOrUpdateStartupScriptLog(ctx, database.InsertOrUpdateStartupScriptLogParams{
-		AgentID: workspaceAgent.ID,
-		JobID:   resource.JobID,
-		Output:  req.Output,
-	}); err != nil {
+	createdAt := make([]time.Time, 0)
+	output := make([]string, 0)
+	for _, log := range req {
+		createdAt = append(createdAt, log.CreatedAt)
+		output = append(output, log.Output)
+	}
+	_, err := api.Database.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
+		AgentID:   workspaceAgent.ID,
+		CreatedAt: createdAt,
+		Output:    output,
+	})
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to upload startup logs",
 			Detail:  err.Error(),

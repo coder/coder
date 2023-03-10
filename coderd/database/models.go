@@ -1405,12 +1405,6 @@ type SiteConfig struct {
 	Value string `db:"value" json:"value"`
 }
 
-type StartupScriptLog struct {
-	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
-	JobID   uuid.UUID `db:"job_id" json:"job_id"`
-	Output  string    `db:"output" json:"output"`
-}
-
 type Template struct {
 	ID              uuid.UUID       `db:"id" json:"id"`
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
@@ -1573,6 +1567,13 @@ type WorkspaceAgent struct {
 	ShutdownScript sql.NullString `db:"shutdown_script" json:"shutdown_script"`
 	// The number of seconds to wait for the shutdown script to complete. If the script does not complete within this time, the agent lifecycle will be marked as shutdown_timeout.
 	ShutdownScriptTimeoutSeconds int32 `db:"shutdown_script_timeout_seconds" json:"shutdown_script_timeout_seconds"`
+}
+
+type WorkspaceAgentStartupLog struct {
+	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
+	ID        int64     `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Output    string    `db:"output" json:"output"`
 }
 
 type WorkspaceAgentStat struct {

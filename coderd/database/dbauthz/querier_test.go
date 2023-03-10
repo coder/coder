@@ -1004,20 +1004,19 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID: agt.ID,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
-	s.Run("GetStartupScriptLogsByJobID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetWorkspaceAgentStartupLogsBetween", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-		check.Args(build.JobID).Asserts(ws, rbac.ActionRead).Returns([]database.StartupScriptLog{})
+		check.Args(build.JobID).Asserts(ws, rbac.ActionRead).Returns([]database.WorkspaceAgentStartupLog{})
 	}))
-	s.Run("InsertOrUpdateStartupScriptLog", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("InsertWorkspaceAgentStartupLogs", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		check.Args(database.InsertOrUpdateStartupScriptLogParams{
+		check.Args(database.InsertWorkspaceAgentStartupLogsParams{
 			AgentID: agt.ID,
-			JobID:   build.JobID,
-			Output:  "test",
+			Output:  []string{"test"},
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
 	s.Run("GetWorkspaceAppByAgentIDAndSlug", s.Subtest(func(db database.Store, check *expects) {

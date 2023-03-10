@@ -251,6 +251,10 @@ func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.Ins
 	return q.db.InsertProvisionerJobLogs(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]database.WorkspaceAgentStartupLog, error) {
+	return q.db.InsertWorkspaceAgentStartupLogs(ctx, arg)
+}
+
 func (q *querier) InsertProvisionerDaemon(ctx context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
 	return q.db.InsertProvisionerDaemon(ctx, arg)
 }
