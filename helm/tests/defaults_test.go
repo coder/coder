@@ -1,87 +1,105 @@
 package tests // nolint: testpackage
 
 import (
+	"flag"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"helm.sh/helm/v3/pkg/chartutil"
 )
 
-func TestDefaultValues(t *testing.T) {
-	t.Parallel()
+// These tests render the chart with the given test case and compares the output
+// to the corresponding golden file.
+// To update golden files, run `go test . -update-golden-files`.
 
-	t.Run("MissingRequiredValuesFailsToRender", func(t *testing.T) {
-		t.Parallel()
+var (
+	// UpdateGoldenFiles is a flag that can be set to update golden files.
+	UpdateGoldenFiles = flag.Bool("update-golden-files", false, "Update golden files")
+)
 
-		// Given: we load the chart successfully
-		chart, err := LoadChart()
-		require.NoError(t, err, "failed to load chart")
-		require.NoError(t, chart.Validate(), "chart validation failed")
-
-		// Ensure that the correct metadata is set
-		require.Equal(t, "coder", chart.Metadata.Name, "chart name is incorrect")
-		require.False(t, chart.Metadata.Deprecated, "chart should not be deprecated")
-
-		// When: the user does not set the coder.image.tag value
-		_, err = chart.Render(func(v *Values) {
-			v.Coder.Image.Tag = ""
-		}, nil, nil)
-
-		// Then: The chart should fail to render and the user should be informed
-		// that they must set the coder.image.tag value.
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "You must specify the coder.image.tag value if you're installing the Helm chart directly from Git.")
-	})
-
-	t.Run("RendersSuccessfullyWithDefaultValues", func(t *testing.T) {
-		t.Parallel()
-
-		// Given: we load the chart successfully
-		chart, err := LoadChart()
-		require.NoError(t, err, "failed to load chart")
-		require.NoError(t, chart.Validate(), "chart validation failed")
-
-		// When: the user sets the coder.image.tag to a valid value
-		objs, err := chart.Render(func(v *Values) {
+var TestCases = []TestCase{
+	{
+		name: "default_values",
+		fn: func(v *Values) {
 			v.Coder.Image.Tag = "latest"
-		}, nil, nil)
-
-		// Then: The chart should render successfully
-		require.NoError(t, err, "failed to render manifests")
-
-		// And: The deployment should have the correct default values
-		deployment := requireDeployment(t, objs, "coder")
-		require.Equal(t, int32(1), *deployment.Spec.Replicas, "expected 1 replica")
-		require.Len(t, deployment.Spec.Template.Spec.Containers, 1, "expected 1 container")
-		require.Equal(t, "coder", deployment.Spec.Template.Spec.Containers[0].Name, "unexpected container name")
-		require.Equal(t, "ghcr.io/coder/coder:latest", deployment.Spec.Template.Spec.Containers[0].Image, "unexpected image")
-		require.Equal(t, "IfNotPresent", string(deployment.Spec.Template.Spec.Containers[0].ImagePullPolicy), "unexpected image pull policy")
-		require.Empty(t, deployment.Spec.Template.Spec.InitContainers, "expected no init containers")
-		require.Empty(t, deployment.Spec.Template.Annotations, "expected no annotations")
-		// Ensure default env vars are set
-		requireEnv(t, deployment.Spec.Template.Spec.Containers[0].Env, "CODER_HTTP_ADDRESS", "0.0.0.0:8080")
-	})
-
-	t.Run("TLS", func(t *testing.T) {
-		t.Parallel()
-
-		// Given: we load the chart successfully
-		chart, err := LoadChart()
-		require.NoError(t, err, "failed to load chart")
-		require.NoError(t, chart.Validate(), "chart validation failed")
-
-		// When: the user sets coder.tls.secretNames to a valid value
-		objs, err := chart.Render(func(v *Values) {
+		},
+	},
+	{
+		name:      "missing_values",
+		fn:        func(v *Values) {},
+		renderErr: `You must specify the coder.image.tag value if you're installing the Helm chart directly from Git.`,
+	},
+	{
+		name: "tls",
+		fn: func(v *Values) {
 			v.Coder.Image.Tag = "latest"
 			v.Coder.TLS.SecretNames = []string{"coder-tls"}
-		}, nil, nil)
+		},
+	},
+}
 
-		// Then: The chart should render successfully
+type TestCase struct {
+	name      string                    // Name of the test case. This corresponds to the golden file name.
+	fn        func(*Values)             // Function that mutates the values.
+	opts      *chartutil.ReleaseOptions // Release options to pass to the renderer.
+	caps      *chartutil.Capabilities   // Capabilities to pass to the renderer.
+	renderErr string                    // Expected error from rendering the chart.
+}
+
+func TestRenderChart(t *testing.T) {
+	t.Parallel()
+	if *UpdateGoldenFiles {
+		t.Skip("Golden files are being updated. Skipping test.")
+	}
+
+	for _, tc := range TestCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			w, err := LoadChart()
+			require.NoError(t, err)
+			require.NoError(t, w.Chart.Validate())
+			manifests, err := renderManifests(w.Chart, w.OriginalValues, tc.fn, tc.opts, tc.caps)
+			if tc.renderErr != "" {
+				require.Error(t, err, "render should have failed")
+				require.Contains(t, err.Error(), tc.renderErr, "render error should match")
+				require.Empty(t, manifests, "manifests should be empty")
+			} else {
+				require.NoError(t, err, "render should not have failed")
+				require.NotEmpty(t, manifests, "manifests should not be empty")
+				expected, err := readGoldenFile(tc.name)
+				require.NoError(t, err, "failed to load golden file")
+				actual := dumpManifests(manifests)
+				require.Equal(t, expected, actual)
+			}
+		})
+	}
+}
+
+func TestUpdateGoldenFiles(t *testing.T) {
+	t.Parallel()
+	if !*UpdateGoldenFiles {
+		t.Skip("Run with -update-golden-files to update golden files")
+	}
+	for _, tc := range TestCases {
+		w, err := LoadChart()
+		require.NoError(t, err, "failed to load chart")
+		if tc.renderErr != "" {
+			t.Logf("skipping test case %q with render error", tc.name)
+			continue
+		}
+		manifests, err := renderManifests(w.Chart, w.OriginalValues, tc.fn, tc.opts, tc.caps)
 		require.NoError(t, err, "failed to render manifests")
+		require.NoError(t, writeGoldenFile(tc.name, manifests), "failed to write golden file")
+	}
+	t.Log("Golden files updated. Please review the changes and commit them.")
+	t.Log("This test fails intentionally to prevent accidental updates.")
+	t.FailNow()
+}
 
-		// And: the CODER_TLS_ADDRESS env var should be set
-		deployment := requireDeployment(t, objs, "coder")
-		require.Equal(t, int32(1), *deployment.Spec.Replicas, "expected 1 replica")
-		require.Len(t, deployment.Spec.Template.Spec.Containers, 1, "expected 1 container")
-		requireEnv(t, deployment.Spec.Template.Spec.Containers[0].Env, "CODER_TLS_ADDRESS", "0.0.0.0:8443")
-	})
+func TestMain(m *testing.M) {
+	flag.Parse()
+	os.Exit(m.Run())
 }

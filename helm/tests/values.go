@@ -1,21 +1,14 @@
 package tests
 
 import (
-	"encoding/json"
-	"fmt"
-	"path/filepath"
-	"strings"
-
 	"golang.org/x/xerrors"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/chartutil"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // LoadChart loads the chart from the parent directory.
-func LoadChart() (*Chart, error) {
+func LoadChart() (*WrappedChart, error) {
 	ch, err := loader.LoadDir("..")
 	if err != nil {
 		return nil, xerrors.Errorf("failed to load chart: %w", err)
@@ -29,8 +22,8 @@ func LoadChart() (*Chart, error) {
 		return nil, xerrors.Errorf("failed to convert values to map: %w", err)
 	}
 
-	return &Chart{
-		chart:          ch,
+	return &WrappedChart{
+		Chart:          ch,
 		Metadata:       ch.Metadata,
 		Template:       ch.Templates,
 		Files:          ch.Files,
@@ -38,59 +31,19 @@ func LoadChart() (*Chart, error) {
 	}, nil
 }
 
-// Chart is a wrapper around helm.sh/helm/v3/pkg/chart.Chart.
-type Chart struct {
-	chart          *chart.Chart
+// WrappedChart is a wrapper around helm.sh/helm/v3/pkg/chart.WrappedChart.
+type WrappedChart struct {
+	Chart          *chart.Chart
 	Metadata       *chart.Metadata
 	Template       []*chart.File
 	Files          []*chart.File
 	OriginalValues *Values
 }
 
-// Validate validates the chart.
-func (c *Chart) Validate() error {
-	return c.chart.Validate()
-}
-
-// Render renders the chart with the given values.
-func (c *Chart) Render(mut func(*Values), opts *chartutil.ReleaseOptions, caps *chartutil.Capabilities) ([]runtime.Object, error) {
-	manifests, err := renderManifests(c.chart, c.OriginalValues, mut, opts, caps)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to render manifests: %w", err)
-	}
-
-	// As a special case, ignore any .txt files (e.g. NOTES.txt)
-	for key := range manifests {
-		if filepath.Ext(key) == ".txt" {
-			delete(manifests, key)
-		}
-	}
-
-	objs, err := loadObjectsFromManifests(manifests)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to load objects from manifests: %w", err)
-	}
-	return objs, nil
-}
-
 // Values is the top-level values struct for the Coder chart.
 type Values struct {
 	Coder          CoderValues            `json:"coder" yaml:"coder"`
 	ExtraTemplates map[string]interface{} `json:"extraTemplates" yaml:"extraTemplates"`
-}
-
-// Values must implement fmt.Stringer
-var _ = fmt.Stringer(&Values{})
-
-// String returns a JSON representation of v.
-func (v *Values) String() string {
-	var sb strings.Builder
-	enc := json.NewEncoder(&sb)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(v); err != nil {
-		panic(err)
-	}
-	return sb.String()
 }
 
 // CoderValues contains the values for the Coder deployment.
