@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/tools/go/packages"
 )
@@ -34,20 +35,21 @@ func TestAuditableResources(t *testing.T) {
 	unionType, ok := interfaceType.EmbeddedType(0).(*types.Union)
 	require.True(t, ok, "expected Auditable to be a union")
 
-	found := 0
+	found := make(map[string]bool)
 	// Now we check we have all the resources in the AuditableResources
 	for i := 0; i < unionType.Len(); i++ {
 		// All types come across like 'github.com/coder/coder/coderd/database.<type>'
 		typeName := unionType.Term(i).Type().String()
 		strings.TrimPrefix(typeName, "github.com/coder/coder/coderd/database.")
 		_, ok := AuditableResources[typeName]
-		require.True(t, ok, "missing resource %q from AuditableResources", typeName)
-		found++
+		assert.True(t, ok, "missing resource %q from AuditableResources", typeName)
+		found[typeName] = true
 	}
 
-	// It will not be possible to have extra resources in AuditableResources.
-	// But it can't hurt to check.
-	if found > len(AuditableResources) {
-		t.Errorf("extra resources found in AuditableResources. Expected %d, got %d", found, len(AuditableResources))
+	// Also check that all resources in the table are in the union. We could
+	// have extra resources here.
+	for name := range AuditableResources {
+		_, ok := found[name]
+		assert.True(t, ok, "extra resource %q found in AuditableResources", name)
 	}
 }

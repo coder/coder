@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
@@ -43,31 +42,20 @@ const (
 // field's AuditType.
 type Table map[string]map[string]Action
 
-// Add adds a new entry to the table.
-func (t *Table) add(key string, value map[string]Action) *Table {
-	(*t)[key] = value
-	return t
-}
-
 // AuditableResources contains a definitive list of all auditable resources and
 // which fields are auditable. All resource types must be valid audit.Auditable
 // types.
-var AuditableResources = *(&Table{}).
-	add(entry(database.GitSSHKey{}, map[string]Action{
+var AuditableResources = auditMap(auditableResourcesTypes)
+
+var auditableResourcesTypes = map[any]map[string]Action{
+	&database.GitSSHKey{}: {
 		"user_id":     ActionTrack,
 		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":  ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"private_key": ActionSecret, // We don't want to expose private keys in diffs.
 		"public_key":  ActionTrack,  // Public keys are ok to expose in a diff.
-	})).
-	add(entry(database.GitSSHKey{}, map[string]Action{
-		"user_id":     ActionTrack,
-		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":  ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"private_key": ActionSecret, // We don't want to expose private keys in diffs.
-		"public_key":  ActionTrack,  // Public keys are ok to expose in a diff.
-	})).
-	add(entry(database.Template{}, map[string]Action{
+	},
+	&database.Template{}: {
 		"id":                               ActionTrack,
 		"created_at":                       ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":                       ActionIgnore, // Changes, but is implicit and not helpful in a diff.
@@ -85,8 +73,8 @@ var AuditableResources = *(&Table{}).
 		"user_acl":                         ActionTrack,
 		"allow_user_cancel_workspace_jobs": ActionTrack,
 		"max_ttl":                          ActionTrack,
-	})).
-	add(entry(database.TemplateVersion{}, map[string]Action{
+	},
+	&database.TemplateVersion{}: {
 		"id":                 ActionTrack,
 		"template_id":        ActionTrack,
 		"organization_id":    ActionIgnore, // Never changes.
@@ -97,8 +85,8 @@ var AuditableResources = *(&Table{}).
 		"job_id":             ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
 		"created_by":         ActionTrack,
 		"git_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
-	})).
-	add(entry(database.User{}, map[string]Action{
+	},
+	&database.User{}: {
 		"id":              ActionTrack,
 		"email":           ActionTrack,
 		"username":        ActionTrack,
@@ -111,8 +99,8 @@ var AuditableResources = *(&Table{}).
 		"avatar_url":      ActionIgnore,
 		"last_seen_at":    ActionIgnore,
 		"deleted":         ActionTrack,
-	})).
-	add(entry(database.Workspace{}, map[string]Action{
+	},
+	&database.Workspace{}: {
 		"id":                 ActionTrack,
 		"created_at":         ActionIgnore, // Never changes.
 		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
@@ -124,8 +112,8 @@ var AuditableResources = *(&Table{}).
 		"autostart_schedule": ActionTrack,
 		"ttl":                ActionTrack,
 		"last_used_at":       ActionIgnore,
-	})).
-	add(entry(database.WorkspaceBuild{}, map[string]Action{
+	},
+	&database.WorkspaceBuild{}: {
 		"id":                  ActionIgnore,
 		"created_at":          ActionIgnore,
 		"updated_at":          ActionIgnore,
@@ -140,17 +128,17 @@ var AuditableResources = *(&Table{}).
 		"reason":              ActionIgnore,
 		"daily_cost":          ActionIgnore,
 		"max_deadline":        ActionIgnore,
-	})).
-	add(entry(database.AuditableGroup{}, map[string]Action{
+	},
+	&database.AuditableGroup{}: {
 		"id":              ActionTrack,
 		"name":            ActionTrack,
 		"organization_id": ActionIgnore, // Never changes.
 		"avatar_url":      ActionTrack,
 		"quota_allowance": ActionTrack,
 		"members":         ActionTrack,
-	})).
+	},
 	// We don't show any diff for the APIKey resource
-	add(entry(database.APIKey{}, map[string]Action{
+	&database.APIKey{}: {
 		"id":               ActionIgnore,
 		"hashed_secret":    ActionIgnore,
 		"user_id":          ActionIgnore,
@@ -163,21 +151,35 @@ var AuditableResources = *(&Table{}).
 		"ip_address":       ActionIgnore,
 		"scope":            ActionIgnore,
 		"token_name":       ActionIgnore,
-	})).
+	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
-	add(entry(database.License{}, map[string]Action{
+	&database.License{}: {
 		"id":          ActionIgnore,
 		"uploaded_at": ActionTrack,
 		"jwt":         ActionIgnore,
 		"exp":         ActionTrack,
 		"uuid":        ActionTrack,
-	}))
+	},
+}
 
-// entry is a helper function that ensures all entries in the table are valid
-// audit.Auditable types. It also ensures all json tags have a corresponding
-// action.
-func entry[A audit.Auditable](v A, f map[string]Action) (string, map[string]Action) {
+// auditMap converts a map of struct pointers to a map of struct names as
+// strings. It's a convenience wrapper so that structs can be passed in by value
+// instead of manually typing struct names as strings.
+func auditMap(m map[any]map[string]Action) Table {
+	out := make(Table, len(m))
+
+	for k, v := range m {
+		tableKey, tableValue := entry(k, v)
+		out[tableKey] = tableValue
+	}
+
+	return out
+}
+
+// entry is a helper function that checks the json tags to make sure all fields
+// are tracked. And no excess fields are tracked.
+func entry(v any, f map[string]Action) (string, map[string]Action) {
 	vt := reflect.TypeOf(v)
 	for vt.Kind() == reflect.Ptr {
 		vt = vt.Elem()
@@ -221,19 +223,6 @@ func entry[A audit.Auditable](v A, f map[string]Action) (string, map[string]Acti
 	}
 
 	return structName(vt), f
-}
-
-// auditMap converts a map of struct pointers to a map of struct names as
-// strings. It's a convenience wrapper so that structs can be passed in by value
-// instead of manually typing struct names as strings.
-func auditMap(m map[any]map[string]Action) Table {
-	out := make(Table, len(m))
-
-	for k, v := range m {
-		out[structName(reflect.TypeOf(k).Elem())] = v
-	}
-
-	return out
 }
 
 func (t Action) String() string {
