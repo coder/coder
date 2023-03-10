@@ -93,8 +93,6 @@ func TestUpdateGoldenFiles(t *testing.T) {
 		require.NoError(t, writeGoldenFile(tc.name, manifests), "failed to write golden file")
 	}
 	t.Log("Golden files updated. Please review the changes and commit them.")
-	t.Log("This test fails intentionally to prevent accidental updates.")
-	t.FailNow()
 }
 
 func TestMain(m *testing.M) {
