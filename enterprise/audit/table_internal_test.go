@@ -2,7 +2,6 @@ package audit
 
 import (
 	"go/types"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,6 +12,8 @@ import (
 // TestAuditableResources ensures that all auditable resources are included in
 // the Auditable interface and vice versa.
 func TestAuditableResources(t *testing.T) {
+	t.Parallel()
+
 	pkgs, err := packages.Load(&packages.Config{
 		Mode: packages.NeedTypes,
 	}, "../../coderd/audit")
@@ -40,7 +41,6 @@ func TestAuditableResources(t *testing.T) {
 	for i := 0; i < unionType.Len(); i++ {
 		// All types come across like 'github.com/coder/coder/coderd/database.<type>'
 		typeName := unionType.Term(i).Type().String()
-		strings.TrimPrefix(typeName, "github.com/coder/coder/coderd/database.")
 		_, ok := AuditableResources[typeName]
 		assert.True(t, ok, "missing resource %q from AuditableResources", typeName)
 		found[typeName] = true
