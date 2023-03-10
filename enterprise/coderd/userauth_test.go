@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
@@ -28,7 +29,10 @@ func TestUserOIDC(t *testing.T) {
 			ctx, _ := testutil.Context(t)
 			conf := coderdtest.NewOIDCConfig(t, "")
 
-			config := conf.OIDCConfig(t, jwt.MapClaims{})
+			const groupClaim = "custom-groups"
+			config := conf.OIDCConfig(t, jwt.MapClaims{}, func(cfg *coderd.OIDCConfig) {
+				cfg.GroupField = groupClaim
+			})
 			config.AllowSignups = true
 
 			client := coderdenttest.New(t, &coderdenttest.Options{
@@ -53,8 +57,8 @@ func TestUserOIDC(t *testing.T) {
 			require.Len(t, group.Members, 0)
 
 			resp := oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
-				"email":  "colin@coder.com",
-				"groups": []string{groupName},
+				"email":    "colin@coder.com",
+				groupClaim: []string{groupName},
 			}))
 			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
