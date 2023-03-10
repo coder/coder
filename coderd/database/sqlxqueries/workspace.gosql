@@ -30,11 +30,6 @@ WHERE
 		ELSE true
 	END
 	AND CASE
-		WHEN @job_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			job_id = @job_id
-		ELSE true
-	END
-	AND CASE
 		WHEN @created_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
 			created_at > @created_after
 		ELSE true
