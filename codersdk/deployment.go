@@ -220,7 +220,7 @@ type OIDCConfig struct {
 	Scopes              clibase.Strings `json:"scopes" typescript:",notnull"`
 	IgnoreEmailVerified clibase.Bool    `json:"ignore_email_verified" typescript:",notnull"`
 	UsernameField       clibase.String  `json:"username_field" typescript:",notnull"`
-	GroupField          clibase.String  `json:"group" typescript:",notnull"`
+	GroupField          clibase.String  `json:"groups_field" typescript:",notnull"`
 	SignInText          clibase.String  `json:"sign_in_text" typescript:",notnull"`
 	IconURL             clibase.URL     `json:"icon_url" typescript:",notnull"`
 }
