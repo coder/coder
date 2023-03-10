@@ -49,40 +49,6 @@ func (t *Table) Add(key string, value map[string]Action) *Table {
 	return t
 }
 
-// entry is a helper function that ensures all entries in the table are valid
-// audit.Auditable types. It also ensures all json tags have a corresponding
-// action.
-func entry[A audit.Auditable](v A, f map[string]Action) (string, map[string]Action) {
-	vt := reflect.TypeOf(v)
-	for vt.Kind() == reflect.Ptr {
-		vt = vt.Elem()
-	}
-
-	// This should never happen because audit.Audible only allows structs in
-	// its union.
-	if vt.Kind() != reflect.Struct {
-		panic(fmt.Sprintf("audit table entry value must be a struct, got %T", v))
-	}
-
-	name := structName(vt)
-	// Ensure all json tags have a corresponding action.
-	for i := 0; i < vt.NumField(); i++ {
-		field := vt.Field(i)
-		if !field.IsExported() {
-			continue
-		}
-		if field.Tag.Get("json") == "-" {
-			// This field is explicitly ignored.
-			continue
-		}
-		if _, ok := f[field.Name]; !ok {
-			panic(fmt.Sprintf("audit table entry missing action for field %q in type %q", field.Name, name))
-		}
-	}
-
-	return structName(vt), f
-}
-
 // AuditableResources contains a definitive list of all auditable resources and
 // which fields are auditable. All resource types must be valid audit.Auditable
 // types.
@@ -209,6 +175,40 @@ var AuditableResources = (&Table{}).
 		"exp":         ActionTrack,
 		"uuid":        ActionTrack,
 	}))
+
+// entry is a helper function that ensures all entries in the table are valid
+// audit.Auditable types. It also ensures all json tags have a corresponding
+// action.
+func entry[A audit.Auditable](v A, f map[string]Action) (string, map[string]Action) {
+	vt := reflect.TypeOf(v)
+	for vt.Kind() == reflect.Ptr {
+		vt = vt.Elem()
+	}
+
+	// This should never happen because audit.Audible only allows structs in
+	// its union.
+	if vt.Kind() != reflect.Struct {
+		panic(fmt.Sprintf("audit table entry value must be a struct, got %T", v))
+	}
+
+	name := structName(vt)
+	// Ensure all json tags have a corresponding action.
+	for i := 0; i < vt.NumField(); i++ {
+		field := vt.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		if field.Tag.Get("json") == "-" {
+			// This field is explicitly ignored.
+			continue
+		}
+		if _, ok := f[field.Name]; !ok {
+			panic(fmt.Sprintf("audit table entry missing action for field %q in type %q", field.Name, name))
+		}
+	}
+
+	return structName(vt), f
+}
 
 // auditMap converts a map of struct pointers to a map of struct names as
 // strings. It's a convenience wrapper so that structs can be passed in by value
