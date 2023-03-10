@@ -41,7 +41,7 @@ const (
 func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appReq Request) (*Ticket, bool) {
 	// nolint:gocritic // We need to make a number of database calls. Setting a system context here
 	//                 // is simpler than calling dbauthz.AsSystemRestricted on every call.
-	// 			       // dangerousSystemCtx is only used for database calls. The actual authentication
+	//                 // dangerousSystemCtx is only used for database calls. The actual authentication
 	//                 // logic is handled in Provider.authorizeWorkspaceApp which directly checks the actor's
 	//                 // permissions.
 	dangerousSystemCtx := dbauthz.AsSystemRestricted(r.Context())
