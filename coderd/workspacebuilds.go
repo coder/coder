@@ -496,6 +496,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		// Check if legacy variable is defined
 		for _, legacyParameter := range legacyParameters {
 			if legacyParameter.Name != templateVersionParameter.Name {
 				continue
