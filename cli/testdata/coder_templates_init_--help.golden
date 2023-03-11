@@ -1,3 +1,6 @@
-usage: templates init [directory]
+Usage: coder templates init [directory]
 
 Get started with a templated template.
+
+
+ 

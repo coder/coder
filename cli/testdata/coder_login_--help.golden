@@ -1,6 +1,9 @@
-usage: coder login <url>
+Usage: coder login <url>
 
 Authenticate with Coder deployment
+
+
+ 
 Options
  
     --first-user-email, $CODER_FIRST_USER_EMAIL 

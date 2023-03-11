@@ -1,6 +1,9 @@
-usage: coder publickey
+Usage: coder publickey
 
 Output your Coder public key used for Git operations
+
+
+ 
 Options
  
     --reset

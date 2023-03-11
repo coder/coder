@@ -1,6 +1,9 @@
-usage: coder users [subcommand]
+Usage: coder users [subcommand]
 
 Manage users
+
+
+ 
 Subcommands
       create      
       list        

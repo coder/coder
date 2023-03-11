@@ -1,6 +1,8 @@
-usage: scaletest create-workspaces
+Usage: coder scaletest create-workspaces
 
-Creates many workspaces and waits for them to be readyCreates many users, then creates a workspace for each user and waits for them
+Creates many workspaces and waits for them to be ready
+
+Creates many users, then creates a workspace for each user and waits for them
 finish building and fully come online. Optionally runs a command inside each
 workspace, and connects to the workspace over WireGuard.
 

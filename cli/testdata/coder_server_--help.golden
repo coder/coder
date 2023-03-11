@@ -1,6 +1,9 @@
-usage: coder server
+Usage: coder server
 
 Start a Coder server
+
+
+ 
 Options
  
     --cache-dir, $CACHE_DIRECTORY  (default: ~/.cache/coder) 

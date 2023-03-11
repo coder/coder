@@ -1,6 +1,7 @@
-usage: users create
+Usage: coder users create
 
 
+ 
 Options
  
     --email, -e

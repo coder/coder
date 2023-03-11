@@ -1,6 +1,9 @@
-usage: versions list <template>
+Usage: coder templates versions list <template>
 
 List all the versions of the specified template
+
+
+ 
 Options
  
     --column, -c (default: name,created at,created by,status,active) 

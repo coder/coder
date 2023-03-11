@@ -1,6 +1,8 @@
-usage: coder update <workspace>
+Usage: coder update <workspace>
 
-Will update and start a given workspace if it is out of date.Will update and start a given workspace if it is out of date. Use
+Will update and start a given workspace if it is out of date.
+
+Will update and start a given workspace if it is out of date. Use
 --always-prompt to change the parameter values of the workspace.
  
 Options

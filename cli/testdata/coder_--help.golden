@@ -1,4 +1,4 @@
-usage: coder [subcommand]
+Usage: coder [subcommand]
 
 Coder v0.0.0-devel — A tool for provisioning self-hosted development
 environments with Terraform.
@@ -58,6 +58,6 @@ Subcommands
       start             Start a workspace
       stop              Stop a workspace
       update            Will update and start a given workspace if it is out of date.
-      agent             
+      agent             Starts the Coder workspace agent.
       scaletest         Run a scale test against the Coder API
       server            Start a Coder server

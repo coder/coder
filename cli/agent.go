@@ -36,7 +36,8 @@ func (*RootCmd) workspaceAgent() *clibase.Cmd {
 		noReap       bool
 	)
 	cmd := &clibase.Cmd{
-		Use: "agent",
+		Use:   "agent",
+		Short: `Starts the Coder workspace agent.`,
 		// This command isn't useful to manually execute.
 		Hidden: true,
 		Handler: func(inv *clibase.Invocation) error {

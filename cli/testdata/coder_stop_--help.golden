@@ -1,6 +1,9 @@
-usage: coder stop <workspace>
+Usage: coder stop <workspace>
 
 Stop a workspace
+
+
+ 
 Options
  
     --yes, -y, $CODER_SKIP_PROMPT 

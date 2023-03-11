@@ -1,6 +1,9 @@
-usage: state push <workspace> <file>
+Usage: coder state push <workspace> <file>
 
 Push a Terraform state file to a workspace.
+
+
+ 
 Options
  
     --build, -b (default: 0) 

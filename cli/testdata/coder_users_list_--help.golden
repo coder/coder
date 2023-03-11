@@ -1,6 +1,7 @@
-usage: users list
+Usage: coder users list
 
 
+ 
 Options
  
     --column, -c (default: username,email,created_at,status) 

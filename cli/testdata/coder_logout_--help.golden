@@ -1,6 +1,9 @@
-usage: coder logout
+Usage: coder logout
 
 Unauthenticate your local session
+
+
+ 
 Options
  
     --yes, -y, $CODER_SKIP_PROMPT 

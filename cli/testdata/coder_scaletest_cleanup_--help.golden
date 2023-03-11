@@ -1,6 +1,8 @@
-usage: scaletest cleanup
+Usage: coder scaletest cleanup
 
-Cleanup any orphaned scaletest resourcesCleanup scaletest workspaces, then cleanup scaletest users. The strategy flags
+Cleanup any orphaned scaletest resources
+
+Cleanup scaletest workspaces, then cleanup scaletest users. The strategy flags
 will apply to each stage of the cleanup process.
  
 Options

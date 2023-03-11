@@ -1,6 +1,10 @@
-usage: server create-admin-user
+Usage: coder server create-admin-user
 
-Create a new admin user with the given username, email and password and adds it to every organization.
+Create a new admin user with the given username, email and password and adds it
+to every organization.
+
+
+ 
 Options
  
     --raw-url (default: false) 

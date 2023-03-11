@@ -1,6 +1,8 @@
-usage: schedule start <workspace-name> { <start-time> [day-of-week] [location] | manual }
+Usage: coder schedule start <workspace-name> { <start-time> [day-of-week] [location] | manual }
 
-Edit workspace start scheduleSchedules a workspace to regularly start at a specific time.
+Edit workspace start schedule
+
+Schedules a workspace to regularly start at a specific time.
 Schedule format: <start-time> [day-of-week] [location].
   * Start-time (required) is accepted either in 12-hour (hh:mm{am|pm}) format,
 or 24-hour format hh:mm.

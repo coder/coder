@@ -1,6 +1,9 @@
-usage: coder delete <workspace>
+Usage: coder delete <workspace>
 
 Delete a workspace
+
+
+ 
 Options
  
     --orphan (default: false) 

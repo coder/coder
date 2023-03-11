@@ -1,6 +1,9 @@
-usage: templates pull <name> [destination]
+Usage: coder templates pull <name> [destination]
 
 Download the latest version of a template to a path.
+
+
+ 
 Options
  
     --tar (default: false) 

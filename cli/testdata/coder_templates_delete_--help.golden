@@ -1,6 +1,9 @@
-usage: templates delete [name...]
+Usage: coder templates delete [name...]
 
 Delete templates
+
+
+ 
 Options
  
     --yes, -y, $CODER_SKIP_PROMPT 

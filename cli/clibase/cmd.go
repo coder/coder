@@ -77,7 +77,7 @@ func (c *Cmd) FullName() string {
 func (c *Cmd) FullUsage() string {
 	var uses []string
 	if c.Parent != nil {
-		uses = append(uses, c.Parent.Name())
+		uses = append(uses, c.Parent.FullName())
 	}
 	uses = append(uses, c.Use)
 	return strings.Join(uses, " ")
@@ -163,6 +163,7 @@ func (i *Invocation) run(state *runState) error {
 
 	children := make(map[string]*Cmd)
 	for _, child := range i.Command.Children {
+		child.Parent = i.Command
 		for _, name := range append(child.Aliases, child.Name()) {
 			if _, ok := children[name]; ok {
 				return xerrors.Errorf("duplicate command name: %s", name)

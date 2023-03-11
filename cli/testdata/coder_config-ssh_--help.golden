@@ -1,6 +1,8 @@
-usage: coder config-ssh
+Usage: coder config-ssh
 
-Add an SSH Host entry for your workspaces "ssh coder.workspace"- You can use -o (or --ssh-option) so set SSH options to be used for all your 
+Add an SSH Host entry for your workspaces "ssh coder.workspace"
+
+- You can use -o (or --ssh-option) so set SSH options to be used for all your 
     workspaces:                                                                 
 
       $ coder config-ssh -o ForwardAgent=yes 

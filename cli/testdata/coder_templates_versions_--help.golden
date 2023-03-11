@@ -1,6 +1,8 @@
-usage: templates versions
+Usage: coder templates versions
 
-Manage different versions of the specified template- List versions of a specific template:                                       
+Manage different versions of the specified template
+
+- List versions of a specific template:                                       
 
       $ coder templates versions list my-template
  

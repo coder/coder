@@ -1,6 +1,8 @@
-usage: schedule show <workspace-name>
+Usage: coder schedule show <workspace-name>
 
-Show workspace scheduleShows the following information for the given workspace:
+Show workspace schedule
+
+Shows the following information for the given workspace:
   * The automatic start schedule
   * The next scheduled start time
   * The duration after which it will stop

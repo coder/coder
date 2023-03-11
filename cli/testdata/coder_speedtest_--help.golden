@@ -1,6 +1,9 @@
-usage: coder speedtest <workspace>
+Usage: coder speedtest <workspace>
 
 Run upload and download tests from your machine to a workspace
+
+
+ 
 Options
  
     --d (default: false) 

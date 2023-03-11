@@ -1,6 +1,9 @@
-usage: coder ssh <workspace>
+Usage: coder ssh <workspace>
 
 Start a shell into a workspace
+
+
+ 
 Options
  
     --stdio, $CODER_SSH_STDIO 

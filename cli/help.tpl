@@ -1,12 +1,14 @@
 {{- /* Heavily inspired by the Go toolchain formatting. */ -}}
-usage: {{.FullUsage}}
+Usage: {{.FullUsage}}
 
-{{.Short}}
+{{ with .Short }}
+{{- wrapTTY . }}
+{{"\n"}}
+{{- end}}
 {{- with .Long}}
 {{- formatLong . }}
-{{ " " }}
 {{- end }}
-
+{{ " " }}
 {{- range $index, $group := optionGroups . }}
 {{ with $group.Name }} {{- print $group.Name " Options" | prettyHeader }} {{ else -}} {{ prettyHeader "Options"}}{{- end -}}
 {{- with $group.Description }}

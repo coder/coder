@@ -1,6 +1,9 @@
-usage: users suspend <username|user_id>
+Usage: coder users suspend <username|user_id>
 
-Update a user's status to 'suspended'. A suspended user cannot log into the platform$ coder users suspend example_user
+Update a user's status to 'suspended'. A suspended user cannot log into the
+platform
+
+$ coder users suspend example_user
  
 Options
  

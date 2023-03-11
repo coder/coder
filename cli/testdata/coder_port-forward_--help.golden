@@ -1,6 +1,8 @@
-usage: coder port-forward <workspace>
+Usage: coder port-forward <workspace>
 
-Forward ports from machine to a workspace- Port forward a single TCP port from 1234 in the workspace to port 5678 on   
+Forward ports from machine to a workspace
+
+- Port forward a single TCP port from 1234 in the workspace to port 5678 on   
     your local machine:                                                         
 
       $ coder port-forward <workspace> --tcp 5678:1234 

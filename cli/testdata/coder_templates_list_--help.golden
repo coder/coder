@@ -1,6 +1,9 @@
-usage: templates list
+Usage: coder templates list
 
 List all the templates available for the organization
+
+
+ 
 Options
  
     --column, -c (default: name,last updated,used by) 

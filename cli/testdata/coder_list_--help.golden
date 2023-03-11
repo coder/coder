@@ -1,6 +1,9 @@
-usage: coder list
+Usage: coder list
 
 List workspaces
+
+
+ 
 Options
  
     --all, -a (default: false) 

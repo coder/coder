@@ -1,6 +1,9 @@
-usage: templates edit <template> [flags]
+Usage: coder templates edit <template> [flags]
 
 Edit the metadata of a template by name.
+
+
+ 
 Options
  
     --name

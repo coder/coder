@@ -1,6 +1,9 @@
-usage: coder schedule { show | start | stop | override } <workspace>
+Usage: coder schedule { show | start | stop | override } <workspace>
 
 Schedule automated start and stop times for workspaces
+
+
+ 
 Subcommands
       show             Show workspace schedule
       start            Edit workspace start schedule

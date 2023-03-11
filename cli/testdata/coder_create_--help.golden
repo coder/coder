@@ -1,6 +1,9 @@
-usage: coder create [name]
+Usage: coder create [name]
 
 Create a workspace
+
+
+ 
 Options
  
     --parameter-file, $CODER_PARAMETER_FILE 

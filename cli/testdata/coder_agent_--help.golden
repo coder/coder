@@ -1,6 +1,9 @@
-usage: coder agent
+Usage: coder agent
+
+Starts the Coder workspace agent.
 
 
+ 
 Options
  
     --auth, $CODER_AGENT_AUTH  (default: token) 

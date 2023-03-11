@@ -1,6 +1,8 @@
-usage: coder templates
+Usage: coder templates
 
-Manage templatesTemplates are written in standard Terraform and describe the infrastructure for
+Manage templates
+
+Templates are written in standard Terraform and describe the infrastructure for
 workspaces
   - Create a template for developers to create workspaces:                      
 
