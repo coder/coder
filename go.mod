@@ -179,7 +179,7 @@ require (
 )
 
 require (
-	github.com/ammario/tlru v0.2.0 // indirect
+	github.com/ammario/tlru v0.3.0 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/dgraph-io/badger/v3 v3.2103.5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect

@@ -30,14 +30,14 @@ func cwd() string {
 }
 
 // Cache regex compilation for ergonomics.
-var regexCache = tlru.New[string](tlru.ConstantCost[*regexp.Regexp], 10000)
+var regexCache = tlru.New[string](tlru.ConstantCost[*regexp.Regexp], -1)
 
 func fastRegex(s string) *regexp.Regexp {
 	if r, _, ok := regexCache.Get(s); ok {
 		return r
 	}
 	r := regexp.MustCompile(s)
-	regexCache.Set(s, r, time.Hour)
+	regexCache.Set(s, r, time.Minute)
 	return r
 }
 

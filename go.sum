@@ -193,6 +193,8 @@ github.com/alexflint/go-filemutex v1.1.0/go.mod h1:7P4iRhttt/nUvUOrYIhcpMzv2G6CY
 github.com/alexkohler/prealloc v1.0.0/go.mod h1:VetnK3dIgFBBKmg0YnD9F9x6Icjd+9cvfHR56wJVlKE=
 github.com/ammario/tlru v0.2.0 h1:4lI5Xzcfg693kePMLi8FfPTVuk13ZlmJ46DINfWBMsQ=
 github.com/ammario/tlru v0.2.0/go.mod h1:rkDLONChG/FXePDU8DeHH/mniFhDNzaMcdGXuME6JQg=
+github.com/ammario/tlru v0.3.0 h1:yK8ESoFlEyz/BVVL8yZQKAUzJwFJR/j9EfxjnKxtR/Q=
+github.com/ammario/tlru v0.3.0/go.mod h1:aYzRFu0XLo4KavE9W8Lx7tzjkX+pAApz+NgcKYIFUBQ=
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883 h1:bvNMNQO63//z+xNgfBlViaCIJKLlCJ6/fmUseuG0wVQ=
 github.com/andybalholm/brotli v1.0.2/go.mod h1:loMXtMfwqflxFJPmdbJO0a3KNoPuLBgiu3qAvBg8x/Y=
 github.com/andybalholm/brotli v1.0.3/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=
