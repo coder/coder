@@ -63,9 +63,22 @@ func find(matchReg string) ([]string, error) {
 	})
 }
 
+type sourceFilter struct {
+	dir     string
+	regexes []string
+}
+
 // destNewer returns true if the destination file is newer than any of the
 // source files, describes as regex.
-func destNewer(dest string, sourceRegexes ...string) bool {
+func destNewer(dest string, sources ...sourceFilter) bool {
+	if len(sources) == 0 {
+		return false
+	}
+
+	if os.Getenv("MAGE_CLEAN") != "" {
+		return false
+	}
+
 	info, err := os.Stat(dest)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -82,34 +95,45 @@ func destNewer(dest string, sourceRegexes ...string) bool {
 		offender    string
 	)
 	start := time.Now()
-	err = filepath.Walk(cwd(), func(path string, info os.FileInfo, err error) error {
-		filesWalked++
-		if err != nil {
-			return err
-		}
-		if path == "" {
-			return nil
-		}
-		if info.ModTime().Before(destModAt) {
-			return nil
-		}
-
-		for _, sourceRegex := range sourceRegexes {
-			if !fastRegex(sourceRegex).MatchString(path) {
-				continue
+	for _, source := range sources {
+		err = filepath.Walk(source.dir, func(path string, info os.FileInfo, err error) error {
+			filesWalked++
+			if err != nil {
+				return err
 			}
-			newer = true
-			offender = path
-			return filepath.SkipDir
-		}
-		return nil
-	})
+			if path == "" {
+				return nil
+			}
+
+			// If the mod time is equal, we are likely at the dest.
+			if !info.ModTime().After(destModAt) {
+				return nil
+			}
+
+			if len(source.regexes) == 0 {
+				newer = false
+				offender = path
+				return filepath.SkipAll
+			}
+
+			for _, r := range source.regexes {
+				if !fastRegex(r).MatchString(path) {
+					continue
+				}
+				newer = false
+				offender = path
+				return filepath.SkipAll
+			}
+			return nil
+		})
+	}
+
 	end := time.Now()
 	if err != nil {
 		mg.Fatalf(1, "failed to walk: %v", err)
 	}
 	if mg.Verbose() {
-		flog.Info("destNewer search took %v (walked %v files, result %v, offender %q)",
+		flog.Info("destNewer search took %v (walked %v files, result: %v, offender %q)",
 			end.Sub(start),
 			filesWalked,
 			newer,

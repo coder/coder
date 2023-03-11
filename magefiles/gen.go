@@ -24,7 +24,7 @@ func (Gen) DumpSQL() error {
 		"coderd", "database", "dump.sql",
 	)
 
-	if destNewer(dst, "^coder/database") {
+	if destNewer(dst, sourceFilter{"coderd/database", nil}) {
 		return nil
 	}
 
