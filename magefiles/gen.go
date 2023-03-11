@@ -362,7 +362,7 @@ func writePrometheusDoc(path string, doc []byte) error {
 	return nil
 }
 
-func sortedKeys(m map[string]struct{}) []string {
+func sortedKeys[V any](m map[string]V) []string {
 	var keys []string
 	for k := range m {
 		keys = append(keys, k)
