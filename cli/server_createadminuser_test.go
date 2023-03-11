@@ -202,9 +202,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 			"--ssh-keygen-algorithm", "ed25519",
 		)
 		pty := ptytest.New(t)
-		root.Stdin = pty.Input()
-		root.Stdout = pty.Output()
-		root.Stderr = pty.Output()
+		pty.Attach(root)
 
 		clitest.Start(t, root)
 

@@ -344,16 +344,18 @@ func (s *Struct[T]) UnmarshalJSON(b []byte) error {
 // DiscardValue does nothing but implements the pflag.Value interface.
 // It's useful in cases where you want to accept an option, but access the
 // underlying value directly instead of through the Option methods.
-type DiscardValue struct{}
+var DiscardValue *discardValue
 
-func (DiscardValue) Set(string) error {
+type discardValue struct{}
+
+func (*discardValue) Set(string) error {
 	return nil
 }
 
-func (DiscardValue) String() string {
+func (*discardValue) String() string {
 	return ""
 }
 
-func (DiscardValue) Type() string {
+func (*discardValue) Type() string {
 	return "discard"
 }

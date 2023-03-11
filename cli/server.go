@@ -1166,9 +1166,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		Value:       clibase.BoolOf(&pgRawURL),
 		Description: "Output the raw connection URL instead of a psql command.",
 	}
-	createAdminUserCmd.Options = append(createAdminUserCmd.Options, rawURLOpt)
-	postgresBuiltinURLCmd.Options = append(postgresBuiltinURLCmd.Options, rawURLOpt)
-	postgresBuiltinServeCmd.Options = append(postgresBuiltinServeCmd.Options, rawURLOpt)
+	createAdminUserCmd.Options.Add(rawURLOpt)
+	postgresBuiltinURLCmd.Options.Add(rawURLOpt)
+	postgresBuiltinServeCmd.Options.Add(rawURLOpt)
 
 	serverCmd.Children = append(
 		serverCmd.Children,

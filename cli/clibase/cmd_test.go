@@ -239,6 +239,40 @@ func TestCommand_DeepNest(t *testing.T) {
 	require.Equal(t, "3", stdio.Stdout.String())
 }
 
+func TestCommand_FlagOverride(t *testing.T) {
+	t.Parallel()
+	var flag string
+
+	cmd := &clibase.Cmd{
+		Use: "1",
+		Options: []clibase.Option{
+			{
+				Flag:  "f",
+				Value: clibase.DiscardValue,
+			},
+		},
+		Children: []*clibase.Cmd{
+			{
+				Use: "2",
+				Options: []clibase.Option{
+					{
+						Flag:  "f",
+						Value: clibase.StringOf(&flag),
+					},
+				},
+				Handler: func(i *clibase.Invocation) error {
+					return nil
+				},
+			},
+		},
+	}
+
+	err := cmd.Invoke("2", "--f", "mhmm").Run()
+	require.NoError(t, err)
+
+	require.Equal(t, "mhmm", flag)
+}
+
 func TestCommand_MiddlewareOrder(t *testing.T) {
 	t.Parallel()
 

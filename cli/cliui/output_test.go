@@ -87,7 +87,7 @@ func Test_OutputFormatter(t *testing.T) {
 						Name:          "foo",
 						Flag:          "foo",
 						FlagShorthand: "f",
-						Value:         &clibase.DiscardValue{},
+						Value:         clibase.DiscardValue,
 						Description:   "foo flag 1234",
 					})
 				},

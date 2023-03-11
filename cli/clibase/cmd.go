@@ -144,6 +144,17 @@ type runState struct {
 	flagParseErr error
 }
 
+func copyFlagSetWithout(fs *pflag.FlagSet, without string) *pflag.FlagSet {
+	fs2 := pflag.NewFlagSet("", pflag.ContinueOnError)
+	fs.VisitAll(func(f *pflag.Flag) {
+		if f.Name == without {
+			return
+		}
+		fs2.AddFlag(f)
+	})
+	return fs2
+}
+
 // run recursively executes the command and its children.
 // allArgs is wired through the stack so that global flags can be accepted
 // anywhere in the command invocation.
@@ -177,7 +188,15 @@ func (i *Invocation) run(state *runState) error {
 		i.parsedFlags.Usage = func() {}
 	}
 
-	i.parsedFlags.AddFlagSet(i.Command.Options.FlagSet())
+	// If we find a duplicate flag, we want the deeper command's flag to override
+	// the shallow one. Unfortunately, pflag has no way to remove a flag, so we
+	// have to create a copy of the flagset without a value.
+	i.Command.Options.FlagSet().VisitAll(func(f *pflag.Flag) {
+		if i.parsedFlags.Lookup(f.Name) != nil {
+			i.parsedFlags = copyFlagSetWithout(i.parsedFlags, f.Name)
+		}
+		i.parsedFlags.AddFlag(f)
+	})
 
 	var parsedArgs []string
 
