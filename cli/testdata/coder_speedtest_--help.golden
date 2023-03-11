@@ -2,15 +2,16 @@ Usage: coder speedtest <workspace>
 
 Run upload and download tests from your machine to a workspace
 
- Options
- 
+Options
     --d (default: false) 
-    Specifies whether to wait for a direct connection before testing speed.
+        Specifies whether to wait for a direct connection before testing speed.
 
     --direction (default: down) 
-    Specifies whether to run in reverse mode where the client receives and the
-    server sends. (up|down)
+        Specifies whether to run in reverse mode where the client receives and
+        the server sends. (up|down)
 
     --time, -t (default: 5s) 
-    Specifies the duration to monitor traffic.
+        Specifies the duration to monitor traffic.
 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

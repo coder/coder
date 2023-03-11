@@ -5,6 +5,7 @@ Manage different versions of the specified template
 - List versions of a specific template:                                       
 
       $ coder templates versions list my-template
- 
 Subcommands
-      list    List all the versions of the specified template
+        list      List all the versions of the specified template
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

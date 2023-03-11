@@ -8,4 +8,5 @@ Override the stop time of a currently running workspace instance.
   * The workspace template may restrict the maximum workspace runtime.
 
   $ coder schedule override-stop my-workspace 90m
- 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

@@ -2,11 +2,12 @@ Usage: coder templates pull <name> [destination]
 
 Download the latest version of a template to a path.
 
- Options
- 
+Options
     --tar (default: false) 
-    output the template as a tar archive to stdout
+        output the template as a tar archive to stdout
 
     --yes, -y, $CODER_SKIP_PROMPT 
-    Bypass prompts
+        Bypass prompts
 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

@@ -2,8 +2,9 @@ Usage: coder templates delete [name...]
 
 Delete templates
 
- Options
- 
+Options
     --yes, -y, $CODER_SKIP_PROMPT 
-    Bypass prompts
+        Bypass prompts
 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

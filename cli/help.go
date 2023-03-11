@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"bytes"
 	_ "embed"
 	"io"
@@ -46,11 +47,22 @@ var usageTemplate = template.Must(
 			"trimNewline": func(s string) string {
 				return strings.TrimSuffix(s, "\n")
 			},
-			"indent": func(s string, tabs int) string {
+			"indent": func(body string, tabs int) string {
+				twidth, _, err := terminal.GetSize(0)
+				if err != nil {
+					twidth = 80
+				}
+
+				spacing := strings.Repeat(" ", tabs*4)
+
+				body = wordwrap.WrapString(body, uint(twidth-len(spacing)))
+
 				var sb strings.Builder
-				for _, line := range strings.Split(s, "\n") {
+				for _, line := range strings.Split(body, "\n") {
 					// Remove existing indent, if any.
-					_, _ = sb.WriteString(strings.Repeat("\t", tabs))
+					line = strings.TrimSpace(line)
+					// Use spaces so we can easily calculate wrapping.
+					_, _ = sb.WriteString(spacing)
 					_, _ = sb.WriteString(line)
 					_, _ = sb.WriteString("\n")
 				}
@@ -165,26 +177,25 @@ type newlineLimiter struct {
 	w     io.Writer
 	limit int
 
-	newLineCount int
+	newLineCounter int
 }
 
-func (n *newlineLimiter) Write(p []byte) (int, error) {
-	var clean bytes.Buffer
-	for _, r := range string(p) {
+func (lm *newlineLimiter) Write(p []byte) (int, error) {
+	rd := bytes.NewReader(p)
+	for r, n, _ := rd.ReadRune(); n > 0; r, n, _ = rd.ReadRune() {
 		switch {
 		case r == '\n':
-			n.newLineCount++
-			if n.newLineCount > n.limit {
+			lm.newLineCounter++
+			if lm.newLineCounter > lm.limit {
 				continue
 			}
 		case !unicode.IsSpace(r):
-			n.newLineCount = 0
+			lm.newLineCounter = 0
 		}
-		_, _ = clean.WriteRune(r)
-	}
-	_, err := n.w.Write(clean.Bytes())
-	if err != nil {
-		return 0, err
+		_, err := lm.w.Write([]byte(string(r)))
+		if err != nil {
+			return 0, err
+		}
 	}
 	return len(p), nil
 }
@@ -193,7 +204,10 @@ func (n *newlineLimiter) Write(p []byte) (int, error) {
 // output for a given command.
 func helpFn() clibase.HandlerFunc {
 	return func(inv *clibase.Invocation) error {
-		out := newlineLimiter{w: inv.Stderr, limit: 2}
+		// We buffer writes to stderr because the newlineLimiter writes one
+		// rune at a time.
+		stderrBuf := bufio.NewWriter(inv.Stderr)
+		out := newlineLimiter{w: stderrBuf, limit: 2}
 		tabwriter := tabwriter.NewWriter(&out, 0, 0, 2, ' ', 0)
 		err := usageTemplate.Execute(tabwriter, inv.Command)
 		if err != nil {
@@ -201,7 +215,11 @@ func helpFn() clibase.HandlerFunc {
 		}
 		err = tabwriter.Flush()
 		if err != nil {
-			panic(err)
+			return err
+		}
+		err = stderrBuf.Flush()
+		if err != nil {
+			return err
 		}
 		return nil
 	}

@@ -3,25 +3,30 @@ Usage: coder server create-admin-user
 Create a new admin user with the given username, email and password and adds it
 to every organization.
 
- Options
- 
+Options
     --raw-url (default: false) 
-    Output the raw connection URL instead of a psql command.
+        Output the raw connection URL instead of a psql command.
 
     --email, $CODER_EMAIL 
-    The email of the new user. If not specified, you will be prompted via stdin.
+        The email of the new user. If not specified, you will be prompted via
+        stdin.
 
     --password, $CODER_PASSWORD 
-    The password of the new user. If not specified, you will be prompted via stdin.
+        The password of the new user. If not specified, you will be prompted via
+        stdin.
 
     --postgres-url, $CODER_POSTGRES_URL 
-    URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will
-    be used (Coder must not be already running in this case).
+        URL of a PostgreSQL database. If empty, the built-in PostgreSQL
+        deployment will be used (Coder must not be already running in this
+        case).
 
     --ssh-keygen-algorithm, $CODER_SSH_KEYGEN_ALGORITHM  (default: ed25519) 
-    The algorithm to use for generating ssh keys. Accepted values are "ed25519",
-    "ecdsa", or "rsa4096".
+        The algorithm to use for generating ssh keys. Accepted values are
+        "ed25519", "ecdsa", or "rsa4096".
 
     --username, $CODER_USERNAME 
-    The username of the new user. If not specified, you will be prompted via stdin.
+        The username of the new user. If not specified, you will be prompted via
+        stdin.
 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

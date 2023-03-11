@@ -2,9 +2,13 @@ Usage: coder users [subcommand]
 
 Manage users
 
- Subcommands
-      create      
-      list        
-      show        Show a single user. Use 'me' to indicate the currently authenticated user.
-      activate    Update a user's status to 'active'. Active users can fully interact with the platform
-      suspend     Update a user's status to 'suspended'. A suspended user cannot log into the platform
+Subcommands
+        create        
+        list          
+        show          Show a single user. Use 'me' to indicate the currently authenticated user.
+        activate      Update a user's status to 'active'. Active users can fully interact with the
+    platform
+        suspend      Update a user's status to 'suspended'. A suspended user cannot log into the
+    platform
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

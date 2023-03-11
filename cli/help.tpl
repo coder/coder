@@ -7,14 +7,13 @@ Usage: {{.FullUsage}}
 {{- end}}
 {{- with .Long}}
 {{- formatLong . }}
+{{ "\n" }}
 {{- end }}
-{{ " " }}
 {{- range $index, $group := optionGroups . }}
 {{ with $group.Name }} {{- print $group.Name " Options" | prettyHeader }} {{ else -}} {{ prettyHeader "Options"}}{{- end -}}
 {{- with $group.Description }}
 {{ formatGroupDescription . }}
 {{- else }}
-{{ " " }}
 {{- end }}
     {{- range $index, $option := $group.Options }}
     {{- with flagName $option }}
@@ -22,8 +21,8 @@ Usage: {{.FullUsage}}
     {{- with envName $option }}, ${{ . }} {{ end }}
     {{- with $option.Default }} (default: {{.}}) {{ end }}
         {{- with $option.Description }}
-            {{- $desc := wrapTTY $option.Description }}
-{{ indent $desc 2}}
+            {{- $desc := $option.Description }}
+{{ indent $desc 2 }}
 {{- if isDeprecated $option }} DEPRECATED {{ end }}
         {{- end -}}
     {{- end }}
@@ -34,3 +33,5 @@ Usage: {{.FullUsage}}
 {{- end }}
     {{ indent $child.Name 1 | trimNewline }}{{"\t"}}{{ indent $child.Short 1 | trimNewline }}
 {{- end }}
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

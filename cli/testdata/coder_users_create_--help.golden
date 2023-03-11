@@ -1,13 +1,14 @@
 Usage: coder users create
 
- Options
- 
+Options
     --email, -e
-    Specifies an email address for the new user.
+        Specifies an email address for the new user.
 
     --username, -u
-    Specifies a username for the new user.
+        Specifies a username for the new user.
 
     --password, -p
-    Specifies a password for the new user.
+        Specifies a password for the new user.
 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

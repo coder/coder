@@ -2,4 +2,5 @@ Usage: coder templates init [directory]
 
 Get started with a templated template.
 
- 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

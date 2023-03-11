@@ -3,9 +3,9 @@ Usage: coder users show <username|user_id|'me'>
 Show a single user. Use 'me' to indicate the currently authenticated user.
 
 $ coder users show me
- 
 Options
- 
     --output, -o (default: table) 
-    Output format. Available formats: table, json
+        Output format. Available formats: table, json
 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

@@ -19,4 +19,5 @@ shows in the demo widget on the right.
   - Set the workspace to start at 9:30am (in Dublin) from Monday to Friday:     
 
       $ coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin
- 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

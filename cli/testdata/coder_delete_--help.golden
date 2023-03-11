@@ -2,12 +2,14 @@ Usage: coder delete <workspace>
 
 Delete a workspace
 
- Options
- 
+Options
     --orphan (default: false) 
-    Delete a workspace without deleting its resources. This can delete a workspace
-    in a broken state, but may also lead to unaccounted cloud resources.
+        Delete a workspace without deleting its resources. This can delete a
+        workspace in a broken state, but may also lead to unaccounted cloud
+        resources.
 
     --yes, -y, $CODER_SKIP_PROMPT 
-    Bypass prompts
+        Bypass prompts
 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

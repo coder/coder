@@ -18,4 +18,5 @@ When enabling scheduled stop, enter a duration in one of the following formats:
   * 2    (2 minutes)
 
   $ coder schedule stop my-workspace 2h30m
- 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

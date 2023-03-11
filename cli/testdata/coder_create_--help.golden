@@ -2,24 +2,26 @@ Usage: coder create [name]
 
 Create a workspace
 
- Options
- 
+Options
     --parameter-file, $CODER_PARAMETER_FILE 
-    Specify a file path with parameter values.
+        Specify a file path with parameter values.
 
     --rich-parameter-file, $CODER_RICH_PARAMETER_FILE 
-    Specify a file path with values for rich parameters defined in the template.
+        Specify a file path with values for rich parameters defined in the
+        template.
 
     --start-at, $CODER_WORKSPACE_START_AT 
-    Specify the workspace autostart schedule. Check `coder schedule start --help`
-    for the syntax.
+        Specify the workspace autostart schedule. Check `coder schedule start
+        --help` for the syntax.
 
     --stop-after, $CODER_WORKSPACE_STOP_AFTER 
-    Specify a duration after which the workspace should shut down (e.g. 8h).
+        Specify a duration after which the workspace should shut down (e.g. 8h).
 
     --template, -t, $CODER_TEMPLATE_NAME 
-    Specify a template name.
+        Specify a template name.
 
     --yes, -y, $CODER_SKIP_PROMPT 
-    Bypass prompts
+        Bypass prompts
 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

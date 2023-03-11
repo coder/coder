@@ -2,15 +2,16 @@ Usage: coder agent
 
 Starts the Coder workspace agent.
 
- Options
- 
+Options
     --auth, $CODER_AGENT_AUTH  (default: token) 
-    Specify the authentication type to use for the agent
+        Specify the authentication type to use for the agent
 
     --log-dir, $CODER_AGENT_LOG_DIR  (default: /tmp) 
-    Specify the location for the agent log files
+        Specify the location for the agent log files
 
     --no-reap (default: false) 
-    Do not start a process reaper.
+        Do not start a process reaper.
 
     --pprof-address, $CODER_AGENT_PPROF_ADDRESS  (default: 127.0.0.1:6060) 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

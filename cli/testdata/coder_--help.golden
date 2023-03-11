@@ -9,55 +9,56 @@ environments with Terraform.
   - Get started by creating a template from an example:                         
 
       $ coder templates init
- 
 Global Options 
 Global options are applied to all commands. They can be set using environment
 variables or flags.
 
     --global-config, $CODER_CONFIG_DIR  (default: /home/coder/.config/coderv2) 
-    Path to the global `coder` config directory.
+        Path to the global `coder` config directory.
 
     --header, $CODER_HEADER 
-    Additional HTTP headers to send to the server.
+        Additional HTTP headers to send to the server.
 
     --no-feature-warning, $CODER_NO_FEATURE_WARNING 
-    Suppress warnings about unlicensed features.
+        Suppress warnings about unlicensed features.
 
     --no-version-warning, $CODER_NO_VERSION_WARNING 
-    Suppress warning when client and server versions do not match.
+        Suppress warning when client and server versions do not match.
 
     --token, $CODER_SESSION_TOKEN 
-    Specify an authentication token. For security reasons setting
-    CODER_SESSION_TOKEN is preferred.
+        Specify an authentication token. For security reasons setting
+        CODER_SESSION_TOKEN is preferred.
 
     --url, $CODER_URL 
-    URL to a deployment.
+        URL to a deployment.
 
     --verbose, -v, $CODER_VERBOSE 
-    Enable verbose logging.
+        Enable verbose logging.
 
 Subcommands
-      dotfiles          Checkout and install a dotfiles repository from a Git URL
-      login             Authenticate with Coder deployment
-      logout            Unauthenticate your local session
-      port-forward      Forward ports from machine to a workspace
-      publickey         Output your Coder public key used for Git operations
-      reset-password    Directly connect to the database to reset a user's password
-      state             Manually manage Terraform state to fix broken workspaces
-      templates         Manage templates
-      users             Manage users
-      version           Show coder version
-      config-ssh        Add an SSH Host entry for your workspaces "ssh coder.workspace"
-      create            Create a workspace
-      delete            Delete a workspace
-      list              List workspaces
-      schedule          Schedule automated start and stop times for workspaces
-      show              Display details of a workspace's resources and agents
-      speedtest         Run upload and download tests from your machine to a workspace
-      ssh               Start a shell into a workspace
-      start             Start a workspace
-      stop              Stop a workspace
-      update            Will update and start a given workspace if it is out of date.
-      agent             Starts the Coder workspace agent.
-      scaletest         Run a scale test against the Coder API
-      server            Start a Coder server
+        dotfiles            Checkout and install a dotfiles repository from a Git URL
+        login               Authenticate with Coder deployment
+        logout              Unauthenticate your local session
+        port-forward        Forward ports from machine to a workspace
+        publickey           Output your Coder public key used for Git operations
+        reset-password      Directly connect to the database to reset a user's password
+        state               Manually manage Terraform state to fix broken workspaces
+        templates           Manage templates
+        users               Manage users
+        version             Show coder version
+        config-ssh          Add an SSH Host entry for your workspaces "ssh coder.workspace"
+        create              Create a workspace
+        delete              Delete a workspace
+        list                List workspaces
+        schedule            Schedule automated start and stop times for workspaces
+        show                Display details of a workspace's resources and agents
+        speedtest           Run upload and download tests from your machine to a workspace
+        ssh                 Start a shell into a workspace
+        start               Start a workspace
+        stop                Stop a workspace
+        update              Will update and start a given workspace if it is out of date.
+        agent               Starts the Coder workspace agent.
+        scaletest           Run a scale test against the Coder API
+        server              Start a Coder server
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

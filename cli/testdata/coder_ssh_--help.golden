@@ -2,28 +2,29 @@ Usage: coder ssh <workspace>
 
 Start a shell into a workspace
 
- Options
- 
+Options
     --stdio, $CODER_SSH_STDIO 
-    Specifies whether to emit SSH output over stdin/stdout.
+        Specifies whether to emit SSH output over stdin/stdout.
 
     --forward-agent, -A, $CODER_SSH_FORWARD_AGENT 
-    Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK
+        Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK
 
     --forward-gpg, -G, $CODER_SSH_FORWARD_GPG 
-    Specifies whether to forward the GPG agent. Unsupported on Windows workspaces,
-    but supports all clients. Requires gnupg (gpg, gpg2, gpgsm) and gpg-agent to be
-    installed on the host.
+        Specifies whether to forward the GPG agent. Unsupported on Windows
+        workspaces, but supports all clients. Requires gnupg (gpg, gpg2, gpgsm)
+        and gpg-agent to be installed on the host.
 
     --identity-agent, $CODER_SSH_IDENTITY_AGENT 
-    Specifies the path to the SSH agent socket to use for identity forwarding.
-    Defaults to $SSH_AUTH_SOCK.
+        Specifies the path to the SSH agent socket to use for identity
+        forwarding. Defaults to $SSH_AUTH_SOCK.
 
     --workspace-poll-interval, $CODER_WORKSPACE_POLL_INTERVAL 
-    Specifies the interval at which to poll for a workspace to be ready. Defaults to
-    1s.
+        Specifies the interval at which to poll for a workspace to be ready.
+        Defaults to 1s.
 
     --no-wait, $CODER_SSH_NO_WAIT 
-    Specifies whether to wait for the workspace to be ready before connecting.
-    Defaults to false.
+        Specifies whether to wait for the workspace to be ready before
+        connecting. Defaults to false.
 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new

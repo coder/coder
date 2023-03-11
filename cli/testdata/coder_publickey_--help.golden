@@ -2,12 +2,13 @@ Usage: coder publickey
 
 Output your Coder public key used for Git operations
 
- Options
- 
+Options
     --reset
-    Regenerate your public key. This will require updating the key on any services
-    it's registered with.
+        Regenerate your public key. This will require updating the key on any
+        services it's registered with.
 
     --yes, -y, $CODER_SKIP_PROMPT 
-    Bypass prompts
+        Bypass prompts
 
+---
+Report bugs and request features at https://github.com/coder/coder/issues/new
