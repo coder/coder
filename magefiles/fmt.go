@@ -3,8 +3,6 @@
 package main
 
 import (
-	"regexp"
-
 	"github.com/magefile/mage/mg"
 )
 
@@ -33,7 +31,7 @@ func (Fmt) Prettier() error {
 }
 
 func (Fmt) Sh() error {
-	names, err := find(regexp.MustCompile(`\.sh$`))
+	names, err := find(`\.sh$`)
 	if err != nil {
 		return err
 	}
@@ -42,7 +40,6 @@ func (Fmt) Sh() error {
 	if inCI() {
 		flag = "-d"
 	}
-	// TODO: abstract out "go run" command.
 	return goRun(
 		"mvdan.cc/sh/v3/cmd/shfmt@v3.5.0",
 		append([]string{flag}, names...)...,
