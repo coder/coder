@@ -62,6 +62,10 @@ func ellipse(s string, n int) string {
 	return s[:n] + "..."
 }
 
+func goRun(mod string, args ...string) *cmd {
+	return &cmd{exec.Command("go", append([]string{"run", mod}, args...)...)}
+}
+
 func (c *cmd) run() error {
 	log := flog.New()
 	args := c.Args

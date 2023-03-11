@@ -3,7 +3,6 @@
 package main
 
 import (
-	"os/exec"
 	"regexp"
 
 	"github.com/magefile/mage/mg"
@@ -38,15 +37,16 @@ func (Fmt) Sh() error {
 	if err != nil {
 		return err
 	}
-	(&cmd{
-		exec.Command(
-			"go",
-			append(
-				[]string{"run", "mvdan.cc/sh/v3/cmd/shfmt@v3.5.0", "-w"}, names...,
-			)...,
-		),
-	}).run()
-	return nil
+
+	flag := "-w"
+	if inCI() {
+		flag = "-d"
+	}
+	// TODO: abstract out "go run" command.
+	return goRun(
+		"mvdan.cc/sh/v3/cmd/shfmt@v3.5.0",
+		append([]string{flag}, names...)...,
+	).run()
 }
 
 func (Fmt) All() error {
