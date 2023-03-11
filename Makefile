@@ -435,11 +435,6 @@ gen/mark-fresh:
 	done
 .PHONY: gen/mark-fresh
 
-docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
-	go run scripts/metricsdocgen/main.go
-	cd site
-	yarn run format:write:only ../docs/admin/prometheus.md
-
 docs/cli.md: scripts/clidocgen/main.go $(GO_SRC_FILES) docs/manifest.json
 	# TODO(@ammario): re-enable server.md once we finish clibase migration.
 	ls ./docs/cli/*.md | grep -vP "\/coder_server" | xargs rm
