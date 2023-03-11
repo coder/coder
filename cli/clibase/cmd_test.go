@@ -1,6 +1,7 @@
 package clibase_test
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
@@ -9,8 +10,23 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/clibase/clibasetest"
 )
+
+// ioBufs is the standard input, output, and error for a command.
+type ioBufs struct {
+	Stdin  bytes.Buffer
+	Stdout bytes.Buffer
+	Stderr bytes.Buffer
+}
+
+// fakeIO sets Stdin, Stdout, and Stderr to buffers.
+func fakeIO(i *clibase.Invocation) *ioBufs {
+	var b ioBufs
+	i.Stdout = &b.Stdout
+	i.Stderr = &b.Stderr
+	i.Stdin = &b.Stdin
+	return &b
+}
 
 func TestCommand(t *testing.T) {
 	t.Parallel()
@@ -76,7 +92,7 @@ func TestCommand(t *testing.T) {
 	t.Run("SimpleOK", func(t *testing.T) {
 		t.Parallel()
 		i := cmd().Invoke("toupper", "hello")
-		io := clibasetest.FakeIO(i)
+		io := fakeIO(i)
 		i.Run()
 		require.Equal(t, "HELLO", io.Stdout.String())
 	})
@@ -86,7 +102,7 @@ func TestCommand(t *testing.T) {
 		i := cmd().Invoke(
 			"up", "hello",
 		)
-		io := clibasetest.FakeIO(i)
+		io := fakeIO(i)
 		i.Run()
 		require.Equal(t, "HELLO", io.Stdout.String())
 	})
@@ -96,7 +112,7 @@ func TestCommand(t *testing.T) {
 		i := cmd().Invoke(
 			"na",
 		)
-		io := clibasetest.FakeIO(i)
+		io := fakeIO(i)
 		err := i.Run()
 		require.Empty(t, io.Stdout.String())
 		require.Error(t, err)
@@ -107,7 +123,7 @@ func TestCommand(t *testing.T) {
 		i := cmd().Invoke(
 			"toupper",
 		)
-		io := clibasetest.FakeIO(i)
+		io := fakeIO(i)
 		err := i.Run()
 		require.Empty(t, io.Stdout.String())
 		require.Error(t, err)
@@ -118,7 +134,7 @@ func TestCommand(t *testing.T) {
 		i := cmd().Invoke(
 			"toupper", "--unknown",
 		)
-		io := clibasetest.FakeIO(i)
+		io := fakeIO(i)
 		err := i.Run()
 		require.Empty(t, io.Stdout.String())
 		require.Error(t, err)
@@ -129,7 +145,7 @@ func TestCommand(t *testing.T) {
 		i := cmd().Invoke(
 			"--verbose", "toupper", "hello",
 		)
-		io := clibasetest.FakeIO(i)
+		io := fakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t, "HELLO!!!", io.Stdout.String())
 	})
@@ -139,7 +155,7 @@ func TestCommand(t *testing.T) {
 		i := cmd().Invoke(
 			"--verbose=true", "toupper", "hello",
 		)
-		io := clibasetest.FakeIO(i)
+		io := fakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t, "HELLO!!!", io.Stdout.String())
 	})
@@ -149,7 +165,7 @@ func TestCommand(t *testing.T) {
 		i := cmd().Invoke(
 			"--prefix", "conv: ", "toupper", "hello",
 		)
-		io := clibasetest.FakeIO(i)
+		io := fakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t, "conv: HELLO", io.Stdout.String())
 	})
@@ -159,7 +175,7 @@ func TestCommand(t *testing.T) {
 		i := cmd().Invoke(
 			"toupper", "--prefix", "conv: ", "hello", "--verbose",
 		)
-		io := clibasetest.FakeIO(i)
+		io := fakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t, "conv: HELLO!!!", io.Stdout.String())
 	})
@@ -169,7 +185,7 @@ func TestCommand(t *testing.T) {
 		i := cmd().Invoke(
 			"toupper", "--verbose", "hello", "--lower",
 		)
-		io := clibasetest.FakeIO(i)
+		io := fakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t, "hello!!!", io.Stdout.String())
 	})
@@ -179,7 +195,7 @@ func TestCommand(t *testing.T) {
 		i := cmd().Invoke(
 			"toupper", "--verbose", "hello", "--lower",
 		)
-		_ = clibasetest.FakeIO(i)
+		_ = fakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t,
 			"true",
@@ -192,7 +208,7 @@ func TestCommand(t *testing.T) {
 		i := cmd().Invoke(
 			"root", "level", "level", "toupper", "--verbose", "hello", "--lower",
 		)
-		fio := clibasetest.FakeIO(i)
+		fio := fakeIO(i)
 		require.Error(t, i.Run(), fio.Stdout.String())
 	})
 }
@@ -225,7 +241,7 @@ func TestCommand_MiddlewareOrder(t *testing.T) {
 	i := cmd.Invoke(
 		"hello", "world",
 	)
-	io := clibasetest.FakeIO(i)
+	io := fakeIO(i)
 	require.NoError(t, i.Run())
 	require.Equal(t, "ABC", io.Stdout.String())
 }
@@ -267,7 +283,7 @@ func TestCommand_RawArgs(t *testing.T) {
 		i := cmd().Invoke(
 			"--password", "codershack", "sushi", "hello", "--verbose", "world",
 		)
-		io := clibasetest.FakeIO(i)
+		io := fakeIO(i)
 		require.NoError(t, i.Run())
 		require.Equal(t, "hello --verbose world", io.Stdout.String())
 	})
@@ -279,7 +295,7 @@ func TestCommand_RawArgs(t *testing.T) {
 		i := cmd().Invoke(
 			"--password", "codershack", "--verbose", "sushi", "hello", "world",
 		)
-		io := clibasetest.FakeIO(i)
+		io := fakeIO(i)
 		require.Error(t, i.Run())
 		require.Empty(t, io.Stdout.String())
 	})
@@ -290,8 +306,7 @@ func TestCommand_RawArgs(t *testing.T) {
 		i := cmd().Invoke(
 			"sushi", "hello", "--verbose", "world",
 		)
-		_ = clibasetest.FakeIO(i)
-		i.Stdout = clibasetest.TestWriter(t, "stdout: ")
+		_ = fakeIO(i)
 		require.Error(t, i.Run())
 	})
 }
@@ -306,14 +321,15 @@ func TestCommand_RootRaw(t *testing.T) {
 		},
 	}
 
-	inv, stdio := clibasetest.Invoke(cmd, "hello", "--verbose", "--friendly")
+	inv := cmd.Invoke("hello", "--verbose", "--friendly")
+	stdio := fakeIO(inv)
 	err := inv.Run()
 	require.NoError(t, err)
 
 	require.Equal(t, "hello --verbose --friendly", stdio.Stdout.String())
 }
 
-func TestCommand_HyphenHypen(t *testing.T) {
+func TestCommand_HyphenHyphen(t *testing.T) {
 	t.Parallel()
 	cmd := &clibase.Cmd{
 		Handler: (func(i *clibase.Invocation) error {
@@ -322,7 +338,8 @@ func TestCommand_HyphenHypen(t *testing.T) {
 		}),
 	}
 
-	inv, stdio := clibasetest.Invoke(cmd, "--", "--verbose", "--friendly")
+	inv := cmd.Invoke("--", "--verbose", "--friendly")
+	stdio := fakeIO(inv)
 	err := inv.Run()
 	require.NoError(t, err)
 
@@ -344,8 +361,7 @@ func TestCommand_ContextCancels(t *testing.T) {
 		}),
 	}
 
-	inv, _ := clibasetest.Invoke(cmd)
-	err := inv.Run()
+	err := cmd.Invoke().Run()
 	require.NoError(t, err)
 
 	require.Error(t, gotCtx.Err())

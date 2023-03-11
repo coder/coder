@@ -74,6 +74,7 @@ import (
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/updatecheck"
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -230,7 +231,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
 			}
 
-			if cfg.AccessURL.String() != "" && cfg.AccessURL.Scheme == "" {
+			if cfg.AccessURL.String() != "" &&
+				!(cfg.AccessURL.Scheme == "http" || cfg.AccessURL.Scheme == "https") {
 				return xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
 			}
 
@@ -556,7 +558,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Nodes: []*tailcfg.DERPNode{{
 					Name:      fmt.Sprintf("%db", cfg.DERP.Server.RegionID),
 					RegionID:  int(cfg.DERP.Server.RegionID.Value()),
-					HostName:  cfg.AccessURL.Host,
+					HostName:  cfg.AccessURL.Value().Hostname(),
 					DERPPort:  accessURLPort,
 					STUNPort:  -1,
 					ForceHTTP: cfg.AccessURL.Scheme == "http",
@@ -701,6 +703,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if err != nil {
 					return xerrors.Errorf("parse oidc oauth callback url: %w", err)
 				}
+				// If the scopes contain 'groups', we enable group support.
+				// Do not override any custom value set by the user.
+				if slice.Contains(cfg.OIDC.Scopes, "groups") && cfg.OIDC.GroupField == "" {
+					cfg.OIDC.GroupField = "groups"
+				}
 				options.OIDCConfig = &coderd.OIDCConfig{
 					OAuth2Config: &oauth2.Config{
 						ClientID:     cfg.OIDC.ClientID.String(),
@@ -716,6 +723,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					EmailDomain:         cfg.OIDC.EmailDomain,
 					AllowSignups:        cfg.OIDC.AllowSignups.Value(),
 					UsernameField:       cfg.OIDC.UsernameField.String(),
+					GroupField:          cfg.OIDC.GroupField.String(),
 					SignInText:          cfg.OIDC.SignInText.String(),
 					IconURL:             cfg.OIDC.IconURL.String(),
 					IgnoreEmailVerified: cfg.OIDC.IgnoreEmailVerified.Value(),

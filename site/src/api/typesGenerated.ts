@@ -502,6 +502,7 @@ export interface OIDCConfig {
   readonly scopes: string[]
   readonly ignore_email_verified: boolean
   readonly username_field: string
+  readonly groups_field: string
   readonly sign_in_text: string
   readonly icon_url: string
 }

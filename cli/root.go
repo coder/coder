@@ -112,7 +112,7 @@ func Main(subcommands []*clibase.Cmd) {
 	rand.Seed(time.Now().UnixMicro())
 
 	var cmd RootCmd
-	err := cmd.Command(subcommands).Invoke().WithMain().Run()
+	err := cmd.Command(subcommands).Invoke().WithOS().Run()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {
 			//nolint:revive

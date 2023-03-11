@@ -99,8 +99,6 @@ func (c *Cmd) Invoke(args ...string) *Invocation {
 
 // Invocation represents an instance of a command being executed.
 type Invocation struct {
-	parent *Invocation
-
 	ctx         context.Context
 	Command     *Cmd
 	parsedFlags *pflag.FlagSet
@@ -113,31 +111,32 @@ type Invocation struct {
 	Stdin   io.Reader
 }
 
-// WithMain returns the invocation as a main package, filling in the invocation's unset
+// WithOS returns the invocation as a main package, filling in the invocation's unset
 // fields with OS defaults.
-func (i *Invocation) WithMain() *Invocation {
-	i2 := *i
-	if i2.Stdout == nil {
-		i2.Stdout = os.Stdout
-	}
-	if i2.Stderr == nil {
-		i2.Stderr = os.Stderr
-	}
-	if i2.Stdin == nil {
-		i2.Stdin = os.Stdin
-	}
-	if i2.Args == nil {
-		i2.Args = os.Args[1:]
-	}
-	if i2.Environ == nil {
-		i2.Environ = ParseEnviron(os.Environ(), "")
-	}
-	return &i2
+func (i *Invocation) WithOS() *Invocation {
+	return i.with(func(i *Invocation) {
+		if i.Stdout == nil {
+			i.Stdout = os.Stdout
+		}
+		if i.Stderr == nil {
+			i.Stderr = os.Stderr
+		}
+		if i.Stdin == nil {
+			i.Stdin = os.Stdin
+		}
+		if i.Args == nil {
+			i.Args = os.Args[1:]
+		}
+		if i.Environ == nil {
+			i.Environ = ParseEnviron(os.Environ(), "")
+		}
+	})
 }
 
 func (i *Invocation) Context() context.Context {
 	if i.ctx == nil {
-		return context.Background()
+		// Consider returning context.Background() instead?
+		panic("context not set, has WithContext() or Run() been called?")
 	}
 	return i.ctx
 }
@@ -203,10 +202,8 @@ func (i *Invocation) run(state *runState) error {
 	// We must do subcommand detection after flag parsing so we don't mistake flag
 	// values for subcommand names.
 	if len(parsedArgs) > 0 {
-		// _, _ = fmt.Printf("args: %v, %v\n", i.Args, state.flagParseErr)
 		nextArg := parsedArgs[0]
 		if child, ok := children[nextArg]; ok {
-			// _, _ = fmt.Printf("push args: %v\n", i.Args)
 			child.Parent = i.Command
 			i.Command = child
 			state.commandDepth++
@@ -251,7 +248,12 @@ func (i *Invocation) run(state *runState) error {
 		mw = Chain()
 	}
 
-	ctx, cancel := context.WithCancel(i.Context())
+	ctx := i.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	i = i.WithContext(ctx)
 
@@ -261,8 +263,6 @@ func (i *Invocation) run(state *runState) error {
 		}
 		return i.Command.HelpHandler(i)
 	}
-
-	// fmt.Printf("running middleware with\ni.Args\t%+v\nallArgs\t%v\n", i.Args, state.allArgs)
 
 	err = mw(i.Command.Handler)(i)
 	if err != nil {
@@ -276,34 +276,35 @@ func (i *Invocation) run(state *runState) error {
 func findArg(want string, args []string, fs *pflag.FlagSet) (int, error) {
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
-		if strings.HasPrefix(arg, "-") {
-			// This is a flag!
-			if strings.Contains(arg, "=") {
-				// The flag contains the value in the same arg, just skip.
-				continue
+		if !strings.HasPrefix(arg, "-") {
+			if arg == want {
+				return i, nil
 			}
-
-			// We need to check if NoOptValue is set, then we should not wait
-			// for the next arg to be the value.
-			f := fs.Lookup(strings.TrimLeft(arg, "-"))
-			if f == nil {
-				return -1, xerrors.Errorf("unknown flag: %s", arg)
-			}
-			if f.NoOptDefVal != "" {
-				continue
-			}
-
-			if i == len(args)-1 {
-				return -1, xerrors.Errorf("flag %s requires a value", arg)
-			}
-
-			// Skip the value.
-			i++
+			continue
 		}
 
-		if arg == want {
-			return i, nil
+		// This is a flag!
+		if strings.Contains(arg, "=") {
+			// The flag contains the value in the same arg, just skip.
+			continue
 		}
+
+		// We need to check if NoOptValue is set, then we should not wait
+		// for the next arg to be the value.
+		f := fs.Lookup(strings.TrimLeft(arg, "-"))
+		if f == nil {
+			return -1, xerrors.Errorf("unknown flag: %s", arg)
+		}
+		if f.NoOptDefVal != "" {
+			continue
+		}
+
+		if i == len(args)-1 {
+			return -1, xerrors.Errorf("flag %s requires a value", arg)
+		}
+
+		// Skip the value.
+		i++
 	}
 
 	return -1, xerrors.Errorf("arg %s not found", want)
@@ -321,9 +322,15 @@ func (i *Invocation) Run() error {
 
 // WithContext returns a copy of the Invocation with the given context.
 func (i *Invocation) WithContext(ctx context.Context) *Invocation {
+	return i.with(func(i *Invocation) {
+		i.ctx = ctx
+	})
+}
+
+// with returns a copy of the Invocation with the given function applied.
+func (i *Invocation) with(fn func(*Invocation)) *Invocation {
 	i2 := *i
-	i2.parent = i
-	i2.ctx = ctx
+	fn(&i2)
 	return &i2
 }
 

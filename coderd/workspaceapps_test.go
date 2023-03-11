@@ -1309,6 +1309,8 @@ func TestAppSharing(t *testing.T) {
 		// Verify that the apps have the correct sharing levels set.
 		workspaceBuild, err := client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
+		require.NotEmpty(t, workspaceBuild.Resources, "workspace build has no resources")
+		require.NotEmpty(t, workspaceBuild.Resources[0].Agents, "workspace build has no agents")
 		agnt = workspaceBuild.Resources[0].Agents[0]
 		found := map[string]codersdk.WorkspaceAppSharingLevel{}
 		expected := map[string]codersdk.WorkspaceAppSharingLevel{

@@ -159,6 +159,11 @@ var (
 	ResourceDebugInfo = Object{
 		Type: "debug_info",
 	}
+
+	// ResourceSystem is a pseudo-resource only used for system-level actions.
+	ResourceSystem = Object{
+		Type: "system",
+	}
 )
 
 // Object is used to create objects for authz checks when you have none in
