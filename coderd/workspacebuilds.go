@@ -884,11 +884,8 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 // @Router /workspaceagents/{workspaceagent}/logs [get]
 func (api *API) startupScriptLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 
-	// TODO: Wait until the logs are written or use SSE.
-
-	dblogs, err := api.Database.GetStartupScriptLogsByJobID(ctx, workspaceBuild.JobID)
+	dblogs, err := api.Database.GetWorkspaceAgentStartupLogsBetween(ctx, database.GetWorkspaceAgentStartupLogsBetweenParams{})
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.StartupScriptLog{})
 		return
@@ -905,7 +902,6 @@ func (api *API) startupScriptLogs(rw http.ResponseWriter, r *http.Request) {
 	for _, l := range dblogs {
 		logs = append(logs, codersdk.StartupScriptLog{
 			AgentID: l.AgentID,
-			JobID:   l.JobID,
 			Output:  l.Output,
 		})
 	}

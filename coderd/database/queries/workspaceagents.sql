@@ -107,9 +107,14 @@ WHERE
 	) ORDER BY id ASC;
 
 -- name: InsertWorkspaceAgentStartupLogs :many
+WITH new_length AS (
+	UPDATE workspace_agents SET
+	startup_logs_length = startup_logs_length + @output_length WHERE workspace_agents.id = @agent_id
+)
 INSERT INTO
-	workspace_agent_startup_logs
-SELECT
-	@agent_id :: uuid AS agent_id,
-	unnest(@created_at :: timestamptz [ ]) AS created_at,
-	unnest(@output :: VARCHAR(1024) [ ]) AS output RETURNING *;
+		workspace_agent_startup_logs
+	SELECT
+		@agent_id :: uuid AS agent_id,
+		unnest(@created_at :: timestamptz [ ]) AS created_at,
+		unnest(@output :: VARCHAR(1024) [ ]) AS output
+	RETURNING workspace_agent_startup_logs.*;

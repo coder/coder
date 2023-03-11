@@ -652,12 +652,12 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 	saver := &prefixsuffix.Saver{N: 512 << 10}
 	writer := io.MultiWriter(saver, fileWriter)
 	defer func() {
-		err := a.client.InsertOrUpdateStartupLogs(ctx, agentsdk.InsertOrUpdateStartupLogsRequest{
-			Output: string(saver.Bytes()),
-		})
-		if err != nil {
-			a.logger.Error(ctx, "upload startup logs", slog.Error(err))
-		}
+		// err := a.client.AppendStartupLogs(ctx, agentsdk.InsertOrUpdateStartupLogsRequest{
+		// 	Output: string(saver.Bytes()),
+		// })
+		// if err != nil {
+		// 	a.logger.Error(ctx, "upload startup logs", slog.Error(err))
+		// }
 	}()
 
 	cmd, err := a.createCommand(ctx, script, nil)
