@@ -373,7 +373,6 @@ func TestScheduleStartDefaults(t *testing.T) {
 	inv, root := clitest.New(t, "schedule", "start", workspace.Name, "9:30AM")
 	clitest.SetupConfig(t, client, root)
 	inv.Stdout = stdoutBuf
-
 	err := inv.Run()
 	require.NoError(t, err, "unexpected error")
 	lines := strings.Split(strings.TrimSpace(stdoutBuf.String()), "\n")

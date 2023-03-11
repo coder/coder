@@ -125,8 +125,7 @@ func (i *Invocation) WithOS() *Invocation {
 
 func (i *Invocation) Context() context.Context {
 	if i.ctx == nil {
-		// Consider returning context.Background() instead?
-		panic("context not set, has WithContext() or Run() been called?")
+		return context.Background()
 	}
 	return i.ctx
 }

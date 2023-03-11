@@ -426,7 +426,7 @@ func (r *RootCmd) UseClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				_, _ = fmt.Fprintln(i.Stderr)
 			}
 
-			return nil
+			return next(i)
 		}
 	}
 }
