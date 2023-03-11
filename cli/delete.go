@@ -67,6 +67,7 @@ func (r *RootCmd) deleteWorkspace() *clibase.Cmd {
 	cmd.Options = clibase.OptionSet{
 		{
 			Name:        "orphan",
+			Flag:        "orphan",
 			Description: "Delete a workspace without deleting its resources. This can delete a workspace in a broken state, but may also lead to unaccounted cloud resources.",
 			Default:     "false",
 			Value:       clibase.BoolOf(&orphan),

@@ -2,10 +2,14 @@ usage: coder agent
 
 
 Options
- , $CODER_AGENT_AUTH  (default: token) 
+ 
+    --auth, $CODER_AGENT_AUTH  (default: token) 
     Specify the authentication type to use for the agent
-, $CODER_AGENT_LOG_DIR  (default: /tmp) 
+
+    --log-dir, $CODER_AGENT_LOG_DIR  (default: /tmp) 
     Specify the location for the agent log files
- (default: false) 
+
+    --no-reap (default: false) 
     Do not start a process reaper.
-, $CODER_AGENT_PPROF_ADDRESS  (default: 127.0.0.1:6060) 
+
+    --pprof-address, $CODER_AGENT_PPROF_ADDRESS  (default: 127.0.0.1:6060) 

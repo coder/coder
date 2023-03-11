@@ -94,18 +94,21 @@ func (r *RootCmd) update() *clibase.Cmd {
 	cmd.Options = clibase.OptionSet{
 		{
 			Name:        "always-prompt",
+			Flag:        "always-prompt",
 			Description: "Always prompt all parameters. Does not pull parameter values from existing workspace",
 			Default:     "false",
 			Value:       clibase.BoolOf(&alwaysPrompt),
 		},
 		{
 			Name:        "parameter-file",
+			Flag:        "parameter-file",
 			Description: "Specify a file path with parameter values.",
 			Env:         "CODER_PARAMETER_FILE",
 			Value:       clibase.StringOf(&parameterFile),
 		},
 		{
 			Name:        "rich-parameter-file",
+			Flag:        "rich-parameter-file",
 			Description: "Specify a file path with values for rich parameters defined in the template.",
 			Env:         "CODER_RICH_PARAMETER_FILE",
 			Value:       clibase.StringOf(&richParameterFile),

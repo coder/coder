@@ -160,6 +160,20 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 		}
 	})
 
+	// Sanity-check command options.
+	cmd.Walk(func(c *clibase.Cmd) {
+		if c.Name() == "server" {
+			// The server command is funky and has YAML-only options, e.g.
+			// support links.
+			return
+		}
+		for _, opt := range c.Options {
+			if opt.Flag == "" && opt.Env == "" {
+				panic(fmt.Sprintf("option %q in %q should have a flag or env", opt.Name, c.FullName()))
+			}
+		}
+	})
+
 	if r.agentURL == nil {
 		r.agentURL = new(url.URL)
 	}

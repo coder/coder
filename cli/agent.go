@@ -217,6 +217,7 @@ func (*RootCmd) workspaceAgent() *clibase.Cmd {
 	cmd.Options = clibase.OptionSet{
 		{
 			Name:        "auth",
+			Flag:        "auth",
 			Default:     "token",
 			Description: "Specify the authentication type to use for the agent",
 			Env:         "CODER_AGENT_AUTH",
@@ -224,6 +225,7 @@ func (*RootCmd) workspaceAgent() *clibase.Cmd {
 		},
 		{
 			Name:        "log-dir",
+			Flag:        "log-dir",
 			Default:     os.TempDir(),
 			Description: "Specify the location for the agent log files",
 			Env:         "CODER_AGENT_LOG_DIR",
@@ -231,12 +233,14 @@ func (*RootCmd) workspaceAgent() *clibase.Cmd {
 		},
 		{
 			Name:    "pprof-address",
+			Flag:    "pprof-address",
 			Default: "127.0.0.1:6060",
 			Env:     "CODER_AGENT_PPROF_ADDRESS",
 			Value:   clibase.StringOf(&pprofAddress),
 		},
 		{
 			Name:        "no-reap",
+			Flag:        "no-reap",
 			Default:     "false",
 			Env:         "",
 			Description: "Do not start a process reaper.",
