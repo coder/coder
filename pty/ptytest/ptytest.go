@@ -18,6 +18,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/testutil"
 )
@@ -138,6 +139,14 @@ func (p *PTY) Close() error {
 	p.t.Helper()
 
 	return p.close("close")
+}
+
+func (p *PTY) Attach(inv *clibase.Invocation) {
+	p.t.Helper()
+
+	inv.Stdout = p.Output()
+	inv.Stderr = p.Output()
+	inv.Stdin = p.Input()
 }
 
 func (p *PTY) ExpectMatch(str string) string {

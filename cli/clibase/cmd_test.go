@@ -366,3 +366,40 @@ func TestCommand_ContextCancels(t *testing.T) {
 
 	require.Error(t, gotCtx.Err())
 }
+
+func TestCommand_Help(t *testing.T) {
+	t.Parallel()
+
+	cmd := &clibase.Cmd{
+		Use: "root",
+		HelpHandler: (func(i *clibase.Invocation) error {
+			i.Stdout.Write([]byte("abdracadabra"))
+			return nil
+		}),
+		Handler: (func(i *clibase.Invocation) error {
+			return xerrors.New("should not be called")
+		}),
+	}
+
+	t.Run("Long", func(t *testing.T) {
+		t.Parallel()
+
+		inv := cmd.Invoke("--help")
+		stdio := fakeIO(inv)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		require.Contains(t, stdio.Stdout.String(), "abdracadabra")
+	})
+
+	t.Run("Short", func(t *testing.T) {
+		t.Parallel()
+
+		inv := cmd.Invoke("-h")
+		stdio := fakeIO(inv)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		require.Contains(t, stdio.Stdout.String(), "abdracadabra")
+	})
+}

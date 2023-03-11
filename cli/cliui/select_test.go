@@ -1,14 +1,12 @@
 package cliui_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/clibase/clibasetest"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
@@ -40,10 +38,9 @@ func newSelect(ptty *ptytest.PTY, opts cliui.SelectOptions) (string, error) {
 			return err
 		},
 	}
-	inv, _ := clibasetest.Invoke(cmd)
-	inv.Stdout = ptty.Output()
-	inv.Stdin = ptty.Input()
-	return value, inv.WithContext(context.Background()).Run()
+	inv := cmd.Invoke()
+	ptty.Attach(inv)
+	return value, inv.Run()
 }
 
 func TestRichSelect(t *testing.T) {
@@ -84,8 +81,7 @@ func newRichSelect(ptty *ptytest.PTY, opts cliui.RichSelectOptions) (string, err
 			return err
 		},
 	}
-	inv, _ := clibasetest.Invoke(cmd)
-	inv.Stdout = ptty.Output()
-	inv.Stdin = ptty.Input()
-	return value, inv.WithContext(context.Background()).Run()
+	inv := cmd.Invoke()
+	ptty.Attach(inv)
+	return value, inv.Run()
 }

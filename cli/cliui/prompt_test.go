@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/clibase/clibasetest"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/pty/ptytest"
@@ -220,6 +219,5 @@ func passwordHelper() {
 			return nil
 		},
 	}
-	inv, _ := clibasetest.Invoke(cmd)
-	inv.WithContext(context.Background()).Run()
+	cmd.Invoke().Run()
 }
