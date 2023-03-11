@@ -1,8 +1,6 @@
 Usage: coder users create
 
-
- 
-Options
+ Options
  
     --email, -e
     Specifies an email address for the new user.

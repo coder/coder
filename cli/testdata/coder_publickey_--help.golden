@@ -2,9 +2,7 @@ Usage: coder publickey
 
 Output your Coder public key used for Git operations
 
-
- 
-Options
+ Options
  
     --reset
     Regenerate your public key. This will require updating the key on any services

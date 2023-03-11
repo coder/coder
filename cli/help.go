@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"bytes"
 	_ "embed"
+	"io"
 	"sort"
 	"strings"
 	"text/tabwriter"
 	"text/template"
+	"unicode"
 
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/crypto/ssh/terminal"
@@ -155,11 +158,43 @@ func filterSlice[T any](s []T, f func(T) bool) []T {
 	return r
 }
 
+// newLineLimiter makes working with Go templates more bearable. Without this,
+// modifying the template is a slow toil of counting newlines and constantly
+// checking that a change to one command's help doesn't clobber break another.
+type newlineLimiter struct {
+	w     io.Writer
+	limit int
+
+	newLineCount int
+}
+
+func (n *newlineLimiter) Write(p []byte) (int, error) {
+	var clean bytes.Buffer
+	for _, r := range string(p) {
+		switch {
+		case r == '\n':
+			n.newLineCount++
+			if n.newLineCount > n.limit {
+				continue
+			}
+		case !unicode.IsSpace(r):
+			n.newLineCount = 0
+		}
+		_, _ = clean.WriteRune(r)
+	}
+	_, err := n.w.Write(clean.Bytes())
+	if err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
 // helpFn returns a function that generates usage (help)
 // output for a given command.
 func helpFn() clibase.HandlerFunc {
 	return func(inv *clibase.Invocation) error {
-		tabwriter := tabwriter.NewWriter(inv.Stderr, 0, 0, 2, ' ', 0)
+		out := newlineLimiter{w: inv.Stderr, limit: 2}
+		tabwriter := tabwriter.NewWriter(&out, 0, 0, 2, ' ', 0)
 		err := usageTemplate.Execute(tabwriter, inv.Command)
 		if err != nil {
 			return xerrors.Errorf("execute template: %w", err)

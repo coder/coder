@@ -2,9 +2,7 @@ Usage: coder ssh <workspace>
 
 Start a shell into a workspace
 
-
- 
-Options
+ Options
  
     --stdio, $CODER_SSH_STDIO 
     Specifies whether to emit SSH output over stdin/stdout.

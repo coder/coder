@@ -2,9 +2,7 @@ Usage: coder users [subcommand]
 
 Manage users
 
-
- 
-Subcommands
+ Subcommands
       create      
       list        
       show        Show a single user. Use 'me' to indicate the currently authenticated user.

@@ -2,9 +2,7 @@ Usage: coder login <url>
 
 Authenticate with Coder deployment
 
-
- 
-Options
+ Options
  
     --first-user-email, $CODER_FIRST_USER_EMAIL 
     Specifies an email address to use if creating the first user for the deployment.

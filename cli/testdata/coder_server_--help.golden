@@ -2,9 +2,7 @@ Usage: coder server
 
 Start a Coder server
 
-
- 
-Options
+ Options
  
     --cache-dir, $CACHE_DIRECTORY  (default: ~/.cache/coder) 
     The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is

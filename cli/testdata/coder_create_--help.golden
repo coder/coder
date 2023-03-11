@@ -2,9 +2,7 @@ Usage: coder create [name]
 
 Create a workspace
 
-
- 
-Options
+ Options
  
     --parameter-file, $CODER_PARAMETER_FILE 
     Specify a file path with parameter values.

@@ -2,9 +2,7 @@ Usage: coder templates pull <name> [destination]
 
 Download the latest version of a template to a path.
 
-
- 
-Options
+ Options
  
     --tar (default: false) 
     output the template as a tar archive to stdout

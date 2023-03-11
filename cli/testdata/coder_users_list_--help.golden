@@ -1,8 +1,6 @@
 Usage: coder users list
 
-
- 
-Options
+ Options
  
     --column, -c (default: username,email,created_at,status) 
     Columns to display in table output. Available columns: id, username, email,

@@ -2,9 +2,7 @@ Usage: coder templates create [name]
 
 Create a template from the current directory or as specified by flag
 
-
- 
-Options
+ Options
  
     --parameter-file
     Specify a file path with parameter values.

@@ -2,9 +2,7 @@ Usage: coder list
 
 List workspaces
 
-
- 
-Options
+ Options
  
     --all, -a (default: false) 
     Specifies whether all workspaces will be listed or not.
