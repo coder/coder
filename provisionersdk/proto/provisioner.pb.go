@@ -309,7 +309,6 @@ func (ParameterSchema_TypeSystem) EnumDescriptor() ([]byte, []int) {
 	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{4, 0}
 }
 
-// Empty indicates a successful request/response.
 type Empty struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

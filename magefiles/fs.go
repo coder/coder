@@ -64,7 +64,7 @@ func find(matchReg string) ([]string, error) {
 }
 
 type sourceFilter struct {
-	dir     string
+	path    string
 	regexes []string
 }
 
@@ -90,13 +90,19 @@ func destNewer(dest string, sources ...sourceFilter) bool {
 	destModAt := info.ModTime()
 
 	var (
-		newer       = true
 		filesWalked int
 		offender    string
 	)
 	start := time.Now()
 	for _, source := range sources {
-		err = filepath.Walk(source.dir, func(path string, info os.FileInfo, err error) error {
+		if stat, _ := os.Stat(source.path); stat != nil && !stat.IsDir() {
+			if stat.ModTime().After(destModAt) {
+				offender = source.path
+				break
+			}
+			continue
+		}
+		err = filepath.Walk(source.path, func(path string, info os.FileInfo, err error) error {
 			filesWalked++
 			if err != nil {
 				return err
@@ -111,7 +117,6 @@ func destNewer(dest string, sources ...sourceFilter) bool {
 			}
 
 			if len(source.regexes) == 0 {
-				newer = false
 				offender = path
 				return filepath.SkipAll
 			}
@@ -120,7 +125,6 @@ func destNewer(dest string, sources ...sourceFilter) bool {
 				if !fastRegex(r).MatchString(path) {
 					continue
 				}
-				newer = false
 				offender = path
 				return filepath.SkipAll
 			}
@@ -136,9 +140,9 @@ func destNewer(dest string, sources ...sourceFilter) bool {
 		flog.Info("destNewer search took %v (walked %v files, result: %v, offender %q)",
 			end.Sub(start),
 			filesWalked,
-			newer,
+			offender == "",
 			offender,
 		)
 	}
-	return newer
+	return offender == ""
 }

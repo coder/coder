@@ -77,14 +77,18 @@ func (c *cmd) run() error {
 	if mg.Verbose() {
 		logPrefix := ellipse(cmdline, 16) + ": "
 		log.W = stderr
-		c.Stdout = &prefixWriter{
-			prefix: logPrefix,
-			w:      stdout,
-		}
 
-		c.Stderr = &prefixWriter{
-			prefix: logPrefix,
-			w:      stderr,
+		if c.Stdout == nil {
+			c.Stdout = &prefixWriter{
+				prefix: logPrefix,
+				w:      stdout,
+			}
+		}
+		if c.Stderr == nil {
+			c.Stderr = &prefixWriter{
+				prefix: logPrefix,
+				w:      stderr,
+			}
 		}
 	}
 	log.Info("running: `%s`", cmdline)

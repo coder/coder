@@ -9,7 +9,10 @@ import (
 )
 
 func All() {
-	mg.Deps((Fmt).All)
+	mg.Deps(
+		(Fmt).All,
+		(Gen).All,
+	)
 }
 
 var Default = All

@@ -435,36 +435,6 @@ gen/mark-fresh:
 	done
 .PHONY: gen/mark-fresh
 
-# Runs migrations to output a dump of the database schema after migrations are
-# applied.
-coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/database/migrations/*.sql)
-	go run ./coderd/database/gen/dump/main.go
-
-# Generates Go code for querying the database.
-coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql) coderd/database/gen/enum/main.go
-	./coderd/database/generate.sh
-
-provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
-	protoc \
-		--go_out=. \
-		--go_opt=paths=source_relative \
-		--go-drpc_out=. \
-		--go-drpc_opt=paths=source_relative \
-		./provisionersdk/proto/provisioner.proto
-
-provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
-	protoc \
-		--go_out=. \
-		--go_opt=paths=source_relative \
-		--go-drpc_out=. \
-		--go-drpc_opt=paths=source_relative \
-		./provisionerd/proto/provisionerd.proto
-
-site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
-	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
-	cd site
-	yarn run format:types
-
 docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go
 	cd site

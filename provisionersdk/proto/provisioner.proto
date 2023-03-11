@@ -5,6 +5,7 @@ option go_package = "github.com/coder/coder/provisionersdk/proto";
 package provisioner;
 
 // Empty indicates a successful request/response.
+
 message Empty {}
 
 // ParameterSource represents the source location for a parameter to get it's value from.

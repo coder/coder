@@ -24,7 +24,10 @@ func (Gen) DumpSQL() error {
 		"coderd", "database", "dump.sql",
 	)
 
-	if destNewer(dst, sourceFilter{"coderd/database", nil}) {
+	if destNewer(dst, sourceFilter{"coderd/database", []string{
+		`migrations`,
+		`\.sql$`,
+	}}) {
 		return nil
 	}
 
@@ -131,5 +134,92 @@ func (Gen) DumpSQL() error {
 	return nil
 }
 
-// func (Gen) GoQuerier() error {
-// }
+func (Gen) GoQuerier() error {
+	mg.Deps((Gen).DumpSQL)
+
+	dest := filepath.Join("coderd", "database", "querier.go")
+	if destNewer(dest, sourceFilter{"coderd/database", []string{
+		`dump.sql$`,
+		`sqlc.yaml$`,
+		`\.sql$`,
+	}}) {
+		return nil
+	}
+
+	return shell("./coderd/database/generate.sh").run()
+}
+
+func (Gen) ProvisionerProto() error {
+	var (
+		dest   = filepath.Join("provisionersdk", "proto", "provisioner.pb.go")
+		source = filepath.Join("provisionersdk", "proto", "provisioner.proto")
+	)
+	if destNewer(
+		dest, sourceFilter{source, nil},
+	) {
+		return nil
+	}
+
+	return shell(`
+		protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		%s \
+	`, source).run()
+}
+
+func (Gen) ProvisionerdProto() error {
+	var (
+		dest   = filepath.Join("provisionerd", "proto", "provisionerd.pb.go")
+		source = filepath.Join("provisionerd", "proto", "provisionerd.proto")
+	)
+	if destNewer(
+		dest, sourceFilter{source, nil},
+	) {
+		return nil
+	}
+
+	return shell(`
+		protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		%s \
+	`, source).run()
+}
+
+func (Gen) TypesGenerated() error {
+	dest := filepath.Join("site/src/api/typesGenerated.ts")
+	if destNewer(
+		dest, sourceFilter{"codersdk", []string{`\.go$`}},
+	) {
+		return nil
+	}
+
+	destFi, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	defer destFi.Close()
+
+	c := goRun("./scripts/apitypings/main.go")
+	c.Stdout = destFi
+	c.Stderr = os.Stderr
+	err = c.run()
+	if err != nil {
+		return err
+	}
+
+	return shell("yarn format:types").cd("site").run()
+}
+
+func (Gen) All() {
+	mg.Deps(
+		(Gen).GoQuerier, (Gen).DumpSQL,
+		(Gen).ProvisionerProto, (Gen).ProvisionerdProto,
+		(Gen).TypesGenerated,
+	)
+}
