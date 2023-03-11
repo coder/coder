@@ -1,0 +1,8 @@
+usage: server postgres-builtin-url
+
+Output the connection URL for the built-in PostgreSQL deployment.
+Options
+ 
+    --raw-url (default: false) 
+    Output the raw connection URL instead of a psql command.
+

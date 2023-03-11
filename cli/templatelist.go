@@ -51,6 +51,6 @@ func (r *RootCmd) templateList() *clibase.Cmd {
 		},
 	}
 
-	formatter.AttachFlags(cmd)
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }

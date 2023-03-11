@@ -1,38 +1,32 @@
+usage: templates edit <template> [flags]
+
 Edit the metadata of a template by name.
+Options
+ 
+    --name
+    Edit the template name.
 
-Usage:
-  coder templates edit <template> [flags]
+    --display-name
+    Edit the template display name.
 
-Flags:
-      --allow-user-cancel-workspace-jobs   Allow users to cancel in-progress workspace jobs.
-                                           (default true)
-      --default-ttl duration               Edit the template default time before shutdown -
-                                           workspaces created from this template default to
-                                           this value.
-      --description string                 Edit the template description.
-      --display-name string                Edit the template display name.
-  -h, --help                               help for edit
-      --icon string                        Edit the template icon path.
-      --max-ttl duration                   Edit the template maximum time before shutdown -
-                                           workspaces created from this template must shutdown
-                                           within the given duration after starting. This is
-                                           an enterprise-only feature.
-      --name string                        Edit the template name.
-  -y, --yes                                Bypass prompts
+    --description
+    Edit the template description.
 
-Global Flags:
-      --global-config coder   Path to the global coder config directory.
-                              Consumes $CODER_CONFIG_DIR (default "~/.config/coderv2")
-      --header stringArray    HTTP headers added to all requests. Provide as "Key=Value".
-                              Consumes $CODER_HEADER
-      --no-feature-warning    Suppress warnings about unlicensed features.
-                              Consumes $CODER_NO_FEATURE_WARNING
-      --no-version-warning    Suppress warning when client and server versions do not match.
-                              Consumes $CODER_NO_VERSION_WARNING
-      --token string          Specify an authentication token. For security reasons setting
-                              CODER_SESSION_TOKEN is preferred.
-                              Consumes $CODER_SESSION_TOKEN
-      --url string            URL to a deployment.
-                              Consumes $CODER_URL
-  -v, --verbose               Enable verbose output.
-                              Consumes $CODER_VERBOSE
+    --icon
+    Edit the template icon path.
+
+    --default-ttl
+    Edit the template default time before shutdown - workspaces created from this
+    template default to this value.
+
+    --max-ttl
+    Edit the template maximum time before shutdown - workspaces created from this
+    template must shutdown within the given duration after starting. This is an
+    enterprise-only feature.
+
+    --allow-user-cancel-workspace-jobs (default: true) 
+    Allow users to cancel in-progress workspace jobs.
+
+    --yes, -y, $CODER_SKIP_PROMPT 
+    Bypass prompts
+

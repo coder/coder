@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -14,7 +13,7 @@ import (
 
 type OutputFormat interface {
 	ID() string
-	AttachFlags(fs *pflag.FlagSet)
+	AttachOptions(opts *clibase.OptionSet)
 	Format(ctx context.Context, data any) (string, error)
 }
 
@@ -47,12 +46,11 @@ func NewOutputFormatter(formats ...OutputFormat) *OutputFormatter {
 	}
 }
 
-// AttachFlags attaches the --output flag to the given command, and any
+// AttachOptions attaches the --output flag to the given command, and any
 // additional flags required by the output formatters.
-func (f *OutputFormatter) AttachFlags(cmd *clibase.Cmd) *pflag.FlagSet {
-	fs := cmd.Options.FlagSet()
+func (f *OutputFormatter) AttachOptions(opts *clibase.OptionSet) {
 	for _, format := range f.formats {
-		format.AttachFlags(fs)
+		format.AttachOptions(opts)
 	}
 
 	formatNames := make([]string, 0, len(f.formats))
@@ -60,8 +58,16 @@ func (f *OutputFormatter) AttachFlags(cmd *clibase.Cmd) *pflag.FlagSet {
 		formatNames = append(formatNames, format.ID())
 	}
 
-	fs.StringVarP(&f.formatID, "output", "o", f.formats[0].ID(), "Output format. Available formats: "+strings.Join(formatNames, ", "))
-	return fs
+	*opts = append(*opts,
+		clibase.Option{
+			Name:          "output",
+			Flag:          "output",
+			FlagShorthand: "o",
+			Default:       f.formats[0].ID(),
+			Value:         clibase.StringOf(&f.formatID),
+			Description:   "Output format. Available formats: " + strings.Join(formatNames, ", "),
+		},
+	)
 }
 
 // Format formats the given data using the format specified by the --output
@@ -122,9 +128,18 @@ func (*tableFormat) ID() string {
 	return "table"
 }
 
-// AttachFlags implements OutputFormat.
-func (f *tableFormat) AttachFlags(fs *pflag.FlagSet) {
-	fs.StringSliceVarP(&f.columns, "column", "c", f.defaultColumns, "Columns to display in table output. Available columns: "+strings.Join(f.allColumns, ", "))
+// AttachOptions implements OutputFormat.
+func (f *tableFormat) AttachOptions(opts *clibase.OptionSet) {
+	*opts = append(*opts,
+		clibase.Option{
+			Name:          "column",
+			Flag:          "column",
+			FlagShorthand: "c",
+			Default:       strings.Join(f.defaultColumns, ","),
+			Value:         clibase.StringsOf(&f.defaultColumns),
+			Description:   "Columns to display in table output. Available columns: " + strings.Join(f.allColumns, ", "),
+		},
+	)
 }
 
 // Format implements OutputFormat.
@@ -146,8 +161,8 @@ func (jsonFormat) ID() string {
 	return "json"
 }
 
-// AttachFlags implements OutputFormat.
-func (jsonFormat) AttachFlags(_ *pflag.FlagSet) {}
+// AttachOptions implements OutputFormat.
+func (jsonFormat) AttachOptions(_ *clibase.OptionSet) {}
 
 // Format implements OutputFormat.
 func (jsonFormat) Format(_ context.Context, data any) (string, error) {

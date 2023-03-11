@@ -213,6 +213,32 @@ func TestCommand(t *testing.T) {
 	})
 }
 
+func TestCommand_DeepNest(t *testing.T) {
+	t.Parallel()
+	cmd := &clibase.Cmd{
+		Use: "1",
+		Children: []*clibase.Cmd{
+			{
+				Use: "2",
+				Children: []*clibase.Cmd{
+					{
+						Use: "3",
+						Handler: func(i *clibase.Invocation) error {
+							i.Stdout.Write([]byte("3"))
+							return nil
+						},
+					},
+				},
+			},
+		},
+	}
+	inv := cmd.Invoke("2", "3")
+	stdio := fakeIO(inv)
+	err := inv.Run()
+	require.NoError(t, err)
+	require.Equal(t, "3", stdio.Stdout.String())
+}
+
 func TestCommand_MiddlewareOrder(t *testing.T) {
 	t.Parallel()
 
@@ -370,21 +396,32 @@ func TestCommand_ContextCancels(t *testing.T) {
 func TestCommand_Help(t *testing.T) {
 	t.Parallel()
 
-	cmd := &clibase.Cmd{
-		Use: "root",
-		HelpHandler: (func(i *clibase.Invocation) error {
-			i.Stdout.Write([]byte("abdracadabra"))
-			return nil
-		}),
-		Handler: (func(i *clibase.Invocation) error {
-			return xerrors.New("should not be called")
-		}),
+	cmd := func() *clibase.Cmd {
+		return &clibase.Cmd{
+			Use: "root",
+			HelpHandler: (func(i *clibase.Invocation) error {
+				i.Stdout.Write([]byte("abdracadabra"))
+				return nil
+			}),
+			Handler: (func(i *clibase.Invocation) error {
+				return xerrors.New("should not be called")
+			}),
+		}
 	}
+
+	t.Run("NoHandler", func(t *testing.T) {
+		t.Parallel()
+
+		c := cmd()
+		c.HelpHandler = nil
+		err := c.Invoke("--help").Run()
+		require.Error(t, err)
+	})
 
 	t.Run("Long", func(t *testing.T) {
 		t.Parallel()
 
-		inv := cmd.Invoke("--help")
+		inv := cmd().Invoke("--help")
 		stdio := fakeIO(inv)
 		err := inv.Run()
 		require.NoError(t, err)
@@ -395,7 +432,7 @@ func TestCommand_Help(t *testing.T) {
 	t.Run("Short", func(t *testing.T) {
 		t.Parallel()
 
-		inv := cmd.Invoke("-h")
+		inv := cmd().Invoke("-h")
 		stdio := fakeIO(inv)
 		err := inv.Run()
 		require.NoError(t, err)

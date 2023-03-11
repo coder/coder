@@ -33,7 +33,7 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 				return xerrors.Errorf("parse host: %w", err)
 			}
 
-			client, err := r.createAgentClient(inv)
+			client, err := r.createAgentClient()
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}

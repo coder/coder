@@ -78,7 +78,7 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 		},
 	}
 
-	formatter.AttachFlags(cmd)
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 

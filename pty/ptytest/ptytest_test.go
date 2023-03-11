@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/clibase/clibasetest"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
@@ -68,11 +67,9 @@ func TestPtytest(t *testing.T) {
 					},
 				}
 
-				inv, _ := clibasetest.Invoke(cmd)
-
+				inv := cmd.Invoke()
 				pty := ptytest.New(t)
-				inv.Stdin = pty.Input()
-				inv.Stdout = pty.Output()
+				pty.Attach(inv)
 				err := inv.Run()
 				require.NoError(t, err)
 			})

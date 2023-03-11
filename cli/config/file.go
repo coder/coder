@@ -21,7 +21,7 @@ type Root string
 // accidentally use an empty root.
 func (r Root) mustNotEmpty() {
 	if r == "" {
-		panic("root must not be empty")
+		panic("config root must not be empty")
 	}
 }
 

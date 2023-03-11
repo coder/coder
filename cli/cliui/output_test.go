@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clibase"
@@ -14,9 +13,9 @@ import (
 )
 
 type format struct {
-	id            string
-	attachFlagsFn func(fs *pflag.FlagSet)
-	formatFn      func(ctx context.Context, data any) (string, error)
+	id              string
+	attachOptionsFn func(opts *clibase.OptionSet)
+	formatFn        func(ctx context.Context, data any) (string, error)
 }
 
 var _ cliui.OutputFormat = &format{}
@@ -25,9 +24,9 @@ func (f *format) ID() string {
 	return f.id
 }
 
-func (f *format) AttachFlags(fs *pflag.FlagSet) {
-	if f.attachFlagsFn != nil {
-		f.attachFlagsFn(fs)
+func (f *format) AttachOptions(opts *clibase.OptionSet) {
+	if f.attachOptionsFn != nil {
+		f.attachOptionsFn(opts)
 	}
 }
 
@@ -83,8 +82,14 @@ func Test_OutputFormatter(t *testing.T) {
 			cliui.JSONFormat(),
 			&format{
 				id: "foo",
-				attachFlagsFn: func(fs *pflag.FlagSet) {
-					fs.StringP("foo", "f", "", "foo flag 1234")
+				attachOptionsFn: func(opts *clibase.OptionSet) {
+					opts.Add(clibase.Option{
+						Name:          "foo",
+						Flag:          "foo",
+						FlagShorthand: "f",
+						Value:         &clibase.DiscardValue{},
+						Description:   "foo flag 1234",
+					})
 				},
 				formatFn: func(_ context.Context, _ any) (string, error) {
 					atomic.AddInt64(&called, 1)
@@ -94,7 +99,9 @@ func Test_OutputFormatter(t *testing.T) {
 		)
 
 		cmd := &clibase.Cmd{}
-		fs := f.AttachFlags(cmd)
+		f.AttachOptions(&cmd.Options)
+
+		fs := cmd.Options.FlagSet()
 
 		selected, err := fs.GetString("output")
 		require.NoError(t, err)

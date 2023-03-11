@@ -8,7 +8,7 @@ import (
 func (r *RootCmd) users() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Short:   "Manage users",
-		Use:     "users",
+		Use:     "users [subcommand]",
 		Aliases: []string{"user"},
 		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)

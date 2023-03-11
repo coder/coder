@@ -2,20 +2,21 @@ package cli
 
 import (
 	_ "embed"
-	"fmt"
-	"io"
 	"sort"
 	"strings"
+	"text/tabwriter"
 	"text/template"
 
 	"github.com/mitchellh/go-wordwrap"
+	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 )
 
-//go:embed usage.tpl
-var usageTemplateRaw string
+//go:embed help.tpl
+var helpTemplateRaw string
 
 type optionGroup struct {
 	Name        string
@@ -23,13 +24,21 @@ type optionGroup struct {
 	Options     clibase.OptionSet
 }
 
-const envPrefix = "CODER_"
+// wrapTTY wraps a string to the width of the terminal, or 80 no terminal
+// is detected.
+func wrapTTY(s string) string {
+	width, _, err := terminal.GetSize(0)
+	if err != nil {
+		width = 80
+	}
+	return wordwrap.WrapString(s, uint(width))
+}
 
 var usageTemplate = template.Must(
 	template.New("usage").Funcs(
 		template.FuncMap{
-			"wordWrap": func(s string, width uint) string {
-				return wordwrap.WrapString(s, width)
+			"wrapTTY": func(s string) string {
+				return wrapTTY(s)
 			},
 			"trimNewline": func(s string) string {
 				return strings.TrimSuffix(s, "\n")
@@ -48,7 +57,7 @@ var usageTemplate = template.Must(
 				if opt.Env == "" {
 					return ""
 				}
-				return envPrefix + opt.Env
+				return opt.Env
 			},
 			"flagName": func(opt clibase.Option) string {
 				return opt.Flag
@@ -62,10 +71,13 @@ var usageTemplate = template.Must(
 			"isDeprecated": func(opt clibase.Option) bool {
 				return len(opt.UseInstead) > 0
 			},
+			"formatLong": func(long string) string {
+				return wrapTTY(strings.TrimSpace(long))
+			},
 			"formatGroupDescription": func(s string) string {
 				s = strings.ReplaceAll(s, "\n", "")
-				s = "\n" + s + "\n"
-				s = wordwrap.WrapString(s, 60)
+				s = s + "\n"
+				s = wrapTTY(s)
 				return s
 			},
 			"optionGroups": func(cmd *clibase.Cmd) []optionGroup {
@@ -121,20 +133,41 @@ var usageTemplate = template.Must(
 					// Sort groups lexicographically.
 					return groups[i].Name < groups[j].Name
 				})
+
 				// Always show enterprise group last.
-				return append(groups, enterpriseGroup)
+				groups = append(groups, enterpriseGroup)
+
+				return filterSlice(groups, func(g optionGroup) bool {
+					return len(g.Options) > 0
+				})
 			},
 		},
-	).Parse(usageTemplateRaw),
+	).Parse(helpTemplateRaw),
 )
 
-// usageFn returns a function that generates usage (help)
-// output for a given command.
-func usageFn(output io.Writer, cmd *clibase.Cmd) func() {
-	return func() {
-		err := usageTemplate.Execute(output, cmd)
-		if err != nil {
-			_, _ = fmt.Fprintf(output, "execute template: %v", err)
+func filterSlice[T any](s []T, f func(T) bool) []T {
+	var r []T
+	for _, v := range s {
+		if f(v) {
+			r = append(r, v)
 		}
+	}
+	return r
+}
+
+// helpFn returns a function that generates usage (help)
+// output for a given command.
+func helpFn() clibase.HandlerFunc {
+	return func(inv *clibase.Invocation) error {
+		tabwriter := tabwriter.NewWriter(inv.Stderr, 0, 0, 2, ' ', 0)
+		err := usageTemplate.Execute(tabwriter, inv.Command)
+		if err != nil {
+			return xerrors.Errorf("execute template: %w", err)
+		}
+		err = tabwriter.Flush()
+		if err != nil {
+			panic(err)
+		}
+		return nil
 	}
 }

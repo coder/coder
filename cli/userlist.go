@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -41,7 +40,7 @@ func (r *RootCmd) userList() *clibase.Cmd {
 		},
 	}
 
-	formatter.AttachFlags(cmd)
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 
@@ -93,7 +92,7 @@ func (r *RootCmd) userSingle() *clibase.Cmd {
 		},
 	}
 
-	formatter.AttachFlags(cmd)
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 
@@ -111,8 +110,8 @@ func (*userShowFormat) ID() string {
 	return "table"
 }
 
-// AttachFlags implements OutputFormat.
-func (*userShowFormat) AttachFlags(_ *pflag.FlagSet) {}
+// AttachOptions implements OutputFormat.
+func (*userShowFormat) AttachOptions(_ *clibase.OptionSet) {}
 
 // Format implements OutputFormat.
 func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error) {

@@ -2,7 +2,10 @@
 usage: {{.FullUsage}}
 
 {{.Short}}
-{{ with .Long}} {{.}} {{ end }}
+{{- with .Long}}
+{{- formatLong . }}
+{{ " " }}
+{{- end }}
 
 {{- range $index, $group := optionGroups . }}
 {{ with $group.Name }} {{- print $group.Name " Options" | prettyHeader }} {{ else -}} {{ prettyHeader "Options"}}{{- end -}}
@@ -17,7 +20,7 @@ usage: {{.FullUsage}}
     {{- with envName $option }}, ${{ . }} {{ end }}
     {{- with $option.Default }} (default: {{.}}) {{ end }}
         {{- with $option.Description }}
-            {{- $desc := wordWrap $option.Description 60 }}
+            {{- $desc := wrapTTY $option.Description }}
 {{ indent $desc 2}}
 {{- if isDeprecated $option }} DEPRECATED {{ end }}
         {{- end -}}
@@ -27,5 +30,5 @@ usage: {{.FullUsage}}
 {{- if eq $index 0 }}
 {{ prettyHeader "Subcommands"}}
 {{- end }}
-{{ indent $child.Use 1 | trimNewline }}{{ indent $child.Short 1 | trimNewline }}
+    {{ indent $child.Name 1 | trimNewline }}{{"\t"}}{{ indent $child.Short 1 | trimNewline }}
 {{- end }}

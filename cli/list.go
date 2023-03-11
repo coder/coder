@@ -146,6 +146,6 @@ func (r *RootCmd) list() *clibase.Cmd {
 		},
 	}
 
-	formatter.AttachFlags(cmd)
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }

@@ -108,10 +108,9 @@ func (r *RootCmd) AGPL() []*clibase.Cmd {
 }
 
 // Main is the entrypoint for the Coder CLI.
-func Main(subcommands []*clibase.Cmd) {
+func (cmd *RootCmd) RunMain(subcommands []*clibase.Cmd) {
 	rand.Seed(time.Now().UnixMicro())
 
-	var cmd RootCmd
 	err := cmd.Command(subcommands).Invoke().WithOS().Run()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {
@@ -128,7 +127,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
 	cmd := &clibase.Cmd{
-		Use: "coder",
+		Use: "coder [subcommand]",
 		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + formatExamples(
 			example{
 				Description: "Start a Coder server",
@@ -157,10 +156,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 	// Set default help handler for all commands.
 	cmd.Walk(func(c *clibase.Cmd) {
 		if c.HelpHandler == nil {
-			c.HelpHandler = func(i *clibase.Invocation) error {
-				usageFn(i.Stderr, c)()
-				return nil
-			}
+			c.HelpHandler = helpFn()
 		}
 	})
 
@@ -171,6 +167,10 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 		r.clientURL = new(url.URL)
 	}
 
+	globalGroup := &clibase.Group{
+		Name:        "Global",
+		Description: `Global options are applied to all commands. They can be set using environment variables or flags.`,
+	}
 	cmd.Options = []clibase.Option{
 		{
 			Name:        varURL,
@@ -178,6 +178,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Env:         envURL,
 			Description: "URL to a deployment.",
 			Value:       clibase.URLOf(r.clientURL),
+			Group:       globalGroup,
 		},
 		{
 			Name:        varToken,
@@ -185,6 +186,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Env:         envSessionToken,
 			Description: fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken),
 			Value:       clibase.StringOf(&r.token),
+			Group:       globalGroup,
 		},
 		{
 			Name:        varAgentToken,
@@ -192,6 +194,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Description: "An agent authentication token.",
 			Value:       clibase.StringOf(&r.agentToken),
 			Hidden:      true,
+			Group:       globalGroup,
 		},
 		{
 			Name:        varAgentURL,
@@ -200,6 +203,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Description: "URL for an agent to access your deployment",
 			Value:       clibase.URLOf(r.agentURL),
 			Hidden:      true,
+			Group:       globalGroup,
 		},
 		{
 			Name:        varNoVersionCheck,
@@ -207,6 +211,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Env:         envNoVersionCheck,
 			Description: "Suppress warning when client and server versions do not match.",
 			Value:       clibase.BoolOf(&r.noVersionCheck),
+			Group:       globalGroup,
 		},
 		{
 			Name:        varNoFeatureWarning,
@@ -214,6 +219,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Env:         envNoFeatureWarning,
 			Description: "Suppress warnings about unlicensed features.",
 			Value:       clibase.BoolOf(&r.noFeatureWarning),
+			Group:       globalGroup,
 		},
 		{
 			Name:        varHeader,
@@ -221,6 +227,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Env:         "CODER_HEADER",
 			Description: "Additional HTTP headers to send to the server.",
 			Value:       clibase.StringsOf(&r.header),
+			Group:       globalGroup,
 		},
 		{
 			Name:        varNoOpen,
@@ -229,6 +236,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Description: "Suppress opening the browser after logging in.",
 			Value:       clibase.BoolOf(&r.noOpen),
 			Hidden:      true,
+			Group:       globalGroup,
 		},
 		{
 			Name:        varForceTty,
@@ -237,6 +245,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Hidden:      true,
 			Description: "Force the use of a TTY.",
 			Value:       clibase.BoolOf(&r.forceTTY),
+			Group:       globalGroup,
 		},
 		{
 			Name:          varVerbose,
@@ -245,6 +254,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Env:           "CODER_VERBOSE",
 			Description:   "Enable verbose logging.",
 			Value:         clibase.BoolOf(&r.verbose),
+			Group:         globalGroup,
 		},
 		{
 			Name:        config.FlagName,
@@ -253,6 +263,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Description: "Path to the global `coder` config directory.",
 			Default:     config.DefaultDir(),
 			Value:       clibase.StringOf(&r.globalConfig),
+			Group:       globalGroup,
 		},
 	}
 
@@ -327,12 +338,18 @@ type RootCmd struct {
 // UseClient returns a new client from the command context.
 // It reads from global configuration files if flags are not set.
 func (r *RootCmd) UseClient(client *codersdk.Client) clibase.MiddlewareFunc {
+	if client == nil {
+		panic("client is nil")
+	}
+	if r == nil {
+		panic("root is nil")
+	}
 	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
 		return func(i *clibase.Invocation) error {
-			root := r.createConfig()
+			conf := r.createConfig()
 			var err error
-			if r.clientURL.String() == "" {
-				rawURL, err := root.URL().Read()
+			if r.clientURL == nil || r.clientURL.String() == "" {
+				rawURL, err := conf.URL().Read()
 				// If the configuration files are absent, the user is logged out
 				if os.IsNotExist(err) {
 					return (errUnauthenticated)
@@ -348,7 +365,7 @@ func (r *RootCmd) UseClient(client *codersdk.Client) clibase.MiddlewareFunc {
 			}
 
 			if r.token == "" {
-				r.token, err = root.Session().Read()
+				r.token, err = conf.Session().Read()
 				// If the configuration files are absent, the user is logged out
 				if os.IsNotExist(err) {
 					return (errUnauthenticated)
@@ -358,7 +375,7 @@ func (r *RootCmd) UseClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				}
 			}
 
-			err = r.initClient(client)
+			err = r.initClient(client, r.clientURL)
 			if err != nil {
 				return err
 			}
@@ -400,7 +417,7 @@ func (r *RootCmd) UseClient(client *codersdk.Client) clibase.MiddlewareFunc {
 	}
 }
 
-func (r *RootCmd) initClient(client *codersdk.Client) error {
+func (r *RootCmd) initClient(client *codersdk.Client, serverURL *url.URL) error {
 	transport := &headerTransport{
 		transport: http.DefaultTransport,
 		headers:   map[string]string{},
@@ -412,19 +429,22 @@ func (r *RootCmd) initClient(client *codersdk.Client) error {
 		}
 		transport.headers[parts[0]] = parts[1]
 	}
-	client.HTTPClient.Transport = transport
+	client.URL = serverURL
+	client.HTTPClient = &http.Client{
+		Transport: transport,
+	}
 	return nil
 }
 
 func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Client, error) {
 	var client codersdk.Client
-	r.initClient(&client)
-	return &client, nil
+	err := r.initClient(&client, serverURL)
+	return &client, err
 }
 
 // createAgentClient returns a new client from the command context.
 // It works just like CreateClient, but uses the agent token and URL instead.
-func (r *RootCmd) createAgentClient(inv *clibase.Invocation) (*agentsdk.Client, error) {
+func (r *RootCmd) createAgentClient() (*agentsdk.Client, error) {
 	client := agentsdk.New(r.agentURL)
 	client.SetSessionToken(r.agentToken)
 	return client, nil

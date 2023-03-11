@@ -186,7 +186,7 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 		},
 	}
 
-	formatter.AttachFlags(cmd)
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 

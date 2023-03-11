@@ -425,7 +425,7 @@ when required by your organization's security policy.`,
 		Group:       &deploymentGroupNetworking,
 		YAML:        "redirectToAccessURL",
 	}
-	return clibase.OptionSet{
+	opts := clibase.OptionSet{
 		{
 			Name:        "Access URL",
 			Description: `The URL that users will use to access the Coder deployment.`,
@@ -1290,6 +1290,12 @@ Write out the current server configuration to the path specified by --config.`,
 			Hidden:      true,
 		},
 	}
+	for _, o := range opts {
+		if o.Env != "" {
+			o.Env = "CODER_" + o.Env
+		}
+	}
+	return opts
 }
 
 type SupportConfig struct {

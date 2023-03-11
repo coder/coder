@@ -77,7 +77,7 @@ func (c *Cmd) FullName() string {
 func (c *Cmd) FullUsage() string {
 	var uses []string
 	if c.Parent != nil {
-		uses = append(uses, c.Parent.FullUsage())
+		uses = append(uses, c.Parent.Name())
 	}
 	uses = append(uses, c.Use)
 	return strings.Join(uses, " ")
@@ -115,21 +115,11 @@ type Invocation struct {
 // fields with OS defaults.
 func (i *Invocation) WithOS() *Invocation {
 	return i.with(func(i *Invocation) {
-		if i.Stdout == nil {
-			i.Stdout = os.Stdout
-		}
-		if i.Stderr == nil {
-			i.Stderr = os.Stderr
-		}
-		if i.Stdin == nil {
-			i.Stdin = os.Stdin
-		}
-		if i.Args == nil {
-			i.Args = os.Args[1:]
-		}
-		if i.Environ == nil {
-			i.Environ = ParseEnviron(os.Environ(), "")
-		}
+		i.Stdout = os.Stdout
+		i.Stderr = os.Stderr
+		i.Stdin = os.Stdin
+		i.Args = os.Args[1:]
+		i.Environ = ParseEnviron(os.Environ(), "")
 	})
 }
 
@@ -201,8 +191,8 @@ func (i *Invocation) run(state *runState) error {
 	// Run child command if found (next child only)
 	// We must do subcommand detection after flag parsing so we don't mistake flag
 	// values for subcommand names.
-	if len(parsedArgs) > 0 {
-		nextArg := parsedArgs[0]
+	if len(parsedArgs) > state.commandDepth {
+		nextArg := parsedArgs[state.commandDepth]
 		if child, ok := children[nextArg]; ok {
 			child.Parent = i.Command
 			i.Command = child
@@ -314,10 +304,17 @@ func findArg(want string, args []string, fs *pflag.FlagSet) (int, error) {
 // If two command share a flag name, the first command wins.
 //
 //nolint:revive
-func (i *Invocation) Run() error {
-	return i.run(&runState{
+func (i *Invocation) Run() (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			// Panics are difficult to debug without this additional context.
+			err = xerrors.Errorf("panic recovered for %s: %v", i.Command.FullName(), r)
+		}
+	}()
+	err = i.run(&runState{
 		allArgs: i.Args,
 	})
+	return err
 }
 
 // WithContext returns a copy of the Invocation with the given context.

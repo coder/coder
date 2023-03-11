@@ -219,5 +219,8 @@ func passwordHelper() {
 			return nil
 		},
 	}
-	cmd.Invoke().Run()
+	err := cmd.Invoke().WithOS().Run()
+	if err != nil {
+		panic(err)
+	}
 }

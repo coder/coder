@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/acarl005/stripansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -52,14 +53,13 @@ func TestCommandHelp(t *testing.T) {
 			name: "coder --help",
 			cmd:  []string{"--help"},
 		},
-		// Re-enable after clibase migrations.
-		// {
-		// 	name: "coder server --help",
-		// 	cmd:  []string{"server", "--help"},
-		// 	env: map[string]string{
-		// 		"CODER_CACHE_DIRECTORY": "~/.cache/coder",
-		// 	},
-		// },
+		{
+			name: "coder server --help",
+			cmd:  []string{"server", "--help"},
+			env: map[string]string{
+				"CODER_CACHE_DIRECTORY": "~/.cache/coder",
+			},
+		},
 		{
 			name: "coder agent --help",
 			cmd:  []string{"agent", "--help"},
@@ -130,7 +130,7 @@ ExtractCommandPathsLoop:
 			var buf bytes.Buffer
 			inv, cfg := clitest.New(t, tt.cmd...)
 			clitest.SetupConfig(t, rootClient, cfg)
-			inv.Stdout = &buf
+			inv.Stderr = &buf
 			assert.NoError(t, err)
 			err = inv.WithContext(ctx).Run()
 			err2 := os.Chdir(wd)
@@ -152,6 +152,8 @@ ExtractCommandPathsLoop:
 			for k, v := range replace {
 				got = bytes.ReplaceAll(got, []byte(k), v)
 			}
+
+			got = []byte(stripansi.Strip(string(got)))
 
 			// Replace any timestamps with a placeholder.
 			got = timestampRegex.ReplaceAll(got, []byte("[timestamp]"))
@@ -176,10 +178,6 @@ func extractVisibleCommandPaths(cmdPath []string, cmds []*clibase.Cmd) [][]strin
 	var cmdPaths [][]string
 	for _, c := range cmds {
 		if c.Hidden {
-			continue
-		}
-		// TODO: re-enable after clibase migration.
-		if c.Name() == "server" {
 			continue
 		}
 		cmdPath := append(cmdPath, c.Name())

@@ -177,6 +177,7 @@ require (
 )
 
 require (
+	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
 	github.com/dgraph-io/badger/v3 v3.2103.5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect

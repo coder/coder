@@ -94,7 +94,7 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 	sort.Strings(environ)
 
 	var providers []codersdk.GitAuthConfig
-	for _, v := range clibase.ParseEnviron(environ, envPrefix+"GITAUTH_") {
+	for _, v := range clibase.ParseEnviron(environ, "CODER_GITAUTH_") {
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
 			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
@@ -1168,7 +1168,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	}
 	createAdminUserCmd.Options = append(createAdminUserCmd.Options, rawURLOpt)
 	postgresBuiltinURLCmd.Options = append(postgresBuiltinURLCmd.Options, rawURLOpt)
-	postgresBuiltinServeCmd.Options = append(postgresBuiltinURLCmd.Options, rawURLOpt)
+	postgresBuiltinServeCmd.Options = append(postgresBuiltinServeCmd.Options, rawURLOpt)
 
 	serverCmd.Children = append(
 		serverCmd.Children,
