@@ -15,7 +15,9 @@ resource "fly_ip" "workspace-ip6" {
 
 resource "fly_volume" "home-volume" {
   app    = fly_app.workspace.name
-  name   = "coder_${data.coder_workspace.me.owner}_${lower(data.coder_workspace.me.name)}_home"
+  name   = "coder_${data.coder_workspace.me.owner}_${lower(replace(data.coder_workspace.me.name, "-", "_"))}_home"
+  # or use workspace id
+  # name   = "coder_${data.coder_workspace.me.owner}_${data.coder_workspace.me.id}_home"
   size   = data.coder_parameter.volume-size.value
   region = data.coder_parameter.region.value
 }
