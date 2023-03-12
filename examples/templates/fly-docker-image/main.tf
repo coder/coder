@@ -113,14 +113,14 @@ data "coder_parameter" "cpu" {
 
 data "coder_parameter" "memory" {
   name        = "Memory (GB)"
-  description = "The amount of memory to allocate to the workspace in GB (1-8)"
+  description = "The amount of memory to allocate to the workspace in GB (1-16)"
   type        = "number"
   default     = "1"
   icon        = "/icon/memory.svg"
   mutable     = true
   validation {
     min = 1
-    max = 8
+    max = 16
   }
 }
 
