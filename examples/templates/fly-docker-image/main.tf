@@ -1,3 +1,26 @@
+terraform {
+  required_providers {
+    fly = {
+      source  = "fly-apps/fly"
+      version = "~>0.0.21"
+    }
+    coder = {
+      source  = "coder/coder"
+      version = "~>0.6.17"
+    }
+  }
+}
+
+provider "fly" {
+  useinternaltunnel    = true
+  internaltunnelorg    = var.fly_org
+  internaltunnelregion = data.coder_parameter.region.value
+}
+
+provider "coder" {
+  feature_use_managed_variables = true
+}
+
 resource "fly_app" "workspace" {
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   org  = var.fly_org
@@ -16,8 +39,6 @@ resource "fly_ip" "workspace-ip6" {
 resource "fly_volume" "home-volume" {
   app    = fly_app.workspace.name
   name   = "coder_${data.coder_workspace.me.owner}_${lower(replace(data.coder_workspace.me.name, "-", "_"))}_home"
-  # or use workspace id
-  # name   = "coder_${data.coder_workspace.me.owner}_${data.coder_workspace.me.id}_home"
   size   = data.coder_parameter.volume-size.value
   region = data.coder_parameter.region.value
 }
