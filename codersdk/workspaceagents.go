@@ -146,6 +146,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:      []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:        connInfo.DERPMap,
+		DERPHeader:     c.DERPHeader,
 		Logger:         options.Logger,
 		BlockEndpoints: options.BlockEndpoints,
 	})

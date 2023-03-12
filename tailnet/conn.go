@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/netip"
 	"reflect"
 	"strconv"
@@ -50,8 +51,9 @@ func init() {
 }
 
 type Options struct {
-	Addresses []netip.Prefix
-	DERPMap   *tailcfg.DERPMap
+	Addresses  []netip.Prefix
+	DERPMap    *tailcfg.DERPMap
+	DERPHeader *http.Header
 
 	// BlockEndpoints specifies whether P2P endpoints are blocked.
 	// If so, only DERPs can establish connections.
@@ -158,6 +160,10 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	tunDevice, magicConn, dnsManager, ok := wireguardInternals.GetInternals()
 	if !ok {
 		return nil, xerrors.New("get wireguard internals")
+	}
+
+	if options.DERPHeader != nil {
+		magicConn.SetDERPHeader(options.DERPHeader.Clone())
 	}
 
 	// Update the keys for the magic connection!
