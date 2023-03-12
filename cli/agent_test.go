@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/pty/ptytest"
 )
 
 func TestWorkspaceAgent(t *testing.T) {
@@ -74,7 +75,7 @@ func TestWorkspaceAgent(t *testing.T) {
 	t.Run("Azure", func(t *testing.T) {
 		t.Parallel()
 		instanceID := "instanceidentifier"
-		certificates, _ := coderdtest.NewAzureInstanceIdentity(t, instanceID)
+		certificates, metadataClient := coderdtest.NewAzureInstanceIdentity(t, instanceID)
 		client := coderdtest.New(t, &coderdtest.Options{
 			AzureCertificates:        certificates,
 			IncludeProvisionerDaemon: true,
@@ -104,6 +105,10 @@ func TestWorkspaceAgent(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		inv, _ := clitest.New(t, "agent", "--auth", "azure-instance-identity", "--agent-url", client.URL.String())
+		inv = inv.WithContext(
+			//nolint:revive,staticcheck
+			context.WithValue(inv.Context(), "azure-client", metadataClient),
+		)
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		clitest.Start(t, inv)
@@ -123,7 +128,7 @@ func TestWorkspaceAgent(t *testing.T) {
 	t.Run("AWS", func(t *testing.T) {
 		t.Parallel()
 		instanceID := "instanceidentifier"
-		certificates, _ := coderdtest.NewAWSInstanceIdentity(t, instanceID)
+		certificates, metadataClient := coderdtest.NewAWSInstanceIdentity(t, instanceID)
 		client := coderdtest.New(t, &coderdtest.Options{
 			AWSCertificates:          certificates,
 			IncludeProvisionerDaemon: true,
@@ -153,6 +158,10 @@ func TestWorkspaceAgent(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		inv, _ := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--agent-url", client.URL.String())
+		inv = inv.WithContext(
+			//nolint:revive,1029
+			context.WithValue(inv.Context(), "aws-client", metadataClient),
+		)
 		clitest.Start(t, inv)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		workspace, err := client.Workspace(inv.Context(), workspace.ID)
@@ -170,7 +179,7 @@ func TestWorkspaceAgent(t *testing.T) {
 	t.Run("GoogleCloud", func(t *testing.T) {
 		t.Parallel()
 		instanceID := "instanceidentifier"
-		validator, _ := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
+		validator, metadataClient := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator:     validator,
 			IncludeProvisionerDaemon: true,
@@ -199,8 +208,15 @@ func TestWorkspaceAgent(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		inv, _ := clitest.New(t, "agent", "--auth", "google-instance-identity", "--agent-url", client.URL.String())
-		clitest.Start(t, inv)
+		inv, cfg := clitest.New(t, "agent", "--auth", "google-instance-identity", "--agent-url", client.URL.String())
+		_ = ptytest.New(t).Attach(inv)
+		clitest.SetupConfig(t, client, cfg)
+		clitest.Start(t,
+			inv.WithContext(
+				//nolint:revive,staticcheck
+				context.WithValue(context.Background(), "gcp-client", metadataClient),
+			),
+		)
 
 		ctx := inv.Context()
 

@@ -875,7 +875,7 @@ func TestServer(t *testing.T) {
 	t.Run("TracerNoLeak", func(t *testing.T) {
 		t.Parallel()
 
-		root, _ := clitest.New(t,
+		inv, _ := clitest.New(t,
 			"server",
 			"--in-memory",
 			"--http-address", ":0",
@@ -883,7 +883,10 @@ func TestServer(t *testing.T) {
 			"--trace=true",
 			"--cache-dir", t.TempDir(),
 		)
-		clitest.Run(t, root)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		clitest.Start(t, inv.WithContext(ctx))
+		cancel()
 		require.Error(t, goleak.Find())
 	})
 	t.Run("Telemetry", func(t *testing.T) {

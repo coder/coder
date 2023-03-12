@@ -372,7 +372,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 				// We want to print out the address the user supplied, not the
 				// loopback device.
-				cliui.Info(inv.Stdout, "Started HTTP listener at", (&url.URL{Scheme: "http", Host: listenAddrStr}).String()+"\n")
+				_, _ = fmt.Fprintf(inv.Stdout, "Started HTTP listener at %s\n", (&url.URL{Scheme: "http", Host: listenAddrStr}).String())
 
 				// Set the http URL we want to use when connecting to ourselves.
 				tcpAddr, tcpAddrValid := httpListener.Addr().(*net.TCPAddr)
@@ -436,7 +436,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 				// We want to print out the address the user supplied, not the
 				// loopback device.
-				cliui.Info(inv.Stdout, "Started TLS/HTTPS listener at", (&url.URL{Scheme: "https", Host: listenAddrStr}).String()+"\n")
+				_, _ = fmt.Fprintf(inv.Stdout, "Started TLS/HTTPS listener at %s\n", (&url.URL{Scheme: "https", Host: listenAddrStr}).String())
 
 				// Set the https URL we want to use when connecting to
 				// ourselves.

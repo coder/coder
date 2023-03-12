@@ -28,7 +28,7 @@ import (
 	"github.com/coder/coder/codersdk/agentsdk"
 )
 
-func (*RootCmd) workspaceAgent() *clibase.Cmd {
+func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 	var (
 		auth         string
 		logDir       string
@@ -44,14 +44,6 @@ func (*RootCmd) workspaceAgent() *clibase.Cmd {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			rawURL, err := inv.ParsedFlags().GetString(varAgentURL)
-			if err != nil {
-				return xerrors.Errorf("CODER_AGENT_URL must be set: %w", err)
-			}
-			coderURL, err := url.Parse(rawURL)
-			if err != nil {
-				return xerrors.Errorf("parse %q: %w", rawURL, err)
-			}
 			agentPorts := map[int]string{}
 
 			isLinux := runtime.GOOS == "linux"
@@ -110,11 +102,11 @@ func (*RootCmd) workspaceAgent() *clibase.Cmd {
 
 			version := buildinfo.Version()
 			logger.Info(ctx, "starting agent",
-				slog.F("url", coderURL),
+				slog.F("url", r.agentURL),
 				slog.F("auth", auth),
 				slog.F("version", version),
 			)
-			client := agentsdk.New(coderURL)
+			client := agentsdk.New(r.agentURL)
 			client.SDK.Logger = logger
 			// Set a reasonable timeout so requests can't hang forever!
 			client.SDK.HTTPClient.Timeout = 10 * time.Second

@@ -78,11 +78,13 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.state(),
 		r.templates(),
 		r.users(),
+		r.tokens(),
 		r.version(),
 
 		// Workspace Commands
 		r.configSSH(),
 		r.rename(),
+		r.ping(),
 		r.create(),
 		r.deleteWorkspace(),
 		r.list(),
@@ -93,10 +95,14 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.start(),
 		r.stop(),
 		r.update(),
+		r.restart(),
+		r.parameters(),
 
 		// Hidden
 		r.workspaceAgent(),
 		r.scaletest(),
+		r.gitssh(),
+		r.vscodeSSH(),
 	}
 }
 
@@ -109,10 +115,10 @@ func (r *RootCmd) AGPL() []*clibase.Cmd {
 }
 
 // Main is the entrypoint for the Coder CLI.
-func (cmd *RootCmd) RunMain(subcommands []*clibase.Cmd) {
+func (r *RootCmd) RunMain(subcommands []*clibase.Cmd) {
 	rand.Seed(time.Now().UnixMicro())
 
-	err := cmd.Command(subcommands).Invoke().WithOS().Run()
+	err := r.Command(subcommands).Invoke().WithOS().Run()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {
 			//nolint:revive
@@ -301,7 +307,7 @@ func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
 }
 
 // version prints the coder version
-func (r *RootCmd) version() *clibase.Cmd {
+func (*RootCmd) version() *clibase.Cmd {
 	return &clibase.Cmd{
 		Use:   "version",
 		Short: "Show coder version",

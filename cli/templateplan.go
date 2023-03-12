@@ -4,7 +4,7 @@ import (
 	"github.com/coder/coder/cli/clibase"
 )
 
-func (r *RootCmd) templatePlan() *clibase.Cmd {
+func (*RootCmd) templatePlan() *clibase.Cmd {
 	return &clibase.Cmd{
 		Use: "plan <directory>",
 		Middleware: clibase.Chain(

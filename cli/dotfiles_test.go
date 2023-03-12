@@ -81,6 +81,7 @@ func TestDotfiles(t *testing.T) {
 		require.Equal(t, string(b), "wow\n")
 	})
 	t.Run("SymlinkBackup", func(t *testing.T) {
+		t.Parallel()
 		_, root := clitest.New(t)
 		testRepo := testGitRepo(t, root)
 

@@ -57,7 +57,7 @@ func (r *RootCmd) groupList() *clibase.Cmd {
 		},
 	}
 
-	formatter.AttachOptions(cmd)
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 
