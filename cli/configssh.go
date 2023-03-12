@@ -357,6 +357,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("write ssh config failed: %w", err)
 				}
+				_, _ = fmt.Fprintf(out, "Updated %q\n", sshConfigFile)
 			}
 
 			if len(workspaceConfigs) > 0 {
@@ -379,8 +380,8 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Value:       clibase.StringOf(&sshConfigFile),
 		},
 		{
-			Name:          "ssh-config-opts",
-			Flag:          "ssh-config-opts",
+			Name:          "ssh-options",
+			Flag:          "ssh-option",
 			FlagShorthand: "o",
 			Env:           "CODER_SSH_CONFIG_OPTS",
 			Description:   "Specifies additional SSH options to embed in each host stanza.",

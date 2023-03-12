@@ -699,7 +699,7 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 
 			inv, root := clitest.New(t, "config-ssh", "--ssh-config-file", sshConfigFile)
 			clitest.SetupConfig(t, client, root)
-			doneChan := make(chan struct{})
+
 			pty := ptytest.New(t)
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
@@ -715,7 +715,7 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 				pty.WriteLine(m.write)
 			}
 
-			<-doneChan
+			pty.ExpectMatch("Updated")
 
 			var expectedHosts []string
 			for _, hostnamePattern := range tt.expected {

@@ -82,6 +82,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 
 		// Workspace Commands
 		r.configSSH(),
+		r.rename(),
 		r.create(),
 		r.deleteWorkspace(),
 		r.list(),

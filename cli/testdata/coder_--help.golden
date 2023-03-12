@@ -9,6 +9,7 @@ environments with Terraform.
   - Get started by creating a template from an example:                         
 
       $ coder templates init
+
 Global Options 
 Global options are applied to all commands. They can be set using environment
 variables or flags.
@@ -47,6 +48,7 @@ Subcommands
         users               Manage users
         version             Show coder version
         config-ssh          Add an SSH Host entry for your workspaces "ssh coder.workspace"
+        rename              Rename a workspace
         create              Create a workspace
         delete              Delete a workspace
         list                List workspaces

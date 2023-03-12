@@ -7,5 +7,6 @@ Shows the following information for the given workspace:
   * The next scheduled start time
   * The duration after which it will stop
   * The next scheduled stop time
+
 ---
 Report bugs and request features at https://github.com/coder/coder/issues/new

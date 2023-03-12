@@ -21,6 +21,7 @@ Forward ports from machine to a workspace
 
       $ coder port-forward <workspace> --tcp
 8080,9000:3000,9090-9092,10000-10002:10010-10012
+
 Options
     --tcp, -p, $CODER_PORT_FORWARD_TCP 
         Forward TCP port(s) from the workspace to the local machine

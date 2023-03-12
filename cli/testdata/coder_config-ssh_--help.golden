@@ -10,6 +10,7 @@ Add an SSH Host entry for your workspaces "ssh coder.workspace"
   - You can use --dry-run (or -n) to see the changes that would be made:        
 
       $ coder config-ssh --dry-run
+
 Options
     --dry-run, -n, $CODER_SSH_DRY_RUN 
         Perform a trial run with no changes made, showing a diff at the end.
@@ -17,7 +18,7 @@ Options
     --ssh-config-file, $CODER_SSH_CONFIG_FILE  (default: ~/.ssh/config) 
         Specifies the path to an SSH config.
 
-    --ssh-config-opts, -o, $CODER_SSH_CONFIG_OPTS 
+    --ssh-option, -o, $CODER_SSH_CONFIG_OPTS 
         Specifies additional SSH options to embed in each host stanza.
 
     --use-previous-options, $CODER_SSH_USE_PREVIOUS_OPTIONS 

@@ -49,6 +49,7 @@ func (r *RootCmd) rename() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("rename workspace: %w", err)
 			}
+			_, _ = fmt.Fprintf(inv.Stdout, "Workspace %q renamed to %q\n", workspace.Name, inv.Args[1])
 			return nil
 		},
 	}

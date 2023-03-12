@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -33,18 +32,12 @@ func TestRename(t *testing.T) {
 	inv, root := clitest.New(t, "rename", workspace.Name, want, "--yes")
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)
-	inv.Stdin = pty.Input()
-	inv.Stdout = pty.Output()
-
-	errC := make(chan error, 1)
-	go func() {
-		errC <- inv.WithContext(ctx).Run()
-	}()
+	pty.Attach(inv)
+	clitest.Start(t, inv)
 
 	pty.ExpectMatch("confirm rename:")
 	pty.WriteLine(workspace.Name)
-
-	require.NoError(t, <-errC)
+	pty.ExpectMatch("renamed to")
 
 	ws, err := client.Workspace(ctx, workspace.ID)
 	assert.NoError(t, err)

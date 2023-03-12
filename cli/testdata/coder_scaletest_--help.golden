@@ -3,6 +3,7 @@ Usage: coder scaletest
 Run a scale test against the Coder API
 
 Perform scale tests against the Coder server.
+
 Subcommands
         cleanup                Cleanup any orphaned scaletest resources
         create-workspaces      Creates many workspaces and waits for them to be ready

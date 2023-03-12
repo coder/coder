@@ -4,6 +4,7 @@ Update a user's status to 'suspended'. A suspended user cannot log into the
 platform
 
 $ coder users suspend example_user
+
 Options
     --column, -c (default: username,email,created_at,status) 
         Specify a column to filter in the table.
