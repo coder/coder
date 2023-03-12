@@ -31,11 +31,6 @@ resource "fly_ip" "workspace-ip4" {
   type = "v4"
 }
 
-resource "fly_ip" "workspace-ip6" {
-  app  = fly_app.workspace.name
-  type = "v6"
-}
-
 resource "fly_volume" "home-volume" {
   app    = fly_app.workspace.name
   name   = "coder_${data.coder_workspace.me.owner}_${lower(replace(data.coder_workspace.me.name, "-", "_"))}_home"
