@@ -159,7 +159,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		inv, _ := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--agent-url", client.URL.String())
 		inv = inv.WithContext(
-			//nolint:revive,1029
+			//nolint:revive,staticcheck
 			context.WithValue(inv.Context(), "aws-client", metadataClient),
 		)
 		clitest.Start(t, inv)
