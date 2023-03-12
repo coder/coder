@@ -76,11 +76,8 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, str
 	agentClient := client
 	clitest.SetupConfig(t, agentClient, root)
 
-	errC := make(chan error, 1)
-	go func() {
-		errC <- inv.WithContext(ctx).Run()
-	}()
-	t.Cleanup(func() { require.NoError(t, <-errC) })
+	clitest.Start(t, inv)
+
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	return agentClient, agentToken, pubkey
 }

@@ -143,6 +143,14 @@ func Start(t *testing.T, inv *clibase.Invocation) {
 	})
 }
 
+// Run runs the command and asserts that there is no error.
+func Run(t *testing.T, inv *clibase.Invocation) {
+	t.Helper()
+
+	err := inv.Run()
+	require.NoError(t, err)
+}
+
 // StartErr runs the command in a goroutine but returns the error
 // instead of asserting it. This is useful for testing error cases.
 func StartErr(t *testing.T, inv *clibase.Invocation) <-chan error {

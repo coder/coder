@@ -75,6 +75,10 @@ func Prompt(inv *clibase.Invocation, opts PromptOptions) (string, error) {
 	}
 	interrupt := make(chan os.Signal, 1)
 
+	if inv.Stdin == nil {
+		panic("inv.Stdin is nil")
+	}
+
 	errCh := make(chan error, 1)
 	lineCh := make(chan string)
 	go func() {

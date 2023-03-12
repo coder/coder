@@ -8,7 +8,6 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
-	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -41,10 +40,6 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("parse ssh keygen algorithm %q: %w", newUserSSHKeygenAlgorithm, err)
 			}
-
-			inv.ParsedFlags().VisitAll(func(f *pflag.Flag) {
-				fmt.Printf("flag: %s, value: %s\n", f.Name, f.Value.String())
-			})
 
 			cfg := r.createConfig()
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))

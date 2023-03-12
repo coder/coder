@@ -145,8 +145,8 @@ func TestServerCreateAdminUser(t *testing.T) {
 		verifyUser(t, connectionURL, username, email, password)
 	})
 
-	//nolint:paralleltest
 	t.Run("Env", func(t *testing.T) {
+		t.Parallel()
 		if runtime.GOOS != "linux" || testing.Short() {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
@@ -160,17 +160,17 @@ func TestServerCreateAdminUser(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 		defer cancel()
 
-		t.Setenv("CODER_POSTGRES_URL", connectionURL)
-		t.Setenv("CODER_SSH_KEYGEN_ALGORITHM", "ed25519")
-		t.Setenv("CODER_USERNAME", username)
-		t.Setenv("CODER_EMAIL", email)
-		t.Setenv("CODER_PASSWORD", password)
+		inv, _ := clitest.New(t, "server", "create-admin-user")
+		inv.Environ.Set("CODER_POSTGRES_URL", connectionURL)
+		inv.Environ.Set("CODER_SSH_KEYGEN_ALGORITHM", "ed25519")
+		inv.Environ.Set("CODER_USERNAME", username)
+		inv.Environ.Set("CODER_EMAIL", email)
+		inv.Environ.Set("CODER_PASSWORD", password)
 
-		root, _ := clitest.New(t, "server", "create-admin-user")
 		pty := ptytest.New(t)
-		root.Stdout = pty.Output()
-		root.Stderr = pty.Output()
-		clitest.Start(t, root)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		clitest.Start(t, inv)
 
 		pty.ExpectMatchContext(ctx, "User created successfully.")
 		pty.ExpectMatchContext(ctx, username)

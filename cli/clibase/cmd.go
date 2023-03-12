@@ -146,6 +146,7 @@ type runState struct {
 
 func copyFlagSetWithout(fs *pflag.FlagSet, without string) *pflag.FlagSet {
 	fs2 := pflag.NewFlagSet("", pflag.ContinueOnError)
+	fs2.Usage = func() {}
 	fs.VisitAll(func(f *pflag.Flag) {
 		if f.Name == without {
 			return

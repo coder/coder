@@ -141,12 +141,13 @@ func (p *PTY) Close() error {
 	return p.close("close")
 }
 
-func (p *PTY) Attach(inv *clibase.Invocation) {
+func (p *PTY) Attach(inv *clibase.Invocation) *PTY {
 	p.t.Helper()
 
 	inv.Stdout = p.Output()
 	inv.Stderr = p.Output()
 	inv.Stdin = p.Input()
+	return p
 }
 
 func (p *PTY) ExpectMatch(str string) string {
