@@ -22,7 +22,7 @@ provider "coder" {
 }
 
 resource "fly_app" "workspace" {
-  name = "coder-${data.coder_workspace.me.owner}-${lower(replace(data.coder_workspace.me.name, "-", "_"))}"
+  name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   org  = var.fly_org
 }
 
