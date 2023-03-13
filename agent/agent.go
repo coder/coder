@@ -41,6 +41,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -662,16 +663,23 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 	}()
 
 	startupLogsReader, startupLogsWriter := io.Pipe()
+	defer func() {
+		_ = startupLogsReader.Close()
+		_ = startupLogsWriter.Close()
+	}()
 	writer := io.MultiWriter(startupLogsWriter, fileWriter)
 
 	queuedLogs := make([]agentsdk.StartupLog, 0)
 	var flushLogsTimer *time.Timer
 	var logMutex sync.Mutex
-	flushQueuedLogs := func() {
+	var logsSending bool
+	sendLogs := func() {
 		logMutex.Lock()
-		if flushLogsTimer != nil {
-			flushLogsTimer.Stop()
+		if logsSending {
+			logMutex.Unlock()
+			return
 		}
+		logsSending = true
 		toSend := make([]agentsdk.StartupLog, len(queuedLogs))
 		copy(toSend, queuedLogs)
 		logMutex.Unlock()
@@ -683,9 +691,13 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 			a.logger.Error(ctx, "upload startup logs", slog.Error(err))
 		}
 		if ctx.Err() != nil {
+			logMutex.Lock()
+			logsSending = false
+			logMutex.Unlock()
 			return
 		}
 		logMutex.Lock()
+		logsSending = false
 		queuedLogs = queuedLogs[len(toSend):]
 		logMutex.Unlock()
 	}
@@ -698,25 +710,25 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 			return
 		}
 		if len(queuedLogs) > 100 {
-			go flushQueuedLogs()
+			go sendLogs()
 			return
 		}
+		flushLogsTimer = time.AfterFunc(100*time.Millisecond, func() {
+			sendLogs()
+		})
 	}
-	go func() {
+	err = a.trackConnGoroutine(func() {
 		scanner := bufio.NewScanner(startupLogsReader)
 		for scanner.Scan() {
-
+			queueLog(agentsdk.StartupLog{
+				CreatedAt: database.Now(),
+				Output:    scanner.Text(),
+			})
 		}
-	}()
-	defer func() {
-
-		// err := a.client.AppendStartupLogs(ctx, agentsdk.InsertOrUpdateStartupLogsRequest{
-		// 	Output: string(saver.Bytes()),
-		// })
-		// if err != nil {
-		// 	a.logger.Error(ctx, "upload startup logs", slog.Error(err))
-		// }
-	}()
+	})
+	if err != nil {
+		return xerrors.Errorf("track conn goroutine: %w", err)
+	}
 
 	cmd, err := a.createCommand(ctx, script, nil)
 	if err != nil {

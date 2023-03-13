@@ -4323,7 +4323,10 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/agentsdk.InsertOrUpdateStartupLogsRequest"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/agentsdk.StartupLog"
+                            }
                         }
                     }
                 ],
@@ -4466,43 +4469,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPortsResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/workspaceagents/{workspaceagent}/logs": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Stream workspace agent startup logs",
-                "operationId": "stream-startup-script-logs",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Workspace build ID",
-                        "name": "workspacebuild",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.StartupScriptLog"
-                            }
                         }
                     }
                 }
@@ -5327,14 +5293,6 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.InsertOrUpdateStartupLogsRequest": {
-            "type": "object",
-            "properties": {
-                "output": {
-                    "type": "string"
-                }
-            }
-        },
         "agentsdk.Metadata": {
             "type": "object",
             "properties": {
@@ -5407,6 +5365,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.StartupLog": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "output": {
                     "type": "string"
                 }
             }
@@ -7822,20 +7791,6 @@ const docTemplate = `{
                 },
                 "vscode": {
                     "type": "integer"
-                }
-            }
-        },
-        "codersdk.StartupScriptLog": {
-            "type": "object",
-            "properties": {
-                "agent_id": {
-                    "type": "string"
-                },
-                "job_id": {
-                    "type": "string"
-                },
-                "output": {
-                    "type": "string"
                 }
             }
         },

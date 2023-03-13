@@ -226,7 +226,7 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 // @Accept json
 // @Produce json
 // @Tags Agents
-// @Param request body agentsdk.InsertOrUpdateStartupLogsRequest true "Startup logs"
+// @Param request body []agentsdk.StartupLog true "Startup logs"
 // @Success 200
 // @Router /workspaceagents/me/startup-logs [patch]
 // @x-apidocgen {"skip": true}

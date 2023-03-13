@@ -94,20 +94,6 @@
 | ---------------- | ------ | -------- | ------------ | ----------- |
 | `json_web_token` | string | true     |              |             |
 
-## agentsdk.InsertOrUpdateStartupLogsRequest
-
-```json
-{
-  "output": "string"
-}
-```
-
-### Properties
-
-| Name     | Type   | Required | Restrictions | Description |
-| -------- | ------ | -------- | ------------ | ----------- |
-| `output` | string | false    |              |             |
-
 ## agentsdk.Metadata
 
 ```json
@@ -261,6 +247,22 @@
 | -------------------- | ------ | -------- | ------------ | ----------- |
 | `expanded_directory` | string | false    |              |             |
 | `version`            | string | false    |              |             |
+
+## agentsdk.StartupLog
+
+```json
+{
+  "created_at": "string",
+  "output": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `created_at` | string | false    |              |             |
+| `output`     | string | false    |              |             |
 
 ## agentsdk.Stats
 
@@ -3369,24 +3371,6 @@ Parameter represents a set value for the scope.
 | `reconnecting_pty` | integer | false    |              |             |
 | `ssh`              | integer | false    |              |             |
 | `vscode`           | integer | false    |              |             |
-
-## codersdk.StartupScriptLog
-
-```json
-{
-  "agent_id": "string",
-  "job_id": "string",
-  "output": "string"
-}
-```
-
-### Properties
-
-| Name       | Type   | Required | Restrictions | Description |
-| ---------- | ------ | -------- | ------------ | ----------- |
-| `agent_id` | string | false    |              |             |
-| `job_id`   | string | false    |              |             |
-| `output`   | string | false    |              |             |
 
 ## codersdk.SupportConfig
 

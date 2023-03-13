@@ -740,10 +740,14 @@ func TestAgent_StartupScript(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("This test doesn't work on Windows for some reason...")
 	}
-	content := "output\n"
+	output := "something"
+	command := "sh -c 'echo " + output + "'"
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe /c echo " + output
+	}
 	//nolint:dogsled
 	_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
-		StartupScript: "echo " + content,
+		StartupScript: command,
 	}, 0)
 	assert.Eventually(t, func() bool {
 		got := client.getLifecycleStates()
@@ -751,6 +755,7 @@ func TestAgent_StartupScript(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalMedium)
 
 	require.Len(t, client.getStartupLogs(), 1)
+	require.Equal(t, output, client.getStartupLogs()[0].Output)
 }
 
 func TestAgent_Lifecycle(t *testing.T) {

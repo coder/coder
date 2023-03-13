@@ -249,3 +249,7 @@ func (*client) PostAppHealth(_ context.Context, _ agentsdk.PostAppHealthsRequest
 func (*client) PostStartup(_ context.Context, _ agentsdk.PostStartupRequest) error {
 	return nil
 }
+
+func (*client) AppendStartupLogs(_ context.Context, _ []agentsdk.StartupLog) error {
+	return nil
+}
