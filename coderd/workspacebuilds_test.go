@@ -986,18 +986,19 @@ func TestMigrateLegacyToRichParameters(t *testing.T) {
 		Parse: []*proto.Parse_Response{{
 			Type: &proto.Parse_Response_Complete{
 				Complete: &proto.Parse_Complete{
-					ParameterSchemas: []*proto.ParameterSchema{{
-						AllowOverrideSource: true,
-						Name:                "example",
-						Description:         "description 1",
-						DefaultSource: &proto.ParameterSource{
-							Scheme: proto.ParameterSource_DATA,
-							Value:  "tomato",
+					ParameterSchemas: []*proto.ParameterSchema{
+						{
+							AllowOverrideSource: true,
+							Name:                "example",
+							Description:         "description 1",
+							DefaultSource: &proto.ParameterSource{
+								Scheme: proto.ParameterSource_DATA,
+								Value:  "tomato",
+							},
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
 						},
-						DefaultDestination: &proto.ParameterDestination{
-							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-						},
-					},
 					},
 				},
 			},
@@ -1027,18 +1028,19 @@ func TestMigrateLegacyToRichParameters(t *testing.T) {
 		Parse: []*proto.Parse_Response{{
 			Type: &proto.Parse_Response_Complete{
 				Complete: &proto.Parse_Complete{
-					ParameterSchemas: []*proto.ParameterSchema{{
-						AllowOverrideSource: true,
-						Name:                "example",
-						Description:         "description 1",
-						DefaultSource: &proto.ParameterSource{
-							Scheme: proto.ParameterSource_DATA,
-							Value:  "tomato",
+					ParameterSchemas: []*proto.ParameterSchema{
+						{
+							AllowOverrideSource: true,
+							Name:                "example",
+							Description:         "description 1",
+							DefaultSource: &proto.ParameterSource{
+								Scheme: proto.ParameterSource_DATA,
+								Value:  "tomato",
+							},
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
 						},
-						DefaultDestination: &proto.ParameterDestination{
-							Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
-						},
-					},
 					},
 				},
 			},
