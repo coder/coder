@@ -8,7 +8,6 @@ import { FC } from "react"
 import { getFormHelpers } from "util/formUtils"
 import {
   FormFields,
-  FormSection,
   VerticalForm,
 } from "components/HorizontalForm/HorizontalForm"
 import {
@@ -24,7 +23,6 @@ import {
 import * as Yup from "yup"
 import DialogActions from "@material-ui/core/DialogActions"
 import Button from "@material-ui/core/Button"
-import InfoOutlined from "@material-ui/icons/InfoOutlined"
 
 export type UpdateBuildParametersDialogProps = DialogProps & {
   onClose: () => void
@@ -104,47 +102,6 @@ export const UpdateBuildParametersDialog: FC<
                 )
               })}
             </FormFields>
-          )}
-          {parameters && parameters.filter((p) => !p.mutable).length > 0 && (
-            <FormSection
-              title={
-                <>
-                  <InfoOutlined className={styles.warningIcon} />
-                  Immutable parameters
-                </>
-              }
-              classes={{ infoTitle: styles.infoTitle }}
-              description="These parameters values are immutable and cannot be changed after the update."
-            >
-              <FormFields>
-                {parameters.map((parameter, index) => {
-                  if (parameter.mutable) {
-                    return <></>
-                  }
-
-                  return (
-                    <RichParameterInput
-                      {...getFieldHelpers(
-                        "rich_parameter_values[" + index + "].value",
-                      )}
-                      key={parameter.name}
-                      parameter={parameter}
-                      initialValue=""
-                      index={index}
-                      onChange={async (value) => {
-                        await form.setFieldValue(
-                          "rich_parameter_values." + index,
-                          {
-                            name: parameter.name,
-                            value: value,
-                          },
-                        )
-                      }}
-                    />
-                  )
-                })}
-              </FormFields>
-            </FormSection>
           )}
         </VerticalForm>
       </DialogContent>
