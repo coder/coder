@@ -23,26 +23,30 @@ var UpdateGoldenFiles = flag.Bool("update", false, "Update golden files")
 
 var TestCases = []TestCase{
 	{
-		valuesFile:    "default_values.yaml",
-		goldenFile:    "default_values.golden",
+		name:          "default_values",
 		expectedError: "",
 	},
 	{
-		valuesFile:    "missing_values.yaml",
-		goldenFile:    "",
+		name:          "missing_values",
 		expectedError: `You must specify the coder.image.tag value if you're installing the Helm chart directly from Git.`,
 	},
 	{
-		valuesFile:    "tls.yaml",
-		goldenFile:    "tls.golden",
+		name:          "tls",
 		expectedError: "",
 	},
 }
 
 type TestCase struct {
-	valuesFile    string // Values file to be passed to `helm template`.
-	goldenFile    string // Expected output from running `helm template`.
+	name          string // Name of the test case. This is used to control which values and golden file are used.
 	expectedError string // Expected error from running `helm template`.
+}
+
+func (tc TestCase) valuesFilePath() string {
+	return filepath.Join("./testdata", tc.name+".yaml")
+}
+
+func (tc TestCase) goldenFilePath() string {
+	return filepath.Join("./testdata", tc.name+".golden")
 }
 
 func TestRenderChart(t *testing.T) {
@@ -61,12 +65,11 @@ func TestRenderChart(t *testing.T) {
 	helmPath := lookupHelm(t)
 	for _, tc := range TestCases {
 		tc := tc
-		require.NotEmpty(t, tc.valuesFile, "all test cases must specify a values file")
-		t.Run(tc.valuesFile, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Ensure that the values file exists.
-			valuesFilePath := filepath.Join("testdata", tc.valuesFile)
+			valuesFilePath := tc.valuesFilePath()
 			if _, err := os.Stat(valuesFilePath); os.IsNotExist(err) {
 				t.Fatalf("values file %q does not exist", valuesFilePath)
 			}
@@ -79,7 +82,7 @@ func TestRenderChart(t *testing.T) {
 			} else {
 				require.NoError(t, err, "helm template should not have failed")
 				require.NotEmpty(t, templateOutput, "helm template output should not be empty")
-				goldenFilePath := filepath.Join("testdata", tc.goldenFile)
+				goldenFilePath := tc.goldenFilePath()
 				goldenBytes, err := os.ReadFile(goldenFilePath)
 				require.NoError(t, err, "failed to read golden file %q", goldenFilePath)
 
@@ -103,16 +106,16 @@ func TestUpdateGoldenFiles(t *testing.T) {
 	helmPath := lookupHelm(t)
 	for _, tc := range TestCases {
 		if tc.expectedError != "" {
-			t.Logf("skipping test case %q with render error", tc.valuesFile)
+			t.Logf("skipping test case %q with render error", tc.name)
 			continue
 		}
 
-		valuesPath := filepath.Join("testdata", tc.valuesFile)
+		valuesPath := tc.valuesFilePath()
 		templateOutput, err := runHelmTemplate(t, helmPath, "..", valuesPath)
 
 		require.NoError(t, err, "failed to run `helm template -f %q`", valuesPath)
 
-		goldenFilePath := filepath.Join("testdata", tc.goldenFile)
+		goldenFilePath := tc.goldenFilePath()
 		err = os.WriteFile(goldenFilePath, []byte(templateOutput), 0o644) // nolint:gosec
 		require.NoError(t, err, "failed to write golden file %q", goldenFilePath)
 	}
