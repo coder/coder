@@ -9,7 +9,7 @@
 {{- if .Runnable}}
 ## Usage
 ```console
-{{.Usage}}
+{{.Use}}
 ```
 {{end}}
 
@@ -26,7 +26,7 @@
 | Name |   Purpose |
 | ---- |   ----- |
 {{- end }}
-| [{{ $cmd.Name | wrapCode }}](./{{if $.AtRoot}}cli/{{end}}{{commandURI $cmd}}) | {{ $cmd.Short }} |
+| [{{ $cmd.Name | wrapCode }}](./{{if atRoot $}}cli/{{end}}{{commandURI $cmd}}) | {{ $cmd.Short }} |
 {{- end}}
 {{ "" }}
 {{- range $index, $opt := .Options }}
@@ -34,14 +34,14 @@
 ## Options
 {{- end }}
 ### --{{ $opt.Flag }}{{ with $opt.FlagShorthand}}, -{{ . }}{{end}}
-{{ $opt.Usage | newLinesToBr }}
+{{ $opt.Description | newLinesToBr }}
 <br/>
 | | |
 | --- | --- |
-{{- with $flag.Description }}
+{{- with $opt.Description }}
 | Consumes | {{ . | wrapCode }} |
 {{- end }}
-{{- with $flag.Default }}
+{{- with $opt.Default }}
 | Default | {{"    "}} {{- . | wrapCode }} |
 {{ "" }}
 {{ end }}

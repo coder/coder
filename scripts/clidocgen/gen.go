@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/flog"
 )
 
 //go:embed command.tpl
@@ -105,6 +106,7 @@ func genTree(basePath string, cmd *clibase.Cmd, wroteLog map[string]struct{}) er
 	if err != nil {
 		return err
 	}
+	flog.Successf("wrote\t %s", fi.Name())
 	for _, sub := range cmd.Children {
 		err = genTree(basePath, sub, wroteLog)
 		if err != nil {
