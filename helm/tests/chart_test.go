@@ -127,7 +127,7 @@ func runHelmTemplate(t testing.TB, helmPath, chartDir, valuesFilePath string) (s
 		return "", xerrors.Errorf("values file %q does not exist: %w", valuesFilePath, err)
 	}
 
-	cmd := exec.Command(helmPath, "template", chartDir, "-f", valuesFilePath)
+	cmd := exec.Command(helmPath, "template", chartDir, "-f", valuesFilePath, "--namespace", "default")
 	t.Logf("exec command: %v", cmd.Args)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
