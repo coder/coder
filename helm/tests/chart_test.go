@@ -113,7 +113,7 @@ func TestUpdateGoldenFiles(t *testing.T) {
 		require.NoError(t, err, "failed to run `helm template -f %q`", valuesPath)
 
 		goldenFilePath := filepath.Join("testdata", tc.goldenFile)
-		err = os.WriteFile(goldenFilePath, []byte(templateOutput), 0644) // nolint:gosec
+		err = os.WriteFile(goldenFilePath, []byte(templateOutput), 0o644) // nolint:gosec
 		require.NoError(t, err, "failed to write golden file %q", goldenFilePath)
 	}
 	t.Log("Golden files updated. Please review the changes and commit them.")
