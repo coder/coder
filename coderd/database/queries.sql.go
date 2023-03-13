@@ -2286,7 +2286,7 @@ func (q *sqlQuerier) InsertProvisionerDaemon(ctx context.Context, arg InsertProv
 	return i, err
 }
 
-const getProvisionerLogsByIDBetween = `-- name: GetProvisionerLogsByIDBetween :many
+const getProvisionerLogsAfterID = `-- name: GetProvisionerLogsAfterID :many
 SELECT
 	job_id, created_at, source, level, stage, output, id
 FROM
@@ -2295,18 +2295,16 @@ WHERE
 	job_id = $1
 	AND (
 		id > $2
-		OR id < $3
 	) ORDER BY id ASC
 `
 
-type GetProvisionerLogsByIDBetweenParams struct {
-	JobID         uuid.UUID `db:"job_id" json:"job_id"`
-	CreatedAfter  int64     `db:"created_after" json:"created_after"`
-	CreatedBefore int64     `db:"created_before" json:"created_before"`
+type GetProvisionerLogsAfterIDParams struct {
+	JobID        uuid.UUID `db:"job_id" json:"job_id"`
+	CreatedAfter int64     `db:"created_after" json:"created_after"`
 }
 
-func (q *sqlQuerier) GetProvisionerLogsByIDBetween(ctx context.Context, arg GetProvisionerLogsByIDBetweenParams) ([]ProvisionerJobLog, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerLogsByIDBetween, arg.JobID, arg.CreatedAfter, arg.CreatedBefore)
+func (q *sqlQuerier) GetProvisionerLogsAfterID(ctx context.Context, arg GetProvisionerLogsAfterIDParams) ([]ProvisionerJobLog, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerLogsAfterID, arg.JobID, arg.CreatedAfter)
 	if err != nil {
 		return nil, err
 	}
@@ -5188,7 +5186,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 	return i, err
 }
 
-const getWorkspaceAgentStartupLogsBetween = `-- name: GetWorkspaceAgentStartupLogsBetween :many
+const getWorkspaceAgentStartupLogsAfter = `-- name: GetWorkspaceAgentStartupLogsAfter :many
 SELECT
 	agent_id, created_at, output, id
 FROM
@@ -5197,18 +5195,16 @@ WHERE
 	agent_id = $1
 	AND (
 		id > $2
-		OR id < $3
 	) ORDER BY id ASC
 `
 
-type GetWorkspaceAgentStartupLogsBetweenParams struct {
-	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
-	CreatedAfter  int64     `db:"created_after" json:"created_after"`
-	CreatedBefore int64     `db:"created_before" json:"created_before"`
+type GetWorkspaceAgentStartupLogsAfterParams struct {
+	AgentID      uuid.UUID `db:"agent_id" json:"agent_id"`
+	CreatedAfter int64     `db:"created_after" json:"created_after"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAgentStartupLogsBetween(ctx context.Context, arg GetWorkspaceAgentStartupLogsBetweenParams) ([]WorkspaceAgentStartupLog, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStartupLogsBetween, arg.AgentID, arg.CreatedAfter, arg.CreatedBefore)
+func (q *sqlQuerier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg GetWorkspaceAgentStartupLogsAfterParams) ([]WorkspaceAgentStartupLog, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStartupLogsAfter, arg.AgentID, arg.CreatedAfter)
 	if err != nil {
 		return nil, err
 	}

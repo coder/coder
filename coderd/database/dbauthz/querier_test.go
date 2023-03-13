@@ -287,13 +287,13 @@ func (s *MethodTestSuite) TestProvsionerJob() {
 		b := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{})
 		check.Args([]uuid.UUID{a.ID, b.ID}).Asserts().Returns(slice.New(a, b))
 	}))
-	s.Run("GetProvisionerLogsByIDBetween", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetProvisionerLogsAfterID", s.Subtest(func(db database.Store, check *expects) {
 		w := dbgen.Workspace(s.T(), db, database.Workspace{})
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
 		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
-		check.Args(database.GetProvisionerLogsByIDBetweenParams{
+		check.Args(database.GetProvisionerLogsAfterIDParams{
 			JobID: j.ID,
 		}).Asserts(w, rbac.ActionRead).Returns([]database.ProvisionerJobLog{})
 	}))
@@ -1004,7 +1004,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID: agt.ID,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
-	s.Run("GetWorkspaceAgentStartupLogsBetween", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetWorkspaceAgentStartupLogsAfter", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		check.Args(build.JobID).Asserts(ws, rbac.ActionRead).Returns([]database.WorkspaceAgentStartupLog{})

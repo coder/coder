@@ -263,21 +263,21 @@ func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (data
 	return job, nil
 }
 
-func (q *querier) GetProvisionerLogsByIDBetween(ctx context.Context, arg database.GetProvisionerLogsByIDBetweenParams) ([]database.ProvisionerJobLog, error) {
+func (q *querier) GetProvisionerLogsAfterID(ctx context.Context, arg database.GetProvisionerLogsAfterIDParams) ([]database.ProvisionerJobLog, error) {
 	// Authorized read on job lets the actor also read the logs.
 	_, err := q.GetProvisionerJobByID(ctx, arg.JobID)
 	if err != nil {
 		return nil, err
 	}
-	return q.db.GetProvisionerLogsByIDBetween(ctx, arg)
+	return q.db.GetProvisionerLogsAfterID(ctx, arg)
 }
 
-func (q *querier) GetWorkspaceAgentStartupLogsBetween(ctx context.Context, arg database.GetWorkspaceAgentStartupLogsBetweenParams) ([]database.WorkspaceAgentStartupLog, error) {
+func (q *querier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg database.GetWorkspaceAgentStartupLogsAfterParams) ([]database.WorkspaceAgentStartupLog, error) {
 	_, err := q.GetWorkspaceAgentByID(ctx, arg.AgentID)
 	if err != nil {
 		return nil, err
 	}
-	return q.db.GetWorkspaceAgentStartupLogsBetween(ctx, arg)
+	return q.db.GetWorkspaceAgentStartupLogsAfter(ctx, arg)
 }
 
 func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {

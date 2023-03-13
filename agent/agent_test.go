@@ -31,8 +31,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/text/encoding/unicode"
-	"golang.org/x/text/transform"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -744,33 +742,15 @@ func TestAgent_StartupScript(t *testing.T) {
 	}
 	content := "output\n"
 	//nolint:dogsled
-	_, client, _, fs, _ := setupAgent(t, agentsdk.Metadata{
+	_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
 		StartupScript: "echo " + content,
 	}, 0)
-	var gotContent string
-	require.Eventually(t, func() bool {
-		outputPath := filepath.Join(os.TempDir(), "coder-startup-script.log")
-		content, err := afero.ReadFile(fs, outputPath)
-		if err != nil {
-			t.Logf("read file %q: %s", outputPath, err)
-			return false
-		}
-		if len(content) == 0 {
-			t.Logf("no content in %q", outputPath)
-			return false
-		}
-		if runtime.GOOS == "windows" {
-			// Windows uses UTF16! 🪟🪟🪟
-			content, _, err = transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), content)
-			if !assert.NoError(t, err) {
-				return false
-			}
-		}
-		gotContent = string(content)
-		return true
+	assert.Eventually(t, func() bool {
+		got := client.getLifecycleStates()
+		return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
 	}, testutil.WaitShort, testutil.IntervalMedium)
-	require.Equal(t, content, gotContent)
-	require.Equal(t, content, client.getLogs())
+
+	require.Len(t, client.getStartupLogs(), 1)
 }
 
 func TestAgent_Lifecycle(t *testing.T) {
@@ -1500,7 +1480,7 @@ type client struct {
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 	startup         agentsdk.PostStartupRequest
-	logs            agentsdk.InsertOrUpdateStartupLogsRequest
+	logs            []agentsdk.StartupLog
 }
 
 func (c *client) Metadata(_ context.Context) (agentsdk.Metadata, error) {
@@ -1585,16 +1565,16 @@ func (c *client) PostStartup(_ context.Context, startup agentsdk.PostStartupRequ
 	return nil
 }
 
-func (c *client) getLogs() string {
+func (c *client) getStartupLogs() []agentsdk.StartupLog {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.logs.Output
+	return c.logs
 }
 
-func (c *client) InsertOrUpdateStartupLogs(_ context.Context, logs agentsdk.InsertOrUpdateStartupLogsRequest) error {
+func (c *client) AppendStartupLogs(_ context.Context, logs []agentsdk.StartupLog) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.logs = logs
+	c.logs = append(c.logs, logs...)
 	return nil
 }
 

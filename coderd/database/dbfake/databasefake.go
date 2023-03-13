@@ -2613,7 +2613,7 @@ func (q *fakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after ti
 	return jobs, nil
 }
 
-func (q *fakeQuerier) GetProvisionerLogsByIDBetween(_ context.Context, arg database.GetProvisionerLogsByIDBetweenParams) ([]database.ProvisionerJobLog, error) {
+func (q *fakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.GetProvisionerLogsAfterIDParams) ([]database.ProvisionerJobLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -2624,9 +2624,6 @@ func (q *fakeQuerier) GetProvisionerLogsByIDBetween(_ context.Context, arg datab
 	logs := make([]database.ProvisionerJobLog, 0)
 	for _, jobLog := range q.provisionerJobLogs {
 		if jobLog.JobID != arg.JobID {
-			continue
-		}
-		if arg.CreatedBefore != 0 && jobLog.ID > arg.CreatedBefore {
 			continue
 		}
 		if arg.CreatedAfter != 0 && jobLog.ID < arg.CreatedAfter {
@@ -3514,7 +3511,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentStartupLogsBetween(ctx context.Context, arg database.GetWorkspaceAgentStartupLogsBetweenParams) ([]database.WorkspaceAgentStartupLog, error) {
+func (q *fakeQuerier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg database.GetWorkspaceAgentStartupLogsAfterParams) ([]database.WorkspaceAgentStartupLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -3525,9 +3522,6 @@ func (q *fakeQuerier) GetWorkspaceAgentStartupLogsBetween(ctx context.Context, a
 	logs := []database.WorkspaceAgentStartupLog{}
 	for _, log := range q.workspaceAgentLogs {
 		if log.AgentID != arg.AgentID {
-			continue
-		}
-		if arg.CreatedBefore != 0 && log.ID > arg.CreatedBefore {
 			continue
 		}
 		if arg.CreatedAfter != 0 && log.ID < arg.CreatedAfter {

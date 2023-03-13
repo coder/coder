@@ -681,19 +681,19 @@ export interface ServiceBannerConfig {
   readonly background_color?: string
 }
 
-// From codersdk/workspacebuilds.go
-export interface StartupScriptLog {
-  readonly agent_id: string
-  readonly job_id: string
-  readonly output: string
-}
-
 // From codersdk/deployment.go
 export interface SessionCountDeploymentStats {
   readonly vscode: number
   readonly ssh: number
   readonly jetbrains: number
   readonly reconnecting_pty: number
+}
+
+// From codersdk/workspacebuilds.go
+export interface StartupScriptLog {
+  readonly agent_id: string
+  readonly job_id: string
+  readonly output: string
 }
 
 // From codersdk/deployment.go

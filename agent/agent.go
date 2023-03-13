@@ -25,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ammario/prefixsuffix"
 	"github.com/armon/circbuf"
 	"github.com/gliderlabs/ssh"
 	"github.com/google/uuid"
@@ -199,6 +198,19 @@ func (a *agent) runLoop(ctx context.Context) {
 			continue
 		}
 		a.logger.Warn(ctx, "run exited with error", slog.Error(err))
+	}
+}
+
+func (a *agent) appendStartupLogsLoop(ctx context.Context, logs []agentsdk.StartupLog) {
+	for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
+		err := a.client.AppendStartupLogs(ctx, logs)
+		if err == nil {
+			return
+		}
+		if errors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+			return
+		}
+		a.logger.Error(ctx, "failed to append startup logs", slog.Error(err))
 	}
 }
 
@@ -649,9 +661,55 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 		_ = fileWriter.Close()
 	}()
 
-	saver := &prefixsuffix.Saver{N: 512 << 10}
-	writer := io.MultiWriter(saver, fileWriter)
+	startupLogsReader, startupLogsWriter := io.Pipe()
+	writer := io.MultiWriter(startupLogsWriter, fileWriter)
+
+	queuedLogs := make([]agentsdk.StartupLog, 0)
+	var flushLogsTimer *time.Timer
+	var logMutex sync.Mutex
+	flushQueuedLogs := func() {
+		logMutex.Lock()
+		if flushLogsTimer != nil {
+			flushLogsTimer.Stop()
+		}
+		toSend := make([]agentsdk.StartupLog, len(queuedLogs))
+		copy(toSend, queuedLogs)
+		logMutex.Unlock()
+		for r := retry.New(time.Second, 5*time.Second); r.Wait(ctx); {
+			err := a.client.AppendStartupLogs(ctx, toSend)
+			if err == nil {
+				break
+			}
+			a.logger.Error(ctx, "upload startup logs", slog.Error(err))
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		logMutex.Lock()
+		queuedLogs = queuedLogs[len(toSend):]
+		logMutex.Unlock()
+	}
+	queueLog := func(log agentsdk.StartupLog) {
+		logMutex.Lock()
+		defer logMutex.Unlock()
+		queuedLogs = append(queuedLogs, log)
+		if flushLogsTimer != nil {
+			flushLogsTimer.Reset(100 * time.Millisecond)
+			return
+		}
+		if len(queuedLogs) > 100 {
+			go flushQueuedLogs()
+			return
+		}
+	}
+	go func() {
+		scanner := bufio.NewScanner(startupLogsReader)
+		for scanner.Scan() {
+
+		}
+	}()
 	defer func() {
+
 		// err := a.client.AppendStartupLogs(ctx, agentsdk.InsertOrUpdateStartupLogsRequest{
 		// 	Output: string(saver.Bytes()),
 		// })

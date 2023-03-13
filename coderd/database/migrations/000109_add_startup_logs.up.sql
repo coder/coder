@@ -6,6 +6,6 @@ CREATE TABLE IF NOT EXISTS workspace_agent_startup_logs (
 );
 CREATE INDEX workspace_agent_startup_logs_id_agent_id_idx ON workspace_agent_startup_logs USING btree (agent_id, id ASC);
 
+-- The maximum length of startup logs is 1MB per workspace agent.
 ALTER TABLE workspace_agents ADD COLUMN startup_logs_length integer NOT NULL DEFAULT 0 CONSTRAINT max_startup_logs_length CHECK (startup_logs_length <= 1048576);
 COMMENT ON COLUMN workspace_agents.startup_logs_length IS 'Total length of startup logs';
-

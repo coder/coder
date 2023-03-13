@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -227,7 +228,7 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 // @Tags Agents
 // @Param request body agentsdk.InsertOrUpdateStartupLogsRequest true "Startup logs"
 // @Success 200
-// @Router /workspaceagents/me/startup/logs [patch]
+// @Router /workspaceagents/me/startup-logs [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -240,24 +241,249 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 
 	createdAt := make([]time.Time, 0)
 	output := make([]string, 0)
+	outputLength := 0
 	for _, log := range req {
 		createdAt = append(createdAt, log.CreatedAt)
 		output = append(output, log.Output)
+		outputLength += len(log.Output)
 	}
-	_, err := api.Database.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
-		AgentID:   workspaceAgent.ID,
-		CreatedAt: createdAt,
-		Output:    output,
+	logs, err := api.Database.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
+		AgentID:      workspaceAgent.ID,
+		CreatedAt:    createdAt,
+		Output:       output,
+		OutputLength: int32(outputLength),
 	})
 	if err != nil {
+		if database.IsStartupLogsLimitError(err) {
+			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+				Message: "Startup logs limit exceeded",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to upload startup logs",
 			Detail:  err.Error(),
 		})
 		return
 	}
+	lowestID := logs[0].ID
+	// Publish by the lowest log ID inserted so the
+	// log stream will fetch everything from that point.
+	data, err := json.Marshal(agentsdk.StartupLogsNotifyMessage{
+		CreatedAfter: lowestID - 1,
+	})
+	if err != nil {
+
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to marshal startup logs notify message",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	err = api.Pubsub.Publish(agentsdk.StartupLogsNotifyChannel(workspaceAgent.ID), data)
+	if err != nil {
+		// We don't want to return an error to the agent here,
+		// otherwise it might try to reinsert the logs.
+		api.Logger.Warn(ctx, "failed to publish startup logs notify message", slog.Error(err))
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
+}
+
+// workspaceAgentStartupLogs returns the logs sent from a workspace agent
+// during startup.
+//
+// @Summary Get startup logs by workspace agent
+// @ID get-startup-logs-by-workspace-agent
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Param before query int false "Before log id"
+// @Param after query int false "After log id"
+// @Param follow query bool false "Follow log stream"
+// @Success 200
+// @Router /workspaceagents/{workspaceagent}/startup-logs [get]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Request) {
+	// This mostly copies how provisioner job logs are streamed!
+	var (
+		ctx      = r.Context()
+		agent    = httpmw.WorkspaceAgent(r)
+		logger   = api.Logger.With(slog.F("workspace_agent_id", agent.ID))
+		follow   = r.URL.Query().Has("follow")
+		afterRaw = r.URL.Query().Get("after")
+	)
+
+	var after int64
+	// Only fetch logs created after the time provided.
+	if afterRaw != "" {
+		var err error
+		after, err = strconv.ParseInt(afterRaw, 10, 64)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query param \"after\" must be an integer.",
+				Validations: []codersdk.ValidationError{
+					{Field: "after", Detail: "Must be an integer"},
+				},
+			})
+			return
+		}
+	}
+
+	logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(ctx, database.GetWorkspaceAgentStartupLogsAfterParams{
+		AgentID:      agent.ID,
+		CreatedAfter: after,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner logs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if logs == nil {
+		logs = []database.WorkspaceAgentStartupLog{}
+	}
+
+	if !follow {
+		logger.Debug(ctx, "Finished non-follow job logs")
+		httpapi.Write(ctx, rw, http.StatusOK, convertWorkspaceAgentStartupLogs(logs))
+		return
+	}
+
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
+	defer api.WebsocketWaitGroup.Done()
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	go httpapi.Heartbeat(ctx, conn)
+
+	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
+	defer wsNetConn.Close() // Also closes conn.
+
+	logIdsDone := make(map[int64]bool)
+
+	// The Go stdlib JSON encoder appends a newline character after message write.
+	encoder := json.NewEncoder(wsNetConn)
+	for _, provisionerJobLog := range logs {
+		logIdsDone[provisionerJobLog.ID] = true
+		err = encoder.Encode(convertWorkspaceAgentStartupLog(provisionerJobLog))
+		if err != nil {
+			return
+		}
+	}
+	if agent.LifecycleState == database.WorkspaceAgentLifecycleStateReady {
+		// The startup script has finished running, so we can close the connection.
+		return
+	}
+
+	var (
+		bufferedLogs  = make(chan *database.WorkspaceAgentStartupLog, 128)
+		endOfLogs     atomic.Bool
+		lastSentLogID atomic.Int64
+	)
+
+	sendLog := func(log *database.WorkspaceAgentStartupLog) {
+		select {
+		case bufferedLogs <- log:
+			lastSentLogID.Store(log.ID)
+		default:
+			logger.Warn(ctx, "workspace agent startup log overflowing channel")
+		}
+	}
+
+	closeSubscribe, err := api.Pubsub.Subscribe(
+		agentsdk.StartupLogsNotifyChannel(agent.ID),
+		func(ctx context.Context, message []byte) {
+			if endOfLogs.Load() {
+				return
+			}
+			jlMsg := agentsdk.StartupLogsNotifyMessage{}
+			err := json.Unmarshal(message, &jlMsg)
+			if err != nil {
+				logger.Warn(ctx, "invalid startup logs notify message", slog.Error(err))
+				return
+			}
+
+			if jlMsg.CreatedAfter != 0 {
+				logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(ctx, database.GetWorkspaceAgentStartupLogsAfterParams{
+					AgentID:      agent.ID,
+					CreatedAfter: jlMsg.CreatedAfter,
+				})
+				if err != nil {
+					logger.Warn(ctx, "failed to get workspace agent startup logs after", slog.Error(err))
+					return
+				}
+				for _, log := range logs {
+					if endOfLogs.Load() {
+						return
+					}
+					log := log
+					sendLog(&log)
+				}
+			}
+
+			if jlMsg.EndOfLogs {
+				endOfLogs.Store(true)
+				logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(ctx, database.GetWorkspaceAgentStartupLogsAfterParams{
+					AgentID:      agent.ID,
+					CreatedAfter: lastSentLogID.Load(),
+				})
+				if err != nil {
+					logger.Warn(ctx, "get workspace agent startup logs after", slog.Error(err))
+					return
+				}
+				for _, log := range logs {
+					log := log
+					sendLog(&log)
+				}
+				bufferedLogs <- nil
+			}
+		},
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to subscribe to startup logs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer closeSubscribe()
+
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Debug(context.Background(), "job logs context canceled")
+			return
+		case log, ok := <-bufferedLogs:
+			// A nil log is sent when complete!
+			if !ok || log == nil {
+				logger.Debug(context.Background(), "reached the end of published logs")
+				return
+			}
+			if logIdsDone[log.ID] {
+				logger.Debug(ctx, "subscribe duplicated log")
+			} else {
+				err = encoder.Encode(convertWorkspaceAgentStartupLog(*log))
+				if err != nil {
+					return
+				}
+			}
+		}
+	}
 }
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
@@ -1609,5 +1835,21 @@ func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websock
 	return ctx, &wsNetConn{
 		cancel: cancel,
 		Conn:   nc,
+	}
+}
+
+func convertWorkspaceAgentStartupLogs(logs []database.WorkspaceAgentStartupLog) []codersdk.WorkspaceAgentStartupLog {
+	sdk := make([]codersdk.WorkspaceAgentStartupLog, 0, len(logs))
+	for _, log := range logs {
+		sdk = append(sdk, convertWorkspaceAgentStartupLog(log))
+	}
+	return sdk
+}
+
+func convertWorkspaceAgentStartupLog(log database.WorkspaceAgentStartupLog) codersdk.WorkspaceAgentStartupLog {
+	return codersdk.WorkspaceAgentStartupLog{
+		ID:        log.ID,
+		CreatedAt: log.CreatedAt,
+		Output:    log.Output,
 	}
 }

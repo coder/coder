@@ -874,40 +874,6 @@ func (api *API) workspaceBuildLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-// @Summary Stream workspace agent startup logs
-// @ID stream-startup-script-logs
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Agents
-// @Param workspacebuild path string true "Workspace build ID"
-// @Success 200 {object} []codersdk.StartupScriptLog
-// @Router /workspaceagents/{workspaceagent}/logs [get]
-func (api *API) startupScriptLogs(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	dblogs, err := api.Database.GetWorkspaceAgentStartupLogsBetween(ctx, database.GetWorkspaceAgentStartupLogsBetweenParams{})
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.StartupScriptLog{})
-		return
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error getting startup logs",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	logs := []codersdk.StartupScriptLog{}
-	for _, l := range dblogs {
-		logs = append(logs, codersdk.StartupScriptLog{
-			AgentID: l.AgentID,
-			Output:  l.Output,
-		})
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, logs)
-}
-
 // @Summary Get provisioner state for workspace build
 // @ID get-provisioner-state-for-workspace-build
 // @Security CoderSessionToken

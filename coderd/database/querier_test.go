@@ -108,18 +108,20 @@ func TestInsertWorkspaceAgentStartupLogs(t *testing.T) {
 		ResourceID: resource.ID,
 	})
 	logs, err := db.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
-		AgentID:      agent.ID,
-		CreatedAt:    []time.Time{database.Now()},
-		Output:       []string{"first"},
+		AgentID:   agent.ID,
+		CreatedAt: []time.Time{database.Now()},
+		Output:    []string{"first"},
+		// 1 MB is the max
 		OutputLength: 1 << 20,
 	})
 	require.NoError(t, err)
 	require.Equal(t, int64(1), logs[0].ID)
 
 	_, err = db.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
-		AgentID:   agent.ID,
-		CreatedAt: []time.Time{database.Now()},
-		Output:    []string{"second"},
+		AgentID:      agent.ID,
+		CreatedAt:    []time.Time{database.Now()},
+		Output:       []string{"second"},
+		OutputLength: 1,
 	})
 	require.True(t, database.IsStartupLogsLimitError(err))
 }
