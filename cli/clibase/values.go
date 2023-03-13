@@ -133,7 +133,13 @@ func (s *Strings) GetSlice() []string {
 }
 
 func readAsCSV(v string) ([]string, error) {
-	return csv.NewReader(strings.NewReader(v)).Read()
+	sep := ','
+	if strings.Contains(v, " ") {
+		sep = ' '
+	}
+	rd := csv.NewReader(strings.NewReader(v))
+	rd.Comma = sep
+	return rd.Read()
 }
 
 func writeAsCSV(vals []string) string {
