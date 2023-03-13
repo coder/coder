@@ -19,7 +19,7 @@ import {
   FormSection,
   FormFooter,
   HorizontalForm,
-} from "components/HorizontalForm/HorizontalForm"
+} from "components/Form/Form"
 import { makeStyles } from "@material-ui/core/styles"
 import {
   selectInitialRichParametersValues,

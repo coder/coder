@@ -6,10 +6,7 @@ import DialogTitle from "@material-ui/core/DialogTitle"
 import { DialogProps } from "components/Dialogs/Dialog"
 import { FC } from "react"
 import { getFormHelpers } from "util/formUtils"
-import {
-  FormFields,
-  VerticalForm,
-} from "components/HorizontalForm/HorizontalForm"
+import { FormFields, VerticalForm } from "components/Form/Form"
 import {
   TemplateVersionParameter,
   WorkspaceBuildParameter,
@@ -56,6 +53,7 @@ export const UpdateBuildParametersDialog: FC<
       scroll="body"
       aria-labelledby="update-build-parameters-title"
       maxWidth="xs"
+      data-testid="dialog"
     >
       <DialogTitle
         id="update-build-parameters-title"
@@ -137,19 +135,11 @@ const useStyles = makeStyles((theme) => ({
   },
 
   info: {
-    fontSize: theme.spacing(1.75),
-    lineHeight: "160%",
-    backgroundColor: theme.palette.info.dark,
-    color: theme.palette.text.primary,
-    border: `1px solid ${theme.palette.info.light}`,
-    borderRight: 0,
-    borderLeft: 0,
-    padding: theme.spacing(3, 5),
-    margin: theme.spacing(0, -5),
+    margin: 0,
   },
 
   form: {
-    paddingTop: theme.spacing(5),
+    paddingTop: theme.spacing(4),
   },
 
   infoTitle: {

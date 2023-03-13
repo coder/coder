@@ -17,6 +17,8 @@ import {
   MockStoppedWorkspace,
   MockStoppingWorkspace,
   MockTemplate,
+  MockTemplateVersionParameter1,
+  MockTemplateVersionParameter2,
   MockWorkspace,
   MockWorkspaceBuild,
   renderWithAuth,
@@ -285,6 +287,66 @@ describe("WorkspacePage", () => {
         // Added +1 because of the date row
         expect(rows).toHaveLength(MockBuilds.length + 1)
       })
+    })
+  })
+
+  it("Workspace update when having new parameters on the template version", async () => {
+    // Setup mocks
+    const user = userEvent.setup()
+    jest
+      .spyOn(api, "getWorkspaceByOwnerAndName")
+      .mockResolvedValueOnce(MockOutdatedWorkspace)
+    const updateWorkspaceSpy = jest
+      .spyOn(api, "updateWorkspace")
+      .mockRejectedValueOnce(
+        new api.MissingBuildParameters([
+          MockTemplateVersionParameter1,
+          MockTemplateVersionParameter2,
+        ]),
+      )
+    // Render page and wait for it to be loaded
+    renderWithAuth(<WorkspacePage />, {
+      route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
+      path: "/@:username/:workspace",
+    })
+    await waitForLoaderToBeRemoved()
+    // Click on the update button
+    const workspaceActions = screen.getByTestId("workspace-actions")
+    await user.click(
+      within(workspaceActions).getByRole("button", { name: "Update" }),
+    )
+    await waitFor(() => {
+      expect(api.updateWorkspace).toBeCalled()
+      // We want to clear this mock to use it later
+      updateWorkspaceSpy.mockClear()
+    })
+    // Fill the parameters and send the form
+    const dialog = await screen.findByTestId("dialog")
+    const firstParameterInput = within(dialog).getByLabelText(
+      MockTemplateVersionParameter1.name,
+      { exact: false },
+    )
+    await user.clear(firstParameterInput)
+    await user.type(firstParameterInput, "some-value")
+    const secondParameterInput = within(dialog).getByLabelText(
+      MockTemplateVersionParameter2.name,
+      { exact: false },
+    )
+    await user.clear(secondParameterInput)
+    await user.type(secondParameterInput, "2")
+    await user.click(within(dialog).getByRole("button", { name: "Update" }))
+    // Check if the update was called using the values from the form
+    await waitFor(() => {
+      expect(api.updateWorkspace).toBeCalledWith(MockOutdatedWorkspace, [
+        {
+          name: MockTemplateVersionParameter1.name,
+          value: "some-value",
+        },
+        {
+          name: MockTemplateVersionParameter2.name,
+          value: "2",
+        },
+      ])
     })
   })
 })
