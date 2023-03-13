@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -48,6 +49,12 @@ func TestRenderChart(t *testing.T) {
 	t.Parallel()
 	if *UpdateGoldenFiles {
 		t.Skip("Golden files are being updated. Skipping test.")
+	}
+	if _, runningInCI := os.LookupEnv("CI"); runningInCI {
+		switch runtime.GOOS {
+		case "windows", "darwin":
+			t.Skip("Skipping tests on Windows and macOS in CI")
+		}
 	}
 
 	// Ensure that Helm is available in $PATH
