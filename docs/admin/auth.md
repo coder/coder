@@ -56,16 +56,16 @@ If deploying Coder via Helm, you can set the above environment variables in the
 ```yaml
 coder:
   env:
-  - name: CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS
-    value: true
-  - name: CODER_OAUTH2_GITHUB_ALLOWED_ORGS
-    value: "your-org"
-  - name: CODER_OAUTH2_GITHUB_CLIENT_ID
-    value: "533...des"
-  - name: CODER_OAUTH2_GITHUB_CLIENT_SECRET
-    value: "G0CSP...7qSM"
-  - name: CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
-    value: true
+    - name: CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS
+      value: true
+    - name: CODER_OAUTH2_GITHUB_ALLOWED_ORGS
+      value: "your-org"
+    - name: CODER_OAUTH2_GITHUB_CLIENT_ID
+      value: "533...des"
+    - name: CODER_OAUTH2_GITHUB_CLIENT_SECRET
+      value: "G0CSP...7qSM"
+    - name: CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
+      value: true
 ```
 
 > We recommend requiring and auditing MFA usage for all users in your GitHub
@@ -110,14 +110,14 @@ If deploying Coder via Helm, you can set the above environment variables in the
 ```yaml
 coder:
   env:
-  - name: CODER_OIDC_ISSUER_URL
-    value: "https://issuer.corp.com"
-  - name: CODER_OIDC_EMAIL_DOMAIN
-    value: "your-domain-1,your-domain-2"
-  - name: CODER_OIDC_CLIENT_ID
-    value: "533...des"
-  - name: CODER_OIDC_CLIENT_SECRET
-    value: "G0CSP...7qSM"
+    - name: CODER_OIDC_ISSUER_URL
+      value: "https://issuer.corp.com"
+    - name: CODER_OIDC_EMAIL_DOMAIN
+      value: "your-domain-1,your-domain-2"
+    - name: CODER_OIDC_CLIENT_ID
+      value: "533...des"
+    - name: CODER_OIDC_CLIENT_SECRET
+      value: "G0CSP...7qSM"
 ```
 
 To upgrade Coder, run:
