@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/cli"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
@@ -122,9 +121,8 @@ func TestLicensesAddReal(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		var root cli.RootCmd
-		inv, conf := clitest.NewWithSubcommands(
-			t, root.EnterpriseSubcommands(),
+		inv, conf := newCLI(
+			t,
 			"licenses", "add", "-l", fakeLicenseJWT,
 		)
 		clitest.SetupConfig(t, client, conf)
@@ -170,9 +168,10 @@ func TestLicensesListReal(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		var root cli.RootCmd
-		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(),
-			"licenses", "list")
+		inv, conf := newCLI(
+			t,
+			"licenses", "list",
+		)
 		stdout := new(bytes.Buffer)
 		inv.Stdout = stdout
 		stderr := new(bytes.Buffer)
@@ -211,8 +210,8 @@ func TestLicensesDeleteReal(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		var root cli.RootCmd
-		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(),
+		inv, conf := newCLI(
+			t,
 			"licenses", "delete", "1")
 		clitest.SetupConfig(t, client, conf)
 
@@ -228,9 +227,8 @@ func setupFakeLicenseServerTest(t *testing.T, args ...string) *clibase.Invocatio
 	t.Helper()
 	s := httptest.NewServer(newFakeLicenseAPI(t))
 	t.Cleanup(s.Close)
-	var root cli.RootCmd
 
-	inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(), args...)
+	inv, conf := newCLI(t, args...)
 
 	err := conf.URL().Write(s.URL)
 	require.NoError(t, err)

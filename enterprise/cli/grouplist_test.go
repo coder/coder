@@ -8,7 +8,6 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/cli"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/pty/ptytest"
@@ -57,8 +56,7 @@ func TestGroupList(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		var root cli.RootCmd
-		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(), "groups", "list")
+		inv, conf := newCLI(t, "groups", "list")
 
 		pty := ptytest.New(t)
 
@@ -91,8 +89,7 @@ func TestGroupList(t *testing.T) {
 			},
 		})
 
-		var root cli.RootCmd
-		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(), "groups", "list")
+		inv, conf := newCLI(t, "groups", "list")
 
 		pty := ptytest.New(t)
 

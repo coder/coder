@@ -10,7 +10,6 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/cli"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/pty/ptytest"
@@ -35,8 +34,7 @@ func TestCreateGroup(t *testing.T) {
 			avatarURL = "https://example.com"
 		)
 
-		var root cli.RootCmd
-		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(), "groups",
+		inv, conf := newCLI(t, "groups",
 			"create", groupName,
 			"--avatar-url", avatarURL,
 		)

@@ -11,7 +11,6 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/cli"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/pty/ptytest"
 )
@@ -22,8 +21,7 @@ func TestFeaturesList(t *testing.T) {
 		t.Parallel()
 		client := coderdenttest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		var root cli.RootCmd
-		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(), "features", "list")
+		inv, conf := newCLI(t, "features", "list")
 		clitest.SetupConfig(t, client, conf)
 		pty := ptytest.New(t)
 		inv.Stdin = pty.Input()
@@ -37,8 +35,7 @@ func TestFeaturesList(t *testing.T) {
 
 		client := coderdenttest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		var root cli.RootCmd
-		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(), "features", "list", "-o", "json")
+		inv, conf := newCLI(t, "features", "list", "-o", "json")
 		clitest.SetupConfig(t, client, conf)
 		doneChan := make(chan struct{})
 

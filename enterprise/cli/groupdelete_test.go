@@ -10,7 +10,6 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/cli"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/pty/ptytest"
@@ -38,8 +37,7 @@ func TestGroupDelete(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		var root cli.RootCmd
-		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(),
+		inv, conf := newCLI(t,
 			"groups", "delete", group.Name,
 		)
 
@@ -66,9 +64,10 @@ func TestGroupDelete(t *testing.T) {
 			},
 		})
 
-		var root cli.RootCmd
-		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(),
-			"groups", "delete")
+		inv, conf := newCLI(
+			t,
+			"groups", "delete",
+		)
 
 		clitest.SetupConfig(t, client, conf)
 

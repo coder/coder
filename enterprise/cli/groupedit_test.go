@@ -10,7 +10,6 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/cli"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/pty/ptytest"
@@ -51,8 +50,8 @@ func TestGroupEdit(t *testing.T) {
 
 		expectedName := "beta"
 
-		var root cli.RootCmd
-		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(),
+		inv, conf := newCLI(
+			t,
 			"groups", "edit", group.Name,
 			"--name", expectedName,
 			"--avatar-url", "https://example.com",
@@ -91,8 +90,8 @@ func TestGroupEdit(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		var root cli.RootCmd
-		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(),
+		inv, conf := newCLI(
+			t,
 			"groups", "edit", group.Name,
 			"-a", "foo",
 		)
@@ -116,8 +115,7 @@ func TestGroupEdit(t *testing.T) {
 			},
 		})
 
-		var root cli.RootCmd
-		inv, conf := clitest.NewWithSubcommands(t, root.EnterpriseSubcommands(), "groups", "edit")
+		inv, conf := newCLI(t, "groups", "edit")
 		clitest.SetupConfig(t, client, conf)
 
 		err := inv.Run()
