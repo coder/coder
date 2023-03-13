@@ -196,6 +196,53 @@ variable "cpu" {
 
 > ⚠️ Legacy (`variable`) parameters and rich parameters can't be used in the same template.
 
+### Migration
+
+Terraform variables shouldn't be used for workspace scoped parameters anymore, and it's recommended to convert variables to `coder_parameter` resources. To make the migration smoother, there is a special property introduced -
+`legacy_variable` and `legacy_variable_name` , which can link `coder_parameter` with a legacy variable.
+
+```hcl
+variable "legacy_cpu" {
+  sensitive   = false
+  description = "CPU cores"
+  default     = 2
+}
+
+data "coder_parameter" "cpu" {
+  name        = "CPU cores"
+  type        = "number"
+  description = "Number of CPU cores"
+  mutable     = true
+
+  legacy_variable_name = "legacy_cpu"
+  legacy_variable = var.legacy_cpu
+}
+```
+
+#### Steps
+
+1. Prepare and update a new template version:
+
+- Add `coder_parameter` resource matching the legacy parameter to migrate.
+- Use `legacy_variable_name` and `legacy_variable` to link both.
+- Mark the new parameter as `mutable`, so that Coder will not block updating existing workspaces.
+
+2. Update all workspaces to the uploaded template version. Coder will populate `coder_parameter`s with values from legacy parameters.
+3. Prepare another template version:
+
+- Remove migrated variable.
+- Remove properties `legacy_variable` and `legacy_variable_name` from `coder_parameter`s.
+
+4. Update all workspaces to the uploaded template version.
+5. Prepare another template version:
+
+- Enable the `feature_use_managed_variables` provider flag to use managed Terraform variables for template customization. Once the flag is enabled, legacy parameters won't be used.
+
+6. Update all workspaces to the uploaded template version.
+7. Delete legacy parameters.
+
+As a template improvement, the template author can consider marking some of new `coder_parameter` resources as `mutable`.
+
 ## Managed Terraform variables
 
 As parameters are intended to be used only for workspace customization purposes, Terraform variables can be freely managed by the template author to build templates. Workspace users are not able to modify
