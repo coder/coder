@@ -12,7 +12,6 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// nolint:tparallel,paralleltest
 func TestUserStatus(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
@@ -22,6 +21,7 @@ func TestUserStatus(t *testing.T) {
 	require.NoError(t, err, "fetch user")
 
 	t.Run("StatusSelf", func(t *testing.T) {
+		t.Parallel()
 		inv, root := clitest.New(t, "users", "suspend", "me")
 		clitest.SetupConfig(t, client, root)
 		// Yes to the prompt
@@ -33,6 +33,7 @@ func TestUserStatus(t *testing.T) {
 	})
 
 	t.Run("StatusOther", func(t *testing.T) {
+		t.Parallel()
 		require.Equal(t, codersdk.UserStatusActive, otherUser.Status, "start as active")
 
 		inv, root := clitest.New(t, "users", "suspend", otherUser.Username)

@@ -59,6 +59,7 @@ func NewWithSubcommands(
 	i := &clibase.Invocation{
 		Command: cmd,
 		Args:    append([]string{"--global-config", string(configDir)}, args...),
+		Stdin:   &bytes.Buffer{},
 		Stdout:  (&logWriter{prefix: "stdout", t: t}),
 		Stderr:  (&logWriter{prefix: "stderr", t: t}),
 	}

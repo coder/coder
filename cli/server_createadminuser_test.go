@@ -92,9 +92,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		defer sqlDB.Close()
 		db := database.New(sqlDB)
 
-		// Sometimes generating SSH keys takes a really long time if there isn't
-		// enough entropy. We don't want the tests to fail in these cases.
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
 
 		pingCtx, pingCancel := context.WithTimeout(ctx, testutil.WaitShort)
@@ -155,9 +153,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		require.NoError(t, err)
 		defer closeFunc()
 
-		// Sometimes generating SSH keys takes a really long time if there isn't
-		// enough entropy. We don't want the tests to fail in these cases.
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
 
 		inv, _ := clitest.New(t, "server", "create-admin-user")
@@ -191,9 +187,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		require.NoError(t, err)
 		defer closeFunc()
 
-		// Sometimes generating SSH keys takes a really long time if there isn't
-		// enough entropy. We don't want the tests to fail in these cases.
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
 
 		root, _ := clitest.New(t,
