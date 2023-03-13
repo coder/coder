@@ -47,6 +47,10 @@ type Cmd struct {
 	HelpHandler HandlerFunc
 }
 
+func (c *Cmd) Runnable() bool {
+	return c.Handler != nil
+}
+
 // Walk calls fn for the command and all its children.
 func (c *Cmd) Walk(fn func(*Cmd)) {
 	fn(c)

@@ -1,26 +1,26 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # {{ .Name }}
-{{ if .Cmd.Long }}
-{{ .Cmd.Long }}
-{{ else }}
-{{ .Cmd.Short }}
+
+{{ with .Short }} 
+{{ . }}
+
 {{ end }}
 
-{{- if .Cmd.Runnable}}
+{{- if .Runnable}}
 ## Usage
 ```console
-{{.Cmd.UseLine}}
+{{.Usage}}
 ```
 {{end}}
 
-{{- if .Cmd.HasExample}}
-## Examples
+{{- if .Long}}
+## Description
 ```console
-{{.Cmd.Example}}
+{{.Long}}
 ```
 {{end}}
 
-{{- range $index, $cmd := .VisibleSubcommands }}
+{{- range $index, $cmd := visibleSubcommands . }}
 {{- if eq $index 0 }}
 ## Subcommands
 | Name |   Purpose |
@@ -29,19 +29,19 @@
 | [{{ $cmd.Name | wrapCode }}](./{{if $.AtRoot}}cli/{{end}}{{commandURI $cmd}}) | {{ $cmd.Short }} |
 {{- end}}
 {{ "" }}
-{{- range $index, $flag := .Flags }}
+{{- range $index, $opt := .Options }}
 {{- if eq $index 0 }}
-## Flags
+## Options
 {{- end }}
-### --{{ $flag.Name }}{{ if $flag.Shorthand}}, -{{ $flag.Shorthand }}{{end}}
-{{ $flag.Usage | stripEnv | newLinesToBr }}
+### --{{ $opt.Flag }}{{ with $opt.FlagShorthand}}, -{{ . }}{{end}}
+{{ $opt.Usage | newLinesToBr }}
 <br/>
 | | |
 | --- | --- |
-{{- with $flag.Usage | parseEnv }}
+{{- with $flag.Description }}
 | Consumes | {{ . | wrapCode }} |
 {{- end }}
-{{- with $flag.DefValue }}
+{{- with $flag.Default }}
 | Default | {{"    "}} {{- . | wrapCode }} |
 {{ "" }}
 {{ end }}
