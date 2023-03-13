@@ -46,19 +46,17 @@ var (
 )
 
 const (
-	varURL                  = "url"
-	varToken                = "token"
-	varAgentToken           = "agent-token"
-	varAgentURL             = "agent-url"
-	varHeader               = "header"
-	varDerpHeader           = "derp-header"
-	varDerpHeaderUseDefault = "derp-header-use-default"
-	varNoOpen               = "no-open"
-	varNoVersionCheck       = "no-version-warning"
-	varNoFeatureWarning     = "no-feature-warning"
-	varForceTty             = "force-tty"
-	varVerbose              = "verbose"
-	notLoggedInMessage      = "You are not logged in. Try logging in using 'coder login <url>'."
+	varURL              = "url"
+	varToken            = "token"
+	varAgentToken       = "agent-token"
+	varAgentURL         = "agent-url"
+	varHeader           = "header"
+	varNoOpen           = "no-open"
+	varNoVersionCheck   = "no-version-warning"
+	varNoFeatureWarning = "no-feature-warning"
+	varForceTty         = "force-tty"
+	varVerbose          = "verbose"
+	notLoggedInMessage  = "You are not logged in. Try logging in using 'coder login <url>'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
@@ -172,8 +170,6 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden(varAgentURL)
 	cliflag.String(cmd.PersistentFlags(), config.FlagName, "", "CODER_CONFIG_DIR", config.DefaultDir(), "Path to the global `coder` config directory.")
 	cliflag.StringArray(cmd.PersistentFlags(), varHeader, "", "CODER_HEADER", []string{}, "HTTP headers added to all requests. Provide as \"Key=Value\"")
-	cliflag.StringArray(cmd.PersistentFlags(), varDerpHeader, "", "CODER_DERP_HEADER", []string{}, "HTTP headers added to all DERP requests. Provide as \"Key=Value\"")
-	cliflag.Bool(cmd.PersistentFlags(), varDerpHeaderUseDefault, "", "CODER_DERP_HEADER_USE_DEFAULT", false, "Use default HTTP headers for all DERP requests.")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY.")
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
 	cmd.PersistentFlags().Bool(varNoOpen, false, "Block automatically opening URLs in the browser.")
@@ -336,61 +332,26 @@ func createUnauthenticatedClient(cmd *cobra.Command, serverURL *url.URL) (*coder
 	if err != nil {
 		return nil, err
 	}
-
-	headerMap, err := parseHeaderString(headers)
-	if err != nil {
-		return nil, err
-	}
-
 	transport := &headerTransport{
 		transport: http.DefaultTransport,
-		headers:   headerMap,
+		headers:   map[string]string{},
 	}
-
-	client.HTTPClient.Transport = transport
-
-	derpHeaders, err := cmd.Flags().GetStringArray(varDerpHeader)
-	if err != nil {
-		return nil, err
-	}
-
-	derpHeaderMap, err := parseHeaderString(derpHeaders)
-	if err != nil {
-		return nil, err
-	}
-
-	client.DERPHeader = &http.Header{}
-
-	derpHeadersUseDefault, err := cmd.Flags().GetBool(varDerpHeaderUseDefault)
-	if err != nil {
-		return nil, err
-	}
-
-	if derpHeadersUseDefault {
-		for header, value := range headerMap {
-			client.DERPHeader.Set(header, value)
-		}
-	}
-
-	for header, value := range derpHeaderMap {
-		client.DERPHeader.Set(header, value)
-	}
-
-	return client, nil
-}
-
-func parseHeaderString(headers []string) (map[string]string, error) {
-	headerMap := map[string]string{}
-
 	for _, header := range headers {
 		parts := strings.SplitN(header, "=", 2)
 		if len(parts) < 2 {
 			return nil, xerrors.Errorf("split header %q had less than two parts", header)
 		}
-		headerMap[parts[0]] = parts[1]
+		transport.headers[parts[0]] = parts[1]
 	}
 
-	return headerMap, nil
+	client.HTTPClient.Transport = transport
+	client.DERPHeader = &http.Header{}
+
+	for header, value := range transport.headers {
+		client.DERPHeader.Set(header, value)
+	}
+
+	return client, nil
 }
 
 // createAgentClient returns a new client from the command context.
