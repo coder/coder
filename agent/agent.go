@@ -77,6 +77,7 @@ type Options struct {
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
+	AgentPorts             map[int]string
 }
 
 type Client interface {
@@ -123,6 +124,7 @@ func New(options Options) io.Closer {
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
 		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
+		ignorePorts:            options.AgentPorts,
 		connStatsChan:          make(chan *agentsdk.Stats, 1),
 	}
 	a.init(ctx)
@@ -136,6 +138,10 @@ type agent struct {
 	filesystem    afero.Fs
 	logDir        string
 	tempDir       string
+	// ignorePorts tells the api handler which ports to ignore when
+	// listing all listening ports. This is helpful to hide ports that
+	// are used by the agent, that the user does not care about.
+	ignorePorts map[int]string
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration

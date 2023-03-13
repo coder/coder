@@ -220,6 +220,7 @@ type OIDCConfig struct {
 	Scopes              clibase.Strings `json:"scopes" typescript:",notnull"`
 	IgnoreEmailVerified clibase.Bool    `json:"ignore_email_verified" typescript:",notnull"`
 	UsernameField       clibase.String  `json:"username_field" typescript:",notnull"`
+	GroupField          clibase.String  `json:"groups_field" typescript:",notnull"`
 	SignInText          clibase.String  `json:"sign_in_text" typescript:",notnull"`
 	IconURL             clibase.URL     `json:"icon_url" typescript:",notnull"`
 }
@@ -817,6 +818,21 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.UsernameField,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "usernameField",
+		},
+		{
+			Name:        "OIDC Group Field",
+			Description: "Change the OIDC default 'groups' claim field. By default, will be 'groups' if present in the oidc scopes argument.",
+			Flag:        "oidc-group-field",
+			Env:         "OIDC_GROUP_FIELD",
+			// This value is intentionally blank. If this is empty, then OIDC group
+			// behavior is disabled. If 'oidc-scopes' contains 'groups', then the
+			// default value will be 'groups'. If the user wants to use a different claim
+			// such as 'memberOf', they can override the default 'groups' claim value
+			// that comes from the oidc scopes.
+			Default: "",
+			Value:   &c.OIDC.GroupField,
+			Group:   &deploymentGroupOIDC,
+			YAML:    "groupField",
 		},
 		{
 			Name:        "OpenID Connect sign in text",

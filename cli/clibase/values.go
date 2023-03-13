@@ -28,6 +28,10 @@ type NoOptDefValuer interface {
 
 type Int64 int64
 
+func Int64Of(i *int64) *Int64 {
+	return (*Int64)(i)
+}
+
 func (i *Int64) Set(s string) error {
 	ii, err := strconv.ParseInt(s, 10, 64)
 	*i = Int64(ii)
@@ -47,6 +51,10 @@ func (Int64) Type() string {
 }
 
 type Bool bool
+
+func BoolOf(b *bool) *Bool {
+	return (*Bool)(b)
+}
 
 func (b *Bool) Set(s string) error {
 	if s == "" {
@@ -76,6 +84,10 @@ func (Bool) Type() string {
 
 type String string
 
+func StringOf(s *string) *String {
+	return (*String)(s)
+}
+
 func (*String) NoOptDefValue() string {
 	return ""
 }
@@ -101,6 +113,10 @@ var _ pflag.SliceValue = &Strings{}
 
 // Strings is a slice of strings that implements pflag.Value and pflag.SliceValue.
 type Strings []string
+
+func StringsOf(ss *[]string) *Strings {
+	return (*Strings)(ss)
+}
 
 func (s *Strings) Append(v string) error {
 	*s = append(*s, v)
@@ -152,6 +168,10 @@ func (Strings) Type() string {
 
 type Duration time.Duration
 
+func DurationOf(d *time.Duration) *Duration {
+	return (*Duration)(d)
+}
+
 func (d *Duration) Set(v string) error {
 	dd, err := time.ParseDuration(v)
 	*d = Duration(dd)
@@ -184,6 +204,10 @@ func (Duration) Type() string {
 }
 
 type URL url.URL
+
+func URLOf(u *url.URL) *URL {
+	return (*URL)(u)
+}
 
 func (u *URL) Set(v string) error {
 	uu, err := url.Parse(v)

@@ -20,7 +20,7 @@ export const FullScreenLoader: FC = () => {
   const styles = useStyles()
 
   return (
-    <div className={styles.root}>
+    <div className={styles.root} data-testid="loader">
       <CircularProgress />
     </div>
   )
