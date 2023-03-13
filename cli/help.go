@@ -95,6 +95,11 @@ var usageTemplate = template.Must(
 				s = wrapTTY(s)
 				return s
 			},
+			"visibleChildren": func(cmd *clibase.Cmd) []*clibase.Cmd {
+				return filterSlice(cmd.Children, func(c *clibase.Cmd) bool {
+					return !c.Hidden
+				})
+			},
 			"optionGroups": func(cmd *clibase.Cmd) []optionGroup {
 				groups := []optionGroup{{
 					// Default group.

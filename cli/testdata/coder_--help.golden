@@ -46,9 +46,11 @@ Subcommands
         state               Manually manage Terraform state to fix broken workspaces
         templates           Manage templates
         users               Manage users
+        tokens              Manage personal access tokens
         version             Show coder version
         config-ssh          Add an SSH Host entry for your workspaces "ssh coder.workspace"
         rename              Rename a workspace
+        ping                Ping a workspace
         create              Create a workspace
         delete              Delete a workspace
         list                List workspaces
@@ -59,7 +61,7 @@ Subcommands
         start               Start a workspace
         stop                Stop a workspace
         update              Will update and start a given workspace if it is out of date.
-        agent               Starts the Coder workspace agent.
+        restart             Restart a workspace
         scaletest           Run a scale test against the Coder API
         server              Start a Coder server
 ---

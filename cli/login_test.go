@@ -74,16 +74,10 @@ func TestLogin(t *testing.T) {
 		// The --force-tty flag is required on Windows, because the `isatty` library does not
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
-		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "--url", client.URL.String(), "login", "--force-tty")
-		pty := ptytest.New(t)
-		root.Stdin = pty.Input()
-		root.Stdout = pty.Output()
-		go func() {
-			defer close(doneChan)
-			err := root.Run()
-			assert.NoError(t, err)
-		}()
+		inv, _ := clitest.New(t, "--url", client.URL.String(), "login", "--force-tty")
+		pty := ptytest.New(t).Attach(inv)
+
+		clitest.Start(t, inv)
 
 		matches := []string{
 			"first user?", "yes",
@@ -100,7 +94,6 @@ func TestLogin(t *testing.T) {
 			pty.WriteLine(value)
 		}
 		pty.ExpectMatch("Welcome to Coder")
-		<-doneChan
 	})
 
 	t.Run("InitialUserFlags", func(t *testing.T) {

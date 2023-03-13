@@ -329,6 +329,7 @@ func (i *Invocation) Run() (err error) {
 		if r := recover(); r != nil {
 			// Panics are difficult to debug without this additional context.
 			err = xerrors.Errorf("panic recovered for %s: %v", i.Command.FullName(), r)
+			panic(err)
 		}
 	}()
 	err = i.run(&runState{

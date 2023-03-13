@@ -20,10 +20,9 @@ import (
 
 func (r *RootCmd) gitssh() *clibase.Cmd {
 	cmd := &clibase.Cmd{
-		Use:     "gitssh",
-		Hidden:  true,
-		RawArgs: true,
-		Short:   `Wraps the "ssh" command and uses the coder gitssh key for authentication`,
+		Use:    "gitssh",
+		Hidden: true,
+		Short:  `Wraps the "ssh" command and uses the coder gitssh key for authentication`,
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 			env := os.Environ()

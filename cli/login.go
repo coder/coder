@@ -53,11 +53,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 		Handler: func(inv *clibase.Invocation) error {
 			rawURL := ""
 			if len(inv.Args) == 0 {
-				var err error
-				rawURL, err = inv.ParsedFlags().GetString(varURL)
-				if err != nil {
-					return xerrors.Errorf("get global url flag")
-				}
+				rawURL = r.clientURL.String()
 			} else {
 				rawURL = inv.Args[0]
 			}

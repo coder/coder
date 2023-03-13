@@ -85,11 +85,11 @@ func (pf *templateUploadFlags) templateName(args []string) (string, error) {
 		return args[0], nil
 	}
 
-	name := filepath.Base(args[0])
 	if len(args) > 0 {
-		name = args[0]
+		return args[0], nil
 	}
-	return name, nil
+	// If no name is provided, use the directory name.
+	return filepath.Base(pf.directory), nil
 }
 
 func (r *RootCmd) templatePush() *clibase.Cmd {

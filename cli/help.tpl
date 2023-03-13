@@ -27,7 +27,7 @@ Usage: {{.FullUsage}}
         {{- end -}}
     {{- end }}
 {{- end }}
-{{- range $index, $child := .Children }}
+{{- range $index, $child := visibleChildren . }}
 {{- if eq $index 0 }}
 {{ prettyHeader "Subcommands"}}
 {{- end }}

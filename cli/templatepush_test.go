@@ -181,14 +181,9 @@ func TestTemplatePush(t *testing.T) {
 		// directory of the source.
 		inv, root := clitest.New(t, "templates", "push", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- inv.Run()
-		}()
+		cliErrCh := clitest.StartErr(t, inv)
 
 		matches := []struct {
 			match string
@@ -201,7 +196,7 @@ func TestTemplatePush(t *testing.T) {
 			pty.WriteLine(m.write)
 		}
 
-		require.NoError(t, <-execDone)
+		require.NoError(t, <-cliErrCh)
 
 		// Assert that the template version changed.
 		templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
