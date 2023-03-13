@@ -1576,10 +1576,10 @@ func (c *client) getStartupLogs() []agentsdk.StartupLog {
 	return c.logs
 }
 
-func (c *client) AppendStartupLogs(_ context.Context, logs []agentsdk.StartupLog) error {
+func (c *client) PatchStartupLogs(_ context.Context, logs agentsdk.PatchStartupLogs) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.logs = append(c.logs, logs...)
+	c.logs = append(c.logs, logs.Logs...)
 	return nil
 }
 

@@ -810,7 +810,7 @@ export const getStartupScriptLogs = async (
   workspaceBuildId: string,
 ): Promise<TypesGen.StartupScriptLog[]> => {
   const response = await axios.get(
-    `/api/v2/workspacebuilds/${workspaceBuildId}/startup-script-logs`,
+    `/api/v2/workspacebuilds/${workspaceBuildId}/startup-logs`,
   )
   return response.data
 }

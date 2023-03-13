@@ -88,7 +88,7 @@ type Client interface {
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
-	AppendStartupLogs(ctx context.Context, req []agentsdk.StartupLog) error
+	PatchStartupLogs(ctx context.Context, req agentsdk.PatchStartupLogs) error
 }
 
 func New(options Options) io.Closer {
@@ -199,19 +199,6 @@ func (a *agent) runLoop(ctx context.Context) {
 			continue
 		}
 		a.logger.Warn(ctx, "run exited with error", slog.Error(err))
-	}
-}
-
-func (a *agent) appendStartupLogsLoop(ctx context.Context, logs []agentsdk.StartupLog) {
-	for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
-		err := a.client.AppendStartupLogs(ctx, logs)
-		if err == nil {
-			return
-		}
-		if errors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
-			return
-		}
-		a.logger.Error(ctx, "failed to append startup logs", slog.Error(err))
 	}
 }
 
@@ -680,25 +667,20 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 			return
 		}
 		logsSending = true
-		toSend := make([]agentsdk.StartupLog, len(queuedLogs))
-		copy(toSend, queuedLogs)
+		logsToSend := queuedLogs
+		queuedLogs = make([]agentsdk.StartupLog, 0)
 		logMutex.Unlock()
 		for r := retry.New(time.Second, 5*time.Second); r.Wait(ctx); {
-			err := a.client.AppendStartupLogs(ctx, toSend)
+			err := a.client.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
+				Logs: logsToSend,
+			})
 			if err == nil {
 				break
 			}
-			a.logger.Error(ctx, "upload startup logs", slog.Error(err))
-		}
-		if ctx.Err() != nil {
-			logMutex.Lock()
-			logsSending = false
-			logMutex.Unlock()
-			return
+			a.logger.Error(ctx, "upload startup logs", slog.Error(err), slog.F("to_send", logsToSend))
 		}
 		logMutex.Lock()
 		logsSending = false
-		queuedLogs = queuedLogs[len(toSend):]
 		logMutex.Unlock()
 	}
 	queueLog := func(log agentsdk.StartupLog) {

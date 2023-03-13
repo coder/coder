@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -312,6 +313,65 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 	}
 	var listeningPorts WorkspaceAgentListeningPortsResponse
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
+}
+
+func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uuid.UUID, after int64) (<-chan WorkspaceAgentStartupLog, io.Closer, error) {
+	afterQuery := ""
+	if after != 0 {
+		afterQuery = fmt.Sprintf("&after=%d", after)
+	}
+	followURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/startup-logs?follow%s", agentID, afterQuery))
+	if err != nil {
+		return nil, nil, err
+	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(followURL, []*http.Cookie{{
+		Name:  SessionTokenCookie,
+		Value: c.SessionToken(),
+	}})
+	httpClient := &http.Client{
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
+	}
+	conn, res, err := websocket.Dial(ctx, followURL.String(), &websocket.DialOptions{
+		HTTPClient:      httpClient,
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, nil, err
+		}
+		return nil, nil, ReadBodyAsError(res)
+	}
+	logs := make(chan WorkspaceAgentStartupLog)
+	closed := make(chan struct{})
+	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
+	decoder := json.NewDecoder(wsNetConn)
+	go func() {
+		defer close(closed)
+		defer close(logs)
+		defer conn.Close(websocket.StatusGoingAway, "")
+		var log WorkspaceAgentStartupLog
+		for {
+			err = decoder.Decode(&log)
+			if err != nil {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case logs <- log:
+			}
+		}
+	}()
+	return logs, closeFunc(func() error {
+		_ = wsNetConn.Close()
+		<-closed
+		return nil
+	}), nil
 }
 
 // GitProvider is a constant that represents the

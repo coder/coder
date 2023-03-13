@@ -226,7 +226,7 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 // @Accept json
 // @Produce json
 // @Tags Agents
-// @Param request body []agentsdk.StartupLog true "Startup logs"
+// @Param request body agentsdk.PatchStartupLogs true "Startup logs"
 // @Success 200
 // @Router /workspaceagents/me/startup-logs [patch]
 // @x-apidocgen {"skip": true}
@@ -234,7 +234,7 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 
-	var req []agentsdk.StartupLog
+	var req agentsdk.PatchStartupLogs
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -242,7 +242,7 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 	createdAt := make([]time.Time, 0)
 	output := make([]string, 0)
 	outputLength := 0
-	for _, log := range req {
+	for _, log := range req.Logs {
 		createdAt = append(createdAt, log.CreatedAt)
 		output = append(output, log.Output)
 		outputLength += len(log.Output)
@@ -311,7 +311,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	// This mostly copies how provisioner job logs are streamed!
 	var (
 		ctx      = r.Context()
-		agent    = httpmw.WorkspaceAgent(r)
+		agent    = httpmw.WorkspaceAgentParam(r)
 		logger   = api.Logger.With(slog.F("workspace_agent_id", agent.ID))
 		follow   = r.URL.Query().Has("follow")
 		afterRaw = r.URL.Query().Get("after")

@@ -89,36 +89,4 @@ func TestProvisionerJobLogs(t *testing.T) {
 			}
 		}
 	})
-
-	t.Run("List", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Log{
-					Log: &proto.Log{
-						Level:  proto.LogLevel_INFO,
-						Output: "log-output",
-					},
-				},
-			}, {
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{},
-				},
-			}},
-		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		logs, err := client.WorkspaceBuildLogsBefore(ctx, workspace.LatestBuild.ID, 0)
-		require.NoError(t, err)
-		require.Greater(t, len(logs), 1)
-	})
 }

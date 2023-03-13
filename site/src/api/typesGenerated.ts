@@ -1040,6 +1040,13 @@ export interface WorkspaceAgentListeningPortsResponse {
   readonly ports: WorkspaceAgentListeningPort[]
 }
 
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentStartupLog {
+  readonly id: number
+  readonly created_at: string
+  readonly output: string
+}
+
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
   readonly id: string

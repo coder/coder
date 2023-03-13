@@ -521,9 +521,13 @@ type StartupLog struct {
 	Output    string    `json:"output"`
 }
 
-// AppendStartupLogs writes log messages to the agent startup script.
+type PatchStartupLogs struct {
+	Logs []StartupLog `json:"logs"`
+}
+
+// PatchStartupLogs writes log messages to the agent startup script.
 // Log messages are limited to 1MB in total.
-func (c *Client) AppendStartupLogs(ctx context.Context, req []StartupLog) error {
+func (c *Client) PatchStartupLogs(ctx context.Context, req PatchStartupLogs) error {
 	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/startup-logs", req)
 	if err != nil {
 		return err
