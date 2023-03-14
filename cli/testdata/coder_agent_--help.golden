@@ -9,9 +9,6 @@ Options
     --log-dir, $CODER_AGENT_LOG_DIR  (default: /tmp) 
         Specify the location for the agent log files
 
-    --no-reap (default: false) 
-        Do not start a process reaper.
-
     --pprof-address, $CODER_AGENT_PPROF_ADDRESS  (default: 127.0.0.1:6060) 
 ---
 Report bugs and request features at https://github.com/coder/coder/issues/new

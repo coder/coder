@@ -127,7 +127,7 @@ func TestLicensesAddReal(t *testing.T) {
 		)
 		clitest.SetupConfig(t, client, conf)
 
-		err := <-clitest.StartErr(t, inv)
+		err := <-clitest.StartWithError(t, inv)
 		var coderError *codersdk.Error
 		require.True(t, xerrors.As(err, &coderError))
 		assert.Equal(t, 400, coderError.StatusCode())
@@ -215,7 +215,7 @@ func TestLicensesDeleteReal(t *testing.T) {
 			"licenses", "delete", "1")
 		clitest.SetupConfig(t, client, conf)
 
-		err := <-clitest.StartErr(t, inv)
+		err := <-clitest.StartWithError(t, inv)
 		var coderError *codersdk.Error
 		require.True(t, xerrors.As(err, &coderError))
 		assert.Equal(t, 404, coderError.StatusCode())

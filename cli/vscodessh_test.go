@@ -59,7 +59,7 @@ func TestVSCodeSSH(t *testing.T) {
 	)
 	ptytest.New(t).Attach(inv)
 
-	errCh := clitest.StartErr(t, inv.WithContext(ctx))
+	errCh := clitest.StartWithError(t, inv.WithContext(ctx))
 
 	assert.Eventually(t, func() bool {
 		entries, err := afero.ReadDir(fs, "/net")

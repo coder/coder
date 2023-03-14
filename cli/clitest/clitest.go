@@ -130,7 +130,7 @@ func Start(t *testing.T, inv *clibase.Invocation) {
 	closeCh := make(chan struct{})
 	go func() {
 		defer close(closeCh)
-		err := <-StartErr(t, inv)
+		err := <-StartWithError(t, inv)
 		switch {
 		case errors.Is(err, context.Canceled):
 			return
@@ -152,9 +152,9 @@ func Run(t *testing.T, inv *clibase.Invocation) {
 	require.NoError(t, err)
 }
 
-// StartErr runs the command in a goroutine but returns the error
+// StartWithError runs the command in a goroutine but returns the error
 // instead of asserting it. This is useful for testing error cases.
-func StartErr(t *testing.T, inv *clibase.Invocation) <-chan error {
+func StartWithError(t *testing.T, inv *clibase.Invocation) <-chan error {
 	t.Helper()
 
 	var (

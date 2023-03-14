@@ -236,6 +236,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Flag:        "no-reap",
 			Default:     "false",
 			Env:         "",
+			Hidden:      true,
 			Description: "Do not start a process reaper.",
 			Value:       clibase.BoolOf(&noReap),
 		},

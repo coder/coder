@@ -179,7 +179,7 @@ func TestTemplatePush(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		cliErrCh := clitest.StartErr(t, inv)
+		cliErrCh := clitest.StartWithError(t, inv)
 
 		matches := []struct {
 			match string
