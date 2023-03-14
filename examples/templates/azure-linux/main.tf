@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.12"
+      version = "~> 0.6.17"
     }
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -11,64 +11,176 @@ terraform {
   }
 }
 
-variable "location" {
+data "coder_parameter" "location" {
+  name        = "Location"
   description = "What location should your workspace live in?"
   default     = "eastus"
-  validation {
-    condition = contains([
-      "eastus",
-      "southcentralus",
-      "westus2",
-      "australiaeast",
-      "southeastasia",
-      "northeurope",
-      "westeurope",
-      "centralindia",
-      "eastasia",
-      "japaneast",
-      "brazilsouth",
-      "asia",
-      "asiapacific",
-      "australia",
-      "brazil",
-      "india",
-      "japan",
-      "southafrica",
-      "switzerland",
-      "uae",
-    ], var.location)
-    error_message = "Invalid location!"
+  icon        = "/emojis/"
+  mutable     = false
+  option {
+    name  = "East US"
+    value = "eastus"
+    icon  = "/emojis/1f1fa-1f1f8.png"
+  }
+  option {
+    name  = "South Central US"
+    value = "southcentralus"
+    icon  = "/emojis/1f1fa-1f1f8.png"
+  }
+  option {
+    name  = "West US 2"
+    value = "westus2"
+    icon  = "/emojis/1f1fa-1f1f8.png"
+  }
+  option {
+    name  = "Australia East"
+    value = "australiaeast"
+    icon  = "/emojis/1f1e6-1f1fa.png"
+  }
+  option {
+    name  = "Southeast Asia"
+    value = "southeastasia"
+    icon  = "/emojis/1f1f8-1f1e6.png"
+  }
+  option {
+    name  = "North Europe"
+    value = "northeurope"
+    icon  = "/emojis/1f1f3-1f1ea.png"
+  }
+  option {
+    name  = "West Europe"
+    value = "westeurope"
+    icon  = "/emojis/1f1f3-1f1ea.png"
+  }
+  option {
+    name  = "Central India"
+    value = "centralindia"
+    icon  = "/emojis/1f1ee-1f1f3.png"
+  }
+  option {
+    name  = "East Asia"
+    value = "eastasia"
+    icon  = "/emojis/1f1f0-1f1f7.png"
+  }
+  option {
+    name  = "Japan East"
+    value = "japaneast"
+    icon  = "/emojis/1f1ef-1f1f5.png"
+  }
+  option {
+    name  = "Brazil South"
+    value = "brazilsouth"
+    icon  = "/emojis/1f1e7-1f1f7.png"
+  }
+  option {
+    name  = "Asia"
+    value = "asia"
+    icon  = "/emojis/1f1f0-1f1f7.png"
+  }
+  option {
+    name  = "Asia Pacific"
+    value = "asiapacific"
+    icon  = "/emojis/1f1f0-1f1f7.png"
+  }
+  option {
+    name  = "Australia"
+    value = "australia"
+    icon  = "/emojis/1f1e6-1f1fa.png"
+  }
+  option {
+    name  = "Brazil"
+    value = "brazil"
+    icon  = "/emojis/1f1e7-1f1f7.png"
+  }
+  option {
+    name  = "India"
+    value = "india"
+    icon  = "/emojis/1f1ee-1f1f3.png"
+  }
+  option {
+    name  = "Japan"
+    value = "japan"
+    icon  = "/emojis/1f1ef-1f1f5.png"
+  }
+  option {
+    name  = "South Africa"
+    value = "southafrica"
+    icon  = "/emojis/1f1ff-1f1e6.png"
+  }
+  option {
+    name  = "Switzerland"
+    value = "switzerland"
+    icon  = "/emojis/1f1e8-1f1ed.png"
+  }
+  option {
+    name  = "UAE"
+    value = "uae"
+    icon  = "/emojis/1f1e6-1f1ea.png"
   }
 }
 
-variable "instance_type" {
+data "coder_parameter" "instance_type" {
+  name        = "Instance Type"
   description = "What instance type should your workspace use?"
   default     = "Standard_B4ms"
-  validation {
-    condition = contains([
-      "Standard_B1ms",
-      "Standard_B2ms",
-      "Standard_B4ms",
-      "Standard_B8ms",
-      "Standard_B12ms",
-      "Standard_B16ms",
-      "Standard_D2as_v5",
-      "Standard_D4as_v5",
-      "Standard_D8as_v5",
-      "Standard_D16as_v5",
-      "Standard_D32as_v5",
-    ], var.instance_type)
-    error_message = "Invalid instance type!"
+  icon        = "/icons/azure.png"
+  mutable     = false
+  option {
+    name  = "1 vCPU, 2 GiB RAM"
+    value = "Standard_B1ms"
+  }
+  option {
+    name  = "2 vCPU, 8 GiB RAM"
+    value = "Standard_B2ms"
+  }
+  option {
+    name  = "4 vCPU, 16 GiB RAM"
+    value = "Standard_B4ms"
+  }
+  option {
+    name  = "8 vCPU, 32 GiB RAM"
+    value = "Standard_B8ms"
+  }
+  option {
+    name  = "12 vCPU, 48 GiB RAM"
+    value = "Standard_B12ms"
+  }
+  option {
+    name  = "16 vCPU, 64 GiB RAM"
+    value = "Standard_B16ms"
+  }
+  option {
+    name  = "2 vCPU, 8 GiB RAM"
+    value = "Standard_D2as_v5"
+  }
+  option {
+    name  = "4 vCPU, 16 GiB RAM"
+    value = "Standard_D4as_v5"
+  }
+  option {
+    name  = "8 vCPU, 32 GiB RAM"
+    value = "Standard_D8as_v5"
+  }
+  option {
+    name  = "16 vCPU, 64 GiB RAM"
+    value = "Standard_D16as_v5"
+  }
+  option {
+    name  = "32 vCPU, 128 GiB RAM"
+    value = "Standard_D32as_v5"
   }
 }
 
-variable "home_size" {
-  type        = number
+data "coder_parameter" "home_size" {
+  name        = "Home Volume Size"
   description = "How large would you like your home volume to be (in GB)?"
   default     = 20
+  type        = "number"
+  icon        = "/icons/azure.png"
+  mutable     = false
   validation {
-    condition     = var.home_size >= 1
-    error_message = "Value must be greater than or equal to 1."
+    min = 1
+    max = 1024
   }
 }
 
@@ -80,10 +192,9 @@ data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
-  arch = "amd64"
-  os   = "linux"
-  auth = "azure-instance-identity"
-
+  arch               = "amd64"
+  os                 = "linux"
+  auth               = "azure-instance-identity"
   login_before_ready = false
 }
 
@@ -99,7 +210,7 @@ locals {
 
 resource "azurerm_resource_group" "main" {
   name     = "${local.prefix}-resources"
-  location = var.location
+  location = data.coder_parameter.location.value
 
   tags = {
     Coder_Provisioned = "true"
@@ -160,7 +271,7 @@ resource "azurerm_managed_disk" "home" {
   name                 = "home"
   resource_group_name  = azurerm_resource_group.main.name
   storage_account_type = "StandardSSD_LRS"
-  disk_size_gb         = var.home_size
+  disk_size_gb         = data.coder_parameter.home_size.value
 }
 
 // azurerm requires an SSH key (or password) for an admin user or it won't start a VM.  However,
@@ -175,7 +286,7 @@ resource "azurerm_linux_virtual_machine" "main" {
   name                = "vm"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
-  size                = var.instance_type
+  size                = data.coder_parameter.instance_type.value
   // cloud-init overwrites this, so the value here doesn't matter
   admin_username = "adminuser"
   admin_ssh_key {
@@ -227,6 +338,6 @@ resource "coder_metadata" "home_info" {
 
   item {
     key   = "size"
-    value = "${var.home_size} GiB"
+    value = "${data.coder_parameter.home_size.value} GiB"
   }
 }
