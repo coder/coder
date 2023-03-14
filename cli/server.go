@@ -877,7 +877,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// than abstracting the Coder API itself.
 			coderAPI, coderAPICloser, err := newAPI(ctx, options)
 			if err != nil {
-				return err
+				return xerrors.Errorf("create coder API: %w", err)
 			}
 
 			client := codersdk.New(localURL)
@@ -1105,8 +1105,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if xerrors.Is(exitErr, context.Canceled) {
 				return nil
+			} else if exitErr != nil {
+				return xerrors.Errorf("server cleanup failed: %w", exitErr)
 			}
-			return exitErr
+			return nil
 		},
 	}
 
