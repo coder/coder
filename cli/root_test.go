@@ -59,9 +59,6 @@ func TestCommandHelp(t *testing.T) {
 		{
 			name: "coder agent --help",
 			cmd:  []string{"agent", "--help"},
-			env: map[string]string{
-				"CODER_AGENT_LOG_DIR": "/tmp",
-			},
 		},
 		{
 			name: "coder list --output json",
@@ -130,34 +127,34 @@ ExtractCommandPathsLoop:
 			require.NoError(t, err)
 			require.NoError(t, err2)
 
-			got := buf.Bytes()
+			actual := buf.Bytes()
 
 			for k, v := range replacements {
-				got = bytes.ReplaceAll(got, []byte(k), []byte(v))
+				actual = bytes.ReplaceAll(actual, []byte(k), []byte(v))
 			}
 
-			got = []byte(stripansi.Strip(string(got)))
+			actual = []byte(stripansi.Strip(string(actual)))
 
 			// Replace any timestamps with a placeholder.
-			got = timestampRegex.ReplaceAll(got, []byte("[timestamp]"))
+			actual = timestampRegex.ReplaceAll(actual, []byte("[timestamp]"))
 
 			homeDir, err := os.UserHomeDir()
 			require.NoError(t, err)
 
 			configDir := config.DefaultDir()
-			got = bytes.ReplaceAll(got, []byte(configDir), []byte("~/.config/coderv2"))
+			actual = bytes.ReplaceAll(actual, []byte(configDir), []byte("~/.config/coderv2"))
 
 			// The home directory changes depending on the test environment.
-			got = bytes.ReplaceAll(got, []byte(homeDir), []byte("~"))
+			actual = bytes.ReplaceAll(actual, []byte(homeDir), []byte("~"))
 
 			gf := filepath.Join("testdata", strings.Replace(tt.name, " ", "_", -1)+".golden")
 			if *updateGoldenFiles {
 				t.Logf("update golden file for: %q: %s", tt.name, gf)
-				err = os.WriteFile(gf, got, 0o600)
+				err = os.WriteFile(gf, actual, 0o600)
 				require.NoError(t, err, "update golden file")
 			}
 
-			want, err := os.ReadFile(gf)
+			expected, err := os.ReadFile(gf)
 			require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
 
 			// Normalize files to tolerate different operating systems.
@@ -170,10 +167,14 @@ ExtractCommandPathsLoop:
 				{`C:\Users\RUNNER~1\AppData\Local\Temp`, "/tmp"},
 				{os.TempDir(), "/tmp"},
 			} {
-				want = bytes.ReplaceAll(want, []byte(r.old), []byte(r.new))
-				got = bytes.ReplaceAll(got, []byte(r.old), []byte(r.new))
+				expected = bytes.ReplaceAll(expected, []byte(r.old), []byte(r.new))
+				actual = bytes.ReplaceAll(actual, []byte(r.old), []byte(r.new))
 			}
-			require.Equal(t, string(want), string(got), "golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes", gf)
+			require.Equal(
+				t, string(expected), string(actual),
+				"golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes",
+				gf,
+			)
 		})
 	}
 }
