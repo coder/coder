@@ -180,7 +180,7 @@ func StartErr(t *testing.T, inv *clibase.Invocation) <-chan error {
 			// If we're cleaning up, this error is likely related to the
 			// CLI teardown process. E.g., the server could be slow to shut
 			// down Postgres.
-			t.Logf("command %q timed out during cleanup", inv.Command.FullName())
+			t.Logf("command %q timed out during test cleanup", inv.Command.FullName())
 		}
 		errCh <- err
 	}()

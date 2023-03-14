@@ -1103,12 +1103,17 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Trigger context cancellation for any remaining services.
 			cancel()
 
-			if xerrors.Is(exitErr, context.Canceled) {
+			switch {
+			case xerrors.Is(exitErr, context.DeadlineExceeded):
+				cliui.Warnf(inv.Stderr, "Graceful shutdown timed out, forcing exit")
 				return nil
-			} else if exitErr != nil {
+			case xerrors.Is(exitErr, context.Canceled):
+				return nil
+			case exitErr != nil:
 				return xerrors.Errorf("server cleanup failed: %w", exitErr)
+			default:
+				return nil
 			}
-			return nil
 		},
 	}
 
