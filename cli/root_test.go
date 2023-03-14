@@ -35,6 +35,10 @@ var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
 var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?Z`)
 
+func normalizeNewlines(s []byte) []byte {
+	return bytes.ReplaceAll(s, []byte{'\r', '\n'}, []byte{'\n'})
+}
+
 //nolint:tparallel,paralleltest // These test sets env vars.
 func TestCommandHelp(t *testing.T) {
 	rootClient, replacements := prepareTestData(t)
@@ -132,18 +136,8 @@ ExtractCommandPathsLoop:
 
 			got := buf.Bytes()
 
-			replace := map[string][]byte{
-				// Remove CRLF newlines (Windows).
-				string([]byte{'\r', '\n'}): []byte("\n"),
-				// The `coder templates create --help` command prints the path
-				// to the working directory (--directory flag default value).
-				fmt.Sprintf("%q", tmpwd): []byte("\"[current directory]\""),
-			}
 			for k, v := range replacements {
-				replace[k] = []byte(v)
-			}
-			for k, v := range replace {
-				got = bytes.ReplaceAll(got, []byte(k), v)
+				got = bytes.ReplaceAll(got, []byte(k), []byte(v))
 			}
 
 			got = []byte(stripansi.Strip(string(got)))
@@ -169,8 +163,10 @@ ExtractCommandPathsLoop:
 
 			want, err := os.ReadFile(gf)
 			require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
-			// Remove CRLF newlines (Windows).
-			want = bytes.ReplaceAll(want, []byte{'\r', '\n'}, []byte{'\n'})
+
+			// Normalize newlines to tolerate Windows.
+			want = normalizeNewlines(want)
+			got = normalizeNewlines(got)
 			require.Equal(t, string(want), string(got), "golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes", gf)
 		})
 	}

@@ -109,8 +109,7 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		defer closeFunc()
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		inv, cfg := clitest.New(t,
 			"server",
@@ -119,7 +118,7 @@ func TestServer(t *testing.T) {
 			"--postgres-url", connectionURL,
 			"--cache-dir", t.TempDir(),
 		)
-		clitest.Start(t, inv)
+		clitest.Start(t, inv.WithContext(ctx))
 		accessURL := waitAccessURL(t, cfg)
 		client := codersdk.New(accessURL)
 
