@@ -160,9 +160,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		opts = cfg.Options()
 	)
 	serverCmd := &clibase.Cmd{
-		Use:     "server",
-		Short:   "Start a Coder server",
-		Options: opts,
+		Use:        "server",
+		Short:      "Start a Coder server",
+		Options:    opts,
+		Middleware: clibase.RequireNArgs(0),
 		Handler: func(inv *clibase.Invocation) error {
 			// Main command context for managing cancellation of running
 			// services.
