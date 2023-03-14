@@ -18,104 +18,159 @@ data "coder_parameter" "location" {
   icon        = "/emojis/"
   mutable     = false
   option {
-    name  = "East US"
+    name  = "US (Virginia)"
     value = "eastus"
     icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
-    name  = "South Central US"
+    name  = "US (Texas)"
     value = "southcentralus"
     icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
-    name  = "West US 2"
+    name  = "US (Washington)"
     value = "westus2"
     icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
-    name  = "Australia East"
-    value = "australiaeast"
-    icon  = "/emojis/1f1e6-1f1fa.png"
+    name  = "US (Arizona)"
+    value = "westus3"
+    icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
-    name  = "Southeast Asia"
-    value = "southeastasia"
-    icon  = "/emojis/1f1f8-1f1e6.png"
+    name  = "US (Iowa)"
+    value = "centralus"
+    icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
-    name  = "North Europe"
-    value = "northeurope"
-    icon  = "/emojis/1f1f3-1f1ea.png"
+    name  = "Canada (Toronto)"
+    value = "canadacentral"
+    icon  = "/emojis/1f1e8-1f1e6.png"
   }
   option {
-    name  = "West Europe"
-    value = "westeurope"
-    icon  = "/emojis/1f1f3-1f1ea.png"
+    name  = "Canada (Quebec City)"
+    value = "canadaeast"
+    icon  = "/emojis/1f1e8-1f1e6.png"
   }
   option {
-    name  = "Central India"
-    value = "centralindia"
-    icon  = "/emojis/1f1ee-1f1f3.png"
-  }
-  option {
-    name  = "East Asia"
-    value = "eastasia"
-    icon  = "/emojis/1f1f0-1f1f7.png"
-  }
-  option {
-    name  = "Japan East"
-    value = "japaneast"
-    icon  = "/emojis/1f1ef-1f1f5.png"
-  }
-  option {
-    name  = "Brazil South"
+    name  = "Brazil (Sao Paulo)"
     value = "brazilsouth"
     icon  = "/emojis/1f1e7-1f1f7.png"
   }
   option {
-    name  = "Asia"
-    value = "asia"
+    name  = "East Asia (Hong Kong)"
+    value = "eastasia"
     icon  = "/emojis/1f1f0-1f1f7.png"
   }
   option {
-    name  = "Asia Pacific"
-    value = "asiapacific"
+    name  = "Southeast Asia (Singapore)"
+    value = "southeastasia"
     icon  = "/emojis/1f1f0-1f1f7.png"
   }
   option {
-    name  = "Australia"
-    value = "australia"
+    name  = "Australia (New South Wales)"
+    value = "australiaeast"
     icon  = "/emojis/1f1e6-1f1fa.png"
   }
   option {
-    name  = "Brazil"
-    value = "brazil"
-    icon  = "/emojis/1f1e7-1f1f7.png"
+    name  = "Australia (Victoria)"
+    value = "australiasoutheast"
+    icon  = "/emojis/1f1e6-1f1fa.png"
   }
   option {
-    name  = "India"
-    value = "india"
+    name  = "Australia (Canberra)"
+    value = "australiacentral"
+    icon  = "/emojis/1f1e6-1f1fa.png"
+  }
+  option {
+    name  = "China (Shanghai)"
+    value = "chinaeast"
+    icon  = "/emojis/1f1e8-1f1f3.png"
+  }
+  option {
+    name  = "China (Beijing)"
+    value = "chinanorth"
+    icon  = "/emojis/1f1e8-1f1f3.png"
+  }
+  option {
+    name  = "India (Pune)"
+    value = "centralindia"
     icon  = "/emojis/1f1ee-1f1f3.png"
   }
   option {
-    name  = "Japan"
-    value = "japan"
+    name  = "India (Chennai)"
+    value = "southindia"
+    icon  = "/emojis/1f1ee-1f1f3.png"
+  }
+  option {
+    name  = "Japan (Tokyo)"
+    value = "japaneast"
     icon  = "/emojis/1f1ef-1f1f5.png"
   }
   option {
-    name  = "South Africa"
-    value = "southafrica"
+    name  = "Japan (Osaka)"
+    value = "japanwest"
+    icon  = "/emojis/1f1ef-1f1f5.png"
+  }
+  option {
+    name  = "Korea (Seoul)"
+    value = "koreacentral"
+    icon  = "/emojis/1f1f0-1f1f7.png"
+  }
+  option {
+    name  = "Europe (Ireland)"
+    value = "northeurope"
+    icon  = "/emojis/1f1ea-1f1fa.png"
+  }
+  option {
+    name  = "Europe (Netherlands)"
+    value = "westeurope"
+    icon  = "/emojis/1f1ea-1f1fa.png"
+  }
+  option {
+    name  = "France (Paris)"
+    value = "francecentral"
+    icon  = "/emojis/1f1eb-1f1f7.png"
+  }
+  option {
+    name  = "Germany (Frankfurt)"
+    value = "germanywestcentral"
+    icon  = "/emojis/1f1e9-1f1ea.png"
+  }
+  option {
+    name  = "Norway (Oslo)"
+    value = "norwayeast"
+    icon  = "/emojis/1f1f3-1f1f4.png"
+  }
+  option {
+    name  = "Sweden (Gävle)"
+    value = "swedencentral"
+    icon  = "/emojis/1f1f8-1f1ea.png"
+  }
+  option {
+    name  = "Qatar (Doha)"
+    value = "qatarcentral"
+    icon  = "/emojis/1f1f6-1f1e6.png"
+  }
+  option {
+    name  = "UAE (Dubai)"
+    value = "uaenorth"
+    icon  = "/emojis/1f1e6-1f1ea.png"
+  }
+  option {
+    name  = "South Africa (Johannesburg)"
+    value = "southafricanorth"
     icon  = "/emojis/1f1ff-1f1e6.png"
   }
   option {
-    name  = "Switzerland"
-    value = "switzerland"
-    icon  = "/emojis/1f1e8-1f1ed.png"
+    name  = "UK (London)"
+    value = "uksouth"
+    icon  = "/emojis/1f1ec-1f1e7.png"
   }
   option {
-    name  = "UAE"
-    value = "uae"
-    icon  = "/emojis/1f1e6-1f1ea.png"
+    name  = "UK (Cardiff)"
+    value = "ukwest"
+    icon  = "/emojis/1f1ec-1f1e7.png"
   }
 }
 
