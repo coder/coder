@@ -19,34 +19,35 @@ import { useMutation } from "@tanstack/react-query"
 import { createToken } from "api/api"
 import i18next from "i18next"
 import dayjs from "dayjs"
+import makeStyles from "@material-ui/core/styles/makeStyles"
 
 const NANO_HOUR = 3600000000000
 
-const lifetimes = [
+const lifetimeDayArr = [
   {
     label: i18next.t("tokensPage:createToken.lifetimeSection.7"),
-    lifetimeDays: 7,
+    value: 7,
   },
   {
     label: i18next.t("tokensPage:createToken.lifetimeSection.30"),
-    lifetimeDays: 30,
+    value: 30,
   },
   {
     label: i18next.t("tokensPage:createToken.lifetimeSection.60"),
-    lifetimeDays: 60,
+    value: 60,
   },
   {
     label: i18next.t("tokensPage:createToken.lifetimeSection.90"),
-    lifetimeDays: 90,
+    value: 90,
   },
   {
     label: i18next.t("tokensPage:createToken.lifetimeSection.custom"),
-    lifetimeDays: 120, // fix
+    value: "custom",
   },
-  {
-    label: i18next.t("tokensPage:createToken.lifetimeSection.noExpiration"),
-    lifetimeDays: 365 * 290, // fix
-  },
+  // {
+  //   label: i18next.t("tokensPage:createToken.lifetimeSection.noExpiration"),
+  //   value: 365 * 290, // fix
+  // },
 ]
 
 interface CreateTokenData {
@@ -60,20 +61,30 @@ const initialValues: CreateTokenData = {
 }
 
 const CreateTokenPage: FC = () => {
+  const styles = useStyles()
   const { t } = useTranslation("tokensPage")
   const navigate = useNavigate()
-  const navigateBack = () => navigate(-1)
+
   const useCreateToken = () => useMutation(createToken)
+
   const [formError, setFormError] = useState<unknown | undefined>(undefined)
-  const [expDate, setExpDate] = useState<string>(
-    dayjs().add(initialValues.lifetime, "days").utc().format("MMMM DD, YYYY"),
-  )
+  const [lifetimeDays, setLifetimeDays] = useState<number | string>(30)
+  const [expDays, setExpDays] = useState<number>(1)
 
   const { mutate: saveToken, isLoading, isError } = useCreateToken()
 
+  useEffect(() => {
+    if (lifetimeDays !== "custom") {
+      void form.setFieldValue("lifetime", lifetimeDays)
+    } else {
+      void form.setFieldValue("lifetime", expDays)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- adding form will cause an infinite loop
+  }, [lifetimeDays, expDays])
+
   const onCreateSuccess = () => {
     displaySuccess(t("createToken.createSuccess"))
-    navigateBack()
+    navigate("/settings/tokens")
   }
 
   const onCreateError = (error: unknown) => {
@@ -98,12 +109,6 @@ const CreateTokenPage: FC = () => {
     },
   })
 
-  useEffect(() => {
-    setExpDate(
-      dayjs().add(form.values.lifetime, "days").utc().format("MMMM DD, YYYY"),
-    )
-  }, [form.values.lifetime])
-
   const getFieldHelpers = getFormHelpers<CreateTokenData>(form, formError)
 
   return (
@@ -119,6 +124,7 @@ const CreateTokenPage: FC = () => {
           <FormSection
             title={t("createToken.nameSection.title")}
             description={t("createToken.nameSection.description")}
+            className={styles.formSection}
           >
             <FormFields>
               <TextField
@@ -134,32 +140,69 @@ const CreateTokenPage: FC = () => {
           </FormSection>
           <FormSection
             title={t("createToken.lifetimeSection.title")}
-            description={t("createToken.lifetimeSection.description", {
-              date: expDate,
-            })}
+            description={
+              form.values.lifetime
+                ? t("createToken.lifetimeSection.description", {
+                    date: dayjs()
+                      .add(form.values.lifetime, "days")
+                      .utc()
+                      .format("MMMM DD, YYYY"),
+                  })
+                : t("createToken.lifetimeSection.emptyDescription")
+            }
+            className={styles.formSection}
           >
             <FormFields>
               <TextField
-                {...getFieldHelpers("lifetime")}
+                onChange={(event) => {
+                  void setLifetimeDays(event.target.value)
+                }}
                 InputLabelProps={{
                   shrink: true,
                 }}
                 label={t("createToken.fields.lifetime")}
                 select
+                defaultValue={30}
                 required
                 autoFocus
-                fullWidth
               >
-                {lifetimes.map((lifetime) => (
-                  <MenuItem key={lifetime.label} value={lifetime.lifetimeDays}>
-                    {lifetime.label}
+                {lifetimeDayArr.map((lt) => (
+                  <MenuItem key={lt.label} value={lt.value}>
+                    {lt.label}
                   </MenuItem>
                 ))}
               </TextField>
             </FormFields>
+            <FormFields>
+              {lifetimeDays === "custom" && (
+                <TextField
+                  onChange={(event) => {
+                    const lt = Math.ceil(
+                      dayjs(event.target.value).diff(dayjs(), "day", true),
+                    )
+                    setExpDays(lt)
+                  }}
+                  label={t("createToken.lifetimeSection.expiresOn")}
+                  type="date"
+                  className={styles.expField}
+                  defaultValue={dayjs()
+                    .add(expDays, "day")
+                    .format("YYYY-MM-DD")}
+                  autoFocus
+                  inputProps={{
+                    min: dayjs().add(1, "day").format("YYYY-MM-DD"),
+                    required: true,
+                  }}
+                  InputLabelProps={{
+                    shrink: true,
+                    required: true,
+                  }}
+                />
+              )}
+            </FormFields>
           </FormSection>
           <FormFooter
-            onCancel={navigateBack}
+            onCancel={() => navigate("/settings/tokens")}
             isLoading={isLoading}
             submitLabel={
               isError
@@ -172,5 +215,14 @@ const CreateTokenPage: FC = () => {
     </>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  formSection: {
+    gap: 0,
+  },
+  expField: {
+    marginLeft: theme.spacing(2),
+  },
+}))
 
 export default CreateTokenPage
