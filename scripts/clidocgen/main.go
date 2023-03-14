@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/enterprise/cli"
 	"github.com/coder/flog"
 )
@@ -29,10 +32,33 @@ func unsetCoderEnv() {
 		if strings.HasPrefix(env, "CODER_") {
 			split := strings.SplitN(env, "=", 2)
 			if err := os.Unsetenv(split[0]); err != nil {
-				flog.Fatalf("Unable to unset %v: %v", split[0], err)
+				panic(err)
 			}
 		}
 	}
+}
+
+func deleteEmptyDirs(dir string) error {
+	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			return nil
+		}
+		ents, err := os.ReadDir(path)
+		if err != nil {
+			return err
+		}
+		if len(ents) == 0 {
+			flog.Infof("deleting empty dir\t %v", path)
+			err = os.Remove(path)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func main() {
@@ -44,10 +70,12 @@ func main() {
 	}
 	root := (&cli.RootCmd{})
 
-	wroteMap := make(map[string]struct{})
+	// wroteMap indexes file paths to commands.
+	wroteMap := make(map[string]*clibase.Cmd)
 
+	markdownDir := filepath.Join(workdir, "docs", "cli")
 	err = genTree(
-		workdir,
+		markdownDir,
 		root.Command(root.EnterpriseSubcommands()),
 		wroteMap,
 	)
@@ -55,5 +83,70 @@ func main() {
 		flog.Fatalf("generating markdowns: %v", err)
 	}
 
-	// TODO delete files that aren't in the wroteMap.
+	// Delete old files
+	err = filepath.Walk(markdownDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		_, ok := wroteMap[path]
+		if !ok {
+			flog.Infof("deleting old doc\t %v", path)
+			if err := os.Remove(path); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		flog.Fatalf("deleting old docs: %v", err)
+	}
+
+	err = deleteEmptyDirs(markdownDir)
+	if err != nil {
+		flog.Fatalf("deleting empty dirs: %v", err)
+	}
+
+	// Update manifest
+	manifestPath := filepath.Join(markdownDir, "manifest.json")
+
+	manifestByt, err := os.ReadFile(manifestPath)
+	if err != nil {
+		flog.Fatalf("reading manifest: %v", err)
+	}
+
+	var manifest manifest
+	err = json.Unmarshal(manifestByt, &manifest)
+	if err != nil {
+		flog.Fatalf("unmarshaling manifest: %v", err)
+	}
+
+	for _, rt := range manifest.Routes {
+		if rt.Title != "Command Line" {
+			continue
+		}
+		for path, cmd := range wroteMap {
+			relPath, err := filepath.Rel(markdownDir, path)
+			if err != nil {
+				flog.Fatalf("getting relative path: %v", err)
+			}
+			rt.Children = append(rt.Children, route{
+				Title:       cmd.Name(),
+				Description: cmd.Short,
+				Path:        relPath,
+			})
+		}
+	}
+
+	manifestByt, err = json.MarshalIndent(manifest, "", "\t")
+	if err != nil {
+		flog.Fatalf("marshaling manifest: %v", err)
+	}
+
+	err = os.WriteFile(manifestPath, manifestByt, 0o644)
+	if err != nil {
+		flog.Fatalf("writing manifest: %v", err)
+	}
 }

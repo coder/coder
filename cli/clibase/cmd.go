@@ -59,6 +59,14 @@ func (c *Cmd) Walk(fn func(*Cmd)) {
 	}
 }
 
+// SetParents sets the Parent field of all children.
+func (c *Cmd) SetParents() {
+	for _, child := range c.Children {
+		child.Parent = c
+		child.SetParents()
+	}
+}
+
 // Name returns the first word in the Use string.
 func (c *Cmd) Name() string {
 	return strings.Split(c.Use, " ")[0]
@@ -68,7 +76,6 @@ func (c *Cmd) Name() string {
 // as seen on the command line.
 func (c *Cmd) FullName() string {
 	var names []string
-
 	if c.Parent != nil {
 		names = append(names, c.Parent.FullName())
 	}

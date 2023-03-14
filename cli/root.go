@@ -180,6 +180,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			}
 		}
 	})
+	cmd.SetParents()
 
 	if r.agentURL == nil {
 		r.agentURL = new(url.URL)

@@ -60,7 +60,8 @@ func fmtDocFilename(cmd *clibase.Cmd) string {
 		// Special case for index.
 		return "../cli.md"
 	}
-	name := strings.ReplaceAll(cmd.FullName(), " ", "_")
+	name := strings.TrimPrefix(cmd.FullName(), "coder ")
+	name = strings.ReplaceAll(name, " ", "_")
 	return fmt.Sprintf("%s.md", name)
 }
 
@@ -87,14 +88,15 @@ func writeCommand(w io.Writer, cmd *clibase.Cmd) error {
 	return err
 }
 
-func genTree(basePath string, cmd *clibase.Cmd, wroteLog map[string]struct{}) error {
+func genTree(dir string, cmd *clibase.Cmd, wroteLog map[string]*clibase.Cmd) error {
 	if cmd.Hidden {
 		return nil
 	}
 
+	path := filepath.Join(dir, fmtDocFilename(cmd))
 	// Write out root.
 	fi, err := os.OpenFile(
-		filepath.Join(basePath, fmtDocFilename(cmd)),
+		path,
 		os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644,
 	)
 	if err != nil {
@@ -106,9 +108,14 @@ func genTree(basePath string, cmd *clibase.Cmd, wroteLog map[string]struct{}) er
 	if err != nil {
 		return err
 	}
-	flog.Successf("wrote\t %s", fi.Name())
+
+	flog.Successf(
+		"wrote\t%s",
+		fi.Name(),
+	)
+	wroteLog[path] = cmd
 	for _, sub := range cmd.Children {
-		err = genTree(basePath, sub, wroteLog)
+		err = genTree(dir, sub, wroteLog)
 		if err != nil {
 			return err
 		}
