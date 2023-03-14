@@ -20,11 +20,7 @@ func TestCli(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	i, config := clitest.New(t)
 	clitest.SetupConfig(t, client, config)
-	pty := ptytest.New(t)
-	i.Stdin = pty.Input()
-	i.Stdout = pty.Output()
-	go func() {
-		_ = i.Run()
-	}()
+	pty := ptytest.New(t).Attach(i)
+	clitest.Start(t, i)
 	pty.ExpectMatch("coder")
 }
