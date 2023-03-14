@@ -154,9 +154,10 @@ func Run(t *testing.T, inv *clibase.Invocation) {
 func StartErr(t *testing.T, inv *clibase.Invocation) <-chan error {
 	t.Helper()
 
-	errCh := make(chan error, 1)
-
-	ctx := inv.Context()
+	var (
+		errCh = make(chan error, 1)
+		ctx   = inv.Context()
+	)
 
 	deadline, hasDeadline := ctx.Deadline()
 	if !hasDeadline {
