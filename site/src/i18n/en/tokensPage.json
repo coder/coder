@@ -1,6 +1,6 @@
 {
   "title": "Tokens",
-  "description": "Tokens are used to authenticate with the Coder API. You can create a token with the Coder CLI using the <1>{{cliCreateCommand}}</1> command.",
+  "description": "Tokens are used to authenticate with the Coder API. You can create a token on this page or with the Coder CLI using the <1>{{cliCreateCommand}}</1> command.",
   "emptyState": "No tokens found",
   "tokenActions": {
     "addToken": "Add token",
@@ -20,7 +20,7 @@
   },
   "createToken": {
     "title": "Create Token",
-    "detail": "Tokens are used to authenticate automated clients to Coder. All tokens are unscoped and therefore have full resource access.",
+    "detail": "All tokens are unscoped and therefore have full resource access.",
     "nameSection": {
       "title": "Name",
       "description": "What is this token for?"
