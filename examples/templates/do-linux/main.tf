@@ -163,67 +163,67 @@ data "coder_parameter" "region" {
   option {
     name  = "New York 1"
     value = "nyc1"
-    icon  = "/emojis/1f1fa_1f1f8.png"
+    icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
     name  = "New York 2"
     value = "nyc2"
-    icon  = "/emojis/1f1fa_1f1f8.png"
+    icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
     name  = "New York 3"
     value = "nyc3"
-    icon  = "/emojis/1f1fa_1f1f8.png"
+    icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
     name  = "San Francisco 1"
     value = "sfo1"
-    icon  = "/emojis/1f1fa_1f1f8.png"
+    icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
     name  = "San Francisco 2"
     value = "sfo2"
-    icon  = "/emojis/1f1fa_1f1f8.png"
+    icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
     name  = "San Francisco 3"
     value = "sfo3"
-    icon  = "/emojis/1f1fa_1f1f8.png"
+    icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
     name  = "Amsterdam 2"
     value = "ams2"
-    icon  = "/emojis/1f1f3_1f1f1.png"
+    icon  = "/emojis/1f1f3-1f1f1.png"
   }
   option {
     name  = "Amsterdam 3"
     value = "ams3"
-    icon  = "/emojis/1f1f3_1f1f1.png"
+    icon  = "/emojis/1f1f3-1f1f1.png"
   }
   option {
     name  = "Singapore 1"
     value = "sgp1"
-    icon  = "/emojis/1f1f8_1f1ec.png"
+    icon  = "/emojis/1f1f8-1f1ec.png"
   }
   option {
     name  = "London 1"
     value = "lon1"
-    icon  = "/emojis/1f1ec_1f1e7.png"
+    icon  = "/emojis/1f1ec-1f1e7.png"
   }
   option {
     name  = "Frankfurt 1"
     value = "fra1"
-    icon  = "/emojis/1f1e9_1f1ea.png"
+    icon  = "/emojis/1f1e9-1f1ea.png"
   }
   option {
     name  = "Toronto 1"
     value = "tor1"
-    icon  = "/emojis/1f1e8_1f1e6.png"
+    icon  = "/emojis/1f1e8-1f1e6.png"
   }
   option {
     name  = "Bangalore 1"
     value = "blr1"
-    icon  = "/emojis/1f1ee_1f1f3.png"
+    icon  = "/emojis/1f1ee-1f1f3.png"
   }
 }
 
