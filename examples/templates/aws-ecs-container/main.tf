@@ -24,7 +24,7 @@ data "coder_parameter" "cpu" {
   name        = "cpu"
   description = "The number of CPU units to reserve for the container"
   type        = "number"
-  default     = 1024
+  default     = "1024"
   mutable     = true
 }
 
@@ -32,7 +32,7 @@ data "coder_parameter" "memory" {
   name        = "memory"
   description = "The amount of memory (in MiB) to allow the container to use"
   type        = "number"
-  default     = 2048
+  default     = "2048"
   mutable     = true
 }
 

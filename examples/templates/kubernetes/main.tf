@@ -83,6 +83,7 @@ data "coder_parameter" "memory" {
 data "coder_parameter" "home_disk_size" {
   name    = "Home Disk Size (GB)"
   default = "10"
+  type    = "number"
   icon    = "/emojis/1f4be.png"
   mutable = false
   validation {
