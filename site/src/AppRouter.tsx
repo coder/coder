@@ -126,6 +126,9 @@ const CreateTemplatePage = lazy(
 const TemplateVariablesPage = lazy(
   () => import("./pages/TemplateVariablesPage/TemplateVariablesPage"),
 )
+const WorkspaceSettingsPage = lazy(
+  () => import("./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"),
+)
 
 export const AppRouter: FC = () => {
   return (
@@ -234,6 +237,7 @@ export const AppRouter: FC = () => {
                     path="build-parameters"
                     element={<WorkspaceBuildParametersPage />}
                   />
+                  <Route path="settings" element={<WorkspaceSettingsPage />} />
                 </Route>
               </Route>
             </Route>

@@ -24,7 +24,7 @@ type FormProps = HTMLProps<HTMLFormElement> & {
 }
 
 export const Form: FC<FormProps> = ({ direction, className, ...formProps }) => {
-  const styles = useStyles()
+  const styles = useStyles({ direction })
 
   return (
     <FormContext.Provider value={{ direction }}>

@@ -506,6 +506,13 @@ export const createWorkspace = async (
   return response.data
 }
 
+export const patchWorkspace = async (
+  workspaceId: string,
+  data: TypesGen.UpdateWorkspaceRequest,
+) => {
+  await axios.patch(`/api/v2/workspaces/${workspaceId}`, data)
+}
+
 export const getBuildInfo = async (): Promise<TypesGen.BuildInfoResponse> => {
   const response = await axios.get("/api/v2/buildinfo")
   return response.data
