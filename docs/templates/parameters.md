@@ -236,7 +236,7 @@ data "coder_parameter" "cpu" {
 4. Update all workspaces to the updated template version (2nd).
 5. Prepare a third template version:
 
-- Enable the `feature_use_managed_variables` provider flag to use managed Terraform variables for template customization. Once the flag is enabled, legacy parameters won't be used.
+- Enable the `feature_use_managed_variables` provider flag to use managed Terraform variables for template customization. Once the flag is enabled, legacy variables won't be used.
 
 6. Update all workspaces to the updated template version (3rd).
 7. Delete legacy parameters.
