@@ -109,7 +109,8 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		defer closeFunc()
 
-		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		// Postgres + race detector + CI = slow.
+		ctx := testutil.Context(t, testutil.WaitSuperLong*3)
 
 		inv, cfg := clitest.New(t,
 			"server",
