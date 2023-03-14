@@ -1,16 +1,17 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
+
 # stop
 
- 
 Edit workspace stop schedule
 
-
 ## Usage
+
 ```console
 stop <workspace-name> { <duration> | manual }
 ```
 
 ## Description
+
 ```console
 Schedules a workspace to stop after a given duration has elapsed.
   * Workspace runtime is measured from the time that the workspace build completed.
@@ -25,6 +26,5 @@ When enabling scheduled stop, enter a duration in one of the following formats:
   * 2m   (2 minutes)
   * 2    (2 minutes)
 
-  $ coder schedule stop my-workspace 2h30m 
+  $ coder schedule stop my-workspace 2h30m
 ```
-
