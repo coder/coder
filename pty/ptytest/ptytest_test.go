@@ -43,7 +43,7 @@ func TestPtytest(t *testing.T) {
 
 	// See https://github.com/coder/coder/issues/2122 for the motivation
 	// behind this test.
-	t.Run("Cobra ptytest should not hang when output is not consumed", func(t *testing.T) {
+	t.Run("Ptytest should not hang when output is not consumed", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {

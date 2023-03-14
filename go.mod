@@ -20,8 +20,6 @@ replace github.com/fergusstrange/embedded-postgres => github.com/kylecarbs/embed
 // opencensus-go leaks a goroutine by default.
 replace go.opencensus.io => github.com/kylecarbs/opencensus-go v0.23.1-0.20220307014935-4d0325a68f8b
 
-replace github.com/urfave/cli/v2 => github.com/ipostelnik/cli/v2 v2.3.1-0.20210324024421-b6ea8234fe3d
-
 replace github.com/rivo/tview => github.com/kylecarbs/tview v0.0.0-20220309202238-8464256e10a1
 
 // glog has a single goroutine leak on start that we removed in a fork: https://github.com/coder/glog/pull/1.

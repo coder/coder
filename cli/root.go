@@ -510,8 +510,6 @@ func (r *RootCmd) createConfig() config.Root {
 }
 
 // isTTY returns whether the passed reader is a TTY or not.
-// This accepts a reader to work with Cobra's "InOrStdin"
-// function for simple testing.
 func isTTY(inv *clibase.Invocation) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
@@ -528,15 +526,11 @@ func isTTY(inv *clibase.Invocation) bool {
 }
 
 // isTTYOut returns whether the passed reader is a TTY or not.
-// This accepts a reader to work with Cobra's "OutOrStdout"
-// function for simple testing.
 func isTTYOut(inv *clibase.Invocation) bool {
 	return isTTYWriter(inv, inv.Stdout)
 }
 
 // isTTYErr returns whether the passed reader is a TTY or not.
-// This accepts a reader to work with Cobra's "ErrOrStderr"
-// function for simple testing.
 func isTTYErr(inv *clibase.Invocation) bool {
 	return isTTYWriter(inv, inv.Stderr)
 }
