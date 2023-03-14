@@ -672,6 +672,11 @@ flags, and YAML configuration. The precedence is as follows:
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
+			configSSHOptions, err := cfg.CLISSH.ParseOptions()
+			if err != nil {
+				return xerrors.Errorf("parse ssh config options \"%v\" %w", cfg.CLISSH.SSHConfigOptions, err)
+			}
+
 			options := &coderd.Options{
 				AccessURL:                   cfg.AccessURL.Value(),
 				AppHostname:                 appHostname,
@@ -696,6 +701,10 @@ flags, and YAML configuration. The precedence is as follows:
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
+				ConfigSSH: codersdk.CLISSHConfigResponse{
+					DeploymentName:   cfg.CLISSH.DeploymentName.String(),
+					SSHConfigOptions: configSSHOptions,
+				},
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates

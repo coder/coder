@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"math"
 	"net/http"
 	"os"
@@ -160,12 +161,37 @@ type DeploymentValues struct {
 	DisablePasswordAuth             clibase.Bool                    `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                   `json:"support,omitempty" typescript:",notnull"`
 	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
+	CLISSH                          CLISSHConfig                    `json:"cli_ssh,omitempty" typescript:",notnull"`
 
 	Config      clibase.String `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool   `json:"write_config,omitempty" typescript:",notnull"`
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 	Address clibase.HostPort `json:"address,omitempty" typescript:",notnull"`
+}
+
+// CLISSHConfig is configuration the cli & vscode extension use for configuring
+// ssh connections.
+type CLISSHConfig struct {
+	// DeploymentName is the config-ssh Hostname prefix
+	DeploymentName clibase.String
+	// SSHConfigOptions are additional options to add to the ssh config file.
+	// This will override defaults.
+	SSHConfigOptions clibase.Strings
+}
+
+func (c CLISSHConfig) ParseOptions() (map[string]string, error) {
+	m := make(map[string]string)
+	for _, opt := range c.SSHConfigOptions {
+		// Only split once, the value could contain an equals sign.
+		// The key should never, so this is safe.
+		parts := strings.SplitN(opt, "=", 1)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid config-ssh option %q", opt)
+		}
+		m[parts[0]] = parts[1]
+	}
+	return m, nil
 }
 
 type DERP struct {
@@ -389,6 +415,11 @@ when required by your organization's security policy.`,
 		}
 		deploymentGroupDangerous = clibase.Group{
 			Name: "⚠️ Dangerous",
+		}
+		deploymentGroupClient = clibase.Group{
+			Name: "Client",
+			Description: "These options change the behavior of how clients interact with the Coder. " +
+				"Clients include the coder cli, vs code extension, and the web UI.",
 		}
 		deploymentGroupConfig = clibase.Group{
 			Name:        "Config",
@@ -1266,6 +1297,29 @@ when required by your organization's security policy.`,
 			Value:         &c.Config,
 		},
 		{
+			Name:        "CLI SSH Deployment Name",
+			Description: "The CLI SSH deployment name is the used in the Hostname of the ssh config.",
+			Flag:        "cli-ssh-deployment-name",
+			Env:         "CLI_SSH_DEPLOYMENT_NAME",
+			YAML:        "cliSSHDeploymentName",
+			Group:       &deploymentGroupClient,
+			Value:       &c.CLISSH.DeploymentName,
+			Hidden:      false,
+			Default:     "coder",
+		},
+		{
+			Name: "CLI SSH Config Options",
+			Description: "These cli config options will override the default ssh config options. " +
+				"Provide options in key=value format seperated by commas." +
+				"Using this incorrectly can break ssh to your deployment. Use cautiously.",
+			Flag:   "cli-ssh-options",
+			Env:    "CLI_SSH_OPTIONS",
+			YAML:   "cliSSHOptions",
+			Group:  &deploymentGroupClient,
+			Value:  &c.CLISSH.SSHConfigOptions,
+			Hidden: false,
+		},
+		{
 			Name: "Write Config",
 			Description: `
 Write out the current server configuration to the path specified by --config.`,
@@ -1579,4 +1633,26 @@ type DeploymentStats struct {
 
 	Workspaces   WorkspaceDeploymentStats    `json:"workspaces"`
 	SessionCount SessionCountDeploymentStats `json:"session_count"`
+}
+
+type CLISSHConfigResponse struct {
+	DeploymentName   string            `json:"deployment_name"`
+	SSHConfigOptions map[string]string `json:"ssh_config_options"`
+}
+
+// SSHConfiguration returns information about the SSH configuration for the
+// Coder instance.
+func (c *Client) SSHConfiguration(ctx context.Context) (CLISSHConfigResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ssh-config", nil)
+	if err != nil {
+		return CLISSHConfigResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return CLISSHConfigResponse{}, ReadBodyAsError(res)
+	}
+
+	var cliConfig CLISSHConfigResponse
+	return cliConfig, json.NewDecoder(res.Body).Decode(&cliConfig)
 }

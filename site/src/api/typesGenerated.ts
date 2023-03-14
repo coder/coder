@@ -135,6 +135,18 @@ export interface BuildInfoResponse {
   readonly version: string
 }
 
+// From codersdk/deployment.go
+export interface CLISSHConfig {
+  readonly DeploymentName: string
+  readonly SSHConfigOptions: string[]
+}
+
+// From codersdk/deployment.go
+export interface CLISSHConfigResponse {
+  readonly deployment_name: string
+  readonly ssh_config_options: Record<string, string>
+}
+
 // From codersdk/parameters.go
 export interface ComputedParameter extends Parameter {
   readonly source_value: string
@@ -359,6 +371,7 @@ export interface DeploymentValues {
   // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.GitAuthConfig]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly git_auth?: any
+  readonly cli_ssh?: CLISSHConfig
   readonly config?: string
   readonly write_config?: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"

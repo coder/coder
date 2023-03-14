@@ -138,6 +138,9 @@ type Options struct {
 	DeploymentValues            *codersdk.DeploymentValues
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 
+	// ConfigSSH is the response clients use to configure config-ssh locally.
+	ConfigSSH codersdk.CLISSHConfigResponse
+
 	HTTPClient *http.Client
 }
 
@@ -399,6 +402,13 @@ func New(options *Options) *API {
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
 		r.Get("/buildinfo", buildInfo)
+		r.Route("/ssh-config", func(r chi.Router) {
+			// Require auth for this route to prevent leaking the SSH config.
+			// to non-authenticated users. Also some config settings might
+			// be dependent on the user.
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.cliSSHConfig)
+		})
 		r.Route("/deployment", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)
