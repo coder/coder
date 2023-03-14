@@ -5,12 +5,13 @@ import { pageTitle } from "util/page"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 import { useNavigate } from "react-router-dom"
 import { useFormik } from "formik"
-
+import { Loader } from "components/Loader/Loader"
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { createToken, getTokenConfig } from "api/api"
 import { CreateTokenForm } from "./CreateTokenForm"
 import { NANO_HOUR, CreateTokenData } from "./utils"
+import { AlertBanner } from "components/AlertBanner/AlertBanner"
 
 const initialValues: CreateTokenData = {
   name: "",
@@ -26,7 +27,12 @@ const CreateTokenPage: FC = () => {
     isLoading: isCreating,
     isError: creationFailed,
   } = useMutation(createToken)
-  const { data: tokenConfig } = useQuery({
+  const {
+    data: tokenConfig,
+    isLoading: fetchingTokenConfig,
+    isError: tokenFetchFailed,
+    error: tokenFetchError,
+  } = useQuery({
     queryKey: ["tokenconfig"],
     queryFn: getTokenConfig,
   })
@@ -60,11 +66,18 @@ const CreateTokenPage: FC = () => {
     },
   })
 
+  if (fetchingTokenConfig) {
+    return <Loader />
+  }
+
   return (
     <>
       <Helmet>
         <title>{pageTitle(t("createToken.title"))}</title>
       </Helmet>
+      {tokenFetchFailed && (
+        <AlertBanner severity="error" error={tokenFetchError} />
+      )}
       <FullPageHorizontalForm
         title={t("createToken.title")}
         detail={t("createToken.detail")}
