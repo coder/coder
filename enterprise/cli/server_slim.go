@@ -10,7 +10,6 @@ import (
 
 	agpl "github.com/coder/coder/cli"
 	agplcoderd "github.com/coder/coder/coderd"
-	"github.com/spf13/cobra"
 )
 
 func (r *RootCmd) server() *clibase.Cmd {
