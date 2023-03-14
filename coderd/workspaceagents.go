@@ -11,8 +11,10 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"runtime/pprof"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -61,7 +63,10 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
+	apiAgent, err := convertWorkspaceAgent(
+		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -83,7 +88,10 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
+	apiAgent, err := convertWorkspaceAgent(
+		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -171,7 +179,10 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-	apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
+	apiAgent, err := convertWorkspaceAgent(
+		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -234,7 +245,11 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
+
+	apiAgent, err := convertWorkspaceAgent(
+		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -278,10 +293,11 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	go httpapi.Heartbeat(ctx, conn)
 
-	_, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close() // Also closes conn.
+
+	go httpapi.Heartbeat(ctx, conn)
 
 	agentConn, release, err := api.workspaceAgentCache.Acquire(r, workspaceAgent.ID)
 	if err != nil {
@@ -315,7 +331,10 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
+	apiAgent, err := convertWorkspaceAgent(
+		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading workspace agent.",
@@ -590,10 +609,39 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	go httpapi.Heartbeat(ctx, conn)
 
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
+
+	// We use a custom heartbeat routine here instead of `httpapi.Heartbeat`
+	// because we want to log the agent's last ping time.
+	var lastPing time.Time
+	var pingMu sync.Mutex
+	go pprof.Do(ctx, pprof.Labels("agent", workspaceAgent.ID.String()), func(ctx context.Context) {
+		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
+		t := time.NewTicker(api.AgentConnectionUpdateFrequency)
+		defer t.Stop()
+
+		for {
+			select {
+			case <-t.C:
+			case <-ctx.Done():
+				return
+			}
+
+			// We don't need a context that times out here because the ping will
+			// eventually go through. If the context times out, then other
+			// websocket read operations will receive an error, obfuscating the
+			// actual problem.
+			err := conn.Ping(ctx)
+			if err != nil {
+				return
+			}
+			pingMu.Lock()
+			lastPing = time.Now()
+			pingMu.Unlock()
+		}
+	})
 
 	firstConnectedAt := workspaceAgent.FirstConnectedAt
 	if !firstConnectedAt.Valid {
@@ -638,9 +686,12 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		ctx, cancel := context.WithTimeout(dbauthz.AsSystemRestricted(api.ctx), api.AgentInactiveDisconnectTimeout)
 		defer cancel()
 
-		disconnectedAt = sql.NullTime{
-			Time:  database.Now(),
-			Valid: true,
+		// Only update timestamp if the disconnect is new.
+		if !disconnectedAt.Valid {
+			disconnectedAt = sql.NullTime{
+				Time:  database.Now(),
+				Valid: true,
+			}
 		}
 		err := updateConnectionTimes(ctx)
 		if err != nil {
@@ -695,14 +746,36 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			return
 		case <-ticker.C:
 		}
-		lastConnectedAt = sql.NullTime{
-			Time:  database.Now(),
-			Valid: true,
+
+		pingMu.Lock()
+		lastPing := lastPing
+		pingMu.Unlock()
+
+		var connectionStatusChanged bool
+		if time.Since(lastPing) > api.AgentInactiveDisconnectTimeout {
+			if !disconnectedAt.Valid {
+				connectionStatusChanged = true
+				disconnectedAt = sql.NullTime{
+					Time:  database.Now(),
+					Valid: true,
+				}
+			}
+		} else {
+			connectionStatusChanged = disconnectedAt.Valid
+			// TODO(mafredri): Should we update it here or allow lastConnectedAt to shadow it?
+			disconnectedAt = sql.NullTime{}
+			lastConnectedAt = sql.NullTime{
+				Time:  database.Now(),
+				Valid: true,
+			}
 		}
 		err = updateConnectionTimes(ctx)
 		if err != nil {
 			_ = conn.Close(websocket.StatusGoingAway, err.Error())
 			return
+		}
+		if connectionStatusChanged {
+			api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 		}
 		err := ensureLatestBuild()
 		if err != nil {
@@ -964,7 +1037,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		SessionCountJetBrains:       req.SessionCountJetBrains,
 		SessionCountReconnectingPTY: req.SessionCountReconnectingPTY,
 		SessionCountSSH:             req.SessionCountSSH,
-		ConnectionMedianLatencyMS:   int64(req.ConnectionMedianLatencyMS),
+		ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

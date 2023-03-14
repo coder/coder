@@ -16,9 +16,9 @@ func Test_Experiments(t *testing.T) {
 	t.Parallel()
 	t.Run("empty", func(t *testing.T) {
 		t.Parallel()
-		cfg := coderdtest.DeploymentConfig(t)
+		cfg := coderdtest.DeploymentValues(t)
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: cfg,
+			DeploymentValues: cfg,
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -34,10 +34,10 @@ func Test_Experiments(t *testing.T) {
 
 	t.Run("multiple features", func(t *testing.T) {
 		t.Parallel()
-		cfg := coderdtest.DeploymentConfig(t)
-		cfg.Experiments.Value = []string{"foo", "BAR"}
+		cfg := coderdtest.DeploymentValues(t)
+		cfg.Experiments = []string{"foo", "BAR"}
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: cfg,
+			DeploymentValues: cfg,
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -56,10 +56,10 @@ func Test_Experiments(t *testing.T) {
 
 	t.Run("wildcard", func(t *testing.T) {
 		t.Parallel()
-		cfg := coderdtest.DeploymentConfig(t)
-		cfg.Experiments.Value = []string{"*"}
+		cfg := coderdtest.DeploymentValues(t)
+		cfg.Experiments = []string{"*"}
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: cfg,
+			DeploymentValues: cfg,
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -78,10 +78,10 @@ func Test_Experiments(t *testing.T) {
 
 	t.Run("alternate wildcard with manual opt-in", func(t *testing.T) {
 		t.Parallel()
-		cfg := coderdtest.DeploymentConfig(t)
-		cfg.Experiments.Value = []string{"*", "dAnGeR"}
+		cfg := coderdtest.DeploymentValues(t)
+		cfg.Experiments = []string{"*", "dAnGeR"}
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: cfg,
+			DeploymentValues: cfg,
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
 
@@ -99,34 +99,12 @@ func Test_Experiments(t *testing.T) {
 		require.False(t, experiments.Enabled("herebedragons"))
 	})
 
-	t.Run("legacy wildcard", func(t *testing.T) {
-		t.Parallel()
-		cfg := coderdtest.DeploymentConfig(t)
-		cfg.Experimental.Value = true
-		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: cfg,
-		})
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		experiments, err := client.Experiments(ctx)
-		require.NoError(t, err)
-		require.NotNil(t, experiments)
-		require.ElementsMatch(t, codersdk.ExperimentsAll, experiments)
-		for _, ex := range codersdk.ExperimentsAll {
-			require.True(t, experiments.Enabled(ex))
-		}
-		require.False(t, experiments.Enabled("danger"))
-	})
-
 	t.Run("Unauthorized", func(t *testing.T) {
 		t.Parallel()
-		cfg := coderdtest.DeploymentConfig(t)
-		cfg.Experiments.Value = []string{"*"}
+		cfg := coderdtest.DeploymentValues(t)
+		cfg.Experiments = []string{"*"}
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: cfg,
+			DeploymentValues: cfg,
 		})
 		// Explicitly omit creating a user so we're unauthorized.
 		// _ = coderdtest.CreateFirstUser(t, client)

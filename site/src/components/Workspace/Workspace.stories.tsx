@@ -113,16 +113,6 @@ GetBuildsError.args = {
   },
 }
 
-export const GetResourcesError = Template.bind({})
-GetResourcesError.args = {
-  ...Running.args,
-  workspaceErrors: {
-    [WorkspaceErrors.GET_RESOURCES_ERROR]: Mocks.makeMockApiError({
-      message: "There is a problem fetching workspace resources.",
-    }),
-  },
-}
-
 export const CancellationError = Template.bind({})
 CancellationError.args = {
   ...Failed.args,

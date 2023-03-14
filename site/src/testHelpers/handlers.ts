@@ -307,4 +307,8 @@ export const handlers = [
   rest.get("/api/v2/appearance", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockAppearance))
   }),
+
+  rest.get("/api/v2/deployment/stats", (_, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockDeploymentStats))
+  }),
 ]

@@ -89,7 +89,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 
 	// If password authentication is disabled and the user does not have the
 	// owner role, block the request.
-	if api.DeploymentConfig.DisablePasswordAuth.Value {
+	if api.DeploymentValues.DisablePasswordAuth {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Password authentication is disabled.",
 		})
@@ -197,11 +197,11 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	// Deployments should not host app tokens on the same domain as the
 	// primary deployment. But in the case they are, we should also delete this
 	// token.
-	if appCookie, _ := r.Cookie(httpmw.DevURLSessionTokenCookie); appCookie != nil {
+	if appCookie, _ := r.Cookie(codersdk.DevURLSessionTokenCookie); appCookie != nil {
 		appCookieRemove := &http.Cookie{
 			// MaxAge < 0 means to delete the cookie now.
 			MaxAge: -1,
-			Name:   httpmw.DevURLSessionTokenCookie,
+			Name:   codersdk.DevURLSessionTokenCookie,
 			Path:   "/",
 			Domain: "." + api.AccessURL.Hostname(),
 		}
@@ -285,7 +285,7 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
 		Password: codersdk.AuthMethod{
-			Enabled: !api.DeploymentConfig.DisablePasswordAuth.Value,
+			Enabled: !api.DeploymentValues.DisablePasswordAuth.Value(),
 		},
 		Github: codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
 		OIDC: codersdk.OIDCAuthMethod{
@@ -477,6 +477,10 @@ type OIDCConfig struct {
 	// UsernameField selects the claim field to be used as the created user's
 	// username.
 	UsernameField string
+	// GroupField selects the claim field to be used as the created user's
+	// groups. If the group field is the empty string, then no group updates
+	// will ever come from the OIDC provider.
+	GroupField string
 	// SignInText is the text to display on the OIDC login button
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
@@ -609,21 +613,27 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var usingGroups bool
 	var groups []string
-	groupsRaw, ok := claims["groups"]
-	if ok {
-		// Convert the []interface{} we get to a []string.
-		groupsInterface, ok := groupsRaw.([]interface{})
-		if ok {
-			for _, groupInterface := range groupsInterface {
-				group, ok := groupInterface.(string)
-				if !ok {
-					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-						Message: fmt.Sprintf("Invalid group type. Expected string, got: %t", emailRaw),
-					})
-					return
+	// If the GroupField is the empty string, then groups from OIDC are not used.
+	// This is so we can support manual group assignment.
+	if api.OIDCConfig.GroupField != "" {
+		usingGroups = true
+		groupsRaw, ok := claims[api.OIDCConfig.GroupField]
+		if ok && api.OIDCConfig.GroupField != "" {
+			// Convert the []interface{} we get to a []string.
+			groupsInterface, ok := groupsRaw.([]interface{})
+			if ok {
+				for _, groupInterface := range groupsInterface {
+					group, ok := groupInterface.(string)
+					if !ok {
+						httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+							Message: fmt.Sprintf("Invalid group type. Expected string, got: %t", emailRaw),
+						})
+						return
+					}
+					groups = append(groups, group)
 				}
-				groups = append(groups, group)
 			}
 		}
 	}
@@ -684,6 +694,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		Email:        email,
 		Username:     username,
 		AvatarURL:    picture,
+		UsingGroups:  usingGroups,
 		Groups:       groups,
 	})
 	var httpErr httpError
@@ -725,7 +736,10 @@ type oauthLoginParams struct {
 	Email        string
 	Username     string
 	AvatarURL    string
-	Groups       []string
+	// Is UsingGroups is true, then the user will be assigned
+	// to the Groups provided.
+	UsingGroups bool
+	Groups      []string
 }
 
 type httpError struct {
@@ -865,7 +879,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		// Ensure groups are correct.
-		if len(params.Groups) > 0 {
+		if params.UsingGroups {
 			//nolint:gocritic
 			err := api.Options.SetUserGroups(dbauthz.AsSystemRestricted(ctx), tx, user.ID, params.Groups)
 			if err != nil {

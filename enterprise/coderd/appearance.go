@@ -87,10 +87,10 @@ func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if len(api.DeploymentConfig.Support.Links.Value) == 0 {
+	if len(api.DeploymentValues.Support.Links.Value) == 0 {
 		cfg.SupportLinks = DefaultSupportLinks
 	} else {
-		cfg.SupportLinks = api.DeploymentConfig.Support.Links.Value
+		cfg.SupportLinks = api.DeploymentValues.Support.Links.Value
 	}
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, cfg)
@@ -119,7 +119,7 @@ func validateHexColor(color string) error {
 func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceDeploymentConfig) {
+	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceDeploymentValues) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Insufficient permissions to update appearance",
 		})

@@ -35,6 +35,7 @@ const renderWorkspacePage = async () => {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
     path: "/@:username/:workspace",
   })
+
   await waitForLoaderToBeRemoved()
 }
 
@@ -46,9 +47,9 @@ const renderWorkspacePage = async () => {
  */
 const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   const user = userEvent.setup()
-
   await renderWorkspacePage()
-  const button = await screen.findByRole("button", { name: label })
+  const workspaceActions = screen.getByTestId("workspace-actions")
+  const button = within(workspaceActions).getByRole("button", { name: label })
   await user.click(button)
   expect(actionMock).toBeCalled()
 }
@@ -86,32 +87,36 @@ afterAll(() => {
 
 describe("WorkspacePage", () => {
   it("requests a delete job when the user presses Delete and confirms", async () => {
-    const user = userEvent.setup()
-
+    const user = userEvent.setup({ delay: 0 })
     const deleteWorkspaceMock = jest
       .spyOn(api, "deleteWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild)
     await renderWorkspacePage()
 
     // open the workspace action popover so we have access to all available ctas
-    const trigger = await screen.findByTestId("workspace-actions-button")
+    const trigger = screen.getByTestId("workspace-actions-button")
     await user.click(trigger)
-
     const buttonText = t("actionButton.delete", { ns: "workspacePage" })
+
+    // Click on delete
     const button = await screen.findByText(buttonText)
     await user.click(button)
 
+    // Get dialog and confirm
+    const dialog = await screen.findByTestId("dialog")
     const labelText = t("deleteDialog.confirmLabel", {
       ns: "common",
       entity: "workspace",
     })
-    const textField = await screen.findByLabelText(labelText)
+    const textField = within(dialog).getByLabelText(labelText)
     await user.type(textField, MockWorkspace.name)
-    const confirmButton = await screen.findByRole("button", { name: "Delete" })
+    const confirmButton = within(dialog).getByRole("button", {
+      name: "Delete",
+      hidden: false,
+    })
     await user.click(confirmButton)
     expect(deleteWorkspaceMock).toBeCalled()
-    // This test takes long to finish
-  }, 20_000)
+  })
 
   it("requests a start job when the user presses Start", async () => {
     server.use(
@@ -157,7 +162,8 @@ describe("WorkspacePage", () => {
 
     await renderWorkspacePage()
 
-    const cancelButton = await screen.findByRole("button", {
+    const workspaceActions = screen.getByTestId("workspace-actions")
+    const cancelButton = within(workspaceActions).getByRole("button", {
       name: "cancel action",
     })
 
