@@ -616,7 +616,7 @@ func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websock
 // StartupLogsNotifyChannel returns the channel name responsible for notifying
 // of new startup logs.
 func StartupLogsNotifyChannel(agentID uuid.UUID) string {
-	return fmt.Sprintf("workspace-agent-startup-logs:%s", agentID)
+	return fmt.Sprintf("startup-logs:%s", agentID)
 }
 
 type StartupLogsNotifyMessage struct {
