@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.14"
+      version = "~> 0.6.17"
     }
     digitalocean = {
       source  = "digitalocean/digitalocean"
@@ -11,41 +11,44 @@ terraform {
   }
 }
 
+provider "coder" {
+  feature_use_managed_variables = true
+}
 
-
-data "coder_parameter" "step1_do_project_id" {
-  name        = "Enter project ID"
+variable "step1_do_project_id" {
+  type        = string
   description = <<-EOF
     Enter project ID
 
       $ doctl projects list
   EOF
-  type        = "string"
   default     = "0"
-  mutable     = false
   validation {
     # make sure length of alphanumeric string is 36
-    regex = "^[a-zA-Z0-9]{36}$"
-    error = "Invalid Digital Ocean Project ID."
+    condition     = length(var.step1_do_project_id) == 36
+    error_message = "Invalid Digital Ocean Project ID."
   }
+
 }
 
-data "coder_parameter" "step2_do_admin_ssh_key" {
-  name        = "Enter admin SSH key ID (some Droplet images require an SSH key to be set):"
+variable "step2_do_admin_ssh_key" {
+  type        = string
   description = <<-EOF
+    Enter admin SSH key ID (some Droplet images require an SSH key to be set):
+
     Can be set to "0" for no key.
 
     Note: Setting this to zero will break Fedora images and notify root passwords via email.
 
       $ doctl compute ssh-key list
   EOF
-  type        = "number"
   default     = "0"
-  mutable     = false
   validation {
-    min = 0
-    max = 999999
+    # make sure value is a number
+    condition     = can(regex("^[0-9]+$", var.step2_do_admin_ssh_key))
+    error_message = "Invalid Digital Ocean SSH Key ID."
   }
+
 }
 
 data "coder_parameter" "droplet_image" {
@@ -266,11 +269,11 @@ resource "digitalocean_droplet" "workspace" {
     coder_agent_token = coder_agent.main.token
   })
   # Required to provision Fedora.
-  ssh_keys = data.coder_parameter.step1_do_project_id.value > 0 ? [data.coder_parameter.step2_do_admin_ssh_key.value] : []
+  ssh_keys = var.step1_do_project_id > 0 ? [var.step2_do_admin_ssh_key] : []
 }
 
 resource "digitalocean_project_resources" "project" {
-  project = data.coder_parameter.step1_do_project_id.value
+  project = var.step1_do_project_id
   # Workaround for terraform plan when using count.
   resources = length(digitalocean_droplet.workspace) > 0 ? [
     digitalocean_volume.home_volume.urn,
