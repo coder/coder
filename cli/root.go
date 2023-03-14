@@ -782,18 +782,30 @@ func (prettyErrorFormatter) prefixLines(spaces int, s string) string {
 }
 
 func (p *prettyErrorFormatter) format(err error) {
+	underErr := errors.Unwrap(err)
+
+	//nolint:errorlint
+	if _, ok := err.(*clibase.RunCommandError); ok {
+		// We don't want to print a "running command..." in since the user
+		// already knows they're doing that.
+		p.format(underErr)
+		return
+	}
+
 	var (
 		finalErrorStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#BB5865"))
 		arrowStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#515151"))
 	)
-	var padding string
-	arrowWidth := utf8.RuneCount([]byte(arrow))
+	var (
+		padding    string
+		arrowWidth int
+	)
 	if p.level > 0 {
+		arrowWidth = utf8.RuneCount([]byte(arrow))
 		padding = strings.Repeat(" ", arrowWidth*p.level)
 		_, _ = fmt.Fprintf(p.w, "%v%v", padding, arrowStyle.Render(arrow))
 	}
 
-	underErr := errors.Unwrap(err)
 	if underErr != nil {
 		header := strings.TrimSuffix(err.Error(), ": "+underErr.Error())
 		_, _ = fmt.Fprintf(p.w, "%s\n", p.prefixLines(len(padding)+arrowWidth, header))
@@ -802,8 +814,12 @@ func (p *prettyErrorFormatter) format(err error) {
 		return
 	}
 
+	if p.level > 0 {
+		_, _ = fmt.Fprintf(p.w, "%s\n", finalErrorStyle.Render(p.prefixLines(len(padding)+arrowWidth, err.Error())))
+		return
+	}
 	_, _ = fmt.Fprintf(
 		p.w, "%s\n",
-		finalErrorStyle.Render(p.prefixLines(len(padding)+arrowWidth, err.Error())),
+		finalErrorStyle.Render(wrapTTY(err.Error())),
 	)
 }

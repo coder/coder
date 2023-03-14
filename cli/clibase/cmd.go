@@ -3,6 +3,7 @@ package clibase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -281,9 +282,25 @@ func (i *Invocation) run(state *runState) error {
 
 	err = mw(i.Command.Handler)(i)
 	if err != nil {
-		return xerrors.Errorf("running command %q: %w", i.Command.FullName(), err)
+		return &RunCommandError{
+			Cmd: i.Command,
+			Err: err,
+		}
 	}
 	return nil
+}
+
+type RunCommandError struct {
+	Cmd *Cmd
+	Err error
+}
+
+func (e *RunCommandError) Unwrap() error {
+	return e.Err
+}
+
+func (e *RunCommandError) Error() string {
+	return fmt.Sprintf("running command %q: %+v", e.Cmd.FullName(), e.Err)
 }
 
 // findArg returns the index of the first occurrence of arg in args, skipping
