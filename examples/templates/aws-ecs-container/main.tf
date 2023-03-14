@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.14"
+      version = "~> 0.6.17"
     }
     aws = {
       source  = "hashicorp/aws"
@@ -11,17 +11,27 @@ terraform {
   }
 }
 
+provider "coder" {
+  feature_use_managed_variables = true
+}
+
 variable "ecs-cluster" {
   description = "Input the ECS cluster ARN to host the workspace"
   default     = ""
 }
 
-variable "cpu" {
-  default = "1024"
+data "coder_parameter" "cpu" {
+  name        = "cpu"
+  description = "The number of CPU units to reserve for the container"
+  default     = "1024"
+  mutable     = true
 }
 
-variable "memory" {
-  default = "2048"
+data "coder_parameter" "memory" {
+  name        = "memory"
+  description = "The amount of memory (in MiB) to allow the container to use"
+  default     = "2048"
+  mutable     = true
 }
 
 # configure AWS provider with creds present on Coder server host
@@ -35,14 +45,14 @@ resource "aws_ecs_task_definition" "workspace" {
   family = "coder"
 
   requires_compatibilities = ["EC2"]
-  cpu                      = var.cpu
-  memory                   = var.memory
+  cpu                      = data.coder_parameter.cpu.value
+  memory                   = data.coder_parameter.memory.value
   container_definitions = jsonencode([
     {
       name      = "coder-workspace-${data.coder_workspace.me.id}"
       image     = "codercom/enterprise-base:ubuntu"
-      cpu       = 1024
-      memory    = 2048
+      cpu       = data.coder_parameter.cpu.value
+      memory    = data.coder_parameter.memory.value
       essential = true
       user      = "coder"
       command   = ["sh", "-c", coder_agent.coder.init_script]
