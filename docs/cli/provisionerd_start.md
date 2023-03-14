@@ -14,10 +14,10 @@ start
 
 ### --cache-dir, -c
 
-|             |                                       |
-| ----------- | ------------------------------------- |
-| Environment | <code>$CODER_CACHE_DIRECTORY</code>   |
-| Default     | <code>/home/coder/.cache/coder</code> |
+|             |                                     |
+| ----------- | ----------------------------------- |
+| Environment | <code>$CODER_CACHE_DIRECTORY</code> |
+| Default     | <code>~/.cache/coder</code>         |
 
 Directory to store cached data
 

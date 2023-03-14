@@ -616,10 +616,10 @@ Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24
 
 ### --cache-dir
 
-|             |                                       |
-| ----------- | ------------------------------------- |
-| Environment | <code>$CACHE_DIRECTORY</code>         |
-| Default     | <code>/home/coder/.cache/coder</code> |
+|             |                               |
+| ----------- | ----------------------------- |
+| Environment | <code>$CACHE_DIRECTORY</code> |
+| Default     | <code>~/.cache/coder</code>   |
 
 The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.
 

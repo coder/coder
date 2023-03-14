@@ -90,6 +90,12 @@ func writeCommand(w io.Writer, cmd *clibase.Cmd) error {
 	}
 	content = strings.ReplaceAll(content, cwd, ".")
 
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	content = strings.ReplaceAll(content, homedir, "~")
+
 	_, err = w.Write([]byte(content))
 	return err
 }

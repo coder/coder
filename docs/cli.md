@@ -140,9 +140,9 @@ Enable verbose logging.
 
 ### --global-config
 
-|             |                                          |
-| ----------- | ---------------------------------------- |
-| Environment | <code>$CODER_CONFIG_DIR</code>           |
-| Default     | <code>/home/coder/.config/coderv2</code> |
+|             |                                |
+| ----------- | ------------------------------ |
+| Environment | <code>$CODER_CONFIG_DIR</code> |
+| Default     | <code>~/.config/coderv2</code> |
 
 Path to the global `coder` config directory.
