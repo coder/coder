@@ -92,6 +92,7 @@ WITH agent_stats AS (
 		WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT
+		a.agent_id,
 		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
 		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
@@ -101,4 +102,4 @@ WITH agent_stats AS (
 		FROM workspace_agent_stats WHERE created_at > $1
 	) AS a WHERE a.rn = 1 GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
 )
-SELECT * FROM agent_stats, latest_agent_stats;
+SELECT * FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id;

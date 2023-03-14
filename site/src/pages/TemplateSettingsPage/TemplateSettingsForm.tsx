@@ -18,7 +18,7 @@ import {
   FormSection,
   HorizontalForm,
   FormFooter,
-} from "components/HorizontalForm/HorizontalForm"
+} from "components/Form/Form"
 import { Stack } from "components/Stack/Stack"
 import Checkbox from "@material-ui/core/Checkbox"
 import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"

@@ -5655,6 +5655,7 @@ WITH agent_stats AS (
 		WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT
+		a.agent_id,
 		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
 		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
@@ -5664,7 +5665,7 @@ WITH agent_stats AS (
 		FROM workspace_agent_stats WHERE created_at > $1
 	) AS a WHERE a.rn = 1 GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
 )
-SELECT user_id, agent_id, workspace_id, template_id, aggregated_from, workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats, latest_agent_stats
+SELECT user_id, agent_stats.agent_id, workspace_id, template_id, aggregated_from, workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, latest_agent_stats.agent_id, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id
 `
 
 type GetWorkspaceAgentStatsRow struct {
@@ -5677,6 +5678,7 @@ type GetWorkspaceAgentStatsRow struct {
 	WorkspaceTxBytes             int64     `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
 	WorkspaceConnectionLatency50 float64   `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
 	WorkspaceConnectionLatency95 float64   `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	AgentID_2                    uuid.UUID `db:"agent_id_2" json:"agent_id_2"`
 	SessionCountVSCode           int64     `db:"session_count_vscode" json:"session_count_vscode"`
 	SessionCountSSH              int64     `db:"session_count_ssh" json:"session_count_ssh"`
 	SessionCountJetBrains        int64     `db:"session_count_jetbrains" json:"session_count_jetbrains"`
@@ -5702,6 +5704,7 @@ func (q *sqlQuerier) GetWorkspaceAgentStats(ctx context.Context, createdAt time.
 			&i.WorkspaceTxBytes,
 			&i.WorkspaceConnectionLatency50,
 			&i.WorkspaceConnectionLatency95,
+			&i.AgentID_2,
 			&i.SessionCountVSCode,
 			&i.SessionCountSSH,
 			&i.SessionCountJetBrains,

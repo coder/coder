@@ -4,36 +4,84 @@ import {
   FormFooter as BaseFormFooter,
 } from "components/FormFooter/FormFooter"
 import { Stack } from "components/Stack/Stack"
-import { FC, HTMLProps, PropsWithChildren } from "react"
+import {
+  createContext,
+  FC,
+  HTMLProps,
+  PropsWithChildren,
+  useContext,
+} from "react"
 import { combineClasses } from "util/combineClasses"
 
-export const HorizontalForm: FC<
-  PropsWithChildren & HTMLProps<HTMLFormElement>
-> = ({ children, ...formProps }) => {
+type FormContextValue = { direction?: "horizontal" | "vertical" }
+
+const FormContext = createContext<FormContextValue>({
+  direction: "horizontal",
+})
+
+type FormProps = HTMLProps<HTMLFormElement> & {
+  direction?: FormContextValue["direction"]
+}
+
+export const Form: FC<FormProps> = ({ direction, className, ...formProps }) => {
   const styles = useStyles()
 
   return (
-    <form {...formProps}>
-      <Stack direction="column" spacing={10} className={styles.formSections}>
-        {children}
-      </Stack>
-    </form>
+    <FormContext.Provider value={{ direction }}>
+      <form
+        {...formProps}
+        className={combineClasses([styles.form, className])}
+      />
+    </FormContext.Provider>
+  )
+}
+
+export const HorizontalForm: FC<HTMLProps<HTMLFormElement>> = ({
+  children,
+  ...formProps
+}) => {
+  return (
+    <Form direction="horizontal" {...formProps}>
+      {children}
+    </Form>
+  )
+}
+
+export const VerticalForm: FC<HTMLProps<HTMLFormElement>> = ({
+  children,
+  ...formProps
+}) => {
+  return (
+    <Form direction="vertical" {...formProps}>
+      {children}
+    </Form>
   )
 }
 
 export const FormSection: FC<
   PropsWithChildren & {
-    title: string
+    title: string | JSX.Element
     description: string | JSX.Element
-    className?: string
+    classes?: {
+      root?: string
+      infoTitle?: string
+    }
   }
-> = ({ children, title, description, className }) => {
-  const styles = useStyles()
+> = ({ children, title, description, classes = {} }) => {
+  const formContext = useContext(FormContext)
+  const styles = useStyles(formContext)
 
   return (
-    <div className={combineClasses([styles.formSection, className])}>
+    <div className={combineClasses([styles.formSection, classes.root])}>
       <div className={styles.formSectionInfo}>
-        <h2 className={styles.formSectionInfoTitle}>{title}</h2>
+        <h2
+          className={combineClasses([
+            styles.formSectionInfoTitle,
+            classes.infoTitle,
+          ])}
+        >
+          {title}
+        </h2>
         <div className={styles.formSectionInfoDescription}>{description}</div>
       </div>
 
@@ -62,7 +110,12 @@ export const FormFooter: FC<BaseFormFooterProps> = (props) => {
 }
 
 const useStyles = makeStyles((theme) => ({
-  formSections: {
+  form: {
+    display: "flex",
+    flexDirection: "column",
+    gap: ({ direction }: FormContextValue = {}) =>
+      direction === "horizontal" ? theme.spacing(10) : theme.spacing(5),
+
     [theme.breakpoints.down("sm")]: {
       gap: theme.spacing(8),
     },
@@ -71,7 +124,10 @@ const useStyles = makeStyles((theme) => ({
   formSection: {
     display: "flex",
     alignItems: "flex-start",
-    gap: theme.spacing(15),
+    gap: ({ direction }: FormContextValue = {}) =>
+      direction === "horizontal" ? theme.spacing(15) : theme.spacing(3),
+    flexDirection: ({ direction }: FormContextValue = {}) =>
+      direction === "horizontal" ? "row" : "column",
 
     [theme.breakpoints.down("sm")]: {
       flexDirection: "column",
@@ -80,9 +136,11 @@ const useStyles = makeStyles((theme) => ({
   },
 
   formSectionInfo: {
-    width: 312,
+    maxWidth: ({ direction }: FormContextValue = {}) =>
+      direction === "horizontal" ? 312 : undefined,
     flexShrink: 0,
-    position: "sticky",
+    position: ({ direction }: FormContextValue = {}) =>
+      direction === "horizontal" ? "sticky" : undefined,
     top: theme.spacing(3),
 
     [theme.breakpoints.down("sm")]: {

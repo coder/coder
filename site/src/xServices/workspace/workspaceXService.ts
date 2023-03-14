@@ -63,6 +63,7 @@ export interface WorkspaceContext {
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
+  missingParameters?: TypesGen.TemplateVersionParameter[]
   // error creating a new WorkspaceBuild
   buildError?: Error | unknown
   cancellationMessage?: Types.Message
@@ -82,7 +83,7 @@ export type WorkspaceEvent =
   | { type: "ASK_DELETE" }
   | { type: "DELETE" }
   | { type: "CANCEL_DELETE" }
-  | { type: "UPDATE" }
+  | { type: "UPDATE"; buildParameters?: TypesGen.WorkspaceBuildParameter[] }
   | { type: "CANCEL" }
   | {
       type: "REFRESH_TIMELINE"
@@ -135,7 +136,7 @@ export const workspaceMachine = createMachine(
         getTemplateParameters: {
           data: TypesGen.TemplateVersionParameter[]
         }
-        startWorkspaceWithLatestTemplate: {
+        updateWorkspace: {
           data: TypesGen.WorkspaceBuild
         }
         startWorkspace: {
@@ -301,7 +302,7 @@ export const workspaceMachine = createMachine(
                   START: "requestingStart",
                   STOP: "requestingStop",
                   ASK_DELETE: "askingDelete",
-                  UPDATE: "updatingWorkspace",
+                  UPDATE: "requestingUpdate",
                   CANCEL: "requestingCancel",
                 },
               },
@@ -315,38 +316,31 @@ export const workspaceMachine = createMachine(
                   },
                 },
               },
-              updatingWorkspace: {
-                tags: "updating",
-                initial: "refreshingTemplate",
-                states: {
-                  refreshingTemplate: {
-                    invoke: {
-                      id: "refreshTemplate",
-                      src: "getTemplate",
-                      onDone: {
-                        target: "startingWithLatestTemplate",
-                        actions: ["assignTemplate"],
-                      },
-                      onError: {
-                        target: "#workspaceState.ready.build.idle",
-                        actions: ["assignGetTemplateWarning"],
-                      },
-                    },
+              requestingUpdate: {
+                entry: ["clearBuildError"],
+                invoke: {
+                  src: "updateWorkspace",
+                  onDone: {
+                    target: "idle",
+                    actions: ["assignBuild"],
                   },
-                  startingWithLatestTemplate: {
-                    invoke: {
-                      id: "startWorkspaceWithLatestTemplate",
-                      src: "startWorkspaceWithLatestTemplate",
-                      onDone: {
-                        target: "#workspaceState.ready.build.idle",
-                        actions: ["assignBuild"],
-                      },
-                      onError: {
-                        target: "#workspaceState.ready.build.idle",
-                        actions: ["assignBuildError"],
-                      },
+                  onError: [
+                    {
+                      target: "askingForMissedBuildParameters",
+                      cond: "isMissingBuildParameterError",
+                      actions: ["assignMissingParameters"],
                     },
-                  },
+                    {
+                      target: "idle",
+                      actions: ["assignBuildError"],
+                    },
+                  ],
+                },
+              },
+              askingForMissedBuildParameters: {
+                on: {
+                  CANCEL: "idle",
+                  UPDATE: "requestingUpdate",
                 },
               },
               requestingStart: {
@@ -641,9 +635,20 @@ export const workspaceMachine = createMachine(
           }
         },
       }),
+      assignMissingParameters: assign({
+        missingParameters: (_, { data }) => {
+          if (!(data instanceof API.MissingBuildParameters)) {
+            throw new Error("data is not a MissingBuildParameters error")
+          }
+          return data.parameters
+        },
+      }),
     },
     guards: {
       moreBuildsAvailable,
+      isMissingBuildParameterError: (_, { data }) => {
+        return data instanceof API.MissingBuildParameters
+      },
     },
     services: {
       getWorkspace: async (_, event) => {
@@ -671,18 +676,16 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot get template parameters without workspace")
         }
       },
-      startWorkspaceWithLatestTemplate: (context) => async (send) => {
-        if (context.workspace && context.template) {
-          const startWorkspacePromise = await API.startWorkspace(
-            context.workspace.id,
-            context.template.active_version_id,
-          )
+      updateWorkspace:
+        ({ workspace }, { buildParameters }) =>
+        async (send) => {
+          if (!workspace) {
+            throw new Error("Workspace is not set")
+          }
+          const build = await API.updateWorkspace(workspace, buildParameters)
           send({ type: "REFRESH_TIMELINE" })
-          return startWorkspacePromise
-        } else {
-          throw Error("Cannot start workspace without workspace id")
-        }
-      },
+          return build
+        },
       startWorkspace: (context) => async (send) => {
         if (context.workspace) {
           const startWorkspacePromise = await API.startWorkspace(

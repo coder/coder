@@ -897,3 +897,82 @@ export const getWorkspaceBuildParameters = async (
   )
   return response.data
 }
+
+export class MissingBuildParameters extends Error {
+  parameters: TypesGen.TemplateVersionParameter[] = []
+
+  constructor(parameters: TypesGen.TemplateVersionParameter[]) {
+    super("Missing build parameters.")
+    this.parameters = parameters
+  }
+}
+
+/** Steps to update the workspace
+ * - Get the latest template to access the latest active version
+ * - Get the current build parameters
+ * - Get the template parameters
+ * - Update the build parameters and check if there are missed parameters for the newest version
+ *   - If there are missing parameters raise an error
+ * - Create a build with the latest version and updated build parameters
+ */
+export const updateWorkspace = async (
+  workspace: TypesGen.Workspace,
+  newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+): Promise<TypesGen.WorkspaceBuild> => {
+  const [template, oldBuildParameters] = await Promise.all([
+    getTemplate(workspace.template_id),
+    getWorkspaceBuildParameters(workspace.latest_build.id),
+  ])
+  const activeVersionId = template.active_version_id
+  const templateParameters = await getTemplateVersionRichParameters(
+    activeVersionId,
+  )
+  const [updatedBuildParameters, missingParameters] = updateBuildParameters(
+    oldBuildParameters,
+    newBuildParameters,
+    templateParameters,
+  )
+  if (missingParameters.length > 0) {
+    throw new MissingBuildParameters(missingParameters)
+  }
+
+  return postWorkspaceBuild(workspace.id, {
+    transition: "start",
+    template_version_id: activeVersionId,
+    rich_parameter_values: updatedBuildParameters,
+  })
+}
+
+const updateBuildParameters = (
+  oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
+  newBuildParameters: TypesGen.WorkspaceBuildParameter[],
+  templateParameters: TypesGen.TemplateVersionParameter[],
+) => {
+  const missingParameters: TypesGen.TemplateVersionParameter[] = []
+  const updatedBuildParameters: TypesGen.WorkspaceBuildParameter[] = []
+
+  for (const parameter of templateParameters) {
+    // Check if there is a new value
+    let buildParameter = newBuildParameters.find(
+      (p) => p.name === parameter.name,
+    )
+
+    // If not, get the old one
+    if (!buildParameter) {
+      buildParameter = oldBuildParameters.find((p) => p.name === parameter.name)
+    }
+
+    // If there is a value from the new or old one, add it to the list
+    if (buildParameter) {
+      updatedBuildParameters.push(buildParameter)
+      continue
+    }
+
+    // If there is no value and it is required, add it to the list of missing parameters
+    if (parameter.required) {
+      missingParameters.push(parameter)
+    }
+  }
+
+  return [updatedBuildParameters, missingParameters] as const
+}
