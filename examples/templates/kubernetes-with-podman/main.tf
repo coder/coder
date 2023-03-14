@@ -2,11 +2,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.14"
+      version = "~> 0.6.17"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.12"
+      version = "~> 2.18"
     }
   }
 }
@@ -73,7 +73,6 @@ data "coder_parameter" "memory" {
     value = "8"
   }
 }
-
 
 resource "coder_agent" "dev" {
   os             = "linux"

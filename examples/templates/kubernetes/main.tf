@@ -2,17 +2,21 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.14"
+      version = "~> 0.6.17"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.12"
+      version = "~> 2.18"
     }
   }
 }
 
-data "coder_parameter" "use_kubeconfig" {
-  name        = "Use host kubeconfig? (true/false)"
+provider "coder" {
+  feature_use_managed_variables = true
+}
+
+variable "use_kubeconfig" {
+  type        = bool
   description = <<-EOF
   Use host kubeconfig? (true/false)
 
@@ -22,14 +26,12 @@ data "coder_parameter" "use_kubeconfig" {
   Set this to true if the Coder host is running outside the Kubernetes cluster
   for workspaces.  A valid "~/.kube/config" must be present on the Coder host.
   EOF
-  type        = "bool"
-  default     = "false"
-  mutable     = false
+  default     = false
 }
 
-data "coder_parameter" "namespace" {
-  name    = "The Kubernetes namespace to create workspaces in (must exist prior to creating workspaces)"
-  mutable = false
+variable "namespace" {
+  type        = string
+  description = "The Kubernetes namespace to create workspaces in (must exist prior to creating workspaces)"
 }
 
 data "coder_parameter" "cpu" {
@@ -91,15 +93,14 @@ data "coder_parameter" "home_disk_size" {
 
 provider "kubernetes" {
   # Authenticate via ~/.kube/config or a Coder-specific ServiceAccount, depending on admin preferences
-  config_path = "data.coder_parameter.use_kubeconfig.value" == "true" ? "~/.kube/config" : null
+  config_path = var.namespace == true ? "~/.kube/config" : null
 }
 
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "main" {
-  os   = "linux"
-  arch = "amd64"
-
+  os                     = "linux"
+  arch                   = "amd64"
   login_before_ready     = false
   startup_script_timeout = 180
   startup_script         = <<-EOT
@@ -131,7 +132,7 @@ resource "coder_app" "code-server" {
 resource "kubernetes_persistent_volume_claim" "home" {
   metadata {
     name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-home"
-    namespace = data.coder_parameter.namespace.value
+    namespace = var.namespace
     labels = {
       "app.kubernetes.io/name"     = "coder-pvc"
       "app.kubernetes.io/instance" = "coder-pvc-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
@@ -162,7 +163,7 @@ resource "kubernetes_pod" "main" {
   count = data.coder_workspace.me.start_count
   metadata {
     name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
-    namespace = data.coder_parameter.namespace.value
+    namespace = var.namespace
     labels = {
       "app.kubernetes.io/name"     = "coder-workspace"
       "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
