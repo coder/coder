@@ -23,6 +23,11 @@ data "coder_parameter" "location" {
     icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
+    name  = "US (Virginia) 2"
+    value = "eastus2"
+    icon  = "/emojis/1f1fa-1f1f8.png"
+  }
+  option {
     name  = "US (Texas)"
     value = "southcentralus"
     icon  = "/emojis/1f1fa-1f1f8.png"
@@ -48,11 +53,6 @@ data "coder_parameter" "location" {
     icon  = "/emojis/1f1e8-1f1e6.png"
   }
   option {
-    name  = "Canada (Quebec City)"
-    value = "canadaeast"
-    icon  = "/emojis/1f1e8-1f1e6.png"
-  }
-  option {
     name  = "Brazil (Sao Paulo)"
     value = "brazilsouth"
     icon  = "/emojis/1f1e7-1f1f7.png"
@@ -73,23 +73,8 @@ data "coder_parameter" "location" {
     icon  = "/emojis/1f1e6-1f1fa.png"
   }
   option {
-    name  = "Australia (Victoria)"
-    value = "australiasoutheast"
-    icon  = "/emojis/1f1e6-1f1fa.png"
-  }
-  option {
-    name  = "Australia (Canberra)"
-    value = "australiacentral"
-    icon  = "/emojis/1f1e6-1f1fa.png"
-  }
-  option {
-    name  = "China (Shanghai)"
-    value = "chinaeast"
-    icon  = "/emojis/1f1e8-1f1f3.png"
-  }
-  option {
-    name  = "China (Beijing)"
-    value = "chinanorth"
+    name  = "China (Hebei)"
+    value = "chinanorth3"
     icon  = "/emojis/1f1e8-1f1f3.png"
   }
   option {
@@ -98,18 +83,8 @@ data "coder_parameter" "location" {
     icon  = "/emojis/1f1ee-1f1f3.png"
   }
   option {
-    name  = "India (Chennai)"
-    value = "southindia"
-    icon  = "/emojis/1f1ee-1f1f3.png"
-  }
-  option {
     name  = "Japan (Tokyo)"
     value = "japaneast"
-    icon  = "/emojis/1f1ef-1f1f5.png"
-  }
-  option {
-    name  = "Japan (Osaka)"
-    value = "japanwest"
     icon  = "/emojis/1f1ef-1f1f5.png"
   }
   option {
@@ -165,11 +140,6 @@ data "coder_parameter" "location" {
   option {
     name  = "UK (London)"
     value = "uksouth"
-    icon  = "/emojis/1f1ec-1f1e7.png"
-  }
-  option {
-    name  = "UK (Cardiff)"
-    value = "ukwest"
     icon  = "/emojis/1f1ec-1f1e7.png"
   }
 }
