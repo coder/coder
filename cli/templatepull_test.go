@@ -127,7 +127,7 @@ func TestTemplatePull(t *testing.T) {
 		inv, root := clitest.New(t, "templates", "pull", template.Name, actualDest)
 		clitest.SetupConfig(t, client, root)
 
-		_ = ptytest.New(t).Attach(inv)
+		ptytest.New(t).Attach(inv)
 
 		errChan := make(chan error)
 		go func() {

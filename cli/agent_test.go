@@ -209,7 +209,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		inv, cfg := clitest.New(t, "agent", "--auth", "google-instance-identity", "--agent-url", client.URL.String())
-		_ = ptytest.New(t).Attach(inv)
+		ptytest.New(t).Attach(inv)
 		clitest.SetupConfig(t, client, cfg)
 		clitest.Start(t,
 			inv.WithContext(
