@@ -35,10 +35,6 @@ var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
 var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?Z`)
 
-func normalizeNewlines(s []byte) []byte {
-	return bytes.ReplaceAll(s, []byte{'\r', '\n'}, []byte{'\n'})
-}
-
 //nolint:tparallel,paralleltest // These test sets env vars.
 func TestCommandHelp(t *testing.T) {
 	rootClient, replacements := prepareTestData(t)
@@ -164,9 +160,17 @@ ExtractCommandPathsLoop:
 			want, err := os.ReadFile(gf)
 			require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
 
-			// Normalize newlines to tolerate Windows.
-			want = normalizeNewlines(want)
-			got = normalizeNewlines(got)
+			// Normalize files to tolerate different operating systems.
+			for _, r := range []struct {
+				old string
+				new string
+			}{
+				{"\r\n", "\n"},
+				{"~\\.cache\\coder", "~/.cache/coder"},
+			} {
+				want = bytes.ReplaceAll(want, []byte(r.old), []byte(r.new))
+				got = bytes.ReplaceAll(got, []byte(r.old), []byte(r.new))
+			}
 			require.Equal(t, string(want), string(got), "golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes", gf)
 		})
 	}

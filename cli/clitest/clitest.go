@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -129,18 +130,10 @@ func Start(t *testing.T, inv *clibase.Invocation) {
 	closeCh := make(chan struct{})
 	go func() {
 		defer close(closeCh)
-		startedAt := time.Now()
 		err := <-StartErr(t, inv)
 		switch {
 		case errors.Is(err, context.Canceled):
 			return
-		case errors.Is(err, context.DeadlineExceeded):
-			// There are many cases where this error is benign. For example,
-			// when the server is slow to wind-down at the end of a test.
-			t.Logf(
-				"%q timed out after %v",
-				inv.Command.FullName(), time.Since(startedAt),
-			)
 		default:
 			assert.NoError(t, err)
 		}
@@ -177,14 +170,24 @@ func StartErr(t *testing.T, inv *clibase.Invocation) <-chan error {
 
 	ctx, cancel := context.WithDeadline(ctx, deadline)
 
+	var cleaningUp atomic.Bool
+
 	go func() {
 		defer cancel()
 		defer close(errCh)
-		errCh <- inv.WithContext(ctx).Run()
+		err := inv.WithContext(ctx).Run()
+		if cleaningUp.Load() && errors.Is(err, context.DeadlineExceeded) {
+			// If we're cleaning up, this error is likely related to the
+			// CLI teardown process. E.g., the server could be slow to shut
+			// down Postgres.
+			t.Logf("command %q timed out during cleanup", inv.Command.FullName())
+		}
+		errCh <- err
 	}()
 
 	// Don't exit test routine until server is done.
 	t.Cleanup(func() {
+		cleaningUp.Store(true)
 		cancel()
 		<-errCh
 	})
