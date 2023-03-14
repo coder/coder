@@ -932,7 +932,6 @@ export const updateWorkspace = async (
     newBuildParameters,
     templateParameters,
   )
-
   if (missingParameters.length > 0) {
     throw new MissingBuildParameters(missingParameters)
   }

@@ -173,124 +173,22 @@ describe("WorkspacePage", () => {
 
     expect(cancelWorkspaceMock).toBeCalled()
   })
-  it("requests a template when the user presses Update", async () => {
-    const getTemplateMock = jest
-      .spyOn(api, "getTemplate")
-      .mockResolvedValueOnce(MockTemplate)
-    server.use(
-      rest.get(
-        `/api/v2/users/:userId/workspace/:workspaceName`,
-        (req, res, ctx) => {
-          return res(ctx.status(200), ctx.json(MockOutdatedWorkspace))
-        },
-      ),
-    )
 
-    await renderWorkspacePage()
-    const buttonText = t("actionButton.update", { ns: "workspacePage" })
-    const button = await screen.findByText(buttonText, { exact: true })
-    await userEvent.setup().click(button)
+  it("requests an update when the user presses Update", async () => {
+    jest
+      .spyOn(api, "getWorkspaceByOwnerAndName")
+      .mockResolvedValueOnce(MockOutdatedWorkspace)
+    const updateWorkspaceMock = jest
+      .spyOn(api, "updateWorkspace")
+      .mockResolvedValueOnce(MockWorkspaceBuild)
 
-    // getTemplate is called twice: once when the machine starts, and once after the user requests to update
-    expect(getTemplateMock).toBeCalledTimes(2)
-  })
-  it("after an update postWorkspaceBuild is called with the latest template active version id", async () => {
-    jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate) // active_version_id = "test-template-version"
-    jest.spyOn(api, "startWorkspace").mockResolvedValueOnce({
-      ...MockWorkspaceBuild,
-    })
-
-    server.use(
-      rest.get(
-        `/api/v2/users/:userId/workspace/:workspaceName`,
-        (req, res, ctx) => {
-          return res(ctx.status(200), ctx.json(MockOutdatedWorkspace))
-        },
-      ),
-    )
-    await renderWorkspacePage()
-    const buttonText = t("actionButton.update", { ns: "workspacePage" })
-    const button = await screen.findByText(buttonText, { exact: true })
-    await userEvent.setup().click(button)
-
-    await waitFor(() =>
-      expect(api.startWorkspace).toBeCalledWith(
-        "test-outdated-workspace",
-        "test-template-version",
-      ),
+    await testButton(
+      t("actionButton.update", { ns: "workspacePage" }),
+      updateWorkspaceMock,
     )
   })
 
-  it("shows the Stopping status when the workspace is stopping", async () => {
-    await testStatus(
-      MockStoppingWorkspace,
-      t("workspaceStatus.stopping", { ns: "common" }),
-    )
-  })
-  it("shows the Stopped status when the workspace is stopped", async () => {
-    await testStatus(
-      MockStoppedWorkspace,
-      t("workspaceStatus.stopped", { ns: "common" }),
-    )
-  })
-  it("shows the Building status when the workspace is starting", async () => {
-    await testStatus(
-      MockStartingWorkspace,
-      t("workspaceStatus.starting", { ns: "common" }),
-    )
-  })
-  it("shows the Running status when the workspace is running", async () => {
-    await testStatus(
-      MockWorkspace,
-      t("workspaceStatus.running", { ns: "common" }),
-    )
-  })
-  it("shows the Failed status when the workspace is failed or canceled", async () => {
-    await testStatus(
-      MockFailedWorkspace,
-      t("workspaceStatus.failed", { ns: "common" }),
-    )
-  })
-  it("shows the Canceling status when the workspace is canceling", async () => {
-    await testStatus(
-      MockCancelingWorkspace,
-      t("workspaceStatus.canceling", { ns: "common" }),
-    )
-  })
-  it("shows the Canceled status when the workspace is canceling", async () => {
-    await testStatus(
-      MockCanceledWorkspace,
-      t("workspaceStatus.canceled", { ns: "common" }),
-    )
-  })
-  it("shows the Deleting status when the workspace is deleting", async () => {
-    await testStatus(
-      MockDeletingWorkspace,
-      t("workspaceStatus.deleting", { ns: "common" }),
-    )
-  })
-  it("shows the Deleted status when the workspace is deleted", async () => {
-    await testStatus(
-      MockDeletedWorkspace,
-      t("workspaceStatus.deleted", { ns: "common" }),
-    )
-  })
-
-  describe("Timeline", () => {
-    it("shows the timeline build", async () => {
-      await renderWorkspacePage()
-      const table = await screen.findByTestId("builds-table")
-
-      // Wait for the results to be loaded
-      await waitFor(async () => {
-        const rows = table.querySelectorAll("tbody > tr")
-        // Added +1 because of the date row
-        expect(rows).toHaveLength(MockBuilds.length + 1)
-      })
-    })
-  })
-
-  it("Workspace update when having new parameters on the template version", async () => {
+  it("updates the parameters when they are missing during update", async () => {
     // Setup mocks
     const user = userEvent.setup()
     jest
@@ -347,6 +245,81 @@ describe("WorkspacePage", () => {
           value: "2",
         },
       ])
+    })
+  })
+
+  it("shows the Stopping status when the workspace is stopping", async () => {
+    await testStatus(
+      MockStoppingWorkspace,
+      t("workspaceStatus.stopping", { ns: "common" }),
+    )
+  })
+
+  it("shows the Stopped status when the workspace is stopped", async () => {
+    await testStatus(
+      MockStoppedWorkspace,
+      t("workspaceStatus.stopped", { ns: "common" }),
+    )
+  })
+
+  it("shows the Building status when the workspace is starting", async () => {
+    await testStatus(
+      MockStartingWorkspace,
+      t("workspaceStatus.starting", { ns: "common" }),
+    )
+  })
+
+  it("shows the Running status when the workspace is running", async () => {
+    await testStatus(
+      MockWorkspace,
+      t("workspaceStatus.running", { ns: "common" }),
+    )
+  })
+
+  it("shows the Failed status when the workspace is failed or canceled", async () => {
+    await testStatus(
+      MockFailedWorkspace,
+      t("workspaceStatus.failed", { ns: "common" }),
+    )
+  })
+
+  it("shows the Canceling status when the workspace is canceling", async () => {
+    await testStatus(
+      MockCancelingWorkspace,
+      t("workspaceStatus.canceling", { ns: "common" }),
+    )
+  })
+
+  it("shows the Canceled status when the workspace is canceling", async () => {
+    await testStatus(
+      MockCanceledWorkspace,
+      t("workspaceStatus.canceled", { ns: "common" }),
+    )
+  })
+
+  it("shows the Deleting status when the workspace is deleting", async () => {
+    await testStatus(
+      MockDeletingWorkspace,
+      t("workspaceStatus.deleting", { ns: "common" }),
+    )
+  })
+
+  it("shows the Deleted status when the workspace is deleted", async () => {
+    await testStatus(
+      MockDeletedWorkspace,
+      t("workspaceStatus.deleted", { ns: "common" }),
+    )
+  })
+
+  it("shows the timeline build", async () => {
+    await renderWorkspacePage()
+    const table = await screen.findByTestId("builds-table")
+
+    // Wait for the results to be loaded
+    await waitFor(async () => {
+      const rows = table.querySelectorAll("tbody > tr")
+      // Added +1 because of the date row
+      expect(rows).toHaveLength(MockBuilds.length + 1)
     })
   })
 })
