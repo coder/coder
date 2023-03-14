@@ -29,9 +29,7 @@ func TestList(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 		inv, root := clitest.New(t, "ls")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()

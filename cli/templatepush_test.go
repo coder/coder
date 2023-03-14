@@ -48,9 +48,7 @@ func TestTemplatePush(t *testing.T) {
 		})
 		inv, root := clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
 		go func() {
@@ -127,9 +125,7 @@ func TestTemplatePush(t *testing.T) {
 		})
 		inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
 		go func() {

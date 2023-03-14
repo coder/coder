@@ -34,9 +34,7 @@ func TestPortForward(t *testing.T) {
 
 		inv, root := clitest.New(t, "port-forward", "blah")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		inv.Stderr = pty.Output()
 
 		err := inv.Run()
@@ -241,9 +239,7 @@ func TestPortForward(t *testing.T) {
 		// the "local" listeners.
 		inv, root := clitest.New(t, append([]string{"-v", "port-forward", workspace.Name}, flags...)...)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		inv.Stderr = pty.Output()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()

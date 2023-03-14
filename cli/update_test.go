@@ -116,9 +116,7 @@ func TestUpdate(t *testing.T) {
 		inv, root = clitest.New(t, "update", ws.Name)
 		clitest.SetupConfig(t, client, root)
 
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		doneChan := make(chan struct{})
 		go func() {
@@ -208,9 +206,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -305,9 +301,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -352,9 +346,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -402,9 +394,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -470,9 +460,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		inv, root = clitest.New(t, "update", "my-workspace")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -541,9 +529,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		inv, root = clitest.New(t, "update", "my-workspace")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()

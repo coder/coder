@@ -41,9 +41,7 @@ func TestLogin(t *testing.T) {
 		// https://github.com/mattn/go-isatty/issues/59
 		doneChan := make(chan struct{})
 		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
-		pty := ptytest.New(t)
-		root.Stdin = pty.Input()
-		root.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(root)
 		go func() {
 			defer close(doneChan)
 			err := root.Run()
@@ -101,9 +99,7 @@ func TestLogin(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		doneChan := make(chan struct{})
 		root, _ := clitest.New(t, "login", client.URL.String(), "--first-user-username", "testuser", "--first-user-email", "user@coder.com", "--first-user-password", "SomeSecurePassword!", "--first-user-trial")
-		pty := ptytest.New(t)
-		root.Stdin = pty.Input()
-		root.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(root)
 		go func() {
 			defer close(doneChan)
 			err := root.Run()
@@ -123,9 +119,7 @@ func TestLogin(t *testing.T) {
 		// https://github.com/mattn/go-isatty/issues/59
 		doneChan := make(chan struct{})
 		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
-		pty := ptytest.New(t)
-		root.Stdin = pty.Input()
-		root.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(root)
 		go func() {
 			defer close(doneChan)
 			err := root.WithContext(ctx).Run()
@@ -166,9 +160,7 @@ func TestLogin(t *testing.T) {
 
 		doneChan := make(chan struct{})
 		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String(), "--no-open")
-		pty := ptytest.New(t)
-		root.Stdin = pty.Input()
-		root.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(root)
 		go func() {
 			defer close(doneChan)
 			err := root.Run()
@@ -190,9 +182,7 @@ func TestLogin(t *testing.T) {
 		defer cancelFunc()
 		doneChan := make(chan struct{})
 		root, _ := clitest.New(t, "login", client.URL.String(), "--no-open")
-		pty := ptytest.New(t)
-		root.Stdin = pty.Input()
-		root.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(root)
 		go func() {
 			defer close(doneChan)
 			err := root.WithContext(ctx).Run()

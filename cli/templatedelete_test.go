@@ -30,9 +30,7 @@ func TestTemplateDelete(t *testing.T) {
 		inv, root := clitest.New(t, "templates", "delete", template.Name)
 
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
 		go func() {
@@ -94,9 +92,7 @@ func TestTemplateDelete(t *testing.T) {
 
 		inv, root := clitest.New(t, append([]string{"templates", "delete"}, templateNames...)...)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
 		go func() {
@@ -126,9 +122,7 @@ func TestTemplateDelete(t *testing.T) {
 		inv, root := clitest.New(t, "templates", "delete")
 		clitest.SetupConfig(t, client, root)
 
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
 		go func() {

@@ -23,9 +23,7 @@ func TestTemplateVersions(t *testing.T) {
 		inv, root := clitest.New(t, "templates", "versions", "list", template.Name)
 		clitest.SetupConfig(t, client, root)
 
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		errC := make(chan error)
 		go func() {

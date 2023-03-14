@@ -28,9 +28,7 @@ func TestDelete(t *testing.T) {
 		inv, root := clitest.New(t, "delete", workspace.Name, "-y")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -56,9 +54,7 @@ func TestDelete(t *testing.T) {
 
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		inv.Stderr = pty.Output()
 		go func() {
 			defer close(doneChan)
@@ -90,9 +86,7 @@ func TestDelete(t *testing.T) {
 		inv, root := clitest.New(t, "delete", user.Username+"/"+workspace.Name, "-y")
 		clitest.SetupConfig(t, adminClient, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()

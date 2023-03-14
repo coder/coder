@@ -758,8 +758,6 @@ type prettyErrorFormatter struct {
 	w     io.Writer
 }
 
-const arrow = "┗━ "
-
 func (prettyErrorFormatter) prefixLines(spaces int, s string) string {
 	twidth, _, err := terminal.GetSize(0)
 	if err != nil {
@@ -801,6 +799,7 @@ func (p *prettyErrorFormatter) format(err error) {
 		arrowWidth int
 	)
 	if p.level > 0 {
+		const arrow = "┗━ "
 		arrowWidth = utf8.RuneCount([]byte(arrow))
 		padding = strings.Repeat(" ", arrowWidth*p.level)
 		_, _ = fmt.Fprintf(p.w, "%v%v", padding, arrowStyle.Render(arrow))
@@ -815,7 +814,14 @@ func (p *prettyErrorFormatter) format(err error) {
 	}
 
 	if p.level > 0 {
-		_, _ = fmt.Fprintf(p.w, "%s\n", finalErrorStyle.Render(p.prefixLines(len(padding)+arrowWidth, err.Error())))
+		_, _ = fmt.Fprintf(
+			p.w, "%s\n",
+			finalErrorStyle.Render(
+				p.prefixLines(
+					len(padding)+arrowWidth, err.Error(),
+				),
+			),
+		)
 		return
 	}
 	_, _ = fmt.Fprintf(

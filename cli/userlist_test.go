@@ -23,9 +23,7 @@ func TestUserList(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client)
 		inv, root := clitest.New(t, "users", "list")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		errC := make(chan error)
 		go func() {
 			errC <- inv.Run()
@@ -91,9 +89,7 @@ func TestUserShow(t *testing.T) {
 		inv, root := clitest.New(t, "users", "show", otherUser.Username)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()

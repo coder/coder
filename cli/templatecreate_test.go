@@ -57,9 +57,7 @@ func TestTemplateCreate(t *testing.T) {
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
 		go func() {
@@ -128,9 +126,7 @@ func TestTemplateCreate(t *testing.T) {
 		})
 		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
 		go func() {
@@ -168,9 +164,7 @@ func TestTemplateCreate(t *testing.T) {
 		_, _ = parameterFile.WriteString("region: \"bananas\"")
 		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
 		go func() {
@@ -207,9 +201,7 @@ func TestTemplateCreate(t *testing.T) {
 		_, _ = parameterFile.WriteString("zone: \"bananas\"")
 		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
 		go func() {
@@ -328,9 +320,7 @@ func TestTemplateCreate(t *testing.T) {
 		_, _ = variablesFile.WriteString(`second_variable: foobar`)
 		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variables-file", variablesFile.Name())
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
 		go func() {
@@ -384,9 +374,7 @@ func TestTemplateCreate(t *testing.T) {
 		_, _ = variablesFile.WriteString(`first_variable: foobar`)
 		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variables-file", variablesFile.Name())
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
 		go func() {
@@ -428,9 +416,7 @@ func TestTemplateCreate(t *testing.T) {
 			createEchoResponsesWithTemplateVariables(templateVariables))
 		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variable", "first_variable=foobar")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
 		go func() {

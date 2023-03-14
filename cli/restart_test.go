@@ -30,9 +30,7 @@ func TestRestart(t *testing.T) {
 		inv, root := clitest.New(t, "restart", workspace.Name, "--yes")
 		clitest.SetupConfig(t, client, root)
 
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		done := make(chan error, 1)
 		go func() {

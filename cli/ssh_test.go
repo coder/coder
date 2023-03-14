@@ -269,9 +269,7 @@ func TestSSH(t *testing.T) {
 			"--identity-agent", agentSock, // Overrides $SSH_AUTH_SOCK.
 		)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		inv.Stderr = pty.Output()
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()

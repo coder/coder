@@ -34,9 +34,7 @@ func TestShow(t *testing.T) {
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
