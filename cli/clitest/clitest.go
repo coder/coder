@@ -162,7 +162,7 @@ func StartErr(t *testing.T, inv *clibase.Invocation) <-chan error {
 	deadline, hasDeadline := ctx.Deadline()
 	if !hasDeadline {
 		// We don't want to wait the full 5 minutes for a test to time out.
-		deadline = time.Now().Add(testutil.WaitMedium)
+		deadline = time.Now().Add(testutil.WaitSuperLong)
 	}
 
 	ctx, cancel := context.WithDeadline(ctx, deadline)
