@@ -30,14 +30,12 @@ interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
   quotaState: StateFrom<typeof quotaMachine>
   workspaceSend: (event: WorkspaceEvent) => void
-  startupScriptLogs?: Record<string, string> | Error
 }
 
 export const WorkspaceReadyPage = ({
   workspaceState,
   quotaState,
   workspaceSend,
-  startupScriptLogs,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const [_, bannerSend] = useActor(
     workspaceState.children["scheduleBannerMachine"],
@@ -129,7 +127,6 @@ export const WorkspaceReadyPage = ({
         template={template}
         templateParameters={templateParameters}
         quota_budget={quotaState.context.quota?.budget}
-        startupScriptLogs={startupScriptLogs}
       />
       <DeleteDialog
         entity="workspace"

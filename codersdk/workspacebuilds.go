@@ -102,12 +102,6 @@ type WorkspaceBuildParameter struct {
 	Value string `json:"value"`
 }
 
-type StartupScriptLog struct {
-	AgentID uuid.UUID `json:"agent_id"`
-	JobID   uuid.UUID `json:"job_id"`
-	Output  string    `json:"output"`
-}
-
 // WorkspaceBuild returns a single workspace build for a workspace.
 // If history is "", the latest version is returned.
 func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBuild, error) {

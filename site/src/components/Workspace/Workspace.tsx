@@ -1,14 +1,21 @@
 import { makeStyles } from "@material-ui/core/styles"
+import { Avatar } from "components/Avatar/Avatar"
+import { AgentRow } from "components/Resources/AgentRow"
+import {
+  ActiveTransition,
+  WorkspaceBuildProgress
+} from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
-import { FC, useEffect, useState } from "react"
+import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
+import { AlertBanner } from "../AlertBanner/AlertBanner"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
 import {
   PageHeader,
   PageHeaderSubtitle,
-  PageHeaderTitle,
+  PageHeaderTitle
 } from "../PageHeader/PageHeader"
 import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"
@@ -16,14 +23,6 @@ import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
-import { AlertBanner } from "../AlertBanner/AlertBanner"
-import {
-  ActiveTransition,
-  WorkspaceBuildProgress,
-} from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
-import { AgentRow } from "components/Resources/AgentRow"
-import { Avatar } from "components/Avatar/Avatar"
-import { CodeBlock } from "components/CodeBlock/CodeBlock"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -58,7 +57,6 @@ export interface WorkspaceProps {
   template?: TypesGen.Template
   templateParameters?: TypesGen.TemplateVersionParameter[]
   quota_budget?: number
-  startupScriptLogs?: TypesGen.StartupScriptLog[] | Error | unknown
 }
 
 /**
@@ -86,7 +84,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   template,
   templateParameters,
   quota_budget,
-  startupScriptLogs,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
@@ -213,19 +210,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             )}
           />
         )}
-
-        {typeof startupScriptLogs !== "undefined" &&
-          (Array.isArray(startupScriptLogs) ? (
-            startupScriptLogs.map((log) => (
-              <CodeBlock
-                key={log.agent_id}
-                className={styles.logs}
-                lines={log.output ? log.output.split("\n") : "No output"}
-              />
-            ))
-          ) : (
-            <AlertBanner severity="error" error={startupScriptLogs} />
-          ))}
 
         {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
           <AlertBanner
