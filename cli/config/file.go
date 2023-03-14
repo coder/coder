@@ -4,6 +4,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/kirsle/configdir"
 )
 
 const (
@@ -46,10 +48,6 @@ func (r Root) PostgresPort() File {
 	return File(filepath.Join(r.PostgresPath(), "port"))
 }
 
-func (r Root) DeploymentConfigPath() string {
-	return filepath.Join(string(r), "server.yaml")
-}
-
 // File provides convenience methods for interacting with *os.File.
 type File string
 
@@ -60,7 +58,7 @@ func (f File) Delete() error {
 
 // Write writes the string to the file.
 func (f File) Write(s string) error {
-	return write(string(f), 0600, []byte(s))
+	return write(string(f), 0o600, []byte(s))
 }
 
 // Read reads the file to a string.
@@ -72,7 +70,7 @@ func (f File) Read() (string, error) {
 // open opens a file in the configuration directory,
 // creating all intermediate directories.
 func open(path string, flag int, mode os.FileMode) (*os.File, error) {
-	err := os.MkdirAll(filepath.Dir(path), 0750)
+	err := os.MkdirAll(filepath.Dir(path), 0o750)
 	if err != nil {
 		return nil, err
 	}
@@ -97,4 +95,8 @@ func read(path string) ([]byte, error) {
 	}
 	defer fi.Close()
 	return io.ReadAll(fi)
+}
+
+func DefaultDir() string {
+	return configdir.LocalConfig("coderv2")
 }

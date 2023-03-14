@@ -9,14 +9,12 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 )
 
-func Server(vip *viper.Viper, _ func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
+func Server(_ func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
 	root := &cobra.Command{
 		Use:    "server",
 		Short:  "Start a Coder server",
@@ -75,8 +73,6 @@ func Server(vip *viper.Viper, _ func(context.Context, *coderd.Options) (*coderd.
 	createAdminUserCommand.Flags().StringVar(&newUserPassword, "password", "", "The password of the new user. If not specified, you will be prompted via stdin. Consumes $CODER_PASSWORD.")
 
 	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd, createAdminUserCommand)
-
-	deployment.AttachFlags(root.Flags(), vip, false)
 
 	return root
 }

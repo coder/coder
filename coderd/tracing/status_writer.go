@@ -8,8 +8,10 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var _ http.ResponseWriter = (*StatusWriter)(nil)
-var _ http.Hijacker = (*StatusWriter)(nil)
+var (
+	_ http.ResponseWriter = (*StatusWriter)(nil)
+	_ http.Hijacker       = (*StatusWriter)(nil)
+)
 
 // StatusWriter intercepts the status of the request and the response body up
 // to maxBodySize if Status >= 400. It is guaranteed to be the ResponseWriter

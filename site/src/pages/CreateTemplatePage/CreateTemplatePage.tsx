@@ -2,6 +2,7 @@ import { useMachine } from "@xstate/react"
 import { isApiValidationError } from "api/errors"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { Maybe } from "components/Conditionals/Maybe"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 import { Loader } from "components/Loader/Loader"
 import { Stack } from "components/Stack/Stack"
@@ -30,9 +31,19 @@ const CreateTemplatePage: FC = () => {
       },
     },
   })
-  const { starterTemplate, parameters, error, file, jobError, jobLogs } =
-    state.context
+  const {
+    starterTemplate,
+    parameters,
+    error,
+    file,
+    jobError,
+    jobLogs,
+    variables,
+  } = state.context
   const shouldDisplayForm = !state.hasTag("loading")
+  const { entitlements } = useDashboard()
+  const canSetMaxTTL =
+    entitlements.features["advanced_template_scheduling"].enabled
 
   const onCancel = () => {
     navigate(-1)
@@ -56,9 +67,11 @@ const CreateTemplatePage: FC = () => {
 
           {shouldDisplayForm && (
             <CreateTemplateForm
+              canSetMaxTTL={canSetMaxTTL}
               error={error}
               starterTemplate={starterTemplate}
               isSubmitting={state.hasTag("submitting")}
+              variables={variables}
               parameters={parameters}
               onCancel={onCancel}
               onSubmit={(data) => {

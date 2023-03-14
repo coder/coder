@@ -27,3 +27,13 @@ func IsUniqueViolation(err error, uniqueConstraints ...UniqueConstraint) bool {
 
 	return false
 }
+
+// IsQueryCanceledError checks if the error is due to a query being canceled.
+func IsQueryCanceledError(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return pqErr.Code.Name() == "query_canceled"
+	}
+
+	return false
+}

@@ -30,12 +30,19 @@ import (
 )
 
 const (
-	MissingParameterErrorText = "missing parameter"
+	MissingParameterErrorCode = "MISSING_TEMPLATE_PARAMETER"
+	missingParameterErrorText = "missing parameter"
+
+	RequiredTemplateVariablesErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
+	requiredTemplateVariablesErrorText = "required template variables"
 )
 
-var (
-	errUpdateSkipped = xerrors.New("update skipped; job complete or failed")
-)
+var errorCodes = map[string]string{
+	MissingParameterErrorCode:          missingParameterErrorText,
+	RequiredTemplateVariablesErrorCode: requiredTemplateVariablesErrorText,
+}
+
+var errUpdateSkipped = xerrors.New("update skipped; job complete or failed")
 
 type Runner struct {
 	tracer              trace.Tracer
@@ -79,6 +86,8 @@ type Metrics struct {
 	ConcurrentJobs *prometheus.GaugeVec
 	// JobTimings also counts the total amount of jobs.
 	JobTimings *prometheus.HistogramVec
+	// WorkspaceBuilds counts workspace build successes and failures.
+	WorkspaceBuilds *prometheus.CounterVec
 }
 
 type JobUpdater interface {
@@ -115,13 +124,26 @@ func New(
 	forceStopContext, forceStopFunc := context.WithCancel(ctx)
 	gracefulContext, cancelFunc := context.WithCancel(forceStopContext)
 
+	logger := opts.Logger.With(slog.F("job_id", job.JobId))
+	if build := job.GetWorkspaceBuild(); build != nil {
+		logger = logger.With(
+			slog.F("template_name", build.Metadata.TemplateName),
+			slog.F("template_version", build.Metadata.TemplateVersion),
+			slog.F("workspace_build_id", build.WorkspaceBuildId),
+			slog.F("workspace_id", build.Metadata.WorkspaceId),
+			slog.F("workspace_name", build.Metadata.WorkspaceName),
+			slog.F("workspace_owner", build.Metadata.WorkspaceOwner),
+			slog.F("workspace_transition", strings.ToLower(build.Metadata.WorkspaceTransition.String())),
+		)
+	}
+
 	return &Runner{
 		tracer:              opts.Tracer,
 		metrics:             opts.Metrics,
 		job:                 job,
 		sender:              opts.Updater,
 		quotaCommitter:      opts.QuotaCommitter,
-		logger:              opts.Logger.With(slog.F("job_id", job.JobId)),
+		logger:              logger,
 		filesystem:          opts.Filesystem,
 		workDirectory:       opts.WorkDirectory,
 		provisioner:         opts.Provisioner,
@@ -163,6 +185,16 @@ func (r *Runner) Run() {
 		}
 
 		concurrentGauge.Dec()
+		if build := r.job.GetWorkspaceBuild(); build != nil {
+			r.metrics.WorkspaceBuilds.WithLabelValues(
+				build.Metadata.WorkspaceOwner,
+				build.Metadata.WorkspaceName,
+				build.Metadata.TemplateName,
+				build.Metadata.TemplateVersion,
+				build.Metadata.WorkspaceTransition.String(),
+				status,
+			).Inc()
+		}
 		r.metrics.JobTimings.WithLabelValues(r.job.Provisioner, status).Observe(time.Since(start).Seconds())
 	}()
 
@@ -345,7 +377,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
-	err := r.filesystem.MkdirAll(r.workDirectory, 0700)
+	err := r.filesystem.MkdirAll(r.workDirectory, 0o700)
 	if err != nil {
 		return nil, r.failedJobf("create work directory %q: %s", r.workDirectory, err)
 	}
@@ -380,7 +412,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 		}
 		mode := header.FileInfo().Mode()
 		if mode == 0 {
-			mode = 0600
+			mode = 0o600
 		}
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -566,7 +598,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	for _, parameterSchema := range parameterSchemas {
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
-			return nil, r.failedJobf("%s: %s", MissingParameterErrorText, parameterSchema.Name)
+			return nil, r.failedJobf("%s: %s", missingParameterErrorText, parameterSchema.Name)
 		}
 	}
 
@@ -577,7 +609,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		Stage:     "Detecting persistent resources",
 		CreatedAt: time.Now().UnixMilli(),
 	})
-	startResources, parameters, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, updateResponse.VariableValues, &sdkproto.Provision_Metadata{
+	startProvision, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, updateResponse.VariableValues, &sdkproto.Provision_Metadata{
 		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_START,
 	})
@@ -592,7 +624,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		Stage:     "Detecting ephemeral resources",
 		CreatedAt: time.Now().UnixMilli(),
 	})
-	stopResources, _, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, updateResponse.VariableValues, &sdkproto.Provision_Metadata{
+	stopProvision, err := r.runTemplateImportProvision(ctx, updateResponse.ParameterValues, updateResponse.VariableValues, &sdkproto.Provision_Metadata{
 		CoderUrl:            r.job.GetTemplateImport().Metadata.CoderUrl,
 		WorkspaceTransition: sdkproto.WorkspaceTransition_STOP,
 	})
@@ -604,9 +636,10 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		JobId: r.job.JobId,
 		Type: &proto.CompletedJob_TemplateImport_{
 			TemplateImport: &proto.CompletedJob_TemplateImport{
-				StartResources: startResources,
-				StopResources:  stopResources,
-				RichParameters: parameters,
+				StartResources:   startProvision.Resources,
+				StopResources:    stopProvision.Resources,
+				RichParameters:   startProvision.Parameters,
+				GitAuthProviders: startProvision.GitAuthProviders,
 			},
 		},
 	}, nil
@@ -657,16 +690,22 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Parame
 	}
 }
 
+type templateImportProvision struct {
+	Resources        []*sdkproto.Resource
+	Parameters       []*sdkproto.RichParameter
+	GitAuthProviders []string
+}
+
 // Performs a dry-run provision when importing a template.
 // This is used to detect resources that would be provisioned for a workspace in various states.
 // It doesn't define values for rich parameters as they're unknown during template import.
-func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkproto.ParameterValue, variableValues []*sdkproto.VariableValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, []*sdkproto.RichParameter, error) {
+func (r *Runner) runTemplateImportProvision(ctx context.Context, values []*sdkproto.ParameterValue, variableValues []*sdkproto.VariableValue, metadata *sdkproto.Provision_Metadata) (*templateImportProvision, error) {
 	return r.runTemplateImportProvisionWithRichParameters(ctx, values, variableValues, nil, metadata)
 }
 
 // Performs a dry-run provision with provided rich parameters.
 // This is used to detect resources that would be provisioned for a workspace in various states.
-func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Context, values []*sdkproto.ParameterValue, variableValues []*sdkproto.VariableValue, richParameterValues []*sdkproto.RichParameterValue, metadata *sdkproto.Provision_Metadata) ([]*sdkproto.Resource, []*sdkproto.RichParameter, error) {
+func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Context, values []*sdkproto.ParameterValue, variableValues []*sdkproto.VariableValue, richParameterValues []*sdkproto.RichParameterValue, metadata *sdkproto.Provision_Metadata) (*templateImportProvision, error) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -681,7 +720,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 	// to send the cancel to the provisioner
 	stream, err := r.provisioner.Provision(ctx)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("provision: %w", err)
+		return nil, xerrors.Errorf("provision: %w", err)
 	}
 	defer stream.Close()
 	go func() {
@@ -710,13 +749,13 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 		},
 	})
 	if err != nil {
-		return nil, nil, xerrors.Errorf("start provision: %w", err)
+		return nil, xerrors.Errorf("start provision: %w", err)
 	}
 
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			return nil, nil, xerrors.Errorf("recv import provision: %w", err)
+			return nil, xerrors.Errorf("recv import provision: %w", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
@@ -737,12 +776,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 					slog.F("error", msgType.Complete.Error),
 				)
 
-				return nil, nil, xerrors.New(msgType.Complete.Error)
-			}
-
-			if len(msgType.Complete.Parameters) > 0 && len(values) > 0 {
-				r.logger.Info(context.Background(), "template uses rich parameters which can't be used together with legacy parameters")
-				return nil, nil, xerrors.Errorf("invalid use of rich parameters")
+				return nil, xerrors.New(msgType.Complete.Error)
 			}
 
 			r.logger.Info(context.Background(), "parse dry-run provision successful",
@@ -751,9 +785,13 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 				slog.F("state_length", len(msgType.Complete.State)),
 			)
 
-			return msgType.Complete.Resources, msgType.Complete.Parameters, nil
+			return &templateImportProvision{
+				Resources:        msgType.Complete.Resources,
+				Parameters:       msgType.Complete.Parameters,
+				GitAuthProviders: msgType.Complete.GitAuthProviders,
+			}, nil
 		default:
-			return nil, nil, xerrors.Errorf("invalid message type %q received from provisioner",
+			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
 				reflect.TypeOf(msg.Type).String())
 		}
 	}
@@ -792,7 +830,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 	}
 
 	// Run the template import provision task since it's already a dry run.
-	resources, _, err := r.runTemplateImportProvisionWithRichParameters(ctx,
+	provision, err := r.runTemplateImportProvisionWithRichParameters(ctx,
 		r.job.GetTemplateDryRun().GetParameterValues(),
 		r.job.GetTemplateDryRun().GetVariableValues(),
 		r.job.GetTemplateDryRun().GetRichParameterValues(),
@@ -806,7 +844,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 		JobId: r.job.JobId,
 		Type: &proto.CompletedJob_TemplateDryRun_{
 			TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
-				Resources: resources,
+				Resources: provision.Resources,
 			},
 		},
 	}, nil
@@ -847,7 +885,7 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
-			r.logger.Debug(context.Background(), "workspace provision job logged",
+			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "workspace provisioner job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 				slog.F("workspace_build_id", r.job.GetWorkspaceBuild().WorkspaceBuildId),
@@ -862,8 +900,9 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 			})
 		case *sdkproto.Provision_Response_Complete:
 			if msgType.Complete.Error != "" {
-				r.logger.Info(context.Background(), "provision failed; updating state",
+				r.logger.Warn(context.Background(), "provision failed; updating state",
 					slog.F("state_length", len(msgType.Complete.State)),
+					slog.F("error", msgType.Complete.Error),
 				)
 
 				return nil, &proto.FailedJob{
@@ -877,7 +916,6 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 				}
 			}
 
-			r.logger.Debug(context.Background(), "provision complete no error")
 			r.logger.Info(context.Background(), "provision successful",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
@@ -1019,9 +1057,19 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 }
 
 func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob {
+	message := fmt.Sprintf(format, args...)
+	var code string
+
+	for c, m := range errorCodes {
+		if strings.Contains(message, m) {
+			code = c
+			break
+		}
+	}
 	return &proto.FailedJob{
-		JobId: r.job.JobId,
-		Error: fmt.Sprintf(format, args...),
+		JobId:     r.job.JobId,
+		Error:     message,
+		ErrorCode: code,
 	}
 }
 
@@ -1087,4 +1135,22 @@ func redactVariableValues(variableValues []*sdkproto.VariableValue) []*sdkproto.
 		redacted = append(redacted, v)
 	}
 	return redacted
+}
+
+// logProvisionerJobLog logs a message from the provisioner daemon at the appropriate level.
+func (r *Runner) logProvisionerJobLog(ctx context.Context, logLevel sdkproto.LogLevel, msg string, fields ...slog.Field) {
+	switch logLevel {
+	case sdkproto.LogLevel_TRACE:
+		r.logger.Debug(ctx, msg, fields...) // There's no trace, so we'll just use debug.
+	case sdkproto.LogLevel_DEBUG:
+		r.logger.Debug(ctx, msg, fields...)
+	case sdkproto.LogLevel_INFO:
+		r.logger.Info(ctx, msg, fields...)
+	case sdkproto.LogLevel_WARN:
+		r.logger.Warn(ctx, msg, fields...)
+	case sdkproto.LogLevel_ERROR:
+		r.logger.Error(ctx, msg, fields...)
+	default: // should never happen, but we should not explode either.
+		r.logger.Info(ctx, msg, fields...)
+	}
 }

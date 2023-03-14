@@ -3,6 +3,7 @@ package metricscache
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -25,34 +26,56 @@ import (
 // take a few hundred milliseconds, which would ruin page load times and
 // database performance if in the hot path.
 type Cache struct {
-	database database.Store
-	log      slog.Logger
+	database  database.Store
+	log       slog.Logger
+	intervals Intervals
 
 	deploymentDAUResponses   atomic.Pointer[codersdk.DeploymentDAUsResponse]
 	templateDAUResponses     atomic.Pointer[map[uuid.UUID]codersdk.TemplateDAUsResponse]
 	templateUniqueUsers      atomic.Pointer[map[uuid.UUID]int]
 	templateAverageBuildTime atomic.Pointer[map[uuid.UUID]database.GetTemplateAverageBuildTimeRow]
+	deploymentStatsResponse  atomic.Pointer[codersdk.DeploymentStats]
 
 	done   chan struct{}
 	cancel func()
-
-	interval time.Duration
 }
 
-func New(db database.Store, log slog.Logger, interval time.Duration) *Cache {
-	if interval <= 0 {
-		interval = time.Hour
+type Intervals struct {
+	TemplateDAUs    time.Duration
+	DeploymentStats time.Duration
+}
+
+func New(db database.Store, log slog.Logger, intervals Intervals) *Cache {
+	if intervals.TemplateDAUs <= 0 {
+		intervals.TemplateDAUs = time.Hour
+	}
+	if intervals.DeploymentStats <= 0 {
+		intervals.DeploymentStats = time.Minute
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &Cache{
-		database: db,
-		log:      log,
-		done:     make(chan struct{}),
-		cancel:   cancel,
-		interval: interval,
+		database:  db,
+		intervals: intervals,
+		log:       log,
+		done:      make(chan struct{}),
+		cancel:    cancel,
 	}
-	go c.run(ctx)
+	go func() {
+		var wg sync.WaitGroup
+		defer close(c.done)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.run(ctx, "template daus", intervals.TemplateDAUs, c.refreshTemplateDAUs)
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.run(ctx, "deployment stats", intervals.DeploymentStats, c.refreshDeploymentStats)
+		}()
+		wg.Wait()
+	}()
 	return c
 }
 
@@ -142,10 +165,10 @@ func countUniqueUsers(rows []database.GetTemplateDAUsRow) int {
 	return len(seen)
 }
 
-func (c *Cache) refresh(ctx context.Context) error {
+func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 	//nolint:gocritic // This is a system service.
 	ctx = dbauthz.AsSystemRestricted(ctx)
-	err := c.database.DeleteOldAgentStats(ctx)
+	err := c.database.DeleteOldWorkspaceAgentStats(ctx)
 	if err != nil {
 		return xerrors.Errorf("delete old stats: %w", err)
 	}
@@ -187,7 +210,6 @@ func (c *Cache) refresh(ctx context.Context) error {
 				Valid: true,
 			},
 		})
-
 		if err != nil {
 			return err
 		}
@@ -200,16 +222,51 @@ func (c *Cache) refresh(ctx context.Context) error {
 	return nil
 }
 
-func (c *Cache) run(ctx context.Context) {
-	defer close(c.done)
+func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
+	from := database.Now().Add(-15 * time.Minute)
+	agentStats, err := c.database.GetDeploymentWorkspaceAgentStats(ctx, from)
+	if err != nil {
+		return err
+	}
+	workspaceStats, err := c.database.GetDeploymentWorkspaceStats(ctx)
+	if err != nil {
+		return err
+	}
+	c.deploymentStatsResponse.Store(&codersdk.DeploymentStats{
+		AggregatedFrom: from,
+		CollectedAt:    database.Now(),
+		NextUpdateAt:   database.Now().Add(c.intervals.DeploymentStats),
+		Workspaces: codersdk.WorkspaceDeploymentStats{
+			Pending:  workspaceStats.PendingWorkspaces,
+			Building: workspaceStats.BuildingWorkspaces,
+			Running:  workspaceStats.RunningWorkspaces,
+			Failed:   workspaceStats.FailedWorkspaces,
+			Stopped:  workspaceStats.StoppedWorkspaces,
+			ConnectionLatencyMS: codersdk.WorkspaceConnectionLatencyMS{
+				P50: agentStats.WorkspaceConnectionLatency50,
+				P95: agentStats.WorkspaceConnectionLatency95,
+			},
+			RxBytes: agentStats.WorkspaceRxBytes,
+			TxBytes: agentStats.WorkspaceTxBytes,
+		},
+		SessionCount: codersdk.SessionCountDeploymentStats{
+			VSCode:          agentStats.SessionCountVSCode,
+			SSH:             agentStats.SessionCountSSH,
+			JetBrains:       agentStats.SessionCountJetBrains,
+			ReconnectingPTY: agentStats.SessionCountReconnectingPTY,
+		},
+	})
+	return nil
+}
 
-	ticker := time.NewTicker(c.interval)
+func (c *Cache) run(ctx context.Context, name string, interval time.Duration, refresh func(context.Context) error) {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
 		for r := retry.New(time.Millisecond*100, time.Minute); r.Wait(ctx); {
 			start := time.Now()
-			err := c.refresh(ctx)
+			err := refresh(ctx)
 			if err != nil {
 				if ctx.Err() != nil {
 					return
@@ -219,9 +276,9 @@ func (c *Cache) run(ctx context.Context) {
 			}
 			c.log.Debug(
 				ctx,
-				"metrics refreshed",
+				name+" metrics refreshed",
 				slog.F("took", time.Since(start)),
-				slog.F("interval", c.interval),
+				slog.F("interval", interval),
 			)
 			break
 		}
@@ -322,4 +379,12 @@ func (c *Cache) TemplateBuildTimeStats(id uuid.UUID) codersdk.TemplateBuildTimeS
 			P95: convertMillis(resp.Delete95),
 		},
 	}
+}
+
+func (c *Cache) DeploymentStats() (codersdk.DeploymentStats, bool) {
+	deploymentStats := c.deploymentStatsResponse.Load()
+	if deploymentStats == nil {
+		return codersdk.DeploymentStats{}, false
+	}
+	return *deploymentStats, true
 }

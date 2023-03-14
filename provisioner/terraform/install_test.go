@@ -18,6 +18,9 @@ import (
 
 func TestInstall(t *testing.T) {
 	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
 	ctx := context.Background()
 	dir := t.TempDir()
 	log := slogtest.Make(t, nil)

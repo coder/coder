@@ -25,12 +25,10 @@ import (
 	"github.com/coder/coder/coderd/util/slice"
 )
 
-var (
-	skipMethods = map[string]string{
-		"InTx": "Not relevant",
-		"Ping": "Not relevant",
-	}
-)
+var skipMethods = map[string]string{
+	"InTx": "Not relevant",
+	"Ping": "Not relevant",
+}
 
 // TestMethodTestSuite runs MethodTestSuite.
 // In order for 'go test' to run this suite, we need to create
@@ -273,7 +271,7 @@ func splitResp(t *testing.T, values []reflect.Value) ([]reflect.Value, error) {
 			return outputs, err
 		}
 		outputs = append(outputs, r)
-	} //nolint: unreachable
+	}
 	t.Fatal("no expected error value found in responses (error can be nil)")
 	return nil, nil // unreachable, required to compile
 }

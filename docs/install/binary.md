@@ -1,4 +1,4 @@
-Coder publishes self-contained .zip and .tar.gz archives in [GitHub releases](https://github.com/coder//latest). The archives bundle `coder` binary.
+Coder publishes self-contained .zip and .tar.gz archives in [GitHub releases](https://github.com/coder/coder/releases/latest). The archives bundle `coder` binary.
 
 1. Download the [release archive](https://github.com/coder/coder/releases/latest) appropriate for your operating system
 

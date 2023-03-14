@@ -93,7 +93,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.AppearanceConfig"
+                            "$ref": "#/definitions/codersdk.UpdateAppearanceConfig"
                         }
                     }
                 ],
@@ -101,7 +101,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.AppearanceConfig"
+                            "$ref": "#/definitions/codersdk.UpdateAppearanceConfig"
                         }
                     }
                 }
@@ -304,31 +304,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/config/deployment": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "General"
-                ],
-                "summary": "Get deployment config",
-                "operationId": "get-deployment-config",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.DeploymentConfig"
-                        }
-                    }
-                }
-            }
-        },
         "/csp/reports": {
             "post": {
                 "security": [
@@ -380,6 +355,56 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    }
+                }
+            }
+        },
+        "/deployment/config": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get deployment config",
+                "operationId": "get-deployment-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeploymentConfig"
+                        }
+                    }
+                }
+            }
+        },
+        "/deployment/stats": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get deployment stats",
+                "operationId": "get-deployment-stats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeploymentStats"
+                        }
                     }
                 }
             }
@@ -1473,7 +1498,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.CreateTemplateVersionDryRunRequest"
+                            "$ref": "#/definitions/codersdk.CreateTemplateVersionRequest"
                         }
                     }
                 ],
@@ -2485,6 +2510,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/gitauth": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get git auth by template version",
+                "operationId": "get-git-auth-by-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.TemplateVersionGitAuth"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/logs": {
             "get": {
                 "security": [
@@ -3299,6 +3362,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/keys/tokens/{keyname}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get API key by token name",
+                "operationId": "get-api-key-by-token-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Key Name",
+                        "name": "keyname",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.APIKey"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/keys/{keyid}": {
             "get": {
                 "security": [
@@ -3312,8 +3417,8 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Get API key",
-                "operationId": "get-api-key",
+                "summary": "Get API key by ID",
+                "operationId": "get-api-key-by-id",
                 "parameters": [
                     {
                         "type": "string",
@@ -5118,6 +5223,12 @@ const docTemplate = `{
                 "motd_file": {
                     "type": "string"
                 },
+                "shutdown_script": {
+                    "type": "string"
+                },
+                "shutdown_script_timeout": {
+                    "type": "integer"
+                },
                 "startup_script": {
                     "type": "string"
                 },
@@ -5163,16 +5274,20 @@ const docTemplate = `{
         "agentsdk.Stats": {
             "type": "object",
             "properties": {
-                "conns_by_proto": {
-                    "description": "ConnsByProto is a count of connections by protocol.",
+                "connection_count": {
+                    "description": "ConnectionCount is the number of connections received by an agent.",
+                    "type": "integer"
+                },
+                "connection_median_latency_ms": {
+                    "description": "ConnectionMedianLatencyMS is the median latency of all connections in milliseconds.",
+                    "type": "number"
+                },
+                "connections_by_proto": {
+                    "description": "ConnectionsByProto is a count of connections by protocol.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "integer"
                     }
-                },
-                "num_comms": {
-                    "description": "NumConns is the number of connections received by an agent.",
-                    "type": "integer"
                 },
                 "rx_bytes": {
                     "description": "RxBytes is the number of received bytes.",
@@ -5180,6 +5295,22 @@ const docTemplate = `{
                 },
                 "rx_packets": {
                     "description": "RxPackets is the number of received packets.",
+                    "type": "integer"
+                },
+                "session_count_jetbrains": {
+                    "description": "SessionCountJetBrains is the number of connections received by an agent\nthat are from our JetBrains extension.",
+                    "type": "integer"
+                },
+                "session_count_reconnecting_pty": {
+                    "description": "SessionCountReconnectingPTY is the number of connections received by an agent\nthat are from the reconnecting web terminal.",
+                    "type": "integer"
+                },
+                "session_count_ssh": {
+                    "description": "SessionCountSSH is the number of connections received by an agent\nthat are normal, non-tagged SSH sessions.",
+                    "type": "integer"
+                },
+                "session_count_vscode": {
+                    "description": "SessionCountVSCode is the number of connections received by an agent\nthat are from our VS Code extension.",
                     "type": "integer"
                 },
                 "tx_bytes": {
@@ -5198,6 +5329,177 @@ const docTemplate = `{
                 "report_interval": {
                     "description": "ReportInterval is the duration after which the agent should send stats\nagain.",
                     "type": "integer"
+                }
+            }
+        },
+        "clibase.Annotations": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
+            }
+        },
+        "clibase.Group": {
+            "type": "object",
+            "properties": {
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/clibase.Group"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parent": {
+                    "$ref": "#/definitions/clibase.Group"
+                }
+            }
+        },
+        "clibase.HostPort": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "string"
+                }
+            }
+        },
+        "clibase.Option": {
+            "type": "object",
+            "properties": {
+                "annotations": {
+                    "description": "Annotations enable extensions to clibase higher up in the stack. It's useful for\nhelp formatting and documentation generation.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/clibase.Annotations"
+                        }
+                    ]
+                },
+                "default": {
+                    "description": "Default is parsed into Value if set.",
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "env": {
+                    "description": "Env is the environment variable used to configure this option. If unset,\nenvironment configuring is disabled.",
+                    "type": "string"
+                },
+                "flag": {
+                    "description": "Flag is the long name of the flag used to configure this option. If unset,\nflag configuring is disabled.",
+                    "type": "string"
+                },
+                "flag_shorthand": {
+                    "description": "FlagShorthand is the one-character shorthand for the flag. If unset, no\nshorthand is used.",
+                    "type": "string"
+                },
+                "group": {
+                    "description": "Group is a group hierarchy that helps organize this option in help, configs\nand other documentation.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/clibase.Group"
+                        }
+                    ]
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "use_instead": {
+                    "description": "UseInstead is a list of options that should be used instead of this one.\nThe field is used to generate a deprecation warning.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/clibase.Option"
+                    }
+                },
+                "value": {
+                    "description": "Value includes the types listed in values.go."
+                },
+                "yaml": {
+                    "description": "YAML is the YAML key used to configure this option. If unset, YAML\nconfiguring is disabled.",
+                    "type": "string"
+                }
+            }
+        },
+        "clibase.Struct-array_codersdk_GitAuthConfig": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.GitAuthConfig"
+                    }
+                }
+            }
+        },
+        "clibase.Struct-array_codersdk_LinkConfig": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.LinkConfig"
+                    }
+                }
+            }
+        },
+        "clibase.URL": {
+            "type": "object",
+            "properties": {
+                "forceQuery": {
+                    "description": "append a query ('?') even if RawQuery is empty",
+                    "type": "boolean"
+                },
+                "fragment": {
+                    "description": "fragment for references, without '#'",
+                    "type": "string"
+                },
+                "host": {
+                    "description": "host or host:port",
+                    "type": "string"
+                },
+                "omitHost": {
+                    "description": "do not emit empty host (authority)",
+                    "type": "boolean"
+                },
+                "opaque": {
+                    "description": "encoded opaque data",
+                    "type": "string"
+                },
+                "path": {
+                    "description": "path (relative paths may omit leading slash)",
+                    "type": "string"
+                },
+                "rawFragment": {
+                    "description": "encoded fragment hint (see EscapedFragment method)",
+                    "type": "string"
+                },
+                "rawPath": {
+                    "description": "encoded path hint (see EscapedPath method)",
+                    "type": "string"
+                },
+                "rawQuery": {
+                    "description": "encoded query values, without '?'",
+                    "type": "string"
+                },
+                "scheme": {
+                    "type": "string"
+                },
+                "user": {
+                    "description": "username and password information",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/url.Userinfo"
+                        }
+                    ]
                 }
             }
         },
@@ -5284,6 +5586,7 @@ const docTemplate = `{
                 "lifetime_seconds",
                 "login_type",
                 "scope",
+                "token_name",
                 "updated_at",
                 "user_id"
             ],
@@ -5329,6 +5632,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.APIKeyScope"
                         }
                     ]
+                },
+                "token_name": {
+                    "type": "string"
                 },
                 "updated_at": {
                     "type": "string",
@@ -5379,6 +5685,12 @@ const docTemplate = `{
                 },
                 "service_banner": {
                     "$ref": "#/definitions/codersdk.ServiceBannerConfig"
+                },
+                "support_links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.LinkConfig"
+                    }
                 }
             }
         },
@@ -5759,6 +6071,10 @@ const docTemplate = `{
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
                     "type": "string"
                 },
+                "max_ttl_ms": {
+                    "description": "MaxTTLMillis allows optionally specifying the max lifetime for\nworkspaces created from this template.",
+                    "type": "integer"
+                },
                 "name": {
                     "description": "Name is the name of the template.",
                     "type": "string"
@@ -5799,6 +6115,66 @@ const docTemplate = `{
                 },
                 "workspace_name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateTemplateVersionRequest": {
+            "type": "object",
+            "required": [
+                "provisioner",
+                "storage_method"
+            ],
+            "properties": {
+                "example_id": {
+                    "type": "string"
+                },
+                "file_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameter_values": {
+                    "description": "ParameterValues allows for additional parameters to be provided\nduring the dry-run provision stage.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.CreateParameterRequest"
+                    }
+                },
+                "provisioner": {
+                    "type": "string",
+                    "enum": [
+                        "terraform",
+                        "echo"
+                    ]
+                },
+                "storage_method": {
+                    "enum": [
+                        "file"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerStorageMethod"
+                        }
+                    ]
+                },
+                "tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "template_id": {
+                    "description": "TemplateID optionally associates a version with a template.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "user_variable_values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.VariableValue"
+                    }
                 }
             }
         },
@@ -5879,6 +6255,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.APIKeyScope"
                         }
                     ]
+                },
+                "token_name": {
+                    "type": "string"
                 }
             }
         },
@@ -6020,10 +6399,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "path": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "url": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 }
             }
         },
@@ -6042,22 +6421,25 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "enable": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "region_code": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "region_id": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
+                    "type": "integer"
                 },
                 "region_name": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "relay_url": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "$ref": "#/definitions/clibase.URL"
                 },
                 "stun_addresses": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -6065,44 +6447,98 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "allow_path_app_sharing": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "allow_path_app_site_owner_access": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 }
             }
         },
         "codersdk.DeploymentConfig": {
             "type": "object",
             "properties": {
+                "config": {
+                    "$ref": "#/definitions/codersdk.DeploymentValues"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/clibase.Option"
+                    }
+                }
+            }
+        },
+        "codersdk.DeploymentDAUsResponse": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DAUEntry"
+                    }
+                }
+            }
+        },
+        "codersdk.DeploymentStats": {
+            "type": "object",
+            "properties": {
+                "aggregated_from": {
+                    "description": "AggregatedFrom is the time in which stats are aggregated from.\nThis might be back in time a specific duration or interval.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "collected_at": {
+                    "description": "CollectedAt is the time in which stats are collected at.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "next_update_at": {
+                    "description": "NextUpdateAt is the time when the next batch of stats will\nbe updated.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "session_count": {
+                    "$ref": "#/definitions/codersdk.SessionCountDeploymentStats"
+                },
+                "workspaces": {
+                    "$ref": "#/definitions/codersdk.WorkspaceDeploymentStats"
+                }
+            }
+        },
+        "codersdk.DeploymentValues": {
+            "type": "object",
+            "properties": {
                 "access_url": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "$ref": "#/definitions/clibase.URL"
                 },
                 "address": {
                     "description": "DEPRECATED: Use HTTPAddress or TLS.Address instead.",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                            "$ref": "#/definitions/clibase.HostPort"
                         }
                     ]
                 },
                 "agent_fallback_troubleshooting_url": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "$ref": "#/definitions/clibase.URL"
                 },
                 "agent_stat_refresh_interval": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
+                    "type": "integer"
                 },
                 "audit_logging": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "autobuild_poll_interval": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
+                    "type": "integer"
                 },
                 "browser_only": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "cache_directory": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
+                },
+                "config": {
+                    "type": "string"
                 },
                 "dangerous": {
                     "$ref": "#/definitions/codersdk.DangerousConfig"
@@ -6111,45 +6547,41 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.DERP"
                 },
                 "disable_password_auth": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "disable_path_apps": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "disable_session_expiry_refresh": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
-                },
-                "experimental": {
-                    "description": "DEPRECATED: Use Experiments instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
-                        }
-                    ]
+                    "type": "boolean"
                 },
                 "experiments": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
-                "gitauth": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig"
+                "git_auth": {
+                    "$ref": "#/definitions/clibase.Struct-array_codersdk_GitAuthConfig"
                 },
                 "http_address": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "description": "HTTPAddress is a string because it may be set to zero to disable.",
+                    "type": "string"
                 },
                 "in_memory_database": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "logging": {
                     "$ref": "#/definitions/codersdk.LoggingConfig"
                 },
                 "max_session_expiry": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
+                    "type": "integer"
                 },
                 "max_token_lifetime": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
+                    "type": "integer"
                 },
                 "metrics_cache_refresh_interval": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
+                    "type": "integer"
                 },
                 "oauth2": {
                     "$ref": "#/definitions/codersdk.OAuth2Config"
@@ -6158,7 +6590,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.OIDCConfig"
                 },
                 "pg_connection_url": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "pprof": {
                     "$ref": "#/definitions/codersdk.PprofConfig"
@@ -6170,31 +6602,43 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ProvisionerConfig"
                 },
                 "proxy_trusted_headers": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "proxy_trusted_origins": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "rate_limit": {
                     "$ref": "#/definitions/codersdk.RateLimitConfig"
                 },
                 "redirect_to_access_url": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "scim_api_key": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "secure_auth_cookie": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "ssh_keygen_algorithm": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "strict_transport_security": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
+                    "type": "integer"
                 },
                 "strict_transport_security_options": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "support": {
+                    "$ref": "#/definitions/codersdk.SupportConfig"
                 },
                 "swagger": {
                     "$ref": "#/definitions/codersdk.SwaggerConfig"
@@ -6209,225 +6653,16 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.TraceConfig"
                 },
                 "update_check": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
+                },
+                "verbose": {
+                    "type": "boolean"
                 },
                 "wildcard_access_url": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
-                }
-            }
-        },
-        "codersdk.DeploymentConfigField-array_codersdk_GitAuthConfig": {
-            "type": "object",
-            "properties": {
-                "default": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.GitAuthConfig"
-                    }
+                    "$ref": "#/definitions/clibase.URL"
                 },
-                "enterprise": {
+                "write_config": {
                     "type": "boolean"
-                },
-                "flag": {
-                    "type": "string"
-                },
-                "hidden": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "secret": {
-                    "type": "boolean"
-                },
-                "shorthand": {
-                    "type": "string"
-                },
-                "usage": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.GitAuthConfig"
-                    }
-                }
-            }
-        },
-        "codersdk.DeploymentConfigField-array_string": {
-            "type": "object",
-            "properties": {
-                "default": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "enterprise": {
-                    "type": "boolean"
-                },
-                "flag": {
-                    "type": "string"
-                },
-                "hidden": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "secret": {
-                    "type": "boolean"
-                },
-                "shorthand": {
-                    "type": "string"
-                },
-                "usage": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "codersdk.DeploymentConfigField-bool": {
-            "type": "object",
-            "properties": {
-                "default": {
-                    "type": "boolean"
-                },
-                "enterprise": {
-                    "type": "boolean"
-                },
-                "flag": {
-                    "type": "string"
-                },
-                "hidden": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "secret": {
-                    "type": "boolean"
-                },
-                "shorthand": {
-                    "type": "string"
-                },
-                "usage": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "codersdk.DeploymentConfigField-int": {
-            "type": "object",
-            "properties": {
-                "default": {
-                    "type": "integer"
-                },
-                "enterprise": {
-                    "type": "boolean"
-                },
-                "flag": {
-                    "type": "string"
-                },
-                "hidden": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "secret": {
-                    "type": "boolean"
-                },
-                "shorthand": {
-                    "type": "string"
-                },
-                "usage": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "integer"
-                }
-            }
-        },
-        "codersdk.DeploymentConfigField-string": {
-            "type": "object",
-            "properties": {
-                "default": {
-                    "type": "string"
-                },
-                "enterprise": {
-                    "type": "boolean"
-                },
-                "flag": {
-                    "type": "string"
-                },
-                "hidden": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "secret": {
-                    "type": "boolean"
-                },
-                "shorthand": {
-                    "type": "string"
-                },
-                "usage": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.DeploymentConfigField-time_Duration": {
-            "type": "object",
-            "properties": {
-                "default": {
-                    "type": "integer"
-                },
-                "enterprise": {
-                    "type": "boolean"
-                },
-                "flag": {
-                    "type": "string"
-                },
-                "hidden": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "secret": {
-                    "type": "boolean"
-                },
-                "shorthand": {
-                    "type": "string"
-                },
-                "usage": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "integer"
-                }
-            }
-        },
-        "codersdk.DeploymentDAUsResponse": {
-            "type": "object",
-            "properties": {
-                "entries": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.DAUEntry"
-                    }
                 }
             }
         },
@@ -6452,10 +6687,6 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
-                },
-                "experimental": {
-                    "description": "DEPRECATED: use Experiments instead.",
-                    "type": "boolean"
                 },
                 "features": {
                     "type": "object",
@@ -6565,6 +6796,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GitProvider": {
+            "type": "string",
+            "enum": [
+                "azure-devops",
+                "github",
+                "gitlab",
+                "bitbucket"
+            ],
+            "x-enum-varnames": [
+                "GitProviderAzureDevops",
+                "GitProviderGitHub",
+                "GitProviderGitLab",
+                "GitProviderBitBucket"
+            ]
+        },
         "codersdk.GitSSHKey": {
             "type": "object",
             "properties": {
@@ -6630,6 +6876,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.JobErrorCode": {
+            "type": "string",
+            "enum": [
+                "MISSING_TEMPLATE_PARAMETER",
+                "REQUIRED_TEMPLATE_VARIABLES"
+            ],
+            "x-enum-varnames": [
+                "MissingTemplateParameter",
+                "RequiredTemplateVariables"
+            ]
+        },
         "codersdk.License": {
             "type": "object",
             "properties": {
@@ -6648,6 +6905,20 @@ const docTemplate = `{
                 "uuid": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.LinkConfig": {
+            "type": "object",
+            "properties": {
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "string"
                 }
             }
         },
@@ -6683,13 +6954,13 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "human": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "json": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "stackdriver": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 }
             }
         },
@@ -6747,25 +7018,31 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "allow_everyone": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "allow_signups": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "allowed_orgs": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "allowed_teams": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "client_id": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "client_secret": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "enterprise_base_url": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 }
             }
         },
@@ -6787,34 +7064,43 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "allow_signups": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "client_id": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "client_secret": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "email_domain": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "groups_field": {
+                    "type": "string"
                 },
                 "icon_url": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "$ref": "#/definitions/clibase.URL"
                 },
                 "ignore_email_verified": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "issuer_url": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "scopes": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "sign_in_text": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "username_field": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 }
             }
         },
@@ -7052,10 +7338,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "$ref": "#/definitions/clibase.HostPort"
                 },
                 "enable": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 }
             }
         },
@@ -7063,10 +7349,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "$ref": "#/definitions/clibase.HostPort"
                 },
                 "enable": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 }
             }
         },
@@ -7074,16 +7360,16 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "daemon_poll_interval": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
+                    "type": "integer"
                 },
                 "daemon_poll_jitter": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
+                    "type": "integer"
                 },
                 "daemons": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
+                    "type": "integer"
                 },
                 "force_cancel_interval": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-time_Duration"
+                    "type": "integer"
                 }
             }
         },
@@ -7140,6 +7426,17 @@ const docTemplate = `{
                 },
                 "error": {
                     "type": "string"
+                },
+                "error_code": {
+                    "enum": [
+                        "MISSING_TEMPLATE_PARAMETER",
+                        "REQUIRED_TEMPLATE_VARIABLES"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.JobErrorCode"
+                        }
+                    ]
                 },
                 "file_id": {
                     "type": "string",
@@ -7234,6 +7531,15 @@ const docTemplate = `{
                 "ProvisionerJobFailed"
             ]
         },
+        "codersdk.ProvisionerStorageMethod": {
+            "type": "string",
+            "enum": [
+                "file"
+            ],
+            "x-enum-varnames": [
+                "ProvisionerStorageMethodFile"
+            ]
+        },
         "codersdk.PutExtendWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -7250,10 +7556,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "api": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-int"
+                    "type": "integer"
                 },
                 "disable_all": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 }
             }
         },
@@ -7362,11 +7668,36 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.SessionCountDeploymentStats": {
+            "type": "object",
+            "properties": {
+                "jetbrains": {
+                    "type": "integer"
+                },
+                "reconnecting_pty": {
+                    "type": "integer"
+                },
+                "ssh": {
+                    "type": "integer"
+                },
+                "vscode": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.SupportConfig": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "$ref": "#/definitions/clibase.Struct-array_codersdk_LinkConfig"
+                }
+            }
+        },
         "codersdk.SwaggerConfig": {
             "type": "object",
             "properties": {
                 "enable": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 }
             }
         },
@@ -7374,34 +7705,40 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "$ref": "#/definitions/clibase.HostPort"
                 },
                 "cert_file": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "client_auth": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "client_ca_file": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "client_cert_file": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "client_key_file": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "enable": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "key_file": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-array_string"
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "min_version": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 },
                 "redirect_http": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 }
             }
         },
@@ -7409,13 +7746,13 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "enable": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "trace": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "url": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "$ref": "#/definitions/clibase.URL"
                 }
             }
         },
@@ -7462,6 +7799,10 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "max_ttl_ms": {
+                    "description": "MaxTTLMillis is an enterprise feature. It's value is only used if your\nlicense is entitled to use the advanced template scheduling feature.",
+                    "type": "integer"
                 },
                 "name": {
                     "type": "string"
@@ -7648,6 +7989,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateVersionGitAuth": {
+            "type": "object",
+            "properties": {
+                "authenticate_url": {
+                    "type": "string"
+                },
+                "authenticated": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.GitProvider"
+                }
+            }
+        },
         "codersdk.TemplateVersionParameter": {
             "type": "object",
             "properties": {
@@ -7663,6 +8021,9 @@ const docTemplate = `{
                 "icon": {
                     "type": "string"
                 },
+                "legacy_variable_name": {
+                    "type": "string"
+                },
                 "mutable": {
                     "type": "boolean"
                 },
@@ -7674,6 +8035,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.TemplateVersionParameterOption"
                     }
+                },
+                "required": {
+                    "type": "boolean"
                 },
                 "type": {
                     "type": "string",
@@ -7760,13 +8124,13 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "capture_logs": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "enable": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-bool"
+                    "type": "boolean"
                 },
                 "honeycomb_api_key": {
-                    "$ref": "#/definitions/codersdk.DeploymentConfigField-string"
+                    "type": "string"
                 }
             }
         },
@@ -7792,6 +8156,17 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UpdateAppearanceConfig": {
+            "type": "object",
+            "properties": {
+                "logo_url": {
+                    "type": "string"
+                },
+                "service_banner": {
+                    "$ref": "#/definitions/codersdk.ServiceBannerConfig"
                 }
             }
         },
@@ -8137,6 +8512,12 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "shutdown_script": {
+                    "type": "string"
+                },
+                "shutdown_script_timeout_seconds": {
+                    "type": "integer"
+                },
                 "startup_script": {
                     "type": "string"
                 },
@@ -8174,14 +8555,22 @@ const docTemplate = `{
                 "starting",
                 "start_timeout",
                 "start_error",
-                "ready"
+                "ready",
+                "shutting_down",
+                "shutdown_timeout",
+                "shutdown_error",
+                "off"
             ],
             "x-enum-varnames": [
                 "WorkspaceAgentLifecycleCreated",
                 "WorkspaceAgentLifecycleStarting",
                 "WorkspaceAgentLifecycleStartTimeout",
                 "WorkspaceAgentLifecycleStartError",
-                "WorkspaceAgentLifecycleReady"
+                "WorkspaceAgentLifecycleReady",
+                "WorkspaceAgentLifecycleShuttingDown",
+                "WorkspaceAgentLifecycleShutdownTimeout",
+                "WorkspaceAgentLifecycleShutdownError",
+                "WorkspaceAgentLifecycleOff"
             ]
         },
         "codersdk.WorkspaceAgentListeningPort": {
@@ -8345,6 +8734,10 @@ const docTemplate = `{
                 "job": {
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
                 },
+                "max_deadline": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "reason": {
                     "enum": [
                         "initiator",
@@ -8429,6 +8822,46 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceConnectionLatencyMS": {
+            "type": "object",
+            "properties": {
+                "p50": {
+                    "type": "number"
+                },
+                "p95": {
+                    "type": "number"
+                }
+            }
+        },
+        "codersdk.WorkspaceDeploymentStats": {
+            "type": "object",
+            "properties": {
+                "building": {
+                    "type": "integer"
+                },
+                "connection_latency_ms": {
+                    "$ref": "#/definitions/codersdk.WorkspaceConnectionLatencyMS"
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "pending": {
+                    "type": "integer"
+                },
+                "running": {
+                    "type": "integer"
+                },
+                "rx_bytes": {
+                    "type": "integer"
+                },
+                "stopped": {
+                    "type": "integer"
+                },
+                "tx_bytes": {
+                    "type": "integer"
                 }
             }
         },
@@ -8754,6 +9187,9 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "url.Userinfo": {
+            "type": "object"
         }
     },
     "securityDefinitions": {

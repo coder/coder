@@ -176,7 +176,9 @@ type ReconnectingPTYRequest struct {
 func (c *WorkspaceAgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, width uint16, command string) (net.Conn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-
+	if !c.AwaitReachable(ctx) {
+		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
+	}
 	conn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(WorkspaceAgentIP, WorkspaceAgentReconnectingPTYPort))
 	if err != nil {
 		return nil, err
@@ -207,6 +209,9 @@ func (c *WorkspaceAgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, 
 func (c *WorkspaceAgentConn) SSH(ctx context.Context) (net.Conn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+	if !c.AwaitReachable(ctx) {
+		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
+	}
 	return c.DialContextTCP(ctx, netip.AddrPortFrom(WorkspaceAgentIP, WorkspaceAgentSSHPort))
 }
 
@@ -235,6 +240,9 @@ func (c *WorkspaceAgentConn) SSHClient(ctx context.Context) (*ssh.Client, error)
 func (c *WorkspaceAgentConn) Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+	if !c.AwaitReachable(ctx) {
+		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
+	}
 	speedConn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(WorkspaceAgentIP, WorkspaceAgentSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("dial speedtest: %w", err)
@@ -257,6 +265,9 @@ func (c *WorkspaceAgentConn) DialContext(ctx context.Context, network string, ad
 	_, rawPort, _ := net.SplitHostPort(addr)
 	port, _ := strconv.ParseUint(rawPort, 10, 16)
 	ipp := netip.AddrPortFrom(WorkspaceAgentIP, uint16(port))
+	if !c.AwaitReachable(ctx) {
+		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
+	}
 	if network == "udp" {
 		return c.Conn.DialContextUDP(ctx, ipp)
 	}
@@ -317,7 +328,7 @@ func (c *WorkspaceAgentConn) apiClient() *http.Client {
 			// Disable keep alives as we're usually only making a single
 			// request, and this triggers goleak in tests
 			DisableKeepAlives: true,
-			DialContext: func(_ context.Context, network, addr string) (net.Conn, error) {
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				if network != "tcp" {
 					return nil, xerrors.Errorf("network must be tcp")
 				}
@@ -331,7 +342,11 @@ func (c *WorkspaceAgentConn) apiClient() *http.Client {
 					return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
 				}
 
-				conn, err := c.DialContextTCP(context.Background(), netip.AddrPortFrom(WorkspaceAgentIP, WorkspaceAgentHTTPAPIServerPort))
+				if !c.AwaitReachable(ctx) {
+					return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
+				}
+
+				conn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(WorkspaceAgentIP, WorkspaceAgentHTTPAPIServerPort))
 				if err != nil {
 					return nil, xerrors.Errorf("dial http api: %w", err)
 				}

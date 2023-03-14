@@ -1,6 +1,10 @@
 # Authentication
 
-By default, Coder is accessible via password authentication.
+By default, Coder is accessible via password authentication. Coder does not
+recommend using password authentication in production, and recommends using an
+authentication provider with properly configured multi-factor authentication
+(MFA). It is your responsibility to ensure the auth provider enforces MFA
+correctly.
 
 The following steps explain how to set up GitHub OAuth or OpenID Connect.
 
@@ -46,6 +50,10 @@ CODER_OAUTH2_GITHUB_ALLOW_EVERYONE=true
 
 Once complete, run `sudo service coder restart` to reboot Coder.
 
+> We recommend requiring and auditing MFA usage for all users in your GitHub
+> organizations. This can be enforced from the organization settings page in the
+> "Authentication security" sidebar tab.
+
 ## GitLab
 
 ### Step 1: Configure the OAuth application in your GitLab instance
@@ -75,6 +83,12 @@ CODER_OIDC_CLIENT_SECRET="G0CSP...7qSM"
 ```
 
 Once complete, run `sudo service coder restart` to reboot Coder.
+
+> We recommend requiring and auditing MFA usage for all users in your GitLab
+> organizations or deployment. This can be enforced for an organization from the
+> organization settings page in the "Permissions and group features" section.
+> For deployments, this can be enforced in the Admin area, under the "Settings >
+> General" sidebar tab in the "Sign-in restrictions" section.
 
 ### Additional Notes
 
@@ -169,7 +183,9 @@ CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 If your OpenID Connect provider supports group claims, you can configure Coder
 to synchronize groups in your auth provider to groups within Coder.
 
-To enable group sync, ensure that the `group` claim is set:
+To enable group sync, ensure that the `groups` claim is set. If group sync is
+enabled, the user's groups will be controlled by the OIDC provider. This means
+manual group additions/removals will be overwritten on the next login.
 
 ```console
 # as an environment variable

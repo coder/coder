@@ -281,6 +281,7 @@ export const TemplatePermissionsPageView: FC<
                             {
                               label: "Remove",
                               onClick: () => onRemoveGroup(group),
+                              disabled: false,
                             },
                           ]}
                         />
@@ -328,6 +329,7 @@ export const TemplatePermissionsPageView: FC<
                             {
                               label: "Remove",
                               onClick: () => onRemoveUser(user),
+                              disabled: false,
                             },
                           ]}
                         />

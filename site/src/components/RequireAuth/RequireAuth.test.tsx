@@ -1,6 +1,5 @@
 import { screen } from "@testing-library/react"
 import { rest } from "msw"
-import { Route } from "react-router-dom"
 import { renderWithAuth } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
 
@@ -20,7 +19,12 @@ describe("RequireAuth", () => {
     )
 
     renderWithAuth(<h1>Test</h1>, {
-      routes: <Route path="setup" element={<h1>Setup</h1>} />,
+      nonAuthenticatedRoutes: [
+        {
+          path: "setup",
+          element: <h1>Setup</h1>,
+        },
+      ],
     })
 
     await screen.findByText("Setup")

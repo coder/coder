@@ -73,6 +73,12 @@ Use the following `make` commands and scripts in development:
 - `make install` installs binaries to `$GOPATH/bin`
 - `make test`
 
+### Running Coder on development mode
+
+- Run `./scripts/develop.sh`
+- Access `http://localhost:8080`
+- The default user is `admin@coder.com` and the default password is `SomeSecurePassword!`
+
 ### Adding database migrations and fixtures
 
 #### Database migrations

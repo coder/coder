@@ -135,6 +135,12 @@
           "description": "Use docker inside containerized templates",
           "path": "./templates/docker-in-docker.md",
           "icon_path": "./images/icons/docker.svg"
+        },
+        {
+          "title": "Parameters",
+          "description": "Use parameters to customize templates",
+          "path": "./templates/parameters.md",
+          "icon_path": "./images/icons/code.svg"
         }
       ]
     },
@@ -260,6 +266,13 @@
           "icon_path": "./images/icons/scale.svg"
         },
         {
+          "title": "External Provisioners",
+          "description": "Run provisioners isolated from the Coder server",
+          "path": "./admin/provisioners.md",
+          "icon_path": "./images/icons/queue.svg",
+          "state": "enterprise"
+        },
+        {
           "title": "Audit Logs",
           "description": "Learn how to use Audit Logs in your Coder deployment",
           "path": "./admin/audit-logs.md",
@@ -298,6 +311,13 @@
           "description": "Learn what usage telemetry Coder collects",
           "path": "./admin/telemetry.md",
           "icon_path": "./images/icons/science.svg"
+        },
+        {
+          "title": "Support Links",
+          "description": "Learn how to configure Support Links",
+          "path": "./admin/support-links.md",
+          "icon_path": "./images/icons/link.svg",
+          "state": "enterprise"
         }
       ]
     },
@@ -423,13 +443,9 @@
     {
       "title": "Command Line",
       "description": "Learn how to use Coder CLI",
-      "path": "./cli/coder.md",
+      "path": "./cli.md",
       "icon_path": "./images/icons/terminal.svg",
       "children": [
-        {
-          "title": "coder",
-          "path": "./cli/coder.md"
-        },
         {
           "title": "config-ssh",
           "path": "./cli/coder_config-ssh.md"

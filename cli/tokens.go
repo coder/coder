@@ -2,10 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/cliflag"
@@ -49,10 +51,11 @@ func tokens() *cobra.Command {
 func createToken() *cobra.Command {
 	var (
 		tokenLifetime time.Duration
+		name          string
 	)
 	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Create a tokens",
+		Short: "Create a token",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := CreateClient(cmd)
 			if err != nil {
@@ -60,7 +63,8 @@ func createToken() *cobra.Command {
 			}
 
 			res, err := client.CreateToken(cmd.Context(), codersdk.Me, codersdk.CreateTokenRequest{
-				Lifetime: tokenLifetime,
+				Lifetime:  tokenLifetime,
+				TokenName: name,
 			})
 			if err != nil {
 				return xerrors.Errorf("create tokens: %w", err)
@@ -81,16 +85,52 @@ func createToken() *cobra.Command {
 	}
 
 	cliflag.DurationVarP(cmd.Flags(), &tokenLifetime, "lifetime", "", "CODER_TOKEN_LIFETIME", 30*24*time.Hour, "Specify a duration for the lifetime of the token.")
+	cmd.Flags().StringVarP(&name, "name", "n", "", "Specify a human-readable name.")
 
 	return cmd
 }
 
-func listTokens() *cobra.Command {
-	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]codersdk.APIKey{}, nil),
-		cliui.JSONFormat(),
-	)
+// tokenListRow is the type provided to the OutputFormatter.
+type tokenListRow struct {
+	// For JSON format:
+	codersdk.APIKey `table:"-"`
 
+	// For table format:
+	ID        string    `json:"-" table:"id,default_sort"`
+	TokenName string    `json:"token_name" table:"name"`
+	LastUsed  time.Time `json:"-" table:"last used"`
+	ExpiresAt time.Time `json:"-" table:"expires at"`
+	CreatedAt time.Time `json:"-" table:"created at"`
+	Owner     string    `json:"-" table:"owner"`
+}
+
+func tokenListRowFromToken(token codersdk.APIKeyWithOwner) tokenListRow {
+	return tokenListRow{
+		APIKey:    token.APIKey,
+		ID:        token.ID,
+		TokenName: token.TokenName,
+		LastUsed:  token.LastUsed,
+		ExpiresAt: token.ExpiresAt,
+		CreatedAt: token.CreatedAt,
+		Owner:     token.Username,
+	}
+}
+
+func listTokens() *cobra.Command {
+	// we only display the 'owner' column if the --all argument is passed in
+	defaultCols := []string{"id", "name", "last used", "expires at", "created at"}
+	if slices.Contains(os.Args, "-a") || slices.Contains(os.Args, "--all") {
+		defaultCols = append(defaultCols, "owner")
+	}
+
+	var (
+		all           bool
+		displayTokens []tokenListRow
+		formatter     = cliui.NewOutputFormatter(
+			cliui.TableFormat([]tokenListRow{}, defaultCols),
+			cliui.JSONFormat(),
+		)
+	)
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"ls"},
@@ -101,18 +141,26 @@ func listTokens() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			keys, err := client.Tokens(cmd.Context(), codersdk.Me)
+			tokens, err := client.Tokens(cmd.Context(), codersdk.Me, codersdk.TokensFilter{
+				IncludeAll: all,
+			})
 			if err != nil {
-				return xerrors.Errorf("create tokens: %w", err)
+				return xerrors.Errorf("list tokens: %w", err)
 			}
 
-			if len(keys) == 0 {
+			if len(tokens) == 0 {
 				cmd.Println(cliui.Styles.Wrap.Render(
 					"No tokens found.",
 				))
 			}
 
-			out, err := formatter.Format(cmd.Context(), keys)
+			displayTokens = make([]tokenListRow, len(tokens))
+
+			for i, token := range tokens {
+				displayTokens[i] = tokenListRowFromToken(token)
+			}
+
+			out, err := formatter.Format(cmd.Context(), displayTokens)
 			if err != nil {
 				return err
 			}
@@ -122,13 +170,16 @@ func listTokens() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVarP(&all, "all", "a", false,
+		"Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).")
+
 	formatter.AttachFlags(cmd)
 	return cmd
 }
 
 func removeToken() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "remove [id]",
+		Use:     "remove [name]",
 		Aliases: []string{"rm"},
 		Short:   "Delete a token",
 		Args:    cobra.ExactArgs(1),
@@ -138,7 +189,12 @@ func removeToken() *cobra.Command {
 				return xerrors.Errorf("create codersdk client: %w", err)
 			}
 
-			err = client.DeleteAPIKey(cmd.Context(), codersdk.Me, args[0])
+			token, err := client.APIKeyByName(cmd.Context(), codersdk.Me, args[0])
+			if err != nil {
+				return xerrors.Errorf("fetch api key by name %s: %w", args[0], err)
+			}
+
+			err = client.DeleteAPIKey(cmd.Context(), codersdk.Me, token.ID)
 			if err != nil {
 				return xerrors.Errorf("delete api key: %w", err)
 			}

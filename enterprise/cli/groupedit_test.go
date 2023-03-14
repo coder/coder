@@ -49,9 +49,7 @@ func TestGroupEdit(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		var (
-			expectedName = "beta"
-		)
+		expectedName := "beta"
 
 		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(),
 			"groups", "edit", group.Name,

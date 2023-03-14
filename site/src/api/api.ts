@@ -1,6 +1,7 @@
 import axios, { AxiosRequestHeaders } from "axios"
 import dayjs from "dayjs"
 import * as Types from "./types"
+import { DeploymentConfig } from "./types"
 import * as TypesGen from "./typesGenerated"
 
 export const hardCodedCSRFCookie = (): string => {
@@ -101,9 +102,19 @@ export const logout = async (): Promise<void> => {
   await axios.post("/api/v2/users/logout")
 }
 
-export const getUser = async (): Promise<TypesGen.User> => {
-  const response = await axios.get<TypesGen.User>("/api/v2/users/me")
-  return response.data
+export const getAuthenticatedUser = async (): Promise<
+  TypesGen.User | undefined
+> => {
+  try {
+    const response = await axios.get<TypesGen.User>("/api/v2/users/me")
+    return response.data
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      return undefined
+    }
+
+    throw error
+  }
 }
 
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
@@ -130,9 +141,14 @@ export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
   return response.data
 }
 
-export const getTokens = async (): Promise<TypesGen.APIKey[]> => {
-  const response = await axios.get<TypesGen.APIKey[]>(
-    "/api/v2/users/me/keys/tokens",
+export const getTokens = async (
+  params: TypesGen.TokensFilter,
+): Promise<TypesGen.APIKeyWithOwner[]> => {
+  const response = await axios.get<TypesGen.APIKeyWithOwner[]>(
+    `/api/v2/users/me/keys/tokens`,
+    {
+      params,
+    },
   )
   return response.data
 }
@@ -220,6 +236,15 @@ export const getTemplateVersionResources = async (
   return response.data
 }
 
+export const getTemplateVersionVariables = async (
+  versionId: string,
+): Promise<TypesGen.TemplateVersionVariable[]> => {
+  const response = await axios.get<TypesGen.TemplateVersionVariable[]>(
+    `/api/v2/templateversions/${versionId}/variables`,
+  )
+  return response.data
+}
+
 export const getTemplateVersions = async (
   templateId: string,
 ): Promise<TypesGen.TemplateVersion[]> => {
@@ -276,6 +301,15 @@ export const createTemplateVersion = async (
   const response = await axios.post<TypesGen.TemplateVersion>(
     `/api/v2/organizations/${organizationId}/templateversions`,
     data,
+  )
+  return response.data
+}
+
+export const getTemplateVersionGitAuth = async (
+  versionId: string,
+): Promise<TypesGen.TemplateVersionGitAuth[]> => {
+  const response = await axios.get(
+    `/api/v2/templateversions/${versionId}/gitauth`,
   )
   return response.data
 }
@@ -651,7 +685,6 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
     if (axios.isAxiosError(ex) && ex.response?.status === 404) {
       return {
         errors: [],
-        experimental: false,
         features: withDefaultFeatures({}),
         has_license: false,
         require_telemetry: false,
@@ -773,9 +806,14 @@ export const getAgentListeningPorts = async (
   return response.data
 }
 
-export const getDeploymentConfig =
-  async (): Promise<TypesGen.DeploymentConfig> => {
-    const response = await axios.get(`/api/v2/config/deployment`)
+export const getDeploymentValues = async (): Promise<DeploymentConfig> => {
+  const response = await axios.get(`/api/v2/deployment/config`)
+  return response.data
+}
+
+export const getDeploymentStats =
+  async (): Promise<TypesGen.DeploymentStats> => {
+    const response = await axios.get(`/api/v2/deployment/stats`)
     return response.data
   }
 
@@ -858,4 +896,83 @@ export const getWorkspaceBuildParameters = async (
     `/api/v2/workspacebuilds/${workspaceBuildId}/parameters`,
   )
   return response.data
+}
+
+export class MissingBuildParameters extends Error {
+  parameters: TypesGen.TemplateVersionParameter[] = []
+
+  constructor(parameters: TypesGen.TemplateVersionParameter[]) {
+    super("Missing build parameters.")
+    this.parameters = parameters
+  }
+}
+
+/** Steps to update the workspace
+ * - Get the latest template to access the latest active version
+ * - Get the current build parameters
+ * - Get the template parameters
+ * - Update the build parameters and check if there are missed parameters for the newest version
+ *   - If there are missing parameters raise an error
+ * - Create a build with the latest version and updated build parameters
+ */
+export const updateWorkspace = async (
+  workspace: TypesGen.Workspace,
+  newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+): Promise<TypesGen.WorkspaceBuild> => {
+  const [template, oldBuildParameters] = await Promise.all([
+    getTemplate(workspace.template_id),
+    getWorkspaceBuildParameters(workspace.latest_build.id),
+  ])
+  const activeVersionId = template.active_version_id
+  const templateParameters = await getTemplateVersionRichParameters(
+    activeVersionId,
+  )
+  const [updatedBuildParameters, missingParameters] = updateBuildParameters(
+    oldBuildParameters,
+    newBuildParameters,
+    templateParameters,
+  )
+  if (missingParameters.length > 0) {
+    throw new MissingBuildParameters(missingParameters)
+  }
+
+  return postWorkspaceBuild(workspace.id, {
+    transition: "start",
+    template_version_id: activeVersionId,
+    rich_parameter_values: updatedBuildParameters,
+  })
+}
+
+const updateBuildParameters = (
+  oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
+  newBuildParameters: TypesGen.WorkspaceBuildParameter[],
+  templateParameters: TypesGen.TemplateVersionParameter[],
+) => {
+  const missingParameters: TypesGen.TemplateVersionParameter[] = []
+  const updatedBuildParameters: TypesGen.WorkspaceBuildParameter[] = []
+
+  for (const parameter of templateParameters) {
+    // Check if there is a new value
+    let buildParameter = newBuildParameters.find(
+      (p) => p.name === parameter.name,
+    )
+
+    // If not, get the old one
+    if (!buildParameter) {
+      buildParameter = oldBuildParameters.find((p) => p.name === parameter.name)
+    }
+
+    // If there is a value from the new or old one, add it to the list
+    if (buildParameter) {
+      updatedBuildParameters.push(buildParameter)
+      continue
+    }
+
+    // If there is no value and it is required, add it to the list of missing parameters
+    if (parameter.required) {
+      missingParameters.push(parameter)
+    }
+  }
+
+  return [updatedBuildParameters, missingParameters] as const
 }

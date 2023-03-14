@@ -16,19 +16,21 @@ import (
 
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
-	Auth                        string            `mapstructure:"auth"`
-	OperatingSystem             string            `mapstructure:"os"`
-	Architecture                string            `mapstructure:"arch"`
-	Directory                   string            `mapstructure:"dir"`
-	ID                          string            `mapstructure:"id"`
-	Token                       string            `mapstructure:"token"`
-	Env                         map[string]string `mapstructure:"env"`
-	StartupScript               string            `mapstructure:"startup_script"`
-	ConnectionTimeoutSeconds    int32             `mapstructure:"connection_timeout"`
-	TroubleshootingURL          string            `mapstructure:"troubleshooting_url"`
-	MOTDFile                    string            `mapstructure:"motd_file"`
-	LoginBeforeReady            bool              `mapstructure:"login_before_ready"`
-	StartupScriptTimeoutSeconds int32             `mapstructure:"startup_script_timeout"`
+	Auth                         string            `mapstructure:"auth"`
+	OperatingSystem              string            `mapstructure:"os"`
+	Architecture                 string            `mapstructure:"arch"`
+	Directory                    string            `mapstructure:"dir"`
+	ID                           string            `mapstructure:"id"`
+	Token                        string            `mapstructure:"token"`
+	Env                          map[string]string `mapstructure:"env"`
+	StartupScript                string            `mapstructure:"startup_script"`
+	ConnectionTimeoutSeconds     int32             `mapstructure:"connection_timeout"`
+	TroubleshootingURL           string            `mapstructure:"troubleshooting_url"`
+	MOTDFile                     string            `mapstructure:"motd_file"`
+	LoginBeforeReady             bool              `mapstructure:"login_before_ready"`
+	StartupScriptTimeoutSeconds  int32             `mapstructure:"startup_script_timeout"`
+	ShutdownScript               string            `mapstructure:"shutdown_script"`
+	ShutdownScriptTimeoutSeconds int32             `mapstructure:"shutdown_script_timeout"`
 }
 
 // A mapping of attributes on the "coder_app" resource.
@@ -72,17 +74,23 @@ type metadataItem struct {
 	IsNull    bool   `mapstructure:"is_null"`
 }
 
-// ConvertResourcesAndParameters consumes Terraform state and a GraphViz representation
+type State struct {
+	Resources        []*proto.Resource
+	Parameters       []*proto.RichParameter
+	GitAuthProviders []string
+}
+
+// ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
 // nolint:gocyclo
-func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph string) ([]*proto.Resource, []*proto.RichParameter, error) {
+func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("parse graph: %w", err)
+		return nil, xerrors.Errorf("parse graph: %w", err)
 	}
 	graph, err := gographviz.NewAnalysedGraph(parsedGraph)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("analyze graph: %w", err)
+		return nil, xerrors.Errorf("analyze graph: %w", err)
 	}
 
 	resources := make([]*proto.Resource, 0)
@@ -90,7 +98,7 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 
 	// Indexes Terraform resources by their label.
 	// The label is what "terraform graph" uses to reference nodes.
-	tfResourcesByLabel := map[string][]*tfjson.StateResource{}
+	tfResourcesByLabel := map[string]map[string]*tfjson.StateResource{}
 	var findTerraformResources func(mod *tfjson.StateModule)
 	findTerraformResources = func(mod *tfjson.StateModule) {
 		for _, module := range mod.ChildModules {
@@ -99,9 +107,9 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 		for _, resource := range mod.Resources {
 			label := convertAddressToLabel(resource.Address)
 			if tfResourcesByLabel[label] == nil {
-				tfResourcesByLabel[label] = []*tfjson.StateResource{}
+				tfResourcesByLabel[label] = map[string]*tfjson.StateResource{}
 			}
-			tfResourcesByLabel[label] = append(tfResourcesByLabel[label], resource)
+			tfResourcesByLabel[label][resource.Address] = resource
 		}
 	}
 	for _, module := range modules {
@@ -118,11 +126,11 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 			var attrs agentAttributes
 			err = mapstructure.Decode(tfResource.AttributeValues, &attrs)
 			if err != nil {
-				return nil, nil, xerrors.Errorf("decode agent attributes: %w", err)
+				return nil, xerrors.Errorf("decode agent attributes: %w", err)
 			}
 
 			if _, ok := agentNames[tfResource.Name]; ok {
-				return nil, nil, xerrors.Errorf("duplicate agent name: %s", tfResource.Name)
+				return nil, xerrors.Errorf("duplicate agent name: %s", tfResource.Name)
 			}
 			agentNames[tfResource.Name] = struct{}{}
 
@@ -133,18 +141,20 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 			}
 
 			agent := &proto.Agent{
-				Name:                        tfResource.Name,
-				Id:                          attrs.ID,
-				Env:                         attrs.Env,
-				StartupScript:               attrs.StartupScript,
-				OperatingSystem:             attrs.OperatingSystem,
-				Architecture:                attrs.Architecture,
-				Directory:                   attrs.Directory,
-				ConnectionTimeoutSeconds:    attrs.ConnectionTimeoutSeconds,
-				TroubleshootingUrl:          attrs.TroubleshootingURL,
-				MotdFile:                    attrs.MOTDFile,
-				LoginBeforeReady:            loginBeforeReady,
-				StartupScriptTimeoutSeconds: attrs.StartupScriptTimeoutSeconds,
+				Name:                         tfResource.Name,
+				Id:                           attrs.ID,
+				Env:                          attrs.Env,
+				StartupScript:                attrs.StartupScript,
+				OperatingSystem:              attrs.OperatingSystem,
+				Architecture:                 attrs.Architecture,
+				Directory:                    attrs.Directory,
+				ConnectionTimeoutSeconds:     attrs.ConnectionTimeoutSeconds,
+				TroubleshootingUrl:           attrs.TroubleshootingURL,
+				MotdFile:                     attrs.MOTDFile,
+				LoginBeforeReady:             loginBeforeReady,
+				StartupScriptTimeoutSeconds:  attrs.StartupScriptTimeoutSeconds,
+				ShutdownScript:               attrs.ShutdownScript,
+				ShutdownScriptTimeoutSeconds: attrs.ShutdownScriptTimeoutSeconds,
 			}
 			switch attrs.Auth {
 			case "token":
@@ -171,7 +181,7 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 				break
 			}
 			if agentNode == nil {
-				return nil, nil, xerrors.Errorf("couldn't find node on graph: %q", agentLabel)
+				return nil, xerrors.Errorf("couldn't find node on graph: %q", agentLabel)
 			}
 
 			var agentResource *graphResource
@@ -260,7 +270,7 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 			var attrs agentAppAttributes
 			err = mapstructure.Decode(resource.AttributeValues, &attrs)
 			if err != nil {
-				return nil, nil, xerrors.Errorf("decode app attributes: %w", err)
+				return nil, xerrors.Errorf("decode app attributes: %w", err)
 			}
 
 			// Default to the resource name if none is set!
@@ -277,11 +287,11 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 			}
 
 			if !provisioner.AppSlugRegex.MatchString(attrs.Slug) {
-				return nil, nil, xerrors.Errorf("invalid app slug %q, please update your coder/coder provider to the latest version and specify the slug property on each coder_app", attrs.Slug)
+				return nil, xerrors.Errorf("invalid app slug %q, please update your coder/coder provider to the latest version and specify the slug property on each coder_app", attrs.Slug)
 			}
 
 			if _, exists := appSlugs[attrs.Slug]; exists {
-				return nil, nil, xerrors.Errorf("duplicate app slug, they must be unique per template: %q", attrs.Slug)
+				return nil, xerrors.Errorf("duplicate app slug, they must be unique per template: %q", attrs.Slug)
 			}
 			appSlugs[attrs.Slug] = struct{}{}
 
@@ -341,7 +351,7 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 			var attrs metadataAttributes
 			err = mapstructure.Decode(resource.AttributeValues, &attrs)
 			if err != nil {
-				return nil, nil, xerrors.Errorf("decode metadata attributes: %w", err)
+				return nil, xerrors.Errorf("decode metadata attributes: %w", err)
 			}
 
 			resourceLabel := convertAddressToLabel(resource.Address)
@@ -432,15 +442,17 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 			var param provider.Parameter
 			err = mapstructure.Decode(resource.AttributeValues, &param)
 			if err != nil {
-				return nil, nil, xerrors.Errorf("decode map values for coder_parameter.%s: %w", resource.Name, err)
+				return nil, xerrors.Errorf("decode map values for coder_parameter.%s: %w", resource.Name, err)
 			}
 			protoParam := &proto.RichParameter{
-				Name:         param.Name,
-				Description:  param.Description,
-				Type:         param.Type,
-				Mutable:      param.Mutable,
-				DefaultValue: param.Default,
-				Icon:         param.Icon,
+				Name:               param.Name,
+				Description:        param.Description,
+				Type:               param.Type,
+				Mutable:            param.Mutable,
+				DefaultValue:       param.Default,
+				Icon:               param.Icon,
+				Required:           !param.Optional,
+				LegacyVariableName: param.LegacyVariableName,
 			}
 			if len(param.Validation) == 1 {
 				protoParam.ValidationRegex = param.Validation[0].Regex
@@ -464,7 +476,30 @@ func ConvertResourcesAndParameters(modules []*tfjson.StateModule, rawGraph strin
 		}
 	}
 
-	return resources, parameters, nil
+	// A map is used to ensure we don't have duplicates!
+	gitAuthProvidersMap := map[string]struct{}{}
+	for _, tfResources := range tfResourcesByLabel {
+		for _, resource := range tfResources {
+			if resource.Type != "coder_git_auth" {
+				continue
+			}
+			id, ok := resource.AttributeValues["id"].(string)
+			if !ok {
+				return nil, xerrors.Errorf("git auth id is not a string")
+			}
+			gitAuthProvidersMap[id] = struct{}{}
+		}
+	}
+	gitAuthProviders := make([]string, 0, len(gitAuthProvidersMap))
+	for id := range gitAuthProvidersMap {
+		gitAuthProviders = append(gitAuthProviders, id)
+	}
+
+	return &State{
+		Resources:        resources,
+		Parameters:       parameters,
+		GitAuthProviders: gitAuthProviders,
+	}, nil
 }
 
 // convertAddressToLabel returns the Terraform address without the count
@@ -550,7 +585,7 @@ func applyAutomaticInstanceID(resource *tfjson.StateResource, agents []*proto.Ag
 // findResourcesInGraph traverses directionally in a graph until a resource is found,
 // then it stores the depth it was found at, and continues working up the tree.
 // nolint:revive
-func findResourcesInGraph(graph *gographviz.Graph, tfResourcesByLabel map[string][]*tfjson.StateResource, nodeName string, currentDepth uint, up bool) []*graphResource {
+func findResourcesInGraph(graph *gographviz.Graph, tfResourcesByLabel map[string]map[string]*tfjson.StateResource, nodeName string, currentDepth uint, up bool) []*graphResource {
 	graphResources := make([]*graphResource, 0)
 	mapping := graph.Edges.DstToSrcs
 	if !up {

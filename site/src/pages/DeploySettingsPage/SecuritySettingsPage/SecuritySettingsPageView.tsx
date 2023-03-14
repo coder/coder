@@ -1,4 +1,4 @@
-import { DeploymentConfig } from "api/typesGenerated"
+import { DeploymentOption } from "api/types"
 import {
   Badges,
   DisabledBadge,
@@ -8,17 +8,18 @@ import {
 import { Header } from "components/DeploySettingsLayout/Header"
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { Stack } from "components/Stack/Stack"
+import {
+  deploymentGroupHasParent,
+  useDeploymentOptions,
+} from "util/deployOptions"
 
 export type SecuritySettingsPageViewProps = {
-  deploymentConfig: Pick<
-    DeploymentConfig,
-    "tls" | "ssh_keygen_algorithm" | "secure_auth_cookie"
-  >
+  options: DeploymentOption[]
   featureAuditLogEnabled: boolean
   featureBrowserOnlyEnabled: boolean
 }
 export const SecuritySettingsPageView = ({
-  deploymentConfig,
+  options: options,
   featureAuditLogEnabled,
   featureBrowserOnlyEnabled,
 }: SecuritySettingsPageViewProps): JSX.Element => (
@@ -31,10 +32,11 @@ export const SecuritySettingsPageView = ({
         />
 
         <OptionsTable
-          options={{
-            ssh_keygen_algorithm: deploymentConfig.ssh_keygen_algorithm,
-            secure_auth_cookie: deploymentConfig.secure_auth_cookie,
-          }}
+          options={useDeploymentOptions(
+            options,
+            "SSH Keygen Algorithm",
+            "Secure Auth Cookie",
+          )}
         />
       </div>
 
@@ -74,12 +76,9 @@ export const SecuritySettingsPageView = ({
         />
 
         <OptionsTable
-          options={{
-            tls_enable: deploymentConfig.tls.enable,
-            tls_cert_files: deploymentConfig.tls.cert_file,
-            tls_key_files: deploymentConfig.tls.key_file,
-            tls_min_version: deploymentConfig.tls.min_version,
-          }}
+          options={options.filter((o) =>
+            deploymentGroupHasParent(o.group, "TLS"),
+          )}
         />
       </div>
     </Stack>

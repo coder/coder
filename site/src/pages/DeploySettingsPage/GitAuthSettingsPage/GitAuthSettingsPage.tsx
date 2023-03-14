@@ -5,7 +5,7 @@ import { pageTitle } from "util/page"
 import { GitAuthSettingsPageView } from "./GitAuthSettingsPageView"
 
 const GitAuthSettingsPage: FC = () => {
-  const { deploymentConfig: deploymentConfig } = useDeploySettings()
+  const { deploymentValues: deploymentValues } = useDeploySettings()
 
   return (
     <>
@@ -13,7 +13,7 @@ const GitAuthSettingsPage: FC = () => {
         <title>{pageTitle("Git Authentication Settings")}</title>
       </Helmet>
 
-      <GitAuthSettingsPageView deploymentConfig={deploymentConfig} />
+      <GitAuthSettingsPageView config={deploymentValues.config} />
     </>
   )
 }

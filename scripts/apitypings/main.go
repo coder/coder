@@ -695,6 +695,16 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 
 		// These are external named types that we handle uniquely.
 		switch n.String() {
+		case "github.com/coder/coder/cli/clibase.String":
+			return TypescriptType{ValueType: "string"}, nil
+		case "github.com/coder/coder/cli/clibase.Strings":
+			return TypescriptType{ValueType: "string[]"}, nil
+		case "github.com/coder/coder/cli/clibase.Int64":
+			return TypescriptType{ValueType: "number"}, nil
+		case "github.com/coder/coder/cli/clibase.Bool":
+			return TypescriptType{ValueType: "boolean"}, nil
+		case "github.com/coder/coder/cli/clibase.Duration":
+			return TypescriptType{ValueType: "number"}, nil
 		case "net/url.URL":
 			return TypescriptType{ValueType: "string"}, nil
 		case "time.Time":
@@ -710,6 +720,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "string"}, nil
 		case "encoding/json.RawMessage":
 			return TypescriptType{ValueType: "Record<string, string>"}, nil
+		case "github.com/coder/coder/cli/clibase.URL":
+			return TypescriptType{ValueType: "string"}, nil
 		}
 
 		// Then see if the type is defined elsewhere. If it is, we can just
@@ -780,8 +792,10 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		// only handle the empty interface for now
 		intf := ty
 		if intf.Empty() {
-			return TypescriptType{ValueType: "any",
-				AboveTypeLine: indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed")}, nil
+			return TypescriptType{
+				ValueType:     "any",
+				AboveTypeLine: indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed"),
+			}, nil
 		}
 		return TypescriptType{}, xerrors.New("only empty interface types are supported")
 	case *types.TypeParam:

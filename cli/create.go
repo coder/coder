@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"time"
@@ -322,6 +323,15 @@ PromptRichParamLoop:
 
 	if disclaimerPrinted {
 		_, _ = fmt.Fprintln(cmd.OutOrStdout())
+	}
+
+	err = cliui.GitAuth(ctx, cmd.OutOrStdout(), cliui.GitAuthOptions{
+		Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionGitAuth, error) {
+			return client.TemplateVersionGitAuth(ctx, templateVersion.ID)
+		},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("template version git auth: %w", err)
 	}
 
 	// Run a dry-run with the given parameters to check correctness

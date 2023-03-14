@@ -17,11 +17,11 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "9607dca1-bb3e-4606-849c-69d073b3b7d1",
+            "id": "5cb3c105-1a70-4c60-bd32-b75d9a60a98d",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "47b62747-82ad-4792-960a-e120a88d2bac",
+            "token": "b477690f-0a2d-4d9b-818e-7b60c845c44f",
             "troubleshooting_url": null
           },
           "sensitive_values": {}
@@ -35,12 +35,12 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "9607dca1-bb3e-4606-849c-69d073b3b7d1",
+            "agent_id": "5cb3c105-1a70-4c60-bd32-b75d9a60a98d",
             "command": null,
             "display_name": "app1",
             "healthcheck": [],
             "icon": null,
-            "id": "75b7232a-320f-462f-91c0-5542e655dce9",
+            "id": "72d41f36-d775-424c-9a05-b633da43cd58",
             "name": null,
             "relative_path": null,
             "share": "owner",
@@ -64,12 +64,12 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "9607dca1-bb3e-4606-849c-69d073b3b7d1",
+            "agent_id": "5cb3c105-1a70-4c60-bd32-b75d9a60a98d",
             "command": null,
             "display_name": "app2",
             "healthcheck": [],
             "icon": null,
-            "id": "30e8a682-a440-48a8-847d-525baa05783f",
+            "id": "810dbeda-3041-403d-86e8-146354ad2657",
             "name": null,
             "relative_path": null,
             "share": "owner",
@@ -92,7 +92,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "6276937382685771643",
+            "id": "1955786418433284816",
             "triggers": null
           },
           "sensitive_values": {},

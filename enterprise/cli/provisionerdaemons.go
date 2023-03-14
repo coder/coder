@@ -15,7 +15,6 @@ import (
 	agpl "github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/terraform"
@@ -149,7 +148,7 @@ func provisionerDaemonStart() *cobra.Command {
 		},
 	}
 
-	cliflag.StringVarP(cmd.Flags(), &cacheDir, "cache-dir", "c", "CODER_CACHE_DIRECTORY", deployment.DefaultCacheDir(),
+	cliflag.StringVarP(cmd.Flags(), &cacheDir, "cache-dir", "c", "CODER_CACHE_DIRECTORY", codersdk.DefaultCacheDir(),
 		"Specify a directory to cache provisioner job files.")
 	cliflag.StringArrayVarP(cmd.Flags(), &rawTags, "tag", "t", "CODER_PROVISIONERD_TAGS", []string{},
 		"Specify a list of tags to target provisioner jobs.")

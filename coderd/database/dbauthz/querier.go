@@ -19,6 +19,14 @@ func (q *querier) Ping(ctx context.Context) (time.Duration, error) {
 	return q.db.Ping(ctx)
 }
 
+func (q *querier) AcquireLock(ctx context.Context, id int64) error {
+	return q.db.AcquireLock(ctx, id)
+}
+
+func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
+	return q.db.TryAcquireLock(ctx, id)
+}
+
 // InTx runs the given function in a transaction.
 func (q *querier) InTx(function func(querier database.Store) error, txOpts *sql.TxOptions) error {
 	return q.db.InTx(func(tx database.Store) error {
@@ -36,8 +44,16 @@ func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey
 	return fetch(q.log, q.auth, q.db.GetAPIKeyByID)(ctx, id)
 }
 
+func (q *querier) GetAPIKeyByName(ctx context.Context, arg database.GetAPIKeyByNameParams) (database.APIKey, error) {
+	return fetch(q.log, q.auth, q.db.GetAPIKeyByName)(ctx, arg)
+}
+
 func (q *querier) GetAPIKeysByLoginType(ctx context.Context, loginType database.LoginType) ([]database.APIKey, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysByLoginType)(ctx, loginType)
+}
+
+func (q *querier) GetAPIKeysByUserID(ctx context.Context, params database.GetAPIKeysByUserIDParams) ([]database.APIKey, error) {
+	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysByUserID)(ctx, database.GetAPIKeysByUserIDParams{LoginType: params.LoginType, UserID: params.UserID})
 }
 
 func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]database.APIKey, error) {
@@ -247,12 +263,6 @@ func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (data
 	return job, nil
 }
 
-func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
-	// TODO: This is missing authorization and is incorrect. This call is used by telemetry, and by 1 http route.
-	// That http handler should find a better way to fetch these jobs with easier rbac authz.
-	return q.db.GetProvisionerJobsByIDs(ctx, ids)
-}
-
 func (q *querier) GetProvisionerLogsByIDBetween(ctx context.Context, arg database.GetProvisionerLogsByIDBetweenParams) ([]database.ProvisionerJobLog, error) {
 	// Authorized read on job lets the actor also read the logs.
 	_, err := q.GetProvisionerJobByID(ctx, arg.JobID)
@@ -277,14 +287,14 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 }
 
 func (q *querier) InsertOrUpdateLogoURL(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
 		return err
 	}
 	return q.db.InsertOrUpdateLogoURL(ctx, value)
 }
 
 func (q *querier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
 		return err
 	}
 	return q.db.InsertOrUpdateServiceBanner(ctx, value)
@@ -313,6 +323,16 @@ func (q *querier) GetDeploymentID(ctx context.Context) (string, error) {
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetLogoURL(ctx)
+}
+
+func (q *querier) GetAppSigningKey(ctx context.Context) (string, error) {
+	// No authz checks
+	return q.db.GetAppSigningKey(ctx)
+}
+
+func (q *querier) InsertAppSigningKey(ctx context.Context, data string) error {
+	// No authz checks as this is done during startup
+	return q.db.InsertAppSigningKey(ctx, data)
 }
 
 func (q *querier) GetServiceBanner(ctx context.Context) (string, error) {
@@ -721,35 +741,6 @@ func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersi
 	return q.db.GetTemplateVersionVariables(ctx, templateVersionID)
 }
 
-func (q *querier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
-	// TODO: This is so inefficient
-	versions, err := q.db.GetTemplateVersionsByIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	checked := make(map[uuid.UUID]bool)
-	for _, v := range versions {
-		if _, ok := checked[v.TemplateID.UUID]; ok {
-			continue
-		}
-
-		obj := v.RBACObjectNoTemplate()
-		template, err := q.db.GetTemplateByID(ctx, v.TemplateID.UUID)
-		if err == nil {
-			obj = v.RBACObject(template)
-		}
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			return nil, err
-		}
-		if err := q.authorizeContext(ctx, rbac.ActionRead, obj); err != nil {
-			return nil, err
-		}
-		checked[v.TemplateID.UUID] = true
-	}
-
-	return versions, nil
-}
-
 func (q *querier) GetTemplateVersionsByTemplateID(ctx context.Context, arg database.GetTemplateVersionsByTemplateIDParams) ([]database.TemplateVersion, error) {
 	// An actor can read template versions if they can read the related template.
 	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
@@ -852,6 +843,13 @@ func (q *querier) UpdateTemplateMetaByID(ctx context.Context, arg database.Updat
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateTemplateMetaByID)(ctx, arg)
 }
 
+func (q *querier) UpdateTemplateScheduleByID(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
+	fetch := func(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
+		return q.db.GetTemplateByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateTemplateScheduleByID)(ctx, arg)
+}
+
 func (q *querier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID.UUID)
 	if err != nil {
@@ -883,6 +881,28 @@ func (q *querier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, a
 		return err
 	}
 	return q.db.UpdateTemplateVersionDescriptionByJobID(ctx, arg)
+}
+
+func (q *querier) UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.Context, arg database.UpdateTemplateVersionGitAuthProvidersByJobIDParams) error {
+	// An actor is allowed to update the template version git auth providers if they are authorized to update the template.
+	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
+	if err != nil {
+		return err
+	}
+	var obj rbac.Objecter
+	if !tv.TemplateID.Valid {
+		obj = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		tpl, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		if err != nil {
+			return err
+		}
+		obj = tpl
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, obj); err != nil {
+		return err
+	}
+	return q.db.UpdateTemplateVersionGitAuthProvidersByJobID(ctx, arg)
 }
 
 func (q *querier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
@@ -943,6 +963,18 @@ func (q *querier) GetUserByID(ctx context.Context, id uuid.UUID) (database.User,
 	return fetch(q.log, q.auth, q.db.GetUserByID)(ctx, id)
 }
 
+// GetUsersByIDs is only used for usernames on workspace return data.
+// This function should be replaced by joining this data to the workspace query
+// itself.
+func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
+	for _, uid := range ids {
+		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(uid)); err != nil {
+			return nil, err
+		}
+	}
+	return q.db.GetUsersByIDs(ctx, ids)
+}
+
 func (q *querier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
 	return q.db.GetAuthorizedUserCount(ctx, arg, prepared)
 }
@@ -985,11 +1017,6 @@ func (q *querier) GetUsersWithCount(ctx context.Context, arg database.GetUsersPa
 	}
 
 	return users, rowUsers[0].Count, nil
-}
-
-// TODO: Remove this and use a filter on GetUsers
-func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
-	return fetchWithPostFilter(q.auth, q.db.GetUsersByIDs)(ctx, ids)
 }
 
 func (q *querier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
@@ -1099,11 +1126,11 @@ func (q *querier) InsertGitAuthLink(ctx context.Context, arg database.InsertGitA
 	return insert(q.log, q.auth, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.db.InsertGitAuthLink)(ctx, arg)
 }
 
-func (q *querier) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) error {
+func (q *querier) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
 	fetch := func(ctx context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
 		return q.db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
 	}
-	return update(q.log, q.auth, fetch, q.db.UpdateGitAuthLink)(ctx, arg)
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateGitAuthLink)(ctx, arg)
 }
 
 func (q *querier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLinkParams) (database.UserLink, error) {
@@ -1196,37 +1223,6 @@ func (q *querier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanc
 	return agent, nil
 }
 
-// GetWorkspaceAgentsByResourceIDs is an all or nothing call. If the user cannot read
-// a single agent, the entire call will fail.
-func (q *querier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
-	if _, ok := ActorFromContext(ctx); !ok {
-		return nil, NoActorError
-	}
-	// TODO: Make this more efficient. This is annoying because all these resources should be owned by the same workspace.
-	// So the authz check should just be 1 check, but we cannot do that easily here. We should see if all callers can
-	// instead do something like GetWorkspaceAgentsByWorkspaceID.
-	agents, err := q.db.GetWorkspaceAgentsByResourceIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, a := range agents {
-		// Check if we can fetch the workspace by the agent ID.
-		_, err := q.GetWorkspaceByAgentID(ctx, a.ID)
-		if err == nil {
-			continue
-		}
-		if errors.Is(err, sql.ErrNoRows) && !errors.As(err, &NotAuthorizedError{}) {
-			// The agent is not tied to a workspace, likely from an orphaned template version.
-			// Just return it.
-			continue
-		}
-		// Otherwise, we cannot read the workspace, so we cannot read the agent.
-		return nil, err
-	}
-	return agents, nil
-}
-
 func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
 	if err != nil {
@@ -1277,20 +1273,6 @@ func (q *querier) GetWorkspaceAppsByAgentID(ctx context.Context, agentID uuid.UU
 		return nil, err
 	}
 	return q.db.GetWorkspaceAppsByAgentID(ctx, agentID)
-}
-
-// GetWorkspaceAppsByAgentIDs is an all or nothing call. If the user cannot read a single app, the entire call will fail.
-func (q *querier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {
-	// TODO: This should be reworked. All these apps are likely owned by the same workspace, so we should be able to
-	// do 1 authz call. We should refactor this to be GetWorkspaceAppsByWorkspaceID.
-	for _, id := range ids {
-		_, err := q.GetWorkspaceAgentByID(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return q.db.GetWorkspaceAppsByAgentIDs(ctx, ids)
 }
 
 func (q *querier) GetWorkspaceBuildByID(ctx context.Context, buildID uuid.UUID) (database.WorkspaceBuild, error) {
@@ -1369,21 +1351,6 @@ func (q *querier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID) (d
 	return resource, nil
 }
 
-// GetWorkspaceResourceMetadataByResourceIDs is an all or nothing call. If a single resource is not authorized, then
-// an error is returned.
-func (q *querier) GetWorkspaceResourceMetadataByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
-	// TODO: This is very inefficient. Since all these resources are likely asscoiated with the same workspace.
-	for _, id := range ids {
-		// If we can read the resource, we can read the metadata.
-		_, err := q.GetWorkspaceResourceByID(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return q.db.GetWorkspaceResourceMetadataByResourceIDs(ctx, ids)
-}
-
 func (q *querier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
 	job, err := q.db.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
@@ -1427,21 +1394,6 @@ func (q *querier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.U
 		return nil, err
 	}
 	return q.db.GetWorkspaceResourcesByJobID(ctx, jobID)
-}
-
-// GetWorkspaceResourcesByJobIDs is an all or nothing call. If a single resource is not authorized, then
-// an error is returned.
-func (q *querier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceResource, error) {
-	// TODO: This is very inefficient. Since all these resources are likely asscoiated with the same workspace.
-	for _, id := range ids {
-		// If we can read the resource, we can read the metadata.
-		_, err := q.GetProvisionerJobByID(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return q.db.GetWorkspaceResourcesByJobIDs(ctx, ids)
 }
 
 func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
@@ -1502,18 +1454,18 @@ func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg da
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceAgentConnectionByID)(ctx, arg)
 }
 
-func (q *querier) InsertAgentStat(ctx context.Context, arg database.InsertAgentStatParams) (database.AgentStat, error) {
+func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
 	// TODO: This is a workspace agent operation. Should users be able to query this?
 	// Not really sure what this is for.
 	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
-		return database.AgentStat{}, err
+		return database.WorkspaceAgentStat{}, err
 	}
 	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
 	if err != nil {
-		return database.AgentStat{}, err
+		return database.WorkspaceAgentStat{}, err
 	}
-	return q.db.InsertAgentStat(ctx, arg)
+	return q.db.InsertWorkspaceAgentStat(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
@@ -1579,6 +1531,13 @@ func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.Up
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLastUsedAt)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceTTLToBeWithinTemplateMax(ctx context.Context, arg database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams) (database.Template, error) {
+		return q.db.GetTemplateByID(ctx, arg.TemplateID)
+	}
+	return fetchAndExec(q.log, q.auth, rbac.ActionUpdate, fetch, q.db.UpdateWorkspaceTTLToBeWithinTemplateMax)(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWorkspaceTTLParams) error {

@@ -2,34 +2,28 @@ import { makeStyles } from "@material-ui/core/styles"
 import { FullScreenLoader } from "components/Loader/FullScreenLoader"
 import { FC } from "react"
 import { useLocation } from "react-router-dom"
-import { AuthContext } from "xServices/auth/authXService"
-import { LoginErrors, SignInForm } from "components/SignInForm/SignInForm"
+import { AuthContext, UnauthenticatedData } from "xServices/auth/authXService"
+import { SignInForm } from "components/SignInForm/SignInForm"
 import { retrieveRedirect } from "util/redirect"
 import { CoderIcon } from "components/Icons/CoderIcon"
-
-interface LocationState {
-  isRedirect: boolean
-}
 
 export interface LoginPageViewProps {
   context: AuthContext
   isLoading: boolean
+  isSigningIn: boolean
   onSignIn: (credentials: { email: string; password: string }) => void
 }
 
 export const LoginPageView: FC<LoginPageViewProps> = ({
   context,
   isLoading,
+  isSigningIn,
   onSignIn,
 }) => {
   const location = useLocation()
   const redirectTo = retrieveRedirect(location.search)
-  const locationState = location.state
-    ? (location.state as LocationState)
-    : null
-  const isRedirected = locationState ? locationState.isRedirect : false
-  const { authError, getUserError, checkPermissionsError, getMethodsError } =
-    context
+  const { error } = context
+  const data = context.data as UnauthenticatedData
   const styles = useStyles()
 
   return isLoading ? (
@@ -39,15 +33,10 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
       <div className={styles.container}>
         <CoderIcon fill="white" opacity={1} className={styles.icon} />
         <SignInForm
-          authMethods={context.methods}
+          authMethods={data.authMethods}
           redirectTo={redirectTo}
-          isLoading={isLoading}
-          loginErrors={{
-            [LoginErrors.AUTH_ERROR]: authError,
-            [LoginErrors.GET_USER_ERROR]: isRedirected ? getUserError : null,
-            [LoginErrors.CHECK_PERMISSIONS_ERROR]: checkPermissionsError,
-            [LoginErrors.GET_METHODS_ERROR]: getMethodsError,
-          }}
+          isSigningIn={isSigningIn}
+          error={error}
           onSubmit={onSignIn}
         />
         <footer className={styles.footer}>

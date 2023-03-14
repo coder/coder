@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -37,7 +38,6 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
-	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -52,8 +52,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild/executor"
@@ -66,6 +64,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/ptr"
@@ -81,26 +80,31 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
+// AppSigningKey is a 64-byte key used to sign JWTs for workspace app tickets in
+// tests.
+var AppSigningKey = must(hex.DecodeString("64656164626565666465616462656566646561646265656664656164626565666465616462656566646561646265656664656164626565666465616462656566"))
+
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
 	// server's URL. Setting this may result in unexpected behavior (especially
 	// with running agents).
-	AccessURL            *url.URL
-	AppHostname          string
-	AWSCertificates      awsidentity.Certificates
-	Authorizer           rbac.Authorizer
-	AzureCertificates    x509.VerifyOptions
-	GithubOAuth2Config   *coderd.GithubOAuth2Config
-	RealIPConfig         *httpmw.RealIPConfig
-	OIDCConfig           *coderd.OIDCConfig
-	GoogleTokenValidator *idtoken.Validator
-	SSHKeygenAlgorithm   gitsshkey.Algorithm
-	AutobuildTicker      <-chan time.Time
-	AutobuildStats       chan<- executor.Stats
-	Auditor              audit.Auditor
-	TLSCertificates      []tls.Certificate
-	GitAuthConfigs       []*gitauth.Config
-	TrialGenerator       func(context.Context, string) error
+	AccessURL             *url.URL
+	AppHostname           string
+	AWSCertificates       awsidentity.Certificates
+	Authorizer            rbac.Authorizer
+	AzureCertificates     x509.VerifyOptions
+	GithubOAuth2Config    *coderd.GithubOAuth2Config
+	RealIPConfig          *httpmw.RealIPConfig
+	OIDCConfig            *coderd.OIDCConfig
+	GoogleTokenValidator  *idtoken.Validator
+	SSHKeygenAlgorithm    gitsshkey.Algorithm
+	AutobuildTicker       <-chan time.Time
+	AutobuildStats        chan<- executor.Stats
+	Auditor               audit.Auditor
+	TLSCertificates       []tls.Certificate
+	GitAuthConfigs        []*gitauth.Config
+	TrialGenerator        func(context.Context, string) error
+	TemplateScheduleStore schedule.TemplateScheduleStore
 
 	// All rate limits default to -1 (unlimited) in tests if not set.
 	APIRateLimit   int
@@ -111,7 +115,7 @@ type Options struct {
 	IncludeProvisionerDaemon    bool
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
-	DeploymentConfig            *codersdk.DeploymentConfig
+	DeploymentValues            *codersdk.DeploymentValues
 
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
@@ -189,8 +193,8 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 		}
 		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	}
-	if options.DeploymentConfig == nil {
-		options.DeploymentConfig = DeploymentConfig(t)
+	if options.DeploymentValues == nil {
+		options.DeploymentValues = DeploymentValues(t)
 	}
 
 	// If no ratelimits are set, disable all rate limiting for tests.
@@ -254,7 +258,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
 	t.Cleanup(stunCleanup)
 
-	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp")))
+	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
 	derpServer.SetMeshKey("test-key")
 
 	// match default with cli default
@@ -287,22 +291,23 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			Pubsub:                         options.Pubsub,
 			GitAuthConfigs:                 options.GitAuthConfigs,
 
-			Auditor:              options.Auditor,
-			AWSCertificates:      options.AWSCertificates,
-			AzureCertificates:    options.AzureCertificates,
-			GithubOAuth2Config:   options.GithubOAuth2Config,
-			RealIPConfig:         options.RealIPConfig,
-			OIDCConfig:           options.OIDCConfig,
-			GoogleTokenValidator: options.GoogleTokenValidator,
-			SSHKeygenAlgorithm:   options.SSHKeygenAlgorithm,
-			DERPServer:           derpServer,
-			APIRateLimit:         options.APIRateLimit,
-			LoginRateLimit:       options.LoginRateLimit,
-			FilesRateLimit:       options.FilesRateLimit,
-			Authorizer:           options.Authorizer,
-			Telemetry:            telemetry.NewNoop(),
-			TLSCertificates:      options.TLSCertificates,
-			TrialGenerator:       options.TrialGenerator,
+			Auditor:               options.Auditor,
+			AWSCertificates:       options.AWSCertificates,
+			AzureCertificates:     options.AzureCertificates,
+			GithubOAuth2Config:    options.GithubOAuth2Config,
+			RealIPConfig:          options.RealIPConfig,
+			OIDCConfig:            options.OIDCConfig,
+			GoogleTokenValidator:  options.GoogleTokenValidator,
+			SSHKeygenAlgorithm:    options.SSHKeygenAlgorithm,
+			DERPServer:            derpServer,
+			APIRateLimit:          options.APIRateLimit,
+			LoginRateLimit:        options.LoginRateLimit,
+			FilesRateLimit:        options.FilesRateLimit,
+			Authorizer:            options.Authorizer,
+			Telemetry:             telemetry.NewNoop(),
+			TemplateScheduleStore: options.TemplateScheduleStore,
+			TLSCertificates:       options.TLSCertificates,
+			TrialGenerator:        options.TrialGenerator,
 			DERPMap: &tailcfg.DERPMap{
 				Regions: map[int]*tailcfg.DERPRegion{
 					1: {
@@ -324,9 +329,10 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			},
 			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
-			DeploymentConfig:            options.DeploymentConfig,
+			DeploymentValues:            options.DeploymentValues,
 			UpdateCheckOptions:          options.UpdateCheckOptions,
 			SwaggerEndpoint:             options.SwaggerEndpoint,
+			AppSigningKey:               AppSigningKey,
 		}
 }
 
@@ -484,6 +490,9 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 
 	other := codersdk.New(client.URL)
 	other.SetSessionToken(login.SessionToken)
+	t.Cleanup(func() {
+		other.HTTPClient.CloseIdleConnections()
+	})
 
 	if len(roles) > 0 {
 		// Find the roles for the org vs the site wide roles
@@ -717,6 +726,33 @@ func MustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID)
 	return ws
 }
 
+// RequestGitAuthCallback makes a request with the proper OAuth2 state cookie
+// to the git auth callback endpoint.
+func RequestGitAuthCallback(t *testing.T, providerID string, client *codersdk.Client) *http.Response {
+	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	state := "somestate"
+	oauthURL, err := client.URL.Parse(fmt.Sprintf("/gitauth/%s/callback?code=asd&state=%s", providerID, state))
+	require.NoError(t, err)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:  codersdk.OAuth2StateCookie,
+		Value: state,
+	})
+	req.AddCookie(&http.Cookie{
+		Name:  codersdk.SessionTokenCookie,
+		Value: client.SessionToken(),
+	})
+	res, err := client.HTTPClient.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = res.Body.Close()
+	})
+	return res
+}
+
 // NewGoogleInstanceIdentity returns a metadata client and ID token validator for faking
 // instance authentication for Google Cloud.
 // nolint:revive
@@ -903,7 +939,7 @@ func (o *OIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
 	return base64.StdEncoding.EncodeToString([]byte(signed))
 }
 
-func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims) *coderd.OIDCConfig {
+func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
 	// By default, the provider can be empty.
 	// This means it won't support any endpoints!
 	provider := &oidc.Provider{}
@@ -920,7 +956,7 @@ func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims) *cod
 		}
 		provider = cfg.NewProvider(context.Background())
 	}
-	return &coderd.OIDCConfig{
+	cfg := &coderd.OIDCConfig{
 		OAuth2Config: o,
 		Verifier: oidc.NewVerifier(o.issuer, &oidc.StaticKeySet{
 			PublicKeys: []crypto.PublicKey{o.key.Public()},
@@ -929,7 +965,12 @@ func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims) *cod
 		}),
 		Provider:      provider,
 		UsernameField: "preferred_username",
+		GroupField:    "groups",
 	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	return cfg
 }
 
 // NewAzureInstanceIdentity returns a metadata client and ID token validator for faking
@@ -1029,12 +1070,10 @@ sz9Di8sGIaUbLZI2rd0CQQCzlVwEtRtoNCyMJTTrkgUuNufLP19RZ5FpyXxBO5/u
 QastnN77KfUwdj3SJt44U/uh1jAIv4oSLBr8HYUkbnI8
 -----END RSA PRIVATE KEY-----`
 
-func DeploymentConfig(t *testing.T) *codersdk.DeploymentConfig {
-	vip := deployment.NewViper()
-	fs := pflag.NewFlagSet(randomUsername(), pflag.ContinueOnError)
-	fs.String(config.FlagName, randomUsername(), randomUsername())
-	cfg, err := deployment.Config(fs, vip)
+func DeploymentValues(t *testing.T) *codersdk.DeploymentValues {
+	var cfg codersdk.DeploymentValues
+	opts := cfg.Options()
+	err := opts.SetDefaults()
 	require.NoError(t, err)
-
-	return cfg
+	return &cfg
 }

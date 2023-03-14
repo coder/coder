@@ -32,7 +32,6 @@ func TestResetPassword(t *testing.T) {
 	const newPassword = "MyNewPassword!"
 
 	// start postgres and coder server processes
-
 	connectionURL, closeFunc, err := postgres.Open()
 	require.NoError(t, err)
 	defer closeFunc()

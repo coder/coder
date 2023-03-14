@@ -22,7 +22,7 @@ WHERE
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
 			-- Ensure the caller satisfies all job tags.
-			AND nested.tags <@ @tags :: jsonb 
+			AND nested.tags <@ @tags :: jsonb
 		ORDER BY
 			nested.created_at
 		FOR UPDATE
@@ -91,6 +91,7 @@ UPDATE
 SET
 	updated_at = $2,
 	completed_at = $3,
-	error = $4
+	error = $4,
+	error_code = $5
 WHERE
 	id = $1;

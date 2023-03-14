@@ -88,6 +88,9 @@ type CreateTemplateRequest struct {
 	// DefaultTTLMillis allows optionally specifying the default TTL
 	// for all workspaces created from this template.
 	DefaultTTLMillis *int64 `json:"default_ttl_ms,omitempty"`
+	// MaxTTLMillis allows optionally specifying the max lifetime for
+	// workspaces created from this template.
+	MaxTTLMillis *int64 `json:"max_ttl_ms,omitempty"`
 
 	// Allow users to cancel in-progress workspace jobs.
 	// *bool as the default value is "true".
@@ -165,7 +168,6 @@ func (c *Client) TemplateVersionByOrganizationAndName(ctx context.Context, organ
 		fmt.Sprintf("/api/v2/organizations/%s/templates/%s/versions/%s", organizationID.String(), templateName, versionName),
 		nil,
 	)
-
 	if err != nil {
 		return TemplateVersion{}, xerrors.Errorf("execute request: %w", err)
 	}

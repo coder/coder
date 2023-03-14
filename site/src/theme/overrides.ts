@@ -1,4 +1,4 @@
-import { lighten, Theme, StyleRules } from "@material-ui/core/styles"
+import { Theme, StyleRules } from "@material-ui/core/styles"
 import { Overrides } from "@material-ui/core/styles/overrides"
 import { SkeletonClassKey } from "@material-ui/lab"
 import { colors } from "./colors"
@@ -49,26 +49,33 @@ export const getOverrides = ({
         textTransform: "none",
         letterSpacing: "none",
         border: `1px solid ${palette.divider}`,
+        whiteSpace: "nowrap",
 
         "&:focus-visible": {
           outline: `2px solid ${palette.primary.dark}`,
         },
       },
+
       contained: {
         boxShadow: "none",
         color: palette.text.primary,
-        backgroundColor: colors.gray[17],
+        backgroundColor: colors.gray[13],
+        borderColor: colors.gray[12],
 
-        "&:hover": {
-          boxShadow: "none",
-          backgroundColor: colors.gray[17],
-          borderColor: lighten(palette.divider, 0.2),
-        },
+        "&:hover:not(:disabled):not(.MuiButton-containedPrimary):not(.MuiButton-containedSecondary)":
+          {
+            boxShadow: "none",
+            backgroundColor: colors.gray[12],
+            borderColor: colors.gray[11],
+          },
 
-        "&.Mui-disabled": {
-          backgroundColor: palette.background.paper,
-          color: palette.secondary.main,
-        },
+        "&.Mui-disabled:not(.MuiButton-containedPrimary):not(.MuiButton-containedSecondary)":
+          {
+            color: colors.gray[9],
+            backgroundColor: colors.gray[14],
+            cursor: "not-allowed",
+            pointerEvents: "auto",
+          },
       },
       sizeSmall: {
         padding: `0 16px`,
@@ -89,10 +96,18 @@ export const getOverrides = ({
         },
       },
       outlined: {
-        border: `1px solid ${palette.divider}`,
+        border: `1px solid ${colors.gray[11]}`,
 
-        "&:hover": {
-          backgroundColor: palette.action.hover,
+        "&:hover:not(:disabled)": {
+          borderColor: colors.gray[1],
+          background: "none",
+        },
+
+        "&.Mui-disabled": {
+          color: colors.gray[9],
+          border: `1px solid ${colors.gray[12]}`,
+          pointerEvents: "auto",
+          cursor: "not-allowed",
         },
       },
     },

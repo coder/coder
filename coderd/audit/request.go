@@ -158,7 +158,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			}
 		}
 
-		var diffRaw = []byte("{}")
+		diffRaw := []byte("{}")
 		// Only generate diffs if the request succeeded.
 		if sw.Status < 400 {
 			diff := Diff(p.Audit, req.Old, req.New)

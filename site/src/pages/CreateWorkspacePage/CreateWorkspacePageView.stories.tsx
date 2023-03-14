@@ -2,6 +2,7 @@ import { ComponentMeta, Story } from "@storybook/react"
 import {
   makeMockApiError,
   mockParameterSchema,
+  MockParameterSchemas,
   MockTemplate,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
@@ -34,41 +35,7 @@ export const Parameters = Template.bind({})
 Parameters.args = {
   templates: [MockTemplate],
   selectedTemplate: MockTemplate,
-  templateSchema: [
-    mockParameterSchema({
-      name: "region",
-      default_source_value: "🏈 US Central",
-      description: "Where would you like your workspace to live?",
-      redisplay_value: true,
-      validation_contains: [
-        "🏈 US Central",
-        "⚽ Brazil East",
-        "💶 EU West",
-        "🦘 Australia South",
-      ],
-    }),
-    mockParameterSchema({
-      name: "instance_size",
-      default_source_value: "Big",
-      description: "How large should you instance be?",
-      validation_contains: ["Small", "Medium", "Big"],
-      redisplay_value: true,
-    }),
-    mockParameterSchema({
-      name: "instance_size",
-      default_source_value: "Big",
-      description: "How large should your instance be?",
-      validation_contains: ["Small", "Medium", "Big"],
-      redisplay_value: true,
-    }),
-    mockParameterSchema({
-      name: "disable_docker",
-      description: "Disable Docker?",
-      validation_value_type: "bool",
-      default_source_value: "false",
-      redisplay_value: true,
-    }),
-  ],
+  templateSchema: MockParameterSchemas,
   createWorkspaceErrors: {},
 }
 
@@ -166,6 +133,57 @@ RichParameters.args = {
     MockTemplateVersionParameter1,
     MockTemplateVersionParameter2,
     MockTemplateVersionParameter3,
+    {
+      name: "Region",
+      description: "",
+      description_plaintext: "",
+      type: "string",
+      mutable: false,
+      default_value: "",
+      icon: "/emojis/1f30e.png",
+      options: [
+        {
+          name: "Pittsburgh",
+          description: "",
+          value: "us-pittsburgh",
+          icon: "/emojis/1f1fa-1f1f8.png",
+        },
+        {
+          name: "Helsinki",
+          description: "",
+          value: "eu-helsinki",
+          icon: "/emojis/1f1eb-1f1ee.png",
+        },
+        {
+          name: "Sydney",
+          description: "",
+          value: "ap-sydney",
+          icon: "/emojis/1f1e6-1f1fa.png",
+        },
+      ],
+    },
   ],
   createWorkspaceErrors: {},
+}
+
+export const GitAuth = Template.bind({})
+GitAuth.args = {
+  templates: [MockTemplate],
+  selectedTemplate: MockTemplate,
+  createWorkspaceErrors: {},
+  templateParameters: [],
+  templateGitAuth: [
+    {
+      id: "github",
+      type: "github",
+      authenticated: false,
+      authenticate_url: "",
+    },
+    {
+      id: "gitlab",
+      type: "gitlab",
+      authenticated: true,
+      authenticate_url: "",
+    },
+  ],
 }

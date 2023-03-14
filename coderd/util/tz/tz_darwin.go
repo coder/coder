@@ -10,8 +10,10 @@ import (
 	"golang.org/x/xerrors"
 )
 
-const etcLocaltime = "/etc/localtime"
-const zoneInfoPath = "/var/db/timezone/zoneinfo/"
+const (
+	etcLocaltime = "/etc/localtime"
+	zoneInfoPath = "/var/db/timezone/zoneinfo/"
+)
 
 // TimezoneIANA attempts to determine the local timezone in IANA format.
 // If the TZ environment variable is set, this is used.

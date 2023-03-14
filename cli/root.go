@@ -19,8 +19,9 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/charmbracelet/lipgloss"
-	"github.com/kirsle/configdir"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
@@ -28,7 +29,6 @@ import (
 	"github.com/coder/coder/cli/cliflag"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/cli/deployment"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
@@ -64,9 +64,7 @@ const (
 	envURL              = "CODER_URL"
 )
 
-var (
-	errUnauthenticated = xerrors.New(notLoggedInMessage)
-)
+var errUnauthenticated = xerrors.New(notLoggedInMessage)
 
 func init() {
 	// Set cobra template functions in init to avoid conflicts in tests.
@@ -110,7 +108,7 @@ func Core() []*cobra.Command {
 }
 
 func AGPL() []*cobra.Command {
-	all := append(Core(), Server(deployment.NewViper(), func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
+	all := append(Core(), Server(func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
 		api := coderd.New(o)
 		return api, api, nil
 	}))
@@ -160,7 +158,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	cmd.AddCommand(subcommands...)
 	fixUnknownSubcommandError(cmd.Commands())
 
-	cmd.SetUsageTemplate(usageTemplate())
+	cmd.SetUsageTemplate(usageTemplateCobra())
 
 	cliflag.String(cmd.PersistentFlags(), varURL, "", envURL, "", "URL to a deployment.")
 	cliflag.Bool(cmd.PersistentFlags(), varNoVersionCheck, "", envNoVersionCheck, false, "Suppress warning when client and server versions do not match.")
@@ -170,7 +168,7 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	_ = cmd.PersistentFlags().MarkHidden(varAgentToken)
 	cliflag.String(cmd.PersistentFlags(), varAgentURL, "", "CODER_AGENT_URL", "", "URL for an agent to access your deployment.")
 	_ = cmd.PersistentFlags().MarkHidden(varAgentURL)
-	cliflag.String(cmd.PersistentFlags(), config.FlagName, "", "CODER_CONFIG_DIR", configdir.LocalConfig("coderv2"), "Path to the global `coder` config directory.")
+	cliflag.String(cmd.PersistentFlags(), config.FlagName, "", "CODER_CONFIG_DIR", config.DefaultDir(), "Path to the global `coder` config directory.")
 	cliflag.StringArray(cmd.PersistentFlags(), varHeader, "", "CODER_HEADER", []string{}, "HTTP headers added to all requests. Provide as \"Key=Value\"")
 	cmd.PersistentFlags().Bool(varForceTty, false, "Force the `coder` command to run as if connected to a TTY.")
 	_ = cmd.PersistentFlags().MarkHidden(varForceTty)
@@ -179,6 +177,21 @@ func Root(subcommands []*cobra.Command) *cobra.Command {
 	cliflag.Bool(cmd.PersistentFlags(), varVerbose, "v", "CODER_VERBOSE", false, "Enable verbose output.")
 
 	return cmd
+}
+
+type contextKey int
+
+const (
+	contextKeyLogger contextKey = iota
+)
+
+func ContextWithLogger(ctx context.Context, l slog.Logger) context.Context {
+	return context.WithValue(ctx, contextKeyLogger, l)
+}
+
+func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
+	l, ok := ctx.Value(contextKeyLogger).(slog.Logger)
+	return l, ok
 }
 
 // fixUnknownSubcommandError modifies the provided commands so that the
@@ -466,7 +479,10 @@ func isWorkspaceCommand(cmd *cobra.Command) bool {
 	return ws
 }
 
-func usageTemplate() string {
+// We will eventually replace this with the clibase template describedc
+// in usage.go. We don't want to continue working around
+// Cobra's feature-set.
+func usageTemplateCobra() string {
 	// usageHeader is defined in init().
 	return `{{usageHeader "Usage:"}}
 {{- if .Runnable}}

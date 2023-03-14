@@ -33,7 +33,7 @@ func TestTokens(t *testing.T) {
 	res := buf.String()
 	require.Contains(t, res, "tokens found")
 
-	cmd, root = clitest.New(t, "tokens", "create")
+	cmd, root = clitest.New(t, "tokens", "create", "--name", "token-one")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	cmd.SetOut(buf)
@@ -73,7 +73,7 @@ func TestTokens(t *testing.T) {
 	require.Len(t, tokens, 1)
 	require.Equal(t, id, tokens[0].ID)
 
-	cmd, root = clitest.New(t, "tokens", "rm", id)
+	cmd, root = clitest.New(t, "tokens", "rm", "token-one")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	cmd.SetOut(buf)

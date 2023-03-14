@@ -17,6 +17,8 @@ import {
   MockStoppedWorkspace,
   MockStoppingWorkspace,
   MockTemplate,
+  MockTemplateVersionParameter1,
+  MockTemplateVersionParameter2,
   MockWorkspace,
   MockWorkspaceBuild,
   renderWithAuth,
@@ -35,6 +37,7 @@ const renderWorkspacePage = async () => {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
     path: "/@:username/:workspace",
   })
+
   await waitForLoaderToBeRemoved()
 }
 
@@ -46,9 +49,9 @@ const renderWorkspacePage = async () => {
  */
 const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   const user = userEvent.setup()
-
   await renderWorkspacePage()
-  const button = await screen.findByRole("button", { name: label })
+  const workspaceActions = screen.getByTestId("workspace-actions")
+  const button = within(workspaceActions).getByRole("button", { name: label })
   await user.click(button)
   expect(actionMock).toBeCalled()
 }
@@ -86,32 +89,36 @@ afterAll(() => {
 
 describe("WorkspacePage", () => {
   it("requests a delete job when the user presses Delete and confirms", async () => {
-    const user = userEvent.setup()
-
+    const user = userEvent.setup({ delay: 0 })
     const deleteWorkspaceMock = jest
       .spyOn(api, "deleteWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild)
     await renderWorkspacePage()
 
     // open the workspace action popover so we have access to all available ctas
-    const trigger = await screen.findByTestId("workspace-actions-button")
+    const trigger = screen.getByTestId("workspace-actions-button")
     await user.click(trigger)
-
     const buttonText = t("actionButton.delete", { ns: "workspacePage" })
+
+    // Click on delete
     const button = await screen.findByText(buttonText)
     await user.click(button)
 
+    // Get dialog and confirm
+    const dialog = await screen.findByTestId("dialog")
     const labelText = t("deleteDialog.confirmLabel", {
       ns: "common",
       entity: "workspace",
     })
-    const textField = await screen.findByLabelText(labelText)
+    const textField = within(dialog).getByLabelText(labelText)
     await user.type(textField, MockWorkspace.name)
-    const confirmButton = await screen.findByRole("button", { name: "Delete" })
+    const confirmButton = within(dialog).getByRole("button", {
+      name: "Delete",
+      hidden: false,
+    })
     await user.click(confirmButton)
     expect(deleteWorkspaceMock).toBeCalled()
-    // This test takes long to finish
-  }, 20_000)
+  })
 
   it("requests a start job when the user presses Start", async () => {
     server.use(
@@ -157,7 +164,8 @@ describe("WorkspacePage", () => {
 
     await renderWorkspacePage()
 
-    const cancelButton = await screen.findByRole("button", {
+    const workspaceActions = screen.getByTestId("workspace-actions")
+    const cancelButton = within(workspaceActions).getByRole("button", {
       name: "cancel action",
     })
 
@@ -165,52 +173,79 @@ describe("WorkspacePage", () => {
 
     expect(cancelWorkspaceMock).toBeCalled()
   })
-  it("requests a template when the user presses Update", async () => {
-    const getTemplateMock = jest
-      .spyOn(api, "getTemplate")
-      .mockResolvedValueOnce(MockTemplate)
-    server.use(
-      rest.get(
-        `/api/v2/users/:userId/workspace/:workspaceName`,
-        (req, res, ctx) => {
-          return res(ctx.status(200), ctx.json(MockOutdatedWorkspace))
-        },
-      ),
+
+  it("requests an update when the user presses Update", async () => {
+    jest
+      .spyOn(api, "getWorkspaceByOwnerAndName")
+      .mockResolvedValueOnce(MockOutdatedWorkspace)
+    const updateWorkspaceMock = jest
+      .spyOn(api, "updateWorkspace")
+      .mockResolvedValueOnce(MockWorkspaceBuild)
+
+    await testButton(
+      t("actionButton.update", { ns: "workspacePage" }),
+      updateWorkspaceMock,
     )
-
-    await renderWorkspacePage()
-    const buttonText = t("actionButton.update", { ns: "workspacePage" })
-    const button = await screen.findByText(buttonText, { exact: true })
-    await userEvent.setup().click(button)
-
-    // getTemplate is called twice: once when the machine starts, and once after the user requests to update
-    expect(getTemplateMock).toBeCalledTimes(2)
   })
-  it("after an update postWorkspaceBuild is called with the latest template active version id", async () => {
-    jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate) // active_version_id = "test-template-version"
-    jest.spyOn(api, "startWorkspace").mockResolvedValueOnce({
-      ...MockWorkspaceBuild,
+
+  it("updates the parameters when they are missing during update", async () => {
+    // Setup mocks
+    const user = userEvent.setup()
+    jest
+      .spyOn(api, "getWorkspaceByOwnerAndName")
+      .mockResolvedValueOnce(MockOutdatedWorkspace)
+    const updateWorkspaceSpy = jest
+      .spyOn(api, "updateWorkspace")
+      .mockRejectedValueOnce(
+        new api.MissingBuildParameters([
+          MockTemplateVersionParameter1,
+          MockTemplateVersionParameter2,
+        ]),
+      )
+    // Render page and wait for it to be loaded
+    renderWithAuth(<WorkspacePage />, {
+      route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
+      path: "/@:username/:workspace",
     })
-
-    server.use(
-      rest.get(
-        `/api/v2/users/:userId/workspace/:workspaceName`,
-        (req, res, ctx) => {
-          return res(ctx.status(200), ctx.json(MockOutdatedWorkspace))
+    await waitForLoaderToBeRemoved()
+    // Click on the update button
+    const workspaceActions = screen.getByTestId("workspace-actions")
+    await user.click(
+      within(workspaceActions).getByRole("button", { name: "Update" }),
+    )
+    await waitFor(() => {
+      expect(api.updateWorkspace).toBeCalled()
+      // We want to clear this mock to use it later
+      updateWorkspaceSpy.mockClear()
+    })
+    // Fill the parameters and send the form
+    const dialog = await screen.findByTestId("dialog")
+    const firstParameterInput = within(dialog).getByLabelText(
+      MockTemplateVersionParameter1.name,
+      { exact: false },
+    )
+    await user.clear(firstParameterInput)
+    await user.type(firstParameterInput, "some-value")
+    const secondParameterInput = within(dialog).getByLabelText(
+      MockTemplateVersionParameter2.name,
+      { exact: false },
+    )
+    await user.clear(secondParameterInput)
+    await user.type(secondParameterInput, "2")
+    await user.click(within(dialog).getByRole("button", { name: "Update" }))
+    // Check if the update was called using the values from the form
+    await waitFor(() => {
+      expect(api.updateWorkspace).toBeCalledWith(MockOutdatedWorkspace, [
+        {
+          name: MockTemplateVersionParameter1.name,
+          value: "some-value",
         },
-      ),
-    )
-    await renderWorkspacePage()
-    const buttonText = t("actionButton.update", { ns: "workspacePage" })
-    const button = await screen.findByText(buttonText, { exact: true })
-    await userEvent.setup().click(button)
-
-    await waitFor(() =>
-      expect(api.startWorkspace).toBeCalledWith(
-        "test-outdated-workspace",
-        "test-template-version",
-      ),
-    )
+        {
+          name: MockTemplateVersionParameter2.name,
+          value: "2",
+        },
+      ])
+    })
   })
 
   it("shows the Stopping status when the workspace is stopping", async () => {
@@ -219,48 +254,56 @@ describe("WorkspacePage", () => {
       t("workspaceStatus.stopping", { ns: "common" }),
     )
   })
+
   it("shows the Stopped status when the workspace is stopped", async () => {
     await testStatus(
       MockStoppedWorkspace,
       t("workspaceStatus.stopped", { ns: "common" }),
     )
   })
+
   it("shows the Building status when the workspace is starting", async () => {
     await testStatus(
       MockStartingWorkspace,
       t("workspaceStatus.starting", { ns: "common" }),
     )
   })
+
   it("shows the Running status when the workspace is running", async () => {
     await testStatus(
       MockWorkspace,
       t("workspaceStatus.running", { ns: "common" }),
     )
   })
+
   it("shows the Failed status when the workspace is failed or canceled", async () => {
     await testStatus(
       MockFailedWorkspace,
       t("workspaceStatus.failed", { ns: "common" }),
     )
   })
+
   it("shows the Canceling status when the workspace is canceling", async () => {
     await testStatus(
       MockCancelingWorkspace,
       t("workspaceStatus.canceling", { ns: "common" }),
     )
   })
+
   it("shows the Canceled status when the workspace is canceling", async () => {
     await testStatus(
       MockCanceledWorkspace,
       t("workspaceStatus.canceled", { ns: "common" }),
     )
   })
+
   it("shows the Deleting status when the workspace is deleting", async () => {
     await testStatus(
       MockDeletingWorkspace,
       t("workspaceStatus.deleting", { ns: "common" }),
     )
   })
+
   it("shows the Deleted status when the workspace is deleted", async () => {
     await testStatus(
       MockDeletedWorkspace,
@@ -268,17 +311,15 @@ describe("WorkspacePage", () => {
     )
   })
 
-  describe("Timeline", () => {
-    it("shows the timeline build", async () => {
-      await renderWorkspacePage()
-      const table = await screen.findByTestId("builds-table")
+  it("shows the timeline build", async () => {
+    await renderWorkspacePage()
+    const table = await screen.findByTestId("builds-table")
 
-      // Wait for the results to be loaded
-      await waitFor(async () => {
-        const rows = table.querySelectorAll("tbody > tr")
-        // Added +1 because of the date row
-        expect(rows).toHaveLength(MockBuilds.length + 1)
-      })
+    // Wait for the results to be loaded
+    await waitFor(async () => {
+      const rows = table.querySelectorAll("tbody > tr")
+      // Added +1 because of the date row
+      expect(rows).toHaveLength(MockBuilds.length + 1)
     })
   })
 })
