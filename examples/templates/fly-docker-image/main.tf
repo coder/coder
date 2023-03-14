@@ -15,6 +15,7 @@ provider "fly" {
   useinternaltunnel    = true
   internaltunnelorg    = var.fly_org
   internaltunnelregion = data.coder_parameter.region.value
+  fly_api_token        = var.fly_api_token == "" ? null : var.fly_api_token
 }
 
 provider "coder" {
@@ -83,6 +84,17 @@ resource "fly_machine" "workspace" {
       path   = "/home/coder"
     }
   ]
+}
+
+variable "fly_api_token" {
+  type        = string
+  description = <<-EOF
+The Fly.io API token to use for deploying the workspace. You can generate one by running:
+
+$ flyctl auth token
+EOF
+  sensitive   = true
+  default     = ""
 }
 
 variable "fly_org" {
