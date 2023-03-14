@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.14"
+      version = "~> 0.6.17"
     }
     google = {
       source  = "hashicorp/google"
@@ -11,10 +11,14 @@ terraform {
   }
 }
 
-data "coder_parameter" "project_id" {
-  name        = "What Google Compute Project should your workspace live in?"
+provider "coder" {
+  feature_use_managed_variables = true
+}
+
+variable "project_id" {
+  type        = string
   description = "The Google Compute Project will be used to build your workspace."
-  type        = "string"
+  default     = ""
 }
 
 data "coder_parameter" "zone" {
@@ -51,7 +55,7 @@ data "coder_parameter" "zone" {
 
 provider "google" {
   zone    = data.coder_parameter.zone.value
-  project = data.coder_parameter.project_id.value
+  project = var.project_id
 }
 
 data "coder_workspace" "me" {
@@ -59,7 +63,6 @@ data "coder_workspace" "me" {
 
 data "google_compute_default_service_account" "default" {
 }
-
 
 resource "coder_agent" "main" {
   auth = "google-instance-identity"
