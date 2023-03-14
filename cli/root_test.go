@@ -53,7 +53,8 @@ func TestCommandHelp(t *testing.T) {
 			name: "coder server --help",
 			cmd:  []string{"server", "--help"},
 			env: map[string]string{
-				"CACHE_DIRECTORY": "~/.cache/",
+				"CACHE_DIRECTORY":     "~/.cache/",
+				"CODER_AGENT_LOG_DIR": "/tmp",
 			},
 		},
 		{
@@ -167,7 +168,7 @@ ExtractCommandPathsLoop:
 			}{
 				{`\r\n`, "\n"},
 				{`~\.cache\coder`, "~/.cache/coder"},
-				{`C:\Users\RUNNER~1\AppData\Local\Temp`, "/tmp"},
+				{`C:\tmp`, "/tmp"},
 			} {
 				want = bytes.ReplaceAll(want, []byte(r.old), []byte(r.new))
 				got = bytes.ReplaceAll(got, []byte(r.old), []byte(r.new))
