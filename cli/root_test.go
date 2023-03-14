@@ -57,7 +57,7 @@ func TestCommandHelp(t *testing.T) {
 			name: "coder server --help",
 			cmd:  []string{"server", "--help"},
 			env: map[string]string{
-				"CODER_CACHE_DIRECTORY": "~/.cache/coder",
+				"CACHE_DIRECTORY": "~/.cache/",
 			},
 		},
 		{

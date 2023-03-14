@@ -129,13 +129,18 @@ func Start(t *testing.T, inv *clibase.Invocation) {
 	closeCh := make(chan struct{})
 	go func() {
 		defer close(closeCh)
+		startedAt := time.Now()
 		err := <-StartErr(t, inv)
 		switch {
 		case errors.Is(err, context.Canceled):
 			return
 		case errors.Is(err, context.DeadlineExceeded):
-			// There are cases where this error is benign.
-			t.Logf("command timed out: %s", inv.Command.Name())
+			// There are many cases where this error is benign. For example,
+			// when the server is slow to wind-down at the end of a test.
+			t.Logf(
+				"%q timed out after %v",
+				inv.Command.FullName(), time.Since(startedAt),
+			)
 		default:
 			assert.NoError(t, err)
 		}

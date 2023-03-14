@@ -1290,9 +1290,9 @@ Write out the current server configuration to the path specified by --config.`,
 			Hidden:      true,
 		},
 	}
-	for _, o := range opts {
-		if o.Env != "" {
-			o.Env = "CODER_" + o.Env
+	for i := range opts {
+		if opts[i].Env != "" {
+			opts[i].Env = "CODER_" + opts[i].Env
 		}
 	}
 	return opts
