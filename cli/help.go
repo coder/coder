@@ -194,6 +194,10 @@ func (lm *newlineLimiter) Write(p []byte) (int, error) {
 	rd := bytes.NewReader(p)
 	for r, n, _ := rd.ReadRune(); n > 0; r, n, _ = rd.ReadRune() {
 		switch {
+		case r == '\r':
+			// Carriage returns can sneak into `help.tpl` when `git clone`
+			// is configured to automatically convert line endings.
+			continue
 		case r == '\n':
 			lm.newLineCounter++
 			if lm.newLineCounter > lm.limit {

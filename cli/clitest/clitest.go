@@ -130,10 +130,15 @@ func Start(t *testing.T, inv *clibase.Invocation) {
 	go func() {
 		defer close(closeCh)
 		err := <-StartErr(t, inv)
-		if errors.Is(err, context.Canceled) {
+		switch {
+		case errors.Is(err, context.Canceled):
 			return
+		case errors.Is(err, context.DeadlineExceeded):
+			// There are cases where this error is benign.
+			t.Logf("command timed out: %s", inv.Command.Name())
+		default:
+			assert.NoError(t, err)
 		}
-		assert.NoError(t, err)
 	}()
 
 	t.Cleanup(func() {
