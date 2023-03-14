@@ -14,7 +14,7 @@ Global Options
 Global options are applied to all commands. They can be set using environment
 variables or flags.
 
-    --global-config, $CODER_CONFIG_DIR  (default: /home/coder/.config/coderv2) 
+    --global-config, $CODER_CONFIG_DIR  (default: ~/.config/coderv2) 
         Path to the global `coder` config directory.
 
     --header, $CODER_HEADER 

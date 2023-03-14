@@ -124,7 +124,7 @@ func main() {
 	var manifest manifest
 	err = json.Unmarshal(manifestByt, &manifest)
 	if err != nil {
-		flog.Fatalf("unmarshaling manifest: %v", err)
+		flog.Fatalf("unmarshalling manifest: %v", err)
 	}
 
 	var found bool

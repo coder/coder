@@ -36,11 +36,6 @@ var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}
 
 //nolint:tparallel,paralleltest // These test sets env vars.
 func TestCommandHelp(t *testing.T) {
-	commonEnv := map[string]string{
-		"HOME":             "~",
-		"CODER_CONFIG_DIR": "~/.config/coderv2",
-	}
-
 	rootClient, replacements := prepareTestData(t)
 
 	type testCase struct {
@@ -101,9 +96,6 @@ ExtractCommandPathsLoop:
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			env := make(map[string]string)
-			for k, v := range commonEnv {
-				env[k] = v
-			}
 			for k, v := range tt.env {
 				env[k] = v
 			}
@@ -157,6 +149,12 @@ ExtractCommandPathsLoop:
 
 			// Replace any timestamps with a placeholder.
 			got = timestampRegex.ReplaceAll(got, []byte("[timestamp]"))
+
+			homeDir, err := os.UserHomeDir()
+			require.NoError(t, err)
+
+			// The home directory changes depending on the test environment.
+			got = bytes.ReplaceAll(got, []byte(homeDir), []byte("~"))
 
 			gf := filepath.Join("testdata", strings.Replace(tt.name, " ", "_", -1)+".golden")
 			if *updateGoldenFiles {
