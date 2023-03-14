@@ -3734,6 +3734,7 @@ Parameter represents a set value for the scope.
   "description": "string",
   "description_plaintext": "string",
   "icon": "string",
+  "legacy_variable_name": "string",
   "mutable": true,
   "name": "string",
   "options": [
@@ -3762,6 +3763,7 @@ Parameter represents a set value for the scope.
 | `description`           | string                                                                                      | false    |              |             |
 | `description_plaintext` | string                                                                                      | false    |              |             |
 | `icon`                  | string                                                                                      | false    |              |             |
+| `legacy_variable_name`  | string                                                                                      | false    |              |             |
 | `mutable`               | boolean                                                                                     | false    |              |             |
 | `name`                  | string                                                                                      | false    |              |             |
 | `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |

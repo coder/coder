@@ -1,5 +1,7 @@
 import { deleteTemplate } from "api/api"
+import { getErrorMessage } from "api/errors"
 import { Template } from "api/typesGenerated"
+import { displayError } from "components/GlobalSnackbar/utils"
 import { useState } from "react"
 
 type DeleteTemplateState =
@@ -21,9 +23,14 @@ export const useDeleteTemplate = (template: Template, onDelete: () => void) => {
   }
 
   const confirmDelete = async () => {
-    setState({ status: "deleting" })
-    await deleteTemplate(template.id)
-    onDelete()
+    try {
+      setState({ status: "deleting" })
+      await deleteTemplate(template.id)
+      onDelete()
+    } catch (e) {
+      setState({ status: "confirming" })
+      displayError(getErrorMessage(e, "Failed to delete template"))
+    }
   }
 
   return {

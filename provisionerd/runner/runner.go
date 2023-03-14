@@ -779,10 +779,6 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 				return nil, xerrors.New(msgType.Complete.Error)
 			}
 
-			if len(msgType.Complete.Parameters) > 0 && len(values) > 0 {
-				return nil, xerrors.Errorf(`rich parameters can't be used together with legacy parameters, set the coder provider flag "feature_use_managed_variables = true" to enable managed variables`)
-			}
-
 			r.logger.Info(context.Background(), "parse dry-run provision successful",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
