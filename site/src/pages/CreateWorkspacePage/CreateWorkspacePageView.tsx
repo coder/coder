@@ -19,8 +19,12 @@ import {
   FormSection,
   FormFooter,
   HorizontalForm,
-} from "components/HorizontalForm/HorizontalForm"
+} from "components/Form/Form"
 import { makeStyles } from "@material-ui/core/styles"
+import {
+  selectInitialRichParametersValues,
+  useValidationSchemaForRichParameters,
+} from "util/richParameters"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
@@ -82,7 +86,7 @@ export const CreateWorkspacePageView: FC<
       },
       validationSchema: Yup.object({
         name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
-        rich_parameter_values: ValidationSchemaForRichParameters(
+        rich_parameter_values: useValidationSchemaForRichParameters(
           "createWorkspacePage",
           props.templateParameters,
         ),
@@ -334,7 +338,7 @@ export const CreateWorkspacePageView: FC<
           props.templateParameters.filter((p) => !p.mutable).length > 0 && (
             <FormSection
               title="Immutable parameters"
-              className={styles.warningSection}
+              classes={{ root: styles.warningSection }}
               description={
                 <>
                   Those values are also parameters provided from your Terraform
@@ -398,44 +402,6 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-const selectInitialRichParametersValues = (
-  templateParameters?: TypesGen.TemplateVersionParameter[],
-  defaultValuesFromQuery?: Record<string, string>,
-): TypesGen.WorkspaceBuildParameter[] => {
-  const defaults: TypesGen.WorkspaceBuildParameter[] = []
-  if (!templateParameters) {
-    return defaults
-  }
-
-  templateParameters.forEach((parameter) => {
-    if (parameter.options.length > 0) {
-      let parameterValue = parameter.options[0].value
-      if (defaultValuesFromQuery && defaultValuesFromQuery[parameter.name]) {
-        parameterValue = defaultValuesFromQuery[parameter.name]
-      }
-
-      const buildParameter: TypesGen.WorkspaceBuildParameter = {
-        name: parameter.name,
-        value: parameterValue,
-      }
-      defaults.push(buildParameter)
-      return
-    }
-
-    let parameterValue = parameter.default_value
-    if (defaultValuesFromQuery && defaultValuesFromQuery[parameter.name]) {
-      parameterValue = defaultValuesFromQuery[parameter.name]
-    }
-
-    const buildParameter: TypesGen.WorkspaceBuildParameter = {
-      name: parameter.name,
-      value: parameterValue || "",
-    }
-    defaults.push(buildParameter)
-  })
-  return defaults
-}
-
 export const workspaceBuildParameterValue = (
   workspaceBuildParameters: TypesGen.WorkspaceBuildParameter[],
   parameter: TypesGen.TemplateVersionParameter,
@@ -444,108 +410,4 @@ export const workspaceBuildParameterValue = (
     return buildParameter.name === parameter.name
   })
   return (buildParameter && buildParameter.value) || ""
-}
-
-export const ValidationSchemaForRichParameters = (
-  ns: string,
-  templateParameters?: TypesGen.TemplateVersionParameter[],
-  lastBuildParameters?: TypesGen.WorkspaceBuildParameter[],
-): Yup.AnySchema => {
-  const { t } = useTranslation(ns)
-
-  if (!templateParameters) {
-    return Yup.object()
-  }
-
-  return Yup.array()
-    .of(
-      Yup.object().shape({
-        name: Yup.string().required(),
-        value: Yup.string().test("verify with template", (val, ctx) => {
-          const name = ctx.parent.name
-          const templateParameter = templateParameters.find(
-            (parameter) => parameter.name === name,
-          )
-          if (templateParameter) {
-            switch (templateParameter.type) {
-              case "number":
-                if (
-                  templateParameter.validation_min &&
-                  templateParameter.validation_max
-                ) {
-                  if (
-                    Number(val) < templateParameter.validation_min ||
-                    templateParameter.validation_max < Number(val)
-                  ) {
-                    return ctx.createError({
-                      path: ctx.path,
-                      message: t("validationNumberNotInRange", {
-                        min: templateParameter.validation_min,
-                        max: templateParameter.validation_max,
-                      }),
-                    })
-                  }
-                }
-
-                if (
-                  templateParameter.validation_monotonic &&
-                  lastBuildParameters
-                ) {
-                  const lastBuildParameter = lastBuildParameters.find(
-                    (last) => last.name === name,
-                  )
-                  if (lastBuildParameter) {
-                    switch (templateParameter.validation_monotonic) {
-                      case "increasing":
-                        if (Number(lastBuildParameter.value) > Number(val)) {
-                          return ctx.createError({
-                            path: ctx.path,
-                            message: t("validationNumberNotIncreasing", {
-                              last: lastBuildParameter.value,
-                            }),
-                          })
-                        }
-                        break
-                      case "decreasing":
-                        if (Number(lastBuildParameter.value) < Number(val)) {
-                          return ctx.createError({
-                            path: ctx.path,
-                            message: t("validationNumberNotDecreasing", {
-                              last: lastBuildParameter.value,
-                            }),
-                          })
-                        }
-                        break
-                    }
-                  }
-                }
-                break
-              case "string":
-                {
-                  if (
-                    !templateParameter.validation_regex ||
-                    templateParameter.validation_regex.length === 0
-                  ) {
-                    return true
-                  }
-
-                  const regex = new RegExp(templateParameter.validation_regex)
-                  if (val && !regex.test(val)) {
-                    return ctx.createError({
-                      path: ctx.path,
-                      message: t("validationPatternNotMatched", {
-                        error: templateParameter.validation_error,
-                        pattern: templateParameter.validation_regex,
-                      }),
-                    })
-                  }
-                }
-                break
-            }
-          }
-          return true
-        }),
-      }),
-    )
-    .required()
 }

@@ -25,6 +25,7 @@ import {
   WorkspaceEvent,
   workspaceMachine,
 } from "../../xServices/workspace/workspaceXService"
+import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog"
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
@@ -52,6 +53,7 @@ export const WorkspaceReadyPage = ({
     cancellationError,
     applicationsHost,
     permissions,
+    missingParameters,
   } = workspaceState.context
   if (workspace === undefined) {
     throw Error("Workspace is undefined")
@@ -103,7 +105,7 @@ export const WorkspaceReadyPage = ({
             deadline,
           ),
         }}
-        isUpdating={workspaceState.hasTag("updating")}
+        isUpdating={workspaceState.matches("ready.build.requestingUpdate")}
         workspace={workspace}
         handleStart={() => workspaceSend({ type: "START" })}
         handleStop={() => workspaceSend({ type: "STOP" })}
@@ -138,6 +140,18 @@ export const WorkspaceReadyPage = ({
         onCancel={() => workspaceSend({ type: "CANCEL_DELETE" })}
         onConfirm={() => {
           workspaceSend({ type: "DELETE" })
+        }}
+      />
+      <UpdateBuildParametersDialog
+        parameters={missingParameters}
+        open={workspaceState.matches(
+          "ready.build.askingForMissedBuildParameters",
+        )}
+        onClose={() => {
+          workspaceSend({ type: "CANCEL" })
+        }}
+        onUpdate={(buildParameters) => {
+          workspaceSend({ type: "UPDATE", buildParameters })
         }}
       />
     </>
