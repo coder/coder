@@ -31,10 +31,11 @@ import (
 
 func workspaceAgent() *cobra.Command {
 	var (
-		auth         string
-		logDir       string
-		pprofAddress string
-		noReap       bool
+		auth          string
+		logDir        string
+		pprofAddress  string
+		noReap        bool
+		sshMaxTimeout time.Duration
 	)
 	cmd := &cobra.Command{
 		Use: "agent",
@@ -208,7 +209,8 @@ func workspaceAgent() *cobra.Command {
 				EnvironmentVariables: map[string]string{
 					"GIT_ASKPASS": executablePath,
 				},
-				AgentPorts: agentPorts,
+				AgentPorts:    agentPorts,
+				SshMaxTimeout: sshMaxTimeout,
 			})
 			<-ctx.Done()
 			return closer.Close()
@@ -219,6 +221,7 @@ func workspaceAgent() *cobra.Command {
 	cliflag.StringVarP(cmd.Flags(), &logDir, "log-dir", "", "CODER_AGENT_LOG_DIR", os.TempDir(), "Specify the location for the agent log files")
 	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
 	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
+	cliflag.DurationVarP(cmd.Flags(), &sshMaxTimeout, "ssh-max-timeout", "", "CODER_AGENT_SSH_MAX_TIMEOUT", time.Duration(0), "Specify the max timeout for a SSH connection")
 	return cmd
 }
 
