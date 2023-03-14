@@ -139,12 +139,16 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 
-		clitest.Start(t, inv)
+		const superDuperLong = testutil.WaitSuperLong * 3
+
+		ctx := testutil.Context(t, superDuperLong)
+		clitest.Start(t, inv.WithContext(ctx))
+
 		//nolint:gocritic // Embedded postgres take a while to fire up.
 		require.Eventually(t, func() bool {
 			rawURL, err := cfg.URL().Read()
 			return err == nil && rawURL != ""
-		}, 3*time.Minute, testutil.IntervalFast, "failed to get access URL")
+		}, superDuperLong, testutil.IntervalFast, "failed to get access URL")
 	})
 	t.Run("BuiltinPostgresURL", func(t *testing.T) {
 		t.Parallel()
