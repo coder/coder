@@ -227,7 +227,7 @@ data "coder_parameter" "cpu" {
 - Use `legacy_variable_name` and `legacy_variable` to link both.
 - Mark the new parameter as `mutable`, so that Coder will not block updating existing workspaces.
 
-2. Update all workspaces to the uploaded template version. Coder will populate `coder_parameter`s with values from legacy parameters.
+2. Update all workspaces to the updated template version. Coder will populate the added `coder_parameter`s with values from legacy variables.
 3. Prepare another template version:
 
 - Remove migrated variable.
