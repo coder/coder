@@ -10,8 +10,12 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"flag"
 	"io"
 	"strings"
+	"time"
+
+	insecurerand "math/rand"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
@@ -30,6 +34,12 @@ const (
 )
 
 func entropy() io.Reader {
+	if flag.Lookup("test.v") != nil {
+		// This helps speed along our tests, esp. in CI where entropy is
+		// sparse.
+		//nolint:gosec
+		return insecurerand.New(insecurerand.NewSource(time.Now().UnixNano()))
+	}
 	// Buffering to reduce the number of system calls
 	// doubles performance without any loss of security.
 	return bufio.NewReader(rand.Reader)

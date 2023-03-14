@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	_ "embed"
+	"flag"
 	"io"
 	"sort"
 	"strings"
@@ -28,14 +29,21 @@ type optionGroup struct {
 	Options     clibase.OptionSet
 }
 
+func ttyGetSize() int {
+	width, _, err := terminal.GetSize(0)
+	// Even in tests, we want to return the default width because
+	// the PTY width changes across operating systems for some
+	// unknown reason.
+	if err != nil || flag.Lookup("test.v") != nil {
+		return 80
+	}
+	return width
+}
+
 // wrapTTY wraps a string to the width of the terminal, or 80 no terminal
 // is detected.
 func wrapTTY(s string) string {
-	width, _, err := terminal.GetSize(0)
-	if err != nil {
-		width = 80
-	}
-	return wordwrap.WrapString(s, uint(width))
+	return wordwrap.WrapString(s, uint(ttyGetSize()))
 }
 
 var usageTemplate = template.Must(
@@ -48,10 +56,7 @@ var usageTemplate = template.Must(
 				return strings.TrimSuffix(s, "\n")
 			},
 			"indent": func(body string, tabs int) string {
-				twidth, _, err := terminal.GetSize(0)
-				if err != nil {
-					twidth = 80
-				}
+				twidth := ttyGetSize()
 
 				spacing := strings.Repeat(" ", tabs*4)
 
