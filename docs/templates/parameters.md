@@ -230,7 +230,7 @@ data "coder_parameter" "cpu" {
 2. Update all workspaces to the updated template version. Coder will populate the added `coder_parameter`s with values from legacy variables.
 3. Prepare another template version:
 
-- Remove migrated variable.
+- Remove the migrated variables.
 - Remove properties `legacy_variable` and `legacy_variable_name` from `coder_parameter`s.
 
 4. Update all workspaces to the uploaded template version.
