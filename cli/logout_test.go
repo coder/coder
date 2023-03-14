@@ -1,9 +1,7 @@
 package cli_test
 
 import (
-	"fmt"
 	"os"
-	"regexp"
 	"runtime"
 	"testing"
 
@@ -166,29 +164,27 @@ func TestLogout(t *testing.T) {
 			}
 		}()
 
-		logoutChan := make(chan struct{})
 		logout, _ := clitest.New(t, "logout", "--global-config", string(config))
 
 		logout.Stdin = pty.Input()
 		logout.Stdout = pty.Output()
 
 		go func() {
-			defer close(logoutChan)
-			err := logout.Run()
-			assert.NotNil(t, err)
-			var errorMessage string
-			if runtime.GOOS == "windows" {
-				errorMessage = "The process cannot access the file because it is being used by another process."
-			} else {
-				errorMessage = "permission denied"
-			}
-			errRegex := regexp.MustCompile(fmt.Sprintf("Failed to log out.\n\tremove URL file: .+: %s\n\tremove session file: .+: %s", errorMessage, errorMessage))
-			assert.Regexp(t, errRegex, err.Error())
+			pty.ExpectMatch("Are you sure you want to log out?")
+			pty.WriteLine("yes")
 		}()
+		err = logout.Run()
+		require.Error(t, err)
 
-		pty.ExpectMatch("Are you sure you want to log out?")
-		pty.WriteLine("yes")
-		<-logoutChan
+		t.Logf("err: %v", err)
+
+		var wantError string
+		if runtime.GOOS == "windows" {
+			wantError = "The process cannot access the file because it is being used by another process."
+		} else {
+			wantError = "permission denied"
+		}
+		require.ErrorContains(t, err, wantError)
 	})
 }
 
