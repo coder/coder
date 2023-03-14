@@ -33,7 +33,7 @@ data "coder_parameter" "docker_image" {
   default     = "codercom/enterprise-base:ubuntu"
   icon        = "/icon/docker.png"
   type        = "string"
-  mutable     = true
+  mutable     = false
 }
 
 data "coder_parameter" "dotfiles_uri" {

@@ -23,14 +23,16 @@ variable "ecs-cluster" {
 data "coder_parameter" "cpu" {
   name        = "cpu"
   description = "The number of CPU units to reserve for the container"
-  default     = "1024"
+  type        = "number"
+  default     = 1024
   mutable     = true
 }
 
 data "coder_parameter" "memory" {
   name        = "memory"
   description = "The amount of memory (in MiB) to allow the container to use"
-  default     = "2048"
+  type        = "number"
+  default     = 2048
   mutable     = true
 }
 
