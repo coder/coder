@@ -97,6 +97,26 @@ To make easier for you to customize your resource we added some built-in icons:
 
 We also have other icons related to the IDEs. You can see all the icons [here](https://github.com/coder/coder/tree/main/site/static/icon).
 
+## Agent Metadata
+
+In cases where you want to present automatically updating, dynamic values. You
+can use the `metadata` block in the `coder_agent` resource. For example:
+
+```hcl
+resource "coder_agent" "dev" {
+  os   = "linux"
+  arch = "amd64"
+  dir  = "/workspace"
+  metadata {
+    name = "Process Count"
+    cmd = "ps aux | wc -l"
+    refresh = 5s
+    # Any data above this width will require scrolling.
+    width = 5
+  }
+}
+```
+
 ## Up next
 
 - Learn about [secrets](../secrets.md)
