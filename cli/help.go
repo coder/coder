@@ -5,6 +5,7 @@ import (
 	"bytes"
 	_ "embed"
 	"flag"
+	"fmt"
 	"io"
 	"sort"
 	"strings"
@@ -234,6 +235,9 @@ func helpFn() clibase.HandlerFunc {
 		err = stderrBuf.Flush()
 		if err != nil {
 			return err
+		}
+		if len(inv.Args) > 0 {
+			_, _ = fmt.Fprintf(inv.Stderr, "---\nerror: unknown subcommand %q\n", inv.Args[0])
 		}
 		return nil
 	}
