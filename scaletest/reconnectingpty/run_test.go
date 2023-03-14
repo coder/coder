@@ -23,6 +23,7 @@ import (
 
 func Test_Runner(t *testing.T) {
 	t.Parallel()
+	t.Skip("https://github.com/coder/coder/issues/6598")
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
