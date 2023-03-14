@@ -123,6 +123,11 @@ data "coder_parameter" "location" {
     icon  = "/emojis/1f1f8-1f1ea.png"
   }
   option {
+    name  = "Switzerland (Zurich)"
+    value = "switzerlandnorth"
+    icon  = "/emojis/1f1e8-1f1ed.png"
+  }
+  option {
     name  = "Qatar (Doha)"
     value = "qatarcentral"
     icon  = "/emojis/1f1f6-1f1e6.png"
