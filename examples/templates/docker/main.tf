@@ -95,7 +95,7 @@ resource "docker_volume" "home_volume" {
 resource "docker_image" "main" {
   name = "coder-${data.coder_workspace.me.id}"
   build {
-    path = "./build"
+    context = "./build"
     build_args = {
       USER = local.username
     }
