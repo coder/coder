@@ -10,11 +10,8 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
-	"flag"
 	"io"
-	insecurerand "math/rand"
 	"strings"
-	"time"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
@@ -32,17 +29,7 @@ const (
 	AlgorithmRSA4096 Algorithm = "rsa4096"
 )
 
-// insecureRng is a global to avoid coincidentally duplicating keys
-// in tests.
-//
-//nolint:gosec
-var insecureRng = insecurerand.New(insecurerand.NewSource(time.Now().UnixNano()))
-
 func entropy() io.Reader {
-	if flag.Lookup("test.v") != nil {
-		// This helps speed along our tests.
-		return bufio.NewReader(insecureRng)
-	}
 	// Buffering to reduce the number of system calls
 	// doubles performance without any loss of security.
 	return bufio.NewReader(rand.Reader)
