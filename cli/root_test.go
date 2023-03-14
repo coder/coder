@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/clitest"
+	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/codersdk"
@@ -152,6 +153,9 @@ ExtractCommandPathsLoop:
 
 			homeDir, err := os.UserHomeDir()
 			require.NoError(t, err)
+
+			configDir := config.DefaultDir()
+			got = bytes.ReplaceAll(got, []byte(configDir), []byte("~/.config/coderv2"))
 
 			// The home directory changes depending on the test environment.
 			got = bytes.ReplaceAll(got, []byte(homeDir), []byte("~"))
