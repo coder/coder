@@ -223,20 +223,20 @@ data "coder_parameter" "cpu" {
 
 1. Prepare and update a new template version:
 
-- Add `coder_parameter` resource matching the legacy variable to migrate.
-- Use `legacy_variable_name` and `legacy_variable` to link the `coder_parameter` to the legacy variable.
-- Mark the new parameter as `mutable`, so that Coder will not block updating existing workspaces.
+   - Add `coder_parameter` resource matching the legacy variable to migrate.
+   - Use `legacy_variable_name` and `legacy_variable` to link the `coder_parameter` to the legacy variable.
+   - Mark the new parameter as `mutable`, so that Coder will not block updating existing workspaces.
 
 2. Update all workspaces to the updated template version. Coder will populate the added `coder_parameter`s with values from legacy variables.
 3. Prepare another template version:
 
-- Remove the migrated variables.
-- Remove properties `legacy_variable` and `legacy_variable_name` from `coder_parameter`s.
+   - Remove the migrated variables.
+   - Remove properties `legacy_variable` and `legacy_variable_name` from `coder_parameter`s.
 
 4. Update all workspaces to the updated template version (2nd).
 5. Prepare a third template version:
 
-- Enable the `feature_use_managed_variables` provider flag to use managed Terraform variables for template customization. Once the flag is enabled, legacy variables won't be used.
+   - Enable the `feature_use_managed_variables` provider flag to use managed Terraform variables for template customization. Once the flag is enabled, legacy variables won't be used.
 
 6. Update all workspaces to the updated template version (3rd).
 7. Delete legacy parameters.
