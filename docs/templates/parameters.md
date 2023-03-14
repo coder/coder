@@ -241,7 +241,7 @@ data "coder_parameter" "cpu" {
 6. Update all workspaces to the uploaded template version.
 7. Delete legacy parameters.
 
-As a template improvement, the template author can consider marking some of new `coder_parameter` resources as `mutable`.
+As a template improvement, the template author can consider making some of the new `coder_parameter` resources `mutable`.
 
 ## Managed Terraform variables
 
