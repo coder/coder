@@ -1106,11 +1106,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			switch {
 			case xerrors.Is(exitErr, context.DeadlineExceeded):
 				cliui.Warnf(inv.Stderr, "Graceful shutdown timed out, forcing exit")
+				// Errors here cause a significant number of benign CI failures.
 				return nil
 			case xerrors.Is(exitErr, context.Canceled):
 				return nil
 			case exitErr != nil:
-				return xerrors.Errorf("server cleanup failed: %w", exitErr)
+				return xerrors.Errorf("graceful shutdown: %w", exitErr)
 			default:
 				return nil
 			}

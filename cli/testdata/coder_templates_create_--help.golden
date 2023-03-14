@@ -18,7 +18,7 @@ Options
     --default-ttl (default: 24h) 
         Specify a default TTL for workspaces created from this template.
 
-    --directory, -d (default: /) 
+    --directory, -d (default: .) 
         Specify the directory to create from, use '-' to read tar from stdin
 
     --yes, -y, $CODER_SKIP_PROMPT 

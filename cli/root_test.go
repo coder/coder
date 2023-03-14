@@ -168,6 +168,7 @@ ExtractCommandPathsLoop:
 				{"\r\n", "\n"},
 				{`~\.cache\coder`, "~/.cache/coder"},
 				{`C:\Users\RUNNER~1\AppData\Local\Temp`, "/tmp"},
+				{os.TempDir(), "/tmp"},
 			} {
 				want = bytes.ReplaceAll(want, []byte(r.old), []byte(r.new))
 				got = bytes.ReplaceAll(got, []byte(r.old), []byte(r.new))

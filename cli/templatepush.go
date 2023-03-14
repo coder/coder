@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -24,13 +23,12 @@ type templateUploadFlags struct {
 }
 
 func (pf *templateUploadFlags) option() clibase.Option {
-	currentDirectory, _ := os.Getwd()
 	return clibase.Option{
 		Name:          "directory",
 		Flag:          "directory",
 		FlagShorthand: "d",
 		Description:   "Specify the directory to create from, use '-' to read tar from stdin",
-		Default:       currentDirectory,
+		Default:       ".",
 		Value:         clibase.StringOf(&pf.directory),
 	}
 }

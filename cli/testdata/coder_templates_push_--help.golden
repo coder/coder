@@ -7,7 +7,7 @@ Options
         Always prompt all parameters. Does not pull parameter values from active
         template version
 
-    --directory, -d (default: /) 
+    --directory, -d (default: .) 
         Specify the directory to create from, use '-' to read tar from stdin
 
     --name
