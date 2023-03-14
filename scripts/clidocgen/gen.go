@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"html/template"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	_ "embed"
 
@@ -55,13 +55,19 @@ func init() {
 	)
 }
 
+func fullName(cmd *clibase.Cmd) string {
+	if cmd.FullName() == "coder" {
+		return "coder"
+	}
+	return strings.TrimPrefix(cmd.FullName(), "coder ")
+}
+
 func fmtDocFilename(cmd *clibase.Cmd) string {
 	if cmd.FullName() == "coder" {
 		// Special case for index.
 		return "../cli.md"
 	}
-	name := strings.TrimPrefix(cmd.FullName(), "coder ")
-	name = strings.ReplaceAll(name, " ", "_")
+	name := strings.ReplaceAll(fullName(cmd), " ", "_")
 	return fmt.Sprintf("%s.md", name)
 }
 

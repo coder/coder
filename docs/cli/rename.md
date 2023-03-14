@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # rename
 
  
@@ -7,14 +7,15 @@ Rename a workspace
 
 ## Usage
 ```console
-rename &lt;workspace&gt; &lt;new name&gt;
+rename <workspace> <new name>
 ```
 
 
 ## Options
 ### --yes, -y
-Bypass prompts
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Bypass prompts&lt;/code&gt; |
+| Environment | <code>$CODER_SKIP_PROMPT</code> |
+
+Bypass prompts

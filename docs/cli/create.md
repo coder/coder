@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # create
 
  
@@ -13,43 +13,44 @@ create [name]
 
 ## Options
 ### --template, -t
+ 
+| | |
+| --- | --- |
+| Environment | <code>$CODER_TEMPLATE_NAME</code> |
+
 Specify a template name.
-<br/>
-| | |
-| --- | --- |
-| Consumes | &lt;code&gt;Specify a template name.&lt;/code&gt; |
-
 ### --parameter-file
+ 
+| | |
+| --- | --- |
+| Environment | <code>$CODER_PARAMETER_FILE</code> |
+
 Specify a file path with parameter values.
-<br/>
-| | |
-| --- | --- |
-| Consumes | &lt;code&gt;Specify a file path with parameter values.&lt;/code&gt; |
-
 ### --rich-parameter-file
+ 
+| | |
+| --- | --- |
+| Environment | <code>$CODER_RICH_PARAMETER_FILE</code> |
+
 Specify a file path with values for rich parameters defined in the template.
-<br/>
-| | |
-| --- | --- |
-| Consumes | &lt;code&gt;Specify a file path with values for rich parameters defined in the template.&lt;/code&gt; |
-
 ### --start-at
+ 
+| | |
+| --- | --- |
+| Environment | <code>$CODER_WORKSPACE_START_AT</code> |
+
 Specify the workspace autostart schedule. Check `coder schedule start --help` for the syntax.
-<br/>
-| | |
-| --- | --- |
-| Consumes | &lt;code&gt;Specify the workspace autostart schedule. Check `coder schedule start --help` for the syntax.&lt;/code&gt; |
-
 ### --stop-after
-Specify a duration after which the workspace should shut down (e.g. 8h).
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Specify a duration after which the workspace should shut down (e.g. 8h).&lt;/code&gt; |
+| Environment | <code>$CODER_WORKSPACE_STOP_AFTER</code> |
 
+Specify a duration after which the workspace should shut down (e.g. 8h).
 ### --yes, -y
-Bypass prompts
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Bypass prompts&lt;/code&gt; |
+| Environment | <code>$CODER_SKIP_PROMPT</code> |
+
+Bypass prompts

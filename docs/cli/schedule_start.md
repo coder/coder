@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # start
 
  
@@ -7,13 +7,13 @@ Edit workspace start schedule
 
 ## Usage
 ```console
-start &lt;workspace-name&gt; { &lt;start-time&gt; [day-of-week] [location] | manual }
+start <workspace-name> { <start-time> [day-of-week] [location] | manual }
 ```
 
 ## Description
 ```console
 Schedules a workspace to regularly start at a specific time.
-Schedule format: &lt;start-time&gt; [day-of-week] [location].
+Schedule format: <start-time> [day-of-week] [location].
   * Start-time (required) is accepted either in 12-hour (hh:mm{am|pm}) format, or 24-hour format hh:mm.
   * Day-of-week (optional) allows specifying in the cron format, e.g. 1,3,5 or Mon-Fri.
     Aliases such as @daily are not supported.

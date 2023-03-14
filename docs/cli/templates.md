@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # templates
 
  
@@ -29,12 +29,12 @@ Templates are written in standard Terraform and describe the infrastructure for 
 ## Subcommands
 | Name |   Purpose |
 | ---- |   ----- |
-| [&lt;code&gt;create&lt;/code&gt;](./templates_create) | Create a template from the current directory or as specified by flag |
-| [&lt;code&gt;edit&lt;/code&gt;](./templates_edit) | Edit the metadata of a template by name. |
-| [&lt;code&gt;init&lt;/code&gt;](./templates_init) | Get started with a templated template. |
-| [&lt;code&gt;list&lt;/code&gt;](./templates_list) | List all the templates available for the organization |
-| [&lt;code&gt;plan&lt;/code&gt;](./templates_plan) | Plan a template push from the current directory |
-| [&lt;code&gt;push&lt;/code&gt;](./templates_push) | Push a new template version from the current directory or as specified by flag |
-| [&lt;code&gt;versions&lt;/code&gt;](./templates_versions) | Manage different versions of the specified template |
-| [&lt;code&gt;delete&lt;/code&gt;](./templates_delete) | Delete templates |
-| [&lt;code&gt;pull&lt;/code&gt;](./templates_pull) | Download the latest version of a template to a path. |
+| [<code>create</code>](./templates_create) | Create a template from the current directory or as specified by flag |
+| [<code>edit</code>](./templates_edit) | Edit the metadata of a template by name. |
+| [<code>init</code>](./templates_init) | Get started with a templated template. |
+| [<code>list</code>](./templates_list) | List all the templates available for the organization |
+| [<code>plan</code>](./templates_plan) | Plan a template push from the current directory |
+| [<code>push</code>](./templates_push) | Push a new template version from the current directory or as specified by flag |
+| [<code>versions</code>](./templates_versions) | Manage different versions of the specified template |
+| [<code>delete</code>](./templates_delete) | Delete templates |
+| [<code>pull</code>](./templates_pull) | Download the latest version of a template to a path. |

@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # start
 
  
@@ -13,38 +13,39 @@ start
 
 ## Options
 ### --cache-dir, -c
+ 
+| | |
+| --- | --- |
+| Environment | <code>$CODER_CACHE_DIRECTORY</code> |
+| Default |     <code>/home/coder/.cache/coder</code> |
+
+
+
 Directory to store cached data
-<br/>
-| | |
-| --- | --- |
-| Consumes | &lt;code&gt;Directory to store cached data&lt;/code&gt; |
-| Default |     &lt;code&gt;/home/coder/.cache/coder&lt;/code&gt; |
-
-
-
 ### --tag, -t
+ 
+| | |
+| --- | --- |
+| Environment | <code>$CODER_PROVISIONERD_TAGS</code> |
+
 Tags to filter provisioner jobs by
-<br/>
-| | |
-| --- | --- |
-| Consumes | &lt;code&gt;Tags to filter provisioner jobs by&lt;/code&gt; |
-
 ### --poll-interval
+ 
+| | |
+| --- | --- |
+| Environment | <code>$CODER_PROVISIONERD_POLL_INTERVAL</code> |
+| Default |     <code>1s</code> |
+
+
+
 How often to poll for provisioner jobs
-<br/>
-| | |
-| --- | --- |
-| Consumes | &lt;code&gt;How often to poll for provisioner jobs&lt;/code&gt; |
-| Default |     &lt;code&gt;1s&lt;/code&gt; |
-
-
-
 ### --poll-jitter
-How much to jitter the poll interval by
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;How much to jitter the poll interval by&lt;/code&gt; |
-| Default |     &lt;code&gt;100ms&lt;/code&gt; |
+| Environment | <code>$CODER_PROVISIONERD_POLL_JITTER</code> |
+| Default |     <code>100ms</code> |
 
 
+
+How much to jitter the poll interval by

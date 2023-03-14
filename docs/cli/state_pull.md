@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # pull
 
  
@@ -7,17 +7,17 @@ Pull a Terraform state file from a workspace.
 
 ## Usage
 ```console
-pull &lt;workspace&gt; [file]
+pull <workspace> [file]
 ```
 
 
 ## Options
 ### --build, -b
-Specify a workspace build to target by name.
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Specify a workspace build to target by name.&lt;/code&gt; |
-| Default |     &lt;code&gt;0&lt;/code&gt; |
+| Default |     <code>0</code> |
 
 
+
+Specify a workspace build to target by name.

@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # dotfiles
 
  
@@ -7,7 +7,7 @@ Checkout and install a dotfiles repository from a Git URL
 
 ## Usage
 ```console
-dotfiles &lt;git_repo_url&gt;
+dotfiles <git_repo_url>
 ```
 
 ## Description
@@ -20,15 +20,16 @@ dotfiles &lt;git_repo_url&gt;
 
 ## Options
 ### --symlink-dir
-Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.&lt;/code&gt; |
+| Environment | <code>$CODER_SYMLINK_DIR</code> |
 
+Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.
 ### --yes, -y
-Bypass prompts
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Bypass prompts&lt;/code&gt; |
+| Environment | <code>$CODER_SKIP_PROMPT</code> |
+
+Bypass prompts

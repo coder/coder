@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # override-stop
 
  
@@ -7,7 +7,7 @@ Edit stop time of active workspace
 
 ## Usage
 ```console
-override-stop &lt;workspace-name&gt; &lt;duration from now&gt;
+override-stop <workspace-name> <duration from now>
 ```
 
 ## Description

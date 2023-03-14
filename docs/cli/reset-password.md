@@ -1,20 +1,21 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # reset-password
 
  
-Directly connect to the database to reset a user&#39;s password
+Directly connect to the database to reset a user's password
 
 
 ## Usage
 ```console
-reset-password &lt;username&gt;
+reset-password <username>
 ```
 
 
 ## Options
 ### --postgres-url
-URL of a PostgreSQL database to connect to
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;URL of a PostgreSQL database to connect to&lt;/code&gt; |
+| Environment | <code>$CODER_PG_CONNECTION_URL</code> |
+
+URL of a PostgreSQL database to connect to

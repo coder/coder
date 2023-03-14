@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # licenses
 
  
@@ -13,6 +13,6 @@ licenses
 ## Subcommands
 | Name |   Purpose |
 | ---- |   ----- |
-| [&lt;code&gt;add&lt;/code&gt;](./licenses_add) | Add license to Coder deployment |
-| [&lt;code&gt;list&lt;/code&gt;](./licenses_list) | List licenses (including expired) |
-| [&lt;code&gt;delete&lt;/code&gt;](./licenses_delete) | Delete license by ID |
+| [<code>add</code>](./licenses_add) | Add license to Coder deployment |
+| [<code>list</code>](./licenses_list) | List licenses (including expired) |
+| [<code>delete</code>](./licenses_delete) | Delete license by ID |

@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # create
 
  
@@ -7,14 +7,15 @@ Create a user group
 
 ## Usage
 ```console
-create &lt;name&gt;
+create <name>
 ```
 
 
 ## Options
 ### --avatar-url, -u
-set an avatar for a group
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;set an avatar for a group&lt;/code&gt; |
+| Environment | <code>$CODER_AVATAR_URL</code> |
+
+set an avatar for a group

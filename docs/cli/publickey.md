@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # publickey
 
  
@@ -13,15 +13,15 @@ publickey
 
 ## Options
 ### --reset
-Regenerate your public key. This will require updating the key on any services it&#39;s registered with.
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Regenerate your public key. This will require updating the key on any services it&#39;s registered with.&lt;/code&gt; |
 
+Regenerate your public key. This will require updating the key on any services it's registered with.
 ### --yes, -y
-Bypass prompts
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Bypass prompts&lt;/code&gt; |
+| Environment | <code>$CODER_SKIP_PROMPT</code> |
+
+Bypass prompts

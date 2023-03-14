@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # list
 
  
@@ -13,21 +13,20 @@ list
 
 ## Options
 ### --column, -c
+ 
+| | |
+| --- | --- |
+| Default |     <code>name,last updated,used by</code> |
+
+
+
 Columns to display in table output. Available columns: name, created at, last updated, organization id, provisioner, active version id, used by, default ttl
-<br/>
-| | |
-| --- | --- |
-| Consumes | &lt;code&gt;Columns to display in table output. Available columns: name, created at, last updated, organization id, provisioner, active version id, used by, default ttl&lt;/code&gt; |
-| Default |     &lt;code&gt;name,last updated,used by&lt;/code&gt; |
-
-
-
 ### --output, -o
-Output format. Available formats: table, json
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Output format. Available formats: table, json&lt;/code&gt; |
-| Default |     &lt;code&gt;table&lt;/code&gt; |
+| Default |     <code>table</code> |
 
 
+
+Output format. Available formats: table, json

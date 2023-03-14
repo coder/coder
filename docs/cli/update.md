@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # update
 
  
@@ -7,7 +7,7 @@ Will update and start a given workspace if it is out of date.
 
 ## Usage
 ```console
-update &lt;workspace&gt;
+update <workspace>
 ```
 
 ## Description
@@ -18,25 +18,25 @@ Will update and start a given workspace if it is out of date. Use --always-promp
 
 ## Options
 ### --always-prompt
+ 
+| | |
+| --- | --- |
+| Default |     <code>false</code> |
+
+
+
 Always prompt all parameters. Does not pull parameter values from existing workspace
-<br/>
-| | |
-| --- | --- |
-| Consumes | &lt;code&gt;Always prompt all parameters. Does not pull parameter values from existing workspace&lt;/code&gt; |
-| Default |     &lt;code&gt;false&lt;/code&gt; |
-
-
-
 ### --parameter-file
-Specify a file path with parameter values.
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Specify a file path with parameter values.&lt;/code&gt; |
+| Environment | <code>$CODER_PARAMETER_FILE</code> |
 
+Specify a file path with parameter values.
 ### --rich-parameter-file
-Specify a file path with values for rich parameters defined in the template.
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Specify a file path with values for rich parameters defined in the template.&lt;/code&gt; |
+| Environment | <code>$CODER_RICH_PARAMETER_FILE</code> |
+
+Specify a file path with values for rich parameters defined in the template.

@@ -34,16 +34,16 @@
 ## Options
 {{- end }}
 ### --{{ $opt.Flag }}{{ with $opt.FlagShorthand}}, -{{ . }}{{end}}
-{{ $opt.Description | newLinesToBr }}
-<br/>
+{{" "}}
 | | |
 | --- | --- |
-{{- with $opt.Description }}
-| Consumes | {{ . | wrapCode }} |
+{{- with $opt.Env }}
+| Environment | {{ (print "$" .) | wrapCode }} |
 {{- end }}
 {{- with $opt.Default }}
 | Default | {{"    "}} {{- . | wrapCode }} |
 {{ "" }}
 {{ end }}
 {{ "" }}
+{{ $opt.Description | newLinesToBr }}
 {{- end}}

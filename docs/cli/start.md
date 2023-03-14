@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # start
 
  
@@ -7,14 +7,15 @@ Start a workspace
 
 ## Usage
 ```console
-start &lt;workspace&gt;
+start <workspace>
 ```
 
 
 ## Options
 ### --yes, -y
-Bypass prompts
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Bypass prompts&lt;/code&gt; |
+| Environment | <code>$CODER_SKIP_PROMPT</code> |
+
+Bypass prompts

@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # provisionerd
 
  
@@ -8,4 +8,4 @@ Manage provisioner daemons
 ## Subcommands
 | Name |   Purpose |
 | ---- |   ----- |
-| [&lt;code&gt;start&lt;/code&gt;](./provisionerd_start) | Run a provisioner daemon |
+| [<code>start</code>](./provisionerd_start) | Run a provisioner daemon |

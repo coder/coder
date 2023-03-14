@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # state
 
  
@@ -13,5 +13,5 @@ state
 ## Subcommands
 | Name |   Purpose |
 | ---- |   ----- |
-| [&lt;code&gt;pull&lt;/code&gt;](./state_pull) | Pull a Terraform state file from a workspace. |
-| [&lt;code&gt;push&lt;/code&gt;](./state_push) | Push a Terraform state file to a workspace. |
+| [<code>pull</code>](./state_pull) | Pull a Terraform state file from a workspace. |
+| [<code>push</code>](./state_push) | Push a Terraform state file to a workspace. |

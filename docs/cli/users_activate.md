@@ -1,13 +1,13 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # activate
 
  
-Update a user&#39;s status to &#39;active&#39;. Active users can fully interact with the platform
+Update a user's status to 'active'. Active users can fully interact with the platform
 
 
 ## Usage
 ```console
-activate &lt;username|user_id&gt;
+activate <username|user_id>
 ```
 
 ## Description
@@ -18,11 +18,11 @@ activate &lt;username|user_id&gt;
 
 ## Options
 ### --column, -c
-Specify a column to filter in the table.
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Specify a column to filter in the table.&lt;/code&gt; |
-| Default |     &lt;code&gt;username,email,created_at,status&lt;/code&gt; |
+| Default |     <code>username,email,created_at,status</code> |
 
 
+
+Specify a column to filter in the table.

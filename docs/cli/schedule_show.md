@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # show
 
  
@@ -7,7 +7,7 @@ Show workspace schedule
 
 ## Usage
 ```console
-show &lt;workspace-name&gt;
+show <workspace-name>
 ```
 
 ## Description

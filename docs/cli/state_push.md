@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # push
 
  
@@ -7,17 +7,17 @@ Push a Terraform state file to a workspace.
 
 ## Usage
 ```console
-push &lt;workspace&gt; &lt;file&gt;
+push <workspace> <file>
 ```
 
 
 ## Options
 ### --build, -b
-Specify a workspace build to target by name.
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Specify a workspace build to target by name.&lt;/code&gt; |
-| Default |     &lt;code&gt;0&lt;/code&gt; |
+| Default |     <code>0</code> |
 
 
+
+Specify a workspace build to target by name.

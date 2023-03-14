@@ -1,8 +1,8 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # config-ssh
 
  
-Add an SSH Host entry for your workspaces &#34;ssh coder.workspace&#34;
+Add an SSH Host entry for your workspaces "ssh coder.workspace"
 
 
 ## Usage
@@ -25,46 +25,47 @@ config-ssh
 
 ## Options
 ### --ssh-config-file
+ 
+| | |
+| --- | --- |
+| Environment | <code>$CODER_SSH_CONFIG_FILE</code> |
+| Default |     <code>~/.ssh/config</code> |
+
+
+
 Specifies the path to an SSH config.
-<br/>
-| | |
-| --- | --- |
-| Consumes | &lt;code&gt;Specifies the path to an SSH config.&lt;/code&gt; |
-| Default |     &lt;code&gt;~/.ssh/config&lt;/code&gt; |
-
-
-
 ### --ssh-option, -o
+ 
+| | |
+| --- | --- |
+| Environment | <code>$CODER_SSH_CONFIG_OPTS</code> |
+
 Specifies additional SSH options to embed in each host stanza.
-<br/>
-| | |
-| --- | --- |
-| Consumes | &lt;code&gt;Specifies additional SSH options to embed in each host stanza.&lt;/code&gt; |
-
 ### --dry-run, -n
+ 
+| | |
+| --- | --- |
+| Environment | <code>$CODER_SSH_DRY_RUN</code> |
+
 Perform a trial run with no changes made, showing a diff at the end.
-<br/>
-| | |
-| --- | --- |
-| Consumes | &lt;code&gt;Perform a trial run with no changes made, showing a diff at the end.&lt;/code&gt; |
-
 ### --skip-proxy-command
+ 
+| | |
+| --- | --- |
+| Environment | <code>$CODER_SSH_SKIP_PROXY_COMMAND</code> |
+
 Specifies whether the ProxyCommand option should be skipped. Useful for testing.
-<br/>
-| | |
-| --- | --- |
-| Consumes | &lt;code&gt;Specifies whether the ProxyCommand option should be skipped. Useful for testing.&lt;/code&gt; |
-
 ### --use-previous-options
-Specifies whether or not to keep options from previous run of config-ssh.
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Specifies whether or not to keep options from previous run of config-ssh.&lt;/code&gt; |
+| Environment | <code>$CODER_SSH_USE_PREVIOUS_OPTIONS</code> |
 
+Specifies whether or not to keep options from previous run of config-ssh.
 ### --yes, -y
-Bypass prompts
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Bypass prompts&lt;/code&gt; |
+| Environment | <code>$CODER_SKIP_PROMPT</code> |
+
+Bypass prompts

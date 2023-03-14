@@ -1,13 +1,13 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # show
 
  
-Show a single user. Use &#39;me&#39; to indicate the currently authenticated user.
+Show a single user. Use 'me' to indicate the currently authenticated user.
 
 
 ## Usage
 ```console
-show &lt;username|user_id|&#39;me&#39;&gt;
+show <username|user_id|'me'>
 ```
 
 ## Description
@@ -18,11 +18,11 @@ show &lt;username|user_id|&#39;me&#39;&gt;
 
 ## Options
 ### --output, -o
-Output format. Available formats: table, json
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Output format. Available formats: table, json&lt;/code&gt; |
-| Default |     &lt;code&gt;table&lt;/code&gt; |
+| Default |     <code>table</code> |
 
 
+
+Output format. Available formats: table, json

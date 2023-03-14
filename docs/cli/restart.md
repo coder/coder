@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # restart
 
  
@@ -7,14 +7,15 @@ Restart a workspace
 
 ## Usage
 ```console
-restart &lt;workspace&gt;
+restart <workspace>
 ```
 
 
 ## Options
 ### --yes, -y
-Bypass prompts
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Bypass prompts&lt;/code&gt; |
+| Environment | <code>$CODER_SKIP_PROMPT</code> |
+
+Bypass prompts

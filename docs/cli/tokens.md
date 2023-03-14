@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # tokens
 
  
@@ -29,6 +29,6 @@ Tokens are used to authenticate automated clients to Coder.
 ## Subcommands
 | Name |   Purpose |
 | ---- |   ----- |
-| [&lt;code&gt;create&lt;/code&gt;](./tokens_create) | Create a token |
-| [&lt;code&gt;list&lt;/code&gt;](./tokens_list) | List tokens |
-| [&lt;code&gt;remove&lt;/code&gt;](./tokens_remove) | Delete a token |
+| [<code>create</code>](./tokens_create) | Create a token |
+| [<code>list</code>](./tokens_list) | List tokens |
+| [<code>remove</code>](./tokens_remove) | Delete a token |

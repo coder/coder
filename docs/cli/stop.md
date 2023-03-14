@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # stop
 
  
@@ -7,14 +7,15 @@ Stop a workspace
 
 ## Usage
 ```console
-stop &lt;workspace&gt;
+stop <workspace>
 ```
 
 
 ## Options
 ### --yes, -y
-Bypass prompts
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Bypass prompts&lt;/code&gt; |
+| Environment | <code>$CODER_SKIP_PROMPT</code> |
+
+Bypass prompts

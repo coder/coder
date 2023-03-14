@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # versions
 
  
@@ -20,4 +20,4 @@ versions
 ## Subcommands
 | Name |   Purpose |
 | ---- |   ----- |
-| [&lt;code&gt;list&lt;/code&gt;](./templates_versions_list) | List all the versions of the specified template |
+| [<code>list</code>](./templates_versions_list) | List all the versions of the specified template |

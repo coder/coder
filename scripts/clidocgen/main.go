@@ -74,9 +74,12 @@ func main() {
 	// wroteMap indexes file paths to commands.
 	wroteMap := make(map[string]*clibase.Cmd)
 
-	markdownDir := filepath.Join(workdir, "docs", "cli")
+	var (
+		docsDir        = filepath.Join(workdir, "docs")
+		cliMarkdownDir = filepath.Join(docsDir, "cli")
+	)
 	err = genTree(
-		markdownDir,
+		cliMarkdownDir,
 		root.Command(root.EnterpriseSubcommands()),
 		wroteMap,
 	)
@@ -85,7 +88,7 @@ func main() {
 	}
 
 	// Delete old files
-	err = filepath.Walk(markdownDir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(cliMarkdownDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -105,13 +108,13 @@ func main() {
 		flog.Fatalf("deleting old docs: %v", err)
 	}
 
-	err = deleteEmptyDirs(markdownDir)
+	err = deleteEmptyDirs(cliMarkdownDir)
 	if err != nil {
 		flog.Fatalf("deleting empty dirs: %v", err)
 	}
 
 	// Update manifest
-	manifestPath := filepath.Join(workdir, "docs", "manifest.json")
+	manifestPath := filepath.Join(docsDir, "manifest.json")
 
 	manifestByt, err := os.ReadFile(manifestPath)
 	if err != nil {
@@ -125,19 +128,20 @@ func main() {
 	}
 
 	var found bool
-	for _, rt := range manifest.Routes {
+	for i := range manifest.Routes {
+		rt := &manifest.Routes[i]
 		if rt.Title != "Command Line" {
 			continue
 		}
 		rt.Children = nil
 		found = true
 		for path, cmd := range wroteMap {
-			relPath, err := filepath.Rel(markdownDir, path)
+			relPath, err := filepath.Rel(docsDir, path)
 			if err != nil {
 				flog.Fatalf("getting relative path: %v", err)
 			}
 			rt.Children = append(rt.Children, route{
-				Title:       cmd.Name(),
+				Title:       fullName(cmd),
 				Description: cmd.Short,
 				Path:        relPath,
 			})

@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # features
 
  
@@ -13,4 +13,4 @@ features
 ## Subcommands
 | Name |   Purpose |
 | ---- |   ----- |
-| [&lt;code&gt;list&lt;/code&gt;](./features_list) |  |
+| [<code>list</code>](./features_list) |  |

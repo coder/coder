@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # create
 
  
@@ -13,15 +13,16 @@ create
 
 ## Options
 ### --lifetime
-Specify a duration for the lifetime of the token.
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Specify a duration for the lifetime of the token.&lt;/code&gt; |
+| Environment | <code>$CODER_TOKEN_LIFETIME</code> |
 
+Specify a duration for the lifetime of the token.
 ### --name
-Specify a human-readable name.
-<br/>
+ 
 | | |
 | --- | --- |
-| Consumes | &lt;code&gt;Specify a human-readable name.&lt;/code&gt; |
+| Environment | <code>$CODER_TOKEN_NAME</code> |
+
+Specify a human-readable name.

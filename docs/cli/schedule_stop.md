@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # stop
 
  
@@ -7,7 +7,7 @@ Edit workspace stop schedule
 
 ## Usage
 ```console
-stop &lt;workspace-name&gt; { &lt;duration&gt; | manual }
+stop <workspace-name> { <duration> | manual }
 ```
 
 ## Description

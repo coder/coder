@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # scaletest
 
  
@@ -18,5 +18,5 @@ Perform scale tests against the Coder server.
 ## Subcommands
 | Name |   Purpose |
 | ---- |   ----- |
-| [&lt;code&gt;cleanup&lt;/code&gt;](./scaletest_cleanup) | Cleanup any orphaned scaletest resources |
-| [&lt;code&gt;create-workspaces&lt;/code&gt;](./scaletest_create-workspaces) | Creates many workspaces and waits for them to be ready |
+| [<code>cleanup</code>](./scaletest_cleanup) | Cleanup any orphaned scaletest resources |
+| [<code>create-workspaces</code>](./scaletest_create-workspaces) | Creates many workspaces and waits for them to be ready |

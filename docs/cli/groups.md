@@ -1,4 +1,4 @@
-
+<!-- DO NOT EDIT | GENERATED CONTENT -->
 # groups
 
  
@@ -13,7 +13,7 @@ groups
 ## Subcommands
 | Name |   Purpose |
 | ---- |   ----- |
-| [&lt;code&gt;create&lt;/code&gt;](./groups_create) | Create a user group |
-| [&lt;code&gt;list&lt;/code&gt;](./groups_list) | List user groups |
-| [&lt;code&gt;edit&lt;/code&gt;](./groups_edit) | Edit a user group |
-| [&lt;code&gt;delete&lt;/code&gt;](./groups_delete) | Delete a user group |
+| [<code>create</code>](./groups_create) | Create a user group |
+| [<code>list</code>](./groups_list) | List user groups |
+| [<code>edit</code>](./groups_edit) | Edit a user group |
+| [<code>delete</code>](./groups_delete) | Delete a user group |
