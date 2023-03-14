@@ -224,7 +224,7 @@ data "coder_parameter" "cpu" {
 1. Prepare and update a new template version:
 
 - Add `coder_parameter` resource matching the legacy parameter to migrate.
-- Use `legacy_variable_name` and `legacy_variable` to link both.
+- Use `legacy_variable_name` and `legacy_variable` to link the `coder_parameter` to the legacy variable.
 - Mark the new parameter as `mutable`, so that Coder will not block updating existing workspaces.
 
 2. Update all workspaces to the updated template version. Coder will populate the added `coder_parameter`s with values from legacy variables.
