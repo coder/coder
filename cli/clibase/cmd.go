@@ -228,13 +228,7 @@ func (i *Invocation) run(state *runState) error {
 			child.Parent = i.Command
 			i.Command = child
 			state.commandDepth++
-			err = i.run(state)
-			if err != nil {
-				return xerrors.Errorf(
-					"subcommand %s: %w", child.Name(), err,
-				)
-			}
-			return nil
+			return i.run(state)
 		}
 	}
 
@@ -287,7 +281,7 @@ func (i *Invocation) run(state *runState) error {
 
 	err = mw(i.Command.Handler)(i)
 	if err != nil {
-		return xerrors.Errorf("running command %s: %w", i.Command.FullName(), err)
+		return xerrors.Errorf("running command %q: %w", i.Command.FullName(), err)
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -17,13 +18,16 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
+	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-isatty"
+	"github.com/mitchellh/go-wordwrap"
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
@@ -124,7 +128,8 @@ func (r *RootCmd) RunMain(subcommands []*clibase.Cmd) {
 			//nolint:revive
 			os.Exit(1)
 		}
-		_, _ = fmt.Fprintln(os.Stderr, err)
+		f := prettyErrorFormatter{w: os.Stderr}
+		f.format(err)
 		//nolint:revive
 		os.Exit(1)
 	}
@@ -746,4 +751,59 @@ func isConnectionError(err error) bool {
 	)
 
 	return xerrors.As(err, &dnsErr) || xerrors.As(err, &opErr)
+}
+
+type prettyErrorFormatter struct {
+	level int
+	w     io.Writer
+}
+
+const arrow = "┗━ "
+
+func (prettyErrorFormatter) prefixLines(spaces int, s string) string {
+	twidth, _, err := terminal.GetSize(0)
+	if err != nil {
+		twidth = 80
+	}
+
+	s = wordwrap.WrapString(s, uint(twidth-spaces))
+
+	var b strings.Builder
+	scanner := bufio.NewScanner(strings.NewReader(s))
+	for i := 0; scanner.Scan(); i++ {
+		// The first line is already padded.
+		if i == 0 {
+			_, _ = fmt.Fprintf(&b, "%s\n", scanner.Text())
+			continue
+		}
+		_, _ = fmt.Fprintf(&b, "%s%s\n", strings.Repeat(" ", spaces), scanner.Text())
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
+func (p *prettyErrorFormatter) format(err error) {
+	var (
+		finalErrorStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#BB5865"))
+		arrowStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#515151"))
+	)
+	var padding string
+	arrowWidth := utf8.RuneCount([]byte(arrow))
+	if p.level > 0 {
+		padding = strings.Repeat(" ", arrowWidth*p.level)
+		_, _ = fmt.Fprintf(p.w, "%v%v", padding, arrowStyle.Render(arrow))
+	}
+
+	underErr := errors.Unwrap(err)
+	if underErr != nil {
+		header := strings.TrimSuffix(err.Error(), ": "+underErr.Error())
+		_, _ = fmt.Fprintf(p.w, "%s\n", p.prefixLines(len(padding)+arrowWidth, header))
+		p.level++
+		p.format(underErr)
+		return
+	}
+
+	_, _ = fmt.Fprintf(
+		p.w, "%s\n",
+		finalErrorStyle.Render(p.prefixLines(len(padding)+arrowWidth, err.Error())),
+	)
 }
