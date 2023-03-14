@@ -22,7 +22,8 @@ variable "step1_do_project_id" {
 
       $ doctl projects list
   EOF
-  default     = "0"
+  sensitive   = true
+
   validation {
     # make sure length of alphanumeric string is 36
     condition     = length(var.step1_do_project_id) == 36
@@ -32,7 +33,7 @@ variable "step1_do_project_id" {
 }
 
 variable "step2_do_admin_ssh_key" {
-  type        = string
+  type        = number
   description = <<-EOF
     Enter admin SSH key ID (some Droplet images require an SSH key to be set):
 
@@ -42,13 +43,12 @@ variable "step2_do_admin_ssh_key" {
 
       $ doctl compute ssh-key list
   EOF
-  default     = "0"
-  validation {
-    # make sure value is a number
-    condition     = can(regex("^[0-9]+$", var.step2_do_admin_ssh_key))
-    error_message = "Invalid Digital Ocean SSH Key ID."
-  }
+  sensitive   = true
 
+  validation {
+    condition     = var.step2_do_admin_ssh_key >= 0
+    error_message = "Invalid Digital Ocean SSH key ID, a number is required."
+  }
 }
 
 data "coder_parameter" "droplet_image" {
@@ -115,27 +115,27 @@ data "coder_parameter" "droplet_size" {
   icon    = "/icon/memory.svg"
   mutable = false
   option {
-    name  = "1 core / 1 GB RAM"
+    name  = "1 vCPU, 1 GB RAM"
     value = "s-1vcpu-1gb"
   }
   option {
-    name  = "1 core / 2 GB RAM"
+    name  = "1 vCPU, 2 GB RAM"
     value = "s-1vcpu-2gb"
   }
   option {
-    name  = "2 cores / 2 GB RAM"
+    name  = "2 vCPU, 2 GB RAM"
     value = "s-2vcpu-2gb"
   }
   option {
-    name  = "2 cores / 4 GB RAM"
+    name  = "2 vCPU, 4 GB RAM"
     value = "s-2vcpu-4gb"
   }
   option {
-    name  = "4 cores / 8 GB RAM"
+    name  = "4 vCPU, 8 GB RAM"
     value = "s-4vcpu-8gb"
   }
   option {
-    name  = "8 cores / 16 GB RAM"
+    name  = "8 vCPU, 16 GB RAM"
     value = "s-8vcpu-16gb"
   }
 }
@@ -269,7 +269,7 @@ resource "digitalocean_droplet" "workspace" {
     coder_agent_token = coder_agent.main.token
   })
   # Required to provision Fedora.
-  ssh_keys = var.step1_do_project_id > 0 ? [var.step2_do_admin_ssh_key] : []
+  ssh_keys = var.step2_do_admin_ssh_key > 0 ? [var.step2_do_admin_ssh_key] : []
 }
 
 resource "digitalocean_project_resources" "project" {
