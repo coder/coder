@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/coder/coder/cli/clibase"
@@ -110,7 +111,7 @@ func main() {
 	}
 
 	// Update manifest
-	manifestPath := filepath.Join(markdownDir, "manifest.json")
+	manifestPath := filepath.Join(workdir, "docs", "manifest.json")
 
 	manifestByt, err := os.ReadFile(manifestPath)
 	if err != nil {
@@ -123,10 +124,13 @@ func main() {
 		flog.Fatalf("unmarshaling manifest: %v", err)
 	}
 
+	var found bool
 	for _, rt := range manifest.Routes {
 		if rt.Title != "Command Line" {
 			continue
 		}
+		rt.Children = nil
+		found = true
 		for path, cmd := range wroteMap {
 			relPath, err := filepath.Rel(markdownDir, path)
 			if err != nil {
@@ -138,14 +142,23 @@ func main() {
 				Path:        relPath,
 			})
 		}
+		// Sort children by title because wroteMap iteration is
+		// non-deterministic.
+		sort.Slice(rt.Children, func(i, j int) bool {
+			return rt.Children[i].Title < rt.Children[j].Title
+		})
 	}
 
-	manifestByt, err = json.MarshalIndent(manifest, "", "\t")
+	if !found {
+		flog.Fatalf("could not find Command Line route in manifest")
+	}
+
+	manifestByt, err = json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		flog.Fatalf("marshaling manifest: %v", err)
 	}
 
-	err = os.WriteFile(manifestPath, manifestByt, 0o644)
+	err = os.WriteFile(manifestPath, manifestByt, 0o600)
 	if err != nil {
 		flog.Fatalf("writing manifest: %v", err)
 	}
