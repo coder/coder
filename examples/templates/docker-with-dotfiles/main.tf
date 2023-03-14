@@ -134,6 +134,6 @@ resource "coder_metadata" "container_info" {
 
   item {
     key   = "image"
-    value = var.docker_image
+    value = data.coder_parameter.docker_image.value
   }
 }
