@@ -166,7 +166,7 @@ ExtractCommandPathsLoop:
 				old string
 				new string
 			}{
-				{`\r\n`, "\n"},
+				{"\r\n", "\n"},
 				{`~\.cache\coder`, "~/.cache/coder"},
 				{`C:\tmp`, "/tmp"},
 			} {
