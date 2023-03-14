@@ -23,7 +23,7 @@ import {
 import { makeStyles } from "@material-ui/core/styles"
 import {
   selectInitialRichParametersValues,
-  ValidationSchemaForRichParameters,
+  useValidationSchemaForRichParameters,
 } from "util/richParameters"
 
 export enum CreateWorkspaceErrors {
@@ -86,7 +86,7 @@ export const CreateWorkspacePageView: FC<
       },
       validationSchema: Yup.object({
         name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
-        rich_parameter_values: ValidationSchemaForRichParameters(
+        rich_parameter_values: useValidationSchemaForRichParameters(
           "createWorkspacePage",
           props.templateParameters,
         ),

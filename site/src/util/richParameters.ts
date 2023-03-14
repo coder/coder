@@ -43,7 +43,7 @@ export const selectInitialRichParametersValues = (
   return defaults
 }
 
-export const ValidationSchemaForRichParameters = (
+export const useValidationSchemaForRichParameters = (
   ns: string,
   templateParameters?: TemplateVersionParameter[],
   lastBuildParameters?: WorkspaceBuildParameter[],

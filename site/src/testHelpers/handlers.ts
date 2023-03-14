@@ -315,7 +315,7 @@ export const handlers = [
   rest.get(
     "/api/v2/workspacebuilds/:workspaceBuildId/parameters",
     (_, res, ctx) => {
-      return res(ctx.status(200), ctx.json([M.MockTemplateVersionParameter1]))
+      return res(ctx.status(200), ctx.json([M.MockWorkspaceBuildParameter1]))
     },
   ),
 ]

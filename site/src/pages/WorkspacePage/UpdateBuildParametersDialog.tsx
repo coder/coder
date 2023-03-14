@@ -15,11 +15,12 @@ import { RichParameterInput } from "components/RichParameterInput/RichParameterI
 import { useFormik } from "formik"
 import {
   selectInitialRichParametersValues,
-  ValidationSchemaForRichParameters,
+  useValidationSchemaForRichParameters,
 } from "util/richParameters"
 import * as Yup from "yup"
 import DialogActions from "@material-ui/core/DialogActions"
 import Button from "@material-ui/core/Button"
+import { useTranslation } from "react-i18next"
 
 export type UpdateBuildParametersDialogProps = DialogProps & {
   onClose: () => void
@@ -36,7 +37,7 @@ export const UpdateBuildParametersDialog: FC<
       rich_parameter_values: selectInitialRichParametersValues(parameters),
     },
     validationSchema: Yup.object({
-      rich_parameter_values: ValidationSchemaForRichParameters(
+      rich_parameter_values: useValidationSchemaForRichParameters(
         "createWorkspacePage",
         parameters,
       ),
@@ -46,6 +47,7 @@ export const UpdateBuildParametersDialog: FC<
     },
   })
   const getFieldHelpers = getFormHelpers(form)
+  const { t } = useTranslation("workspacePage")
 
   return (
     <Dialog
@@ -63,8 +65,7 @@ export const UpdateBuildParametersDialog: FC<
       </DialogTitle>
       <DialogContent className={styles.content}>
         <DialogContentText className={styles.info}>
-          It looks like the new version has some mandatory parameters that need
-          to be filled in to update the workspace.
+          {t("askParametersDialog.message")}
         </DialogContentText>
         <VerticalForm
           className={styles.form}
