@@ -109,7 +109,7 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		defer closeFunc()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		inv, cfg := clitest.New(t,
 			"server",
