@@ -3708,6 +3708,79 @@ func (q *fakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database
 	return stat, nil
 }
 
+func (q *fakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	agentStatsCreatedAfter := make([]database.WorkspaceAgentStat, 0)
+	for _, agentStat := range q.workspaceAgentStats {
+		if agentStat.CreatedAt.After(createdAfter) {
+			agentStatsCreatedAfter = append(agentStatsCreatedAfter, agentStat)
+		}
+	}
+
+	latestAgentStats := map[uuid.UUID]database.WorkspaceAgentStat{}
+	for _, agentStat := range q.workspaceAgentStats {
+		if agentStat.CreatedAt.After(createdAfter) {
+			latestAgentStats[agentStat.AgentID] = agentStat
+		}
+	}
+
+	statByAgent := map[uuid.UUID]database.GetWorkspaceAgentStatsRow{}
+	for _, agentStat := range latestAgentStats {
+		stat := statByAgent[agentStat.AgentID]
+		stat.SessionCountVSCode += agentStat.SessionCountVSCode
+		stat.SessionCountJetBrains += agentStat.SessionCountJetBrains
+		stat.SessionCountReconnectingPTY += agentStat.SessionCountReconnectingPTY
+		stat.SessionCountSSH += agentStat.SessionCountSSH
+		statByAgent[stat.AgentID] = stat
+	}
+
+	latenciesByAgent := map[uuid.UUID][]float64{}
+	minimumDateByAgent := map[uuid.UUID]time.Time{}
+	for _, agentStat := range agentStatsCreatedAfter {
+		if agentStat.ConnectionMedianLatencyMS <= 0 {
+			continue
+		}
+		stat := statByAgent[agentStat.AgentID]
+		minimumDate := minimumDateByAgent[agentStat.AgentID]
+		if agentStat.CreatedAt.Before(minimumDate) || minimumDate.IsZero() {
+			minimumDateByAgent[agentStat.AgentID] = agentStat.CreatedAt
+		}
+		stat.WorkspaceRxBytes += agentStat.RxBytes
+		stat.WorkspaceTxBytes += agentStat.TxBytes
+		statByAgent[agentStat.AgentID] = stat
+		latenciesByAgent[agentStat.AgentID] = append(latenciesByAgent[agentStat.AgentID], agentStat.ConnectionMedianLatencyMS)
+	}
+
+	tryPercentile := func(fs []float64, p float64) float64 {
+		if len(fs) == 0 {
+			return -1
+		}
+		sort.Float64s(fs)
+		return fs[int(float64(len(fs))*p/100)]
+	}
+
+	for _, stat := range statByAgent {
+		stat.AggregatedFrom = minimumDateByAgent[stat.AgentID]
+		statByAgent[stat.AgentID] = stat
+
+		latencies, ok := latenciesByAgent[stat.AgentID]
+		if !ok {
+			continue
+		}
+		stat.WorkspaceConnectionLatency50 = tryPercentile(latencies, 50)
+		stat.WorkspaceConnectionLatency95 = tryPercentile(latencies, 95)
+		statByAgent[stat.AgentID] = stat
+	}
+
+	stats := make([]database.GetWorkspaceAgentStatsRow, 0, len(statByAgent))
+	for _, agent := range statByAgent {
+		stats = append(stats, agent)
+	}
+	return stats, nil
+}
+
 func (q *fakeQuerier) UpdateWorkspaceTTLToBeWithinTemplateMax(_ context.Context, arg database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err

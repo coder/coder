@@ -204,6 +204,27 @@ func TestAuditLogging(t *testing.T) {
 		t.Logf("%T = %T", auditor, ea)
 		assert.Equal(t, reflect.ValueOf(ea).Type(), reflect.ValueOf(auditor).Type())
 	})
+	// The AGPL code runs with a fake auditor that doesn't represent the real implementation.
+	// We do a simple test to ensure that basic flows function.
+	t.Run("FullBuild", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := testutil.Context(t)
+		defer cancelFunc()
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		workspace, agent := setupWorkspaceAgent(t, client, user, 0)
+		conn, err := client.DialWorkspaceAgent(ctx, agent.ID, nil)
+		require.NoError(t, err)
+		defer conn.Close()
+		connected := conn.AwaitReachable(ctx)
+		require.True(t, connected)
+		build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+	})
 }
 
 // testDBAuthzRole returns a context with a subject that has a role

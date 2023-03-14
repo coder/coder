@@ -123,7 +123,12 @@ export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
   }
 
   return (
-    <Dialog className={styles.dialogWrapper} onClose={onClose} open={open}>
+    <Dialog
+      className={styles.dialogWrapper}
+      onClose={onClose}
+      open={open}
+      data-testid="dialog"
+    >
       <div className={styles.dialogContent}>
         <h3 className={styles.dialogTitle}>{title}</h3>
         {description && (

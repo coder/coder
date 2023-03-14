@@ -95,7 +95,7 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 	sort.Strings(environ)
 
 	var providers []codersdk.GitAuthConfig
-	for _, v := range clibase.EnvsWithPrefix(environ, envPrefix+"GITAUTH_") {
+	for _, v := range clibase.ParseEnviron(environ, envPrefix+"GITAUTH_") {
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
 			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
@@ -185,7 +185,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				return xerrors.Errorf("set defaults: %w", err)
 			}
 
-			err = cliOpts.ParseEnv(envPrefix, os.Environ())
+			err = cliOpts.ParseEnv(clibase.ParseEnviron(os.Environ(), envPrefix))
 			if err != nil {
 				return xerrors.Errorf("parse env: %w", err)
 			}
@@ -621,7 +621,7 @@ flags, and YAML configuration. The precedence is as follows:
 				Nodes: []*tailcfg.DERPNode{{
 					Name:      fmt.Sprintf("%db", cfg.DERP.Server.RegionID),
 					RegionID:  int(cfg.DERP.Server.RegionID.Value()),
-					HostName:  cfg.AccessURL.Host,
+					HostName:  cfg.AccessURL.Value().Hostname(),
 					DERPPort:  accessURLPort,
 					STUNPort:  -1,
 					ForceHTTP: cfg.AccessURL.Scheme == "http",
