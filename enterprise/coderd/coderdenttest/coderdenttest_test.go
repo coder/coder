@@ -36,7 +36,7 @@ func TestAuthorizeAllEndpoints(t *testing.T) {
 			IncludeProvisionerDaemon: true,
 		},
 	})
-	ctx, _ := testutil.Context(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	admin := coderdtest.CreateFirstUser(t, client)
 	lic := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 		Features: license.Features{

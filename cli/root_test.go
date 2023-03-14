@@ -113,7 +113,7 @@ ExtractCommandPathsLoop:
 				t.Setenv(k, v)
 			}
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 
 			tmpwd := "/"
 			if runtime.GOOS == "windows" {

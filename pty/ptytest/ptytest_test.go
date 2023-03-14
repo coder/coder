@@ -29,7 +29,7 @@ func TestPtytest(t *testing.T) {
 			t.Skip("ReadLine is glitchy on windows when it comes to the final line of output it seems")
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		pty := ptytest.New(t)
 
 		// The PTY expands these to \r\n (even on linux).

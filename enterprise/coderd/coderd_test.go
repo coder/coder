@@ -208,8 +208,7 @@ func TestAuditLogging(t *testing.T) {
 	// We do a simple test to ensure that basic flows function.
 	t.Run("FullBuild", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancelFunc := testutil.Context(t)
-		defer cancelFunc()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		client := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,

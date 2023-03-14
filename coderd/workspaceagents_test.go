@@ -938,8 +938,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 	})
 	t.Run("ValidateURL", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancelFunc := testutil.Context(t)
-		defer cancelFunc()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		srv := httptest.NewServer(nil)
 		defer srv.Close()
@@ -1267,7 +1266,7 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 		for _, tt := range tests {
 			tt := tt
 			t.Run(string(tt.state), func(t *testing.T) {
-				ctx, _ := testutil.Context(t)
+				ctx := testutil.Context(t, testutil.WaitLong)
 
 				err := agentClient.PostLifecycle(ctx, agentsdk.PostLifecycleRequest{
 					State: tt.state,

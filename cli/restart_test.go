@@ -25,7 +25,7 @@ func TestRestart(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		inv, root := clitest.New(t, "restart", workspace.Name, "--yes")
 		clitest.SetupConfig(t, client, root)

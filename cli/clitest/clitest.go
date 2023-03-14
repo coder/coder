@@ -130,9 +130,10 @@ func Start(t *testing.T, inv *clibase.Invocation) {
 	go func() {
 		defer close(closeCh)
 		err := <-StartErr(t, inv)
-		if err != nil {
-			assert.NoError(t, err)
+		if errors.Is(err, context.Canceled) {
+			return
 		}
+		assert.NoError(t, err)
 	}()
 
 	t.Cleanup(func() {

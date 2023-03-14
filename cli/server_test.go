@@ -108,6 +108,7 @@ func TestServer(t *testing.T) {
 		connectionURL, closeFunc, err := postgres.Open()
 		require.NoError(t, err)
 		defer closeFunc()
+
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
@@ -157,7 +158,7 @@ func TestServer(t *testing.T) {
 	})
 	t.Run("BuiltinPostgresURLRaw", func(t *testing.T) {
 		t.Parallel()
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		root, _ := clitest.New(t, "server", "postgres-builtin-url", "--raw-url")
 		pty := ptytest.New(t)

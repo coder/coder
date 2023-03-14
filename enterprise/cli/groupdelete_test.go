@@ -31,7 +31,7 @@ func TestGroupDelete(t *testing.T) {
 			},
 		})
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, admin.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "alpha",
 		})

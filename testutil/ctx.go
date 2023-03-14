@@ -3,10 +3,11 @@ package testutil
 import (
 	"context"
 	"testing"
+	"time"
 )
 
-func Context(t *testing.T) (context.Context, context.CancelFunc) {
+func Context(t *testing.T, dur time.Duration) context.Context {
 	ctx, cancel := context.WithTimeout(context.Background(), WaitLong)
 	t.Cleanup(cancel)
-	return ctx, cancel
+	return ctx
 }

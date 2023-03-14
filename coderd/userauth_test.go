@@ -744,7 +744,7 @@ func TestUserOIDC(t *testing.T) {
 			numLogs++ // add an audit log for login
 			assert.Equal(t, tc.StatusCode, resp.StatusCode)
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 
 			if tc.Username != "" {
 				client.SetSessionToken(authCookieValue(resp.Cookies()))
@@ -790,7 +790,7 @@ func TestUserOIDC(t *testing.T) {
 
 		assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err := client.User(ctx, "me")

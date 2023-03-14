@@ -29,7 +29,7 @@ func TestGroupList(t *testing.T) {
 			},
 		})
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, user1 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		_, user2 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 

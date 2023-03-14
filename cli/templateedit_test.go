@@ -58,7 +58,7 @@ func TestTemplateEdit(t *testing.T) {
 		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 
 		require.NoError(t, err)
@@ -95,7 +95,7 @@ func TestTemplateEdit(t *testing.T) {
 		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 
 		require.ErrorContains(t, err, "not modified")
@@ -128,7 +128,7 @@ func TestTemplateEdit(t *testing.T) {
 		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 
 		require.Error(t, err, "client call must fail")
@@ -178,7 +178,7 @@ func TestTemplateEdit(t *testing.T) {
 		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err = inv.WithContext(ctx).Run()
 
 		require.NoError(t, err)
@@ -224,7 +224,7 @@ func TestTemplateEdit(t *testing.T) {
 		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err = inv.WithContext(ctx).Run()
 
 		require.NoError(t, err)
@@ -263,7 +263,7 @@ func TestTemplateEdit(t *testing.T) {
 			inv, root := clitest.New(t, cmdArgs...)
 			clitest.SetupConfig(t, client, root)
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			err := inv.WithContext(ctx).Run()
 			require.Error(t, err)
 			require.ErrorContains(t, err, "appears to be an AGPL deployment")
@@ -335,7 +335,7 @@ func TestTemplateEdit(t *testing.T) {
 			inv, root := clitest.New(t, cmdArgs...)
 			clitest.SetupConfig(t, proxyClient, root)
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			err = inv.WithContext(ctx).Run()
 			require.Error(t, err)
 			require.ErrorContains(t, err, "license is not entitled")
@@ -422,7 +422,7 @@ func TestTemplateEdit(t *testing.T) {
 			inv, root := clitest.New(t, cmdArgs...)
 			clitest.SetupConfig(t, proxyClient, root)
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			err = inv.WithContext(ctx).Run()
 			require.NoError(t, err)
 
