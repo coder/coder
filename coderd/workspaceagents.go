@@ -615,7 +615,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 
 	// We use a custom heartbeat routine here instead of `httpapi.Heartbeat`
 	// because we want to log the agent's last ping time.
-	var lastPing time.Time
+	lastPing := time.Now() // Since the agent initiated the request, assume it's alive.
 	var pingMu sync.Mutex
 	go pprof.Do(ctx, pprof.Labels("agent", workspaceAgent.ID.String()), func(ctx context.Context) {
 		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
