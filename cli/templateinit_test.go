@@ -16,7 +16,7 @@ func TestTemplateInit(t *testing.T) {
 		t.Parallel()
 		tempDir := t.TempDir()
 		inv, _ := clitest.New(t, "templates", "init", tempDir)
-		pty := ptytest.New(t).Attach(inv)
+		_ = ptytest.New(t).Attach(inv)
 		err := inv.Run()
 		require.NoError(t, err)
 		files, err := os.ReadDir(tempDir)

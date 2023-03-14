@@ -307,7 +307,7 @@ func TestCreate(t *testing.T) {
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		inv, root := clitest.New(t, "create", "test", "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		_ = ptytest.New(t).Attach(inv)
 
 		err = inv.Run()
 		require.Error(t, err)
