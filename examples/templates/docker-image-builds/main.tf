@@ -3,7 +3,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.14"
+      version = "~> 0.6.17"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -22,9 +22,8 @@ data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
-  arch = data.coder_provisioner.me.arch
-  os   = "linux"
-
+  arch                   = data.coder_provisioner.me.arch
+  os                     = "linux"
   login_before_ready     = false
   startup_script_timeout = 180
   startup_script         = <<-EOT
@@ -50,7 +49,6 @@ resource "coder_app" "code-server" {
     interval  = 3
     threshold = 10
   }
-
 }
 
 data "coder_parameter" "docker_image" {
@@ -76,7 +74,6 @@ data "coder_parameter" "docker_image" {
     icon  = "/icon/node.svg"
   }
 }
-
 
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.id}-home"
@@ -112,7 +109,6 @@ resource "docker_image" "coder_image" {
     dockerfile = "${data.coder_parameter.docker_image.value}.Dockerfile"
     tag        = ["coder-${data.coder_parameter.docker_image.value}:v0.1"]
   }
-
   # Keep alive for other workspaces to use upon deletion
   keep_locally = true
 }
