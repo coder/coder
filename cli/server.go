@@ -328,7 +328,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Only use built-in if PostgreSQL URL isn't specified!
 			if !cfg.InMemoryDatabase && cfg.PostgresURL == "" {
 				var closeFunc func() error
-				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)\n", config.PostgresPath())
+				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)", config.PostgresPath())
 				pgURL, closeFunc, err := startBuiltinPostgres(ctx, config, logger)
 				if err != nil {
 					return err
@@ -340,12 +340,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				builtinPostgres = true
 				defer func() {
-					cliui.Infof(inv.Stdout, "Stopping built-in PostgreSQL...\n")
+					cliui.Infof(inv.Stdout, "Stopping built-in PostgreSQL...")
 					// Gracefully shut PostgreSQL down!
 					if err := closeFunc(); err != nil {
-						cliui.Errorf(inv.Stderr, "Failed to stop built-in PostgreSQL: %v\n", err)
+						cliui.Errorf(inv.Stderr, "Failed to stop built-in PostgreSQL: %v", err)
 					} else {
-						cliui.Infof(inv.Stdout, "Stopped built-in PostgreSQL\n")
+						cliui.Infof(inv.Stdout, "Stopped built-in PostgreSQL")
 					}
 				}()
 			}
@@ -357,7 +357,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if cfg.HTTPAddress.String() != "" {
 				httpListener, err = net.Listen("tcp", cfg.HTTPAddress.String())
 				if err != nil {
-					return xerrors.Errorf("listen %q: %w", cfg.HTTPAddress.String(), err)
+					return err
 				}
 				defer httpListener.Close()
 
@@ -417,7 +417,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				httpsListenerInner, err := net.Listen("tcp", cfg.TLS.Address.String())
 				if err != nil {
-					return xerrors.Errorf("listen %q: %w", cfg.TLS.Address.String(), err)
+					return err
 				}
 				defer httpsListenerInner.Close()
 

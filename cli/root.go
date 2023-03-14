@@ -782,18 +782,25 @@ func (prettyErrorFormatter) prefixLines(spaces int, s string) string {
 func (p *prettyErrorFormatter) format(err error) {
 	underErr := errors.Unwrap(err)
 
+	var (
+		introErrorStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#D16644")).Background(lipgloss.Color("#000000")).Underline(true)
+		finalErrorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644")).Background(lipgloss.Color("#000000")).Bold(false)
+		arrowStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#515151"))
+	)
+
 	//nolint:errorlint
-	if _, ok := err.(*clibase.RunCommandError); ok {
-		// We don't want to print a "running command..." in since the user
-		// already knows they're doing that.
+	if rcErr, ok := err.(*clibase.RunCommandError); ok && p.level == 0 {
+		// We can do a better job now.
+		_, _ = fmt.Fprintf(
+			p.w, "%s\n\n",
+			introErrorStyle.Render(
+				fmt.Sprintf("%v FAILED", strings.ToUpper(rcErr.Cmd.Name())),
+			),
+		)
 		p.format(underErr)
 		return
 	}
 
-	var (
-		finalErrorStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#BB5865"))
-		arrowStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#515151"))
-	)
 	var (
 		padding    string
 		arrowWidth int
