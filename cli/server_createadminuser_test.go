@@ -190,23 +190,22 @@ func TestServerCreateAdminUser(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
 
-		root, _ := clitest.New(t,
+		inv, _ := clitest.New(t,
 			"server", "create-admin-user",
 			"--postgres-url", connectionURL,
 			"--ssh-keygen-algorithm", "ed25519",
 		)
-		pty := ptytest.New(t)
-		pty.Attach(root)
+		pty := ptytest.New(t).Attach(inv)
 
-		clitest.Start(t, root)
+		clitest.Start(t, inv)
 
-		pty.ExpectMatchContext(ctx, "> Username")
+		pty.ExpectMatchContext(ctx, "Username")
 		pty.WriteLine(username)
-		pty.ExpectMatchContext(ctx, "> Email")
+		pty.ExpectMatchContext(ctx, "Email")
 		pty.WriteLine(email)
-		pty.ExpectMatchContext(ctx, "> Password")
+		pty.ExpectMatchContext(ctx, "Password")
 		pty.WriteLine(password)
-		pty.ExpectMatchContext(ctx, "> Confirm password")
+		pty.ExpectMatchContext(ctx, "Confirm password")
 		pty.WriteLine(password)
 
 		pty.ExpectMatchContext(ctx, "User created successfully.")

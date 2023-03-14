@@ -55,7 +55,7 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20220811105153-
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
 
 require (
-	cdr.dev/slog v1.4.2-0.20230228204227-60d22dceaf04
+	cdr.dev/slog v1.4.2-0.20230314022511-039a773a966b
 	cloud.google.com/go/compute/metadata v0.2.1
 	github.com/AlecAivazis/survey/v2 v2.3.5
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
@@ -150,7 +150,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.11.1
 	go.opentelemetry.io/otel/trace v1.11.1
 	go.uber.org/atomic v1.10.0
-	go.uber.org/goleak v1.2.0
+	go.uber.org/goleak v1.2.1
 	go4.org/netipx v0.0.0-20220725152314-7e7bdc8411bf
 	golang.org/x/crypto v0.6.0
 	golang.org/x/exp v0.0.0-20221205204356-47842c84f3db

@@ -915,10 +915,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					_ = daemon.Close()
 				}
 			}()
+
+			var provisionerdWaitGroup sync.WaitGroup
+			defer provisionerdWaitGroup.Wait()
 			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
 			for i := int64(0); i < cfg.Provisioner.Daemons.Value(); i++ {
 				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
-				daemon, err := newProvisionerDaemon(ctx, coderAPI, provisionerdMetrics, logger, cfg, daemonCacheDir, errCh, false)
+				daemon, err := newProvisionerDaemon(
+					ctx, coderAPI, provisionerdMetrics, logger, cfg, daemonCacheDir, errCh, false, &provisionerdWaitGroup,
+				)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -1018,9 +1023,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
 			case exitErr = <-tunnelErr:
-				if exitErr == nil {
-					exitErr = xerrors.New("dev tunnel closed unexpectedly")
-				}
+				exitErr = xerrors.Errorf("dev tunnel closed unexpectedly: %w", exitErr)
 			case exitErr = <-errCh:
 			}
 			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
@@ -1227,6 +1230,7 @@ func newProvisionerDaemon(
 	cacheDir string,
 	errCh chan error,
 	dev bool,
+	wg *sync.WaitGroup,
 ) (srv *provisionerd.Server, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -1241,12 +1245,16 @@ func newProvisionerDaemon(
 	}
 
 	terraformClient, terraformServer := provisionersdk.MemTransportPipe()
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		<-ctx.Done()
 		_ = terraformClient.Close()
 		_ = terraformServer.Close()
 	}()
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		defer cancel()
 
 		err := terraform.Serve(ctx, &terraform.ServeOptions{
@@ -1275,12 +1283,16 @@ func newProvisionerDaemon(
 	// include echo provisioner when in dev mode
 	if dev {
 		echoClient, echoServer := provisionersdk.MemTransportPipe()
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			<-ctx.Done()
 			_ = echoClient.Close()
 			_ = echoServer.Close()
 		}()
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			defer cancel()
 
 			err := echo.Serve(ctx, afero.NewOsFs(), &provisionersdk.ServeOptions{Listener: echoServer})

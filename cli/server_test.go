@@ -111,14 +111,14 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
-		root, cfg := clitest.New(t,
+		inv, cfg := clitest.New(t,
 			"server",
 			"--http-address", ":0",
 			"--access-url", "http://example.com",
 			"--postgres-url", connectionURL,
 			"--cache-dir", t.TempDir(),
 		)
-		clitest.Start(t, root)
+		clitest.Start(t, inv)
 		accessURL := waitAccessURL(t, cfg)
 		client := codersdk.New(accessURL)
 
@@ -925,9 +925,6 @@ func TestServer(t *testing.T) {
 	})
 	t.Run("Prometheus", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
-
 		random, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 		_ = random.Close()
@@ -935,7 +932,7 @@ func TestServer(t *testing.T) {
 		require.True(t, valid)
 		randomPort := tcpAddr.Port
 
-		root, cfg := clitest.New(t,
+		inv, cfg := clitest.New(t,
 			"server",
 			"--in-memory",
 			"--http-address", ":0",
@@ -945,10 +942,11 @@ func TestServer(t *testing.T) {
 			"--prometheus-address", ":"+strconv.Itoa(randomPort),
 			"--cache-dir", t.TempDir(),
 		)
-		serverErr := make(chan error, 1)
-		go func() {
-			serverErr <- root.WithContext(ctx).Run()
-		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		clitest.Start(t, inv)
 		_ = waitAccessURL(t, cfg)
 
 		var res *http.Response
@@ -959,6 +957,7 @@ func TestServer(t *testing.T) {
 			res, err = http.DefaultClient.Do(req)
 			return err == nil
 		}, testutil.WaitShort, testutil.IntervalFast)
+		defer res.Body.Close()
 
 		scanner := bufio.NewScanner(res.Body)
 		hasActiveUsers := false
@@ -979,16 +978,12 @@ func TestServer(t *testing.T) {
 		require.NoError(t, scanner.Err())
 		require.True(t, hasActiveUsers)
 		require.True(t, hasWorkspaces)
-		cancelFunc()
-		<-serverErr
 	})
 	t.Run("GitHubOAuth", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
 
 		fakeRedirect := "https://fake-url.com"
-		root, cfg := clitest.New(t,
+		inv, cfg := clitest.New(t,
 			"server",
 			"--in-memory",
 			"--http-address", ":0",
@@ -998,10 +993,7 @@ func TestServer(t *testing.T) {
 			"--oauth2-github-client-secret", "fake",
 			"--oauth2-github-enterprise-base-url", fakeRedirect,
 		)
-		serverErr := make(chan error, 1)
-		go func() {
-			serverErr <- root.WithContext(ctx).Run()
-		}()
+		clitest.Start(t, inv)
 		accessURL := waitAccessURL(t, cfg)
 		client := codersdk.New(accessURL)
 		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -1009,7 +1001,7 @@ func TestServer(t *testing.T) {
 		}
 		githubURL, err := accessURL.Parse("/api/v2/users/oauth2/github")
 		require.NoError(t, err)
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubURL.String(), nil)
+		req, err := http.NewRequestWithContext(inv.Context(), http.MethodGet, githubURL.String(), nil)
 		require.NoError(t, err)
 		res, err := client.HTTPClient.Do(req)
 		require.NoError(t, err)
@@ -1017,8 +1009,6 @@ func TestServer(t *testing.T) {
 		fakeURL, err := res.Location()
 		require.NoError(t, err)
 		require.True(t, strings.HasPrefix(fakeURL.String(), fakeRedirect), fakeURL.String())
-		cancelFunc()
-		<-serverErr
 	})
 
 	t.Run("RateLimit", func(t *testing.T) {
@@ -1146,7 +1136,7 @@ func TestServer(t *testing.T) {
 			)
 			clitest.Start(t, root)
 
-			waitFile(t, fiName, testutil.WaitShort)
+			waitFile(t, fiName, testutil.WaitLong)
 		})
 
 		t.Run("Human", func(t *testing.T) {
@@ -1200,10 +1190,9 @@ func TestServer(t *testing.T) {
 			)
 			// Attach pty so we get debug output from the command if this test
 			// fails.
-			pty := ptytest.New(t)
-			pty.Attach(inv)
+			pty := ptytest.New(t).Attach(inv)
 
-			clitest.Start(t, inv)
+			clitest.Start(t, inv.WithContext(ctx))
 
 			// Wait for server to listen on HTTP, this is a good
 			// starting point for expecting logs.

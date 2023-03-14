@@ -4,6 +4,12 @@ bazil.org/fuse v0.0.0-20200407214033-5883e5a4b512/go.mod h1:FbcW6z/2VytnFDhZfumh
 bitbucket.org/creachadair/shell v0.0.6/go.mod h1:8Qqi/cYk7vPnsOePHroKXDJYmb5x7ENhtiFtfZq8K+M=
 cdr.dev/slog v1.4.2-0.20230228204227-60d22dceaf04 h1:d5MQ+iI2zk7t0HrHwBP9p7k2XfRsXnRclSe8Kpp3xOo=
 cdr.dev/slog v1.4.2-0.20230228204227-60d22dceaf04/go.mod h1:YPVZsUbRMaLaPgme0RzlPWlC7fI7YmDj/j/kZLuvICs=
+cdr.dev/slog v1.4.2-0.20230314021949-9572efcb6336 h1:UDImFTZjG5xBvuO3utA+JoJ3zQuLHDq+xau6fTsKmBg=
+cdr.dev/slog v1.4.2-0.20230314021949-9572efcb6336/go.mod h1:0EkH+GkFNxizNR+GAXUEdUHanxUH5t9zqPILmPM/Vn8=
+cdr.dev/slog v1.4.2-0.20230314022327-176cb47c561c h1:0aNeYkuqCu1S3lWa9lM9dHIVa3kTIZgVvVAFjlVTEKo=
+cdr.dev/slog v1.4.2-0.20230314022327-176cb47c561c/go.mod h1:0EkH+GkFNxizNR+GAXUEdUHanxUH5t9zqPILmPM/Vn8=
+cdr.dev/slog v1.4.2-0.20230314022511-039a773a966b h1:PFcbsPcK9eVaKherqGrfYaoSceCf/F3LvPW9n6+usGM=
+cdr.dev/slog v1.4.2-0.20230314022511-039a773a966b/go.mod h1:0EkH+GkFNxizNR+GAXUEdUHanxUH5t9zqPILmPM/Vn8=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.38.0/go.mod h1:990N+gfupTy94rShfmMCWGDn0LpTmnzTp2qbd1dvSRU=
@@ -2016,6 +2022,8 @@ go.uber.org/goleak v1.1.10/go.mod h1:8a7PlsEVH3e/a/GLqe5IIrQx6GzcnRmZEufDUTk4A7A
 go.uber.org/goleak v1.1.12/go.mod h1:cwTWslyiVhfpKIDGSZEM2HlOvcqm+tG4zioyIeLoqMQ=
 go.uber.org/goleak v1.2.0 h1:xqgm/S+aQvhWFTtR0XK3Jvg7z8kGV8P4X14IzwN3Eqk=
 go.uber.org/goleak v1.2.0/go.mod h1:XJYK+MuIchqpmGmUSAzotztawfKvYLUIgg7guXrwVUo=
+go.uber.org/goleak v1.2.1 h1:NBol2c7O1ZokfZ0LEU9K6Whx/KnwvepVetCUhtKja4A=
+go.uber.org/goleak v1.2.1/go.mod h1:qlT2yGI9QafXHhZZLxlSuNsMw3FFLxBr+tBRlmO1xH4=
 go.uber.org/multierr v1.1.0/go.mod h1:wR5kodmAFQ0UK8QlbwjlSNy0Z68gJhDJUG5sjR94q/0=
 go.uber.org/multierr v1.3.0/go.mod h1:VgVr7evmIr6uPjLBxg28wmKNXyqE9akIJ5XnfpiKl+4=
 go.uber.org/multierr v1.4.0/go.mod h1:VgVr7evmIr6uPjLBxg28wmKNXyqE9akIJ5XnfpiKl+4=
