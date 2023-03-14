@@ -329,6 +329,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/config/tokenconfig": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get token config",
+                "operationId": "get-token-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TokenConfig"
+                        }
+                    }
+                }
+            }
+        },
         "/csp/reports": {
             "post": {
                 "security": [
@@ -8021,6 +8046,14 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.TokenConfig": {
+            "type": "object",
+            "properties": {
+                "max_token_lifetime": {
+                    "type": "integer"
                 }
             }
         },

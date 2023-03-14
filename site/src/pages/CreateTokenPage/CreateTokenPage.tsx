@@ -15,15 +15,20 @@ import { getFormHelpers, onChangeTrimmed } from "util/formUtils"
 import TextField from "@material-ui/core/TextField"
 import MenuItem from "@material-ui/core/MenuItem"
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils"
-import { useMutation } from "@tanstack/react-query"
-import { createToken } from "api/api"
+import { useMutation, useQuery } from "@tanstack/react-query"
+import { createToken, getTokenConfig } from "api/api"
 import i18next from "i18next"
 import dayjs from "dayjs"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 
 const NANO_HOUR = 3600000000000
 
-const lifetimeDayArr = [
+interface LifetimeDay {
+  label: string
+  value: number | string
+}
+
+const lifetimeDayPresets: LifetimeDay[] = [
   {
     label: i18next.t("tokensPage:createToken.lifetimeSection.7"),
     value: 7,
@@ -40,15 +45,17 @@ const lifetimeDayArr = [
     label: i18next.t("tokensPage:createToken.lifetimeSection.90"),
     value: 90,
   },
-  {
-    label: i18next.t("tokensPage:createToken.lifetimeSection.custom"),
-    value: "custom",
-  },
+
   // {
   //   label: i18next.t("tokensPage:createToken.lifetimeSection.noExpiration"),
   //   value: 365 * 290, // fix
   // },
 ]
+
+const customLifetimeDay: LifetimeDay = {
+  label: i18next.t("tokensPage:createToken.lifetimeSection.custom"),
+  value: "custom",
+}
 
 interface CreateTokenData {
   name: string
@@ -60,18 +67,58 @@ const initialValues: CreateTokenData = {
   lifetime: 30,
 }
 
+const filterByMaxTokenLifetime = (
+  ltArr: LifetimeDay[],
+  maxTokenLifetime?: number,
+): LifetimeDay[] => {
+  // if maxTokenLifetime hasn't been set, return the full array of options
+  if (!maxTokenLifetime) {
+    return ltArr
+  }
+
+  // otherwise only return options that are less than or equal to the max lifetime
+  return ltArr.filter(
+    (lifetime) => lifetime.value <= maxTokenLifetime / NANO_HOUR / 24,
+  )
+}
+
+const determineDefaultLtValue = (maxTokenLifetime?: number) => {
+  const filteredArr = filterByMaxTokenLifetime(
+    lifetimeDayPresets,
+    maxTokenLifetime,
+  )
+
+  // default to a lifetime of 30 days if within the maxTokenLifetime
+  const thirtyDayDefault = filteredArr.find((lt) => lt.value === 30)
+  if (thirtyDayDefault) {
+    return thirtyDayDefault.value
+  }
+
+  // otherwise default to the first preset option
+  if (filteredArr[0]) {
+    return filteredArr[0].value
+  }
+
+  // if no preset options are within the maxTokenLifetime, default to "custom"
+  return "custom"
+}
+
 const CreateTokenPage: FC = () => {
   const styles = useStyles()
   const { t } = useTranslation("tokensPage")
   const navigate = useNavigate()
 
-  const useCreateToken = () => useMutation(createToken)
+  const { mutate: saveToken, isLoading, isError } = useMutation(createToken)
+  const { data: tokenConfig } = useQuery({
+    queryKey: ["tokenconfig"],
+    queryFn: getTokenConfig,
+  })
 
   const [formError, setFormError] = useState<unknown | undefined>(undefined)
-  const [lifetimeDays, setLifetimeDays] = useState<number | string>(30)
   const [expDays, setExpDays] = useState<number>(1)
-
-  const { mutate: saveToken, isLoading, isError } = useCreateToken()
+  const [lifetimeDays, setLifetimeDays] = useState<number | string>(
+    determineDefaultLtValue(tokenConfig?.max_token_lifetime),
+  )
 
   useEffect(() => {
     if (lifetimeDays !== "custom") {
@@ -129,11 +176,10 @@ const CreateTokenPage: FC = () => {
             <FormFields>
               <TextField
                 {...getFieldHelpers("name")}
+                label={t("createToken.fields.name")}
+                required
                 onChange={onChangeTrimmed(form, () => setFormError(undefined))}
                 autoFocus
-                fullWidth
-                required
-                label={t("createToken.fields.name")}
                 variant="outlined"
               />
             </FormFields>
@@ -154,49 +200,66 @@ const CreateTokenPage: FC = () => {
           >
             <FormFields>
               <TextField
+                select
+                label={t("createToken.fields.lifetime")}
+                required
+                defaultValue={determineDefaultLtValue(
+                  tokenConfig?.max_token_lifetime,
+                )}
                 onChange={(event) => {
                   void setLifetimeDays(event.target.value)
                 }}
                 InputLabelProps={{
                   shrink: true,
                 }}
-                label={t("createToken.fields.lifetime")}
-                select
-                defaultValue={30}
-                required
-                autoFocus
               >
-                {lifetimeDayArr.map((lt) => (
+                {filterByMaxTokenLifetime(
+                  lifetimeDayPresets,
+                  tokenConfig?.max_token_lifetime,
+                ).map((lt) => (
                   <MenuItem key={lt.label} value={lt.value}>
                     {lt.label}
                   </MenuItem>
                 ))}
+                <MenuItem
+                  key={customLifetimeDay.label}
+                  value={customLifetimeDay.value}
+                >
+                  {customLifetimeDay.label}
+                </MenuItem>
               </TextField>
             </FormFields>
             <FormFields>
               {lifetimeDays === "custom" && (
                 <TextField
+                  type="date"
+                  label={t("createToken.lifetimeSection.expiresOn")}
+                  defaultValue={dayjs()
+                    .add(expDays, "day")
+                    .format("YYYY-MM-DD")}
                   onChange={(event) => {
                     const lt = Math.ceil(
                       dayjs(event.target.value).diff(dayjs(), "day", true),
                     )
                     setExpDays(lt)
                   }}
-                  label={t("createToken.lifetimeSection.expiresOn")}
-                  type="date"
-                  className={styles.expField}
-                  defaultValue={dayjs()
-                    .add(expDays, "day")
-                    .format("YYYY-MM-DD")}
-                  autoFocus
                   inputProps={{
                     min: dayjs().add(1, "day").format("YYYY-MM-DD"),
+                    max: tokenConfig?.max_token_lifetime
+                      ? dayjs()
+                          .add(
+                            tokenConfig.max_token_lifetime / NANO_HOUR / 24,
+                            "day",
+                          )
+                          .format("YYYY-MM-DD")
+                      : undefined,
                     required: true,
                   }}
                   InputLabelProps={{
                     shrink: true,
                     required: true,
                   }}
+                  className={styles.expField}
                 />
               )}
             </FormFields>

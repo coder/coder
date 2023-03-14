@@ -903,6 +903,12 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 }
 
 // From codersdk/apikey.go
+export interface TokenConfig {
+  // This is likely an enum in an external package ("time.Duration")
+  readonly max_token_lifetime: number
+}
+
+// From codersdk/apikey.go
 export interface TokensFilter {
   readonly include_all: boolean
 }

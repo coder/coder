@@ -164,6 +164,11 @@ export const createToken = async (
   return response.data
 }
 
+export const getTokenConfig = async (): Promise<TypesGen.TokenConfig> => {
+  const response = await axios.get("/api/v2/config/tokenconfig")
+  return response.data
+}
+
 export const getUsers = async (
   options: TypesGen.UsersRequest,
 ): Promise<TypesGen.GetUsersResponse> => {

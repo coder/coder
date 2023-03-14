@@ -362,6 +362,37 @@ curl -X GET http://coder-server:8080/api/v2/config/deployment \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get token config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/config/tokenconfig \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /config/tokenconfig`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "max_token_lifetime": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                 |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TokenConfig](schemas.md#codersdktokenconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Report CSP violations
 
 ### Code samples

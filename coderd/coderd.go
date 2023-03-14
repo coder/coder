@@ -400,6 +400,7 @@ func New(options *Options) *API {
 		r.Route("/config", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/deployment", api.deploymentValues)
+			r.Get("/tokenconfig", api.tokenConfig)
 		})
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(

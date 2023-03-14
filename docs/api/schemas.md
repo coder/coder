@@ -3754,6 +3754,20 @@ Parameter represents a set value for the scope.
 | `type`   | `number` |
 | `type`   | `bool`   |
 
+## codersdk.TokenConfig
+
+```json
+{
+  "max_token_lifetime": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+| -------------------- | ------- | -------- | ------------ | ----------- |
+| `max_token_lifetime` | integer | false    |              |             |
+
 ## codersdk.TraceConfig
 
 ```json
