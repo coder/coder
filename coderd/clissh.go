@@ -11,7 +11,7 @@ import (
 // @Security CoderSessionToken
 // @Produce json
 // @Tags General
-// @Success 200 {object} codersdk.CLISSHConfigResponse
+// @Success 200 {object} codersdk.SSHConfigResponse
 // @Router /deployment/ssh [get]
 func (a *API) cliSSHConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, a.SSHConfig)

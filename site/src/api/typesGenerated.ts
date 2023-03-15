@@ -141,12 +141,6 @@ export interface CLISSHConfig {
   readonly SSHConfigOptions: string[]
 }
 
-// From codersdk/deployment.go
-export interface CLISSHConfigResponse {
-  readonly deployment_name: string
-  readonly ssh_config_options: Record<string, string>
-}
-
 // From codersdk/parameters.go
 export interface ComputedParameter extends Parameter {
   readonly source_value: string
@@ -678,6 +672,12 @@ export interface Response {
 export interface Role {
   readonly name: string
   readonly display_name: string
+}
+
+// From codersdk/deployment.go
+export interface SSHConfigResponse {
+  readonly hostname_prefix: string
+  readonly ssh_config_options: Record<string, string>
 }
 
 // From codersdk/serversentevents.go

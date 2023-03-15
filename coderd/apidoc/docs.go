@@ -304,31 +304,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/config-ssh": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "General"
-                ],
-                "summary": "CLI SSH Config",
-                "operationId": "cli-ssh-config",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CLISSHConfigResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/csp/reports": {
             "post": {
                 "security": [
@@ -404,6 +379,31 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.DeploymentConfig"
+                        }
+                    }
+                }
+            }
+        },
+        "/deployment/ssh": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "CLI SSH Config",
+                "operationId": "cli-ssh-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.SSHConfigResponse"
                         }
                     }
                 }
@@ -5979,20 +5979,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.CLISSHConfigResponse": {
-            "type": "object",
-            "properties": {
-                "deployment_name": {
-                    "type": "string"
-                },
-                "ssh_config_options": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
         "codersdk.CreateFirstUserRequest": {
             "type": "object",
             "required": [
@@ -7709,6 +7695,20 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.SSHConfigResponse": {
+            "type": "object",
+            "properties": {
+                "hostname_prefix": {
+                    "type": "string"
+                },
+                "ssh_config_options": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 }
             }
         },

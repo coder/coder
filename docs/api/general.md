@@ -64,41 +64,6 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.BuildInfoResponse](schemas.md#codersdkbuildinforesponse) |
 
-## CLI SSH Config
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/config-ssh \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /config-ssh`
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "deployment_name": "string",
-  "ssh_config_options": {
-    "property1": "string",
-    "property2": "string"
-  }
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                   |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.CLISSHConfigResponse](schemas.md#codersdkclisshconfigresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Report CSP violations
 
 ### Code samples
@@ -434,6 +399,41 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 | Status | Meaning                                                 | Description | Schema                                                           |
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentConfig](schemas.md#codersdkdeploymentconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## CLI SSH Config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/deployment/ssh \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /deployment/ssh`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "hostname_prefix": "string",
+  "ssh_config_options": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.SSHConfigResponse](schemas.md#codersdksshconfigresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
