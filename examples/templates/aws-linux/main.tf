@@ -109,7 +109,7 @@ data "coder_parameter" "instance_type" {
   name        = "Instance Type"
   description = "What instance type should your workspace use?"
   default     = "t3.micro"
-  mutable     = true
+  mutable     = false
   option {
     name  = "2 vCPU, 1 GiB RAM"
     value = "t3.micro"
