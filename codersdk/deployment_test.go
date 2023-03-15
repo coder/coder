@@ -109,7 +109,7 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 	}
 }
 
-func TestCLISSHConfig_ParseOptions(t *testing.T) {
+func TestSSHConfig_ParseOptions(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -174,7 +174,7 @@ func TestCLISSHConfig_ParseOptions(t *testing.T) {
 		tt := tt
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
-			c := codersdk.CLISSHConfig{
+			c := codersdk.SSHConfig{
 				SSHConfigOptions: tt.ConfigOptions,
 			}
 			got, err := c.ParseOptions()

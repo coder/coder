@@ -5963,22 +5963,6 @@ const docTemplate = `{
                 "BuildReasonAutostop"
             ]
         },
-        "codersdk.CLISSHConfig": {
-            "type": "object",
-            "properties": {
-                "deploymentName": {
-                    "description": "DeploymentName is the config-ssh Hostname prefix",
-                    "type": "string"
-                },
-                "sshconfigOptions": {
-                    "description": "SSHConfigOptions are additional options to add to the ssh config file.\nThis will override defaults.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
         "codersdk.CreateFirstUserRequest": {
             "type": "object",
             "required": [
@@ -6579,7 +6563,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "cli_ssh": {
-                    "$ref": "#/definitions/codersdk.CLISSHConfig"
+                    "$ref": "#/definitions/codersdk.SSHConfig"
                 },
                 "config": {
                     "type": "string"
@@ -7695,6 +7679,22 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.SSHConfig": {
+            "type": "object",
+            "properties": {
+                "deploymentName": {
+                    "description": "DeploymentName is the config-ssh Hostname prefix",
+                    "type": "string"
+                },
+                "sshconfigOptions": {
+                    "description": "SSHConfigOptions are additional options to add to the ssh config file.\nThis will override defaults.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

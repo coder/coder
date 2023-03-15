@@ -161,7 +161,7 @@ type DeploymentValues struct {
 	DisablePasswordAuth             clibase.Bool                    `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                   `json:"support,omitempty" typescript:",notnull"`
 	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
-	CLISSH                          CLISSHConfig                    `json:"cli_ssh,omitempty" typescript:",notnull"`
+	SSHConfig                       SSHConfig                       `json:"cli_ssh,omitempty" typescript:",notnull"`
 
 	Config      clibase.String `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool   `json:"write_config,omitempty" typescript:",notnull"`
@@ -170,9 +170,9 @@ type DeploymentValues struct {
 	Address clibase.HostPort `json:"address,omitempty" typescript:",notnull"`
 }
 
-// CLISSHConfig is configuration the cli & vscode extension use for configuring
+// SSHConfig is configuration the cli & vscode extension use for configuring
 // ssh connections.
-type CLISSHConfig struct {
+type SSHConfig struct {
 	// DeploymentName is the config-ssh Hostname prefix
 	DeploymentName clibase.String
 	// SSHConfigOptions are additional options to add to the ssh config file.
@@ -180,7 +180,7 @@ type CLISSHConfig struct {
 	SSHConfigOptions clibase.Strings
 }
 
-func (c CLISSHConfig) ParseOptions() (map[string]string, error) {
+func (c SSHConfig) ParseOptions() (map[string]string, error) {
 	m := make(map[string]string)
 	for _, opt := range c.SSHConfigOptions {
 		key, value, err := ParseSSHConfigOption(opt)
@@ -1311,9 +1311,9 @@ when required by your organization's security policy.`,
 			Description: "The CLI SSH deployment name is the used in the Hostname of the ssh config.",
 			Flag:        "cli-ssh-hostname-prefix",
 			Env:         "SSH_HOSTNAME_PREFIX",
-			YAML:        "cliSSHHostnamePrefix",
+			YAML:        "sshHostnamePrefix",
 			Group:       &deploymentGroupClient,
-			Value:       &c.CLISSH.DeploymentName,
+			Value:       &c.SSHConfig.DeploymentName,
 			Hidden:      false,
 			Default:     "coder.",
 		},
@@ -1326,7 +1326,7 @@ when required by your organization's security policy.`,
 			Env:    "SSH_CONFIG_OPTIONS",
 			YAML:   "sshConfigOptions",
 			Group:  &deploymentGroupClient,
-			Value:  &c.CLISSH.SSHConfigOptions,
+			Value:  &c.SSHConfig.SSHConfigOptions,
 			Hidden: false,
 		},
 		{

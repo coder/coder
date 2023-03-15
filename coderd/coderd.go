@@ -409,7 +409,7 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
-			r.Get("/ssh", api.cliSSHConfig)
+			r.Get("/ssh", api.sshConfig)
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

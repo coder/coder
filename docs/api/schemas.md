@@ -1100,22 +1100,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `autostart` |
 | `autostop`  |
 
-## codersdk.CLISSHConfig
-
-```json
-{
-  "deploymentName": "string",
-  "sshconfigOptions": ["string"]
-}
-```
-
-### Properties
-
-| Name               | Type            | Required | Restrictions | Description                                                                                         |
-| ------------------ | --------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------- |
-| `deploymentName`   | string          | false    |              | Deploymentname is the config-ssh Hostname prefix                                                    |
-| `sshconfigOptions` | array of string | false    |              | Sshconfigoptions are additional options to add to the ssh config file. This will override defaults. |
-
 ## codersdk.CreateFirstUserRequest
 
 ```json
@@ -2261,7 +2245,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `autobuild_poll_interval`            | integer                                                                                    | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                    | false    |              |                                                                    |
 | `cache_directory`                    | string                                                                                     | false    |              |                                                                    |
-| `cli_ssh`                            | [codersdk.CLISSHConfig](#codersdkclisshconfig)                                             | false    |              |                                                                    |
+| `cli_ssh`                            | [codersdk.SSHConfig](#codersdksshconfig)                                                   | false    |              |                                                                    |
 | `config`                             | string                                                                                     | false    |              |                                                                    |
 | `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                       | false    |              |                                                                    |
 | `derp`                               | [codersdk.DERP](#codersdkderp)                                                             | false    |              |                                                                    |
@@ -3342,6 +3326,22 @@ Parameter represents a set value for the scope.
 | -------------- | ------ | -------- | ------------ | ----------- |
 | `display_name` | string | false    |              |             |
 | `name`         | string | false    |              |             |
+
+## codersdk.SSHConfig
+
+```json
+{
+  "deploymentName": "string",
+  "sshconfigOptions": ["string"]
+}
+```
+
+### Properties
+
+| Name               | Type            | Required | Restrictions | Description                                                                                         |
+| ------------------ | --------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------- |
+| `deploymentName`   | string          | false    |              | Deploymentname is the config-ssh Hostname prefix                                                    |
+| `sshconfigOptions` | array of string | false    |              | Sshconfigoptions are additional options to add to the ssh config file. This will override defaults. |
 
 ## codersdk.SSHConfigResponse
 
