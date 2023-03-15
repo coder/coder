@@ -14,6 +14,13 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
+type agentMetadata struct {
+	Key         string `mapstructure:"key"`
+	DisplayName string `mapstructure:"display_name"`
+	Cmd         string `mapstructure:"cmd"`
+	Interval    string `mapstructure:"interval"`
+}
+
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
 	Auth                         string            `mapstructure:"auth"`
@@ -31,6 +38,7 @@ type agentAttributes struct {
 	StartupScriptTimeoutSeconds  int32             `mapstructure:"startup_script_timeout"`
 	ShutdownScript               string            `mapstructure:"shutdown_script"`
 	ShutdownScriptTimeoutSeconds int32             `mapstructure:"shutdown_script_timeout"`
+	Metadata                     []agentMetadata   `mapstructure:"metadata"`
 }
 
 // A mapping of attributes on the "coder_app" resource.
@@ -59,15 +67,15 @@ type appHealthcheckAttributes struct {
 }
 
 // A mapping of attributes on the "coder_metadata" resource.
-type metadataAttributes struct {
-	ResourceID string         `mapstructure:"resource_id"`
-	Hide       bool           `mapstructure:"hide"`
-	Icon       string         `mapstructure:"icon"`
-	DailyCost  int32          `mapstructure:"daily_cost"`
-	Items      []metadataItem `mapstructure:"item"`
+type resourceMetadataAttributes struct {
+	ResourceID string                 `mapstructure:"resource_id"`
+	Hide       bool                   `mapstructure:"hide"`
+	Icon       string                 `mapstructure:"icon"`
+	DailyCost  int32                  `mapstructure:"daily_cost"`
+	Items      []resourceMetadataItem `mapstructure:"item"`
 }
 
-type metadataItem struct {
+type resourceMetadataItem struct {
 	Key       string `mapstructure:"key"`
 	Value     string `mapstructure:"value"`
 	Sensitive bool   `mapstructure:"sensitive"`
@@ -348,7 +356,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				continue
 			}
 
-			var attrs metadataAttributes
+			var attrs resourceMetadataAttributes
 			err = mapstructure.Decode(resource.AttributeValues, &attrs)
 			if err != nil {
 				return nil, xerrors.Errorf("decode metadata attributes: %w", err)

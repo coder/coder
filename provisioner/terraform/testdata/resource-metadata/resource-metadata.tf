@@ -1,8 +1,9 @@
 terraform {
   required_providers {
     coder = {
-      source  = "coder/coder"
-      version = "0.6.3"
+      source = "coder/coder"
+      // TODO: update terraform-provider-coder before merge.
+      version = "= 0.6.18-rc"
     }
   }
 }
@@ -10,6 +11,12 @@ terraform {
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
+  metadata {
+    key          = "process_count"
+    display_name = "Process Count"
+    cmd          = "ps -ef | wc -l"
+    interval     = "1s"
+  }
 }
 
 resource "null_resource" "about" {}
