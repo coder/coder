@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -206,9 +207,33 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
-func (a *agent) reportMetadata(ctx context.Context) error {
-	ma := a.manifest.Load()
-	tickers := make([]time.Ticker, 0, len(ma.Metadata))
+func (a *agent) collectMetadata(ctx context.Context, md agentsdk.Metadata) agentsdk.MetadataResult {
+	collectedAt := time.Now()
+
+	var out bytes.Buffer
+
+	cmd := exec.CommandContext(ctx, md.Cmd[0], md.Cmd[1:]...)
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	err := cmd.Run()
+	if err != nil {
+		return agentsdk.MetadataResult{
+			CollectedAt: collectedAt,
+			Key:         md.Key,
+			Error:       err.Error(),
+		}
+	}
+
+	const bufLimit = 10 << 14
+	if out.Len() > bufLimit {
+		out.Truncate(bufLimit)
+	}
+
+	return agentsdk.MetadataResult{
+		CollectedAt: collectedAt,
+		Key:         md.Key,
+		Value:       out.String(),
+	}
 }
 
 func (a *agent) reportMetadataLoop(ctx context.Context) {
@@ -217,16 +242,58 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	if flag.Lookup("test.v") != nil {
 		ticker = time.Millisecond * 100
 	}
-	baseTicker := time.NewTicker(ticker)
+
+	var (
+		baseTicker       = time.NewTicker(ticker)
+		lastCollectedAts = make(map[string]time.Time)
+		metadataResults  = make(chan agentsdk.MetadataResult, 16)
+	)
+	defer baseTicker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-baseTicker.C:
-			err := a.reportMetadata(ctx)
+		case mr := <-metadataResults:
+			lastCollectedAts[mr.Key] = mr.CollectedAt
+			err := a.client.PostMetadata(ctx, mr)
 			if err != nil {
 				a.logger.Error(ctx, "report metadata", slog.Error(err))
+			}
+		case <-baseTicker.C:
+			manifest := a.manifest.Load()
+			if manifest == nil {
+				continue
+			}
+			// If the manifest changes (e.g. on agent reconnect) we need to
+			// purge old values.
+			for key := range lastCollectedAts {
+				if slices.IndexFunc(manifest.Metadata, func(md agentsdk.Metadata) bool {
+					return md.Key == key
+				}) < 0 {
+					delete(lastCollectedAts, key)
+				}
+			}
+
+			// Spawn a goroutine for each metadata collection, and use channels
+			// to synchronize the results and avoid messy mutex logic.
+			for _, md := range manifest.Metadata {
+				collectedAt, ok := lastCollectedAts[md.Key]
+				if ok && collectedAt.Add(md.Interval).After(time.Now()) {
+					continue
+				}
+				if len(metadataResults) > cap(metadataResults)/2 {
+					// If we're backpressured on sending back results, we risk
+					// runaway goroutine growth.
+					continue
+				}
+				go func(md agentsdk.Metadata) {
+					select {
+					case <-ctx.Done():
+						return
+					case metadataResults <- a.collectMetadata(ctx, md):
+					}
+				}(md)
 			}
 		}
 	}

@@ -75,12 +75,15 @@ type Metadata struct {
 }
 
 type MetadataResult struct {
-	Key   string
-	Value string
-	Error string
+	CollectedAt time.Time
+	Key         string
+	Value       string
+	Error       string
 }
 
-type PostMetadataRequest map[string]MetadataResult
+// In the future, we may want to support sending back multiple values for
+// performance.
+type PostMetadataRequest = MetadataResult
 
 func (c *Client) PostMetadata(ctx context.Context, req PostMetadataRequest) error {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata", req)
