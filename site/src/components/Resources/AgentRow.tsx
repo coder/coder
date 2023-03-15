@@ -54,8 +54,11 @@ export const AgentRow: FC<AgentRowProps> = ({
   const theme = useTheme()
   const startupScriptAnchorRef = useRef<HTMLLinkElement>(null)
   const [startupScriptOpen, setStartupScriptOpen] = useState(false)
+  const hasStartupFeatures =
+    Boolean(agent.startup_script) ||
+    Boolean(logsMachine.context.startupLogs?.length)
   const [showStartupLogs, setShowStartupLogs] = useState(
-    agent.lifecycle_state !== "ready",
+    agent.lifecycle_state !== "ready" && hasStartupFeatures,
   )
   useEffect(() => {
     setShowStartupLogs(agent.lifecycle_state !== "ready")
@@ -122,7 +125,7 @@ export const AgentRow: FC<AgentRowProps> = ({
               spacing={1}
               className={styles.startupLinks}
             >
-              {(logsMachine.context.startupLogs || agent.startup_script) && (
+              {hasStartupFeatures && (
                 <Link
                   className={styles.startupLink}
                   variant="body2"
