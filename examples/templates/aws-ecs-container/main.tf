@@ -52,8 +52,8 @@ resource "aws_ecs_task_definition" "workspace" {
     {
       name      = "coder-workspace-${data.coder_workspace.me.id}"
       image     = "codercom/enterprise-base:ubuntu"
-      cpu       = 1024
-      memory    = 2048
+      cpu       = tonumber(data.coder_parameter.cpu.value)
+      memory    = tonumber(data.coder_parameter.memory.value)
       essential = true
       user      = "coder"
       command   = ["sh", "-c", coder_agent.coder.init_script]
@@ -104,11 +104,10 @@ resource "aws_ecs_service" "workspace" {
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "coder" {
-  arch = "amd64"
-  auth = "token"
-  os   = "linux"
-  dir  = "/home/coder"
-
+  arch                   = "amd64"
+  auth                   = "token"
+  os                     = "linux"
+  dir                    = "/home/coder"
   login_before_ready     = false
   startup_script_timeout = 180
   startup_script         = <<-EOT
