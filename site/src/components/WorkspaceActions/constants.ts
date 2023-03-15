@@ -11,7 +11,6 @@ export enum ButtonTypesEnum {
   deleting = "deleting",
   update = "update",
   updating = "updating",
-  changeVersion = "changeVersion",
   buildParameters = "buildParameters",
   // disabled buttons
   canceling = "canceling",
@@ -56,7 +55,6 @@ const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
     actions: [
       ButtonTypesEnum.stop,
       ButtonTypesEnum.buildParameters,
-      ButtonTypesEnum.changeVersion,
       ButtonTypesEnum.delete,
     ],
     canCancel: false,
@@ -71,7 +69,6 @@ const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
     actions: [
       ButtonTypesEnum.start,
       ButtonTypesEnum.buildParameters,
-      ButtonTypesEnum.changeVersion,
       ButtonTypesEnum.delete,
     ],
     canCancel: false,
@@ -82,7 +79,6 @@ const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
       ButtonTypesEnum.start,
       ButtonTypesEnum.stop,
       ButtonTypesEnum.buildParameters,
-      ButtonTypesEnum.changeVersion,
       ButtonTypesEnum.delete,
     ],
     canCancel: false,
@@ -93,7 +89,6 @@ const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
     actions: [
       ButtonTypesEnum.start,
       ButtonTypesEnum.buildParameters,
-      ButtonTypesEnum.changeVersion,
       ButtonTypesEnum.delete,
     ],
     canCancel: false,
