@@ -345,9 +345,17 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags General
+// @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.TokenConfig
-// @Router /config/tokenconfig [get]
+// @Router /users/{user}/keys/tokens/tokenconfig [get]
 func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	values, err := api.DeploymentValues.WithoutSecrets()
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

@@ -3362,6 +3362,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/keys/tokens/tokenconfig": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get token config",
+                "operationId": "get-token-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TokenConfig"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/keys/tokens/{keyname}": {
             "get": {
                 "security": [
