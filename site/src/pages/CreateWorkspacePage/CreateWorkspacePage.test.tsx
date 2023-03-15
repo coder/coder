@@ -179,6 +179,7 @@ describe("CreateWorkspacePage", () => {
 
     const secondParameterField = await screen.findByLabelText(
       MockTemplateVersionParameter2.name,
+      { exact: false },
     )
     expect(secondParameterField).toBeDefined()
 
@@ -212,6 +213,7 @@ describe("CreateWorkspacePage", () => {
 
     const thirdParameterField = await screen.findByLabelText(
       MockTemplateVersionParameter3.name,
+      { exact: false },
     )
     expect(thirdParameterField).toBeDefined()
     fireEvent.change(thirdParameterField, {

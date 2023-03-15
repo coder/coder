@@ -2,7 +2,6 @@
   "title": "Workspace build parameters",
   "detail": "Those values were provided by the workspace owner.",
   "noParametersDefined": "This template does not use any rich parameters.",
-  "validationRequiredParameter": "Parameter is required.",
   "validationNumberNotInRange": "Value must be between {{min}} and {{max}}.",
   "validationPatternNotMatched": "{{error}} (value does not match the pattern {{pattern}}).",
   "updateWorkspace": "Update workspace",

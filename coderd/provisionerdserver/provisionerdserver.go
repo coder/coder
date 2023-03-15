@@ -113,6 +113,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 				String: errorMessage,
 				Valid:  true,
 			},
+			ErrorCode: job.ErrorCode,
 		})
 		if err != nil {
 			return xerrors.Errorf("update provisioner job: %w", err)
@@ -639,12 +640,17 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		String: failJob.Error,
 		Valid:  failJob.Error != "",
 	}
+	job.ErrorCode = sql.NullString{
+		String: failJob.ErrorCode,
+		Valid:  failJob.ErrorCode != "",
+	}
 
 	err = server.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 		ID:          jobID,
 		CompletedAt: job.CompletedAt,
 		UpdatedAt:   database.Now(),
 		Error:       job.Error,
+		ErrorCode:   job.ErrorCode,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("update provisioner job: %w", err)
@@ -828,6 +834,8 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				ValidationMin:       richParameter.ValidationMin,
 				ValidationMax:       richParameter.ValidationMax,
 				ValidationMonotonic: richParameter.ValidationMonotonic,
+				Required:            richParameter.Required,
+				LegacyVariableName:  richParameter.LegacyVariableName,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("insert parameter: %w", err)

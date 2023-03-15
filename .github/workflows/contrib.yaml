@@ -27,20 +27,6 @@ jobs:
     steps:
       - uses: hmarr/auto-approve-action@v3
         if: github.actor == 'dependabot[bot]'
-  auto-approve-docs:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request_target'
-    permissions:
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v3
-      - name: Get changed files in the docs folder
-        id: changed-files
-        uses: tj-actions/changed-files@v35
-        with:
-          files: docs/*
-      - uses: hmarr/auto-approve-action@v3
-        if: github.actor == 'bpmct' && steps.changed-files.outputs.only_changed == 'true'
 
   cla:
     runs-on: ubuntu-latest

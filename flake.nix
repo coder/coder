@@ -29,6 +29,7 @@
             gopls
             gotestsum
             jq
+            kubernetes-helm
             nfpm
             nodePackages.typescript
             nodePackages.typescript-language-server

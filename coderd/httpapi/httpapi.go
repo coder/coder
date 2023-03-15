@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -114,6 +115,10 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetEscapeHTML(true)
+	// Pretty up JSON when testing.
+	if flag.Lookup("test.v") != nil {
+		enc.SetIndent("", "\t")
+	}
 	err := enc.Encode(response)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)

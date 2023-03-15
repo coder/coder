@@ -85,7 +85,7 @@ func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.Templat
 		}
 	} else {
 		text := "Enter a value"
-		if templateVersionParameter.DefaultValue != "" {
+		if !templateVersionParameter.Required {
 			text += fmt.Sprintf(" (default: %q)", templateVersionParameter.DefaultValue)
 		}
 		text += ":"
@@ -111,7 +111,7 @@ func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.Templat
 }
 
 func validateRichPrompt(value string, p codersdk.TemplateVersionParameter) error {
-	return codersdk.ValidateWorkspaceBuildParameter(p, codersdk.WorkspaceBuildParameter{
+	return codersdk.ValidateWorkspaceBuildParameter(p, &codersdk.WorkspaceBuildParameter{
 		Name:  p.Name,
 		Value: value,
 	}, nil)

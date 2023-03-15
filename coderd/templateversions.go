@@ -1621,6 +1621,8 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		ValidationMax:        param.ValidationMax,
 		ValidationError:      param.ValidationError,
 		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
+		Required:             param.Required,
+		LegacyVariableName:   param.LegacyVariableName,
 	}, nil
 }
 

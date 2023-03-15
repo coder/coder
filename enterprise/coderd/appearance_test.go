@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd"
@@ -89,15 +90,14 @@ func TestCustomSupportLinks(t *testing.T) {
 			Icon:   "bug",
 		},
 	}
-	cfg := coderdtest.DeploymentConfig(t)
-	cfg.Support = new(codersdk.SupportConfig)
-	cfg.Support.Links = &codersdk.DeploymentConfigField[[]codersdk.LinkConfig]{
+	cfg := coderdtest.DeploymentValues(t)
+	cfg.Support.Links = clibase.Struct[[]codersdk.LinkConfig]{
 		Value: supportLinks,
 	}
 
 	client := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			DeploymentConfig: cfg,
+			DeploymentValues: cfg,
 		},
 	})
 	coderdtest.CreateFirstUser(t, client)
