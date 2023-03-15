@@ -1,11 +1,11 @@
-import { makeStyles } from "@material-ui/core/styles"
+import { makeStyles, Theme } from "@material-ui/core/styles"
 import { LogLevel } from "api/typesGenerated"
 import dayjs from "dayjs"
 import { FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { combineClasses } from "../../util/combineClasses"
 
-interface Line {
+export interface Line {
   time: string
   output: string
   level: LogLevel
@@ -14,15 +14,19 @@ interface Line {
 export interface LogsProps {
   lines: Line[]
   hideTimestamps?: boolean
+  lineNumbers?: boolean
   className?: string
 }
 
 export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
   hideTimestamps,
   lines,
+  lineNumbers,
   className = "",
 }) => {
-  const styles = useStyles()
+  const styles = useStyles({
+    lineNumbers: Boolean(lineNumbers),
+  })
 
   return (
     <div className={combineClasses([className, styles.root])}>
@@ -32,7 +36,9 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
             {!hideTimestamps && (
               <>
                 <span className={styles.time}>
-                  {dayjs(line.time).format(`HH:mm:ss.SSS`)}
+                  {lineNumbers
+                    ? idx + 1
+                    : dayjs(line.time).format(`HH:mm:ss.SSS`)}
                 </span>
                 <span className={styles.space}>&nbsp;&nbsp;&nbsp;&nbsp;</span>
               </>
@@ -45,7 +51,12 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
   )
 }
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles<
+  Theme,
+  {
+    lineNumbers: boolean
+  }
+>((theme) => ({
   root: {
     minHeight: 156,
     background: theme.palette.background.default,
@@ -62,7 +73,7 @@ const useStyles = makeStyles((theme) => ({
   },
   line: {
     // Whitespace is significant in terminal output for alignment
-    whiteSpace: "pre",
+    whiteSpace: "pre-line",
     padding: theme.spacing(0, 3),
 
     "&.error": {
@@ -78,7 +89,8 @@ const useStyles = makeStyles((theme) => ({
   },
   time: {
     userSelect: "none",
-    width: theme.spacing(12.5),
+    width: ({ lineNumbers }) => theme.spacing(lineNumbers ? 3 : 12.5),
+    whiteSpace: "pre",
     display: "inline-block",
     color: theme.palette.text.secondary,
   },

@@ -10,6 +10,8 @@ export const workspaceAgentLogsMachine = createMachine(
       events: {} as {
         type: "ADD_STARTUP_LOGS"
         logs: TypesGen.WorkspaceAgentStartupLog[]
+      } | {
+        type: "FETCH_STARTUP_LOGS",
       },
       context: {} as {
         agentID: string
@@ -22,8 +24,13 @@ export const workspaceAgentLogsMachine = createMachine(
       },
     },
     tsTypes: {} as import("./workspaceAgentLogsXService.typegen").Typegen0,
-    initial: "loading",
+    initial: "waiting",
     states: {
+      waiting: {
+        on: {
+          FETCH_STARTUP_LOGS: "loading",
+        },
+      },
       loading: {
         invoke: {
           src: "getStartupLogs",

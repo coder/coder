@@ -1,24 +1,29 @@
-import { makeStyles } from "@material-ui/core/styles"
+import Link from "@material-ui/core/Link"
+import Popover from "@material-ui/core/Popover"
+import { makeStyles, useTheme } from "@material-ui/core/styles"
+import PlayCircleOutlined from "@material-ui/icons/PlayCircleFilledOutlined"
+import VisibilityOffOutlined from "@material-ui/icons/VisibilityOffOutlined"
+import VisibilityOutlined from "@material-ui/icons/VisibilityOutlined"
 import { Skeleton } from "@material-ui/lab"
+import { useMachine } from "@xstate/react"
+import { AppLinkSkeleton } from "components/AppLink/AppLinkSkeleton"
+import { Maybe } from "components/Conditionals/Maybe"
+import { Line, Logs } from "components/Logs/Logs"
 import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
-import { FC } from "react"
+import { VSCodeDesktopButton } from "components/VSCodeDesktopButton/VSCodeDesktopButton"
+import { FC, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism"
+import { workspaceAgentLogsMachine } from "xServices/workspaceAgentLogs/workspaceAgentLogsXService"
 import { Workspace, WorkspaceAgent } from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
 import { Stack } from "../Stack/Stack"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { AgentLatency } from "./AgentLatency"
-import { AgentVersion } from "./AgentVersion"
-import { Maybe } from "components/Conditionals/Maybe"
 import { AgentStatus } from "./AgentStatus"
-import { AppLinkSkeleton } from "components/AppLink/AppLinkSkeleton"
-import { useTranslation } from "react-i18next"
-import { VSCodeDesktopButton } from "components/VSCodeDesktopButton/VSCodeDesktopButton"
-import { useMachine } from "@xstate/react"
-import { workspaceAgentLogsMachine } from "xServices/workspaceAgentLogs/workspaceAgentLogsXService"
-import { Line, Logs } from "components/Logs/Logs"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism"
+import { AgentVersion } from "./AgentVersion"
 
 export interface AgentRowProps {
   agent: WorkspaceAgent
@@ -43,14 +48,33 @@ export const AgentRow: FC<AgentRowProps> = ({
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("agent")
-  const [logsMachine] = useMachine(workspaceAgentLogsMachine, {
+  const [logsMachine, sendLogsEvent] = useMachine(workspaceAgentLogsMachine, {
     context: { agentID: agent.id },
   })
-
-  console.log("drac", darcula)
+  const theme = useTheme()
+  const startupScriptAnchorRef = useRef<HTMLLinkElement>(null)
+  const [startupScriptOpen, setStartupScriptOpen] = useState(false)
+  const [showStartupLogs, setShowStartupLogs] = useState(
+    agent.lifecycle_state !== "ready",
+  )
+  useEffect(() => {
+    setShowStartupLogs(agent.lifecycle_state !== "ready")
+  }, [agent.lifecycle_state])
+  useEffect(() => {
+    // We only want to fetch logs when they are actually shown,
+    // otherwise we can make a lot of requests that aren't necessary.
+    if (showStartupLogs) {
+      sendLogsEvent("FETCH_STARTUP_LOGS")
+    }
+  }, [sendLogsEvent, showStartupLogs])
 
   return (
-    <Stack direction="column" key={agent.id} spacing={0}>
+    <Stack
+      direction="column"
+      key={agent.id}
+      spacing={0}
+      className={styles.agentWrapper}
+    >
       <Stack
         direction="row"
         alignItems="center"
@@ -90,6 +114,79 @@ export const AgentRow: FC<AgentRowProps> = ({
               <Maybe condition={agent.status === "timeout"}>
                 {t("unableToConnect")}
               </Maybe>
+            </Stack>
+
+            <Stack
+              direction="row"
+              alignItems="baseline"
+              spacing={1}
+              className={styles.startupLinks}
+            >
+              {(logsMachine.context.startupLogs || agent.startup_script) && (
+                <Link
+                  className={styles.startupLink}
+                  variant="body2"
+                  onClick={() => {
+                    setShowStartupLogs(!showStartupLogs)
+                  }}
+                >
+                  {showStartupLogs ? (
+                    <VisibilityOffOutlined />
+                  ) : (
+                    <VisibilityOutlined />
+                  )}
+                  {showStartupLogs ? "Hide" : "Show"} Startup Logs
+                </Link>
+              )}
+
+              {agent.startup_script && (
+                <Link
+                  className={styles.startupLink}
+                  variant="body2"
+                  ref={startupScriptAnchorRef}
+                  onClick={() => {
+                    setStartupScriptOpen(!startupScriptOpen)
+                  }}
+                >
+                  <PlayCircleOutlined />
+                  View Startup Script
+                </Link>
+              )}
+
+              <Popover
+                classes={{
+                  paper: styles.startupScriptPopover,
+                }}
+                open={startupScriptOpen}
+                onClose={() => setStartupScriptOpen(false)}
+                anchorEl={startupScriptAnchorRef.current}
+                anchorOrigin={{
+                  vertical: "bottom",
+                  horizontal: "left",
+                }}
+                transformOrigin={{
+                  vertical: "top",
+                  horizontal: "left",
+                }}
+              >
+                <div>
+                  <SyntaxHighlighter
+                    style={darcula}
+                    language="shell"
+                    showLineNumbers
+                    // Use inline styles does not work correctly
+                    // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/329
+                    codeTagProps={{ style: {} }}
+                    customStyle={{
+                      background: theme.palette.background.default,
+                      maxWidth: 600,
+                      margin: 0,
+                    }}
+                  >
+                    {agent.startup_script || ""}
+                  </SyntaxHighlighter>
+                </div>
+              </Popover>
             </Stack>
           </div>
         </Stack>
@@ -151,43 +248,66 @@ export const AgentRow: FC<AgentRowProps> = ({
           )}
         </Stack>
       </Stack>
-
-      <div>
-        Startup Script
-        <SyntaxHighlighter
-          style={darcula}
-          language="bash"
-          useInlineStyles={false}
-          codeTagProps={{ style: {} }}
-        >
-          {String(agent.startup_script)}
-        </SyntaxHighlighter>
-        {logsMachine.context.startupLogs && (
-          <Logs
-            className={styles.agentStartupLogs}
-            lines={logsMachine.context.startupLogs.map(
+      {showStartupLogs && (
+        <Logs
+          className={styles.startupLogs}
+          lineNumbers
+          lines={
+            logsMachine.context.startupLogs?.map(
               (log): Line => ({
                 level: "info",
                 output: log.output,
                 time: log.created_at,
               }),
-            )}
-          />
-        )}
-      </div>
+            ) || []
+          }
+        />
+      )}
     </Stack>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
+  agentWrapper: {
+    "&:not(:last-child)": {
+      borderBottom: `1px solid ${theme.palette.divider}`,
+    },
+  },
+
   agentRow: {
     padding: theme.spacing(3, 4),
     backgroundColor: theme.palette.background.paperLight,
     fontSize: 16,
+  },
 
-    "&:not(:last-child)": {
-      borderBottom: `1px solid ${theme.palette.divider}`,
+  startupLinks: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(2),
+    marginTop: theme.spacing(0.5),
+  },
+
+  startupLink: {
+    cursor: "pointer",
+    display: "flex",
+    gap: 4,
+    alignItems: "center",
+    userSelect: "none",
+
+    "& svg": {
+      width: 12,
+      height: 12,
     },
+  },
+
+  startupLogs: {
+    maxHeight: 256,
+    display: "flex",
+    flexDirection: "column-reverse",
+  },
+
+  startupScriptPopover: {
+    backgroundColor: theme.palette.background.default,
   },
 
   agentStatusWrapper: {
