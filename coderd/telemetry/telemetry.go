@@ -465,6 +465,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		stats, err := r.options.Database.GetWorkspaceAgentStats(ctx, createdAfter)
+		if err != nil {
+			return xerrors.Errorf("get workspace agent stats: %w", err)
+		}
+		snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(stats))
+		for _, stat := range stats {
+			snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(stat))
+		}
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -562,6 +573,25 @@ func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
 		snapAgent.DisconnectedAt = &agent.DisconnectedAt.Time
 	}
 	return snapAgent
+}
+
+// ConvertWorkspaceAgentStat anonymizes a workspace agent stat.
+func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) WorkspaceAgentStat {
+	return WorkspaceAgentStat{
+		UserID:                      stat.UserID,
+		TemplateID:                  stat.TemplateID,
+		WorkspaceID:                 stat.WorkspaceID,
+		AgentID:                     stat.AgentID,
+		AggregatedFrom:              stat.AggregatedFrom,
+		ConnectionLatency50:         stat.WorkspaceConnectionLatency50,
+		ConnectionLatency95:         stat.WorkspaceConnectionLatency95,
+		RxBytes:                     stat.WorkspaceRxBytes,
+		TxBytes:                     stat.WorkspaceTxBytes,
+		SessionCountVSCode:          stat.SessionCountVSCode,
+		SessionCountJetBrains:       stat.SessionCountJetBrains,
+		SessionCountReconnectingPTY: stat.SessionCountReconnectingPTY,
+		SessionCountSSH:             stat.SessionCountSSH,
+	}
 }
 
 // ConvertWorkspaceApp anonymizes a workspace app.
@@ -666,6 +696,7 @@ type Snapshot struct {
 	Workspaces                []Workspace                 `json:"workspaces"`
 	WorkspaceApps             []WorkspaceApp              `json:"workspace_apps"`
 	WorkspaceAgents           []WorkspaceAgent            `json:"workspace_agents"`
+	WorkspaceAgentStats       []WorkspaceAgentStat        `json:"workspace_agent_stats"`
 	WorkspaceBuilds           []WorkspaceBuild            `json:"workspace_build"`
 	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
 	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
@@ -752,6 +783,22 @@ type WorkspaceAgent struct {
 	DisconnectedAt           *time.Time `json:"disconnected_at"`
 	ConnectionTimeoutSeconds int32      `json:"connection_timeout_seconds"`
 	ShutdownScript           bool       `json:"shutdown_script"`
+}
+
+type WorkspaceAgentStat struct {
+	UserID                      uuid.UUID `json:"user_id"`
+	TemplateID                  uuid.UUID `json:"template_id"`
+	WorkspaceID                 uuid.UUID `json:"workspace_id"`
+	AggregatedFrom              time.Time `json:"aggregated_from"`
+	AgentID                     uuid.UUID `json:"agent_id"`
+	RxBytes                     int64     `json:"rx_bytes"`
+	TxBytes                     int64     `json:"tx_bytes"`
+	ConnectionLatency50         float64   `json:"connection_latency_50"`
+	ConnectionLatency95         float64   `json:"connection_latency_95"`
+	SessionCountVSCode          int64     `json:"session_count_vscode"`
+	SessionCountJetBrains       int64     `json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64     `json:"session_count_reconnecting_pty"`
+	SessionCountSSH             int64     `json:"session_count_ssh"`
 }
 
 type WorkspaceApp struct {

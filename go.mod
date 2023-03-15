@@ -40,7 +40,7 @@ replace github.com/tcnksm/go-httpstat => github.com/kylecarbs/go-httpstat v0.0.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230307022319-1e5e724a3949
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230314023417-d9efcc0ac972
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
@@ -75,7 +75,7 @@ require (
 	github.com/codeclysm/extract v2.2.0+incompatible
 	github.com/coder/flog v1.0.0
 	github.com/coder/retry v1.3.1-0.20230210155434-e90a2e1e091d
-	github.com/coder/terraform-provider-coder v0.6.15
+	github.com/coder/terraform-provider-coder v0.6.17
 	github.com/coreos/go-oidc/v3 v3.4.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.18
@@ -183,6 +183,9 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/flatbuffers v23.1.21+incompatible // indirect
 	github.com/h2non/filetype v1.1.3 // indirect
+	github.com/hashicorp/go-plugin v1.4.4 // indirect
+	github.com/hashicorp/terraform-registry-address v0.0.0-20220623143253-7d51757b572c // indirect
+	github.com/hashicorp/terraform-svchost v0.0.0-20200729002733-f050f53b9734 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/juju/errors v1.0.0 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
@@ -190,6 +193,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
+	github.com/oklog/run v1.0.0 // indirect
 )
 
 require (

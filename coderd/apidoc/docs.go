@@ -7078,6 +7078,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "groups_field": {
+                    "type": "string"
+                },
                 "icon_url": {
                     "$ref": "#/definitions/clibase.URL"
                 },
@@ -8016,6 +8019,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "icon": {
+                    "type": "string"
+                },
+                "legacy_variable_name": {
                     "type": "string"
                 },
                 "mutable": {

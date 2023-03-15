@@ -58,6 +58,10 @@ func (s *OptionSet) Add(opts ...Option) {
 
 // FlagSet returns a pflag.FlagSet for the OptionSet.
 func (s *OptionSet) FlagSet() *pflag.FlagSet {
+	if s == nil {
+		return &pflag.FlagSet{}
+	}
+
 	fs := pflag.NewFlagSet("", pflag.ContinueOnError)
 	for _, opt := range *s {
 		if opt.Flag == "" {
@@ -71,11 +75,16 @@ func (s *OptionSet) FlagSet() *pflag.FlagSet {
 			}
 		}
 
+		val := opt.Value
+		if val == nil {
+			val = &DiscardValue{}
+		}
+
 		fs.AddFlag(&pflag.Flag{
 			Name:        opt.Flag,
 			Shorthand:   opt.FlagShorthand,
 			Usage:       opt.Description,
-			Value:       opt.Value,
+			Value:       val,
 			DefValue:    "",
 			Changed:     false,
 			Deprecated:  "",
@@ -90,14 +99,19 @@ func (s *OptionSet) FlagSet() *pflag.FlagSet {
 }
 
 // ParseEnv parses the given environment variables into the OptionSet.
-func (s *OptionSet) ParseEnv(globalPrefix string, environ []string) error {
+// Use EnvsWithPrefix to filter out prefixes.
+func (s *OptionSet) ParseEnv(vs []EnvVar) error {
+	if s == nil {
+		return nil
+	}
+
 	var merr *multierror.Error
 
 	// We parse environment variables first instead of using a nested loop to
 	// avoid N*M complexity when there are a lot of options and environment
 	// variables.
 	envs := make(map[string]string)
-	for _, v := range EnvsWithPrefix(environ, globalPrefix) {
+	for _, v := range vs {
 		envs[v.Name] = v.Value
 	}
 
@@ -107,7 +121,12 @@ func (s *OptionSet) ParseEnv(globalPrefix string, environ []string) error {
 		}
 
 		envVal, ok := envs[opt.Env]
-		if !ok {
+		// Currently, empty values are treated as if the environment variable is
+		// unset. This behavior is technically not correct as there is now no
+		// way for a user to change a Default value to an empty string from
+		// the environment. Unfortunately, we have old configuration files
+		// that rely on the faulty behavior.
+		if !ok || envVal == "" {
 			continue
 		}
 
@@ -124,7 +143,12 @@ func (s *OptionSet) ParseEnv(globalPrefix string, environ []string) error {
 // SetDefaults sets the default values for each Option.
 // It should be called before all parsing (e.g. ParseFlags, ParseEnv).
 func (s *OptionSet) SetDefaults() error {
+	if s == nil {
+		return nil
+	}
+
 	var merr *multierror.Error
+
 	for _, opt := range *s {
 		if opt.Default == "" {
 			continue

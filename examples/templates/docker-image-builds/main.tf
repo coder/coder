@@ -3,11 +3,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.12"
+      version = "~> 0.6.17"
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 2.20.2"
+      version = "~> 3.0.1"
     }
   }
 }
@@ -22,9 +22,8 @@ data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
-  arch = data.coder_provisioner.me.arch
-  os   = "linux"
-
+  arch                   = data.coder_provisioner.me.arch
+  os                     = "linux"
   login_before_ready     = false
   startup_script_timeout = 180
   startup_script         = <<-EOT
@@ -50,24 +49,29 @@ resource "coder_app" "code-server" {
     interval  = 3
     threshold = 10
   }
-
 }
 
-variable "docker_image" {
-  description = "What Docker image would you like to use for your workspace?"
+data "coder_parameter" "docker_image" {
+  name        = "What Docker image would you like to use for your workspace?"
+  description = "The Docker image will be used to build your workspace. You can choose from a list of pre-built images or provide your own."
   default     = "base"
-
-  # List of images available for the user to choose from.
-  # Delete this condition to give users free text input.
-  validation {
-    condition     = contains(["base", "java", "node"], var.docker_image)
-    error_message = "Invalid Docker image!"
+  icon        = "/icon/docker.png"
+  type        = "string"
+  mutable     = false
+  option {
+    name  = "Base"
+    value = "base"
+    icon  = "/icon/code.svg"
   }
-
-  # Prevents admin errors when the image is not found
-  validation {
-    condition     = fileexists("images/${var.docker_image}.Dockerfile")
-    error_message = "Invalid Docker image. The file does not exist in the images directory."
+  option {
+    name  = "Java"
+    value = "java"
+    icon  = "/icon/java.svg"
+  }
+  option {
+    name  = "Node"
+    value = "node"
+    icon  = "/icon/node.svg"
   }
 }
 
@@ -101,18 +105,17 @@ resource "docker_volume" "home_volume" {
 resource "docker_image" "coder_image" {
   name = "coder-base-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   build {
-    path       = "./images/"
-    dockerfile = "${var.docker_image}.Dockerfile"
-    tag        = ["coder-${var.docker_image}:v0.1"]
+    context    = "./images/"
+    dockerfile = "${data.coder_parameter.docker_image.value}.Dockerfile"
+    tag        = ["coder-${data.coder_parameter.docker_image.value}:v0.1"]
   }
-
   # Keep alive for other workspaces to use upon deletion
   keep_locally = true
 }
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = docker_image.coder_image.latest
+  image = docker_image.coder_image.image_id
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
@@ -154,6 +157,6 @@ resource "coder_metadata" "container_info" {
 
   item {
     key   = "image"
-    value = var.docker_image
+    value = data.coder_parameter.docker_image.value
   }
 }

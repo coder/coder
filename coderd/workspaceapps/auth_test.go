@@ -540,6 +540,26 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Nil(t, ticket)
 	})
 
+	t.Run("UserNotFound", func(t *testing.T) {
+		t.Parallel()
+		req := workspaceapps.Request{
+			AccessMethod:      workspaceapps.AccessMethodPath,
+			BasePath:          "/app",
+			UsernameOrID:      "thisuserdoesnotexist",
+			WorkspaceNameOrID: workspace.Name,
+			AgentNameOrID:     agentName,
+			AppSlugOrPort:     appNameOwner,
+		}
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/app", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+		require.False(t, ok)
+		require.Nil(t, ticket)
+	})
+
 	t.Run("RedirectSubdomainAuth", func(t *testing.T) {
 		t.Parallel()
 

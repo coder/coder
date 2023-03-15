@@ -8,7 +8,7 @@ waitonexit() {
 	sleep 86400
 }
 trap waitonexit EXIT
-BINARY_DIR=$(mktemp -d -t coder.XXXXXX)
+BINARY_DIR="${BINARY_DIR:-$(mktemp -d -t coder.XXXXXX)}"
 BINARY_NAME=coder
 BINARY_URL=${ACCESS_URL}bin/coder-linux-${ARCH}
 cd "$BINARY_DIR"

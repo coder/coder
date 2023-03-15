@@ -75,6 +75,7 @@ import (
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/updatecheck"
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -94,7 +95,7 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 	sort.Strings(environ)
 
 	var providers []codersdk.GitAuthConfig
-	for _, v := range clibase.EnvsWithPrefix(environ, envPrefix+"GITAUTH_") {
+	for _, v := range clibase.ParseEnviron(environ, envPrefix+"GITAUTH_") {
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
 			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
@@ -184,7 +185,7 @@ func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Close
 				return xerrors.Errorf("set defaults: %w", err)
 			}
 
-			err = cliOpts.ParseEnv(envPrefix, os.Environ())
+			err = cliOpts.ParseEnv(clibase.ParseEnviron(os.Environ(), envPrefix))
 			if err != nil {
 				return xerrors.Errorf("parse env: %w", err)
 			}
@@ -257,6 +258,10 @@ flags, and YAML configuration. The precedence is as follows:
 					continue
 				}
 
+				if opt.Value.String() == opt.Default {
+					continue
+				}
+
 				warnStr := opt.Name + " is deprecated, please use "
 				for i, use := range opt.UseInstead {
 					warnStr += use.Name + " "
@@ -291,7 +296,8 @@ flags, and YAML configuration. The precedence is as follows:
 				return xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
 			}
 
-			if cfg.AccessURL.String() != "" && cfg.AccessURL.Scheme == "" {
+			if cfg.AccessURL.String() != "" &&
+				!(cfg.AccessURL.Scheme == "http" || cfg.AccessURL.Scheme == "https") {
 				return xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
 			}
 
@@ -615,7 +621,7 @@ flags, and YAML configuration. The precedence is as follows:
 				Nodes: []*tailcfg.DERPNode{{
 					Name:      fmt.Sprintf("%db", cfg.DERP.Server.RegionID),
 					RegionID:  int(cfg.DERP.Server.RegionID.Value()),
-					HostName:  cfg.AccessURL.Host,
+					HostName:  cfg.AccessURL.Value().Hostname(),
 					DERPPort:  accessURLPort,
 					STUNPort:  -1,
 					ForceHTTP: cfg.AccessURL.Scheme == "http",
@@ -646,8 +652,9 @@ flags, and YAML configuration. The precedence is as follows:
 				return xerrors.Errorf("read git auth providers from env: %w", err)
 			}
 
+			cfg.GitAuthProviders.Value = append(cfg.GitAuthProviders.Value, gitAuthEnv...)
 			gitAuthConfigs, err := gitauth.ConvertConfig(
-				append(cfg.GitAuthProviders.Value, gitAuthEnv...),
+				cfg.GitAuthProviders.Value,
 				cfg.AccessURL.Value(),
 			)
 			if err != nil {
@@ -759,6 +766,11 @@ flags, and YAML configuration. The precedence is as follows:
 				if err != nil {
 					return xerrors.Errorf("parse oidc oauth callback url: %w", err)
 				}
+				// If the scopes contain 'groups', we enable group support.
+				// Do not override any custom value set by the user.
+				if slice.Contains(cfg.OIDC.Scopes, "groups") && cfg.OIDC.GroupField == "" {
+					cfg.OIDC.GroupField = "groups"
+				}
 				options.OIDCConfig = &coderd.OIDCConfig{
 					OAuth2Config: &oauth2.Config{
 						ClientID:     cfg.OIDC.ClientID.String(),
@@ -774,6 +786,7 @@ flags, and YAML configuration. The precedence is as follows:
 					EmailDomain:         cfg.OIDC.EmailDomain,
 					AllowSignups:        cfg.OIDC.AllowSignups.Value(),
 					UsernameField:       cfg.OIDC.UsernameField.String(),
+					GroupField:          cfg.OIDC.GroupField.String(),
 					SignInText:          cfg.OIDC.SignInText.String(),
 					IconURL:             cfg.OIDC.IconURL.String(),
 					IgnoreEmailVerified: cfg.OIDC.IgnoreEmailVerified.Value(),

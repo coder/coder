@@ -175,6 +175,10 @@ func New(options *Options) *API {
 	if options.AgentInactiveDisconnectTimeout == 0 {
 		// Multiply the update by two to allow for some lag-time.
 		options.AgentInactiveDisconnectTimeout = options.AgentConnectionUpdateFrequency * 2
+		// Set a minimum timeout to avoid disconnecting too soon.
+		if options.AgentInactiveDisconnectTimeout < 2*time.Second {
+			options.AgentInactiveDisconnectTimeout = 2 * time.Second
+		}
 	}
 	if options.AgentStatsRefreshInterval == 0 {
 		options.AgentStatsRefreshInterval = 5 * time.Minute
@@ -795,7 +799,8 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}()
 
 	name := namesgenerator.GetRandomName(1)
-	daemon, err := api.Database.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
+	// nolint:gocritic // Inserting a provisioner daemon is a system function.
+	daemon, err := api.Database.InsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),
 		CreatedAt:    database.Now(),
 		Name:         name,

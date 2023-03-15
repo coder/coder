@@ -1762,6 +1762,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "client_id": "string",
       "client_secret": "string",
       "email_domain": ["string"],
+      "groups_field": "string",
       "icon_url": {
         "forceQuery": true,
         "fragment": "string",
@@ -2101,6 +2102,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "client_id": "string",
     "client_secret": "string",
     "email_domain": ["string"],
+    "groups_field": "string",
     "icon_url": {
       "forceQuery": true,
       "fragment": "string",
@@ -2761,6 +2763,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "client_id": "string",
   "client_secret": "string",
   "email_domain": ["string"],
+  "groups_field": "string",
   "icon_url": {
     "forceQuery": true,
     "fragment": "string",
@@ -2790,6 +2793,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `client_id`             | string                     | false    |              |             |
 | `client_secret`         | string                     | false    |              |             |
 | `email_domain`          | array of string            | false    |              |             |
+| `groups_field`          | string                     | false    |              |             |
 | `icon_url`              | [clibase.URL](#clibaseurl) | false    |              |             |
 | `ignore_email_verified` | boolean                    | false    |              |             |
 | `issuer_url`            | string                     | false    |              |             |
@@ -3730,6 +3734,7 @@ Parameter represents a set value for the scope.
   "description": "string",
   "description_plaintext": "string",
   "icon": "string",
+  "legacy_variable_name": "string",
   "mutable": true,
   "name": "string",
   "options": [
@@ -3758,6 +3763,7 @@ Parameter represents a set value for the scope.
 | `description`           | string                                                                                      | false    |              |             |
 | `description_plaintext` | string                                                                                      | false    |              |             |
 | `icon`                  | string                                                                                      | false    |              |             |
+| `legacy_variable_name`  | string                                                                                      | false    |              |             |
 | `mutable`               | boolean                                                                                     | false    |              |             |
 | `name`                  | string                                                                                      | false    |              |             |
 | `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
