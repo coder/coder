@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/maps"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
 	"golang.org/x/xerrors"
@@ -772,6 +773,36 @@ func TestAgent_StartupScript(t *testing.T) {
 	require.Equal(t, content, strings.TrimSpace(gotContent))
 }
 
+func TestAgent_Metadata(t *testing.T) {
+	t.Parallel()
+
+	//nolint:dogsled
+	_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+		Metadata: []agentsdk.Metadata{
+			{
+				Key:      "greeting",
+				Interval: time.Millisecond * 100,
+				Cmd:      []string{"echo", "hello"},
+			},
+			{
+				Key:      "bad",
+				Interval: time.Millisecond * 100,
+				Cmd:      []string{"sh", "-c", "exit 1"},
+			},
+		},
+	}, 0)
+
+	var gotMd agentsdk.PostMetadataRequest
+	require.Eventually(t, func() bool {
+		gotMd = client.getMetadata()
+		return len(gotMd) == 2
+	}, testutil.WaitShort, testutil.IntervalMedium)
+
+	require.Equal(t, "hello", gotMd["greeting"].Value)
+	require.Empty(t, gotMd["bad"].Value)
+	require.Equal(t, "exit status 1", gotMd["bad"].Error)
+}
+
 func TestAgent_Lifecycle(t *testing.T) {
 	t.Parallel()
 
@@ -1492,6 +1523,7 @@ type client struct {
 	t                  *testing.T
 	agentID            uuid.UUID
 	manifest           agentsdk.Manifest
+	metadata           agentsdk.PostMetadataRequest
 	statsChan          chan *agentsdk.Stats
 	coordinator        tailnet.Coordinator
 	lastWorkspaceAgent func()
@@ -1574,6 +1606,19 @@ func (c *client) getStartup() agentsdk.PostStartupRequest {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.startup
+}
+
+func (c *client) getMetadata() agentsdk.PostMetadataRequest {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return maps.Clone(c.metadata)
+}
+
+func (c *client) PostMetadata(_ context.Context, req agentsdk.PostMetadataRequest) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.metadata = req
+	return nil
 }
 
 func (c *client) PostStartup(_ context.Context, startup agentsdk.PostStartupRequest) error {

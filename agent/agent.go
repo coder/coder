@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -87,6 +88,7 @@ type Client interface {
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
+	PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error
 }
 
 func New(options Options) io.Closer {
@@ -152,8 +154,8 @@ type agent struct {
 	closed        chan struct{}
 
 	envVars map[string]string
-	// metadata is atomic because values can change after reconnection.
-	metadata     atomic.Value
+	// manifest is atomic because values can change after reconnection.
+	manifest     atomic.Pointer[agentsdk.Manifest]
 	sessionToken atomic.Pointer[string]
 	sshServer    *ssh.Server
 
@@ -178,6 +180,7 @@ type agent struct {
 // failure, you'll want the agent to reconnect.
 func (a *agent) runLoop(ctx context.Context) {
 	go a.reportLifecycleLoop(ctx)
+	go a.reportMetadataLoop(ctx)
 
 	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 		a.logger.Info(ctx, "connecting to coderd")
@@ -197,6 +200,32 @@ func (a *agent) runLoop(ctx context.Context) {
 			continue
 		}
 		a.logger.Warn(ctx, "run exited with error", slog.Error(err))
+	}
+}
+
+func (a *agent) reportMetadata(ctx context.Context) error {
+	ma := a.manifest.Load()
+	tickers := make([]time.Ticker, 0, len(ma.Metadata))
+}
+
+func (a *agent) reportMetadataLoop(ctx context.Context) {
+	// In production, the minimum report interval is one second.
+	ticker := time.Second
+	if flag.Lookup("test.v") != nil {
+		ticker = time.Millisecond * 100
+	}
+	baseTicker := time.NewTicker(ticker)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-baseTicker.C:
+			err := a.reportMetadata(ctx)
+			if err != nil {
+				a.logger.Error(ctx, "report metadata", slog.Error(err))
+			}
+		}
 	}
 }
 
@@ -274,30 +303,30 @@ func (a *agent) run(ctx context.Context) error {
 	}
 	a.sessionToken.Store(&sessionToken)
 
-	metadata, err := a.client.Manifest(ctx)
+	manifest, err := a.client.Manifest(ctx)
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
-	a.logger.Info(ctx, "fetched metadata", slog.F("metadata", metadata))
+	a.logger.Info(ctx, "fetched metadata", slog.F("metadata", manifest))
 
 	// Expand the directory and send it back to coderd so external
 	// applications that rely on the directory can use it.
 	//
 	// An example is VS Code Remote, which must know the directory
 	// before initializing a connection.
-	metadata.Directory, err = expandDirectory(metadata.Directory)
+	manifest.Directory, err = expandDirectory(manifest.Directory)
 	if err != nil {
 		return xerrors.Errorf("expand directory: %w", err)
 	}
 	err = a.client.PostStartup(ctx, agentsdk.PostStartupRequest{
 		Version:           buildinfo.Version(),
-		ExpandedDirectory: metadata.Directory,
+		ExpandedDirectory: manifest.Directory,
 	})
 	if err != nil {
 		return xerrors.Errorf("update workspace agent version: %w", err)
 	}
 
-	oldMetadata := a.metadata.Swap(metadata)
+	oldMetadata := a.manifest.Swap(&manifest)
 
 	// The startup script should only execute on the first run!
 	if oldMetadata == nil {
@@ -307,7 +336,7 @@ func (a *agent) run(ctx context.Context) error {
 		// connect to a workspace that is not yet ready. We don't run this
 		// concurrently with the startup script to avoid conflicts between
 		// them.
-		if metadata.GitAuthConfigs > 0 {
+		if manifest.GitAuthConfigs > 0 {
 			// If this fails, we should consider surfacing the error in the
 			// startup log and setting the lifecycle state to be "start_error"
 			// (after startup script completion), but for now we'll just log it.
@@ -322,7 +351,7 @@ func (a *agent) run(ctx context.Context) error {
 		scriptStart := time.Now()
 		err = a.trackConnGoroutine(func() {
 			defer close(scriptDone)
-			scriptDone <- a.runStartupScript(ctx, metadata.StartupScript)
+			scriptDone <- a.runStartupScript(ctx, manifest.StartupScript)
 		})
 		if err != nil {
 			return xerrors.Errorf("track startup script: %w", err)
@@ -331,8 +360,8 @@ func (a *agent) run(ctx context.Context) error {
 			var timeout <-chan time.Time
 			// If timeout is zero, an older version of the coder
 			// provider was used. Otherwise a timeout is always > 0.
-			if metadata.StartupScriptTimeout > 0 {
-				t := time.NewTimer(metadata.StartupScriptTimeout)
+			if manifest.StartupScriptTimeout > 0 {
+				t := time.NewTimer(manifest.StartupScriptTimeout)
 				defer t.Stop()
 				timeout = t.C
 			}
@@ -349,7 +378,7 @@ func (a *agent) run(ctx context.Context) error {
 				return
 			}
 			// Only log if there was a startup script.
-			if metadata.StartupScript != "" {
+			if manifest.StartupScript != "" {
 				execTime := time.Since(scriptStart)
 				if err != nil {
 					a.logger.Warn(ctx, "startup script failed", slog.F("execution_time", execTime), slog.Error(err))
@@ -366,13 +395,13 @@ func (a *agent) run(ctx context.Context) error {
 	appReporterCtx, appReporterCtxCancel := context.WithCancel(ctx)
 	defer appReporterCtxCancel()
 	go NewWorkspaceAppHealthReporter(
-		a.logger, metadata.Apps, a.client.PostAppHealth)(appReporterCtx)
+		a.logger, manifest.Apps, a.client.PostAppHealth)(appReporterCtx)
 
 	a.closeMutex.Lock()
 	network := a.network
 	a.closeMutex.Unlock()
 	if network == nil {
-		network, err = a.createTailnet(ctx, metadata.DERPMap)
+		network, err = a.createTailnet(ctx, manifest.DERPMap)
 		if err != nil {
 			return xerrors.Errorf("create tailnet: %w", err)
 		}
@@ -391,7 +420,7 @@ func (a *agent) run(ctx context.Context) error {
 		a.startReportingConnectionStats(ctx)
 	} else {
 		// Update the DERP map!
-		network.SetDERPMap(metadata.DERPMap)
+		network.SetDERPMap(manifest.DERPMap)
 	}
 
 	a.logger.Debug(ctx, "running tailnet connection coordinator")
@@ -800,13 +829,9 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 		return nil, xerrors.Errorf("get user shell: %w", err)
 	}
 
-	rawMetadata := a.metadata.Load()
-	if rawMetadata == nil {
+	manifest := a.manifest.Load()
+	if manifest == nil {
 		return nil, xerrors.Errorf("no metadata was provided")
-	}
-	metadata, valid := rawMetadata.(agentsdk.Manifest)
-	if !valid {
-		return nil, xerrors.Errorf("metadata is the wrong type: %T", metadata)
 	}
 
 	// OpenSSH executes all commands with the users current shell.
@@ -829,7 +854,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	}
 
 	cmd := exec.CommandContext(ctx, shell, args...)
-	cmd.Dir = metadata.Directory
+	cmd.Dir = manifest.Directory
 
 	// If the metadata directory doesn't exist, we run the command
 	// in the users home directory.
@@ -870,14 +895,14 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 
 	// This adds the ports dialog to code-server that enables
 	// proxying a port dynamically.
-	cmd.Env = append(cmd.Env, fmt.Sprintf("VSCODE_PROXY_URI=%s", metadata.VSCodePortProxyURI))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("VSCODE_PROXY_URI=%s", manifest.VSCodePortProxyURI))
 
 	// Hide Coder message on code-server's "Getting Started" page
 	cmd.Env = append(cmd.Env, "CS_DISABLE_GETTING_STARTED_OVERRIDE=true")
 
 	// Load environment variables passed via the agent.
 	// These should override all variables we manually specify.
-	for envKey, value := range metadata.EnvironmentVariables {
+	for envKey, value := range manifest.EnvironmentVariables {
 		// Expanding environment variables allows for customization
 		// of the $PATH, among other variables. Customers can prepend
 		// or append to the $PATH, so allowing expand is required!
@@ -940,9 +965,9 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		session.DisablePTYEmulation()
 
 		if !isQuietLogin(session.RawCommand()) {
-			metadata, ok := a.metadata.Load().(agentsdk.Manifest)
-			if ok {
-				err = showMOTD(session, metadata.MOTDFile)
+			manifest := a.manifest.Load()
+			if manifest != nil {
+				err = showMOTD(session, manifest.MOTDFile)
 				if err != nil {
 					a.logger.Error(ctx, "show MOTD", slog.Error(err))
 				}
@@ -1330,19 +1355,19 @@ func (a *agent) Close() error {
 	a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleShuttingDown)
 
 	lifecycleState := codersdk.WorkspaceAgentLifecycleOff
-	if metadata, ok := a.metadata.Load().(agentsdk.Manifest); ok && metadata.ShutdownScript != "" {
+	if manifest := a.manifest.Load(); manifest != nil && manifest.ShutdownScript != "" {
 		scriptDone := make(chan error, 1)
 		scriptStart := time.Now()
 		go func() {
 			defer close(scriptDone)
-			scriptDone <- a.runShutdownScript(ctx, metadata.ShutdownScript)
+			scriptDone <- a.runShutdownScript(ctx, manifest.ShutdownScript)
 		}()
 
 		var timeout <-chan time.Time
 		// If timeout is zero, an older version of the coder
 		// provider was used. Otherwise a timeout is always > 0.
-		if metadata.ShutdownScriptTimeout > 0 {
-			t := time.NewTimer(metadata.ShutdownScriptTimeout)
+		if manifest.ShutdownScriptTimeout > 0 {
+			t := time.NewTimer(manifest.ShutdownScriptTimeout)
 			defer t.Stop()
 			timeout = t.C
 		}

@@ -74,6 +74,28 @@ type Metadata struct {
 	Interval time.Duration
 }
 
+type MetadataResult struct {
+	Key   string
+	Value string
+	Error string
+}
+
+type PostMetadataRequest map[string]MetadataResult
+
+func (c *Client) PostMetadata(ctx context.Context, req PostMetadataRequest) error {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata", req)
+	if err != nil {
+		return xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+
+	return nil
+}
+
 type Manifest struct {
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
