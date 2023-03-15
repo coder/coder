@@ -12,7 +12,6 @@ const renderComponent = async (props: Partial<WorkspaceActionsProps> = {}) => {
       workspaceStatus={
         props.workspaceStatus ?? Mocks.MockWorkspace.latest_build.status
       }
-      hasTemplateParameters={props.hasTemplateParameters ?? false}
       isOutdated={props.isOutdated ?? false}
       handleStart={jest.fn()}
       handleStop={jest.fn()}
@@ -32,7 +31,6 @@ const renderAndClick = async (props: Partial<WorkspaceActionsProps> = {}) => {
       workspaceStatus={
         props.workspaceStatus ?? Mocks.MockWorkspace.latest_build.status
       }
-      hasTemplateParameters={props.hasTemplateParameters ?? false}
       isOutdated={props.isOutdated ?? false}
       handleStart={jest.fn()}
       handleStop={jest.fn()}

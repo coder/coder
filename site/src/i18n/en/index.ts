@@ -12,7 +12,6 @@ import templateSettingsPage from "./templateSettingsPage.json"
 import templateVariablesPage from "./templateVariablesPage.json"
 import templateVersionPage from "./templateVersionPage.json"
 import loginPage from "./loginPage.json"
-import workspaceBuildParametersPage from "./workspaceBuildParametersPage.json"
 import workspaceChangeVersionPage from "./workspaceChangeVersionPage.json"
 import workspaceSchedulePage from "./workspaceSchedulePage.json"
 import appearanceSettings from "./appearanceSettings.json"
@@ -38,7 +37,6 @@ export const en = {
   templateVariablesPage,
   templateVersionPage,
   loginPage,
-  workspaceBuildParametersPage,
   workspaceChangeVersionPage,
   workspaceSchedulePage,
   appearanceSettings,
