@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -46,6 +47,38 @@ const (
 // from the coder config in ~/.ssh/coder.
 type sshConfigOptions struct {
 	sshOptions []string
+}
+
+// add expects an option in the form of "option=value" or "option value".
+// It will override any existing option with the same key to prevent duplicates.
+// Invalid options will return an error.
+func (o *sshConfigOptions) addOptions(options ...string) error {
+	for _, option := range options {
+		err := o.addOption(option)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (o *sshConfigOptions) addOption(option string) error {
+	key, _, err := codersdk.ParseSSHConfigOption(option)
+	if err != nil {
+		return err
+	}
+	for i, existing := range o.sshOptions {
+		// Override existing option.
+		if len(existing) < len(key) {
+			continue
+		}
+		if strings.EqualFold(existing[:len(key)], key) {
+			o.sshOptions[i] = option
+			return nil
+		}
+	}
+	o.sshOptions = append(o.sshOptions, option)
+	return nil
 }
 
 func (o sshConfigOptions) equal(other sshConfigOptions) bool {
@@ -156,12 +189,13 @@ func configSSH() *cobra.Command {
 		),
 		Args: cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
 			client, err := CreateClient(cmd)
 			if err != nil {
 				return err
 			}
 
-			recvWorkspaceConfigs := sshPrepareWorkspaceConfigs(cmd.Context(), client)
+			recvWorkspaceConfigs := sshPrepareWorkspaceConfigs(ctx, client)
 
 			out := cmd.OutOrStdout()
 			if dryRun {
@@ -269,6 +303,26 @@ func configSSH() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("fetch workspace configs failed: %w", err)
 			}
+
+			coderdConfig, err := client.SSHConfiguration(ctx)
+			if err != nil {
+				// If the error is 404, this deployment does not support
+				// this endpoint yet.
+				// TODO: Remove this in 2 months (May 2023). Just return the error
+				// 	and remove this 404 check.
+				var sdkErr *codersdk.Error
+				if xerrors.As(err, &sdkErr) {
+					// If it is 404, continue.
+					if sdkErr.StatusCode() == http.StatusNotFound {
+						coderdConfig.DeploymentName = "coder"
+					} else {
+						return xerrors.Errorf("fetch coderd config failed: %w", err)
+					}
+				} else {
+					return xerrors.Errorf("fetch coderd config failed: %w", err)
+				}
+			}
+
 			// Ensure stable sorting of output.
 			slices.SortFunc(workspaceConfigs, func(a, b sshWorkspaceConfig) bool {
 				return a.Name < b.Name
@@ -277,34 +331,59 @@ func configSSH() *cobra.Command {
 				sort.Strings(wc.Hosts)
 				// Write agent configuration.
 				for _, hostname := range wc.Hosts {
-					configOptions := []string{
-						"Host coder." + hostname,
-					}
-					for _, option := range sshConfigOpts.sshOptions {
-						configOptions = append(configOptions, "\t"+option)
-					}
-					configOptions = append(configOptions,
-						"\tHostName coder."+hostname,
-						"\tConnectTimeout=0",
-						"\tStrictHostKeyChecking=no",
+					sshHostname := fmt.Sprintf("%s.%s", coderdConfig.DeploymentName, hostname)
+					var configOptions sshConfigOptions
+					// Add standard options.
+					err := configOptions.addOptions(
+						"HostName "+sshHostname,
+						"ConnectTimeout=0",
+						"StrictHostKeyChecking=no",
 						// Without this, the "REMOTE HOST IDENTITY CHANGED"
 						// message will appear.
-						"\tUserKnownHostsFile=/dev/null",
+						"UserKnownHostsFile=/dev/null",
 						// This disables the "Warning: Permanently added 'hostname' (RSA) to the list of known hosts."
 						// message from appearing on every SSH. This happens because we ignore the known hosts.
-						"\tLogLevel ERROR",
+						"LogLevel ERROR",
 					)
-					if !skipProxyCommand {
-						configOptions = append(
-							configOptions,
-							fmt.Sprintf(
-								"\tProxyCommand %s --global-config %s ssh --stdio %s",
-								escapedCoderBinary, escapedGlobalConfig, hostname,
-							),
-						)
+					if err != nil {
+						return err
 					}
 
-					_, _ = buf.WriteString(strings.Join(configOptions, "\n"))
+					if !skipProxyCommand {
+						err := configOptions.addOptions(fmt.Sprintf(
+							"ProxyCommand %s --global-config %s ssh --stdio %s",
+							escapedCoderBinary, escapedGlobalConfig, hostname,
+						))
+						if err != nil {
+							return err
+						}
+					}
+
+					// Override with deployment options
+					for k, v := range coderdConfig.SSHConfigOptions {
+						opt := fmt.Sprintf("%s %s", k, v)
+						err := configOptions.addOptions(opt)
+						if err != nil {
+							return xerrors.Errorf("add coderd config option %q: %w", opt, err)
+						}
+					}
+					// Override with flag options
+					for _, opt := range sshConfigOpts.sshOptions {
+						err := configOptions.addOptions(opt)
+						if err != nil {
+							return xerrors.Errorf("add flag config option %q: %w", opt, err)
+						}
+					}
+
+					hostBlock := []string{
+						"Host " + sshHostname,
+					}
+					// Prefix with '\t'
+					for _, v := range configOptions.sshOptions {
+						hostBlock = append(hostBlock, "\t"+v)
+					}
+
+					_, _ = buf.WriteString(strings.Join(hostBlock, "\n"))
 					_ = buf.WriteByte('\n')
 				}
 			}

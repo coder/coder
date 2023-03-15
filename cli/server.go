@@ -674,7 +674,7 @@ flags, and YAML configuration. The precedence is as follows:
 
 			configSSHOptions, err := cfg.CLISSH.ParseOptions()
 			if err != nil {
-				return xerrors.Errorf("parse ssh config options \"%v\" %w", cfg.CLISSH.SSHConfigOptions, err)
+				return xerrors.Errorf("parse ssh config options %q: %w", cfg.CLISSH.SSHConfigOptions.String(), err)
 			}
 
 			options := &coderd.Options{

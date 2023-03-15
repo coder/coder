@@ -183,15 +183,25 @@ type CLISSHConfig struct {
 func (c CLISSHConfig) ParseOptions() (map[string]string, error) {
 	m := make(map[string]string)
 	for _, opt := range c.SSHConfigOptions {
-		// Only split once, the value could contain an equals sign.
-		// The key should never, so this is safe.
-		parts := strings.SplitN(opt, "=", 1)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid config-ssh option %q", opt)
+		key, value, err := ParseSSHConfigOption(opt)
+		if err != nil {
+			return nil, err
 		}
-		m[parts[0]] = parts[1]
+		m[key] = value
 	}
 	return m, nil
+}
+
+// ParseSSHConfigOption parses a single ssh config option into it's key/value pair.
+func ParseSSHConfigOption(opt string) (key string, value string, err error) {
+	// An equal sign or whitespace is the separator between the key and value.
+	idx := strings.IndexFunc(opt, func(r rune) bool {
+		return r == ' ' || r == '='
+	})
+	if idx == -1 {
+		return "", "", fmt.Errorf("invalid config-ssh option %q", opt)
+	}
+	return opt[:idx], opt[idx+1:], nil
 }
 
 type DERP struct {
