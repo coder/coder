@@ -3,9 +3,9 @@ package codersdk_test
 import (
 	"testing"
 
-	"github.com/coder/coder/cli/clibase"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
 )
 

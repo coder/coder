@@ -1663,6 +1663,6 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 		return SSHConfigResponse{}, ReadBodyAsError(res)
 	}
 
-	var cliConfig SSHConfigResponse
-	return cliConfig, json.NewDecoder(res.Body).Decode(&cliConfig)
+	var sshConfig SSHConfigResponse
+	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
 }
