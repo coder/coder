@@ -15,7 +15,6 @@ import {
   CreateTokenData,
   determineDefaultLtValue,
   filterByMaxTokenLifetime,
-  lifetimeDayPresets,
   customLifetimeDay,
 } from "./utils"
 import { FormikContextType } from "formik"
@@ -108,10 +107,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
                 shrink: true,
               }}
             >
-              {filterByMaxTokenLifetime(
-                lifetimeDayPresets,
-                maxTokenLifetime,
-              ).map((lt) => (
+              {filterByMaxTokenLifetime(maxTokenLifetime).map((lt) => (
                 <MenuItem key={lt.label} value={lt.value}>
                   {lt.label}
                 </MenuItem>

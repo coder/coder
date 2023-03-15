@@ -7,7 +7,7 @@ export interface CreateTokenData {
   lifetime: number
 }
 
-interface LifetimeDay {
+export interface LifetimeDay {
   label: string
   value: number | string
 }
@@ -37,25 +37,23 @@ export const customLifetimeDay: LifetimeDay = {
 }
 
 export const filterByMaxTokenLifetime = (
-  ltArr: LifetimeDay[],
   maxTokenLifetime?: number,
 ): LifetimeDay[] => {
   // if maxTokenLifetime hasn't been set, return the full array of options
   if (!maxTokenLifetime) {
-    return ltArr
+    return lifetimeDayPresets
   }
 
   // otherwise only return options that are less than or equal to the max lifetime
-  return ltArr.filter(
+  return lifetimeDayPresets.filter(
     (lifetime) => lifetime.value <= maxTokenLifetime / NANO_HOUR / 24,
   )
 }
 
-export const determineDefaultLtValue = (maxTokenLifetime?: number) => {
-  const filteredArr = filterByMaxTokenLifetime(
-    lifetimeDayPresets,
-    maxTokenLifetime,
-  )
+export const determineDefaultLtValue = (
+  maxTokenLifetime?: number,
+): string | number => {
+  const filteredArr = filterByMaxTokenLifetime(maxTokenLifetime)
 
   // default to a lifetime of 30 days if within the maxTokenLifetime
   const thirtyDayDefault = filteredArr.find((lt) => lt.value === 30)
