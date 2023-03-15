@@ -64,6 +64,7 @@ export const FormSection: FC<
     description: string | JSX.Element
     classes?: {
       root?: string
+      sectionInfo?: string
       infoTitle?: string
     }
   }
@@ -73,7 +74,12 @@ export const FormSection: FC<
 
   return (
     <div className={combineClasses([styles.formSection, classes.root])}>
-      <div className={styles.formSectionInfo}>
+      <div
+        className={combineClasses([
+          classes.sectionInfo,
+          styles.formSectionInfo,
+        ])}
+      >
         <h2
           className={combineClasses([
             styles.formSectionInfoTitle,
