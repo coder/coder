@@ -17,7 +17,6 @@ provider "coder" {
 
 variable "ecs-cluster" {
   description = "Input the ECS cluster ARN to host the workspace"
-  default     = ""
 }
 
 data "coder_parameter" "cpu" {
@@ -53,8 +52,8 @@ resource "aws_ecs_task_definition" "workspace" {
     {
       name      = "coder-workspace-${data.coder_workspace.me.id}"
       image     = "codercom/enterprise-base:ubuntu"
-      cpu       = data.coder_parameter.cpu.value
-      memory    = data.coder_parameter.memory.value
+      cpu       = 1024
+      memory    = 2048
       essential = true
       user      = "coder"
       command   = ["sh", "-c", coder_agent.coder.init_script]
