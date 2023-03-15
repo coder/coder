@@ -44,9 +44,6 @@ const WorkspaceBuildPage = lazy(
   () => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"),
 )
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"))
-const WorkspaceChangeVersionPage = lazy(
-  () => import("./pages/WorkspaceChangeVersionPage/WorkspaceChangeVersionPage"),
-)
 const WorkspaceSchedulePage = lazy(
   () => import("./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"),
 )
@@ -225,10 +222,6 @@ export const AppRouter: FC = () => {
                   <Route
                     path="builds/:buildNumber"
                     element={<WorkspaceBuildPage />}
-                  />
-                  <Route
-                    path="change-version"
-                    element={<WorkspaceChangeVersionPage />}
                   />
                   <Route
                     path="build-parameters"
