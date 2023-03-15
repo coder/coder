@@ -25,11 +25,22 @@ export const WorkspaceSettingsForm: FC<{
   onSubmit: (values: WorkspaceSettingsFormValue) => void
 }> = ({ onCancel, onSubmit, settings, error, isSubmitting }) => {
   const { t } = useTranslation("createWorkspacePage")
+  const mutableParameters = settings.templateVersionParameters.filter(
+    (param) => param.mutable,
+  )
   const form = useFormik<WorkspaceSettingsFormValue>({
     onSubmit,
     initialValues: {
       name: settings.workspace.name,
-      rich_parameter_values: settings.buildParameters,
+      rich_parameter_values: mutableParameters.map((parameter) => {
+        const buildParameter = settings.buildParameters.find(
+          (p) => p.name === parameter.name,
+        )
+        if (!buildParameter) {
+          throw new Error("Missing build parameter for " + parameter.name)
+        }
+        return buildParameter
+      }),
     },
     validationSchema: Yup.object({
       name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
@@ -62,32 +73,36 @@ export const WorkspaceSettingsForm: FC<{
           />
         </FormFields>
       </FormSection>
-      <FormSection
-        title="Parameters"
-        description="The template and name of your new workspace."
-      >
-        <FormFields>
-          {settings.templateVersionParameters.map((parameter, index) => (
-            <RichParameterInput
-              {...getFieldHelpers("rich_parameter_values[" + index + "].value")}
-              disabled={isSubmitting}
-              index={index}
-              key={parameter.name}
-              onChange={async (value) => {
-                await form.setFieldValue("rich_parameter_values." + index, {
-                  name: parameter.name,
-                  value: value,
-                })
-              }}
-              parameter={parameter}
-              initialValue={workspaceBuildParameterValue(
-                settings.buildParameters,
-                parameter,
-              )}
-            />
-          ))}
-        </FormFields>
-      </FormSection>
+      {mutableParameters.length > 0 && (
+        <FormSection
+          title="Parameters"
+          description="The template and name of your new workspace."
+        >
+          <FormFields>
+            {settings.templateVersionParameters.map((parameter, index) => (
+              <RichParameterInput
+                {...getFieldHelpers(
+                  "rich_parameter_values[" + index + "].value",
+                )}
+                disabled={isSubmitting}
+                index={index}
+                key={parameter.name}
+                onChange={async (value) => {
+                  await form.setFieldValue("rich_parameter_values." + index, {
+                    name: parameter.name,
+                    value: value,
+                  })
+                }}
+                parameter={parameter}
+                initialValue={workspaceBuildParameterValue(
+                  settings.buildParameters,
+                  parameter,
+                )}
+              />
+            ))}
+          </FormFields>
+        </FormSection>
+      )}
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
   )
