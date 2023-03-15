@@ -320,20 +320,20 @@ func configSSH() *cobra.Command {
 			coderdConfig, err := client.SSHConfiguration(ctx)
 			if err != nil {
 				// If the error is 404, this deployment does not support
-				// this endpoint yet.
+				// this endpoint yet. Do not error, just assume defaults.
 				// TODO: Remove this in 2 months (May 2023). Just return the error
 				// 	and remove this 404 check.
 				var sdkErr *codersdk.Error
-				if xerrors.As(err, &sdkErr) {
-					// If it is 404, continue.
-					if sdkErr.StatusCode() == http.StatusNotFound {
-						coderdConfig.DeploymentName = "coder"
-					} else {
-						return xerrors.Errorf("fetch coderd config failed: %w", err)
-					}
-				} else {
+				if !xerrors.As(err, &sdkErr) {
+					// not an SDK error, return the original error.
 					return xerrors.Errorf("fetch coderd config failed: %w", err)
 				}
+
+				if sdkErr.StatusCode() != http.StatusNotFound {
+					// Not a 404, return the original error.
+					return xerrors.Errorf("fetch coderd config failed: %w", err)
+				}
+				coderdConfig.DeploymentName = "coder"
 			}
 
 			// Ensure stable sorting of output.
