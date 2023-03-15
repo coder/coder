@@ -50,17 +50,10 @@ func newServerTailnet(
 		conn:        conn,
 		coordinator: coord,
 		cache:       cache,
-		transport: &http.Transport{
-			DialContext:           nil,
-			ForceAttemptHTTP2:     false,
-			MaxIdleConns:          0,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
+		transport:   defaultTransport.Clone(),
 	}
-
 	tn.transport.DialContext = tn.dialContext
+
 	conn.SetNodeCallback(func(node *tailnet.Node) {
 		tn.nodesMu.Lock()
 		ids := make([]uuid.UUID, 0, len(tn.agentNodes))
@@ -106,7 +99,7 @@ func (s *serverTailnet) updateNode(id uuid.UUID, node *tailnet.Node) {
 	s.nodesMu.Unlock()
 
 	if ok {
-		err := s.conn.UpdateNodes([]*tailnet.Node{node})
+		err := s.conn.UpdateNodes([]*tailnet.Node{node}, false)
 		if err != nil {
 			s.logger.Error(context.Background(), "update node", slog.Error(err))
 			return
@@ -161,7 +154,7 @@ func (s *serverTailnet) dialContext(ctx context.Context, network, addr string) (
 	s.nodesMu.Unlock()
 
 	if !ok {
-		err := s.conn.SetNodes(s.gatherNodes())
+		err := s.conn.UpdateNodes(s.gatherNodes(), true)
 		if err != nil {
 			return nil, xerrors.Errorf("set nodes: %w", err)
 		}
