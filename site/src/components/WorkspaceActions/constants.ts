@@ -92,6 +92,7 @@ const statusToAbilities: Record<WorkspaceStatus, WorkspaceAbilities> = {
   failed: {
     actions: [
       ButtonTypesEnum.start,
+      ButtonTypesEnum.stop,
       ButtonTypesEnum.buildParameters,
       ButtonTypesEnum.changeVersion,
       ButtonTypesEnum.delete,
