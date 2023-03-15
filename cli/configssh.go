@@ -333,7 +333,7 @@ func configSSH() *cobra.Command {
 					// Not a 404, return the original error.
 					return xerrors.Errorf("fetch coderd config failed: %w", err)
 				}
-				coderdConfig.DeploymentName = "coder"
+				coderdConfig.HostnamePrefix = "coder."
 			}
 
 			// Ensure stable sorting of output.
@@ -344,7 +344,7 @@ func configSSH() *cobra.Command {
 				sort.Strings(wc.Hosts)
 				// Write agent configuration.
 				for _, hostname := range wc.Hosts {
-					sshHostname := fmt.Sprintf("%s.%s", coderdConfig.DeploymentName, hostname)
+					sshHostname := fmt.Sprintf("%s%s", coderdConfig.HostnamePrefix, hostname)
 					var configOptions sshConfigOptions
 					// Add standard options.
 					err := configOptions.addOptions(
@@ -455,7 +455,7 @@ func configSSH() *cobra.Command {
 
 			if len(workspaceConfigs) > 0 {
 				_, _ = fmt.Fprintln(out, "You should now be able to ssh into your workspace.")
-				_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s.%s\n", coderdConfig.DeploymentName, workspaceConfigs[0].Name)
+				_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s%s\n", coderdConfig.HostnamePrefix, workspaceConfigs[0].Name)
 			} else {
 				_, _ = fmt.Fprint(out, "You don't have any workspaces yet, try creating one with:\n\n\t$ coder create <workspace>\n")
 			}

@@ -702,7 +702,7 @@ flags, and YAML configuration. The precedence is as follows:
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
 				ConfigSSH: codersdk.CLISSHConfigResponse{
-					DeploymentName:   cfg.CLISSH.DeploymentName.String(),
+					HostnamePrefix:   cfg.CLISSH.DeploymentName.String(),
 					SSHConfigOptions: configSSHOptions,
 				},
 			}

@@ -1307,15 +1307,15 @@ when required by your organization's security policy.`,
 			Value:         &c.Config,
 		},
 		{
-			Name:        "CLI SSH Deployment Name",
+			Name:        "CLI SSH Hostname Prefix",
 			Description: "The CLI SSH deployment name is the used in the Hostname of the ssh config.",
-			Flag:        "cli-ssh-deployment-name",
-			Env:         "CLI_SSH_DEPLOYMENT_NAME",
-			YAML:        "cliSSHDeploymentName",
+			Flag:        "cli-ssh-hostname-prefix",
+			Env:         "CODER_SSH_HOSTNAME_PREFIX",
+			YAML:        "cliSSHHostnamePrefix",
 			Group:       &deploymentGroupClient,
 			Value:       &c.CLISSH.DeploymentName,
 			Hidden:      false,
-			Default:     "coder",
+			Default:     "coder.",
 		},
 		{
 			Name: "CLI SSH Config Options",
@@ -1646,7 +1646,7 @@ type DeploymentStats struct {
 }
 
 type CLISSHConfigResponse struct {
-	DeploymentName   string            `json:"deployment_name"`
+	HostnamePrefix   string            `json:"hostname_prefix"`
 	SSHConfigOptions map[string]string `json:"ssh_config_options"`
 }
 

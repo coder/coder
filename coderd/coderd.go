@@ -213,8 +213,8 @@ func New(options *Options) *API {
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
 	}
-	if options.ConfigSSH.DeploymentName == "" {
-		options.ConfigSSH.DeploymentName = "coder"
+	if options.ConfigSSH.HostnamePrefix == "" {
+		options.ConfigSSH.HostnamePrefix = "coder."
 	}
 	// TODO: remove this once we promote authz_querier out of experiments.
 	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
