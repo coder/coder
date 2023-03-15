@@ -6,11 +6,12 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 )
 
-// @Summary SSH information for clients
+// @Summary CLI SSH Config
 // @ID cli-ssh-config
+// @Security CoderSessionToken
 // @Produce json
 // @Tags General
-// @Success 200 {object} codersdk.BuildInfoResponse
+// @Success 200 {object} codersdk.CLISSHConfigResponse
 // @Router /config-ssh [get]
 func (a *API) cliSSHConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, a.ConfigSSH)
