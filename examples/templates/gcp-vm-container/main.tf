@@ -16,9 +16,7 @@ provider "coder" {
 }
 
 variable "project_id" {
-  type        = string
-  description = "The Google Compute Project will be used to build your workspace."
-  default     = ""
+  description = "Which Google Compute Project should your workspace live in?"
 }
 
 data "coder_parameter" "zone" {
@@ -26,30 +24,31 @@ data "coder_parameter" "zone" {
   type    = "string"
   default = "us-central1-a"
   icon    = "/emojis/1f30e.png"
+  mutable = false
   option {
     name  = "North America (Northeast)"
     value = "northamerica-northeast1-a"
-    icon  = "/emojis/1f1fa_1f1f8.png"
+    icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
     name  = "North America (Central)"
     value = "us-central1-a"
-    icon  = "/emojis/1f1fa_1f1f8.png"
+    icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
     name  = "North America (West)"
     value = "us-west2-c"
-    icon  = "/emojis/1f1fa_1f1f8.png"
+    icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {
     name  = "Europe (West)"
     value = "europe-west4-b"
-    icon  = "/emojis/1f1ea_1f1fa.png"
+    icon  = "/emojis/1f1ea-1f1fa.png"
   }
   option {
     name  = "South America (East)"
     value = "southamerica-east1-a"
-    icon  = "/emojis/1f1e7_1f1f7.png"
+    icon  = "/emojis/1f1e7-1f1f7.png"
   }
 }
 
@@ -58,10 +57,10 @@ provider "google" {
   project = var.project_id
 }
 
-data "coder_workspace" "me" {
+data "google_compute_default_service_account" "default" {
 }
 
-data "google_compute_default_service_account" "default" {
+data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
