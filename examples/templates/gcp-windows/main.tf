@@ -24,6 +24,7 @@ data "coder_parameter" "zone" {
   type    = "string"
   default = "us-central1-a"
   icon    = "/emojis/1f30e.png"
+  mutable = false
   option {
     name  = "North America (Northeast)"
     value = "northamerica-northeast1-a"
