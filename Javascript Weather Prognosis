@@ -1,0 +1,85 @@
+Javascript Weather Prognosis
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Prognosis</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js" integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous"></script>
+    <style type="text/css">
+        .container{
+            background-image:url("https://th.bing.com/th/id/OIP.xRA_m1gxfh8_aCtBHxwYpwHaEr?pid=ImgDet&rs=1");
+            background-size: cover;
+            height: 100vh;
+        }
+        .image{
+            position: relative;
+            top: 10px;
+            left: 10px;
+            height: 20vh;
+            width: 20wh;
+        }
+        #heading{
+            position: absolute;
+            top: 0px;
+            left: 40%;
+        }
+        .a{
+            background-color: aquamarine;
+            padding: 100px;
+            border-radius: 25px;
+            margin: 10px 100px;
+            text-align: center;
+        }
+        button{
+            padding: 10px 100px;
+            border-radius: 25px;
+            color: aqua;
+            font-weight: bold;
+        }
+        input{
+            padding: 10px 100px;
+            border-radius: 25px;
+            background-color: aqua;
+        }
+        .b{
+            color: #ffffff;
+            background-color: cadetblue;
+            padding:0px 100px;
+            margin: 20px 300px;
+            border-radius: 25px;
+        }
+        #i{
+            margin: 10px 50px 10px -50px;
+        }
+        #h{
+            margin: 0px -40px 0px 100px;
+        }
+        #p{
+            margin: 0px 0px 0px 50px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="https://th.bing.com/th/id/R.566cb71f90ba621031cb26fd66fe3853?rik=yh%2bQdGeK8QO4cQ&riu=http%3a%2f%2fclipartmag.com%2fimages%2fanimated-rain-clouds-1.png&ehk=%2bQjgxNcI0ur5diEXZ5FO2JAmDTMmh8VDBBXU%2fz3NG4Y%3d&risl=&pid=ImgRaw&r=0" class="image">
+        <h1 id="heading">WEATHER REPORT</h1>
+        <div class="a" id="grid1">
+           <input type="text" name="" id="textBox">
+                <button id="submitButton">SUBMIT</button>
+        </div>
+        <div id="grid2"class="b d-flex flex-row justify-content-center">
+           <img id="i" src="https://th.bing.com/th/id/R.566cb71f90ba621031cb26fd66fe3853?rik=yh%2bQdGeK8QO4cQ&riu=http%3a%2f%2fclipartmag.com%2fimages%2fanimated-rain-clouds-1.png&ehk=%2bQjgxNcI0ur5diEXZ5FO2JAmDTMmh8VDBBXU%2fz3NG4Y%3d&risl=&pid=ImgRaw&r=0" width="10%" height="10%">
+                <h1 id="p">Delhi</h1>
+                <h1 id="h">21.8°С</h1>
+        </div>
+    </div>
+</body>
+</html>
+
+ 
