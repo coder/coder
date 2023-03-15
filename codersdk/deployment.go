@@ -1653,7 +1653,7 @@ type CLISSHConfigResponse struct {
 // SSHConfiguration returns information about the SSH configuration for the
 // Coder instance.
 func (c *Client) SSHConfiguration(ctx context.Context) (CLISSHConfigResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ssh-config", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/config-ssh", nil)
 	if err != nil {
 		return CLISSHConfigResponse{}, err
 	}

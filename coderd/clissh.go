@@ -11,7 +11,7 @@ import (
 // @Produce json
 // @Tags General
 // @Success 200 {object} codersdk.BuildInfoResponse
-// @Router /ssh-config [get]
+// @Router /config-ssh [get]
 func (a *API) cliSSHConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, a.ConfigSSH)
 }

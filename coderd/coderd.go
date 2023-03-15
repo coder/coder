@@ -405,7 +405,7 @@ func New(options *Options) *API {
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
 		r.Get("/buildinfo", buildInfo)
-		r.Route("/ssh-config", func(r chi.Router) {
+		r.Route("/config-ssh", func(r chi.Router) {
 			// Require auth for this route to prevent leaking the SSH config.
 			// to non-authenticated users. Also some config settings might
 			// be dependent on the user.
