@@ -81,7 +81,7 @@ type Options struct {
 }
 
 type Client interface {
-	Metadata(ctx context.Context) (agentsdk.Metadata, error)
+	Manifest(ctx context.Context) (agentsdk.Manifest, error)
 	Listen(ctx context.Context) (net.Conn, error)
 	ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
@@ -274,7 +274,7 @@ func (a *agent) run(ctx context.Context) error {
 	}
 	a.sessionToken.Store(&sessionToken)
 
-	metadata, err := a.client.Metadata(ctx)
+	metadata, err := a.client.Manifest(ctx)
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
@@ -804,7 +804,7 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	if rawMetadata == nil {
 		return nil, xerrors.Errorf("no metadata was provided")
 	}
-	metadata, valid := rawMetadata.(agentsdk.Metadata)
+	metadata, valid := rawMetadata.(agentsdk.Manifest)
 	if !valid {
 		return nil, xerrors.Errorf("metadata is the wrong type: %T", metadata)
 	}
@@ -940,7 +940,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		session.DisablePTYEmulation()
 
 		if !isQuietLogin(session.RawCommand()) {
-			metadata, ok := a.metadata.Load().(agentsdk.Metadata)
+			metadata, ok := a.metadata.Load().(agentsdk.Manifest)
 			if ok {
 				err = showMOTD(session, metadata.MOTDFile)
 				if err != nil {
@@ -1330,7 +1330,7 @@ func (a *agent) Close() error {
 	a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleShuttingDown)
 
 	lifecycleState := codersdk.WorkspaceAgentLifecycleOff
-	if metadata, ok := a.metadata.Load().(agentsdk.Metadata); ok && metadata.ShutdownScript != "" {
+	if metadata, ok := a.metadata.Load().(agentsdk.Manifest); ok && metadata.ShutdownScript != "" {
 		scriptDone := make(chan error, 1)
 		scriptStart := time.Now()
 		go func() {

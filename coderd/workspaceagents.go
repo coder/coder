@@ -79,14 +79,14 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiAgent)
 }
 
-// @Summary Get authorized workspace agent metadata
-// @ID get-authorized-workspace-agent-metadata
+// @Summary Get authorized workspace agent manifest
+// @ID get-authorized-workspace-agent-manifest
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Success 200 {object} agentsdk.Metadata
-// @Router /workspaceagents/me/metadata [get]
-func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
+// @Success 200 {object} agentsdk.Manifest
+// @Router /workspaceagents/me/manifest [get]
+func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	apiAgent, err := convertWorkspaceAgent(
@@ -152,7 +152,7 @@ func (api *API) workspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) 
 		vscodeProxyURI += fmt.Sprintf(":%s", api.AccessURL.Port())
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Metadata{
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		Apps:                  convertApps(dbApps),
 		DERPMap:               api.DERPMap,
 		GitAuthConfigs:        len(api.GitAuthConfigs),

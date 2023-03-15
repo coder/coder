@@ -590,7 +590,7 @@ func New(options *Options) *API {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
-				r.Get("/metadata", api.workspaceAgentMetadata)
+				r.Get("/manifest", api.workspaceAgentManifest)
 				r.Post("/startup", api.postWorkspaceAgentStartup)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)

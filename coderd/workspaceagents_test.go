@@ -768,10 +768,10 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 
-	metadata, err := agentClient.Metadata(ctx)
+	manifest, err := agentClient.Manifest(ctx)
 	require.NoError(t, err)
-	require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, metadata.Apps[0].Health)
-	require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, metadata.Apps[1].Health)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthDisabled, manifest.Apps[0].Health)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthInitializing, manifest.Apps[1].Health)
 	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{})
 	require.Error(t, err)
 	// empty
@@ -780,37 +780,37 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	// healthcheck disabled
 	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
 		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			metadata.Apps[0].ID: codersdk.WorkspaceAppHealthInitializing,
+			manifest.Apps[0].ID: codersdk.WorkspaceAppHealthInitializing,
 		},
 	})
 	require.Error(t, err)
 	// invalid value
 	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
 		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			metadata.Apps[1].ID: codersdk.WorkspaceAppHealth("bad-value"),
+			manifest.Apps[1].ID: codersdk.WorkspaceAppHealth("bad-value"),
 		},
 	})
 	require.Error(t, err)
 	// update to healthy
 	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
 		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			metadata.Apps[1].ID: codersdk.WorkspaceAppHealthHealthy,
+			manifest.Apps[1].ID: codersdk.WorkspaceAppHealthHealthy,
 		},
 	})
 	require.NoError(t, err)
-	metadata, err = agentClient.Metadata(ctx)
+	manifest, err = agentClient.Manifest(ctx)
 	require.NoError(t, err)
-	require.EqualValues(t, codersdk.WorkspaceAppHealthHealthy, metadata.Apps[1].Health)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthHealthy, manifest.Apps[1].Health)
 	// update to unhealthy
 	err = agentClient.PostAppHealth(ctx, agentsdk.PostAppHealthsRequest{
 		Healths: map[uuid.UUID]codersdk.WorkspaceAppHealth{
-			metadata.Apps[1].ID: codersdk.WorkspaceAppHealthUnhealthy,
+			manifest.Apps[1].ID: codersdk.WorkspaceAppHealthUnhealthy,
 		},
 	})
 	require.NoError(t, err)
-	metadata, err = agentClient.Metadata(ctx)
+	manifest, err = agentClient.Manifest(ctx)
 	require.NoError(t, err)
-	require.EqualValues(t, codersdk.WorkspaceAppHealthUnhealthy, metadata.Apps[1].Health)
+	require.EqualValues(t, codersdk.WorkspaceAppHealthUnhealthy, manifest.Apps[1].Health)
 }
 
 // nolint:bodyclose

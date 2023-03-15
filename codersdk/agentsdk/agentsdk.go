@@ -65,7 +65,16 @@ func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 	return gitSSHKey, json.NewDecoder(res.Body).Decode(&gitSSHKey)
 }
 
+// Metadata is a description of dynamic metadata the agent should report
+// back to coderd. It is provided via the `metadata` list in the `coder_agent`
+// block.
 type Metadata struct {
+	Key      string
+	Cmd      []string
+	Interval time.Duration
+}
+
+type Manifest struct {
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.
@@ -80,22 +89,23 @@ type Metadata struct {
 	MOTDFile              string                  `json:"motd_file"`
 	ShutdownScript        string                  `json:"shutdown_script"`
 	ShutdownScriptTimeout time.Duration           `json:"shutdown_script_timeout"`
+	Metadata              []Metadata              `json:"dynamic_metadata"`
 }
 
-// Metadata fetches metadata for the currently authenticated workspace agent.
-func (c *Client) Metadata(ctx context.Context) (Metadata, error) {
-	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/metadata", nil)
+// Manifest fetches manifest for the currently authenticated workspace agent.
+func (c *Client) Manifest(ctx context.Context) (Manifest, error) {
+	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/manifest", nil)
 	if err != nil {
-		return Metadata{}, err
+		return Manifest{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return Metadata{}, codersdk.ReadBodyAsError(res)
+		return Manifest{}, codersdk.ReadBodyAsError(res)
 	}
-	var agentMeta Metadata
+	var agentMeta Manifest
 	err = json.NewDecoder(res.Body).Decode(&agentMeta)
 	if err != nil {
-		return Metadata{}, err
+		return Manifest{}, err
 	}
 	accessingPort := c.SDK.URL.Port()
 	if accessingPort == "" {
@@ -106,14 +116,14 @@ func (c *Client) Metadata(ctx context.Context) (Metadata, error) {
 	}
 	accessPort, err := strconv.Atoi(accessingPort)
 	if err != nil {
-		return Metadata{}, xerrors.Errorf("convert accessing port %q: %w", accessingPort, err)
+		return Manifest{}, xerrors.Errorf("convert accessing port %q: %w", accessingPort, err)
 	}
 	// Agents can provide an arbitrary access URL that may be different
 	// that the globally configured one. This breaks the built-in DERP,
 	// which would continue to reference the global access URL.
 	//
 	// This converts all built-in DERPs to use the access URL that the
-	// metadata request was performed with.
+	// manifest request was performed with.
 	for _, region := range agentMeta.DERPMap.Regions {
 		if !region.EmbeddedRelay {
 			continue

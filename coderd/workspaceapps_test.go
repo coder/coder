@@ -275,7 +275,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 	if appHost != "" {
-		metadata, err := agentClient.Metadata(context.Background())
+		manifest, err := agentClient.Manifest(context.Background())
 		require.NoError(t, err)
 		proxyURL := fmt.Sprintf(
 			"http://{{port}}--%s--%s--%s%s",
@@ -287,7 +287,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 		if client.URL.Port() != "" {
 			proxyURL += fmt.Sprintf(":%s", client.URL.Port())
 		}
-		require.Equal(t, proxyURL, metadata.VSCodePortProxyURI)
+		require.Equal(t, proxyURL, manifest.VSCodePortProxyURI)
 	}
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
