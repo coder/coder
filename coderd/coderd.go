@@ -138,8 +138,8 @@ type Options struct {
 	DeploymentValues            *codersdk.DeploymentValues
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 
-	// ConfigSSH is the response clients use to configure config-ssh locally.
-	ConfigSSH codersdk.CLISSHConfigResponse
+	// SSHConfig is the response clients use to configure config-ssh locally.
+	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
 }
@@ -213,8 +213,8 @@ func New(options *Options) *API {
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
 	}
-	if options.ConfigSSH.HostnamePrefix == "" {
-		options.ConfigSSH.HostnamePrefix = "coder."
+	if options.SSHConfig.HostnamePrefix == "" {
+		options.SSHConfig.HostnamePrefix = "coder."
 	}
 	// TODO: remove this once we promote authz_querier out of experiments.
 	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
@@ -405,17 +405,11 @@ func New(options *Options) *API {
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
 		r.Get("/buildinfo", buildInfo)
-		r.Route("/config-ssh", func(r chi.Router) {
-			// Require auth for this route to prevent leaking the SSH config.
-			// to non-authenticated users. Also some config settings might
-			// be dependent on the user.
-			r.Use(apiKeyMiddleware)
-			r.Get("/", api.cliSSHConfig)
-		})
 		r.Route("/deployment", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
+			r.Get("/ssh", api.cliSSHConfig)
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

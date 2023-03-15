@@ -12,7 +12,7 @@ import (
 // @Produce json
 // @Tags General
 // @Success 200 {object} codersdk.CLISSHConfigResponse
-// @Router /config-ssh [get]
+// @Router /deployment/ssh [get]
 func (a *API) cliSSHConfig(rw http.ResponseWriter, r *http.Request) {
-	httpapi.Write(r.Context(), rw, http.StatusOK, a.ConfigSSH)
+	httpapi.Write(r.Context(), rw, http.StatusOK, a.SSHConfig)
 }

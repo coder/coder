@@ -68,7 +68,7 @@ func TestConfigSSH(t *testing.T) {
 	const expectedKey = "ConnectionAttempts"
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
-		ConfigSSH: codersdk.CLISSHConfigResponse{
+		ConfigSSH: codersdk.SSHConfigResponse{
 			HostnamePrefix: "test-coder",
 			SSHConfigOptions: map[string]string{
 				// Something we can test for

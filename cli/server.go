@@ -701,7 +701,7 @@ flags, and YAML configuration. The precedence is as follows:
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
-				ConfigSSH: codersdk.CLISSHConfigResponse{
+				SSHConfig: codersdk.SSHConfigResponse{
 					HostnamePrefix:   cfg.CLISSH.DeploymentName.String(),
 					SSHConfigOptions: configSSHOptions,
 				},

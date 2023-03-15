@@ -1318,13 +1318,13 @@ when required by your organization's security policy.`,
 			Default:     "coder.",
 		},
 		{
-			Name: "CLI SSH Config Options",
-			Description: "These cli config options will override the default ssh config options. " +
+			Name: "SSH Config Options",
+			Description: "These ssh config options will override the default ssh config options. " +
 				"Provide options in key=value format separated by commas." +
 				"Using this incorrectly can break ssh to your deployment. Use cautiously.",
-			Flag:   "cli-ssh-options",
-			Env:    "CLI_SSH_OPTIONS",
-			YAML:   "cliSSHOptions",
+			Flag:   "ssh-config-options",
+			Env:    "SSH_CONFIG_OPTIONS",
+			YAML:   "sshConfigOptions",
 			Group:  &deploymentGroupClient,
 			Value:  &c.CLISSH.SSHConfigOptions,
 			Hidden: false,
@@ -1645,24 +1645,24 @@ type DeploymentStats struct {
 	SessionCount SessionCountDeploymentStats `json:"session_count"`
 }
 
-type CLISSHConfigResponse struct {
+type SSHConfigResponse struct {
 	HostnamePrefix   string            `json:"hostname_prefix"`
 	SSHConfigOptions map[string]string `json:"ssh_config_options"`
 }
 
 // SSHConfiguration returns information about the SSH configuration for the
 // Coder instance.
-func (c *Client) SSHConfiguration(ctx context.Context) (CLISSHConfigResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/config-ssh", nil)
+func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/ssh", nil)
 	if err != nil {
-		return CLISSHConfigResponse{}, err
+		return SSHConfigResponse{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return CLISSHConfigResponse{}, ReadBodyAsError(res)
+		return SSHConfigResponse{}, ReadBodyAsError(res)
 	}
 
-	var cliConfig CLISSHConfigResponse
+	var cliConfig SSHConfigResponse
 	return cliConfig, json.NewDecoder(res.Body).Decode(&cliConfig)
 }
