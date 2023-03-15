@@ -64,12 +64,12 @@ func sshConfigFileRead(t *testing.T, name string) string {
 func TestConfigSSH(t *testing.T) {
 	t.Parallel()
 
-	const hostname = "test-coder"
+	const hostname = "test-coder."
 	const expectedKey = "ConnectionAttempts"
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 		ConfigSSH: codersdk.SSHConfigResponse{
-			HostnamePrefix: "test-coder.",
+			HostnamePrefix: hostname,
 			SSHConfigOptions: map[string]string{
 				// Something we can test for
 				expectedKey: "3",
@@ -199,7 +199,7 @@ func TestConfigSSH(t *testing.T) {
 
 	home := filepath.Dir(filepath.Dir(sshConfigFile))
 	// #nosec
-	sshCmd := exec.Command("ssh", "-F", sshConfigFile, hostname+"."+workspace.Name, "echo", "test")
+	sshCmd := exec.Command("ssh", "-F", sshConfigFile, hostname+workspace.Name, "echo", "test")
 	pty = ptytest.New(t)
 	// Set HOME because coder config is included from ~/.ssh/coder.
 	sshCmd.Env = append(sshCmd.Env, fmt.Sprintf("HOME=%s", home))
