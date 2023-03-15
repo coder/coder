@@ -60,7 +60,6 @@ func (api *API) deploymentStats(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, stats)
 }
 
-
 // @Summary CLI SSH Config
 // @ID cli-ssh-config
 // @Security CoderSessionToken
@@ -68,6 +67,6 @@ func (api *API) deploymentStats(rw http.ResponseWriter, r *http.Request) {
 // @Tags General
 // @Success 200 {object} codersdk.SSHConfigResponse
 // @Router /deployment/ssh [get]
-func (a *API) sshConfig(rw http.ResponseWriter, r *http.Request) {
-	httpapi.Write(r.Context(), rw, http.StatusOK, a.SSHConfig)
+func (api *API) sshConfig(rw http.ResponseWriter, r *http.Request) {
+	httpapi.Write(r.Context(), rw, http.StatusOK, api.SSHConfig)
 }
