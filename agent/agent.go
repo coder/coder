@@ -207,11 +207,15 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
-func (a *agent) collectMetadata(ctx context.Context, md agentsdk.Metadata) agentsdk.MetadataResult {
+func (*agent) collectMetadata(ctx context.Context, md agentsdk.Metadata) agentsdk.MetadataResult {
+	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(md.Interval))
+	defer cancel()
+
 	collectedAt := time.Now()
 
 	var out bytes.Buffer
 
+	//nolint:gosec
 	cmd := exec.CommandContext(ctx, md.Cmd[0], md.Cmd[1:]...)
 	cmd.Stdout = &out
 	cmd.Stderr = &out
@@ -237,14 +241,15 @@ func (a *agent) collectMetadata(ctx context.Context, md agentsdk.Metadata) agent
 }
 
 func (a *agent) reportMetadataLoop(ctx context.Context) {
-	// In production, the minimum report interval is one second.
-	ticker := time.Second
+	// In production, the minimum report interval is one second because
+	// `coder_agent.metadata` accepts `interval` in integer seconds.
+	baseInterval := time.Second
 	if flag.Lookup("test.v") != nil {
-		ticker = time.Millisecond * 100
+		baseInterval = time.Millisecond * 100
 	}
 
 	var (
-		baseTicker       = time.NewTicker(ticker)
+		baseTicker       = time.NewTicker(baseInterval)
 		lastCollectedAts = make(map[string]time.Time)
 		metadataResults  = make(chan agentsdk.MetadataResult, 16)
 	)
@@ -279,12 +284,19 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			// to synchronize the results and avoid messy mutex logic.
 			for _, md := range manifest.Metadata {
 				collectedAt, ok := lastCollectedAts[md.Key]
-				if ok && collectedAt.Add(md.Interval).After(time.Now()) {
-					continue
+				if ok {
+					// If the interval is zero, we assume the user just wants
+					// a single collection at startup, not a spinning loop.
+					if md.Interval == 0 {
+						continue
+					}
+					if collectedAt.Add(md.Interval).After(time.Now()) {
+						continue
+					}
 				}
 				if len(metadataResults) > cap(metadataResults)/2 {
 					// If we're backpressured on sending back results, we risk
-					// runaway goroutine growth.
+					// runaway goroutine growth or overloading coderd.
 					continue
 				}
 				go func(md agentsdk.Metadata) {
@@ -396,10 +408,10 @@ func (a *agent) run(ctx context.Context) error {
 		return xerrors.Errorf("update workspace agent version: %w", err)
 	}
 
-	oldMetadata := a.manifest.Swap(&manifest)
+	oldManifest := a.manifest.Swap(&manifest)
 
 	// The startup script should only execute on the first run!
-	if oldMetadata == nil {
+	if oldManifest == nil {
 		a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStarting)
 
 		// Perform overrides early so that Git auth can work even if users

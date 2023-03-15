@@ -776,31 +776,81 @@ func TestAgent_StartupScript(t *testing.T) {
 func TestAgent_Metadata(t *testing.T) {
 	t.Parallel()
 
-	//nolint:dogsled
-	_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-		Metadata: []agentsdk.Metadata{
-			{
-				Key:      "greeting",
-				Interval: time.Millisecond * 100,
-				Cmd:      []string{"echo", "hello"},
+	t.Run("Basic", func(t *testing.T) {
+		t.Parallel()
+		//nolint:dogsled
+		dir := t.TempDir()
+		greetingPath := filepath.Join(dir, "greeting")
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Metadata: []agentsdk.Metadata{
+				{
+					Key:      "greeting",
+					Interval: time.Millisecond * 100,
+					Cmd:      []string{"sh", "-c", "echo hello | tee " + greetingPath},
+				},
+				{
+					Key:      "bad",
+					Interval: time.Millisecond * 100,
+					Cmd:      []string{"sh", "-c", "exit 1"},
+				},
 			},
-			{
-				Key:      "bad",
-				Interval: time.Millisecond * 100,
-				Cmd:      []string{"sh", "-c", "exit 1"},
+		}, 0)
+
+		start := time.Now()
+
+		require.Eventually(t, func() bool {
+			return len(client.getMetadata()) == 2
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		for start := time.Now(); time.Since(start) < testutil.WaitShort; time.Sleep(testutil.IntervalMedium) {
+			md := client.getMetadata()
+			if len(md) != 2 {
+				panic("unexpected number of metadata entries")
+			}
+
+			require.Equal(t, "hello", md["greeting"].Value)
+			require.Equal(t, "exit status 1", md["bad"].Error)
+
+			greetingByt, err := os.ReadFile(greetingPath)
+			require.NoError(t, err)
+
+			var (
+				numGreetings      = bytes.Count(greetingByt, []byte("hello"))
+				idealNumGreetings = time.Since(start) / (time.Millisecond * 100)
+			)
+
+		}
+	})
+
+	t.Run("CollectOnce", func(t *testing.T) {
+		t.Parallel()
+		//nolint:dogsled
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Metadata: []agentsdk.Metadata{
+				{
+					Key:      "greeting",
+					Interval: 0,
+					Cmd:      []string{"echo", "-n", "hello"},
+				},
 			},
-		},
-	}, 0)
+		}, 0)
 
-	var gotMd agentsdk.PostMetadataRequest
-	require.Eventually(t, func() bool {
-		gotMd = client.getMetadata()
-		return len(gotMd) == 2
-	}, testutil.WaitShort, testutil.IntervalMedium)
+		var gotMd map[string]agentsdk.PostMetadataRequest
+		require.Eventually(t, func() bool {
+			gotMd = client.getMetadata()
+			return len(gotMd) == 1
+		}, testutil.WaitShort, testutil.IntervalMedium)
 
-	require.Equal(t, "hello", gotMd["greeting"].Value)
-	require.Empty(t, gotMd["bad"].Value)
-	require.Equal(t, "exit status 1", gotMd["bad"].Error)
+		collectedAt := gotMd["greeting"].CollectedAt
+
+		require.Never(t, func() bool {
+			gotMd = client.getMetadata()
+			if len(gotMd) != 1 {
+				panic("unexpected number of metadata")
+			}
+			return !gotMd["greeting"].CollectedAt.Equal(collectedAt)
+		}, testutil.WaitShort, testutil.IntervalMedium)
+	})
 }
 
 func TestAgent_Lifecycle(t *testing.T) {
@@ -1523,7 +1573,7 @@ type client struct {
 	t                  *testing.T
 	agentID            uuid.UUID
 	manifest           agentsdk.Manifest
-	metadata           agentsdk.PostMetadataRequest
+	metadata           map[string]agentsdk.PostMetadataRequest
 	statsChan          chan *agentsdk.Stats
 	coordinator        tailnet.Coordinator
 	lastWorkspaceAgent func()
@@ -1608,7 +1658,7 @@ func (c *client) getStartup() agentsdk.PostStartupRequest {
 	return c.startup
 }
 
-func (c *client) getMetadata() agentsdk.PostMetadataRequest {
+func (c *client) getMetadata() map[string]agentsdk.PostMetadataRequest {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return maps.Clone(c.metadata)
@@ -1617,7 +1667,10 @@ func (c *client) getMetadata() agentsdk.PostMetadataRequest {
 func (c *client) PostMetadata(_ context.Context, req agentsdk.PostMetadataRequest) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.metadata = req
+	if c.metadata == nil {
+		c.metadata = make(map[string]agentsdk.PostMetadataRequest)
+	}
+	c.metadata[req.Key] = req
 	return nil
 }
 
