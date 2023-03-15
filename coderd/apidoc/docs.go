@@ -304,6 +304,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/config-ssh": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "SSH information for clients",
+                "operationId": "cli-ssh-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.BuildInfoResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/csp/reports": {
             "post": {
                 "security": [
@@ -5938,6 +5958,22 @@ const docTemplate = `{
                 "BuildReasonAutostop"
             ]
         },
+        "codersdk.CLISSHConfig": {
+            "type": "object",
+            "properties": {
+                "deploymentName": {
+                    "description": "DeploymentName is the config-ssh Hostname prefix",
+                    "type": "string"
+                },
+                "sshconfigOptions": {
+                    "description": "SSHConfigOptions are additional options to add to the ssh config file.\nThis will override defaults.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.CreateFirstUserRequest": {
             "type": "object",
             "required": [
@@ -6536,6 +6572,9 @@ const docTemplate = `{
                 },
                 "cache_directory": {
                     "type": "string"
+                },
+                "cli_ssh": {
+                    "$ref": "#/definitions/codersdk.CLISSHConfig"
                 },
                 "config": {
                     "type": "string"

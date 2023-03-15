@@ -64,6 +64,35 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.BuildInfoResponse](schemas.md#codersdkbuildinforesponse) |
 
+## SSH information for clients
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/config-ssh \
+  -H 'Accept: application/json'
+```
+
+`GET /config-ssh`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "external_url": "string",
+  "version": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.BuildInfoResponse](schemas.md#codersdkbuildinforesponse) |
+
 ## Report CSP violations
 
 ### Code samples
@@ -154,6 +183,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
+    "cli_ssh": {
+      "deploymentName": "string",
+      "sshconfigOptions": ["string"]
+    },
     "config": "string",
     "dangerous": {
       "allow_path_app_sharing": true,
