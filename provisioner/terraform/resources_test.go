@@ -228,8 +228,9 @@ func TestConvertResources(t *testing.T) {
 					Metadata: []*proto.Agent_Metadata{{
 						Key:         "process_count",
 						DisplayName: "Process Count",
-						Cmd:         "ps -ef | wc -l",
-						Interval:    1,
+						Cmd:         []string{"sh", "-c", "ps -ef | wc -l"},
+						Interval:    5,
+						Timeout:     1,
 					}},
 					ShutdownScriptTimeoutSeconds: 300,
 					StartupScriptTimeoutSeconds:  300,

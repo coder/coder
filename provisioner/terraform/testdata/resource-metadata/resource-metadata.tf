@@ -3,7 +3,7 @@ terraform {
     coder = {
       source = "coder/coder"
       // TODO: update terraform-provider-coder before merge.
-      version = "= 0.6.18-rc1"
+      version = "= 0.6.18-rc3"
     }
   }
 }
@@ -14,8 +14,9 @@ resource "coder_agent" "main" {
   metadata {
     key          = "process_count"
     display_name = "Process Count"
-    cmd          = "ps -ef | wc -l"
-    interval     = 1
+    cmd          = ["sh", "-c", "ps -ef | wc -l"]
+    interval     = 5
+    timeout      = 1
   }
 }
 

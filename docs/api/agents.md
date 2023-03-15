@@ -273,18 +273,18 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitsshkey \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get authorized workspace agent metadata
+## Get authorized workspace agent manifest
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/metadata \
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/me/metadata`
+`GET /workspaceagents/me/manifest`
 
 ### Example responses
 
@@ -363,6 +363,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/metadata \
     }
   },
   "directory": "string",
+  "dynamic_metadata": [
+    {
+      "cmd": ["string"],
+      "interval": 0,
+      "key": "string",
+      "timeout": 0
+    }
+  ],
   "environment_variables": {
     "property1": "string",
     "property2": "string"
@@ -381,7 +389,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/metadata \
 
 | Status | Meaning                                                 | Description | Schema                                           |
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.Metadata](schemas.md#agentsdkmetadata) |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.Manifest](schemas.md#agentsdkmanifest) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

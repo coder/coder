@@ -65,13 +65,14 @@ func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 	return gitSSHKey, json.NewDecoder(res.Body).Decode(&gitSSHKey)
 }
 
-// Metadata is a description of dynamic metadata the agent should report
+// MetadataDescription is a description of dynamic metadata the agent should report
 // back to coderd. It is provided via the `metadata` list in the `coder_agent`
 // block.
-type Metadata struct {
+type MetadataDescription struct {
 	Key      string
 	Cmd      []string
 	Interval time.Duration
+	Timeout  time.Duration
 }
 
 type MetadataResult struct {
@@ -114,7 +115,7 @@ type Manifest struct {
 	MOTDFile              string                  `json:"motd_file"`
 	ShutdownScript        string                  `json:"shutdown_script"`
 	ShutdownScriptTimeout time.Duration           `json:"shutdown_script_timeout"`
-	Metadata              []Metadata              `json:"dynamic_metadata"`
+	Metadata              []MetadataDescription   `json:"dynamic_metadata"`
 }
 
 // Manifest fetches manifest for the currently authenticated workspace agent.

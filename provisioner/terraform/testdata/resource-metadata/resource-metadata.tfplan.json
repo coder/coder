@@ -20,10 +20,15 @@
             "login_before_ready": true,
             "metadata": [
               {
-                "cmd": "ps -ef | wc -l",
+                "cmd": [
+                  "sh",
+                  "-c",
+                  "ps -ef | wc -l"
+                ],
                 "display_name": "Process Count",
-                "interval": 1,
-                "key": "process_count"
+                "interval": 5,
+                "key": "process_count",
+                "timeout": 1
               }
             ],
             "motd_file": null,
@@ -36,7 +41,13 @@
           },
           "sensitive_values": {
             "metadata": [
-              {}
+              {
+                "cmd": [
+                  false,
+                  false,
+                  false
+                ]
+              }
             ]
           }
         },
@@ -119,10 +130,15 @@
           "login_before_ready": true,
           "metadata": [
             {
-              "cmd": "ps -ef | wc -l",
+              "cmd": [
+                "sh",
+                "-c",
+                "ps -ef | wc -l"
+              ],
               "display_name": "Process Count",
-              "interval": 1,
-              "key": "process_count"
+              "interval": 5,
+              "key": "process_count",
+              "timeout": 1
             }
           ],
           "motd_file": null,
@@ -137,14 +153,26 @@
           "id": true,
           "init_script": true,
           "metadata": [
-            {}
+            {
+              "cmd": [
+                false,
+                false,
+                false
+              ]
+            }
           ],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "metadata": [
-            {}
+            {
+              "cmd": [
+                false,
+                false,
+                false
+              ]
+            }
           ],
           "token": true
         }
@@ -244,7 +272,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.6.18-rc1"
+        "version_constraint": "0.6.18-rc3"
       },
       "null": {
         "name": "null",
@@ -266,16 +294,23 @@
             "metadata": [
               {
                 "cmd": {
-                  "constant_value": "ps -ef | wc -l"
+                  "constant_value": [
+                    "sh",
+                    "-c",
+                    "ps -ef | wc -l"
+                  ]
                 },
                 "display_name": {
                   "constant_value": "Process Count"
                 },
                 "interval": {
-                  "constant_value": 1
+                  "constant_value": 5
                 },
                 "key": {
                   "constant_value": "process_count"
+                },
+                "timeout": {
+                  "constant_value": 1
                 }
               }
             ],

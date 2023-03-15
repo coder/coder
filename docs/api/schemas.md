@@ -94,7 +94,7 @@
 | ---------------- | ------ | -------- | ------------ | ----------- |
 | `json_web_token` | string | true     |              |             |
 
-## agentsdk.Metadata
+## agentsdk.Manifest
 
 ```json
 {
@@ -169,6 +169,14 @@
     }
   },
   "directory": "string",
+  "dynamic_metadata": [
+    {
+      "cmd": ["string"],
+      "interval": 0,
+      "key": "string",
+      "timeout": 0
+    }
+  ],
   "environment_variables": {
     "property1": "string",
     "property2": "string"
@@ -185,20 +193,41 @@
 
 ### Properties
 
-| Name                      | Type                                                    | Required | Restrictions | Description                                                                                                                                                |
-| ------------------------- | ------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps`                    | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp) | false    |              |                                                                                                                                                            |
-| `derpmap`                 | [tailcfg.DERPMap](#tailcfgderpmap)                      | false    |              |                                                                                                                                                            |
-| `directory`               | string                                                  | false    |              |                                                                                                                                                            |
-| `environment_variables`   | object                                                  | false    |              |                                                                                                                                                            |
-| » `[any property]`        | string                                                  | false    |              |                                                                                                                                                            |
-| `git_auth_configs`        | integer                                                 | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
-| `motd_file`               | string                                                  | false    |              |                                                                                                                                                            |
-| `shutdown_script`         | string                                                  | false    |              |                                                                                                                                                            |
-| `shutdown_script_timeout` | integer                                                 | false    |              |                                                                                                                                                            |
-| `startup_script`          | string                                                  | false    |              |                                                                                                                                                            |
-| `startup_script_timeout`  | integer                                                 | false    |              |                                                                                                                                                            |
-| `vscode_port_proxy_uri`   | string                                                  | false    |              |                                                                                                                                                            |
+| Name                      | Type                                                                  | Required | Restrictions | Description                                                                                                                                                |
+| ------------------------- | --------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                    | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)               | false    |              |                                                                                                                                                            |
+| `derpmap`                 | [tailcfg.DERPMap](#tailcfgderpmap)                                    | false    |              |                                                                                                                                                            |
+| `directory`               | string                                                                | false    |              |                                                                                                                                                            |
+| `dynamic_metadata`        | array of [agentsdk.MetadataDescription](#agentsdkmetadatadescription) | false    |              |                                                                                                                                                            |
+| `environment_variables`   | object                                                                | false    |              |                                                                                                                                                            |
+| » `[any property]`        | string                                                                | false    |              |                                                                                                                                                            |
+| `git_auth_configs`        | integer                                                               | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
+| `motd_file`               | string                                                                | false    |              |                                                                                                                                                            |
+| `shutdown_script`         | string                                                                | false    |              |                                                                                                                                                            |
+| `shutdown_script_timeout` | integer                                                               | false    |              |                                                                                                                                                            |
+| `startup_script`          | string                                                                | false    |              |                                                                                                                                                            |
+| `startup_script_timeout`  | integer                                                               | false    |              |                                                                                                                                                            |
+| `vscode_port_proxy_uri`   | string                                                                | false    |              |                                                                                                                                                            |
+
+## agentsdk.MetadataDescription
+
+```json
+{
+  "cmd": ["string"],
+  "interval": 0,
+  "key": "string",
+  "timeout": 0
+}
+```
+
+### Properties
+
+| Name       | Type            | Required | Restrictions | Description |
+| ---------- | --------------- | -------- | ------------ | ----------- |
+| `cmd`      | array of string | false    |              |             |
+| `interval` | integer         | false    |              |             |
+| `key`      | string          | false    |              |             |
+| `timeout`  | integer         | false    |              |             |
 
 ## agentsdk.PostAppHealthsRequest
 

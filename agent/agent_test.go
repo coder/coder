@@ -778,25 +778,23 @@ func TestAgent_Metadata(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
 		t.Parallel()
-		//nolint:dogsled
 		dir := t.TempDir()
+		const reportInterval = time.Millisecond * 200
 		greetingPath := filepath.Join(dir, "greeting")
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			Metadata: []agentsdk.Metadata{
+			Metadata: []agentsdk.MetadataDescription{
 				{
 					Key:      "greeting",
-					Interval: time.Millisecond * 100,
-					Cmd:      []string{"sh", "-c", "echo hello | tee " + greetingPath},
+					Interval: reportInterval,
+					Cmd:      []string{"sh", "-c", "echo hello | tee -a " + greetingPath},
 				},
 				{
 					Key:      "bad",
-					Interval: time.Millisecond * 100,
+					Interval: reportInterval,
 					Cmd:      []string{"sh", "-c", "exit 1"},
 				},
 			},
 		}, 0)
-
-		start := time.Now()
 
 		require.Eventually(t, func() bool {
 			return len(client.getMetadata()) == 2
@@ -808,7 +806,7 @@ func TestAgent_Metadata(t *testing.T) {
 				panic("unexpected number of metadata entries")
 			}
 
-			require.Equal(t, "hello", md["greeting"].Value)
+			require.Equal(t, "hello\n", md["greeting"].Value)
 			require.Equal(t, "exit status 1", md["bad"].Error)
 
 			greetingByt, err := os.ReadFile(greetingPath)
@@ -816,9 +814,24 @@ func TestAgent_Metadata(t *testing.T) {
 
 			var (
 				numGreetings      = bytes.Count(greetingByt, []byte("hello"))
-				idealNumGreetings = time.Since(start) / (time.Millisecond * 100)
+				idealNumGreetings = time.Since(start) / (reportInterval)
+				upperBound        = int(idealNumGreetings) + 1
+				lowerBound        = (int(idealNumGreetings) / 2)
 			)
 
+			if idealNumGreetings < 5 {
+				// Not enough time has passed to get a good sample size.
+				continue
+			}
+
+			t.Logf("numGreetings: %d, idealNumGreetings: %d", numGreetings, idealNumGreetings)
+			// The report loop may slow down on load, but it should never, ever
+			// speed up.
+			if numGreetings > upperBound {
+				t.Fatalf("too many greetings: %d > %d", numGreetings, upperBound)
+			} else if numGreetings < lowerBound {
+				t.Fatalf("too few greetings: %d < %d", numGreetings, lowerBound)
+			}
 		}
 	})
 
@@ -826,7 +839,7 @@ func TestAgent_Metadata(t *testing.T) {
 		t.Parallel()
 		//nolint:dogsled
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			Metadata: []agentsdk.Metadata{
+			Metadata: []agentsdk.MetadataDescription{
 				{
 					Key:      "greeting",
 					Interval: 0,

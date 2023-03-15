@@ -17,15 +17,20 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "0a9c67ad-4af5-40d9-b5e4-59dbfd27a390",
+            "id": "5ddeb3e1-ff58-42a8-b951-aeeb33bb093d",
             "init_script": "",
             "login_before_ready": true,
             "metadata": [
               {
-                "cmd": "ps -ef | wc -l",
+                "cmd": [
+                  "sh",
+                  "-c",
+                  "ps -ef | wc -l"
+                ],
                 "display_name": "Process Count",
-                "interval": 1,
-                "key": "process_count"
+                "interval": 5,
+                "key": "process_count",
+                "timeout": 1
               }
             ],
             "motd_file": null,
@@ -34,12 +39,18 @@
             "shutdown_script_timeout": 300,
             "startup_script": null,
             "startup_script_timeout": 300,
-            "token": "fba4b5d7-be79-4af2-b678-87d2239b887c",
+            "token": "051aba07-6d8a-45ad-bb79-9c49b32cbe19",
             "troubleshooting_url": null
           },
           "sensitive_values": {
             "metadata": [
-              {}
+              {
+                "cmd": [
+                  false,
+                  false,
+                  false
+                ]
+              }
             ]
           }
         },
@@ -54,7 +65,7 @@
             "daily_cost": 29,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "84c8eb80-572c-41ef-a811-16c31381587d",
+            "id": "f689a177-8bd5-467a-80e8-66ea6c5cfbc1",
             "item": [
               {
                 "is_null": false,
@@ -81,7 +92,7 @@
                 "value": "squirrel"
               }
             ],
-            "resource_id": "5419686285324437053"
+            "resource_id": "6412674345056346383"
           },
           "sensitive_values": {
             "item": [
@@ -104,7 +115,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "5419686285324437053",
+            "id": "6412674345056346383",
             "triggers": null
           },
           "sensitive_values": {},

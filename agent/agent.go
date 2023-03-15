@@ -207,8 +207,12 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
-func (*agent) collectMetadata(ctx context.Context, md agentsdk.Metadata) agentsdk.MetadataResult {
-	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(md.Interval))
+func collectMetadata(ctx context.Context, md agentsdk.MetadataDescription) agentsdk.MetadataResult {
+	timeout := md.Timeout
+	if timeout == 0 {
+		timeout = md.Interval
+	}
+	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(timeout))
 	defer cancel()
 
 	collectedAt := time.Now()
@@ -219,25 +223,28 @@ func (*agent) collectMetadata(ctx context.Context, md agentsdk.Metadata) agentsd
 	cmd := exec.CommandContext(ctx, md.Cmd[0], md.Cmd[1:]...)
 	cmd.Stdout = &out
 	cmd.Stderr = &out
+
+	// The error isn't mutually exclusive with useful output.
 	err := cmd.Run()
-	if err != nil {
-		return agentsdk.MetadataResult{
-			CollectedAt: collectedAt,
-			Key:         md.Key,
-			Error:       err.Error(),
-		}
-	}
 
 	const bufLimit = 10 << 14
 	if out.Len() > bufLimit {
+		err = errors.Join(
+			err,
+			xerrors.Errorf("output truncated from %v to %v bytes", out.Len(), bufLimit),
+		)
 		out.Truncate(bufLimit)
 	}
 
-	return agentsdk.MetadataResult{
+	result := agentsdk.MetadataResult{
 		CollectedAt: collectedAt,
 		Key:         md.Key,
 		Value:       out.String(),
 	}
+	if err != nil {
+		result.Error = err.Error()
+	}
+	return result
 }
 
 func (a *agent) reportMetadataLoop(ctx context.Context) {
@@ -271,9 +278,10 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				continue
 			}
 			// If the manifest changes (e.g. on agent reconnect) we need to
-			// purge old values.
+			// purge old cache values to prevent lastCollectedAt from growing
+			// boundlessly.
 			for key := range lastCollectedAts {
-				if slices.IndexFunc(manifest.Metadata, func(md agentsdk.Metadata) bool {
+				if slices.IndexFunc(manifest.Metadata, func(md agentsdk.MetadataDescription) bool {
 					return md.Key == key
 				}) < 0 {
 					delete(lastCollectedAts, key)
@@ -296,14 +304,17 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				}
 				if len(metadataResults) > cap(metadataResults)/2 {
 					// If we're backpressured on sending back results, we risk
-					// runaway goroutine growth or overloading coderd.
+					// runaway goroutine growth and/or overloading coderd. So,
+					// we just skip the collection. Since we never update
+					// "lastCollectedAt" for this key, we'll retry the collection
+					// on the next tick.
 					continue
 				}
-				go func(md agentsdk.Metadata) {
+				go func(md agentsdk.MetadataDescription) {
 					select {
 					case <-ctx.Done():
 						return
-					case metadataResults <- a.collectMetadata(ctx, md):
+					case metadataResults <- collectMetadata(ctx, md):
 					}
 				}(md)
 			}

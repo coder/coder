@@ -4159,7 +4159,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/me/metadata": {
+        "/workspaceagents/me/manifest": {
             "get": {
                 "security": [
                     {
@@ -4172,13 +4172,13 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Get authorized workspace agent metadata",
-                "operationId": "get-authorized-workspace-agent-metadata",
+                "summary": "Get authorized workspace agent manifest",
+                "operationId": "get-authorized-workspace-agent-manifest",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/agentsdk.Metadata"
+                            "$ref": "#/definitions/agentsdk.Manifest"
                         }
                     }
                 }
@@ -5195,7 +5195,7 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.Metadata": {
+        "agentsdk.Manifest": {
             "type": "object",
             "properties": {
                 "apps": {
@@ -5209,6 +5209,12 @@ const docTemplate = `{
                 },
                 "directory": {
                     "type": "string"
+                },
+                "dynamic_metadata": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.MetadataDescription"
+                    }
                 },
                 "environment_variables": {
                     "type": "object",
@@ -5237,6 +5243,26 @@ const docTemplate = `{
                 },
                 "vscode_port_proxy_uri": {
                     "type": "string"
+                }
+            }
+        },
+        "agentsdk.MetadataDescription": {
+            "type": "object",
+            "properties": {
+                "cmd": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "interval": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "timeout": {
+                    "type": "integer"
                 }
             }
         },
