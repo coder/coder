@@ -20,7 +20,7 @@ const renderComponent = async (props: Partial<WorkspaceActionsProps> = {}) => {
       handleUpdate={jest.fn()}
       handleCancel={jest.fn()}
       handleChangeVersion={jest.fn()}
-      handleBuildParameters={jest.fn()}
+      handleSettings={jest.fn()}
       isUpdating={false}
     />,
   )
@@ -40,7 +40,7 @@ const renderAndClick = async (props: Partial<WorkspaceActionsProps> = {}) => {
       handleUpdate={jest.fn()}
       handleCancel={jest.fn()}
       handleChangeVersion={jest.fn()}
-      handleBuildParameters={jest.fn()}
+      handleSettings={jest.fn()}
       isUpdating={false}
     />,
   )

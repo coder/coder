@@ -43,7 +43,7 @@ export interface WorkspaceProps {
   handleUpdate: () => void
   handleCancel: () => void
   handleChangeVersion: () => void
-  handleBuildParameters: () => void
+  handleSettings: () => void
   isUpdating: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
@@ -70,7 +70,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleUpdate,
   handleCancel,
   handleChangeVersion,
-  handleBuildParameters,
+  handleSettings,
   workspace,
   isUpdating,
   resources,
@@ -136,7 +136,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
               handleChangeVersion={handleChangeVersion}
-              handleBuildParameters={handleBuildParameters}
+              handleSettings={handleSettings}
               isUpdating={isUpdating}
             />
           </Stack>

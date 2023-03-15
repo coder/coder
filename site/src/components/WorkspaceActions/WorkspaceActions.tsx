@@ -7,7 +7,7 @@ import {
   ChangeVersionButton,
   DeleteButton,
   DisabledButton,
-  BuildParametersButton,
+  SettingsButton,
   StartButton,
   StopButton,
   UpdateButton,
@@ -24,7 +24,7 @@ export interface WorkspaceActionsProps {
   handleUpdate: () => void
   handleCancel: () => void
   handleChangeVersion: () => void
-  handleBuildParameters: () => void
+  handleSettings: () => void
   isUpdating: boolean
   children?: ReactNode
 }
@@ -39,7 +39,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleUpdate,
   handleCancel,
   handleChangeVersion,
-  handleBuildParameters,
+  handleSettings,
   isUpdating,
 }) => {
   const { t } = useTranslation("workspacePage")
@@ -59,7 +59,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       <ChangeVersionButton handleAction={handleChangeVersion} />
     ),
     [ButtonTypesEnum.buildParameters]: (
-      <BuildParametersButton handleAction={handleBuildParameters} />
+      <SettingsButton handleAction={handleSettings} />
     ),
     [ButtonTypesEnum.start]: <StartButton handleAction={handleStart} />,
     [ButtonTypesEnum.starting]: (
