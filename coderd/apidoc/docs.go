@@ -306,19 +306,24 @@ const docTemplate = `{
         },
         "/config-ssh": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "General"
                 ],
-                "summary": "SSH information for clients",
+                "summary": "CLI SSH Config",
                 "operationId": "cli-ssh-config",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.BuildInfoResponse"
+                            "$ref": "#/definitions/codersdk.CLISSHConfigResponse"
                         }
                     }
                 }
@@ -5969,6 +5974,20 @@ const docTemplate = `{
                     "description": "SSHConfigOptions are additional options to add to the ssh config file.\nThis will override defaults.",
                     "type": "array",
                     "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.CLISSHConfigResponse": {
+            "type": "object",
+            "properties": {
+                "deployment_name": {
+                    "type": "string"
+                },
+                "ssh_config_options": {
+                    "type": "object",
+                    "additionalProperties": {
                         "type": "string"
                     }
                 }

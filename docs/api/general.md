@@ -64,14 +64,15 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.BuildInfoResponse](schemas.md#codersdkbuildinforesponse) |
 
-## SSH information for clients
+## CLI SSH Config
 
 ### Code samples
 
 ```shell
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/config-ssh \
-  -H 'Accept: application/json'
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
 ```
 
 `GET /config-ssh`
@@ -82,16 +83,21 @@ curl -X GET http://coder-server:8080/api/v2/config-ssh \
 
 ```json
 {
-  "external_url": "string",
-  "version": "string"
+  "deployment_name": "string",
+  "ssh_config_options": {
+    "property1": "string",
+    "property2": "string"
+  }
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                             |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.BuildInfoResponse](schemas.md#codersdkbuildinforesponse) |
+| Status | Meaning                                                 | Description | Schema                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.CLISSHConfigResponse](schemas.md#codersdkclisshconfigresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Report CSP violations
 

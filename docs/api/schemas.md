@@ -1116,6 +1116,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `deploymentName`   | string          | false    |              | Deploymentname is the config-ssh Hostname prefix                                                    |
 | `sshconfigOptions` | array of string | false    |              | Sshconfigoptions are additional options to add to the ssh config file. This will override defaults. |
 
+## codersdk.CLISSHConfigResponse
+
+```json
+{
+  "deployment_name": "string",
+  "ssh_config_options": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                 | Type   | Required | Restrictions | Description |
+| -------------------- | ------ | -------- | ------------ | ----------- |
+| `deployment_name`    | string | false    |              |             |
+| `ssh_config_options` | object | false    |              |             |
+| » `[any property]`   | string | false    |              |             |
+
 ## codersdk.CreateFirstUserRequest
 
 ```json
