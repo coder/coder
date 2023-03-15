@@ -79,6 +79,7 @@ type Options struct {
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
 	AgentPorts             map[int]string
+	SSHMaxTimeout          time.Duration
 }
 
 type Client interface {
@@ -128,6 +129,7 @@ func New(options Options) io.Closer {
 		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
 		ignorePorts:            options.AgentPorts,
 		connStatsChan:          make(chan *agentsdk.Stats, 1),
+		sshMaxTimeout:          options.SSHMaxTimeout,
 	}
 	a.init(ctx)
 	return a
@@ -155,9 +157,10 @@ type agent struct {
 
 	envVars map[string]string
 	// manifest is atomic because values can change after reconnection.
-	manifest     atomic.Pointer[agentsdk.Manifest]
-	sessionToken atomic.Pointer[string]
-	sshServer    *ssh.Server
+	manifest      atomic.Pointer[agentsdk.Manifest]
+	sessionToken  atomic.Pointer[string]
+	sshServer     *ssh.Server
+	sshMaxTimeout time.Duration
 
 	lifecycleUpdate   chan struct{}
 	lifecycleReported chan codersdk.WorkspaceAgentLifecycle
@@ -809,6 +812,7 @@ func (a *agent) init(ctx context.Context) {
 				_ = session.Exit(1)
 			},
 		},
+		MaxTimeout: a.sshMaxTimeout,
 	}
 
 	go a.runLoop(ctx)
