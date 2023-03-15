@@ -30,6 +30,7 @@ site/test-results/*
 site/e2e/test-results/*
 site/e2e/states/*.json
 site/playwright-report/*
+site/.swc
 
 # Make target for updating golden files.
 cli/testdata/.gen-golden

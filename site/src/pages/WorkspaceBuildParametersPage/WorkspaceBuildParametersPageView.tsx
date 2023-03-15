@@ -8,14 +8,12 @@ import { makeStyles } from "@material-ui/core/styles"
 import { getFormHelpers } from "util/formUtils"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput"
-import {
-  ValidationSchemaForRichParameters,
-  workspaceBuildParameterValue,
-} from "pages/CreateWorkspacePage/CreateWorkspacePageView"
+import { workspaceBuildParameterValue } from "pages/CreateWorkspacePage/CreateWorkspacePageView"
 import { FormFooter } from "components/FormFooter/FormFooter"
 import * as Yup from "yup"
 import { Maybe } from "components/Conditionals/Maybe"
 import { GoBackButton } from "components/GoBackButton/GoBackButton"
+import { useValidationSchemaForRichParameters } from "util/richParameters"
 
 export enum UpdateWorkspaceErrors {
   GET_WORKSPACE_ERROR = "getWorkspaceError",
@@ -61,7 +59,7 @@ export const WorkspaceBuildParametersPageView: FC<
         rich_parameter_values: initialRichParameterValues,
       },
       validationSchema: Yup.object({
-        rich_parameter_values: ValidationSchemaForRichParameters(
+        rich_parameter_values: useValidationSchemaForRichParameters(
           "workspaceBuildParametersPage",
           props.templateParameters,
           initialRichParameterValues,
