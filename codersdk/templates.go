@@ -28,8 +28,11 @@ type Template struct {
 	Description      string                 `json:"description"`
 	Icon             string                 `json:"icon"`
 	DefaultTTLMillis int64                  `json:"default_ttl_ms"`
-	CreatedByID      uuid.UUID              `json:"created_by_id" format:"uuid"`
-	CreatedByName    string                 `json:"created_by_name"`
+	// MaxTTLMillis is an enterprise feature. It's value is only used if your
+	// license is entitled to use the advanced template scheduling feature.
+	MaxTTLMillis  int64     `json:"max_ttl_ms"`
+	CreatedByID   uuid.UUID `json:"created_by_id" format:"uuid"`
+	CreatedByName string    `json:"created_by_name"`
 
 	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
 }
@@ -75,12 +78,16 @@ type UpdateTemplateACL struct {
 }
 
 type UpdateTemplateMeta struct {
-	Name                         string `json:"name,omitempty" validate:"omitempty,template_name"`
-	DisplayName                  string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
-	Description                  string `json:"description,omitempty"`
-	Icon                         string `json:"icon,omitempty"`
-	DefaultTTLMillis             int64  `json:"default_ttl_ms,omitempty"`
-	AllowUserCancelWorkspaceJobs bool   `json:"allow_user_cancel_workspace_jobs,omitempty"`
+	Name             string `json:"name,omitempty" validate:"omitempty,template_name"`
+	DisplayName      string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
+	Description      string `json:"description,omitempty"`
+	Icon             string `json:"icon,omitempty"`
+	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
+	// MaxTTLMillis can only be set if your license includes the advanced
+	// template scheduling feature. If you attempt to set this value while
+	// unlicensed, it will be ignored.
+	MaxTTLMillis                 int64 `json:"max_ttl_ms,omitempty"`
+	AllowUserCancelWorkspaceJobs bool  `json:"allow_user_cancel_workspace_jobs,omitempty"`
 }
 
 type TemplateExample struct {

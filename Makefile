@@ -501,7 +501,8 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	yarn run format:write:only ../docs/admin/prometheus.md
 
 docs/cli.md: scripts/clidocgen/main.go $(GO_SRC_FILES) docs/manifest.json
-	rm -rf ./docs/cli/*.md
+	# TODO(@ammario): re-enable server.md once we finish clibase migration.
+	ls ./docs/cli/*.md | grep -vP "\/coder_server" | xargs rm
 	BASE_PATH="." go run ./scripts/clidocgen
 	cd site
 	yarn run format:write:only ../docs/cli.md ../docs/cli/*.md ../docs/manifest.json
@@ -515,11 +516,15 @@ coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) 
 	./scripts/apidocgen/generate.sh
 	yarn run --cwd=site format:write:only ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json
 
-update-golden-files: cli/testdata/.gen-golden
+update-golden-files: cli/testdata/.gen-golden helm/tests/testdata/.gen-golden
 .PHONY: update-golden-files
 
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(GO_SRC_FILES)
 	go test ./cli -run=TestCommandHelp -update
+	touch "$@"
+
+helm/tests/testdata/.gen-golden: $(wildcard helm/tests/testdata/*.golden) $(GO_SRC_FILES)
+	go test ./helm/tests -run=TestUpdateGoldenFiles -update
 	touch "$@"
 
 # Generate a prettierrc for the site package that uses relative paths for

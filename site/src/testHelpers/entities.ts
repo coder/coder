@@ -287,6 +287,7 @@ export const MockTemplate: TypesGen.Template = {
   },
   description: "This is a test description.",
   default_ttl_ms: 24 * 60 * 60 * 1000,
+  max_ttl_ms: 2 * 24 * 60 * 60 * 1000,
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
@@ -760,6 +761,7 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
     mutable: true,
     icon: "/icon/folder.svg",
     options: [],
+    required: true,
   }
 
 export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
@@ -775,6 +777,7 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
     validation_min: 1,
     validation_max: 3,
     validation_monotonic: "increasing",
+    required: true,
   }
 
 export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
@@ -789,6 +792,7 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
     options: [],
     validation_error: "No way!",
     validation_regex: "^[a-z]{3}$",
+    required: true,
   }
 
 export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
@@ -801,6 +805,7 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
     mutable: false,
     icon: "/icon/database.svg",
     options: [],
+    required: true,
   }
 
 export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
@@ -816,6 +821,7 @@ export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
     validation_min: 1,
     validation_max: 10,
     validation_monotonic: "decreasing",
+    required: true,
   }
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
@@ -1218,7 +1224,6 @@ export const MockEntitlements: TypesGen.Entitlements = {
   warnings: [],
   has_license: false,
   features: withDefaultFeatures({}),
-  experimental: false,
   require_telemetry: false,
   trial: false,
 }
@@ -1227,7 +1232,6 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
   errors: [],
   warnings: ["You are over your active user limit.", "And another thing."],
   has_license: true,
-  experimental: false,
   trial: false,
   require_telemetry: false,
   features: withDefaultFeatures({
@@ -1252,7 +1256,6 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   errors: [],
   warnings: [],
   has_license: true,
-  experimental: false,
   require_telemetry: false,
   trial: false,
   features: withDefaultFeatures({
@@ -1440,8 +1443,9 @@ export const MockPermissions: Permissions = {
   readAllUsers: true,
   updateUsers: true,
   viewAuditLog: true,
-  viewDeploymentConfig: true,
+  viewDeploymentValues: true,
   viewUpdateCheck: true,
+  viewDeploymentStats: true,
 }
 
 export const MockAppearance: TypesGen.AppearanceConfig = {
@@ -1532,4 +1536,29 @@ export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
   type: "github",
   authenticate_url: "https://example.com/gitauth/github",
   authenticated: false,
+}
+
+export const MockDeploymentStats: TypesGen.DeploymentStats = {
+  aggregated_from: "2023-03-06T19:08:55.211625Z",
+  collected_at: "2023-03-06T19:12:55.211625Z",
+  next_update_at: "2023-03-06T19:20:55.211625Z",
+  session_count: {
+    vscode: 128,
+    jetbrains: 5,
+    ssh: 32,
+    reconnecting_pty: 15,
+  },
+  workspaces: {
+    building: 15,
+    failed: 12,
+    pending: 5,
+    running: 32,
+    stopped: 16,
+    connection_latency_ms: {
+      P50: 32.56,
+      P95: 15.23,
+    },
+    rx_bytes: 15613513253,
+    tx_bytes: 36113513253,
+  },
 }

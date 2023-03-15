@@ -7,12 +7,10 @@ import {
   MockTemplateVersionVariable1,
   MockTemplateVersionVariable2,
   MockTemplateVersionVariable3,
-  MockTemplateVersionVariable4,
-  MockTemplateVersionVariable5,
   renderWithAuth,
 } from "testHelpers/renderHelpers"
 import CreateTemplatePage from "./CreateTemplatePage"
-import { screen, waitFor } from "@testing-library/react"
+import { screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
 
@@ -45,7 +43,7 @@ test("Create template with variables", async () => {
     job: {
       ...MockTemplateVersion.job,
       status: "failed",
-      error: "required template variables",
+      error_code: "REQUIRED_TEMPLATE_VARIABLES",
     },
   })
   // Return the template variables
@@ -55,19 +53,19 @@ test("Create template with variables", async () => {
       MockTemplateVersionVariable1,
       MockTemplateVersionVariable2,
       MockTemplateVersionVariable3,
-      MockTemplateVersionVariable4,
-      MockTemplateVersionVariable5,
     ])
 
   // Render page, fill the name and submit
-  const { router } = await renderPage()
+  const { router, container } = await renderPage()
+  const form = container.querySelector("form") as HTMLFormElement
   await userEvent.type(screen.getByLabelText(/Name/), "my-template")
   await userEvent.click(
-    screen.getByRole("button", { name: /create template/i }),
+    within(form).getByRole("button", { name: /create template/i }),
   )
 
   // Wait for the variables form to be rendered and fill it
   await screen.findByText(/Variables/)
+
   // Type first variable
   await userEvent.clear(screen.getByLabelText(/var.first_variable/))
   await userEvent.type(
@@ -79,18 +77,6 @@ test("Create template with variables", async () => {
   await userEvent.type(screen.getByLabelText(/var.second_variable/), "2")
   // Select third variable on radio
   await userEvent.click(screen.getByLabelText(/True/))
-  // Type fourth variable
-  await userEvent.clear(screen.getByLabelText(/var.fourth_variable/))
-  await userEvent.type(
-    screen.getByLabelText(/var.fourth_variable/),
-    "Fourth value",
-  )
-  // Type fifth variable
-  await userEvent.clear(screen.getByLabelText(/var.fifth_variable/))
-  await userEvent.type(
-    screen.getByLabelText(/var.fifth_variable/),
-    "Fifth value",
-  )
   // Setup the mock for the second template version creation before submit the form
   jest.clearAllMocks()
   jest
@@ -98,9 +84,8 @@ test("Create template with variables", async () => {
     .mockResolvedValue(MockTemplateVersion)
   jest.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate)
   await userEvent.click(
-    screen.getByRole("button", { name: /create template/i }),
+    within(form).getByRole("button", { name: /create template/i }),
   )
-
   await waitFor(() => expect(API.createTemplate).toBeCalledTimes(1))
   expect(router.state.location.pathname).toEqual(
     `/templates/${MockTemplate.name}`,
@@ -115,8 +100,6 @@ test("Create template with variables", async () => {
       { name: "first_variable", value: "First value" },
       { name: "second_variable", value: "2" },
       { name: "third_variable", value: "true" },
-      { name: "fourth_variable", value: "Fourth value" },
-      { name: "fifth_variable", value: "Fifth value" },
     ],
   })
 })

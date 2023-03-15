@@ -2,7 +2,7 @@ import FormControlLabel from "@material-ui/core/FormControlLabel"
 import Radio from "@material-ui/core/Radio"
 import RadioGroup from "@material-ui/core/RadioGroup"
 import { makeStyles } from "@material-ui/core/styles"
-import TextField from "@material-ui/core/TextField"
+import TextField, { TextFieldProps } from "@material-ui/core/TextField"
 import { Stack } from "components/Stack/Stack"
 import { FC, useState } from "react"
 import { TemplateVersionParameter } from "../../api/typesGenerated"
@@ -14,54 +14,48 @@ const isBoolean = (parameter: TemplateVersionParameter) => {
 }
 
 export interface ParameterLabelProps {
-  index: number
+  id: string
   parameter: TemplateVersionParameter
 }
 
-const ParameterLabel: FC<ParameterLabelProps> = ({ index, parameter }) => {
+const ParameterLabel: FC<ParameterLabelProps> = ({ id, parameter }) => {
   const styles = useStyles()
+  const hasDescription = parameter.description && parameter.description !== ""
 
   return (
-    <span>
-      <span className={styles.labelNameWithIcon}>
+    <label htmlFor={id}>
+      <Stack direction="row" alignItems="center">
         {parameter.icon && (
-          <span className={styles.iconWrapper}>
+          <span className={styles.labelIconWrapper}>
             <img
-              className={styles.icon}
+              className={styles.labelIcon}
               alt="Parameter icon"
               src={parameter.icon}
-              style={{
-                pointerEvents: "none",
-              }}
             />
           </span>
         )}
-        <span className={styles.labelName}>
-          <label htmlFor={`rich_parameter_values[${index}].value`}>
-            {parameter.name}
-          </label>
-        </span>
-      </span>
-      {parameter.description && (
-        <span className={styles.labelDescription}>
-          <MemoizedMarkdown>{parameter.description}</MemoizedMarkdown>
-        </span>
-      )}
-      {!parameter.mutable && (
-        <div className={styles.labelImmutable}>
-          This parameter cannot be changed after creating workspace.
-        </div>
-      )}
-    </span>
+
+        {hasDescription ? (
+          <Stack spacing={0.5}>
+            <span className={styles.labelCaption}>{parameter.name}</span>
+            <span className={styles.labelPrimary}>
+              <MemoizedMarkdown>{parameter.description}</MemoizedMarkdown>
+            </span>
+          </Stack>
+        ) : (
+          <span className={styles.labelPrimary}>{parameter.name}</span>
+        )}
+      </Stack>
+    </label>
   )
 }
 
-export interface RichParameterInputProps {
+export type RichParameterInputProps = TextFieldProps & {
   index: number
-  disabled?: boolean
   parameter: TemplateVersionParameter
   onChange: (value: string) => void
   initialValue?: string
+  id: string
 }
 
 export const RichParameterInput: FC<RichParameterInputProps> = ({
@@ -70,16 +64,16 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
   onChange,
   parameter,
   initialValue,
-  ...props
+  ...fieldProps
 }) => {
   const styles = useStyles()
 
   return (
     <Stack direction="column" spacing={0.75}>
-      <ParameterLabel index={index} parameter={parameter} />
+      <ParameterLabel id={fieldProps.id} parameter={parameter} />
       <div className={styles.input}>
         <RichParameterField
-          {...props}
+          {...fieldProps}
           index={index}
           disabled={disabled}
           onChange={onChange}
@@ -140,7 +134,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
             value={option.value}
             control={<Radio color="primary" size="small" disableRipple />}
             label={
-              <span>
+              <span className={styles.radioOption}>
                 {option.icon && (
                   <img
                     className={styles.optionIcon}
@@ -169,6 +163,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
       type={parameter.type}
       size="small"
       disabled={disabled}
+      required={parameter.required}
       placeholder={parameter.default_value}
       value={parameterValue}
       onChange={(event) => {
@@ -179,24 +174,25 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   )
 }
 
-const iconSize = 20
-const optionIconSize = 24
+const optionIconSize = 20
 
 const useStyles = makeStyles((theme) => ({
-  labelName: {
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-    display: "block",
-    marginBottom: theme.spacing(1.0),
-  },
-  labelNameWithIcon: {
+  label: {
     marginBottom: theme.spacing(0.5),
   },
-  labelDescription: {
+  labelCaption: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+  },
+  labelPrimary: {
     fontSize: 16,
     color: theme.palette.text.primary,
-    display: "block",
     fontWeight: 600,
+
+    "& p": {
+      margin: 0,
+      lineHeight: "20px", // Keep the same as ParameterInput
+    },
   },
   labelImmutable: {
     marginTop: theme.spacing(0.5),
@@ -212,18 +208,23 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     gap: theme.spacing(1),
   },
-  iconWrapper: {
-    float: "left",
+  labelIconWrapper: {
+    width: theme.spacing(2.5),
+    height: theme.spacing(2.5),
+    display: "block",
   },
-  icon: {
-    maxHeight: iconSize,
-    width: iconSize,
-    marginRight: theme.spacing(1.0),
+  labelIcon: {
+    width: "100%",
+    height: "100%",
+    objectFit: "contain",
+  },
+  radioOption: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(1.5),
   },
   optionIcon: {
     maxHeight: optionIconSize,
     width: optionIconSize,
-    marginRight: theme.spacing(1.0),
-    float: "left",
   },
 }))

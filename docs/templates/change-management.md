@@ -8,6 +8,8 @@ curl -L https://coder.com/install.sh | sh
 # curl -L https://coder.com/install.sh | sh -s -- --version=0.x
 
 # To create API tokens, use `coder tokens create`.
+# If no `--lifetime` flag is passed during creation, the default token lifetime
+# will be 30 days.
 # These variables are consumed by Coder
 export CODER_URL=https://coder.example.com
 export CODER_SESSION_TOKEN=*****
@@ -26,4 +28,4 @@ coder templates push --yes $CODER_TEMPLATE_NAME \
 > Looking for an example? See how we push our development image
 > and template [via GitHub actions](https://github.com/coder/coder/blob/main/.github/workflows/dogfood.yaml).
 
-> To create tokens with over a 30 day lifetime, [configure Coder server to set a longer max token lifetime](../cli/coder_server#--max-token-lifetime)
+> To cap token lifetime on creation, [configure Coder server to set a shorter max token lifetime](../cli/coder_server#--max-token-lifetime)

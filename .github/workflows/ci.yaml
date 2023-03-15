@@ -186,8 +186,9 @@ jobs:
 
       - name: Install Protoc
         run: |
-          # protoc must be in lockstep with our dogfood Dockerfile
-          # or the version in the comments will differ.
+          # protoc must be in lockstep with our dogfood Dockerfile or the
+          # version in the comments will differ. This is also defined in
+          # security.yaml
           set -x
           cd dogfood
           DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
@@ -511,7 +512,7 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - run: yarn test:ci
+      - run: yarn test:ci --max-workers ${{ steps.cpu-cores.outputs.count }}
         working-directory: site
 
       - uses: codecov/codecov-action@v3

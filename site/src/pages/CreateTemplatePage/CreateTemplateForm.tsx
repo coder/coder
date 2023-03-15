@@ -28,19 +28,70 @@ import * as Yup from "yup"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
 import { LazyIconField } from "components/IconField/LazyIconField"
-import { VariableInput } from "./VariableInput"
+import { Maybe } from "components/Conditionals/Maybe"
+import i18next from "i18next"
+import Link from "@material-ui/core/Link"
 import {
+  HorizontalForm,
+  FormSection,
   FormFields,
   FormFooter,
-  FormSection,
-  HorizontalForm,
-} from "components/HorizontalForm/HorizontalForm"
+} from "components/Form/Form"
 import camelCase from "lodash/camelCase"
 import capitalize from "lodash/capitalize"
+import { VariableInput } from "./VariableInput"
+
+const MAX_DESCRIPTION_CHAR_LIMIT = 128
+const MAX_TTL_DAYS = 7
+
+const TTLHelperText = ({
+  ttl,
+  translationName,
+}: {
+  ttl?: number
+  translationName: string
+}) => {
+  const { t } = useTranslation("createTemplatePage")
+  const count = typeof ttl !== "number" ? 0 : ttl
+  return (
+    // no helper text if ttl is negative - error will show once field is considered touched
+    <Maybe condition={count >= 0}>
+      <span>{t(translationName, { count })}</span>
+    </Maybe>
+  )
+}
 
 const validationSchema = Yup.object({
-  name: nameValidator("Name"),
-  display_name: templateDisplayNameValidator("Display name"),
+  name: nameValidator(
+    i18next.t("form.fields.name", { ns: "createTemplatePage" }),
+  ),
+  display_name: templateDisplayNameValidator(
+    i18next.t("form.fields.displayName", {
+      ns: "createTemplatePage",
+    }),
+  ),
+  description: Yup.string().max(
+    MAX_DESCRIPTION_CHAR_LIMIT,
+    i18next.t("form.error.descriptionMax", { ns: "createTemplatePage" }),
+  ),
+  icon: Yup.string().optional(),
+  default_ttl_hours: Yup.number()
+    .integer()
+    .min(
+      0,
+      i18next.t("form.error.defaultTTLMin", { ns: "templateSettingsPage" }),
+    )
+    .max(
+      24 * MAX_TTL_DAYS /* 7 days in hours */,
+      i18next.t("form.error.defaultTTLMax", { ns: "templateSettingsPage" }),
+    ),
+  max_ttl_hours: Yup.number()
+    .integer()
+    .min(0, i18next.t("form.error.maxTTLMin", { ns: "templateSettingsPage" }))
+    .max(
+      24 * MAX_TTL_DAYS /* 7 days in hours */,
+      i18next.t("form.error.maxTTLMax", { ns: "templateSettingsPage" }),
+    ),
 })
 
 const defaultInitialValues: CreateTemplateData = {
@@ -49,16 +100,29 @@ const defaultInitialValues: CreateTemplateData = {
   description: "",
   icon: "",
   default_ttl_hours: 24,
+  // max_ttl is an enterprise-only feature, and the server ignores the value if
+  // you are not licensed. We hide the form value based on entitlements.
+  max_ttl_hours: 24 * 7,
   allow_user_cancel_workspace_jobs: false,
 }
 
-const getInitialValues = (starterTemplate?: TemplateExample) => {
+const getInitialValues = (
+  canSetMaxTTL: boolean,
+  starterTemplate?: TemplateExample,
+) => {
+  let initialValues = defaultInitialValues
+  if (!canSetMaxTTL) {
+    initialValues = {
+      ...initialValues,
+      max_ttl_hours: 0,
+    }
+  }
   if (!starterTemplate) {
-    return defaultInitialValues
+    return initialValues
   }
 
   return {
-    ...defaultInitialValues,
+    ...initialValues,
     name: starterTemplate.id,
     display_name: starterTemplate.name,
     icon: starterTemplate.icon,
@@ -77,6 +141,7 @@ export interface CreateTemplateFormProps {
   error?: unknown
   jobError?: string
   logs?: ProvisionerJobLog[]
+  canSetMaxTTL: boolean
 }
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
@@ -90,15 +155,17 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   error,
   jobError,
   logs,
+  canSetMaxTTL,
 }) => {
   const styles = useStyles()
   const form = useFormik<CreateTemplateData>({
-    initialValues: getInitialValues(starterTemplate),
+    initialValues: getInitialValues(canSetMaxTTL, starterTemplate),
     validationSchema,
     onSubmit,
   })
   const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, error)
   const { t } = useTranslation("createTemplatePage")
+  const { t: commonT } = useTranslation("common")
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
@@ -175,16 +242,48 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
         description={t("form.schedule.description")}
       >
         <FormFields>
-          <TextField
-            {...getFieldHelpers("default_ttl_hours")}
-            disabled={isSubmitting}
-            onChange={onChangeTrimmed(form)}
-            fullWidth
-            label={t("form.fields.autoStop")}
-            variant="outlined"
-            type="number"
-            helperText={t("form.helperText.autoStop")}
-          />
+          <Stack direction="row" className={styles.ttlFields}>
+            <TextField
+              {...getFieldHelpers(
+                "default_ttl_hours",
+                <TTLHelperText
+                  translationName="form.helperText.defaultTTLHelperText"
+                  ttl={form.values.default_ttl_hours}
+                />,
+              )}
+              disabled={isSubmitting}
+              onChange={onChangeTrimmed(form)}
+              fullWidth
+              label={t("form.fields.autoStop")}
+              variant="outlined"
+              type="number"
+            />
+
+            <TextField
+              {...getFieldHelpers(
+                "max_ttl_hours",
+                canSetMaxTTL ? (
+                  <TTLHelperText
+                    translationName="form.helperText.maxTTLHelperText"
+                    ttl={form.values.max_ttl_hours}
+                  />
+                ) : (
+                  <>
+                    {commonT("licenseFieldTextHelper")}{" "}
+                    <Link href="https://coder.com/docs/v2/latest/enterprise">
+                      {commonT("learnMore")}
+                    </Link>
+                    .
+                  </>
+                ),
+              )}
+              disabled={isSubmitting || !canSetMaxTTL}
+              fullWidth
+              label={t("form.fields.maxTTL")}
+              variant="outlined"
+              type="number"
+            />
+          </Stack>
         </FormFields>
       </FormSection>
 
@@ -318,6 +417,10 @@ const fillNameAndDisplayWithFilename = async (
 }
 
 const useStyles = makeStyles((theme) => ({
+  ttlFields: {
+    width: "100%",
+  },
+
   optionText: {
     fontSize: theme.spacing(2),
     color: theme.palette.text.primary,

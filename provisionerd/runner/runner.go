@@ -30,8 +30,17 @@ import (
 )
 
 const (
-	MissingParameterErrorText = "missing parameter"
+	MissingParameterErrorCode = "MISSING_TEMPLATE_PARAMETER"
+	missingParameterErrorText = "missing parameter"
+
+	RequiredTemplateVariablesErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
+	requiredTemplateVariablesErrorText = "required template variables"
 )
+
+var errorCodes = map[string]string{
+	MissingParameterErrorCode:          missingParameterErrorText,
+	RequiredTemplateVariablesErrorCode: requiredTemplateVariablesErrorText,
+}
 
 var errUpdateSkipped = xerrors.New("update skipped; job complete or failed")
 
@@ -589,7 +598,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	for _, parameterSchema := range parameterSchemas {
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
-			return nil, r.failedJobf("%s: %s", MissingParameterErrorText, parameterSchema.Name)
+			return nil, r.failedJobf("%s: %s", missingParameterErrorText, parameterSchema.Name)
 		}
 	}
 
@@ -770,10 +779,6 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 				return nil, xerrors.New(msgType.Complete.Error)
 			}
 
-			if len(msgType.Complete.Parameters) > 0 && len(values) > 0 {
-				return nil, xerrors.Errorf(`rich parameters can't be used together with legacy parameters, set the coder provider flag "feature_use_managed_variables = true" to enable managed variables`)
-			}
-
 			r.logger.Info(context.Background(), "parse dry-run provision successful",
 				slog.F("resource_count", len(msgType.Complete.Resources)),
 				slog.F("resources", msgType.Complete.Resources),
@@ -880,7 +885,7 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Provision_Response_Log:
-			r.logger.Info(context.Background(), "workspace provision job logged",
+			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "workspace provisioner job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 				slog.F("workspace_build_id", r.job.GetWorkspaceBuild().WorkspaceBuildId),
@@ -895,8 +900,9 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 			})
 		case *sdkproto.Provision_Response_Complete:
 			if msgType.Complete.Error != "" {
-				r.logger.Info(context.Background(), "provision failed; updating state",
+				r.logger.Warn(context.Background(), "provision failed; updating state",
 					slog.F("state_length", len(msgType.Complete.State)),
+					slog.F("error", msgType.Complete.Error),
 				)
 
 				return nil, &proto.FailedJob{
@@ -1051,9 +1057,19 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 }
 
 func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob {
+	message := fmt.Sprintf(format, args...)
+	var code string
+
+	for c, m := range errorCodes {
+		if strings.Contains(message, m) {
+			code = c
+			break
+		}
+	}
 	return &proto.FailedJob{
-		JobId: r.job.JobId,
-		Error: fmt.Sprintf(format, args...),
+		JobId:     r.job.JobId,
+		Error:     message,
+		ErrorCode: code,
 	}
 }
 
@@ -1119,4 +1135,22 @@ func redactVariableValues(variableValues []*sdkproto.VariableValue) []*sdkproto.
 		redacted = append(redacted, v)
 	}
 	return redacted
+}
+
+// logProvisionerJobLog logs a message from the provisioner daemon at the appropriate level.
+func (r *Runner) logProvisionerJobLog(ctx context.Context, logLevel sdkproto.LogLevel, msg string, fields ...slog.Field) {
+	switch logLevel {
+	case sdkproto.LogLevel_TRACE:
+		r.logger.Debug(ctx, msg, fields...) // There's no trace, so we'll just use debug.
+	case sdkproto.LogLevel_DEBUG:
+		r.logger.Debug(ctx, msg, fields...)
+	case sdkproto.LogLevel_INFO:
+		r.logger.Info(ctx, msg, fields...)
+	case sdkproto.LogLevel_WARN:
+		r.logger.Warn(ctx, msg, fields...)
+	case sdkproto.LogLevel_ERROR:
+		r.logger.Error(ctx, msg, fields...)
+	default: // should never happen, but we should not explode either.
+		r.logger.Info(ctx, msg, fields...)
+	}
 }

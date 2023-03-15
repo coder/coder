@@ -350,6 +350,11 @@ func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 }
 
+// SetDERPRegionDialer updates the dialer to use for connecting to DERP regions.
+func (c *Conn) SetDERPRegionDialer(dialer func(ctx context.Context, region *tailcfg.DERPRegion) net.Conn) {
+	c.magicConn.SetDERPRegionDialer(dialer)
+}
+
 func (c *Conn) RemoveAllPeers() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()

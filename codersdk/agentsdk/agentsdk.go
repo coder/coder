@@ -399,7 +399,7 @@ func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-c
 	}
 
 	// Send an empty stat to get the interval.
-	postStat(&Stats{ConnectionsByProto: map[string]int64{}})
+	postStat(&Stats{})
 
 	go func() {
 		defer close(exited)

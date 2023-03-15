@@ -18,12 +18,12 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/searchquery"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
@@ -256,6 +256,11 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if len(data.builds) == 0 || len(data.templates) == 0 {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
 		workspace,
 		data.builds[0],
@@ -360,7 +365,16 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, template.DefaultTTL)
+	templateSchedule, err := (*api.TemplateScheduleStore.Load()).GetTemplateScheduleOptions(ctx, api.Database, template.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template schedule.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, templateSchedule.DefaultTTL, templateSchedule.MaxTTL)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Workspace Time to Shutdown.",
@@ -798,9 +812,15 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	var dbTTL sql.NullInt64
 
 	err := api.Database.InTx(func(s database.Store) error {
+		templateSchedule, err := (*api.TemplateScheduleStore.Load()).GetTemplateScheduleOptions(ctx, s, workspace.TemplateID)
+		if err != nil {
+			return xerrors.Errorf("get template schedule: %w", err)
+		}
+
+		// don't override 0 ttl with template default here because it indicates
+		// disabled auto-stop
 		var validityErr error
-		// don't override 0 ttl with template default here because it indicates disabled auto-stop
-		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0)
+		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0, templateSchedule.MaxTTL)
 		if validityErr != nil {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: validityErr.Error()}
 		}
@@ -905,12 +925,18 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			resp.Message = "Cannot extend workspace: " + err.Error()
 			return err
 		}
+		if !build.MaxDeadline.IsZero() && newDeadline.After(build.MaxDeadline) {
+			code = http.StatusBadRequest
+			resp.Message = "Cannot extend workspace beyond max deadline."
+			return xerrors.New("Cannot extend workspace: deadline is beyond max deadline imposed by template")
+		}
 
 		if _, err := s.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               build.ID,
 			UpdatedAt:        build.UpdatedAt,
 			ProvisionerState: build.ProvisionerState,
 			Deadline:         newDeadline,
+			MaxDeadline:      build.MaxDeadline,
 		}); err != nil {
 			code = http.StatusInternalServerError
 			resp.Message = "Failed to extend workspace deadline."
@@ -1180,14 +1206,25 @@ func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 	return &millis
 }
 
-func validWorkspaceTTLMillis(millis *int64, def int64) (sql.NullInt64, error) {
+func validWorkspaceTTLMillis(millis *int64, templateDefault, templateMax time.Duration) (sql.NullInt64, error) {
+	if templateDefault == 0 && templateMax != 0 || (templateMax > 0 && templateDefault > templateMax) {
+		templateDefault = templateMax
+	}
+
 	if ptr.NilOrZero(millis) {
-		if def == 0 {
+		if templateDefault == 0 {
+			if templateMax > 0 {
+				return sql.NullInt64{
+					Int64: int64(templateMax),
+					Valid: true,
+				}, nil
+			}
+
 			return sql.NullInt64{}, nil
 		}
 
 		return sql.NullInt64{
-			Int64: def,
+			Int64: int64(templateDefault),
 			Valid: true,
 		}, nil
 	}
@@ -1200,6 +1237,10 @@ func validWorkspaceTTLMillis(millis *int64, def int64) (sql.NullInt64, error) {
 
 	if truncated > ttlMax {
 		return sql.NullInt64{}, errTTLMax
+	}
+
+	if templateMax > 0 && truncated > templateMax {
+		return sql.NullInt64{}, xerrors.Errorf("time until shutdown must be less than or equal to the template's maximum TTL %q", templateMax.String())
 	}
 
 	return sql.NullInt64{

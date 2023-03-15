@@ -1,7 +1,8 @@
 import CircularProgress from "@material-ui/core/CircularProgress"
 import ErrorIcon from "@material-ui/icons/ErrorOutline"
-import StopIcon from "@material-ui/icons/PauseOutlined"
+import StopIcon from "@material-ui/icons/StopOutlined"
 import PlayIcon from "@material-ui/icons/PlayArrowOutlined"
+import QueuedIcon from "@material-ui/icons/HourglassEmpty"
 import { WorkspaceBuild } from "api/typesGenerated"
 import { Pill } from "components/Pill/Pill"
 import i18next from "i18next"
@@ -13,7 +14,7 @@ const LoadingIcon: FC = () => {
 }
 
 export const getStatus = (
-  build: WorkspaceBuild,
+  buildStatus: WorkspaceBuild["status"],
 ): {
   type?: PaletteIndex
   text: string
@@ -21,7 +22,7 @@ export const getStatus = (
 } => {
   const { t } = i18next
 
-  switch (build.status) {
+  switch (buildStatus) {
     case undefined:
       return {
         text: t("workspaceStatus.loading", { ns: "common" }),
@@ -85,7 +86,7 @@ export const getStatus = (
       return {
         type: "info",
         text: t("workspaceStatus.pending", { ns: "common" }),
-        icon: <LoadingIcon />,
+        icon: <QueuedIcon />,
       }
   }
 }
@@ -98,6 +99,6 @@ export type WorkspaceStatusBadgeProps = {
 export const WorkspaceStatusBadge: FC<
   PropsWithChildren<WorkspaceStatusBadgeProps>
 > = ({ build, className }) => {
-  const { text, icon, type } = getStatus(build)
+  const { text, icon, type } = getStatus(build.status)
   return <Pill className={className} icon={icon} text={text} type={type} />
 }
