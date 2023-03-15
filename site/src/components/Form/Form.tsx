@@ -136,6 +136,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   formSectionInfo: {
+    width: "100%",
     maxWidth: ({ direction }: FormContextValue = {}) =>
       direction === "horizontal" ? 312 : undefined,
     flexShrink: 0,

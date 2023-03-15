@@ -11,13 +11,13 @@ import { WorkspaceBuildParameter } from "api/typesGenerated"
 const getWorkspaceSettings = async (owner: string, name: string) => {
   const workspace = await getWorkspaceByOwnerAndName(owner, name)
   const latestBuild = workspace.latest_build
-  const [templateVersionParameters, buildParameters] = await Promise.all([
+  const [templateVersionRichParameters, buildParameters] = await Promise.all([
     getTemplateVersionRichParameters(latestBuild.template_version_id),
     getWorkspaceBuildParameters(latestBuild.id),
   ])
   return {
     workspace,
-    templateVersionParameters,
+    templateVersionRichParameters,
     buildParameters,
   }
 }

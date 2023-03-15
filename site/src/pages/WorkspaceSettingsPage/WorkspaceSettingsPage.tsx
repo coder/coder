@@ -1,14 +1,11 @@
 import { getErrorMessage } from "api/errors"
-import { AlertBanner } from "components/AlertBanner/AlertBanner"
-import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 import { displayError } from "components/GlobalSnackbar/utils"
-import { Loader } from "components/Loader/Loader"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { useUpdateWorkspaceSettings, useWorkspaceSettings } from "./data"
-import { WorkspaceSettingsForm } from "./WorkspaceSettingsForm"
+import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView"
 
 const WorkspaceSettingsPage = () => {
   const { t } = useTranslation("workspaceSettingsPage")
@@ -30,31 +27,21 @@ const WorkspaceSettingsPage = () => {
       displayError(getErrorMessage(error, t("defaultErrorMessage"))),
   })
 
-  const onCancel = () => navigate(-1)
-
   return (
     <>
       <Helmet>
         <title>{pageTitle(t("title"))}</title>
       </Helmet>
 
-      <FullPageHorizontalForm title={t("title")} onCancel={onCancel}>
-        <>
-          {error && <AlertBanner error={error} severity="error" />}
-          {isLoading && <Loader />}
-          {settings && (
-            <WorkspaceSettingsForm
-              isSubmitting={updateSettings.isLoading}
-              settings={settings}
-              onCancel={onCancel}
-              error={undefined}
-              onSubmit={(formValues) => {
-                updateSettings.mutate(formValues)
-              }}
-            />
-          )}
-        </>
-      </FullPageHorizontalForm>
+      <WorkspaceSettingsPageView
+        formError={updateSettings.error}
+        loadingError={error}
+        isLoading={isLoading}
+        isSubmitting={updateSettings.isLoading}
+        settings={settings}
+        onCancel={() => navigate(-1)}
+        onSubmit={updateSettings.mutate}
+      />
     </>
   )
 }

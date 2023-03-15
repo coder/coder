@@ -25,7 +25,7 @@ export const WorkspaceSettingsForm: FC<{
   onSubmit: (values: WorkspaceSettingsFormValue) => void
 }> = ({ onCancel, onSubmit, settings, error, isSubmitting }) => {
   const { t } = useTranslation("workspaceSettingsPage")
-  const mutableParameters = settings.templateVersionParameters.filter(
+  const mutableParameters = settings.templateVersionRichParameters.filter(
     (param) => param.mutable,
   )
   const form = useFormik<WorkspaceSettingsFormValue>({
@@ -46,7 +46,7 @@ export const WorkspaceSettingsForm: FC<{
       name: nameValidator(t("nameLabel")),
       rich_parameter_values: useValidationSchemaForRichParameters(
         "createWorkspacePage",
-        settings.templateVersionParameters,
+        settings.templateVersionRichParameters,
       ),
     }),
   })
@@ -79,7 +79,7 @@ export const WorkspaceSettingsForm: FC<{
           description={t("parametersDescription")}
         >
           <FormFields>
-            {settings.templateVersionParameters.map((parameter, index) => (
+            {settings.templateVersionRichParameters.map((parameter, index) => (
               <RichParameterInput
                 {...getFieldHelpers(
                   "rich_parameter_values[" + index + "].value",
