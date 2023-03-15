@@ -4,12 +4,14 @@ import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizont
 import { displayError } from "components/GlobalSnackbar/utils"
 import { Loader } from "components/Loader/Loader"
 import { Helmet } from "react-helmet-async"
+import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { useUpdateWorkspaceSettings, useWorkspaceSettings } from "./data"
 import { WorkspaceSettingsForm } from "./WorkspaceSettingsForm"
 
 const WorkspaceSettingsPage = () => {
+  const { t } = useTranslation("workspaceSettingsPage")
   const { username, workspace: workspaceName } = useParams() as {
     username: string
     workspace: string
@@ -25,9 +27,7 @@ const WorkspaceSettingsPage = () => {
       navigate(`/@${username}/${name}`)
     },
     onError: (error) =>
-      displayError(
-        getErrorMessage(error, "Error on update workspace settings"),
-      ),
+      displayError(getErrorMessage(error, t("defaultErrorMessage"))),
   })
 
   const onCancel = () => navigate(-1)
@@ -35,10 +35,10 @@ const WorkspaceSettingsPage = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle("Workspace Settings")}</title>
+        <title>{pageTitle(t("title"))}</title>
       </Helmet>
 
-      <FullPageHorizontalForm title="Workspace settings" onCancel={onCancel}>
+      <FullPageHorizontalForm title={t("title")} onCancel={onCancel}>
         <>
           {error && <AlertBanner error={error} severity="error" />}
           {isLoading && <Loader />}

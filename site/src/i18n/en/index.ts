@@ -21,6 +21,7 @@ import starterTemplatePage from "./starterTemplatePage.json"
 import createTemplatePage from "./createTemplatePage.json"
 import userSettingsPage from "./userSettingsPage.json"
 import tokensPage from "./tokensPage.json"
+import workspaceSettingsPage from "./workspaceSettingsPage.json"
 
 export const en = {
   common,
@@ -46,4 +47,5 @@ export const en = {
   createTemplatePage,
   userSettingsPage,
   tokensPage,
+  workspaceSettingsPage,
 }

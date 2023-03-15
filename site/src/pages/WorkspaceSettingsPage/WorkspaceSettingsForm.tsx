@@ -24,7 +24,7 @@ export const WorkspaceSettingsForm: FC<{
   onCancel: () => void
   onSubmit: (values: WorkspaceSettingsFormValue) => void
 }> = ({ onCancel, onSubmit, settings, error, isSubmitting }) => {
-  const { t } = useTranslation("createWorkspacePage")
+  const { t } = useTranslation("workspaceSettingsPage")
   const mutableParameters = settings.templateVersionParameters.filter(
     (param) => param.mutable,
   )
@@ -43,7 +43,7 @@ export const WorkspaceSettingsForm: FC<{
       }),
     },
     validationSchema: Yup.object({
-      name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
+      name: nameValidator(t("nameLabel")),
       rich_parameter_values: useValidationSchemaForRichParameters(
         "createWorkspacePage",
         settings.templateVersionParameters,
@@ -58,8 +58,8 @@ export const WorkspaceSettingsForm: FC<{
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
       <FormSection
-        title="General info"
-        description="The template and name of your new workspace."
+        title={t("generalInfo")}
+        description={t("generalInfoDescription")}
       >
         <FormFields>
           <TextField
@@ -75,8 +75,8 @@ export const WorkspaceSettingsForm: FC<{
       </FormSection>
       {mutableParameters.length > 0 && (
         <FormSection
-          title="Parameters"
-          description="The template and name of your new workspace."
+          title={t("parameters")}
+          description={t("parametersDescription")}
         >
           <FormFields>
             {settings.templateVersionParameters.map((parameter, index) => (
