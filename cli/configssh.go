@@ -68,11 +68,17 @@ func (o *sshConfigOptions) addOption(option string) error {
 		return err
 	}
 	for i, existing := range o.sshOptions {
-		// Override existing option.
-		if len(existing) < len(key) {
+		// Override existing option if they share the same key.
+		// This is case-insensitive. Parsing each time might be a little slow,
+		// but it is ok.
+		//
+		existingKey, _, err := codersdk.ParseSSHConfigOption(existing)
+		if err != nil {
+			// Don't mess with original values if there is an error.
+			// This could have come from the user's manual edits.
 			continue
 		}
-		if strings.EqualFold(existing[:len(key)], key) {
+		if strings.EqualFold(existingKey, key) {
 			o.sshOptions[i] = option
 			return nil
 		}
