@@ -30,8 +30,17 @@ import (
 )
 
 const (
-	MissingParameterErrorText = "missing parameter"
+	MissingParameterErrorCode = "MISSING_TEMPLATE_PARAMETER"
+	missingParameterErrorText = "missing parameter"
+
+	RequiredTemplateVariablesErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
+	requiredTemplateVariablesErrorText = "required template variables"
 )
+
+var errorCodes = map[string]string{
+	MissingParameterErrorCode:          missingParameterErrorText,
+	RequiredTemplateVariablesErrorCode: requiredTemplateVariablesErrorText,
+}
 
 var errUpdateSkipped = xerrors.New("update skipped; job complete or failed")
 
@@ -589,7 +598,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 	for _, parameterSchema := range parameterSchemas {
 		_, ok := valueByName[parameterSchema.Name]
 		if !ok {
-			return nil, r.failedJobf("%s: %s", MissingParameterErrorText, parameterSchema.Name)
+			return nil, r.failedJobf("%s: %s", missingParameterErrorText, parameterSchema.Name)
 		}
 	}
 
@@ -768,10 +777,6 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(ctx context.Contex
 				)
 
 				return nil, xerrors.New(msgType.Complete.Error)
-			}
-
-			if len(msgType.Complete.Parameters) > 0 && len(values) > 0 {
-				return nil, xerrors.Errorf(`rich parameters can't be used together with legacy parameters, set the coder provider flag "feature_use_managed_variables = true" to enable managed variables`)
 			}
 
 			r.logger.Info(context.Background(), "parse dry-run provision successful",
@@ -1052,9 +1057,19 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 }
 
 func (r *Runner) failedJobf(format string, args ...interface{}) *proto.FailedJob {
+	message := fmt.Sprintf(format, args...)
+	var code string
+
+	for c, m := range errorCodes {
+		if strings.Contains(message, m) {
+			code = c
+			break
+		}
+	}
 	return &proto.FailedJob{
-		JobId: r.job.JobId,
-		Error: fmt.Sprintf(format, args...),
+		JobId:     r.job.JobId,
+		Error:     message,
+		ErrorCode: code,
 	}
 }
 

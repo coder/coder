@@ -175,6 +175,10 @@ func New(options *Options) *API {
 	if options.AgentInactiveDisconnectTimeout == 0 {
 		// Multiply the update by two to allow for some lag-time.
 		options.AgentInactiveDisconnectTimeout = options.AgentConnectionUpdateFrequency * 2
+		// Set a minimum timeout to avoid disconnecting too soon.
+		if options.AgentInactiveDisconnectTimeout < 2*time.Second {
+			options.AgentInactiveDisconnectTimeout = 2 * time.Second
+		}
 	}
 	if options.AgentStatsRefreshInterval == 0 {
 		options.AgentStatsRefreshInterval = 5 * time.Minute
@@ -236,7 +240,10 @@ func New(options *Options) *API {
 	metricsCache := metricscache.New(
 		options.Database,
 		options.Logger.Named("metrics_cache"),
-		options.MetricsCacheRefreshInterval,
+		metricscache.Intervals{
+			TemplateDAUs:    options.MetricsCacheRefreshInterval,
+			DeploymentStats: options.AgentStatsRefreshInterval,
+		},
 	)
 
 	staticHandler := site.Handler(site.FS(), binFS, binHashes)
@@ -392,16 +399,16 @@ func New(options *Options) *API {
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
 		r.Get("/buildinfo", buildInfo)
+		r.Route("/deployment", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/config", api.deploymentValues)
+			r.Get("/stats", api.deploymentStats)
+		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/", api.handleExperimentsGet)
 		})
 		r.Get("/updatecheck", api.updateCheck)
-		r.Route("/config", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Get("/deployment", api.deploymentValues)
-			r.Get("/tokenconfig", api.tokenConfig)
-		})
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -554,6 +561,7 @@ func New(options *Options) *API {
 						r.Route("/tokens", func(r chi.Router) {
 							r.Post("/", api.postToken)
 							r.Get("/", api.tokens)
+							r.Get("/tokenconfig", api.tokenConfig)
 							r.Route("/{keyname}", func(r chi.Router) {
 								r.Get("/", api.apiKeyByName)
 							})
@@ -792,7 +800,8 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}()
 
 	name := namesgenerator.GetRandomName(1)
-	daemon, err := api.Database.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
+	// nolint:gocritic // Inserting a provisioner daemon is a system function.
+	daemon, err := api.Database.InsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),
 		CreatedAt:    database.Now(),
 		Name:         name,

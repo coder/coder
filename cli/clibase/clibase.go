@@ -5,6 +5,9 @@
 // We will extend its usage to the rest of our application, completely replacing
 // cobra/viper. It's also a candidate to be broken out into its own open-source
 // library, so we avoid deep coupling with Coder concepts.
+//
+// The Command interface is loosely based on the chi middleware pattern and
+// http.Handler/HandlerFunc.
 package clibase
 
 import (

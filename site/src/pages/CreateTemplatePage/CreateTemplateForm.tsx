@@ -31,12 +31,12 @@ import { LazyIconField } from "components/IconField/LazyIconField"
 import { Maybe } from "components/Conditionals/Maybe"
 import i18next from "i18next"
 import Link from "@material-ui/core/Link"
-import { FormFooter } from "components/FormFooter/FormFooter"
 import {
   HorizontalForm,
   FormSection,
   FormFields,
-} from "components/HorizontalForm/HorizontalForm"
+  FormFooter,
+} from "components/Form/Form"
 import camelCase from "lodash/camelCase"
 import capitalize from "lodash/capitalize"
 import { VariableInput } from "./VariableInput"

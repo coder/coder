@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"strconv"
@@ -337,6 +338,37 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
+// @Summary Get token config
+// @ID get-token-config
+// @Security CoderSessionToken
+// @Produce json
+// @Tags General
+// @Success 200 {object} codersdk.TokenConfig
+// @Router /config/tokenconfig [get]
+func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
+	values, err := api.DeploymentValues.WithoutSecrets()
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	var maxTokenLifetime time.Duration
+	// if --max-token-lifetime is unset (default value is math.MaxInt64)
+	// send back a falsy value
+	if values.MaxTokenLifetime.Value() == time.Duration(math.MaxInt64) {
+		maxTokenLifetime = 0
+	} else {
+		maxTokenLifetime = values.MaxTokenLifetime.Value()
+	}
+
+	httpapi.Write(
+		r.Context(), rw, http.StatusOK,
+		codersdk.TokenConfig{
+			MaxTokenLifetime: maxTokenLifetime,
+		},
+	)
 }
 
 // Generates a new ID and secret for an API key.

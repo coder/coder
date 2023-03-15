@@ -1,9 +1,7 @@
 package coderd
 
 import (
-	"math"
 	"net/http"
-	"time"
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
@@ -16,7 +14,7 @@ import (
 // @Produce json
 // @Tags General
 // @Success 200 {object} codersdk.DeploymentConfig
-// @Router /config/deployment [get]
+// @Router /deployment/config [get]
 func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
 		httpapi.Forbidden(rw)
@@ -38,33 +36,26 @@ func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 	)
 }
 
-// @Summary Get token config
-// @ID get-token-config
+// @Summary Get deployment stats
+// @ID get-deployment-stats
 // @Security CoderSessionToken
 // @Produce json
 // @Tags General
-// @Success 200 {object} codersdk.TokenConfig
-// @Router /config/tokenconfig [get]
-func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
-	values, err := api.DeploymentValues.WithoutSecrets()
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
+// @Success 200 {object} codersdk.DeploymentStats
+// @Router /deployment/stats [get]
+func (api *API) deploymentStats(rw http.ResponseWriter, r *http.Request) {
+	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentStats) {
+		httpapi.Forbidden(rw)
 		return
 	}
 
-	var maxTokenLifetime time.Duration
-	// if --max-token-lifetime is unset (default value is math.MaxInt64)
-	// send back a falsy value
-	if values.MaxTokenLifetime.Value() == time.Duration(math.MaxInt64) {
-		maxTokenLifetime = 0
-	} else {
-		maxTokenLifetime = values.MaxTokenLifetime.Value()
+	stats, ok := api.metricsCache.DeploymentStats()
+	if !ok {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Deployment stats are still processing!",
+		})
+		return
 	}
 
-	httpapi.Write(
-		r.Context(), rw, http.StatusOK,
-		codersdk.TokenConfig{
-			MaxTokenLifetime: maxTokenLifetime,
-		},
-	)
+	httpapi.Write(r.Context(), rw, http.StatusOK, stats)
 }

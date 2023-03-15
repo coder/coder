@@ -315,7 +315,8 @@ CREATE TABLE provisioner_jobs (
     input jsonb NOT NULL,
     worker_id uuid,
     file_id uuid NOT NULL,
-    tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL
+    tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL,
+    error_code text
 );
 
 CREATE TABLE replicas (
@@ -352,6 +353,7 @@ CREATE TABLE template_version_parameters (
     validation_error text DEFAULT ''::text NOT NULL,
     validation_monotonic text DEFAULT ''::text NOT NULL,
     required boolean DEFAULT true NOT NULL,
+    legacy_variable_name text DEFAULT ''::text NOT NULL,
     CONSTRAINT validation_monotonic_order CHECK ((validation_monotonic = ANY (ARRAY['increasing'::text, 'decreasing'::text, ''::text])))
 );
 
@@ -380,6 +382,8 @@ COMMENT ON COLUMN template_version_parameters.validation_error IS 'Validation: e
 COMMENT ON COLUMN template_version_parameters.validation_monotonic IS 'Validation: consecutive values preserve the monotonic order';
 
 COMMENT ON COLUMN template_version_parameters.required IS 'Is parameter required?';
+
+COMMENT ON COLUMN template_version_parameters.legacy_variable_name IS 'Name of the legacy variable for migration purposes';
 
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,
@@ -484,7 +488,7 @@ CREATE TABLE workspace_agent_stats (
     rx_bytes bigint DEFAULT 0 NOT NULL,
     tx_packets bigint DEFAULT 0 NOT NULL,
     tx_bytes bigint DEFAULT 0 NOT NULL,
-    connection_median_latency_ms bigint DEFAULT '-1'::integer NOT NULL,
+    connection_median_latency_ms double precision DEFAULT '-1'::integer NOT NULL,
     session_count_vscode bigint DEFAULT 0 NOT NULL,
     session_count_jetbrains bigint DEFAULT 0 NOT NULL,
     session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,

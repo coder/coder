@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net"
 	"testing"
@@ -435,5 +436,32 @@ func ParameterValue(t testing.TB, db database.Store, seed database.ParameterValu
 		DestinationScheme: takeFirst(seed.DestinationScheme, database.ParameterDestinationSchemeNone),
 	})
 	require.NoError(t, err, "insert parameter value")
+	return scheme
+}
+
+func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.WorkspaceAgentStat) database.WorkspaceAgentStat {
+	if orig.ConnectionsByProto == nil {
+		orig.ConnectionsByProto = json.RawMessage([]byte("{}"))
+	}
+	scheme, err := db.InsertWorkspaceAgentStat(context.Background(), database.InsertWorkspaceAgentStatParams{
+		ID:                          takeFirst(orig.ID, uuid.New()),
+		CreatedAt:                   takeFirst(orig.CreatedAt, database.Now()),
+		UserID:                      takeFirst(orig.UserID, uuid.New()),
+		TemplateID:                  takeFirst(orig.TemplateID, uuid.New()),
+		WorkspaceID:                 takeFirst(orig.WorkspaceID, uuid.New()),
+		AgentID:                     takeFirst(orig.AgentID, uuid.New()),
+		ConnectionsByProto:          orig.ConnectionsByProto,
+		ConnectionCount:             takeFirst(orig.ConnectionCount, 0),
+		RxPackets:                   takeFirst(orig.RxPackets, 0),
+		RxBytes:                     takeFirst(orig.RxBytes, 0),
+		TxPackets:                   takeFirst(orig.TxPackets, 0),
+		TxBytes:                     takeFirst(orig.TxBytes, 0),
+		SessionCountVSCode:          takeFirst(orig.SessionCountVSCode, 0),
+		SessionCountJetBrains:       takeFirst(orig.SessionCountJetBrains, 0),
+		SessionCountReconnectingPTY: takeFirst(orig.SessionCountReconnectingPTY, 0),
+		SessionCountSSH:             takeFirst(orig.SessionCountSSH, 0),
+		ConnectionMedianLatencyMS:   takeFirst(orig.ConnectionMedianLatencyMS, 0),
+	})
+	require.NoError(t, err, "insert workspace agent stat")
 	return scheme
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"io"
 	"math"
 	"net/http"
 	"os"
@@ -221,6 +220,7 @@ type OIDCConfig struct {
 	Scopes              clibase.Strings `json:"scopes" typescript:",notnull"`
 	IgnoreEmailVerified clibase.Bool    `json:"ignore_email_verified" typescript:",notnull"`
 	UsernameField       clibase.String  `json:"username_field" typescript:",notnull"`
+	GroupField          clibase.String  `json:"groups_field" typescript:",notnull"`
 	SignInText          clibase.String  `json:"sign_in_text" typescript:",notnull"`
 	IconURL             clibase.URL     `json:"icon_url" typescript:",notnull"`
 }
@@ -312,80 +312,6 @@ func DefaultCacheDir() string {
 	return filepath.Join(defaultCacheDir, "coder")
 }
 
-// The DeploymentGroup variables are used to organize the myriad server options.
-var (
-	DeploymentGroupNetworking = clibase.Group{
-		Name: "Networking",
-	}
-	DeploymentGroupNetworkingTLS = clibase.Group{
-		Parent: &DeploymentGroupNetworking,
-		Name:   "TLS",
-		Description: `Configure TLS / HTTPS for your Coder deployment. If you're running
- Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
- secure link, you can safely ignore these settings.`,
-	}
-	DeploymentGroupNetworkingHTTP = clibase.Group{
-		Parent: &DeploymentGroupNetworking,
-		Name:   "HTTP",
-	}
-	DeploymentGroupNetworkingDERP = clibase.Group{
-		Parent: &DeploymentGroupNetworking,
-		Name:   "DERP",
-		Description: `Most Coder deployments never have to think about DERP because all connections
- between workspaces and users are peer-to-peer. However, when Coder cannot establish
- a peer to peer connection, Coder uses a distributed relay network backed by
- Tailscale and WireGuard.`,
-	}
-	DeploymentGroupIntrospection = clibase.Group{
-		Name:        "Introspection",
-		Description: `Configure logging, tracing, and metrics exporting.`,
-	}
-	DeploymentGroupIntrospectionPPROF = clibase.Group{
-		Parent: &DeploymentGroupIntrospection,
-		Name:   "pprof",
-	}
-	DeploymentGroupIntrospectionPrometheus = clibase.Group{
-		Parent: &DeploymentGroupIntrospection,
-		Name:   "Prometheus",
-	}
-	DeploymentGroupIntrospectionTracing = clibase.Group{
-		Parent: &DeploymentGroupIntrospection,
-		Name:   "Tracing",
-	}
-	DeploymentGroupIntrospectionLogging = clibase.Group{
-		Parent: &DeploymentGroupIntrospection,
-		Name:   "Logging",
-	}
-	DeploymentGroupOAuth2 = clibase.Group{
-		Name:        "OAuth2",
-		Description: `Configure login and user-provisioning with GitHub via oAuth2.`,
-	}
-	DeploymentGroupOAuth2GitHub = clibase.Group{
-		Parent: &DeploymentGroupOAuth2,
-		Name:   "GitHub",
-	}
-	DeploymentGroupOIDC = clibase.Group{
-		Name: "OIDC",
-	}
-	DeploymentGroupTelemetry = clibase.Group{
-		Name: "Telemetry",
-		Description: `Telemetry is critical to our ability to improve Coder. We strip all personal
-information before sending data to our servers. Please only disable telemetry
-when required by your organization's security policy.`,
-	}
-	DeploymentGroupProvisioning = clibase.Group{
-		Name:        "Provisioning",
-		Description: `Tune the behavior of the provisioner, which is responsible for creating, updating, and deleting workspace resources.`,
-	}
-	DeploymentGroupDangerous = clibase.Group{
-		Name: "⚠️ Dangerous",
-	}
-	DeploymentGroupConfig = clibase.Group{
-		Name:        "Config",
-		Description: `Use a YAML configuration file when your server launch become unwieldy.`,
-	}
-)
-
 // DeploymentConfig contains both the deployment values and how they're set.
 //
 // @typescript-ignore DeploymentConfig
@@ -396,6 +322,80 @@ type DeploymentConfig struct {
 }
 
 func (c *DeploymentValues) Options() clibase.OptionSet {
+	// The deploymentGroup variables are used to organize the myriad server options.
+	var (
+		deploymentGroupNetworking = clibase.Group{
+			Name: "Networking",
+		}
+		deploymentGroupNetworkingTLS = clibase.Group{
+			Parent: &deploymentGroupNetworking,
+			Name:   "TLS",
+			Description: `Configure TLS / HTTPS for your Coder deployment. If you're running
+ Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
+ secure link, you can safely ignore these settings.`,
+		}
+		deploymentGroupNetworkingHTTP = clibase.Group{
+			Parent: &deploymentGroupNetworking,
+			Name:   "HTTP",
+		}
+		deploymentGroupNetworkingDERP = clibase.Group{
+			Parent: &deploymentGroupNetworking,
+			Name:   "DERP",
+			Description: `Most Coder deployments never have to think about DERP because all connections
+ between workspaces and users are peer-to-peer. However, when Coder cannot establish
+ a peer to peer connection, Coder uses a distributed relay network backed by
+ Tailscale and WireGuard.`,
+		}
+		deploymentGroupIntrospection = clibase.Group{
+			Name:        "Introspection",
+			Description: `Configure logging, tracing, and metrics exporting.`,
+		}
+		deploymentGroupIntrospectionPPROF = clibase.Group{
+			Parent: &deploymentGroupIntrospection,
+			Name:   "pprof",
+		}
+		deploymentGroupIntrospectionPrometheus = clibase.Group{
+			Parent: &deploymentGroupIntrospection,
+			Name:   "Prometheus",
+		}
+		deploymentGroupIntrospectionTracing = clibase.Group{
+			Parent: &deploymentGroupIntrospection,
+			Name:   "Tracing",
+		}
+		deploymentGroupIntrospectionLogging = clibase.Group{
+			Parent: &deploymentGroupIntrospection,
+			Name:   "Logging",
+		}
+		deploymentGroupOAuth2 = clibase.Group{
+			Name:        "OAuth2",
+			Description: `Configure login and user-provisioning with GitHub via oAuth2.`,
+		}
+		deploymentGroupOAuth2GitHub = clibase.Group{
+			Parent: &deploymentGroupOAuth2,
+			Name:   "GitHub",
+		}
+		deploymentGroupOIDC = clibase.Group{
+			Name: "OIDC",
+		}
+		deploymentGroupTelemetry = clibase.Group{
+			Name: "Telemetry",
+			Description: `Telemetry is critical to our ability to improve Coder. We strip all personal
+information before sending data to our servers. Please only disable telemetry
+when required by your organization's security policy.`,
+		}
+		deploymentGroupProvisioning = clibase.Group{
+			Name:        "Provisioning",
+			Description: `Tune the behavior of the provisioner, which is responsible for creating, updating, and deleting workspace resources.`,
+		}
+		deploymentGroupDangerous = clibase.Group{
+			Name: "⚠️ Dangerous",
+		}
+		deploymentGroupConfig = clibase.Group{
+			Name:        "Config",
+			Description: `Use a YAML configuration file when your server launch become unwieldy.`,
+		}
+	)
+
 	httpAddress := clibase.Option{
 		Name:        "HTTP Address",
 		Description: "HTTP bind address of the server. Unset to disable the HTTP endpoint.",
@@ -403,7 +403,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 		Env:         "HTTP_ADDRESS",
 		Default:     "127.0.0.1:3000",
 		Value:       &c.HTTPAddress,
-		Group:       &DeploymentGroupNetworkingHTTP,
+		Group:       &deploymentGroupNetworkingHTTP,
 		YAML:        "httpAddress",
 	}
 	tlsBindAddress := clibase.Option{
@@ -413,7 +413,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 		Env:         "TLS_ADDRESS",
 		Default:     "127.0.0.1:3443",
 		Value:       &c.TLS.Address,
-		Group:       &DeploymentGroupNetworkingTLS,
+		Group:       &deploymentGroupNetworkingTLS,
 		YAML:        "address",
 	}
 	redirectToAccessURL := clibase.Option{
@@ -422,7 +422,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 		Flag:        "redirect-to-access-url",
 		Env:         "REDIRECT_TO_ACCESS_URL",
 		Value:       &c.RedirectToAccessURL,
-		Group:       &DeploymentGroupNetworking,
+		Group:       &deploymentGroupNetworking,
 		YAML:        "redirectToAccessURL",
 	}
 	return clibase.OptionSet{
@@ -432,7 +432,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Value:       &c.AccessURL,
 			Flag:        "access-url",
 			Env:         "ACCESS_URL",
-			Group:       &DeploymentGroupNetworking,
+			Group:       &deploymentGroupNetworking,
 			YAML:        "accessURL",
 		},
 		{
@@ -441,7 +441,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "wildcard-access-url",
 			Env:         "WILDCARD_ACCESS_URL",
 			Value:       &c.WildcardAccessURL,
-			Group:       &DeploymentGroupNetworking,
+			Group:       &deploymentGroupNetworking,
 			YAML:        "wildcardAccessURL",
 		},
 		redirectToAccessURL,
@@ -469,7 +469,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 				httpAddress,
 				tlsBindAddress,
 			},
-			Group: &DeploymentGroupNetworking,
+			Group: &deploymentGroupNetworking,
 		},
 		// TLS settings
 		{
@@ -478,7 +478,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "tls-enable",
 			Env:         "TLS_ENABLE",
 			Value:       &c.TLS.Enable,
-			Group:       &DeploymentGroupNetworkingTLS,
+			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "enable",
 		},
 		{
@@ -490,7 +490,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Hidden:      true,
 			Value:       &c.TLS.RedirectHTTP,
 			UseInstead:  []clibase.Option{redirectToAccessURL},
-			Group:       &DeploymentGroupNetworkingTLS,
+			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "redirectHTTP",
 		},
 		{
@@ -499,7 +499,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "tls-cert-file",
 			Env:         "TLS_CERT_FILE",
 			Value:       &c.TLS.CertFiles,
-			Group:       &DeploymentGroupNetworkingTLS,
+			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "certFiles",
 		},
 		{
@@ -508,7 +508,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "tls-client-ca-file",
 			Env:         "TLS_CLIENT_CA_FILE",
 			Value:       &c.TLS.ClientCAFile,
-			Group:       &DeploymentGroupNetworkingTLS,
+			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientCAFile",
 		},
 		{
@@ -518,7 +518,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "TLS_CLIENT_AUTH",
 			Default:     "none",
 			Value:       &c.TLS.ClientAuth,
-			Group:       &DeploymentGroupNetworkingTLS,
+			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientAuth",
 		},
 		{
@@ -527,7 +527,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "tls-key-file",
 			Env:         "TLS_KEY_FILE",
 			Value:       &c.TLS.KeyFiles,
-			Group:       &DeploymentGroupNetworkingTLS,
+			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "keyFiles",
 		},
 		{
@@ -537,7 +537,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "TLS_MIN_VERSION",
 			Default:     "tls12",
 			Value:       &c.TLS.MinVersion,
-			Group:       &DeploymentGroupNetworkingTLS,
+			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "minVersion",
 		},
 		{
@@ -546,7 +546,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "tls-client-cert-file",
 			Env:         "TLS_CLIENT_CERT_FILE",
 			Value:       &c.TLS.ClientCertFile,
-			Group:       &DeploymentGroupNetworkingTLS,
+			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientCertFile",
 		},
 		{
@@ -555,7 +555,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "tls-client-key-file",
 			Env:         "TLS_CLIENT_KEY_FILE",
 			Value:       &c.TLS.ClientKeyFile,
-			Group:       &DeploymentGroupNetworkingTLS,
+			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientKeyFile",
 		},
 		// Derp settings
@@ -566,7 +566,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "DERP_SERVER_ENABLE",
 			Default:     "true",
 			Value:       &c.DERP.Server.Enable,
-			Group:       &DeploymentGroupNetworkingDERP,
+			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "enable",
 		},
 		{
@@ -576,7 +576,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "DERP_SERVER_REGION_ID",
 			Default:     "999",
 			Value:       &c.DERP.Server.RegionID,
-			Group:       &DeploymentGroupNetworkingDERP,
+			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionID",
 		},
 		{
@@ -586,7 +586,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "DERP_SERVER_REGION_CODE",
 			Default:     "coder",
 			Value:       &c.DERP.Server.RegionCode,
-			Group:       &DeploymentGroupNetworkingDERP,
+			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionCode",
 		},
 		{
@@ -596,7 +596,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "DERP_SERVER_REGION_NAME",
 			Default:     "Coder Embedded Relay",
 			Value:       &c.DERP.Server.RegionName,
-			Group:       &DeploymentGroupNetworkingDERP,
+			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionName",
 		},
 		{
@@ -606,7 +606,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "DERP_SERVER_STUN_ADDRESSES",
 			Default:     "stun.l.google.com:19302",
 			Value:       &c.DERP.Server.STUNAddresses,
-			Group:       &DeploymentGroupNetworkingDERP,
+			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "stunAddresses",
 		},
 		{
@@ -616,7 +616,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "DERP_SERVER_RELAY_URL",
 			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
 			Value:       &c.DERP.Server.RelayURL,
-			Group:       &DeploymentGroupNetworkingDERP,
+			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "relayURL",
 		},
 		{
@@ -625,7 +625,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "derp-config-url",
 			Env:         "DERP_CONFIG_URL",
 			Value:       &c.DERP.Config.URL,
-			Group:       &DeploymentGroupNetworkingDERP,
+			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "url",
 		},
 		{
@@ -634,7 +634,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "derp-config-path",
 			Env:         "DERP_CONFIG_PATH",
 			Value:       &c.DERP.Config.Path,
-			Group:       &DeploymentGroupNetworkingDERP,
+			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "configPath",
 		},
 		// TODO: support Git Auth settings.
@@ -645,7 +645,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "prometheus-enable",
 			Env:         "PROMETHEUS_ENABLE",
 			Value:       &c.Prometheus.Enable,
-			Group:       &DeploymentGroupIntrospectionPrometheus,
+			Group:       &deploymentGroupIntrospectionPrometheus,
 			YAML:        "enable",
 		},
 		{
@@ -655,7 +655,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "PROMETHEUS_ADDRESS",
 			Default:     "127.0.0.1:2112",
 			Value:       &c.Prometheus.Address,
-			Group:       &DeploymentGroupIntrospectionPrometheus,
+			Group:       &deploymentGroupIntrospectionPrometheus,
 			YAML:        "address",
 		},
 		// Pprof settings
@@ -665,7 +665,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "pprof-enable",
 			Env:         "PPROF_ENABLE",
 			Value:       &c.Pprof.Enable,
-			Group:       &DeploymentGroupIntrospectionPPROF,
+			Group:       &deploymentGroupIntrospectionPPROF,
 			YAML:        "enable",
 		},
 		{
@@ -675,7 +675,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "PPROF_ADDRESS",
 			Default:     "127.0.0.1:6060",
 			Value:       &c.Pprof.Address,
-			Group:       &DeploymentGroupIntrospectionPPROF,
+			Group:       &deploymentGroupIntrospectionPPROF,
 			YAML:        "address",
 		},
 		// oAuth settings
@@ -685,7 +685,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "oauth2-github-client-id",
 			Env:         "OAUTH2_GITHUB_CLIENT_ID",
 			Value:       &c.OAuth2.Github.ClientID,
-			Group:       &DeploymentGroupOAuth2GitHub,
+			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "clientID",
 		},
 		{
@@ -695,7 +695,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "OAUTH2_GITHUB_CLIENT_SECRET",
 			Value:       &c.OAuth2.Github.ClientSecret,
 			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
-			Group:       &DeploymentGroupOAuth2GitHub,
+			Group:       &deploymentGroupOAuth2GitHub,
 		},
 		{
 			Name:        "OAuth2 GitHub Allowed Orgs",
@@ -703,7 +703,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "oauth2-github-allowed-orgs",
 			Env:         "OAUTH2_GITHUB_ALLOWED_ORGS",
 			Value:       &c.OAuth2.Github.AllowedOrgs,
-			Group:       &DeploymentGroupOAuth2GitHub,
+			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "allowedOrgs",
 		},
 		{
@@ -712,7 +712,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "oauth2-github-allowed-teams",
 			Env:         "OAUTH2_GITHUB_ALLOWED_TEAMS",
 			Value:       &c.OAuth2.Github.AllowedTeams,
-			Group:       &DeploymentGroupOAuth2GitHub,
+			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "allowedTeams",
 		},
 		{
@@ -721,7 +721,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "oauth2-github-allow-signups",
 			Env:         "OAUTH2_GITHUB_ALLOW_SIGNUPS",
 			Value:       &c.OAuth2.Github.AllowSignups,
-			Group:       &DeploymentGroupOAuth2GitHub,
+			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "allowSignups",
 		},
 		{
@@ -730,7 +730,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "oauth2-github-allow-everyone",
 			Env:         "OAUTH2_GITHUB_ALLOW_EVERYONE",
 			Value:       &c.OAuth2.Github.AllowEveryone,
-			Group:       &DeploymentGroupOAuth2GitHub,
+			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "allowEveryone",
 		},
 		{
@@ -739,7 +739,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "oauth2-github-enterprise-base-url",
 			Env:         "OAUTH2_GITHUB_ENTERPRISE_BASE_URL",
 			Value:       &c.OAuth2.Github.EnterpriseBaseURL,
-			Group:       &DeploymentGroupOAuth2GitHub,
+			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "enterpriseBaseURL",
 		},
 		// OIDC settings.
@@ -750,7 +750,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "OIDC_ALLOW_SIGNUPS",
 			Default:     "true",
 			Value:       &c.OIDC.AllowSignups,
-			Group:       &DeploymentGroupOIDC,
+			Group:       &deploymentGroupOIDC,
 			YAML:        "allowSignups",
 		},
 		{
@@ -759,7 +759,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "oidc-client-id",
 			Env:         "OIDC_CLIENT_ID",
 			Value:       &c.OIDC.ClientID,
-			Group:       &DeploymentGroupOIDC,
+			Group:       &deploymentGroupOIDC,
 			YAML:        "clientID",
 		},
 		{
@@ -769,7 +769,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "OIDC_CLIENT_SECRET",
 			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
 			Value:       &c.OIDC.ClientSecret,
-			Group:       &DeploymentGroupOIDC,
+			Group:       &deploymentGroupOIDC,
 		},
 		{
 			Name:        "OIDC Email Domain",
@@ -777,7 +777,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "oidc-email-domain",
 			Env:         "OIDC_EMAIL_DOMAIN",
 			Value:       &c.OIDC.EmailDomain,
-			Group:       &DeploymentGroupOIDC,
+			Group:       &deploymentGroupOIDC,
 			YAML:        "emailDomain",
 		},
 		{
@@ -786,7 +786,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "oidc-issuer-url",
 			Env:         "OIDC_ISSUER_URL",
 			Value:       &c.OIDC.IssuerURL,
-			Group:       &DeploymentGroupOIDC,
+			Group:       &deploymentGroupOIDC,
 			YAML:        "issuerURL",
 		},
 		{
@@ -796,7 +796,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "OIDC_SCOPES",
 			Default:     strings.Join([]string{oidc.ScopeOpenID, "profile", "email"}, ","),
 			Value:       &c.OIDC.Scopes,
-			Group:       &DeploymentGroupOIDC,
+			Group:       &deploymentGroupOIDC,
 			YAML:        "scopes",
 		},
 		{
@@ -806,7 +806,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "OIDC_IGNORE_EMAIL_VERIFIED",
 			Default:     "false",
 			Value:       &c.OIDC.IgnoreEmailVerified,
-			Group:       &DeploymentGroupOIDC,
+			Group:       &deploymentGroupOIDC,
 			YAML:        "ignoreEmailVerified",
 		},
 		{
@@ -816,8 +816,23 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "OIDC_USERNAME_FIELD",
 			Default:     "preferred_username",
 			Value:       &c.OIDC.UsernameField,
-			Group:       &DeploymentGroupOIDC,
+			Group:       &deploymentGroupOIDC,
 			YAML:        "usernameField",
+		},
+		{
+			Name:        "OIDC Group Field",
+			Description: "Change the OIDC default 'groups' claim field. By default, will be 'groups' if present in the oidc scopes argument.",
+			Flag:        "oidc-group-field",
+			Env:         "OIDC_GROUP_FIELD",
+			// This value is intentionally blank. If this is empty, then OIDC group
+			// behavior is disabled. If 'oidc-scopes' contains 'groups', then the
+			// default value will be 'groups'. If the user wants to use a different claim
+			// such as 'memberOf', they can override the default 'groups' claim value
+			// that comes from the oidc scopes.
+			Default: "",
+			Value:   &c.OIDC.GroupField,
+			Group:   &deploymentGroupOIDC,
+			YAML:    "groupField",
 		},
 		{
 			Name:        "OpenID Connect sign in text",
@@ -826,7 +841,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "OIDC_SIGN_IN_TEXT",
 			Default:     "OpenID Connect",
 			Value:       &c.OIDC.SignInText,
-			Group:       &DeploymentGroupOIDC,
+			Group:       &deploymentGroupOIDC,
 			YAML:        "signInText",
 		},
 		{
@@ -835,7 +850,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "oidc-icon-url",
 			Env:         "OIDC_ICON_URL",
 			Value:       &c.OIDC.IconURL,
-			Group:       &DeploymentGroupOIDC,
+			Group:       &deploymentGroupOIDC,
 			YAML:        "iconURL",
 		},
 		// Telemetry settings
@@ -846,7 +861,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "TELEMETRY_ENABLE",
 			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
 			Value:       &c.Telemetry.Enable,
-			Group:       &DeploymentGroupTelemetry,
+			Group:       &deploymentGroupTelemetry,
 			YAML:        "enable",
 		},
 		{
@@ -856,7 +871,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "TELEMETRY_TRACE",
 			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
 			Value:       &c.Telemetry.Trace,
-			Group:       &DeploymentGroupTelemetry,
+			Group:       &deploymentGroupTelemetry,
 			YAML:        "trace",
 		},
 		{
@@ -867,7 +882,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Hidden:      true,
 			Default:     "https://telemetry.coder.com",
 			Value:       &c.Telemetry.URL,
-			Group:       &DeploymentGroupTelemetry,
+			Group:       &deploymentGroupTelemetry,
 			YAML:        "url",
 		},
 		// Trace settings
@@ -877,7 +892,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "trace",
 			Env:         "TRACE_ENABLE",
 			Value:       &c.Trace.Enable,
-			Group:       &DeploymentGroupIntrospectionTracing,
+			Group:       &deploymentGroupIntrospectionTracing,
 			YAML:        "enable",
 		},
 		{
@@ -887,7 +902,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "TRACE_HONEYCOMB_API_KEY",
 			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
 			Value:       &c.Trace.HoneycombAPIKey,
-			Group:       &DeploymentGroupIntrospectionTracing,
+			Group:       &deploymentGroupIntrospectionTracing,
 		},
 		{
 			Name:        "Capture Logs in Traces",
@@ -895,7 +910,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "trace-logs",
 			Env:         "TRACE_LOGS",
 			Value:       &c.Trace.CaptureLogs,
-			Group:       &DeploymentGroupIntrospectionTracing,
+			Group:       &deploymentGroupIntrospectionTracing,
 			YAML:        "captureLogs",
 		},
 		// Provisioner settings
@@ -906,7 +921,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "PROVISIONER_DAEMONS",
 			Default:     "3",
 			Value:       &c.Provisioner.Daemons,
-			Group:       &DeploymentGroupProvisioning,
+			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemons",
 		},
 		{
@@ -916,7 +931,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "PROVISIONER_DAEMON_POLL_INTERVAL",
 			Default:     time.Second.String(),
 			Value:       &c.Provisioner.DaemonPollInterval,
-			Group:       &DeploymentGroupProvisioning,
+			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemonPollInterval",
 		},
 		{
@@ -926,7 +941,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "PROVISIONER_DAEMON_POLL_JITTER",
 			Default:     (100 * time.Millisecond).String(),
 			Value:       &c.Provisioner.DaemonPollJitter,
-			Group:       &DeploymentGroupProvisioning,
+			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemonPollJitter",
 		},
 		{
@@ -936,7 +951,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "PROVISIONER_FORCE_CANCEL_INTERVAL",
 			Default:     (10 * time.Minute).String(),
 			Value:       &c.Provisioner.ForceCancelInterval,
-			Group:       &DeploymentGroupProvisioning,
+			Group:       &deploymentGroupProvisioning,
 			YAML:        "forceCancelInterval",
 		},
 		// RateLimit settings
@@ -969,37 +984,37 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			FlagShorthand: "v",
 			Default:       "false",
 			Value:         &c.Verbose,
-			Group:         &DeploymentGroupIntrospectionLogging,
+			Group:         &deploymentGroupIntrospectionLogging,
 			YAML:          "verbose",
 		},
 		{
 			Name:        "Human Log Location",
 			Description: "Output human-readable logs to a given file.",
 			Flag:        "log-human",
-			Env:         "LOG_HUMAN",
+			Env:         "LOGGING_HUMAN",
 			Default:     "/dev/stderr",
 			Value:       &c.Logging.Human,
-			Group:       &DeploymentGroupIntrospectionLogging,
+			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "humanPath",
 		},
 		{
 			Name:        "JSON Log Location",
 			Description: "Output JSON logs to a given file.",
 			Flag:        "log-json",
-			Env:         "LOG_JSON",
+			Env:         "LOGGING_JSON",
 			Default:     "",
 			Value:       &c.Logging.JSON,
-			Group:       &DeploymentGroupIntrospectionLogging,
+			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "jsonPath",
 		},
 		{
 			Name:        "Stackdriver Log Location",
 			Description: "Output Stackdriver compatible logs to a given file.",
 			Flag:        "log-stackdriver",
-			Env:         "LOG_STACKDRIVER",
+			Env:         "LOGGING_STACKDRIVER",
 			Default:     "",
 			Value:       &c.Logging.Stackdriver,
-			Group:       &DeploymentGroupIntrospectionLogging,
+			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "stackdriverPath",
 		},
 		// ☢️ Dangerous settings
@@ -1010,7 +1025,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "DANGEROUS_ALLOW_PATH_APP_SHARING",
 			Default:     "false",
 			Value:       &c.Dangerous.AllowPathAppSharing,
-			Group:       &DeploymentGroupDangerous,
+			Group:       &deploymentGroupDangerous,
 		},
 		{
 			Name:        "DANGEROUS: Allow Site Owners to Access Path Apps",
@@ -1019,7 +1034,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS",
 			Default:     "false",
 			Value:       &c.Dangerous.AllowPathAppSiteOwnerAccess,
-			Group:       &DeploymentGroupDangerous,
+			Group:       &deploymentGroupDangerous,
 		},
 		// Misc. settings
 		{
@@ -1048,7 +1063,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "MAX_TOKEN_LIFETIME",
 			Default:     time.Duration(math.MaxInt64).String(),
 			Value:       &c.MaxTokenLifetime,
-			Group:       &DeploymentGroupNetworkingHTTP,
+			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "maxTokenLifetime",
 		},
 		{
@@ -1066,7 +1081,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "PROXY_TRUSTED_HEADERS",
 			Description: "Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For",
 			Value:       &c.ProxyTrustedHeaders,
-			Group:       &DeploymentGroupNetworking,
+			Group:       &deploymentGroupNetworking,
 			YAML:        "proxyTrustedHeaders",
 		},
 		{
@@ -1075,7 +1090,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "PROXY_TRUSTED_ORIGINS",
 			Description: "Origin addresses to respect \"proxy-trusted-headers\". e.g. 192.168.1.0/24",
 			Value:       &c.ProxyTrustedOrigins,
-			Group:       &DeploymentGroupNetworking,
+			Group:       &deploymentGroupNetworking,
 			YAML:        "proxyTrustedOrigins",
 		},
 		{
@@ -1110,7 +1125,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "secure-auth-cookie",
 			Env:         "SECURE_AUTH_COOKIE",
 			Value:       &c.SecureAuthCookie,
-			Group:       &DeploymentGroupNetworking,
+			Group:       &deploymentGroupNetworking,
 			YAML:        "secureAuthCookie",
 		},
 		{
@@ -1122,7 +1137,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:    "strict-transport-security",
 			Env:     "STRICT_TRANSPORT_SECURITY",
 			Value:   &c.StrictTransportSecurity,
-			Group:   &DeploymentGroupNetworkingTLS,
+			Group:   &deploymentGroupNetworkingTLS,
 			YAML:    "strictTransportSecurity",
 		},
 		{
@@ -1132,7 +1147,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:  "strict-transport-security-options",
 			Env:   "STRICT_TRANSPORT_SECURITY_OPTIONS",
 			Value: &c.StrictTransportSecurityOptions,
-			Group: &DeploymentGroupNetworkingTLS,
+			Group: &deploymentGroupNetworkingTLS,
 			YAML:  "strictTransportSecurityOptions",
 		},
 		{
@@ -1159,7 +1174,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Flag:        "agent-stats-refresh-interval",
 			Env:         "AGENT_STATS_REFRESH_INTERVAL",
 			Hidden:      true,
-			Default:     (10 * time.Minute).String(),
+			Default:     (30 * time.Second).String(),
 			Value:       &c.AgentStatRefreshInterval,
 		},
 		{
@@ -1189,7 +1204,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "BROWSER_ONLY",
 			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
 			Value:       &c.BrowserOnly,
-			Group:       &DeploymentGroupNetworking,
+			Group:       &deploymentGroupNetworking,
 			YAML:        "browserOnly",
 		},
 		{
@@ -1217,7 +1232,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "SESSION_DURATION",
 			Default:     (24 * time.Hour).String(),
 			Value:       &c.SessionDuration,
-			Group:       &DeploymentGroupNetworkingHTTP,
+			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "sessionDuration",
 		},
 		{
@@ -1227,7 +1242,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "DISABLE_SESSION_EXPIRY_REFRESH",
 			Default:     "false",
 			Value:       &c.DisableSessionExpiryRefresh,
-			Group:       &DeploymentGroupNetworkingHTTP,
+			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "disableSessionExpiryRefresh",
 		},
 		{
@@ -1237,7 +1252,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:         "DISABLE_PASSWORD_AUTH",
 			Default:     "false",
 			Value:       &c.DisablePasswordAuth,
-			Group:       &DeploymentGroupNetworkingHTTP,
+			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "disablePasswordAuth",
 		},
 		{
@@ -1247,7 +1262,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Env:           "CONFIG_PATH",
 			FlagShorthand: "c",
 			Hidden:        true,
-			Group:         &DeploymentGroupConfig,
+			Group:         &deploymentGroupConfig,
 			Value:         &c.Config,
 		},
 		{
@@ -1256,7 +1271,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 Write out the current server configuration to the path specified by --config.`,
 			Flag:   "write-config",
 			Env:    "WRITE_CONFIG",
-			Group:  &DeploymentGroupConfig,
+			Group:  &deploymentGroupConfig,
 			Hidden: true,
 			Value:  &c.WriteConfig,
 		},
@@ -1323,7 +1338,7 @@ func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
 
 // DeploymentValues returns the deployment config for the coder server.
 func (c *Client) DeploymentValues(ctx context.Context) (*DeploymentConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/config/deployment", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/config", nil)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}
@@ -1333,22 +1348,27 @@ func (c *Client) DeploymentValues(ctx context.Context) (*DeploymentConfig, error
 		return nil, ReadBodyAsError(res)
 	}
 
-	byt, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, xerrors.Errorf("read response: %w", err)
-	}
-
 	conf := &DeploymentValues{}
 	resp := &DeploymentConfig{
 		Values:  conf,
 		Options: conf.Options(),
 	}
+	return resp, json.NewDecoder(res.Body).Decode(resp)
+}
 
-	err = json.Unmarshal(byt, resp)
+func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/stats", nil)
 	if err != nil {
-		return nil, xerrors.Errorf("decode response: %w\n%s", err, byt)
+		return DeploymentStats{}, xerrors.Errorf("execute request: %w", err)
 	}
-	return resp, nil
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return DeploymentStats{}, ReadBodyAsError(res)
+	}
+
+	var df DeploymentStats
+	return df, json.NewDecoder(res.Body).Decode(&df)
 }
 
 type AppearanceConfig struct {
@@ -1521,4 +1541,42 @@ func (c *Client) AppHost(ctx context.Context) (AppHostResponse, error) {
 
 	var host AppHostResponse
 	return host, json.NewDecoder(res.Body).Decode(&host)
+}
+
+type WorkspaceConnectionLatencyMS struct {
+	P50 float64
+	P95 float64
+}
+
+type WorkspaceDeploymentStats struct {
+	Pending  int64 `json:"pending"`
+	Building int64 `json:"building"`
+	Running  int64 `json:"running"`
+	Failed   int64 `json:"failed"`
+	Stopped  int64 `json:"stopped"`
+
+	ConnectionLatencyMS WorkspaceConnectionLatencyMS `json:"connection_latency_ms"`
+	RxBytes             int64                        `json:"rx_bytes"`
+	TxBytes             int64                        `json:"tx_bytes"`
+}
+
+type SessionCountDeploymentStats struct {
+	VSCode          int64 `json:"vscode"`
+	SSH             int64 `json:"ssh"`
+	JetBrains       int64 `json:"jetbrains"`
+	ReconnectingPTY int64 `json:"reconnecting_pty"`
+}
+
+type DeploymentStats struct {
+	// AggregatedFrom is the time in which stats are aggregated from.
+	// This might be back in time a specific duration or interval.
+	AggregatedFrom time.Time `json:"aggregated_from" format:"date-time"`
+	// CollectedAt is the time in which stats are collected at.
+	CollectedAt time.Time `json:"collected_at" format:"date-time"`
+	// NextUpdateAt is the time when the next batch of stats will
+	// be updated.
+	NextUpdateAt time.Time `json:"next_update_at" format:"date-time"`
+
+	Workspaces   WorkspaceDeploymentStats    `json:"workspaces"`
+	SessionCount SessionCountDeploymentStats `json:"session_count"`
 }

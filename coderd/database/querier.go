@@ -53,6 +53,8 @@ type sqlcQuerier interface {
 	GetDERPMeshKey(ctx context.Context) (string, error)
 	GetDeploymentDAUs(ctx context.Context) ([]GetDeploymentDAUsRow, error)
 	GetDeploymentID(ctx context.Context) (string, error)
+	GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentStatsRow, error)
+	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
 	GetFileByHashAndCreator(ctx context.Context, arg GetFileByHashAndCreatorParams) (File, error)
 	GetFileByID(ctx context.Context, id uuid.UUID) (File, error)
 	// This will never count deleted users.
@@ -119,6 +121,7 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error)
+	GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsRow, error)
 	GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgent, error)
 	GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error)
 	GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg GetWorkspaceAppByAgentIDAndSlugParams) (WorkspaceApp, error)

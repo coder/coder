@@ -9,11 +9,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.12"
+      version = "~> 0.6.17"
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 2.20.2"
+      version = "~> 3.0.1"
     }
   }
 }
@@ -27,26 +27,33 @@ provider "docker" {
 data "coder_workspace" "me" {
 }
 
-variable "docker_image" {
-  default = "codercom/enterprise-base:ubuntu"
+data "coder_parameter" "docker_image" {
+  name        = "What Docker image would you like to use for your workspace?"
+  description = "The Docker image will be used to build your workspace."
+  default     = "codercom/enterprise-base:ubuntu"
+  icon        = "/icon/docker.png"
+  type        = "string"
+  mutable     = false
 }
 
-variable "dotfiles_uri" {
+data "coder_parameter" "dotfiles_uri" {
+  name        = "What dotfiles repo would you like to use for your workspace?"
   description = <<-EOF
   Dotfiles repo URI (optional)
 
   see https://dotfiles.github.io
   EOF
   default     = ""
+  type        = "string"
+  mutable     = true
 }
 
 resource "coder_agent" "main" {
-  arch = data.coder_provisioner.me.arch
-  os   = "linux"
-
+  arch                   = data.coder_provisioner.me.arch
+  os                     = "linux"
   login_before_ready     = false
   startup_script_timeout = 180
-  env                    = { "DOTFILES_URI" = var.dotfiles_uri != "" ? var.dotfiles_uri : null }
+  env                    = { "DOTFILES_URI" = data.coder_parameter.dotfiles_uri.value != "" ? data.coder_parameter.dotfiles_uri.value : null }
   startup_script         = <<-EOT
     set -e
     if [ -n "$DOTFILES_URI" ]; then
@@ -85,7 +92,7 @@ resource "docker_volume" "home_volume" {
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = var.docker_image
+  image = data.coder_parameter.docker_image.value
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
@@ -127,6 +134,6 @@ resource "coder_metadata" "container_info" {
 
   item {
     key   = "image"
-    value = var.docker_image
+    value = data.coder_parameter.docker_image.value
   }
 }

@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"sort"
 	"strconv"
@@ -60,7 +61,7 @@ const (
 
 	// MagicSSHSessionTypeEnvironmentVariable is used to track the purpose behind an SSH connection.
 	// This is stripped from any commands being executed, and is counted towards connection stats.
-	MagicSSHSessionTypeEnvironmentVariable = "__CODER_SSH_SESSION_TYPE"
+	MagicSSHSessionTypeEnvironmentVariable = "CODER_SSH_SESSION_TYPE"
 	// MagicSSHSessionTypeVSCode is set in the SSH config by the VS Code extension to identify itself.
 	MagicSSHSessionTypeVSCode = "vscode"
 	// MagicSSHSessionTypeJetBrains is set in the SSH config by the JetBrains extension to identify itself.
@@ -76,6 +77,8 @@ type Options struct {
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
+	AgentPorts             map[int]string
+	SSHMaxTimeout          time.Duration
 }
 
 type Client interface {
@@ -122,9 +125,9 @@ func New(options Options) io.Closer {
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
 		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
-		// TODO: This is a temporary hack to make tests not flake.
-		// @kylecarbs has a better solution in here: https://github.com/coder/coder/pull/6469
-		connStatsChan: make(chan *agentsdk.Stats, 8),
+		ignorePorts:            options.AgentPorts,
+		connStatsChan:          make(chan *agentsdk.Stats, 1),
+		sshMaxTimeout:          options.SSHMaxTimeout,
 	}
 	a.init(ctx)
 	return a
@@ -137,6 +140,10 @@ type agent struct {
 	filesystem    afero.Fs
 	logDir        string
 	tempDir       string
+	// ignorePorts tells the api handler which ports to ignore when
+	// listing all listening ports. This is helpful to hide ports that
+	// are used by the agent, that the user does not care about.
+	ignorePorts map[int]string
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -148,9 +155,10 @@ type agent struct {
 
 	envVars map[string]string
 	// metadata is atomic because values can change after reconnection.
-	metadata     atomic.Value
-	sessionToken atomic.Pointer[string]
-	sshServer    *ssh.Server
+	metadata      atomic.Value
+	sessionToken  atomic.Pointer[string]
+	sshServer     *ssh.Server
+	sshMaxTimeout time.Duration
 
 	lifecycleUpdate   chan struct{}
 	lifecycleReported chan codersdk.WorkspaceAgentLifecycle
@@ -159,11 +167,8 @@ type agent struct {
 
 	network       *tailnet.Conn
 	connStatsChan chan *agentsdk.Stats
+	latestStat    atomic.Pointer[agentsdk.Stats]
 
-	statRxPackets            atomic.Int64
-	statRxBytes              atomic.Int64
-	statTxPackets            atomic.Int64
-	statTxBytes              atomic.Int64
 	connCountVSCode          atomic.Int64
 	connCountJetBrains       atomic.Int64
 	connCountReconnectingPTY atomic.Int64
@@ -778,6 +783,7 @@ func (a *agent) init(ctx context.Context) {
 				_ = session.Exit(1)
 			},
 		},
+		MaxTimeout: a.sshMaxTimeout,
 	}
 
 	go a.runLoop(ctx)
@@ -905,10 +911,13 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	switch magicType {
 	case MagicSSHSessionTypeVSCode:
 		a.connCountVSCode.Add(1)
+		defer a.connCountVSCode.Add(-1)
 	case MagicSSHSessionTypeJetBrains:
 		a.connCountJetBrains.Add(1)
+		defer a.connCountJetBrains.Add(-1)
 	case "":
 		a.connCountSSHSession.Add(1)
+		defer a.connCountSSHSession.Add(-1)
 	default:
 		a.logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("type", magicType))
 	}
@@ -1012,6 +1021,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	defer conn.Close()
 
 	a.connCountReconnectingPTY.Add(1)
+	defer a.connCountReconnectingPTY.Add(-1)
 
 	connectionID := uuid.NewString()
 	logger = logger.With(slog.F("id", msg.ID), slog.F("connection_id", connectionID))
@@ -1210,18 +1220,15 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 			ConnectionCount:    int64(len(networkStats)),
 			ConnectionsByProto: map[string]int64{},
 		}
-		// Tailscale resets counts on every report!
-		// We'd rather have these compound, like Linux does!
 		for conn, counts := range networkStats {
 			stats.ConnectionsByProto[conn.Proto.String()]++
-			stats.RxBytes = a.statRxBytes.Add(int64(counts.RxBytes))
-			stats.RxPackets = a.statRxPackets.Add(int64(counts.RxPackets))
-			stats.TxBytes = a.statTxBytes.Add(int64(counts.TxBytes))
-			stats.TxPackets = a.statTxPackets.Add(int64(counts.TxPackets))
+			stats.RxBytes += int64(counts.RxBytes)
+			stats.RxPackets += int64(counts.RxPackets)
+			stats.TxBytes += int64(counts.TxBytes)
+			stats.TxPackets += int64(counts.TxPackets)
 		}
 
-		// Tailscale's connection stats are not cumulative, but it makes no sense to make
-		// ours temporary.
+		// The count of active sessions.
 		stats.SessionCountSSH = a.connCountSSHSession.Load()
 		stats.SessionCountVSCode = a.connCountVSCode.Load()
 		stats.SessionCountJetBrains = a.connCountJetBrains.Load()
@@ -1270,10 +1277,16 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		// Convert from microseconds to milliseconds.
 		stats.ConnectionMedianLatencyMS /= 1000
 
+		lastStat := a.latestStat.Load()
+		if lastStat != nil && reflect.DeepEqual(lastStat, stats) {
+			a.logger.Info(ctx, "skipping stat because nothing changed")
+			return
+		}
+		a.latestStat.Store(stats)
+
 		select {
 		case a.connStatsChan <- stats:
-		default:
-			a.logger.Warn(ctx, "network stat dropped")
+		case <-a.closed:
 		}
 	}
 

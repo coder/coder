@@ -4,7 +4,7 @@ import {
   FormSection,
   FormFooter,
   HorizontalForm,
-} from "components/HorizontalForm/HorizontalForm"
+} from "components/Form/Form"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import { useTranslation } from "react-i18next"
 import { onChangeTrimmed, getFormHelpers } from "util/formUtils"
@@ -64,7 +64,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
       <FormSection
         title={t("createToken.nameSection.title")}
         description={t("createToken.nameSection.description")}
-        className={styles.formSection}
       >
         <FormFields>
           <TextField
@@ -89,7 +88,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
               })
             : t("createToken.lifetimeSection.emptyDescription")
         }
-        className={styles.formSection}
       >
         <FormFields>
           <TextField
@@ -163,9 +161,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 }
 
 const useStyles = makeStyles((theme) => ({
-  formSection: {
-    gap: 0,
-  },
   expField: {
     marginLeft: theme.spacing(2),
   },

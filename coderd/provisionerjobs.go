@@ -201,7 +201,9 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
-	resources, err := api.Database.GetWorkspaceResourcesByJobID(ctx, job.ID)
+
+	// nolint:gocritic // GetWorkspaceResourcesByJobID is a system function.
+	resources, err := api.Database.GetWorkspaceResourcesByJobID(dbauthz.AsSystemRestricted(ctx), job.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
@@ -216,7 +218,9 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	for _, resource := range resources {
 		resourceIDs = append(resourceIDs, resource.ID)
 	}
-	resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+
+	// nolint:gocritic // GetWorkspaceAgentsByResourceIDs is a system function.
+	resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
@@ -231,6 +235,8 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	for _, agent := range resourceAgents {
 		resourceAgentIDs = append(resourceAgentIDs, agent.ID)
 	}
+
+	// nolint:gocritic // GetWorkspaceAppsByAgentIDs is a system function.
 	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(ctx, resourceAgentIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -242,7 +248,9 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
-	resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(ctx, resourceIDs)
+
+	// nolint:gocritic // GetWorkspaceResourceMetadataByResourceIDs is a system function.
+	resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace metadata.",
@@ -317,6 +325,7 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 		ID:        provisionerJob.ID,
 		CreatedAt: provisionerJob.CreatedAt,
 		Error:     provisionerJob.Error.String,
+		ErrorCode: codersdk.JobErrorCode(provisionerJob.ErrorCode.String),
 		FileID:    provisionerJob.FileID,
 		Tags:      provisionerJob.Tags,
 	}
