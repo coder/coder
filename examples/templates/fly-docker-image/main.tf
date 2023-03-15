@@ -94,13 +94,15 @@ The Fly.io API token to use for deploying the workspace. You can generate one by
 $ flyctl auth token
 EOF
   sensitive   = true
-  default     = ""
 }
 
 variable "fly_org" {
   type        = string
-  default     = "coder-409"
-  description = "The Fly.io organization to deploy the workspace in"
+  description = <<-EOF
+The Fly.io organization slug to deploy the workspace in. List organizations by running:
+
+$ flyctl orgs list
+EOF
 }
 
 data "coder_parameter" "docker-image" {
