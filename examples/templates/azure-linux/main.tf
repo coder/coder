@@ -153,7 +153,7 @@ data "coder_parameter" "instance_type" {
   name        = "Instance Type"
   description = "What instance type should your workspace use?"
   default     = "Standard_B4ms"
-  icon        = "/icons/azure.png"
+  icon        = "/icon/azure.png"
   mutable     = false
   option {
     name  = "Standard_B1ms (1 vCPU, 2 GiB RAM)"
@@ -206,7 +206,7 @@ data "coder_parameter" "home_size" {
   description = "How large would you like your home volume to be (in GB)?"
   default     = 20
   type        = "number"
-  icon        = "/icons/azure.png"
+  icon        = "/icon/azure.png"
   mutable     = false
   validation {
     min = 1
