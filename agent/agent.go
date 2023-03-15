@@ -78,7 +78,7 @@ type Options struct {
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
 	AgentPorts             map[int]string
-	SshMaxTimeout          time.Duration
+	SSHMaxTimeout          time.Duration
 }
 
 type Client interface {
@@ -127,7 +127,7 @@ func New(options Options) io.Closer {
 		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
 		ignorePorts:            options.AgentPorts,
 		connStatsChan:          make(chan *agentsdk.Stats, 1),
-		sshMaxTimeout:          options.SshMaxTimeout,
+		sshMaxTimeout:          options.SSHMaxTimeout,
 	}
 	a.init(ctx)
 	return a

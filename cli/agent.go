@@ -210,7 +210,7 @@ func workspaceAgent() *cobra.Command {
 					"GIT_ASKPASS": executablePath,
 				},
 				AgentPorts:    agentPorts,
-				SshMaxTimeout: sshMaxTimeout,
+				SSHMaxTimeout: sshMaxTimeout,
 			})
 			<-ctx.Done()
 			return closer.Close()
