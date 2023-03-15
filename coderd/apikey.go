@@ -349,13 +349,6 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.TokenConfig
 // @Router /users/{user}/keys/tokens/tokenconfig [get]
 func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
-
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
 	values, err := api.DeploymentValues.WithoutSecrets()
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

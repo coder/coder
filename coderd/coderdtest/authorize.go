@@ -99,6 +99,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertObject: rbac.ResourceAPIKey,
 			AssertAction: rbac.ActionRead,
 		},
+		"GET:/api/v2/users/{user}/keys/tokens/tokenconfig": {NoAuthorize: true},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
