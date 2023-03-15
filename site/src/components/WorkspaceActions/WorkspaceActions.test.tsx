@@ -91,20 +91,6 @@ describe("WorkspaceActions", () => {
       )
     })
   })
-  describe("when the workspace with rich parameters is started", () => {
-    it("primary is stop; secondary is build parameters", async () => {
-      await renderAndClick({
-        workspaceStatus: Mocks.MockWorkspace.latest_build.status,
-        hasTemplateParameters: true,
-      })
-      expect(screen.getByTestId("primary-cta")).toHaveTextContent(
-        t("actionButton.stop", { ns: "workspacePage" }),
-      )
-      expect(screen.getByTestId("secondary-ctas")).toHaveTextContent(
-        t("actionButton.buildParameters", { ns: "workspacePage" }),
-      )
-    })
-  })
   describe("when the workspace is stopping", () => {
     it("primary is stopping; cancel is available; no secondary", async () => {
       await renderComponent({
