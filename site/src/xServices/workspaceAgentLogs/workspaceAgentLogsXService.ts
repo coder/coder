@@ -8,8 +8,8 @@ export const workspaceAgentLogsMachine = createMachine(
     id: "workspaceAgentLogsMachine",
     schema: {
       events: {} as {
-        type: "ADD_STARTUP_LOG"
-        log: TypesGen.WorkspaceAgentStartupLog
+        type: "ADD_STARTUP_LOGS"
+        logs: TypesGen.WorkspaceAgentStartupLog[]
       },
       context: {} as {
         agentID: string
@@ -45,8 +45,8 @@ export const workspaceAgentLogsMachine = createMachine(
       },
     },
     on: {
-      ADD_STARTUP_LOG: {
-        actions: "addStartupLog",
+      ADD_STARTUP_LOGS: {
+        actions: "addStartupLogs",
       },
     },
   },
@@ -65,7 +65,7 @@ export const workspaceAgentLogsMachine = createMachine(
           )
           socket.binaryType = "blob"
           socket.addEventListener("message", (event) => {
-            callback({ type: "ADD_STARTUP_LOG", log: JSON.parse(event.data) })
+            callback({ type: "ADD_STARTUP_LOGS", logs: JSON.parse(event.data) })
           })
           socket.addEventListener("error", () => {
             reject(new Error("socket errored"))
@@ -80,10 +80,10 @@ export const workspaceAgentLogsMachine = createMachine(
       assignStartupLogs: assign({
         startupLogs: (_, { data }) => data,
       }),
-      addStartupLog: assign({
+      addStartupLogs: assign({
         startupLogs: (context, event) => {
           const previousLogs = context.startupLogs ?? []
-          return [...previousLogs, event.log]
+          return [...previousLogs, ...event.logs]
         },
       }),
     },

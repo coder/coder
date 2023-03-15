@@ -274,7 +274,6 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 		CreatedAfter: lowestID - 1,
 	})
 	if err != nil {
-
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to marshal startup logs notify message",
 			Detail:  err.Error(),
@@ -374,16 +373,11 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close() // Also closes conn.
 
-	logIdsDone := make(map[int64]bool)
-
 	// The Go stdlib JSON encoder appends a newline character after message write.
 	encoder := json.NewEncoder(wsNetConn)
-	for _, provisionerJobLog := range logs {
-		logIdsDone[provisionerJobLog.ID] = true
-		err = encoder.Encode(convertWorkspaceAgentStartupLog(provisionerJobLog))
-		if err != nil {
-			return
-		}
+	err = encoder.Encode(convertWorkspaceAgentStartupLogs(logs))
+	if err != nil {
+		return
 	}
 	if agent.LifecycleState == database.WorkspaceAgentLifecycleStateReady {
 		// The startup script has finished running, so we can close the connection.
@@ -391,15 +385,16 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	}
 
 	var (
-		bufferedLogs  = make(chan *database.WorkspaceAgentStartupLog, 128)
+		// It's not impossible that
+		bufferedLogs  = make(chan []database.WorkspaceAgentStartupLog, 128)
 		endOfLogs     atomic.Bool
 		lastSentLogID atomic.Int64
 	)
 
-	sendLog := func(log *database.WorkspaceAgentStartupLog) {
+	sendLogs := func(logs []database.WorkspaceAgentStartupLog) {
 		select {
-		case bufferedLogs <- log:
-			lastSentLogID.Store(log.ID)
+		case bufferedLogs <- logs:
+			lastSentLogID.Store(logs[len(logs)-1].ID)
 		default:
 			logger.Warn(ctx, "workspace agent startup log overflowing channel")
 		}
@@ -427,13 +422,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 					logger.Warn(ctx, "failed to get workspace agent startup logs after", slog.Error(err))
 					return
 				}
-				for _, log := range logs {
-					if endOfLogs.Load() {
-						return
-					}
-					log := log
-					sendLog(&log)
-				}
+				sendLogs(logs)
 			}
 
 			if jlMsg.EndOfLogs {
@@ -446,10 +435,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 					logger.Warn(ctx, "get workspace agent startup logs after", slog.Error(err))
 					return
 				}
-				for _, log := range logs {
-					log := log
-					sendLog(&log)
-				}
+				sendLogs(logs)
 				bufferedLogs <- nil
 			}
 		},
@@ -468,19 +454,15 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 		case <-ctx.Done():
 			logger.Debug(context.Background(), "job logs context canceled")
 			return
-		case log, ok := <-bufferedLogs:
+		case logs, ok := <-bufferedLogs:
 			// A nil log is sent when complete!
-			if !ok || log == nil {
+			if !ok || logs == nil {
 				logger.Debug(context.Background(), "reached the end of published logs")
 				return
 			}
-			if logIdsDone[log.ID] {
-				logger.Debug(ctx, "subscribe duplicated log")
-			} else {
-				err = encoder.Encode(convertWorkspaceAgentStartupLog(*log))
-				if err != nil {
-					return
-				}
+			err = encoder.Encode(convertWorkspaceAgentStartupLogs(logs))
+			if err != nil {
+				return
 			}
 		}
 	}

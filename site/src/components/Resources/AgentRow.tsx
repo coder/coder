@@ -17,6 +17,8 @@ import { VSCodeDesktopButton } from "components/VSCodeDesktopButton/VSCodeDeskto
 import { useMachine } from "@xstate/react"
 import { workspaceAgentLogsMachine } from "xServices/workspaceAgentLogs/workspaceAgentLogsXService"
 import { Line, Logs } from "components/Logs/Logs"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism"
 
 export interface AgentRowProps {
   agent: WorkspaceAgent
@@ -44,6 +46,8 @@ export const AgentRow: FC<AgentRowProps> = ({
   const [logsMachine] = useMachine(workspaceAgentLogsMachine, {
     context: { agentID: agent.id },
   })
+
+  console.log("drac", darcula)
 
   return (
     <Stack direction="column" key={agent.id} spacing={0}>
@@ -149,8 +153,18 @@ export const AgentRow: FC<AgentRowProps> = ({
       </Stack>
 
       <div>
+        Startup Script
+        <SyntaxHighlighter
+          style={darcula}
+          language="bash"
+          useInlineStyles={false}
+          codeTagProps={{ style: {} }}
+        >
+          {String(agent.startup_script)}
+        </SyntaxHighlighter>
         {logsMachine.context.startupLogs && (
           <Logs
+            className={styles.agentStartupLogs}
             lines={logsMachine.context.startupLogs.map(
               (log): Line => ({
                 level: "info",
@@ -194,5 +208,11 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 14,
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(0.5),
+  },
+
+  agentStartupLogs: {
+    maxHeight: 200,
+    display: "flex",
+    flexDirection: "column-reverse",
   },
 }))
