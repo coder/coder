@@ -1320,7 +1320,7 @@ when required by your organization's security policy.`,
 		{
 			Name: "CLI SSH Config Options",
 			Description: "These cli config options will override the default ssh config options. " +
-				"Provide options in key=value format seperated by commas." +
+				"Provide options in key=value format separated by commas." +
 				"Using this incorrectly can break ssh to your deployment. Use cautiously.",
 			Flag:   "cli-ssh-options",
 			Env:    "CLI_SSH_OPTIONS",
