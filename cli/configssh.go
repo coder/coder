@@ -254,6 +254,13 @@ func configSSH() *cobra.Command {
 			if usePreviousOpts && lastConfig != nil {
 				sshConfigOpts = *lastConfig
 			} else if lastConfig != nil && !sshConfigOpts.equal(*lastConfig) {
+				for _, v := range sshConfigOpts.sshOptions {
+					// If the user passes an invalid option, we should catch
+					// this early.
+					if _, _, err := codersdk.ParseSSHConfigOption(v); err != nil {
+						return xerrors.Errorf("invalid option from flag: %w", err)
+					}
+				}
 				newOpts := sshConfigOpts.asList()
 				newOptsMsg := "\n\n  New options: none"
 				if len(newOpts) > 0 {
