@@ -3610,7 +3610,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required FROM template_version_parameters WHERE template_version_id = $1
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name FROM template_version_parameters WHERE template_version_id = $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -3637,6 +3637,7 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.ValidationError,
 			&i.ValidationMonotonic,
 			&i.Required,
+			&i.LegacyVariableName,
 		); err != nil {
 			return nil, err
 		}
@@ -3667,7 +3668,8 @@ INSERT INTO
         validation_max,
         validation_error,
         validation_monotonic,
-        required
+        required,
+        legacy_variable_name
     )
 VALUES
     (
@@ -3684,8 +3686,9 @@ VALUES
         $11,
         $12,
         $13,
-        $14
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required
+        $14,
+        $15
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name
 `
 
 type InsertTemplateVersionParameterParams struct {
@@ -3703,6 +3706,7 @@ type InsertTemplateVersionParameterParams struct {
 	ValidationError     string          `db:"validation_error" json:"validation_error"`
 	ValidationMonotonic string          `db:"validation_monotonic" json:"validation_monotonic"`
 	Required            bool            `db:"required" json:"required"`
+	LegacyVariableName  string          `db:"legacy_variable_name" json:"legacy_variable_name"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -3721,6 +3725,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.ValidationError,
 		arg.ValidationMonotonic,
 		arg.Required,
+		arg.LegacyVariableName,
 	)
 	var i TemplateVersionParameter
 	err := row.Scan(
@@ -3738,6 +3743,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.ValidationError,
 		&i.ValidationMonotonic,
 		&i.Required,
+		&i.LegacyVariableName,
 	)
 	return i, err
 }
@@ -5649,6 +5655,7 @@ WITH agent_stats AS (
 		WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT
+		a.agent_id,
 		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
 		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
@@ -5658,7 +5665,7 @@ WITH agent_stats AS (
 		FROM workspace_agent_stats WHERE created_at > $1
 	) AS a WHERE a.rn = 1 GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
 )
-SELECT user_id, agent_id, workspace_id, template_id, aggregated_from, workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats, latest_agent_stats
+SELECT user_id, agent_stats.agent_id, workspace_id, template_id, aggregated_from, workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, latest_agent_stats.agent_id, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id
 `
 
 type GetWorkspaceAgentStatsRow struct {
@@ -5671,6 +5678,7 @@ type GetWorkspaceAgentStatsRow struct {
 	WorkspaceTxBytes             int64     `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
 	WorkspaceConnectionLatency50 float64   `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
 	WorkspaceConnectionLatency95 float64   `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	AgentID_2                    uuid.UUID `db:"agent_id_2" json:"agent_id_2"`
 	SessionCountVSCode           int64     `db:"session_count_vscode" json:"session_count_vscode"`
 	SessionCountSSH              int64     `db:"session_count_ssh" json:"session_count_ssh"`
 	SessionCountJetBrains        int64     `db:"session_count_jetbrains" json:"session_count_jetbrains"`
@@ -5696,6 +5704,7 @@ func (q *sqlQuerier) GetWorkspaceAgentStats(ctx context.Context, createdAt time.
 			&i.WorkspaceTxBytes,
 			&i.WorkspaceConnectionLatency50,
 			&i.WorkspaceConnectionLatency95,
+			&i.AgentID_2,
 			&i.SessionCountVSCode,
 			&i.SessionCountSSH,
 			&i.SessionCountJetBrains,

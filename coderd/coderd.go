@@ -175,6 +175,10 @@ func New(options *Options) *API {
 	if options.AgentInactiveDisconnectTimeout == 0 {
 		// Multiply the update by two to allow for some lag-time.
 		options.AgentInactiveDisconnectTimeout = options.AgentConnectionUpdateFrequency * 2
+		// Set a minimum timeout to avoid disconnecting too soon.
+		if options.AgentInactiveDisconnectTimeout < 2*time.Second {
+			options.AgentInactiveDisconnectTimeout = 2 * time.Second
+		}
 	}
 	if options.AgentStatsRefreshInterval == 0 {
 		options.AgentStatsRefreshInterval = 5 * time.Minute
