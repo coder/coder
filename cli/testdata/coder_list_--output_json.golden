@@ -39,6 +39,7 @@
       "reason": "initiator",
       "resources": [],
       "deadline": "[timestamp]",
+      "max_deadline": null,
       "status": "running",
       "daily_cost": 0
     },

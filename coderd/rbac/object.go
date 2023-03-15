@@ -142,9 +142,13 @@ var (
 		Type: "license",
 	}
 
-	// ResourceDeploymentConfig
-	ResourceDeploymentConfig = Object{
+	// ResourceDeploymentValues
+	ResourceDeploymentValues = Object{
 		Type: "deployment_config",
+	}
+
+	ResourceDeploymentStats = Object{
+		Type: "deployment_stats",
 	}
 
 	ResourceReplicas = Object{
@@ -154,6 +158,11 @@ var (
 	// ResourceDebugInfo controls access to the debug routes `/api/v2/debug/*`.
 	ResourceDebugInfo = Object{
 		Type: "debug_info",
+	}
+
+	// ResourceSystem is a pseudo-resource only used for system-level actions.
+	ResourceSystem = Object{
+		Type: "system",
 	}
 )
 

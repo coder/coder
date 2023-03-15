@@ -13,7 +13,9 @@ INSERT INTO
         validation_min,
         validation_max,
         validation_error,
-        validation_monotonic
+        validation_monotonic,
+        required,
+        legacy_variable_name
     )
 VALUES
     (
@@ -29,7 +31,9 @@ VALUES
         $10,
         $11,
         $12,
-        $13
+        $13,
+        $14,
+        $15
     ) RETURNING *;
 
 -- name: GetTemplateVersionParameters :many

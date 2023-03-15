@@ -2,6 +2,7 @@ import Button from "@material-ui/core/Button"
 import DeleteOutlined from "@material-ui/icons/DeleteOutlined"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
+import CodeOutlined from "@material-ui/icons/CodeOutlined"
 import { AuthorizationResponse, Template } from "api/typesGenerated"
 import { Avatar } from "components/Avatar/Avatar"
 import { Maybe } from "components/Conditionals/Maybe"
@@ -19,6 +20,7 @@ import { Margins } from "components/Margins/Margins"
 
 const Language = {
   editButton: "Edit",
+  variablesButton: "Variables",
   settingsButton: "Settings",
   createButton: "Create workspace",
   deleteButton: "Delete",
@@ -34,6 +36,19 @@ const TemplateSettingsButton: FC<{ templateName: string }> = ({
     startIcon={<SettingsOutlined />}
   >
     {Language.settingsButton}
+  </Button>
+)
+
+const TemplateVariablesButton: FC<{ templateName: string }> = ({
+  templateName,
+}) => (
+  <Button
+    variant="outlined"
+    component={RouterLink}
+    to={`/templates/${templateName}/variables`}
+    startIcon={<CodeOutlined />}
+  >
+    {Language.variablesButton}
   </Button>
 )
 
@@ -80,6 +95,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
                 onClick={deleteTemplate.openDeleteConfirmation}
               />
               <TemplateSettingsButton templateName={template.name} />
+              <TemplateVariablesButton templateName={template.name} />
             </Maybe>
             <CreateWorkspaceButton templateName={template.name} />
           </>

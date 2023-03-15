@@ -80,11 +80,13 @@ describe("WorkspaceBuildParametersPage", () => {
 
     const firstParameter = await screen.findByLabelText(
       MockTemplateVersionParameter1.name,
+      { exact: false },
     )
     expect(firstParameter).toBeDefined()
 
     const secondParameter = await screen.findByLabelText(
       MockTemplateVersionParameter2.name,
+      { exact: false },
     )
     expect(secondParameter).toBeDefined()
   })
@@ -113,6 +115,7 @@ describe("WorkspaceBuildParametersPage", () => {
 
     const secondParameterField = await screen.findByLabelText(
       MockTemplateVersionParameter2.name,
+      { exact: false },
     )
     expect(secondParameterField).toBeDefined()
 
@@ -151,6 +154,7 @@ describe("WorkspaceBuildParametersPage", () => {
 
     const secondParameterField = await screen.findByLabelText(
       MockTemplateVersionParameter2.name,
+      { exact: false },
     )
     expect(secondParameterField).toBeDefined()
 
@@ -189,6 +193,7 @@ describe("WorkspaceBuildParametersPage", () => {
 
     const secondParameterField = await screen.findByLabelText(
       MockTemplateVersionParameter5.name,
+      { exact: false },
     )
     expect(secondParameterField).toBeDefined()
 

@@ -1,4 +1,4 @@
-import { AppearanceConfig } from "api/typesGenerated"
+import { UpdateAppearanceConfig } from "api/typesGenerated"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
@@ -15,7 +15,7 @@ const AppearanceSettingsPage: FC = () => {
     entitlements.features["appearance"].entitlement !== "not_entitled"
 
   const updateAppearance = (
-    newConfig: Partial<AppearanceConfig>,
+    newConfig: Partial<UpdateAppearanceConfig>,
     preview: boolean,
   ) => {
     const newAppearance = {

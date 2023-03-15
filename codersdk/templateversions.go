@@ -24,6 +24,13 @@ type TemplateVersion struct {
 	CreatedBy      User           `json:"created_by"`
 }
 
+type TemplateVersionGitAuth struct {
+	ID              string      `json:"id"`
+	Type            GitProvider `json:"type"`
+	AuthenticateURL string      `json:"authenticate_url"`
+	Authenticated   bool        `json:"authenticated"`
+}
+
 type ValidationMonotonicOrder string
 
 const (
@@ -46,6 +53,8 @@ type TemplateVersionParameter struct {
 	ValidationMin        int32                            `json:"validation_min,omitempty"`
 	ValidationMax        int32                            `json:"validation_max,omitempty"`
 	ValidationMonotonic  ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
+	Required             bool                             `json:"required"`
+	LegacyVariableName   string                           `json:"legacy_variable_name,omitempty"`
 }
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.
@@ -106,6 +115,20 @@ func (c *Client) TemplateVersionRichParameters(ctx context.Context, version uuid
 	}
 	var params []TemplateVersionParameter
 	return params, json.NewDecoder(res.Body).Decode(&params)
+}
+
+// TemplateVersionGitAuth returns git authentication for the requested template version.
+func (c *Client) TemplateVersionGitAuth(ctx context.Context, version uuid.UUID) ([]TemplateVersionGitAuth, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/gitauth", version), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var gitAuth []TemplateVersionGitAuth
+	return gitAuth, json.NewDecoder(res.Body).Decode(&gitAuth)
 }
 
 // TemplateVersionSchema returns schemas for a template version by ID.

@@ -64,1049 +64,6 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.BuildInfoResponse](schemas.md#codersdkbuildinforesponse) |
 
-## Get deployment config
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/config/deployment \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /config/deployment`
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "access_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "address": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "agent_fallback_troubleshooting_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "agent_stat_refresh_interval": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "audit_logging": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "autobuild_poll_interval": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "browser_only": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "cache_directory": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "dangerous": {
-    "allow_path_app_sharing": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "allow_path_app_site_owner_access": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
-  },
-  "derp": {
-    "config": {
-      "path": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "url": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      }
-    },
-    "server": {
-      "enable": {
-        "default": true,
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": true
-      },
-      "region_code": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "region_id": {
-        "default": 0,
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": 0
-      },
-      "region_name": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "relay_url": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "stun_addresses": {
-        "default": ["string"],
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": ["string"]
-      }
-    }
-  },
-  "disable_password_auth": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "disable_path_apps": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "disable_session_expiry_refresh": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "experimental": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "experiments": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "gitauth": {
-    "default": [
-      {
-        "auth_url": "string",
-        "client_id": "string",
-        "id": "string",
-        "no_refresh": true,
-        "regex": "string",
-        "scopes": ["string"],
-        "token_url": "string",
-        "type": "string",
-        "validate_url": "string"
-      }
-    ],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": [
-      {
-        "auth_url": "string",
-        "client_id": "string",
-        "id": "string",
-        "no_refresh": true,
-        "regex": "string",
-        "scopes": ["string"],
-        "token_url": "string",
-        "type": "string",
-        "validate_url": "string"
-      }
-    ]
-  },
-  "http_address": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "in_memory_database": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "logging": {
-    "human": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "json": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "stackdriver": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
-  },
-  "max_session_expiry": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "max_token_lifetime": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "metrics_cache_refresh_interval": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "oauth2": {
-    "github": {
-      "allow_everyone": {
-        "default": true,
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": true
-      },
-      "allow_signups": {
-        "default": true,
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": true
-      },
-      "allowed_orgs": {
-        "default": ["string"],
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": ["string"]
-      },
-      "allowed_teams": {
-        "default": ["string"],
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": ["string"]
-      },
-      "client_id": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "client_secret": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      },
-      "enterprise_base_url": {
-        "default": "string",
-        "enterprise": true,
-        "flag": "string",
-        "hidden": true,
-        "name": "string",
-        "secret": true,
-        "shorthand": "string",
-        "usage": "string",
-        "value": "string"
-      }
-    }
-  },
-  "oidc": {
-    "allow_signups": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "client_id": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "client_secret": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "email_domain": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "icon_url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "ignore_email_verified": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "issuer_url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "scopes": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "sign_in_text": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "username_field": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
-  },
-  "pg_connection_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "pprof": {
-    "address": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
-  },
-  "prometheus": {
-    "address": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
-  },
-  "provisioner": {
-    "daemon_poll_interval": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    },
-    "daemon_poll_jitter": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    },
-    "daemons": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    },
-    "force_cancel_interval": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    }
-  },
-  "proxy_trusted_headers": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "proxy_trusted_origins": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "rate_limit": {
-    "api": {
-      "default": 0,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": 0
-    },
-    "disable_all": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
-  },
-  "redirect_to_access_url": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "scim_api_key": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "secure_auth_cookie": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "ssh_keygen_algorithm": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  },
-  "strict_transport_security": {
-    "default": 0,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": 0
-  },
-  "strict_transport_security_options": {
-    "default": ["string"],
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": ["string"]
-  },
-  "swagger": {
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
-  },
-  "telemetry": {
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "trace": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "url": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
-  },
-  "tls": {
-    "address": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "cert_file": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "client_auth": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "client_ca_file": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "client_cert_file": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "client_key_file": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "key_file": {
-      "default": ["string"],
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": ["string"]
-    },
-    "min_version": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    },
-    "redirect_http": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    }
-  },
-  "trace": {
-    "capture_logs": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "enable": {
-      "default": true,
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": true
-    },
-    "honeycomb_api_key": {
-      "default": "string",
-      "enterprise": true,
-      "flag": "string",
-      "hidden": true,
-      "name": "string",
-      "secret": true,
-      "shorthand": "string",
-      "usage": "string",
-      "value": "string"
-    }
-  },
-  "update_check": {
-    "default": true,
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": true
-  },
-  "wildcard_access_url": {
-    "default": "string",
-    "enterprise": true,
-    "flag": "string",
-    "hidden": true,
-    "name": "string",
-    "secret": true,
-    "shorthand": "string",
-    "usage": "string",
-    "value": "string"
-  }
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                           |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentConfig](schemas.md#codersdkdeploymentconfig) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Report CSP violations
 
 ### Code samples
@@ -1139,6 +96,357 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 | Status | Meaning                                                 | Description | Schema |
 | ------ | ------------------------------------------------------- | ----------- | ------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get deployment config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/deployment/config \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /deployment/config`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "config": {
+    "access_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
+    "address": {
+      "host": "string",
+      "port": "string"
+    },
+    "agent_fallback_troubleshooting_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
+    "agent_stat_refresh_interval": 0,
+    "audit_logging": true,
+    "autobuild_poll_interval": 0,
+    "browser_only": true,
+    "cache_directory": "string",
+    "config": "string",
+    "dangerous": {
+      "allow_path_app_sharing": true,
+      "allow_path_app_site_owner_access": true
+    },
+    "derp": {
+      "config": {
+        "path": "string",
+        "url": "string"
+      },
+      "server": {
+        "enable": true,
+        "region_code": "string",
+        "region_id": 0,
+        "region_name": "string",
+        "relay_url": {
+          "forceQuery": true,
+          "fragment": "string",
+          "host": "string",
+          "omitHost": true,
+          "opaque": "string",
+          "path": "string",
+          "rawFragment": "string",
+          "rawPath": "string",
+          "rawQuery": "string",
+          "scheme": "string",
+          "user": {}
+        },
+        "stun_addresses": ["string"]
+      }
+    },
+    "disable_password_auth": true,
+    "disable_path_apps": true,
+    "disable_session_expiry_refresh": true,
+    "experiments": ["string"],
+    "git_auth": {
+      "value": [
+        {
+          "auth_url": "string",
+          "client_id": "string",
+          "id": "string",
+          "no_refresh": true,
+          "regex": "string",
+          "scopes": ["string"],
+          "token_url": "string",
+          "type": "string",
+          "validate_url": "string"
+        }
+      ]
+    },
+    "http_address": "string",
+    "in_memory_database": true,
+    "logging": {
+      "human": "string",
+      "json": "string",
+      "stackdriver": "string"
+    },
+    "max_session_expiry": 0,
+    "max_token_lifetime": 0,
+    "metrics_cache_refresh_interval": 0,
+    "oauth2": {
+      "github": {
+        "allow_everyone": true,
+        "allow_signups": true,
+        "allowed_orgs": ["string"],
+        "allowed_teams": ["string"],
+        "client_id": "string",
+        "client_secret": "string",
+        "enterprise_base_url": "string"
+      }
+    },
+    "oidc": {
+      "allow_signups": true,
+      "client_id": "string",
+      "client_secret": "string",
+      "email_domain": ["string"],
+      "groups_field": "string",
+      "icon_url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      },
+      "ignore_email_verified": true,
+      "issuer_url": "string",
+      "scopes": ["string"],
+      "sign_in_text": "string",
+      "username_field": "string"
+    },
+    "pg_connection_url": "string",
+    "pprof": {
+      "address": {
+        "host": "string",
+        "port": "string"
+      },
+      "enable": true
+    },
+    "prometheus": {
+      "address": {
+        "host": "string",
+        "port": "string"
+      },
+      "enable": true
+    },
+    "provisioner": {
+      "daemon_poll_interval": 0,
+      "daemon_poll_jitter": 0,
+      "daemons": 0,
+      "force_cancel_interval": 0
+    },
+    "proxy_trusted_headers": ["string"],
+    "proxy_trusted_origins": ["string"],
+    "rate_limit": {
+      "api": 0,
+      "disable_all": true
+    },
+    "redirect_to_access_url": true,
+    "scim_api_key": "string",
+    "secure_auth_cookie": true,
+    "ssh_keygen_algorithm": "string",
+    "strict_transport_security": 0,
+    "strict_transport_security_options": ["string"],
+    "support": {
+      "links": {
+        "value": [
+          {
+            "icon": "string",
+            "name": "string",
+            "target": "string"
+          }
+        ]
+      }
+    },
+    "swagger": {
+      "enable": true
+    },
+    "telemetry": {
+      "enable": true,
+      "trace": true,
+      "url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      }
+    },
+    "tls": {
+      "address": {
+        "host": "string",
+        "port": "string"
+      },
+      "cert_file": ["string"],
+      "client_auth": "string",
+      "client_ca_file": "string",
+      "client_cert_file": "string",
+      "client_key_file": "string",
+      "enable": true,
+      "key_file": ["string"],
+      "min_version": "string",
+      "redirect_http": true
+    },
+    "trace": {
+      "capture_logs": true,
+      "enable": true,
+      "honeycomb_api_key": "string"
+    },
+    "update_check": true,
+    "verbose": true,
+    "wildcard_access_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
+    "write_config": true
+  },
+  "options": [
+    {
+      "annotations": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "default": "string",
+      "description": "string",
+      "env": "string",
+      "flag": "string",
+      "flag_shorthand": "string",
+      "group": {
+        "children": [
+          {
+            "children": [],
+            "description": "string",
+            "name": "string",
+            "parent": {}
+          }
+        ],
+        "description": "string",
+        "name": "string",
+        "parent": {
+          "children": [{}],
+          "description": "string",
+          "name": "string",
+          "parent": {}
+        }
+      },
+      "hidden": true,
+      "name": "string",
+      "use_instead": [{}],
+      "value": null,
+      "yaml": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentConfig](schemas.md#codersdkdeploymentconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get deployment stats
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/deployment/stats \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /deployment/stats`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "aggregated_from": "2019-08-24T14:15:22Z",
+  "collected_at": "2019-08-24T14:15:22Z",
+  "next_update_at": "2019-08-24T14:15:22Z",
+  "session_count": {
+    "jetbrains": 0,
+    "reconnecting_pty": 0,
+    "ssh": 0,
+    "vscode": 0
+  },
+  "workspaces": {
+    "building": 0,
+    "connection_latency_ms": {
+      "p50": 0,
+      "p95": 0
+    },
+    "failed": 0,
+    "pending": 0,
+    "running": 0,
+    "rx_bytes": 0,
+    "stopped": 0,
+    "tx_bytes": 0
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                         |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentStats](schemas.md#codersdkdeploymentstats) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

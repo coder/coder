@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.12"
+      version = "~> 0.6.17"
     }
     google = {
       source  = "hashicorp/google"
@@ -11,21 +11,49 @@ terraform {
   }
 }
 
+provider "coder" {
+  feature_use_managed_variables = true
+}
+
 variable "project_id" {
   description = "Which Google Compute Project should your workspace live in?"
 }
 
-variable "zone" {
-  description = "What region should your workspace live in?"
-  default     = "us-central1-a"
-  validation {
-    condition     = contains(["northamerica-northeast1-a", "us-central1-a", "us-west2-c", "europe-west4-b", "southamerica-east1-a"], var.zone)
-    error_message = "Invalid zone!"
+data "coder_parameter" "zone" {
+  name    = "What region should your workspace live in?"
+  type    = "string"
+  icon    = "/emojis/1f30e.png"
+  default = "us-central1-a"
+  mutable = false
+  option {
+    name  = "North America (Northeast)"
+    value = "northamerica-northeast1-a"
+    icon  = "/emojis/1f1fa-1f1f8.png"
+  }
+  option {
+    name  = "North America (Central)"
+    value = "us-central1-a"
+    icon  = "/emojis/1f1fa-1f1f8.png"
+  }
+  option {
+    name  = "North America (West)"
+    value = "us-west2-c"
+    icon  = "/emojis/1f1fa-1f1f8.png"
+  }
+  option {
+    name  = "Europe (West)"
+    value = "europe-west4-b"
+    icon  = "/emojis/1f1ea-1f1fa.png"
+  }
+  option {
+    name  = "South America (East)"
+    value = "southamerica-east1-a"
+    icon  = "/emojis/1f1e7-1f1f7.png"
   }
 }
 
 provider "google" {
-  zone    = var.zone
+  zone    = data.coder_parameter.zone.value
   project = var.project_id
 }
 
@@ -38,7 +66,7 @@ data "coder_workspace" "me" {
 resource "google_compute_disk" "root" {
   name  = "coder-${data.coder_workspace.me.id}-root"
   type  = "pd-ssd"
-  zone  = var.zone
+  zone  = data.coder_parameter.zone.value
   image = "debian-cloud/debian-11"
   lifecycle {
     ignore_changes = [name, image]
@@ -46,10 +74,9 @@ resource "google_compute_disk" "root" {
 }
 
 resource "coder_agent" "main" {
-  auth = "google-instance-identity"
-  arch = "amd64"
-  os   = "linux"
-
+  auth                   = "google-instance-identity"
+  arch                   = "amd64"
+  os                     = "linux"
   login_before_ready     = false
   startup_script_timeout = 180
   startup_script         = <<-EOT
@@ -79,7 +106,7 @@ resource "coder_app" "code-server" {
 }
 
 resource "google_compute_instance" "dev" {
-  zone         = var.zone
+  zone         = data.coder_parameter.zone.value
   count        = data.coder_workspace.me.start_count
   name         = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
   machine_type = "e2-medium"

@@ -13,7 +13,8 @@ source "${SCRIPT_DIR}/lib.sh"
 [[ -n ${VERBOSE:-} ]] && set -x
 set -euo pipefail
 
-password="${CODER_DEV_ADMIN_PASSWORD:-password}"
+DEFAULT_PASSWORD="SomeSecurePassword!"
+password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 
 args="$(getopt -o "" -l agpl,password: -- "$@")"
 eval set -- "$args"

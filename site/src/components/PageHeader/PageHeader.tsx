@@ -59,6 +59,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     paddingTop: theme.spacing(6),
     paddingBottom: theme.spacing(6),
+    gap: theme.spacing(4),
 
     [theme.breakpoints.down("sm")]: {
       flexDirection: "column",
@@ -83,6 +84,7 @@ const useStyles = makeStyles((theme) => ({
     margin: 0,
     marginTop: ({ condensed }: { condensed?: boolean }) =>
       condensed ? theme.spacing(0.5) : theme.spacing(1),
+    lineHeight: "140%",
   },
 
   actions: {

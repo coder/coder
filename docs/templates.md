@@ -185,58 +185,6 @@ coder dotfiles -y ${var.dotfiles_uri}
 }
 ```
 
-### Parameters
-
-Templates can contain _parameters_, which prompt the user for additional information
-in the "create workspace" screen.
-
-![Parameters in Create Workspace screen](./images/parameters.png)
-
-```hcl
-data "coder_parameter" "docker_host" {
-  name        = "Region"
-  description = "Which region would you like to deploy to?"
-  icon        = "/emojis/1f30f.png"
-  type        = "string"
-  default     = "tcp://100.94.74.63:2375"
-
-  option {
-    name = "Pittsburgh, USA"
-    value = "tcp://100.94.74.63:2375"
-    icon = "/emojis/1f1fa-1f1f8.png"
-  }
-
-  option {
-    name = "Helsinki, Finland"
-    value = "tcp://100.117.102.81:2375"
-    icon = "/emojis/1f1eb-1f1ee.png"
-  }
-
-  option {
-    name = "Sydney, Australia"
-    value = "tcp://100.127.2.1:2375"
-    icon = "/emojis/1f1e6-1f1f9.png"
-  }
-}
-```
-
-From there, parameters can be referenced during build-time:
-
-```hcl
-provider "docker" {
-  host = data.coder_parameter.docker_host.value
-}
-```
-
-> For a complete list of supported parameter types, see the
-> [coder_parameter Terraform reference](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter)
-
-#### Legacy parameters (deprecated)
-
-Prior to Coder v0.16.0 (Jan 2023), parameters were defined via Terraform `variable` blocks. These "legacy parameters" can still be used in templates, but are deprecated and will be removed in April 2023.
-
-> ⚠️ Legacy (`variable`) parameters and rich parameters cannot be used in the same template.
-
 ### Start/stop
 
 [Learn about resource persistence in Coder](./templates/resource-persistence.md)
@@ -417,8 +365,8 @@ practices:
   URL](./admin/configure.md#access-url)
 - Manually connect to the resource and check the agent logs (e.g., `kubectl exec`, `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
-  - The Coder agent startup script logs are typically stored in
-    `/tmp/coder-startup-script.log`
+  - The Coder agent startup script logs are typically stored in `/tmp/coder-startup-script.log`
+  - The Coder agent shutdown script logs are typically stored in `/tmp/coder-shutdown-script.log`
 - This can also happen if the websockets are not being forwarded correctly when running Coder behind a reverse proxy. [Read our reverse-proxy docs](https://coder.com/docs/v2/latest/admin/configure#tls--reverse-proxy)
 
 ### Agent does not become ready

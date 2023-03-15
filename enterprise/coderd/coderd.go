@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/enterprise/derpmesh"
@@ -62,7 +63,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
-	apiKeyMiddleware := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:              options.Database,
 		OAuth2Configs:   oauthConfigs,
 		RedirectToLogin: false,
@@ -252,12 +253,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalProvisionerDaemons: true,
+			codersdk.FeatureAdvancedTemplateScheduling: true,
 		})
 	if err != nil {
 		return err
 	}
 
-	if entitlements.RequireTelemetry && !api.DeploymentConfig.Telemetry.Enable.Value {
+	if entitlements.RequireTelemetry && !api.DeploymentValues.Telemetry.Enable.Value() {
 		// We can't fail because then the user couldn't remove the offending
 		// license w/o a restart.
 		//
@@ -269,8 +271,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		api.Logger.Error(ctx, "license requires telemetry enabled")
 		return nil
 	}
-
-	entitlements.Experimental = api.DeploymentConfig.Experimental.Value || len(api.AGPL.Experiments) != 0
 
 	featureChanged := func(featureName codersdk.FeatureName) (changed bool, enabled bool) {
 		if api.entitlements.Features == nil {
@@ -307,6 +307,17 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			api.AGPL.QuotaCommitter.Store(&ptr)
 		} else {
 			api.AGPL.QuotaCommitter.Store(nil)
+		}
+	}
+
+	if changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); changed {
+		if enabled {
+			store := &enterpriseTemplateScheduleStore{}
+			ptr := schedule.TemplateScheduleStore(store)
+			api.AGPL.TemplateScheduleStore.Store(&ptr)
+		} else {
+			store := schedule.NewAGPLTemplateScheduleStore()
+			api.AGPL.TemplateScheduleStore.Store(&store)
 		}
 	}
 

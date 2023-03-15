@@ -192,19 +192,20 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	wireguardEngine.SetFilter(filter.New(netMap.PacketFilter, localIPs, logIPs, nil, Logger(options.Logger.Named("packet-filter"))))
 	dialContext, dialCancel := context.WithCancel(context.Background())
 	server := &Conn{
-		blockEndpoints:   options.BlockEndpoints,
-		dialContext:      dialContext,
-		dialCancel:       dialCancel,
-		closed:           make(chan struct{}),
-		logger:           options.Logger,
-		magicConn:        magicConn,
-		dialer:           dialer,
-		listeners:        map[listenKey]*listener{},
-		peerMap:          map[tailcfg.NodeID]*tailcfg.Node{},
-		tunDevice:        tunDevice,
-		netMap:           netMap,
-		netStack:         netStack,
-		wireguardMonitor: wireguardMonitor,
+		blockEndpoints:           options.BlockEndpoints,
+		dialContext:              dialContext,
+		dialCancel:               dialCancel,
+		closed:                   make(chan struct{}),
+		logger:                   options.Logger,
+		magicConn:                magicConn,
+		dialer:                   dialer,
+		listeners:                map[listenKey]*listener{},
+		peerMap:                  map[tailcfg.NodeID]*tailcfg.Node{},
+		lastDERPForcedWebsockets: map[int]string{},
+		tunDevice:                tunDevice,
+		netMap:                   netMap,
+		netStack:                 netStack,
+		wireguardMonitor:         wireguardMonitor,
 		wireguardRouter: &router.Config{
 			LocalAddrs: netMap.Addresses,
 		},
@@ -244,6 +245,17 @@ func NewConn(options *Options) (conn *Conn, err error) {
 			return
 		}
 		server.lastNetInfo = ni.Clone()
+		server.lastMutex.Unlock()
+		server.sendNode()
+	})
+	magicConn.SetDERPForcedWebsocketCallback(func(region int, reason string) {
+		server.logger.Debug(context.Background(), "derp forced websocket", slog.F("region", region), slog.F("reason", reason))
+		server.lastMutex.Lock()
+		if server.lastDERPForcedWebsockets[region] == reason {
+			server.lastMutex.Unlock()
+			return
+		}
+		server.lastDERPForcedWebsockets[region] = reason
 		server.lastMutex.Unlock()
 		server.sendNode()
 	})
@@ -299,10 +311,11 @@ type Conn struct {
 	nodeChanged bool
 	// It's only possible to store these values via status functions,
 	// so the values must be stored for retrieval later on.
-	lastStatus    time.Time
-	lastEndpoints []tailcfg.Endpoint
-	lastNetInfo   *tailcfg.NetInfo
-	nodeCallback  func(node *Node)
+	lastStatus               time.Time
+	lastEndpoints            []tailcfg.Endpoint
+	lastDERPForcedWebsockets map[int]string
+	lastNetInfo              *tailcfg.NetInfo
+	nodeCallback             func(node *Node)
 
 	trafficStats *connstats.Statistics
 }
@@ -335,6 +348,11 @@ func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	netMapCopy := *c.netMap
 	c.logger.Debug(context.Background(), "updating network map")
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
+}
+
+// SetDERPRegionDialer updates the dialer to use for connecting to DERP regions.
+func (c *Conn) SetDERPRegionDialer(dialer func(ctx context.Context, region *tailcfg.DERPRegion) net.Conn) {
+	c.magicConn.SetDERPRegionDialer(dialer)
 }
 
 func (c *Conn) RemoveAllPeers() error {
@@ -445,6 +463,18 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 		return xerrors.Errorf("reconfig: %w", err)
 	}
 	return nil
+}
+
+// NodeAddresses returns the addresses of a node from the NetworkMap.
+func (c *Conn) NodeAddresses(publicKey key.NodePublic) ([]netip.Prefix, bool) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	for _, node := range c.netMap.Peers {
+		if node.Key == publicKey {
+			return node.Addresses, true
+		}
+	}
+	return nil, false
 }
 
 // Status returns the current ipnstate of a connection.
@@ -632,21 +662,26 @@ func (c *Conn) selfNode() *Node {
 	}
 	var preferredDERP int
 	var derpLatency map[string]float64
+	derpForcedWebsocket := make(map[int]string, 0)
 	if c.lastNetInfo != nil {
 		preferredDERP = c.lastNetInfo.PreferredDERP
 		derpLatency = c.lastNetInfo.DERPLatency
+		for k, v := range c.lastDERPForcedWebsockets {
+			derpForcedWebsocket[k] = v
+		}
 	}
 
 	node := &Node{
-		ID:            c.netMap.SelfNode.ID,
-		AsOf:          database.Now(),
-		Key:           c.netMap.SelfNode.Key,
-		Addresses:     c.netMap.SelfNode.Addresses,
-		AllowedIPs:    c.netMap.SelfNode.AllowedIPs,
-		DiscoKey:      c.magicConn.DiscoPublicKey(),
-		Endpoints:     endpoints,
-		PreferredDERP: preferredDERP,
-		DERPLatency:   derpLatency,
+		ID:                  c.netMap.SelfNode.ID,
+		AsOf:                database.Now(),
+		Key:                 c.netMap.SelfNode.Key,
+		Addresses:           c.netMap.SelfNode.Addresses,
+		AllowedIPs:          c.netMap.SelfNode.AllowedIPs,
+		DiscoKey:            c.magicConn.DiscoPublicKey(),
+		Endpoints:           endpoints,
+		PreferredDERP:       preferredDERP,
+		DERPLatency:         derpLatency,
+		DERPForcedWebsocket: derpForcedWebsocket,
 	}
 	if c.blockEndpoints {
 		node.Endpoints = nil

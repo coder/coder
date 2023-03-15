@@ -5,7 +5,6 @@ import TableCell from "@material-ui/core/TableCell"
 import TableContainer from "@material-ui/core/TableContainer"
 import TableHead from "@material-ui/core/TableHead"
 import TableRow from "@material-ui/core/TableRow"
-import { APIKey } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Stack } from "components/Stack/Stack"
 import { TableEmpty } from "components/TableEmpty/TableEmpty"
@@ -16,6 +15,7 @@ import { FC } from "react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import IconButton from "@material-ui/core/IconButton/IconButton"
 import { useTranslation } from "react-i18next"
+import { APIKeyWithOwner } from "api/typesGenerated"
 
 const lastUsedOrNever = (lastUsed: string) => {
   const t = dayjs(lastUsed)
@@ -24,7 +24,8 @@ const lastUsedOrNever = (lastUsed: string) => {
 }
 
 export interface TokensPageViewProps {
-  tokens?: APIKey[]
+  tokens?: APIKeyWithOwner[]
+  viewAllTokens: boolean
   getTokensError?: Error | unknown
   isLoading: boolean
   hasLoaded: boolean
@@ -36,6 +37,7 @@ export const TokensPageView: FC<
   React.PropsWithChildren<TokensPageViewProps>
 > = ({
   tokens,
+  viewAllTokens,
   getTokensError,
   isLoading,
   hasLoaded,
@@ -44,6 +46,7 @@ export const TokensPageView: FC<
 }) => {
   const theme = useTheme()
   const { t } = useTranslation("tokensPage")
+  const colWidth = viewAllTokens ? "20%" : "25%"
 
   return (
     <Stack>
@@ -57,10 +60,13 @@ export const TokensPageView: FC<
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell width="25%">{t("table.id")}</TableCell>
-              <TableCell width="25%">{t("table.createdAt")}</TableCell>
-              <TableCell width="25%">{t("table.lastUsed")}</TableCell>
-              <TableCell width="25%">{t("table.expiresAt")}</TableCell>
+              <TableCell width={colWidth}>{t("table.id")}</TableCell>
+              <TableCell width={colWidth}>{t("table.createdAt")}</TableCell>
+              <TableCell width={colWidth}>{t("table.lastUsed")}</TableCell>
+              <TableCell width={colWidth}>{t("table.expiresAt")}</TableCell>
+              {viewAllTokens && (
+                <TableCell width="20%">{t("table.owner")}</TableCell>
+              )}
               <TableCell width="0%"></TableCell>
             </TableRow>
           </TableHead>
@@ -102,6 +108,13 @@ export const TokensPageView: FC<
                           {dayjs(token.expires_at).fromNow()}
                         </span>
                       </TableCell>
+                      {viewAllTokens && (
+                        <TableCell>
+                          <span style={{ color: theme.palette.text.secondary }}>
+                            {token.username}
+                          </span>
+                        </TableCell>
+                      )}
                       <TableCell>
                         <span style={{ color: theme.palette.text.secondary }}>
                           <IconButton

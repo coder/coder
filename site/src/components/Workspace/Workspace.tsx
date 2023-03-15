@@ -17,7 +17,6 @@ import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDelet
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
 import { AlertBanner } from "../AlertBanner/AlertBanner"
-import { useTranslation } from "react-i18next"
 import {
   ActiveTransition,
   WorkspaceBuildProgress,
@@ -26,11 +25,9 @@ import { AgentRow } from "components/Resources/AgentRow"
 import { Avatar } from "components/Avatar/Avatar"
 
 export enum WorkspaceErrors {
-  GET_RESOURCES_ERROR = "getResourcesError",
   GET_BUILDS_ERROR = "getBuildsError",
   BUILD_ERROR = "buildError",
   CANCELLATION_ERROR = "cancellationError",
-  WORKSPACE_REFRESH_WARNING = "refreshWorkspaceWarning",
 }
 
 export interface WorkspaceProps {
@@ -88,7 +85,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   templateParameters,
   quota_budget,
 }) => {
-  const { t } = useTranslation("workspacePage")
   const styles = useStyles()
   const navigate = useNavigate()
   const serverVersion = buildInfo?.version || ""
@@ -107,16 +103,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
     <AlertBanner
       severity="error"
       error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
-      dismissible
-    />
-  )
-
-  const workspaceRefreshWarning = Boolean(
-    workspaceErrors[WorkspaceErrors.WORKSPACE_REFRESH_WARNING],
-  ) && (
-    <AlertBanner
-      severity="warning"
-      text={t("warningsAndErrors.workspaceRefreshWarning")}
       dismissible
     />
   )
@@ -187,7 +173,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       >
         {buildError}
         {cancellationError}
-        {workspaceRefreshWarning}
 
         <WorkspaceDeletedBanner
           workspace={workspace}
@@ -204,13 +189,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           <WorkspaceBuildProgress
             workspace={workspace}
             transitionStats={transitionStats}
-          />
-        )}
-
-        {Boolean(workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]) && (
-          <AlertBanner
-            severity="error"
-            error={workspaceErrors[WorkspaceErrors.GET_RESOURCES_ERROR]}
           />
         )}
 

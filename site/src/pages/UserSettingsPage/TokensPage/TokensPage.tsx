@@ -1,20 +1,28 @@
 import { FC, PropsWithChildren, useState } from "react"
-import { Section } from "../../../components/SettingsLayout/Section"
+import { Section } from "components/SettingsLayout/Section"
 import { TokensPageView } from "./TokensPageView"
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { Typography } from "components/Typography/Typography"
 import makeStyles from "@material-ui/core/styles/makeStyles"
-import { useTranslation } from "react-i18next"
-import { useTokensData, useDeleteToken } from "./hooks"
-import { displaySuccess, displayError } from "components/GlobalSnackbar/utils"
-import { getErrorMessage } from "api/errors"
+import { useTranslation, Trans } from "react-i18next"
+import { useTokensData, useCheckTokenPermissions } from "./hooks"
+import { TokensSwitch, ConfirmDeleteDialog } from "./components"
 
 export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
   const styles = useStyles()
   const { t } = useTranslation("tokensPage")
+
+  const cliCreateCommand = "coder tokens create"
+  const description = (
+    <Trans t={t} i18nKey="description" values={{ cliCreateCommand }}>
+      Tokens are used to authenticate with the Coder API. You can create a token
+      with the Coder CLI using the <code>{{ cliCreateCommand }}</code> command.
+    </Trans>
+  )
+
   const [tokenIdToDelete, setTokenIdToDelete] = useState<string | undefined>(
     undefined,
   )
+  const [viewAllTokens, setViewAllTokens] = useState<boolean>(false)
+  const { data: perms } = useCheckTokenPermissions()
 
   const {
     data: tokens,
@@ -23,44 +31,25 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
     isFetched,
     queryKey,
   } = useTokensData({
-    include_all: true,
+    include_all: viewAllTokens,
   })
-
-  const { mutate: deleteToken, isLoading: isDeleting } =
-    useDeleteToken(queryKey)
-
-  const onDeleteSuccess = () => {
-    displaySuccess(t("deleteToken.deleteSuccess"))
-    setTokenIdToDelete(undefined)
-  }
-
-  const onDeleteError = (error: unknown) => {
-    const message = getErrorMessage(error, t("deleteToken.deleteFailure"))
-    displayError(message)
-    setTokenIdToDelete(undefined)
-  }
-
-  const description = (
-    <>
-      {t("description")}{" "}
-      <code className={styles.code}>coder tokens create</code> command.
-    </>
-  )
-
-  const content = (
-    <Typography>
-      {t("deleteToken.deleteCaption")}
-      <br />
-      <br />
-      {tokenIdToDelete}
-    </Typography>
-  )
 
   return (
     <>
-      <Section title={t("title")} description={description} layout="fluid">
+      <Section
+        title={t("title")}
+        className={styles.section}
+        description={description}
+        layout="fluid"
+      >
+        <TokensSwitch
+          hasReadAll={perms?.readAllApiKeys ?? false}
+          viewAllTokens={viewAllTokens}
+          setViewAllTokens={setViewAllTokens}
+        />
         <TokensPageView
           tokens={tokens}
+          viewAllTokens={viewAllTokens}
           isLoading={isFetching}
           hasLoaded={isFetched}
           getTokensError={getTokensError}
@@ -69,40 +58,24 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
           }}
         />
       </Section>
-
-      <ConfirmDialog
-        title={t("deleteToken.delete")}
-        description={content}
-        open={Boolean(tokenIdToDelete) || isDeleting}
-        confirmLoading={isDeleting}
-        onConfirm={() => {
-          if (!tokenIdToDelete) {
-            return
-          }
-          deleteToken(tokenIdToDelete, {
-            onError: onDeleteError,
-            onSuccess: onDeleteSuccess,
-          })
-        }}
-        onClose={() => {
-          setTokenIdToDelete(undefined)
-        }}
+      <ConfirmDeleteDialog
+        queryKey={queryKey}
+        tokenId={tokenIdToDelete}
+        setTokenId={setTokenIdToDelete}
       />
     </>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
-  code: {
-    background: theme.palette.divider,
-    fontSize: 12,
-    padding: "2px 4px",
-    color: theme.palette.text.primary,
-    borderRadius: 2,
-  },
-  formRow: {
-    justifyContent: "end",
-    marginBottom: "10px",
+  section: {
+    "& code": {
+      background: theme.palette.divider,
+      fontSize: 12,
+      padding: "2px 4px",
+      color: theme.palette.text.primary,
+      borderRadius: 2,
+    },
   },
 }))
 

@@ -79,7 +79,7 @@ func TestAgentReportStats(t *testing.T) {
 	chanLen := 3
 	statCh := make(chan *agentsdk.Stats, chanLen)
 	for i := 0; i < chanLen; i++ {
-		statCh <- &agentsdk.Stats{ConnsByProto: map[string]int64{}}
+		statCh <- &agentsdk.Stats{ConnectionsByProto: map[string]int64{}}
 	}
 
 	ctx := context.Background()

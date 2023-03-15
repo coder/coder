@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"strings"
 	"sync"
 	"time"
 
@@ -30,11 +29,10 @@ import (
 	"github.com/coder/retry"
 )
 
-// IsMissingParameterError returns whether the error message provided
-// is a missing parameter error. This can indicate to consumers that
-// they should check parameters.
-func IsMissingParameterError(err string) bool {
-	return strings.Contains(err, runner.MissingParameterErrorText)
+// IsMissingParameterErrorCode returns whether the error is a missing parameter error.
+// This can indicate to consumers that they should check parameters.
+func IsMissingParameterErrorCode(code string) bool {
+	return code == runner.MissingParameterErrorCode
 }
 
 // Dialer represents the function to create a daemon client connection.
@@ -172,6 +170,11 @@ func (p *Server) connect(ctx context.Context) {
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+		// It's possible for the provisioner daemon to be shut down
+		// before the wait is complete!
+		if p.isClosed() {
+			return
+		}
 		client, err := p.clientDialer(ctx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {

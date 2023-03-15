@@ -45,7 +45,7 @@ Workspace Commands:
   ssh            Start a shell into a workspace
   start          Start a workspace
   stop           Stop a workspace
-  update         Update a workspace
+  update         Will update and start a given workspace if it is out of date.
 
 Flags:
       --global-config coder   Path to the global coder config directory.

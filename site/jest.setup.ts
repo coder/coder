@@ -5,6 +5,9 @@ import { server } from "./src/testHelpers/server"
 import "jest-location-mock"
 import { TextEncoder, TextDecoder } from "util"
 import { Blob } from "buffer"
+import jestFetchMock from "jest-fetch-mock"
+
+jestFetchMock.enableMocks()
 
 global.TextEncoder = TextEncoder
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Polyfill for jsdom

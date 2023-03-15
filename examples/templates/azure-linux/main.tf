@@ -2,73 +2,215 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.12"
+      version = "~> 0.6.17"
     }
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "=3.0.0"
+      version = "~>3.47.0"
     }
   }
 }
 
-variable "location" {
+data "coder_parameter" "location" {
+  name        = "Location"
   description = "What location should your workspace live in?"
   default     = "eastus"
-  validation {
-    condition = contains([
-      "eastus",
-      "southcentralus",
-      "westus2",
-      "australiaeast",
-      "southeastasia",
-      "northeurope",
-      "westeurope",
-      "centralindia",
-      "eastasia",
-      "japaneast",
-      "brazilsouth",
-      "asia",
-      "asiapacific",
-      "australia",
-      "brazil",
-      "india",
-      "japan",
-      "southafrica",
-      "switzerland",
-      "uae",
-    ], var.location)
-    error_message = "Invalid location!"
+  icon        = "/emojis/1f310.png"
+  mutable     = false
+  option {
+    name  = "US (Virginia)"
+    value = "eastus"
+    icon  = "/emojis/1f1fa-1f1f8.png"
+  }
+  option {
+    name  = "US (Virginia) 2"
+    value = "eastus2"
+    icon  = "/emojis/1f1fa-1f1f8.png"
+  }
+  option {
+    name  = "US (Texas)"
+    value = "southcentralus"
+    icon  = "/emojis/1f1fa-1f1f8.png"
+  }
+  option {
+    name  = "US (Washington)"
+    value = "westus2"
+    icon  = "/emojis/1f1fa-1f1f8.png"
+  }
+  option {
+    name  = "US (Arizona)"
+    value = "westus3"
+    icon  = "/emojis/1f1fa-1f1f8.png"
+  }
+  option {
+    name  = "US (Iowa)"
+    value = "centralus"
+    icon  = "/emojis/1f1fa-1f1f8.png"
+  }
+  option {
+    name  = "Canada (Toronto)"
+    value = "canadacentral"
+    icon  = "/emojis/1f1e8-1f1e6.png"
+  }
+  option {
+    name  = "Brazil (Sao Paulo)"
+    value = "brazilsouth"
+    icon  = "/emojis/1f1e7-1f1f7.png"
+  }
+  option {
+    name  = "East Asia (Hong Kong)"
+    value = "eastasia"
+    icon  = "/emojis/1f1f0-1f1f7.png"
+  }
+  option {
+    name  = "Southeast Asia (Singapore)"
+    value = "southeastasia"
+    icon  = "/emojis/1f1f0-1f1f7.png"
+  }
+  option {
+    name  = "Australia (New South Wales)"
+    value = "australiaeast"
+    icon  = "/emojis/1f1e6-1f1fa.png"
+  }
+  option {
+    name  = "China (Hebei)"
+    value = "chinanorth3"
+    icon  = "/emojis/1f1e8-1f1f3.png"
+  }
+  option {
+    name  = "India (Pune)"
+    value = "centralindia"
+    icon  = "/emojis/1f1ee-1f1f3.png"
+  }
+  option {
+    name  = "Japan (Tokyo)"
+    value = "japaneast"
+    icon  = "/emojis/1f1ef-1f1f5.png"
+  }
+  option {
+    name  = "Korea (Seoul)"
+    value = "koreacentral"
+    icon  = "/emojis/1f1f0-1f1f7.png"
+  }
+  option {
+    name  = "Europe (Ireland)"
+    value = "northeurope"
+    icon  = "/emojis/1f1ea-1f1fa.png"
+  }
+  option {
+    name  = "Europe (Netherlands)"
+    value = "westeurope"
+    icon  = "/emojis/1f1ea-1f1fa.png"
+  }
+  option {
+    name  = "France (Paris)"
+    value = "francecentral"
+    icon  = "/emojis/1f1eb-1f1f7.png"
+  }
+  option {
+    name  = "Germany (Frankfurt)"
+    value = "germanywestcentral"
+    icon  = "/emojis/1f1e9-1f1ea.png"
+  }
+  option {
+    name  = "Norway (Oslo)"
+    value = "norwayeast"
+    icon  = "/emojis/1f1f3-1f1f4.png"
+  }
+  option {
+    name  = "Sweden (Gävle)"
+    value = "swedencentral"
+    icon  = "/emojis/1f1f8-1f1ea.png"
+  }
+  option {
+    name  = "Switzerland (Zurich)"
+    value = "switzerlandnorth"
+    icon  = "/emojis/1f1e8-1f1ed.png"
+  }
+  option {
+    name  = "Qatar (Doha)"
+    value = "qatarcentral"
+    icon  = "/emojis/1f1f6-1f1e6.png"
+  }
+  option {
+    name  = "UAE (Dubai)"
+    value = "uaenorth"
+    icon  = "/emojis/1f1e6-1f1ea.png"
+  }
+  option {
+    name  = "South Africa (Johannesburg)"
+    value = "southafricanorth"
+    icon  = "/emojis/1f1ff-1f1e6.png"
+  }
+  option {
+    name  = "UK (London)"
+    value = "uksouth"
+    icon  = "/emojis/1f1ec-1f1e7.png"
   }
 }
 
-variable "instance_type" {
+data "coder_parameter" "instance_type" {
+  name        = "Instance Type"
   description = "What instance type should your workspace use?"
   default     = "Standard_B4ms"
-  validation {
-    condition = contains([
-      "Standard_B1ms",
-      "Standard_B2ms",
-      "Standard_B4ms",
-      "Standard_B8ms",
-      "Standard_B12ms",
-      "Standard_B16ms",
-      "Standard_D2as_v5",
-      "Standard_D4as_v5",
-      "Standard_D8as_v5",
-      "Standard_D16as_v5",
-      "Standard_D32as_v5",
-    ], var.instance_type)
-    error_message = "Invalid instance type!"
+  icon        = "/icon/azure.png"
+  mutable     = false
+  option {
+    name  = "Standard_B1ms (1 vCPU, 2 GiB RAM)"
+    value = "Standard_B1ms"
+  }
+  option {
+    name  = "Standard_B2ms (2 vCPU, 8 GiB RAM)"
+    value = "Standard_B2ms"
+  }
+  option {
+    name  = "Standard_B4ms (4 vCPU, 16 GiB RAM)"
+    value = "Standard_B4ms"
+  }
+  option {
+    name  = "Standard_B8ms (8 vCPU, 32 GiB RAM)"
+    value = "Standard_B8ms"
+  }
+  option {
+    name  = "Standard_B12ms (12 vCPU, 48 GiB RAM)"
+    value = "Standard_B12ms"
+  }
+  option {
+    name  = "Standard_B16ms (16 vCPU, 64 GiB RAM)"
+    value = "Standard_B16ms"
+  }
+  option {
+    name  = "Standard_D2as_v5 (2 vCPU, 8 GiB RAM)"
+    value = "Standard_D2as_v5"
+  }
+  option {
+    name  = "Standard_D4as_v5 (4 vCPU, 16 GiB RAM)"
+    value = "Standard_D4as_v5"
+  }
+  option {
+    name  = "Standard_D8as_v5 (8 vCPU, 32 GiB RAM)"
+    value = "Standard_D8as_v5"
+  }
+  option {
+    name  = "Standard_D16as_v5 (16 vCPU, 64 GiB RAM)"
+    value = "Standard_D16as_v5"
+  }
+  option {
+    name  = "Standard_D32as_v5 (32 vCPU, 128 GiB RAM)"
+    value = "Standard_D32as_v5"
   }
 }
 
-variable "home_size" {
-  type        = number
+data "coder_parameter" "home_size" {
+  name        = "Home Volume Size"
   description = "How large would you like your home volume to be (in GB)?"
   default     = 20
+  type        = "number"
+  icon        = "/icon/azure.png"
+  mutable     = false
   validation {
-    condition     = var.home_size >= 1
-    error_message = "Value must be greater than or equal to 1."
+    min = 1
+    max = 1024
   }
 }
 
@@ -80,10 +222,9 @@ data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
-  arch = "amd64"
-  os   = "linux"
-  auth = "azure-instance-identity"
-
+  arch               = "amd64"
+  os                 = "linux"
+  auth               = "azure-instance-identity"
   login_before_ready = false
 }
 
@@ -99,7 +240,7 @@ locals {
 
 resource "azurerm_resource_group" "main" {
   name     = "${local.prefix}-resources"
-  location = var.location
+  location = data.coder_parameter.location.value
 
   tags = {
     Coder_Provisioned = "true"
@@ -160,7 +301,7 @@ resource "azurerm_managed_disk" "home" {
   name                 = "home"
   resource_group_name  = azurerm_resource_group.main.name
   storage_account_type = "StandardSSD_LRS"
-  disk_size_gb         = var.home_size
+  disk_size_gb         = data.coder_parameter.home_size.value
 }
 
 // azurerm requires an SSH key (or password) for an admin user or it won't start a VM.  However,
@@ -175,7 +316,7 @@ resource "azurerm_linux_virtual_machine" "main" {
   name                = "vm"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
-  size                = var.instance_type
+  size                = data.coder_parameter.instance_type.value
   // cloud-init overwrites this, so the value here doesn't matter
   admin_username = "adminuser"
   admin_ssh_key {
@@ -227,6 +368,6 @@ resource "coder_metadata" "home_info" {
 
   item {
     key   = "size"
-    value = "${var.home_size} GiB"
+    value = "${data.coder_parameter.home_size.value} GiB"
   }
 }

@@ -84,6 +84,8 @@ message RichParameter {
     int32 validation_min = 10;
     int32 validation_max = 11;
     string validation_monotonic = 12;
+	bool required = 13;
+	string legacy_variable_name = 14;
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.
@@ -118,6 +120,11 @@ message InstanceIdentityAuth {
     string instance_id = 1;
 }
 
+message GitAuthProvider {
+	string id = 1;
+	string access_token = 2;
+}
+
 // Agent represents a running agent on the workspace.
 message Agent {
     string id = 1;
@@ -137,6 +144,8 @@ message Agent {
 	string motd_file = 13;
 	bool login_before_ready = 14;
 	int32 startup_script_timeout_seconds = 15;
+	string shutdown_script = 16;
+	int32 shutdown_script_timeout_seconds = 17;
 }
 
 enum AppSharingLevel {
@@ -235,8 +244,9 @@ message Provision {
     message Plan {
         Config config = 1;
         repeated ParameterValue parameter_values = 2;
-		repeated RichParameterValue rich_parameter_values = 3;
-		repeated VariableValue variable_values = 4;
+        repeated RichParameterValue rich_parameter_values = 3;
+        repeated VariableValue variable_values = 4;
+        repeated GitAuthProvider git_auth_providers = 5;
     }
 
     message Apply {
@@ -257,7 +267,8 @@ message Provision {
         string error = 2;
         repeated Resource resources = 3;
 		repeated RichParameter parameters = 4;
-		bytes plan = 5;
+		repeated string git_auth_providers = 5;
+		bytes plan = 6;
     }
     message Response {
         oneof type {

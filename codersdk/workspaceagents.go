@@ -44,12 +44,34 @@ type WorkspaceAgentLifecycle string
 
 // WorkspaceAgentLifecycle enums.
 const (
-	WorkspaceAgentLifecycleCreated      WorkspaceAgentLifecycle = "created"
-	WorkspaceAgentLifecycleStarting     WorkspaceAgentLifecycle = "starting"
-	WorkspaceAgentLifecycleStartTimeout WorkspaceAgentLifecycle = "start_timeout"
-	WorkspaceAgentLifecycleStartError   WorkspaceAgentLifecycle = "start_error"
-	WorkspaceAgentLifecycleReady        WorkspaceAgentLifecycle = "ready"
+	WorkspaceAgentLifecycleCreated         WorkspaceAgentLifecycle = "created"
+	WorkspaceAgentLifecycleStarting        WorkspaceAgentLifecycle = "starting"
+	WorkspaceAgentLifecycleStartTimeout    WorkspaceAgentLifecycle = "start_timeout"
+	WorkspaceAgentLifecycleStartError      WorkspaceAgentLifecycle = "start_error"
+	WorkspaceAgentLifecycleReady           WorkspaceAgentLifecycle = "ready"
+	WorkspaceAgentLifecycleShuttingDown    WorkspaceAgentLifecycle = "shutting_down"
+	WorkspaceAgentLifecycleShutdownTimeout WorkspaceAgentLifecycle = "shutdown_timeout"
+	WorkspaceAgentLifecycleShutdownError   WorkspaceAgentLifecycle = "shutdown_error"
+	WorkspaceAgentLifecycleOff             WorkspaceAgentLifecycle = "off"
 )
+
+// WorkspaceAgentLifecycleOrder is the order in which workspace agent
+// lifecycle states are expected to be reported during the lifetime of
+// the agent process. For instance, the agent can go from starting to
+// ready without reporting timeout or error, but it should not go from
+// ready to starting. This is merely a hint for the agent process, and
+// is not enforced by the server.
+var WorkspaceAgentLifecycleOrder = []WorkspaceAgentLifecycle{
+	WorkspaceAgentLifecycleCreated,
+	WorkspaceAgentLifecycleStarting,
+	WorkspaceAgentLifecycleStartTimeout,
+	WorkspaceAgentLifecycleStartError,
+	WorkspaceAgentLifecycleReady,
+	WorkspaceAgentLifecycleShuttingDown,
+	WorkspaceAgentLifecycleShutdownTimeout,
+	WorkspaceAgentLifecycleShutdownError,
+	WorkspaceAgentLifecycleOff,
+}
 
 type WorkspaceAgent struct {
 	ID                   uuid.UUID               `json:"id" format:"uuid"`
@@ -76,9 +98,11 @@ type WorkspaceAgent struct {
 	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
 	TroubleshootingURL       string                `json:"troubleshooting_url"`
 	// LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).
-	LoginBeforeReady bool `db:"login_before_ready" json:"login_before_ready"`
+	LoginBeforeReady bool `json:"login_before_ready"`
 	// StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
-	StartupScriptTimeoutSeconds int32 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
+	StartupScriptTimeoutSeconds  int32  `json:"startup_script_timeout_seconds"`
+	ShutdownScript               string `json:"shutdown_script,omitempty"`
+	ShutdownScriptTimeoutSeconds int32  `json:"shutdown_script_timeout_seconds"`
 }
 
 type DERPRegion struct {
@@ -260,7 +284,8 @@ func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, agentID, rec
 		Value: c.SessionToken(),
 	}})
 	httpClient := &http.Client{
-		Jar: jar,
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
 	}
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
@@ -291,12 +316,26 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 
 // GitProvider is a constant that represents the
 // type of providers that are supported within Coder.
-// @typescript-ignore GitProvider
 type GitProvider string
 
+func (g GitProvider) Pretty() string {
+	switch g {
+	case GitProviderAzureDevops:
+		return "Azure DevOps"
+	case GitProviderGitHub:
+		return "GitHub"
+	case GitProviderGitLab:
+		return "GitLab"
+	case GitProviderBitBucket:
+		return "Bitbucket"
+	default:
+		return string(g)
+	}
+}
+
 const (
-	GitProviderAzureDevops = "azure-devops"
-	GitProviderGitHub      = "github"
-	GitProviderGitLab      = "gitlab"
-	GitProviderBitBucket   = "bitbucket"
+	GitProviderAzureDevops GitProvider = "azure-devops"
+	GitProviderGitHub      GitProvider = "github"
+	GitProviderGitLab      GitProvider = "gitlab"
+	GitProviderBitBucket   GitProvider = "bitbucket"
 )

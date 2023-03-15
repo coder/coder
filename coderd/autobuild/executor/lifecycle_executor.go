@@ -10,10 +10,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/provisionerdserver"
+	"github.com/coder/coder/coderd/schedule"
 )
 
 // Executor automatically starts or stops workspaces.

@@ -19,6 +19,7 @@ export interface NavbarViewProps {
   logo_url?: string
   user?: TypesGen.User
   buildInfo?: TypesGen.BuildInfoResponse
+  supportLinks?: TypesGen.LinkConfig[]
   onSignOut: () => void
   canViewAuditLog: boolean
   canViewDeployment: boolean
@@ -86,6 +87,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
   user,
   logo_url,
   buildInfo,
+  supportLinks,
   onSignOut,
   canViewAuditLog,
   canViewDeployment,
@@ -147,6 +149,7 @@ export const NavbarView: React.FC<React.PropsWithChildren<NavbarViewProps>> = ({
             <UserDropdown
               user={user}
               buildInfo={buildInfo}
+              supportLinks={supportLinks}
               onSignOut={onSignOut}
             />
           )}

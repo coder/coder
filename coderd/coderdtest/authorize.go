@@ -95,6 +95,10 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertObject: rbac.ResourceAPIKey,
 			AssertAction: rbac.ActionRead,
 		},
+		"GET:/api/v2/users/{user}/keys/tokens/{keyname}": {
+			AssertObject: rbac.ResourceAPIKey,
+			AssertAction: rbac.ActionRead,
+		},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
@@ -128,8 +132,8 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertObject: workspaceRBACObj,
 		},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}/state": {
-			AssertAction: rbac.ActionRead,
-			AssertObject: workspaceRBACObj,
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/workspaceagents/{workspaceagent}": {
 			AssertAction: rbac.ActionRead,
@@ -342,8 +346,9 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		t.Fail()
 	}
 	_, err := client.CreateToken(ctx, admin.UserID.String(), codersdk.CreateTokenRequest{
-		Lifetime: time.Hour,
-		Scope:    codersdk.APIKeyScopeAll,
+		Lifetime:  time.Hour,
+		Scope:     codersdk.APIKeyScopeAll,
+		TokenName: namesgenerator.GetRandomName(1),
 	})
 	require.NoError(t, err, "create token")
 
@@ -419,6 +424,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		"{templatename}":        template.Name,
 		"{workspace_and_agent}": workspace.Name + "." + workspace.LatestBuild.Resources[0].Agents[0].Name,
 		"{keyid}":               apiKey.ID,
+		"{keyname}":             apiKey.TokenName,
 		// Only checking template scoped params here
 		"parameters/{scope}/{id}": fmt.Sprintf("parameters/%s/%s",
 			string(templateParam.Scope), templateParam.ScopeID.String()),
@@ -786,7 +792,7 @@ func randomRBACType() string {
 		rbac.ResourceOrganizationMember.Type,
 		rbac.ResourceWildcard.Type,
 		rbac.ResourceLicense.Type,
-		rbac.ResourceDeploymentConfig.Type,
+		rbac.ResourceDeploymentValues.Type,
 		rbac.ResourceReplicas.Type,
 		rbac.ResourceDebugInfo.Type,
 	}
