@@ -220,6 +220,22 @@ func TestConvertResources(t *testing.T) {
 					Value:     "squirrel",
 					Sensitive: true,
 				}},
+				Agents: []*proto.Agent{{
+					Name:            "main",
+					Auth:            &proto.Agent_Token{},
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Metadata: []*proto.Agent_Metadata{{
+						Key:         "process_count",
+						DisplayName: "Process Count",
+						Cmd:         "ps -ef | wc -l",
+						Interval:    1,
+					}},
+					ShutdownScriptTimeoutSeconds: 300,
+					StartupScriptTimeoutSeconds:  300,
+					LoginBeforeReady:             true,
+					ConnectionTimeoutSeconds:     120,
+				}},
 			}},
 		},
 		// Tests that resources with the same id correctly get metadata applied

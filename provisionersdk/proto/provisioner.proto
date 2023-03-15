@@ -131,7 +131,7 @@ message Agent {
         string key = 1;
         string display_name = 2;
         string cmd = 3;
-        string interval = 4;
+        int64 interval = 4;
     }
     string id = 1;
     string name = 2;
@@ -152,6 +152,7 @@ message Agent {
 	int32 startup_script_timeout_seconds = 15;
 	string shutdown_script = 16;
 	int32 shutdown_script_timeout_seconds = 17;
+    repeated Metadata metadata = 18;
 }
 
 enum AppSharingLevel {

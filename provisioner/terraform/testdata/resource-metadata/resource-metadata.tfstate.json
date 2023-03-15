@@ -17,14 +17,14 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "6631d9f2-358e-4f96-9aa8-dfbcdf333c7f",
+            "id": "0a9c67ad-4af5-40d9-b5e4-59dbfd27a390",
             "init_script": "",
             "login_before_ready": true,
             "metadata": [
               {
                 "cmd": "ps -ef | wc -l",
                 "display_name": "Process Count",
-                "interval": "1s",
+                "interval": 1,
                 "key": "process_count"
               }
             ],
@@ -34,7 +34,7 @@
             "shutdown_script_timeout": 300,
             "startup_script": null,
             "startup_script_timeout": 300,
-            "token": "61f86056-f729-47d5-ad21-83e631c6f421",
+            "token": "fba4b5d7-be79-4af2-b678-87d2239b887c",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -54,7 +54,7 @@
             "daily_cost": 29,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "1b9c1e16-c37f-437a-b848-d150a4dcbc05",
+            "id": "84c8eb80-572c-41ef-a811-16c31381587d",
             "item": [
               {
                 "is_null": false,
@@ -81,7 +81,7 @@
                 "value": "squirrel"
               }
             ],
-            "resource_id": "8825461314403469687"
+            "resource_id": "5419686285324437053"
           },
           "sensitive_values": {
             "item": [
@@ -92,6 +92,7 @@
             ]
           },
           "depends_on": [
+            "coder_agent.main",
             "null_resource.about"
           ]
         },
@@ -103,10 +104,13 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "8825461314403469687",
+            "id": "5419686285324437053",
             "triggers": null
           },
-          "sensitive_values": {}
+          "sensitive_values": {},
+          "depends_on": [
+            "coder_agent.main"
+          ]
         }
       ]
     }

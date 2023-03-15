@@ -22,7 +22,7 @@
               {
                 "cmd": "ps -ef | wc -l",
                 "display_name": "Process Count",
-                "interval": "1s",
+                "interval": 1,
                 "key": "process_count"
               }
             ],
@@ -121,7 +121,7 @@
             {
               "cmd": "ps -ef | wc -l",
               "display_name": "Process Count",
-              "interval": "1s",
+              "interval": 1,
               "key": "process_count"
             }
           ],
@@ -244,7 +244,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.6.18-rc"
+        "version_constraint": "0.6.18-rc1"
       },
       "null": {
         "name": "null",
@@ -272,7 +272,7 @@
                   "constant_value": "Process Count"
                 },
                 "interval": {
-                  "constant_value": "1s"
+                  "constant_value": 1
                 },
                 "key": {
                   "constant_value": "process_count"
@@ -350,7 +350,10 @@
           "type": "null_resource",
           "name": "about",
           "provider_config_key": "null",
-          "schema_version": 0
+          "schema_version": 0,
+          "depends_on": [
+            "coder_agent.main"
+          ]
         }
       ]
     }

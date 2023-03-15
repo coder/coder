@@ -18,7 +18,7 @@ type agentMetadata struct {
 	Key         string `mapstructure:"key"`
 	DisplayName string `mapstructure:"display_name"`
 	Cmd         string `mapstructure:"cmd"`
-	Interval    string `mapstructure:"interval"`
+	Interval    int64  `mapstructure:"interval"`
 }
 
 // A mapping of attributes on the "coder_agent" resource.
@@ -148,6 +148,16 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				loginBeforeReady = attrs.LoginBeforeReady
 			}
 
+			var metadata []*proto.Agent_Metadata
+			for _, item := range attrs.Metadata {
+				metadata = append(metadata, &proto.Agent_Metadata{
+					Key:         item.Key,
+					DisplayName: item.DisplayName,
+					Cmd:         item.Cmd,
+					Interval:    item.Interval,
+				})
+			}
+
 			agent := &proto.Agent{
 				Name:                         tfResource.Name,
 				Id:                           attrs.ID,
@@ -163,6 +173,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				StartupScriptTimeoutSeconds:  attrs.StartupScriptTimeoutSeconds,
 				ShutdownScript:               attrs.ShutdownScript,
 				ShutdownScriptTimeoutSeconds: attrs.ShutdownScriptTimeoutSeconds,
+				Metadata:                     metadata,
 			}
 			switch attrs.Auth {
 			case "token":

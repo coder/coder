@@ -3,7 +3,7 @@ terraform {
     coder = {
       source = "coder/coder"
       // TODO: update terraform-provider-coder before merge.
-      version = "= 0.6.18-rc"
+      version = "= 0.6.18-rc1"
     }
   }
 }
@@ -15,11 +15,15 @@ resource "coder_agent" "main" {
     key          = "process_count"
     display_name = "Process Count"
     cmd          = "ps -ef | wc -l"
-    interval     = "1s"
+    interval     = 1
   }
 }
 
-resource "null_resource" "about" {}
+resource "null_resource" "about" {
+  depends_on = [
+    coder_agent.main,
+  ]
+}
 
 resource "coder_metadata" "about_info" {
   resource_id = null_resource.about.id
