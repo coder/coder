@@ -163,6 +163,12 @@ func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}
 	}
+
+	options.Database = dbauthz.New(
+		options.Database,
+		options.Authorizer,
+		options.Logger.Named("authz_querier"),
+	)
 	experiments := initExperiments(
 		options.Logger, options.DeploymentValues.Experiments.Value(),
 	)
@@ -210,14 +216,7 @@ func New(options *Options) *API {
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
 	}
-	// TODO: remove this once we promote authz_querier out of experiments.
-	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
-		options.Database = dbauthz.New(
-			options.Database,
-			options.Authorizer,
-			options.Logger.Named("authz_querier"),
-		)
-	}
+
 	if options.SetUserGroups == nil {
 		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
 	}
