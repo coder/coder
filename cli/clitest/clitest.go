@@ -12,7 +12,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +29,7 @@ import (
 func New(t *testing.T, args ...string) (*clibase.Invocation, config.Root) {
 	var root cli.RootCmd
 
-	return NewWithCommand(t, cmd, args...)
+	return NewWithCommand(t, root.Command(root.AGPL()), args...)
 }
 
 type logWriter struct {
@@ -61,16 +60,9 @@ func NewWithCommand(
 		Stderr:  (&logWriter{prefix: "stderr", t: t}),
 	}
 	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
-	cmd := root.Command(root.AGPL())
-	deadline, hasDeadline := ctx.Deadline()
-	if !hasDeadline {
-		// We don't want to wait the full 5 minutes for a test to time out.
-		deadline = time.Now().Add(testutil.WaitMedium)
-	}
 
-	ctx, cancel := context.WithDeadline(ctx, deadline)
-
-	t.Cleanup(cancel)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	i = i.WithContext(ctx)
 
 	// These can be overridden by the test.
 	return i, configDir
@@ -169,22 +161,13 @@ func StartWithError(t *testing.T, inv *clibase.Invocation) <-chan error {
 	t.Helper()
 
 	var (
-		errCh = make(chan error, 1)
-		ctx   = inv.Context()
+		errCh       = make(chan error, 1)
+		ctx, cancel = context.WithCancel(inv.Context())
 	)
-
-	deadline, hasDeadline := ctx.Deadline()
-	if !hasDeadline {
-		// We don't want to wait the full 5 minutes for a test to time out.
-		deadline = time.Now().Add(testutil.WaitMedium)
-	}
-
-	ctx, cancel := context.WithDeadline(ctx, deadline)
 
 	var cleaningUp atomic.Bool
 
 	go func() {
-		defer cancel()
 		defer close(errCh)
 		err := inv.WithContext(ctx).Run()
 		if cleaningUp.Load() && errors.Is(err, context.DeadlineExceeded) {
@@ -198,8 +181,8 @@ func StartWithError(t *testing.T, inv *clibase.Invocation) <-chan error {
 
 	// Don't exit test routine until server is done.
 	t.Cleanup(func() {
-		cleaningUp.Store(true)
 		cancel()
+		cleaningUp.Store(true)
 		<-errCh
 	})
 	return errCh

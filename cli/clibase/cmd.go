@@ -49,10 +49,6 @@ type Cmd struct {
 	HelpHandler HandlerFunc
 }
 
-func (c *Cmd) Runnable() bool {
-	return c.Handler != nil
-}
-
 // Walk calls fn for the command and all its children.
 func (c *Cmd) Walk(fn func(*Cmd)) {
 	fn(c)
@@ -61,12 +57,37 @@ func (c *Cmd) Walk(fn func(*Cmd)) {
 	}
 }
 
-// SetParents sets the Parent field of all children.
-func (c *Cmd) SetParents() {
+// PrepareAll performs initialization and linting on the command and all its children.
+func (c *Cmd) PrepareAll() error {
+	if c.Use == "" {
+		return xerrors.New("command must have a Use field so that it has a name")
+	}
+	var merr error
+	for _, opt := range c.Options {
+		if opt.Name == "" {
+			switch {
+			case opt.Flag != "":
+				opt.Name = opt.Flag
+			case opt.Env != "":
+				opt.Name = opt.Env
+			case opt.YAML != "":
+				opt.Name = opt.YAML
+			default:
+				merr = errors.Join(merr, xerrors.Errorf("option must have a Name, Flag, Env or YAML field"))
+			}
+		}
+		if opt.Description != "" && !strings.HasSuffix(opt.Description, ".") {
+			merr = errors.Join(merr, xerrors.Errorf("option %q description should end with a period", opt.Name))
+		}
+	}
 	for _, child := range c.Children {
 		child.Parent = c
-		child.SetParents()
+		err := child.PrepareAll()
+		if merr != nil {
+			merr = errors.Join(err, xerrors.Errorf("command %v: %w", child.Name(), err))
+		}
 	}
+	return merr
 }
 
 // Name returns the first word in the Use string.

@@ -34,8 +34,7 @@ func SkipPromptOption() clibase.Option {
 		Name:          skipPromptFlag,
 		Flag:          skipPromptFlag,
 		FlagShorthand: "y",
-		Description:   "Bypass prompts",
-		Env:           "CODER_SKIP_PROMPT",
+		Description:   "Bypass prompts.",
 		// Discard
 		Value: clibase.BoolOf(new(bool)),
 	}

@@ -1,5 +1,5 @@
 // Package clibase offers an all-in-one solution for a highly configurable CLI
-// application. Within Coder, we use it for our `server` subcommand, which
+// application. Within Coder, we use it for all of our subcommands, which
 // demands more functionality than cobra/viber offers.
 //
 // The Command interface is loosely based on the chi middleware pattern and

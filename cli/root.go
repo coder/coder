@@ -185,7 +185,11 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			}
 		}
 	})
-	cmd.SetParents()
+
+	err := cmd.PrepareAll()
+	if err != nil {
+		panic(err)
+	}
 
 	if r.agentURL == nil {
 		r.agentURL = new(url.URL)

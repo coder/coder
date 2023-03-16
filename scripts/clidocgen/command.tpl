@@ -6,7 +6,7 @@
 
 {{ end }}
 
-{{- if .Runnable}}
+{{- with .Usage }}
 ## Usage
 ```console
 {{.Use}}
