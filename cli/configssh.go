@@ -344,10 +344,8 @@ func configSSH() *cobra.Command {
 				// Write agent configuration.
 				for _, workspaceHostname := range wc.Hosts {
 					sshHostname := fmt.Sprintf("%s%s", coderdConfig.HostnamePrefix, workspaceHostname)
-					var configOptions sshConfigOptions
-					// Add standard options.
-					err := configOptions.addOptions(
-						"HostName "+sshHostname,
+					defaultOptions := []string{
+						"HostName " + sshHostname,
 						"ConnectTimeout=0",
 						"StrictHostKeyChecking=no",
 						// Without this, the "REMOTE HOST IDENTITY CHANGED"
@@ -356,19 +354,20 @@ func configSSH() *cobra.Command {
 						// This disables the "Warning: Permanently added 'hostname' (RSA) to the list of known hosts."
 						// message from appearing on every SSH. This happens because we ignore the known hosts.
 						"LogLevel ERROR",
-					)
-					if err != nil {
-						return err
 					}
 
 					if !skipProxyCommand {
-						err := configOptions.addOptions(fmt.Sprintf(
+						defaultOptions = append(defaultOptions, fmt.Sprintf(
 							"ProxyCommand %s --global-config %s ssh --stdio %s",
 							escapedCoderBinary, escapedGlobalConfig, workspaceHostname,
 						))
-						if err != nil {
-							return err
-						}
+					}
+
+					var configOptions sshConfigOptions
+					// Add standard options.
+					err := configOptions.addOptions(defaultOptions...)
+					if err != nil {
+						return err
 					}
 
 					// Override with deployment options
