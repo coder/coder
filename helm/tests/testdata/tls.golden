@@ -9,7 +9,7 @@ metadata:
   labels:
     helm.sh/chart: coder-0.1.0
     app.kubernetes.io/name: coder
-    app.kubernetes.io/instance: RELEASE-NAME
+    app.kubernetes.io/instance: release-name
     app.kubernetes.io/part-of: coder
     app.kubernetes.io/version: "0.1.0"
     app.kubernetes.io/managed-by: Helm
@@ -48,7 +48,7 @@ metadata:
   labels:
     helm.sh/chart: coder-0.1.0
     app.kubernetes.io/name: coder
-    app.kubernetes.io/instance: RELEASE-NAME
+    app.kubernetes.io/instance: release-name
     app.kubernetes.io/part-of: coder
     app.kubernetes.io/version: "0.1.0"
     app.kubernetes.io/managed-by: Helm
@@ -69,7 +69,7 @@ spec:
   externalTrafficPolicy: "Cluster"
   selector:
     app.kubernetes.io/name: coder
-    app.kubernetes.io/instance: RELEASE-NAME
+    app.kubernetes.io/instance: release-name
 ---
 # Source: coder/templates/coder.yaml
 apiVersion: apps/v1
@@ -79,7 +79,7 @@ metadata:
   labels:
     helm.sh/chart: coder-0.1.0
     app.kubernetes.io/name: coder
-    app.kubernetes.io/instance: RELEASE-NAME
+    app.kubernetes.io/instance: release-name
     app.kubernetes.io/part-of: coder
     app.kubernetes.io/version: "0.1.0"
     app.kubernetes.io/managed-by: Helm
@@ -90,13 +90,13 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: coder
-      app.kubernetes.io/instance: RELEASE-NAME
+      app.kubernetes.io/instance: release-name
   template:
     metadata:
       labels:
         helm.sh/chart: coder-0.1.0
         app.kubernetes.io/name: coder
-        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/instance: release-name
         app.kubernetes.io/part-of: coder
         app.kubernetes.io/version: "0.1.0"
         app.kubernetes.io/managed-by: Helm
