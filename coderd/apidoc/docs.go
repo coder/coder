@@ -6562,11 +6562,11 @@ const docTemplate = `{
                 "cache_directory": {
                     "type": "string"
                 },
-                "cli_ssh": {
-                    "$ref": "#/definitions/codersdk.SSHConfig"
-                },
                 "config": {
                     "type": "string"
+                },
+                "config_ssh": {
+                    "$ref": "#/definitions/codersdk.SSHConfig"
                 },
                 "dangerous": {
                     "$ref": "#/definitions/codersdk.DangerousConfig"

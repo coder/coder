@@ -1686,11 +1686,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
-    "cli_ssh": {
+    "config": "string",
+    "config_ssh": {
       "deploymentName": "string",
       "sshconfigOptions": ["string"]
     },
-    "config": "string",
     "dangerous": {
       "allow_path_app_sharing": true,
       "allow_path_app_site_owner_access": true
@@ -2030,11 +2030,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "autobuild_poll_interval": 0,
   "browser_only": true,
   "cache_directory": "string",
-  "cli_ssh": {
+  "config": "string",
+  "config_ssh": {
     "deploymentName": "string",
     "sshconfigOptions": ["string"]
   },
-  "config": "string",
   "dangerous": {
     "allow_path_app_sharing": true,
     "allow_path_app_site_owner_access": true
@@ -2245,8 +2245,8 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `autobuild_poll_interval`            | integer                                                                                    | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                    | false    |              |                                                                    |
 | `cache_directory`                    | string                                                                                     | false    |              |                                                                    |
-| `cli_ssh`                            | [codersdk.SSHConfig](#codersdksshconfig)                                                   | false    |              |                                                                    |
 | `config`                             | string                                                                                     | false    |              |                                                                    |
+| `config_ssh`                         | [codersdk.SSHConfig](#codersdksshconfig)                                                   | false    |              |                                                                    |
 | `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                       | false    |              |                                                                    |
 | `derp`                               | [codersdk.DERP](#codersdkderp)                                                             | false    |              |                                                                    |
 | `disable_password_auth`              | boolean                                                                                    | false    |              |                                                                    |

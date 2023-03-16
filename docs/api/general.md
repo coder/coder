@@ -154,11 +154,11 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
-    "cli_ssh": {
+    "config": "string",
+    "config_ssh": {
       "deploymentName": "string",
       "sshconfigOptions": ["string"]
     },
-    "config": "string",
     "dangerous": {
       "allow_path_app_sharing": true,
       "allow_path_app_site_owner_access": true
