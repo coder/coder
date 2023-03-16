@@ -163,6 +163,7 @@ type sqlcQuerier interface {
 	InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error
 	InsertOrUpdateLogoURL(ctx context.Context, value string) error
 	InsertOrUpdateServiceBanner(ctx context.Context, value string) error
+	InsertOrUpdateWorkspaceAgentMetadata(ctx context.Context, arg InsertOrUpdateWorkspaceAgentMetadataParams) error
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
 	InsertParameterSchema(ctx context.Context, arg InsertParameterSchemaParams) (ParameterSchema, error)

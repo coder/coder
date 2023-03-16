@@ -261,6 +261,26 @@
 | ------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `state` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
 
+## agentsdk.PostMetadataRequest
+
+```json
+{
+  "collectedAt": "string",
+  "error": "string",
+  "key": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+| ------------- | ------ | -------- | ------------ | ----------- |
+| `collectedAt` | string | false    |              |             |
+| `error`       | string | false    |              |             |
+| `key`         | string | false    |              |             |
+| `value`       | string | false    |              |             |
+
 ## agentsdk.PostStartupRequest
 
 ```json
@@ -4265,6 +4285,14 @@ Parameter represents a set value for the scope.
             },
             "lifecycle_state": "created",
             "login_before_ready": true,
+            "metadata": [
+              {
+                "collectedAt": "string",
+                "error": "string",
+                "key": "string",
+                "value": "string"
+              }
+            ],
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -4390,6 +4418,14 @@ Parameter represents a set value for the scope.
   },
   "lifecycle_state": "created",
   "login_before_ready": true,
+  "metadata": [
+    {
+      "collectedAt": "string",
+      "error": "string",
+      "key": "string",
+      "value": "string"
+    }
+  ],
   "name": "string",
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -4406,36 +4442,37 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                              | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                                |
-| --------------------------------- | -------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps`                            | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)              | false    |              |                                                                                                                                                                                                            |
-| `architecture`                    | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `connection_timeout_seconds`      | integer                                                              | false    |              |                                                                                                                                                                                                            |
-| `created_at`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `directory`                       | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `disconnected_at`                 | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `environment_variables`           | object                                                               | false    |              |                                                                                                                                                                                                            |
-| » `[any property]`                | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `expanded_directory`              | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `first_connected_at`              | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `id`                              | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `instance_id`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `last_connected_at`               | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `latency`                         | object                                                               | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                        |
-| » `[any property]`                | [codersdk.DERPRegion](#codersdkderpregion)                           | false    |              |                                                                                                                                                                                                            |
-| `lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |                                                                                                                                                                                                            |
-| `login_before_ready`              | boolean                                                              | false    |              | Login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                       |
-| `name`                            | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `operating_system`                | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `resource_id`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `shutdown_script`                 | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `shutdown_script_timeout_seconds` | integer                                                              | false    |              |                                                                                                                                                                                                            |
-| `startup_script`                  | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `startup_script_timeout_seconds`  | integer                                                              | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
-| `status`                          | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)       | false    |              |                                                                                                                                                                                                            |
-| `troubleshooting_url`             | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `updated_at`                      | string                                                               | false    |              |                                                                                                                                                                                                            |
-| `version`                         | string                                                               | false    |              |                                                                                                                                                                                                            |
+| Name                              | Type                                                                                    | Required | Restrictions | Description                                                                                                                                                                                                |
+| --------------------------------- | --------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                            | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                 | false    |              |                                                                                                                                                                                                            |
+| `architecture`                    | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `connection_timeout_seconds`      | integer                                                                                 | false    |              |                                                                                                                                                                                                            |
+| `created_at`                      | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `directory`                       | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `disconnected_at`                 | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `environment_variables`           | object                                                                                  | false    |              |                                                                                                                                                                                                            |
+| » `[any property]`                | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `expanded_directory`              | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `first_connected_at`              | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `id`                              | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `instance_id`                     | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `last_connected_at`               | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `latency`                         | object                                                                                  | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                        |
+| » `[any property]`                | [codersdk.DERPRegion](#codersdkderpregion)                                              | false    |              |                                                                                                                                                                                                            |
+| `lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle)                    | false    |              |                                                                                                                                                                                                            |
+| `login_before_ready`              | boolean                                                                                 | false    |              | Login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                       |
+| `metadata`                        | array of [codersdk.WorkspaceAgentMetadataResult](#codersdkworkspaceagentmetadataresult) | false    |              |                                                                                                                                                                                                            |
+| `name`                            | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `operating_system`                | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `resource_id`                     | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `shutdown_script`                 | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `shutdown_script_timeout_seconds` | integer                                                                                 | false    |              |                                                                                                                                                                                                            |
+| `startup_script`                  | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `startup_script_timeout_seconds`  | integer                                                                                 | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
+| `status`                          | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)                          | false    |              |                                                                                                                                                                                                            |
+| `troubleshooting_url`             | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `updated_at`                      | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `version`                         | string                                                                                  | false    |              |                                                                                                                                                                                                            |
 
 ## codersdk.WorkspaceAgentConnectionInfo
 
@@ -4560,6 +4597,26 @@ Parameter represents a set value for the scope.
 | Name    | Type                                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                                            |
 | ------- | ------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `ports` | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | If there are no ports in the list, nothing should be displayed in the UI. There must not be a "no ports available" message or anything similar, as there will always be no ports displayed on platforms where our port detection logic is unsupported. |
+
+## codersdk.WorkspaceAgentMetadataResult
+
+```json
+{
+  "collectedAt": "string",
+  "error": "string",
+  "key": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+| ------------- | ------ | -------- | ------------ | ----------- |
+| `collectedAt` | string | false    |              |             |
+| `error`       | string | false    |              |             |
+| `key`         | string | false    |              |             |
+| `value`       | string | false    |              |             |
 
 ## codersdk.WorkspaceAgentStatus
 
@@ -4735,6 +4792,14 @@ Parameter represents a set value for the scope.
           },
           "lifecycle_state": "created",
           "login_before_ready": true,
+          "metadata": [
+            {
+              "collectedAt": "string",
+              "error": "string",
+              "key": "string",
+              "value": "string"
+            }
+          ],
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -4954,6 +5019,14 @@ Parameter represents a set value for the scope.
       },
       "lifecycle_state": "created",
       "login_before_ready": true,
+      "metadata": [
+        {
+          "collectedAt": "string",
+          "error": "string",
+          "key": "string",
+          "value": "string"
+        }
+      ],
       "name": "string",
       "operating_system": "string",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -5149,6 +5222,14 @@ Parameter represents a set value for the scope.
                 },
                 "lifecycle_state": "created",
                 "login_before_ready": true,
+                "metadata": [
+                  {
+                    "collectedAt": "string",
+                    "error": "string",
+                    "key": "string",
+                    "value": "string"
+                  }
+                ],
                 "name": "string",
                 "operating_system": "string",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",

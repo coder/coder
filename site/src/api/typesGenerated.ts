@@ -1020,6 +1020,7 @@ export interface WorkspaceAgent {
   readonly startup_script_timeout_seconds: number
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
+  readonly metadata: WorkspaceAgentMetadataResult[]
 }
 
 // From codersdk/workspaceagentconn.go
@@ -1032,6 +1033,14 @@ export interface WorkspaceAgentListeningPort {
 // From codersdk/workspaceagentconn.go
 export interface WorkspaceAgentListeningPortsResponse {
   readonly ports: WorkspaceAgentListeningPort[]
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentMetadataResult {
+  readonly CollectedAt: string
+  readonly Key: string
+  readonly Value: string
+  readonly Error: string
 }
 
 // From codersdk/workspaceapps.go

@@ -475,6 +475,15 @@ CREATE TABLE users (
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
 );
 
+CREATE TABLE workspace_agent_metadata (
+    workspace_id uuid NOT NULL,
+    workspace_agent_id uuid NOT NULL,
+    key character varying(128) NOT NULL,
+    value text NOT NULL,
+    error text NOT NULL,
+    collected_at timestamp with time zone NOT NULL
+);
+
 CREATE TABLE workspace_agent_stats (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -731,6 +740,9 @@ ALTER TABLE ONLY user_links
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_agent_metadata
+    ADD CONSTRAINT workspace_agent_metadata_pkey PRIMARY KEY (workspace_agent_id, key);
+
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
@@ -863,6 +875,12 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_metadata
+    ADD CONSTRAINT workspace_agent_metadata_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_metadata
+    ADD CONSTRAINT workspace_agent_metadata_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;

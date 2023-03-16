@@ -4184,6 +4184,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/metadata": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Submit workspace agent metadata",
+                "operationId": "submit-workspace-agent-metadata",
+                "parameters": [
+                    {
+                        "description": "Workspace agent metadata request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.PostMetadataRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Success"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceagents/me/report-lifecycle": {
             "post": {
                 "security": [
@@ -5283,6 +5319,23 @@ const docTemplate = `{
             "properties": {
                 "state": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                }
+            }
+        },
+        "agentsdk.PostMetadataRequest": {
+            "type": "object",
+            "properties": {
+                "collectedAt": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },
@@ -8528,6 +8581,12 @@ const docTemplate = `{
                     "description": "LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).",
                     "type": "boolean"
                 },
+                "metadata": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentMetadataResult"
+                    }
+                },
                 "name": {
                     "type": "string"
                 },
@@ -8624,6 +8683,23 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPort"
                     }
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentMetadataResult": {
+            "type": "object",
+            "properties": {
+                "collectedAt": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },

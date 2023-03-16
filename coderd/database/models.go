@@ -1571,6 +1571,15 @@ type WorkspaceAgent struct {
 	ShutdownScriptTimeoutSeconds int32 `db:"shutdown_script_timeout_seconds" json:"shutdown_script_timeout_seconds"`
 }
 
+type WorkspaceAgentMetadatum struct {
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	Key              string    `db:"key" json:"key"`
+	Value            string    `db:"value" json:"value"`
+	Error            string    `db:"error" json:"error"`
+	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
+}
+
 type WorkspaceAgentStat struct {
 	ID                          uuid.UUID       `db:"id" json:"id"`
 	CreatedAt                   time.Time       `db:"created_at" json:"created_at"`

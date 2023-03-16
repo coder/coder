@@ -5308,6 +5308,45 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 	return items, nil
 }
 
+const insertOrUpdateWorkspaceAgentMetadata = `-- name: InsertOrUpdateWorkspaceAgentMetadata :exec
+INSERT INTO
+	workspace_agent_metadata (
+		workspace_id,
+		workspace_agent_id,
+		key,
+		value,
+		error,
+		collected_at
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6)
+ON CONFLICT (workspace_agent_id, key) DO UPDATE SET
+	value = $4,
+	error = $5,
+	collected_at = $6
+`
+
+type InsertOrUpdateWorkspaceAgentMetadataParams struct {
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	Key              string    `db:"key" json:"key"`
+	Value            string    `db:"value" json:"value"`
+	Error            string    `db:"error" json:"error"`
+	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
+}
+
+func (q *sqlQuerier) InsertOrUpdateWorkspaceAgentMetadata(ctx context.Context, arg InsertOrUpdateWorkspaceAgentMetadataParams) error {
+	_, err := q.db.ExecContext(ctx, insertOrUpdateWorkspaceAgentMetadata,
+		arg.WorkspaceID,
+		arg.WorkspaceAgentID,
+		arg.Key,
+		arg.Value,
+		arg.Error,
+		arg.CollectedAt,
+	)
+	return err
+}
+
 const insertWorkspaceAgent = `-- name: InsertWorkspaceAgent :one
 INSERT INTO
 	workspace_agents (

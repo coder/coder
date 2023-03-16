@@ -207,7 +207,7 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
-func collectMetadata(ctx context.Context, md agentsdk.MetadataDescription) agentsdk.MetadataResult {
+func collectMetadata(ctx context.Context, md agentsdk.MetadataDescription) codersdk.WorkspaceAgentMetadataResult {
 	timeout := md.Timeout
 	if timeout == 0 {
 		timeout = md.Interval
@@ -236,7 +236,7 @@ func collectMetadata(ctx context.Context, md agentsdk.MetadataDescription) agent
 		out.Truncate(bufLimit)
 	}
 
-	result := agentsdk.MetadataResult{
+	result := codersdk.WorkspaceAgentMetadataResult{
 		CollectedAt: collectedAt,
 		Key:         md.Key,
 		Value:       out.String(),
@@ -250,6 +250,8 @@ func collectMetadata(ctx context.Context, md agentsdk.MetadataDescription) agent
 func (a *agent) reportMetadataLoop(ctx context.Context) {
 	// In production, the minimum report interval is one second because
 	// `coder_agent.metadata` accepts `interval` in integer seconds.
+	// In tests, it helps to set shorter intervals because engineers are
+	// expensive.
 	baseInterval := time.Second
 	if flag.Lookup("test.v") != nil {
 		baseInterval = time.Millisecond * 100
@@ -258,7 +260,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	var (
 		baseTicker       = time.NewTicker(baseInterval)
 		lastCollectedAts = make(map[string]time.Time)
-		metadataResults  = make(chan agentsdk.MetadataResult, 16)
+		metadataResults  = make(chan codersdk.WorkspaceAgentMetadataResult, 16)
 	)
 	defer baseTicker.Stop()
 
@@ -273,6 +275,19 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				a.logger.Error(ctx, "report metadata", slog.Error(err))
 			}
 		case <-baseTicker.C:
+			if len(metadataResults) > cap(metadataResults)/2 {
+				// If we're backpressured on sending back results, we risk
+				// runaway goroutine growth and/or overloading coderd. So,
+				// we just skip the collection. Since we never update
+				// "lastCollectedAt" for this key, we'll retry the collection
+				// on the next tick.
+				a.logger.Debug(
+					ctx, "metadata collection backpressured",
+					slog.F("queue_len", len(metadataResults)),
+				)
+				continue
+			}
+
 			manifest := a.manifest.Load()
 			if manifest == nil {
 				continue
@@ -302,14 +317,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 						continue
 					}
 				}
-				if len(metadataResults) > cap(metadataResults)/2 {
-					// If we're backpressured on sending back results, we risk
-					// runaway goroutine growth and/or overloading coderd. So,
-					// we just skip the collection. Since we never update
-					// "lastCollectedAt" for this key, we'll retry the collection
-					// on the next tick.
-					continue
-				}
+
 				go func(md agentsdk.MetadataDescription) {
 					select {
 					case <-ctx.Done():

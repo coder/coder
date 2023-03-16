@@ -522,6 +522,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   },
   "lifecycle_state": "created",
   "login_before_ready": true,
+  "metadata": [
+    {
+      "collectedAt": "string",
+      "error": "string",
+      "key": "string",
+      "value": "string"
+    }
+  ],
   "name": "string",
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",

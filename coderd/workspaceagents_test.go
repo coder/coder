@@ -1290,3 +1290,61 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 		}
 	})
 }
+
+func TestWorkspaceAgent_Metadata(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.ProvisionComplete,
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: authToken,
+							},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	for _, res := range workspace.LatestBuild.Resources {
+		for _, a := range res.Agents {
+			require.Equal(t, codersdk.WorkspaceAgentLifecycleCreated, a.LifecycleState)
+		}
+	}
+
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+
+	ctx, cancel := testutil.Context(t)
+	defer cancel()
+
+	err := agentClient.PostMetadata(ctx, codersdk.WorkspaceAgentMetadataResult{
+		CollectedAt: time.Now(),
+		Key:         "foo",
+		Value:       "bar",
+	})
+	require.NoError(t, err, "post metadata", t)
+
+	workspace, err = client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err, "get workspace")
+
+	t.Logf("%+v", workspace.LatestBuild.Resources[0])
+}

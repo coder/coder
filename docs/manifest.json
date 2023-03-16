@@ -531,6 +531,22 @@
           "path": "./cli/coder_schedule_stop.md"
         },
         {
+          "title": "server",
+          "path": "./cli/coder_server.md"
+        },
+        {
+          "title": "server create-admin-user",
+          "path": "./cli/coder_server_create-admin-user.md"
+        },
+        {
+          "title": "server postgres-builtin-serve",
+          "path": "./cli/coder_server_postgres-builtin-serve.md"
+        },
+        {
+          "title": "server postgres-builtin-url",
+          "path": "./cli/coder_server_postgres-builtin-url.md"
+        },
+        {
           "title": "show",
           "path": "./cli/coder_show.md"
         },

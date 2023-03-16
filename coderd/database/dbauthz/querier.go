@@ -1468,6 +1468,20 @@ func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.Ins
 	return q.db.InsertWorkspaceAgentStat(ctx, arg)
 }
 
+func (q *querier) InsertOrUpdateWorkspaceAgentMetadata(ctx context.Context, arg database.InsertOrUpdateWorkspaceAgentMetadataParams) error {
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceAgentID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
+	if err != nil {
+		return err
+	}
+
+	return q.db.InsertOrUpdateWorkspaceAgentMetadata(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
 	// TODO: This is a workspace agent operation. Should users be able to query this?
 	workspace, err := q.db.GetWorkspaceByWorkspaceAppID(ctx, arg.ID)

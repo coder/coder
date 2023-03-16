@@ -93,3 +93,20 @@ SET
 	lifecycle_state = $2
 WHERE
 	id = $1;
+
+-- name: InsertOrUpdateWorkspaceAgentMetadata :exec
+INSERT INTO
+	workspace_agent_metadata (
+		workspace_id,
+		workspace_agent_id,
+		key,
+		value,
+		error,
+		collected_at
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6)
+ON CONFLICT (workspace_agent_id, key) DO UPDATE SET
+	value = $4,
+	error = $5,
+	collected_at = $6;

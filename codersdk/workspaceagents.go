@@ -73,6 +73,13 @@ var WorkspaceAgentLifecycleOrder = []WorkspaceAgentLifecycle{
 	WorkspaceAgentLifecycleOff,
 }
 
+type WorkspaceAgentMetadataResult struct {
+	CollectedAt time.Time
+	Key         string
+	Value       string
+	Error       string
+}
+
 type WorkspaceAgent struct {
 	ID                   uuid.UUID               `json:"id" format:"uuid"`
 	CreatedAt            time.Time               `json:"created_at" format:"date-time"`
@@ -100,9 +107,10 @@ type WorkspaceAgent struct {
 	// LoginBeforeReady if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).
 	LoginBeforeReady bool `json:"login_before_ready"`
 	// StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
-	StartupScriptTimeoutSeconds  int32  `json:"startup_script_timeout_seconds"`
-	ShutdownScript               string `json:"shutdown_script,omitempty"`
-	ShutdownScriptTimeoutSeconds int32  `json:"shutdown_script_timeout_seconds"`
+	StartupScriptTimeoutSeconds  int32                          `json:"startup_script_timeout_seconds"`
+	ShutdownScript               string                         `json:"shutdown_script,omitempty"`
+	ShutdownScriptTimeoutSeconds int32                          `json:"shutdown_script_timeout_seconds"`
+	Metadata                     []WorkspaceAgentMetadataResult `json:"metadata"`
 }
 
 type DERPRegion struct {

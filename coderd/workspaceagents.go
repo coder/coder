@@ -1039,6 +1039,66 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
+func ellipse(s string, maxLength int) string {
+	if len(s) > maxLength {
+		return s[:maxLength] + "..."
+	}
+	return s
+}
+
+// @Summary Submit workspace agent metadata
+// @ID submit-workspace-agent-metadata
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Agents
+// @Param request body agentsdk.PostMetadataRequest true "Workspace agent metadata request"
+// @Success 204 "Success"
+// @Router /workspaceagents/me/metadata [post]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to get workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var req agentsdk.PostMetadataRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	datum := database.InsertOrUpdateWorkspaceAgentMetadataParams{
+		WorkspaceID:      workspace.ID,
+		WorkspaceAgentID: workspaceAgent.ID,
+		// We don't want a misconfigured agent to fill the database.
+		Key:         ellipse(req.Key, 128),
+		Value:       ellipse(req.Value, 10<<10),
+		Error:       ellipse(req.Value, 10<<10),
+		CollectedAt: req.CollectedAt,
+	}
+
+	err = api.Database.InsertOrUpdateWorkspaceAgentMetadata(ctx, datum)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	api.Logger.Debug(
+		ctx, "read metadata report",
+		slog.F("agent", workspaceAgent.ID),
+		slog.F("workspace", workspace.ID),
+		slog.F("key", datum.Key),
+	)
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
 // @Summary Submit workspace agent lifecycle state
 // @ID submit-workspace-agent-lifecycle-state
 // @Security CoderSessionToken

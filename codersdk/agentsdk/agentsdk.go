@@ -75,16 +75,9 @@ type MetadataDescription struct {
 	Timeout  time.Duration
 }
 
-type MetadataResult struct {
-	CollectedAt time.Time
-	Key         string
-	Value       string
-	Error       string
-}
-
 // In the future, we may want to support sending back multiple values for
 // performance.
-type PostMetadataRequest = MetadataResult
+type PostMetadataRequest = codersdk.WorkspaceAgentMetadataResult
 
 func (c *Client) PostMetadata(ctx context.Context, req PostMetadataRequest) error {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata", req)
@@ -93,7 +86,7 @@ func (c *Client) PostMetadata(ctx context.Context, req PostMetadataRequest) erro
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusNoContent {
 		return codersdk.ReadBodyAsError(res)
 	}
 

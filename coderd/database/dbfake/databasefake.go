@@ -123,6 +123,7 @@ type data struct {
 	templateVersionVariables  []database.TemplateVersionVariable
 	templates                 []database.Template
 	workspaceAgents           []database.WorkspaceAgent
+	workspaceAgentMetadata    []database.WorkspaceAgentMetadatum
 	workspaceApps             []database.WorkspaceApp
 	workspaceBuilds           []database.WorkspaceBuild
 	workspaceBuildParameters  []database.WorkspaceBuildParameter
@@ -2664,6 +2665,30 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 	}
 	q.apiKeys = append(q.apiKeys, key)
 	return key, nil
+}
+
+func (q *fakeQuerier) InsertOrUpdateWorkspaceAgentMetadata(_ context.Context, arg database.InsertOrUpdateWorkspaceAgentMetadataParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	updated := database.WorkspaceAgentMetadatum{
+		WorkspaceID:      arg.WorkspaceID,
+		WorkspaceAgentID: arg.WorkspaceAgentID,
+		Key:              arg.Key,
+		Value:            arg.Value,
+		Error:            arg.Error,
+		CollectedAt:      arg.CollectedAt,
+	}
+
+	for i, m := range q.workspaceAgentMetadata {
+		if m.WorkspaceAgentID == arg.WorkspaceAgentID {
+			q.workspaceAgentMetadata[i] = updated
+			return nil
+		}
+	}
+
+	q.workspaceAgentMetadata = append(q.workspaceAgentMetadata, updated)
+	return nil
 }
 
 func (q *fakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParams) (database.File, error) {

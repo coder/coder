@@ -1619,6 +1619,14 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
         },
         "lifecycle_state": "created",
         "login_before_ready": true,
+        "metadata": [
+          {
+            "collectedAt": "string",
+            "error": "string",
+            "key": "string",
+            "value": "string"
+          }
+        ],
         "name": "string",
         "operating_system": "string",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -1699,6 +1707,11 @@ Status Code **200**
 | `»»»» preferred`                     | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»» lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](schemas.md#codersdkworkspaceagentlifecycle)   | false    |              |                                                                                                                                                                                                                                                |
 | `»» login_before_ready`              | boolean                                                                          | false    |              | »login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                                                          |
+| `»» metadata`                        | array                                                                            | false    |              |                                                                                                                                                                                                                                                |
+| `»»» collectedAt`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» error`                          | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» key`                            | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» value`                          | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» name`                            | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» operating_system`                | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                     | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
@@ -2044,6 +2057,14 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
         },
         "lifecycle_state": "created",
         "login_before_ready": true,
+        "metadata": [
+          {
+            "collectedAt": "string",
+            "error": "string",
+            "key": "string",
+            "value": "string"
+          }
+        ],
         "name": "string",
         "operating_system": "string",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -2124,6 +2145,11 @@ Status Code **200**
 | `»»»» preferred`                     | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»» lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](schemas.md#codersdkworkspaceagentlifecycle)   | false    |              |                                                                                                                                                                                                                                                |
 | `»» login_before_ready`              | boolean                                                                          | false    |              | »login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                                                          |
+| `»» metadata`                        | array                                                                            | false    |              |                                                                                                                                                                                                                                                |
+| `»»» collectedAt`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» error`                          | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» key`                            | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» value`                          | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» name`                            | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» operating_system`                | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                     | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
