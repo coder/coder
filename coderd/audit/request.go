@@ -70,7 +70,11 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.AuditableGroup:
 		return typed.Group.Name
 	case database.APIKey:
-		// this isn't used
+		if typed.TokenName != "nil" {
+			return typed.TokenName
+		}
+		// API Keys without names are used for Auth
+		// and don't have a target
 		return ""
 	case database.License:
 		return strconv.Itoa(int(typed.ID))
