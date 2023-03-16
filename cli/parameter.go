@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -30,8 +31,8 @@ func createParameterMapFromFile(parameterFile string) (map[string]string, error)
 		parameterMap := map[string]string{}
 		for k, v := range mapStringInterface {
 			switch val := v.(type) {
-			case string:
-				parameterMap[k] = val
+			case string, bool, int:
+				parameterMap[k] = fmt.Sprintf("%v", val)
 			case []interface{}:
 				b, err := json.Marshal(&val)
 				if err != nil {
