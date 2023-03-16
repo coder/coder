@@ -946,11 +946,12 @@ export const updateWorkspace = async (
   const templateParameters = await getTemplateVersionRichParameters(
     activeVersionId,
   )
-  const [updatedBuildParameters, missingParameters] = updateBuildParameters(
+  const missingParameters = getMissingParameters(
     oldBuildParameters,
     newBuildParameters,
     templateParameters,
   )
+
   if (missingParameters.length > 0) {
     throw new MissingBuildParameters(missingParameters)
   }
@@ -958,19 +959,21 @@ export const updateWorkspace = async (
   return postWorkspaceBuild(workspace.id, {
     transition: "start",
     template_version_id: activeVersionId,
-    rich_parameter_values: updatedBuildParameters,
+    rich_parameter_values: newBuildParameters,
   })
 }
 
-const updateBuildParameters = (
+const getMissingParameters = (
   oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
   newBuildParameters: TypesGen.WorkspaceBuildParameter[],
   templateParameters: TypesGen.TemplateVersionParameter[],
 ) => {
   const missingParameters: TypesGen.TemplateVersionParameter[] = []
-  const updatedBuildParameters: TypesGen.WorkspaceBuildParameter[] = []
+  const requiredParameters = templateParameters.filter(
+    (p) => p.required && p.mutable,
+  )
 
-  for (const parameter of templateParameters) {
+  for (const parameter of requiredParameters) {
     // Check if there is a new value
     let buildParameter = newBuildParameters.find(
       (p) => p.name === parameter.name,
@@ -981,17 +984,13 @@ const updateBuildParameters = (
       buildParameter = oldBuildParameters.find((p) => p.name === parameter.name)
     }
 
-    // If there is a value from the new or old one, add it to the list
+    // If there is a value from the new or old one, it is not missed
     if (buildParameter) {
-      updatedBuildParameters.push(buildParameter)
       continue
     }
 
-    // If there is no value, it is required and can be changed, add it to the list of missing parameters
-    if (parameter.required && parameter.mutable) {
-      missingParameters.push(parameter)
-    }
+    missingParameters.push(parameter)
   }
 
-  return [updatedBuildParameters, missingParameters] as const
+  return missingParameters
 }
