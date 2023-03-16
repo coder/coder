@@ -348,8 +348,8 @@ func configSSH() *cobra.Command {
 			for _, wc := range workspaceConfigs {
 				sort.Strings(wc.Hosts)
 				// Write agent configuration.
-				for _, hostname := range wc.Hosts {
-					sshHostname := fmt.Sprintf("%s%s", coderdConfig.HostnamePrefix, hostname)
+				for _, workspaceHostname := range wc.Hosts {
+					sshHostname := fmt.Sprintf("%s%s", coderdConfig.HostnamePrefix, workspaceHostname)
 					var configOptions sshConfigOptions
 					// Add standard options.
 					err := configOptions.addOptions(
@@ -370,7 +370,7 @@ func configSSH() *cobra.Command {
 					if !skipProxyCommand {
 						err := configOptions.addOptions(fmt.Sprintf(
 							"ProxyCommand %s --global-config %s ssh --stdio %s",
-							escapedCoderBinary, escapedGlobalConfig, hostname,
+							escapedCoderBinary, escapedGlobalConfig, workspaceHostname,
 						))
 						if err != nil {
 							return err
