@@ -516,3 +516,40 @@ curl -X GET http://coder-server:8080/api/v2/updatecheck \
 | Status | Meaning                                                 | Description | Schema                                                                 |
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UpdateCheckResponse](schemas.md#codersdkupdatecheckresponse) |
+
+## Get token config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/tokenconfig \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/{user}/keys/tokens/tokenconfig`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description          |
+| ------ | ---- | ------ | -------- | -------------------- |
+| `user` | path | string | true     | User ID, name, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "max_token_lifetime": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                 |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TokenConfig](schemas.md#codersdktokenconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
