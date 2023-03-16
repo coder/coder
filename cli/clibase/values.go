@@ -359,3 +359,35 @@ func (discardValue) String() string {
 func (discardValue) Type() string {
 	return "discard"
 }
+
+var _ pflag.Value = (*Enum)(nil)
+
+type Enum struct {
+	Choices []string
+	Value   *string
+}
+
+func EnumOf(v *string, choices ...string) *Enum {
+	return &Enum{
+		Choices: choices,
+		Value:   v,
+	}
+}
+
+func (e *Enum) Set(v string) error {
+	for _, c := range e.Choices {
+		if v == c {
+			*e.Value = v
+			return nil
+		}
+	}
+	return xerrors.Errorf("invalid choice: %s, should be one of %v", v, e.Choices)
+}
+
+func (e *Enum) Type() string {
+	return fmt.Sprintf("enum[%v]", strings.Join(e.Choices, "|"))
+}
+
+func (e *Enum) String() string {
+	return *e.Value
+}

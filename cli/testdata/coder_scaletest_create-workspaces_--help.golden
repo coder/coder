@@ -11,34 +11,77 @@ this scaletest. This test generates many login events which will be rate limited
 against the (most likely single) IP.
 
 Options
+    --count, -c, $CODER_LOADTEST_COUNT  (default: 1) 
+        Required: Number of workspaces to create.
+
+    --template, -t, $CODER_LOADTEST_TEMPLATE 
+        Required: Name or ID of the template to use for workspaces.
+
+    --parameters-file, $CODER_LOADTEST_PARAMETERS_FILE 
+        Path to a YAML file containing the parameters to use for each workspace.
+
+    --parameter, $CODER_LOADTEST_PARAMETERS 
+        Parameters to use for each workspace. Can be specified multiple times.
+        Overrides any existing parameters with the same name from
+        --parameters-file. Format: key=value.
+
+    --no-plan, -n, $CODER_LOADTEST_NO_PLAN 
+        Do not print a plan of the load test before running it.
+
+    --no-cleanup, $CODER_LOADTEST_NO_CLEANUP 
+        Do not clean up workspaces after the load test has finished. Useful for
+        debugging.
+
+    --no-wait-for-agents, $CODER_LOADTEST_NO_WAIT_FOR_AGENTS 
+        Do not wait for agents to be ready before starting the load test. Useful
+        for debugging.
+
+    --run-command, $CODER_LOADTEST_RUN_COMMAND 
+        Command to run inside each workspace using reconnecting-pty (i.e. web
+        terminal protocol). If not specified, no command will be run.
+
+    --run-timeout, $CODER_LOADTEST_RUN_TIMEOUT  (default: 5s) 
+        Timeout for the command to complete.
+
+    --run-expect-timeout, $CODER_LOADTEST_RUN_EXPECT_TIMEOUT  (default: false) 
+        Expect the command to timeout. If the command does not finish within the
+        given --run-timeout, it will be marked as succeeded. If the command
+        finishes before the timeout, it will be marked as failed.
+
+    --run-expect-output, $CODER_LOADTEST_RUN_EXPECT_OUTPUT 
+        Expect the command to output the given string (on a single line). If the
+        command does not output the given string, it will be marked as failed.
+
+    --run-log-output, $CODER_LOADTEST_RUN_LOG_OUTPUT 
+        Log the output of the command to the test logs. This should be left off
+        unless you expect small amounts of output. Large amounts of output will
+        cause high memory usage.
+
+    --connect-url, $CODER_LOADTEST_CONNECT_URL 
+        URL to connect to inside the the workspace over WireGuard. If not
+        specified, no connections will be made over WireGuard.
+
+    --connect-mode, $CODER_LOADTEST_CONNECT_MODE  (default: derp) 
+        WireGuard connection mode. Must be one of: derp, udp, tcp.
+
+    --connect-hold, $CODER_LOADTEST_CONNECT_HOLD  (default: 30s) 
+        Time to hold the WireGuard connection open for.
+
+    --connect-interval, $CODER_LOADTEST_CONNECT_INTERVAL  (default: 1s) 
+    --connect-timeout, $CODER_LOADTEST_CONNECT_TIMEOUT  (default: 5s) 
+        Timeout for the WireGuard connection to complete.
+
     --trace, $CODER_LOADTEST_TRACE 
         Whether application tracing data is collected. It exports to a backend
         configured by environment variables. See:
-        https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
+        https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
 
-    --output, $CODER_SCALETEST_OUTPUTS  (default: text) 
-        Output format specs in the format "<format>[:<path>]". Not specifying a
-        path will default to stdout. Available formats: text, json.
+    --trace-coder, $CODER_LOADTEST_TRACE_CODER 
+        Whether opentelemetry traces are sent to Coder. We recommend keeping
+        this disabled unless we advise you to enable it.
 
-    --cleanup-job-timeout, $CODER_LOADTEST_CLEANUP_JOB_TIMEOUT  (default: 5m) 
-        Timeout per job. Jobs may take longer to complete under higher
-        concurrency limits.
-
-    --cleanup-timeout, $CODER_LOADTEST_CLEANUP_TIMEOUT  (default: 30m) 
-        Timeout for the entire cleanup run. 0 means unlimited.
-
-    --cleanup-concurrency, $CODER_LOADTEST_CLEANUP_CONCURRENCY  (default: 1) 
-        Number of concurrent cleanup jobs to run. 0 means unlimited.
-
-    --job-timeout, $CODER_LOADTEST_JOB_TIMEOUT  (default: 5m) 
-        Timeout per job. Jobs may take longer to complete under higher
-        concurrency limits.
-
-    --timeout, $CODER_LOADTEST_TIMEOUT  (default: 30m) 
-        Timeout for the entire test run. 0 means unlimited.
-
-    --concurrency, $CODER_LOADTEST_CONCURRENCY  (default: 1) 
-        Number of concurrent jobs to run. 0 means unlimited.
+    --trace-honeycomb-api-key, $CODER_LOADTEST_TRACE_HONEYCOMB_API_KEY 
+        Enables trace exporting to Honeycomb.io using the provided API key.
 
     --trace-propagate, $CODER_LOADTEST_TRACE_PROPAGATE 
         Enables trace propagation to the Coder backend, which will be used to
@@ -46,72 +89,29 @@ Options
         the server is configured with the exact same tracing configuration as
         the client.
 
-    --trace-honeycomb-api-key, $CODER_LOADTEST_TRACE_HONEYCOMB_API_KEY 
-        Enables trace exporting to Honeycomb.io using the provided API key.
+    --concurrency, $CODER_LOADTEST_CONCURRENCY  (default: 1) 
+        Number of concurrent jobs to run. 0 means unlimited.
 
-    --trace-coder, $CODER_LOADTEST_TRACE_CODER 
-        Whether opentelemetry traces are sent to Coder. We recommend keeping
-        this disabled unless we advise you to enable it.
+    --timeout, $CODER_LOADTEST_TIMEOUT  (default: 30m) 
+        Timeout for the entire test run. 0 means unlimited.
 
-    --connect-hold, $CODER_LOADTEST_CONNECT_HOLD  (default: 30s) 
-        Time to hold the WireGuard connection open for.
+    --job-timeout, $CODER_LOADTEST_JOB_TIMEOUT  (default: 5m) 
+        Timeout per job. Jobs may take longer to complete under higher
+        concurrency limits.
 
-    --connect-interval, $CODER_LOADTEST_CONNECT_INTERVAL  (default: 1s) 
-    --connect-mode, $CODER_LOADTEST_CONNECT_MODE  (default: derp) 
-        WireGuard connection mode. Must be one of: derp, udp, tcp.
+    --cleanup-concurrency, $CODER_LOADTEST_CLEANUP_CONCURRENCY  (default: 1) 
+        Number of concurrent cleanup jobs to run. 0 means unlimited.
 
-    --connect-timeout, $CODER_LOADTEST_CONNECT_TIMEOUT  (default: 5s) 
-        Timeout for the WireGuard connection to complete.
+    --cleanup-timeout, $CODER_LOADTEST_CLEANUP_TIMEOUT  (default: 30m) 
+        Timeout for the entire cleanup run. 0 means unlimited.
 
-    --connect-url, $CODER_LOADTEST_CONNECT_URL 
-        URL to connect to inside the the workspace over WireGuard. If not
-        specified, no connections will be made over WireGuard.
+    --cleanup-job-timeout, $CODER_LOADTEST_CLEANUP_JOB_TIMEOUT  (default: 5m) 
+        Timeout per job. Jobs may take longer to complete under higher
+        concurrency limits.
 
-    --count, -c, $CODER_LOADTEST_COUNT  (default: 1) 
-        Required: Number of workspaces to create.
-
-    --no-cleanup, $CODER_LOADTEST_NO_CLEANUP 
-        Do not clean up workspaces after the load test has finished. Useful for
-        debugging.
-
-    --no-plan, -n, $CODER_LOADTEST_NO_PLAN 
-        Do not print a plan of the load test before running it.
-
-    --no-wait-for-agents, $CODER_LOADTEST_NO_WAIT_FOR_AGENTS 
-        Do not wait for agents to be ready before starting the load test. Useful
-        for debugging.
-
-    --parameter, $CODER_LOADTEST_PARAMETERS 
-        Parameters to use for each workspace. Can be specified multiple times.
-        Overrides any existing parameters with the same name from
-        --parameters-file. Format: key=value
-
-    --parameters-file, $CODER_LOADTEST_PARAMETERS_FILE 
-        Path to a YAML file containing the parameters to use for each workspace.
-
-    --run-command, $CODER_LOADTEST_RUN_COMMAND 
-        Command to run inside each workspace using reconnecting-pty (i.e. web
-        terminal protocol). If not specified, no command will be run.
-
-    --run-expect-output, $CODER_LOADTEST_RUN_EXPECT_OUTPUT 
-        Expect the command to output the given string (on a single line). If the
-        command does not output the given string, it will be marked as failed.
-
-    --run-expect-timeout, $CODER_LOADTEST_RUN_EXPECT_TIMEOUT  (default: false) 
-        Expect the command to timeout. If the command does not finish within the
-        given --run-timeout, it will be marked as succeeded. If the command
-        finishes before the timeout, it will be marked as failed.
-
-    --run-log-output, $CODER_LOADTEST_RUN_LOG_OUTPUT 
-        Log the output of the command to the test logs. This should be left off
-        unless you expect small amounts of output. Large amounts of output will
-        cause high memory usage.
-
-    --run-timeout, $CODER_LOADTEST_RUN_TIMEOUT  (default: 5s) 
-        Timeout for the command to complete.
-
-    --template, -t, $CODER_LOADTEST_TEMPLATE 
-        Required: Name or ID of the template to use for workspaces.
+    --output, $CODER_SCALETEST_OUTPUTS  (default: text) 
+        Output format specs in the format "<format>[:<path>]". Not specifying a
+        path will default to stdout. Available formats: text, json.
 
 ---
 Report bugs and request features at https://github.com/coder/coder/issues/new

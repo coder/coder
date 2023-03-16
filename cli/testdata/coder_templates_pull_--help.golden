@@ -4,7 +4,7 @@ Download the latest version of a template to a path.
 
 Options
     --tar (default: false) 
-        output the template as a tar archive to stdout
+        Output the template as a tar archive to stdout.
 
     --yes, -y
         Bypass prompts.

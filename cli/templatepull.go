@@ -116,7 +116,7 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 
 	cmd.Options = clibase.OptionSet{
 		{
-			Description: "output the template as a tar archive to stdout.",
+			Description: "Output the template as a tar archive to stdout.",
 			Flag:        "tar",
 			Default:     "false",
 			Value:       clibase.BoolOf(&tarMode),

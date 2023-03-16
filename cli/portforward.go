@@ -154,7 +154,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 			Flag:          "tcp",
 			FlagShorthand: "p",
 			Env:           "CODER_PORT_FORWARD_TCP",
-			Description:   "Forward TCP port(s) from the workspace to the local machine",
+			Description:   "Forward TCP port(s) from the workspace to the local machine.",
 			Value:         clibase.StringsOf(&tcpForwards),
 		},
 		{

@@ -3,6 +3,9 @@ Usage: coder create [name]
 Create a workspace
 
 Options
+    --template, -t, $CODER_TEMPLATE_NAME 
+        Specify a template name.
+
     --parameter-file, $CODER_PARAMETER_FILE 
         Specify a file path with parameter values.
 
@@ -16,9 +19,6 @@ Options
 
     --stop-after, $CODER_WORKSPACE_STOP_AFTER 
         Specify a duration after which the workspace should shut down (e.g. 8h).
-
-    --template, -t, $CODER_TEMPLATE_NAME 
-        Specify a template name.
 
     --yes, -y
         Bypass prompts.

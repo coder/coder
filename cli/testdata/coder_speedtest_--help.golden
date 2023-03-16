@@ -6,9 +6,9 @@ Options
     --d (default: false) 
         Specifies whether to wait for a direct connection before testing speed.
 
-    --direction (default: down) 
+    --direction (default: down)  one of up|down 
         Specifies whether to run in reverse mode where the client receives and
-        the server sends. (up|down)
+        the server sends.
 
     --time, -t (default: 5s) 
         Specifies the duration to monitor traffic.

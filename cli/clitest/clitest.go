@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,9 +61,6 @@ func NewWithCommand(
 		Stderr:  (&logWriter{prefix: "stderr", t: t}),
 	}
 	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
-
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	i = i.WithContext(ctx)
 
 	// These can be overridden by the test.
 	return i, configDir
@@ -160,16 +158,25 @@ func Run(t *testing.T, inv *clibase.Invocation) {
 func StartWithError(t *testing.T, inv *clibase.Invocation) <-chan error {
 	t.Helper()
 
-	var (
-		errCh       = make(chan error, 1)
-		ctx, cancel = context.WithCancel(inv.Context())
-	)
+	errCh := make(chan error, 1)
 
 	var cleaningUp atomic.Bool
 
+	var (
+		ctx    = inv.Context()
+		cancel func()
+	)
+	if _, ok := ctx.Deadline(); !ok {
+		ctx, cancel = context.WithDeadline(ctx, time.Now().Add(testutil.WaitMedium))
+	} else {
+		ctx, cancel = context.WithCancel(inv.Context())
+	}
+
+	inv = inv.WithContext(ctx)
+
 	go func() {
 		defer close(errCh)
-		err := inv.WithContext(ctx).Run()
+		err := inv.Run()
 		if cleaningUp.Load() && errors.Is(err, context.DeadlineExceeded) {
 			// If we're cleaning up, this error is likely related to the
 			// CLI teardown process. E.g., the server could be slow to shut

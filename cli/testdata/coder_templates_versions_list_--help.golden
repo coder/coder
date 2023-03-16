@@ -5,10 +5,10 @@ List all the versions of the specified template
 Options
     --column, -c (default: name,created at,created by,status,active) 
         Columns to display in table output. Available columns: name, created at,
-        created by, status, active
+        created by, status, active.
 
     --output, -o (default: table) 
-        Output format. Available formats: table, json
+        Output format. Available formats: table, json.
 
 ---
 Report bugs and request features at https://github.com/coder/coder/issues/new

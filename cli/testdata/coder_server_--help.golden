@@ -67,7 +67,7 @@ Introspection / Tracing Options
     --trace, $CODER_TRACE_ENABLE 
         Whether application tracing data is collected. It exports to a backend
         configured by environment variables. See:
-        https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
+        https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
 
     --trace-honeycomb-api-key, $CODER_TRACE_HONEYCOMB_API_KEY 
         Enables trace exporting to Honeycomb.io using the provided API Key.
@@ -85,10 +85,11 @@ Networking Options
 
     --proxy-trusted-headers, $CODER_PROXY_TRUSTED_HEADERS 
         Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip,
-        True-Client-Ip, X-Forwarded-For
+        True-Client-Ip, X-Forwarded-For.
 
     --proxy-trusted-origins, $CODER_PROXY_TRUSTED_ORIGINS 
-        Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24
+        Origin addresses to respect "proxy-trusted-headers". e.g.
+        192.168.1.0/24.
 
     --redirect-to-access-url, $CODER_REDIRECT_TO_ACCESS_URL 
         Specifies whether to redirect requests that do not match the access URL
@@ -109,11 +110,11 @@ backed by Tailscale and WireGuard.
 
     --derp-config-path, $CODER_DERP_CONFIG_PATH 
         Path to read a DERP mapping from. See:
-        https://tailscale.com/kb/1118/custom-derp-servers/
+        https://tailscale.com/kb/1118/custom-derp-servers/.
 
     --derp-config-url, $CODER_DERP_CONFIG_URL 
         URL to fetch a DERP mapping on startup. See:
-        https://tailscale.com/kb/1118/custom-derp-servers/
+        https://tailscale.com/kb/1118/custom-derp-servers/.
 
     --derp-server-enable, $CODER_DERP_SERVER_ENABLE  (default: true) 
         Whether to enable or disable the embedded DERP relay server.
@@ -188,7 +189,7 @@ can safely ignore these settings.
 
     --tls-client-ca-file, $CODER_TLS_CLIENT_CA_FILE 
         PEM-encoded Certificate Authority file used for checking the
-        authenticity of client
+        authenticity of client.
 
     --tls-client-cert-file, $CODER_TLS_CLIENT_CERT_FILE 
         Path to certificate for client TLS authentication. It requires a
@@ -207,7 +208,7 @@ can safely ignore these settings.
 
     --tls-min-version, $CODER_TLS_MIN_VERSION  (default: tls12) 
         Minimum supported version of TLS. Accepted values are "tls10", "tls11",
-        "tls12" or "tls13"
+        "tls12" or "tls13".
 
 OAuth2 / GitHub Options 
     --oauth2-github-allow-everyone, $CODER_OAUTH2_GITHUB_ALLOW_EVERYONE 
@@ -263,10 +264,10 @@ OIDC Options
         OIDC claim field to use as the username.
 
     --oidc-sign-in-text, $CODER_OIDC_SIGN_IN_TEXT  (default: OpenID Connect) 
-        The text to show on the OpenID Connect sign in button
+        The text to show on the OpenID Connect sign in button.
 
     --oidc-icon-url, $CODER_OIDC_ICON_URL 
-        URL pointing to the icon to use on the OepnID Connect login button
+        URL pointing to the icon to use on the OepnID Connect login button.
 
 Provisioning Options 
 Tune the behavior of the provisioner, which is responsible for creating,

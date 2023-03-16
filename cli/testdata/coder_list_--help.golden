@@ -11,10 +11,10 @@ Options
 
     --column, -c (default: workspace,template,status,last built,outdated,starts at,stops after) 
         Columns to display in table output. Available columns: workspace,
-        template, status, last built, outdated, starts at, stops after
+        template, status, last built, outdated, starts at, stops after.
 
     --output, -o (default: table) 
-        Output format. Available formats: table, json
+        Output format. Available formats: table, json.
 
 ---
 Report bugs and request features at https://github.com/coder/coder/issues/new

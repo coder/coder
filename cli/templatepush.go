@@ -26,7 +26,7 @@ func (pf *templateUploadFlags) option() clibase.Option {
 	return clibase.Option{
 		Flag:          "directory",
 		FlagShorthand: "d",
-		Description:   "Specify the directory to create from, use '-' to read tar from stdin",
+		Description:   "Specify the directory to create from, use '-' to read tar from stdin.",
 		Default:       ".",
 		Value:         clibase.StringOf(&pf.directory),
 	}
@@ -171,7 +171,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		{
 			Flag:          "test.provisioner",
 			FlagShorthand: "p",
-			Description:   "Customize the provisioner backend",
+			Description:   "Customize the provisioner backend.",
 			Default:       "terraform",
 			Value:         clibase.StringOf(&provisioner),
 			// This is for testing!

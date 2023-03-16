@@ -133,10 +133,10 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 			Value:       clibase.BoolOf(&direct),
 		},
 		{
-			Description: "Specifies whether to run in reverse mode where the client receives and the server sends. (up|down)",
+			Description: "Specifies whether to run in reverse mode where the client receives and the server sends.",
 			Flag:        "direction",
 			Default:     "down",
-			Value:       clibase.StringOf(&direction),
+			Value:       clibase.EnumOf(&direction, "up", "down"),
 		},
 		{
 			Description:   "Specifies the duration to monitor traffic.",

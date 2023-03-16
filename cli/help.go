@@ -52,6 +52,14 @@ var usageTemplate = template.Must(
 			"trimNewline": func(s string) string {
 				return strings.TrimSuffix(s, "\n")
 			},
+			"typeHelper": func(opt *clibase.Option) string {
+				switch v := opt.Value.(type) {
+				case *clibase.Enum:
+					return fmt.Sprintf("one of %s", strings.Join(v.Choices, "|"))
+				default:
+					return ""
+				}
+			},
 			"indent": func(body string, tabs int) string {
 				twidth := ttyGetSize()
 

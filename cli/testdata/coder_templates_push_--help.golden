@@ -3,31 +3,31 @@ Usage: coder templates push [template]
 Push a new template version from the current directory or as specified by flag
 
 Options
-    --always-prompt
-        Always prompt all parameters. Does not pull parameter values from active
-        template version
+    --parameter-file
+        Specify a file path with parameter values.
 
-    --directory, -d (default: .) 
-        Specify the directory to create from, use '-' to read tar from stdin
+    --variables-file
+        Specify a file path with values for Terraform-managed variables.
+
+    --variable
+        Specify a set of values for Terraform-managed variables.
+
+    --provisioner-tag, -t
+        Specify a set of tags to target provisioner daemons.
 
     --name
         Specify a name for the new template version. It will be automatically
         generated if not provided.
 
-    --parameter-file
-        Specify a file path with parameter values.
-
-    --provisioner-tag, -t
-        Specify a set of tags to target provisioner daemons.
-
-    --variable
-        Specify a set of values for Terraform-managed variables.
-
-    --variables-file
-        Specify a file path with values for Terraform-managed variables.
+    --always-prompt
+        Always prompt all parameters. Does not pull parameter values from active
+        template version.
 
     --yes, -y
         Bypass prompts.
+
+    --directory, -d (default: .) 
+        Specify the directory to create from, use '-' to read tar from stdin.
 
 ---
 Report bugs and request features at https://github.com/coder/coder/issues/new

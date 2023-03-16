@@ -2,11 +2,11 @@ Usage: coder [subcommand]
 
 Coder v0.0.0-devel — A tool for provisioning self-hosted development
 environments with Terraform.
-  - Start a Coder server:                                                       
+  - Start a Coder server.:                                                      
 
       $ coder server 
 
-  - Get started by creating a template from an example:                         
+  - Get started by creating a template from an example.:                        
 
       $ coder templates init
 
@@ -14,27 +14,27 @@ Global Options
 Global options are applied to all commands. They can be set using environment
 variables or flags.
 
-    --global-config, $CODER_CONFIG_DIR  (default: ~/.config/coderv2) 
-        Path to the global `coder` config directory.
-
-    --header, $CODER_HEADER 
-        Additional HTTP headers to send to the server.
-
-    --no-feature-warning, $CODER_NO_FEATURE_WARNING 
-        Suppress warnings about unlicensed features.
-
-    --no-version-warning, $CODER_NO_VERSION_WARNING 
-        Suppress warning when client and server versions do not match.
+    --url, $CODER_URL 
+        URL to a deployment.
 
     --token, $CODER_SESSION_TOKEN 
         Specify an authentication token. For security reasons setting
         CODER_SESSION_TOKEN is preferred.
 
-    --url, $CODER_URL 
-        URL to a deployment.
+    --no-version-warning, $CODER_NO_VERSION_WARNING 
+        Suppress warning when client and server versions do not match.
+
+    --no-feature-warning, $CODER_NO_FEATURE_WARNING 
+        Suppress warnings about unlicensed features.
+
+    --header, $CODER_HEADER 
+        Additional HTTP headers to send to the server.
 
     --verbose, -v, $CODER_VERBOSE 
         Enable verbose logging.
+
+    --global-config, $CODER_CONFIG_DIR  (default: ~/.config/coderv2) 
+        Path to the global `coder` config directory.
 
 Subcommands
         dotfiles            Checkout and install a dotfiles repository from a Git URL

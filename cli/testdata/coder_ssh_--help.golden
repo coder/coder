@@ -7,7 +7,7 @@ Options
         Specifies whether to emit SSH output over stdin/stdout.
 
     --forward-agent, -A, $CODER_SSH_FORWARD_AGENT 
-        Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK
+        Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK.
 
     --forward-gpg, -G, $CODER_SSH_FORWARD_GPG 
         Specifies whether to forward the GPG agent. Unsupported on Windows

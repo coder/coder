@@ -9,10 +9,10 @@ Options
 
     --column, -c (default: id,name,last used,expires at,created at) 
         Columns to display in table output. Available columns: id, name, last
-        used, expires at, created at, owner
+        used, expires at, created at, owner.
 
     --output, -o (default: table) 
-        Output format. Available formats: table, json
+        Output format. Available formats: table, json.
 
 ---
 Report bugs and request features at https://github.com/coder/coder/issues/new

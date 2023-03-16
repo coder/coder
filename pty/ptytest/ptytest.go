@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/acarl005/stripansi"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
@@ -117,8 +118,7 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		defer close(logDone)
 		s := bufio.NewScanner(logr)
 		for s.Scan() {
-			// Quote output to avoid terminal escape codes, e.g. bell.
-			tpty.logf("stdout: %q", s.Text())
+			tpty.logf("%q", stripansi.Strip(s.Text()))
 		}
 	}()
 

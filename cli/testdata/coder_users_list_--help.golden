@@ -3,10 +3,10 @@ Usage: coder users list
 Options
     --column, -c (default: username,email,created_at,status) 
         Columns to display in table output. Available columns: id, username,
-        email, created at, status
+        email, created at, status.
 
     --output, -o (default: table) 
-        Output format. Available formats: table, json
+        Output format. Available formats: table, json.
 
 ---
 Report bugs and request features at https://github.com/coder/coder/issues/new
