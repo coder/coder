@@ -805,7 +805,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{
 				ValueType: "any",
 				AboveTypeLine: fmt.Sprintf("%s\n%s",
-					indentedComment("Empty interface{} type, cannot resolve any type."),
+					indentedComment("Empty interface{} type, cannot resolve the type."),
 					// Linter needs to be disabled here, or else it will complain about the "any" type.
 					indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any"),
 				),
