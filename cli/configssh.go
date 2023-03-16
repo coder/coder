@@ -71,7 +71,6 @@ func (o *sshConfigOptions) addOption(option string) error {
 		// Override existing option if they share the same key.
 		// This is case-insensitive. Parsing each time might be a little slow,
 		// but it is ok.
-		//
 		existingKey, _, err := codersdk.ParseSSHConfigOption(existing)
 		if err != nil {
 			// Don't mess with original values if there is an error.
@@ -178,6 +177,7 @@ func configSSH() *cobra.Command {
 		usePreviousOpts  bool
 		dryRun           bool
 		skipProxyCommand bool
+		userHostPrefix   string
 	)
 	cmd := &cobra.Command{
 		Annotations: workspaceCommand,
@@ -336,6 +336,11 @@ func configSSH() *cobra.Command {
 				coderdConfig.HostnamePrefix = "coder."
 			}
 
+			if userHostPrefix != "" {
+				// Override with user flag.
+				coderdConfig.HostnamePrefix = userHostPrefix
+			}
+
 			// Ensure stable sorting of output.
 			slices.SortFunc(workspaceConfigs, func(a, b sshWorkspaceConfig) bool {
 				return a.Name < b.Name
@@ -468,6 +473,7 @@ func configSSH() *cobra.Command {
 	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
 	_ = cmd.Flags().MarkHidden("skip-proxy-command")
 	cliflag.BoolVarP(cmd.Flags(), &usePreviousOpts, "use-previous-options", "", "CODER_SSH_USE_PREVIOUS_OPTIONS", false, "Specifies whether or not to keep options from previous run of config-ssh.")
+	cmd.Flags().StringVarP(&userHostPrefix, "ssh-host-prefix", "", "", "Override the default host prefix.")
 	cliui.AllowSkipPrompt(cmd)
 
 	return cmd
