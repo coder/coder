@@ -163,8 +163,10 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		}
 
 		diffRaw := []byte("{}")
-		// Only generate diffs if the request succeeded.
-		if sw.Status < 400 {
+		// Only generate diffs if the request succeeded
+		// and only if we aren't auditing authentication actions
+		if sw.Status < 400 &&
+			req.params.Action != database.AuditActionLogin && req.params.Action != database.AuditActionLogout {
 			diff := Diff(p.Audit, req.Old, req.New)
 
 			var err error

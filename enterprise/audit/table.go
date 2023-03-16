@@ -137,14 +137,13 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"quota_allowance": ActionTrack,
 		"members":         ActionTrack,
 	},
-	// We don't show any diff for the APIKey resource
 	&database.APIKey{}: {
 		"id":               ActionIgnore,
 		"hashed_secret":    ActionIgnore,
 		"user_id":          ActionIgnore,
-		"last_used":        ActionIgnore,
-		"expires_at":       ActionIgnore,
-		"created_at":       ActionIgnore,
+		"last_used":        ActionTrack,
+		"expires_at":       ActionTrack,
+		"created_at":       ActionTrack,
 		"updated_at":       ActionIgnore,
 		"login_type":       ActionIgnore,
 		"lifetime_seconds": ActionIgnore,
