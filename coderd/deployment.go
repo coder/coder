@@ -1,9 +1,9 @@
 package coderd
 
 import (
-	"github.com/coder/coder/buildinfo"
 	"net/http"
 
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -73,7 +73,6 @@ func buildInfo(rw http.ResponseWriter, r *http.Request) {
 		Version:     buildinfo.Version(),
 	})
 }
-
 
 // @Summary SSH Config
 // @ID ssh-config
