@@ -21,7 +21,7 @@ func (m cliMessage) String() string {
 	var str strings.Builder
 
 	if m.Prefix != "" {
-		_, _ = fmt.Fprintf(&str, "%v", m.Style.Bold(true).Render(m.Prefix))
+		_, _ = str.WriteString(m.Style.Bold(true).Render(m.Prefix))
 	}
 
 	_, _ = fmt.Fprintf(
