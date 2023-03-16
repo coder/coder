@@ -41,7 +41,7 @@ export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
 
 const useStyles = makeStyles((theme) => ({
   root: {
-    height: theme.spacing(5), // Make it predictable for the skeleton
+    minHeight: theme.spacing(5), // Make it predictable for the skeleton
   },
 
   title: {
