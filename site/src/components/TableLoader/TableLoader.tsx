@@ -36,7 +36,7 @@ export const TableLoaderSkeleton: FC<{
   return (
     <>
       {placeholderRows.map((_, rowIndex) => (
-        <TableRow key={rowIndex}>
+        <TableRow key={rowIndex} role="progressbar" data-testid="loader">
           {placeholderColumns.map((_, columnIndex) => {
             if (useAvatarData && columnIndex === 0) {
               return (
