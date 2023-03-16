@@ -54,9 +54,9 @@ export const ChangeVersionButton: FC<
   )
 }
 
-export const BuildParametersButton: FC<
-  React.PropsWithChildren<WorkspaceAction>
-> = ({ handleAction }) => {
+export const SettingsButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
+  handleAction,
+}) => {
   const styles = useStyles()
   const { t } = useTranslation("workspacePage")
 
@@ -67,7 +67,7 @@ export const BuildParametersButton: FC<
       startIcon={<SettingsOutlined />}
       onClick={handleAction}
     >
-      {t("actionButton.buildParameters")}
+      {t("actionButton.settings")}
     </Button>
   )
 }
