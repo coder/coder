@@ -140,7 +140,6 @@ func MultiSelect(cmd *cobra.Command, items []string) ([]string, error) {
 	}
 
 	prompt := &survey.MultiSelect{
-		Message: "Options:",
 		Options: items,
 		Default: items,
 	}
