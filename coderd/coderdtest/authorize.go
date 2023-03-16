@@ -57,6 +57,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
 		"POST:/api/v2/authcheck":        {NoAuthorize: true},
 		"GET:/api/v2/applications/host": {NoAuthorize: true},
+		"GET:/api/v2/deployment/ssh":    {NoAuthorize: true, StatusCode: http.StatusOK},
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
