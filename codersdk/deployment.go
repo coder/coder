@@ -1307,9 +1307,9 @@ when required by your organization's security policy.`,
 			Value:         &c.Config,
 		},
 		{
-			Name:        "CLI SSH Hostname Prefix",
-			Description: "The CLI SSH deployment name is the used in the Hostname of the ssh config.",
-			Flag:        "cli-ssh-hostname-prefix",
+			Name:        "SSH Host Prefix",
+			Description: "The SSH deployment prefix is used in the Host of the ssh config.",
+			Flag:        "ssh-hostname-prefix",
 			Env:         "SSH_HOSTNAME_PREFIX",
 			YAML:        "sshHostnamePrefix",
 			Group:       &deploymentGroupClient,
@@ -1319,9 +1319,9 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name: "SSH Config Options",
-			Description: "These ssh config options will override the default ssh config options. " +
-				"Provide options in key=value format separated by commas." +
-				"Using this incorrectly can break ssh to your deployment. Use cautiously.",
+			Description: "These SSH config options will override the default SSH config options. " +
+				"Provide options in \"key=value\" or \"key value\" format separated by commas." +
+				"Using this incorrectly can break SSH to your deployment, use cautiously.",
 			Flag:   "ssh-config-options",
 			Env:    "SSH_CONFIG_OPTIONS",
 			YAML:   "sshConfigOptions",
