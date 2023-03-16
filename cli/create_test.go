@@ -453,6 +453,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		stringParameterName  = "string_parameter"
 		stringParameterValue = "abc"
 
+		listOfStringsParameterName = "list_of_strings_parameter"
+
 		numberParameterName  = "number_parameter"
 		numberParameterValue = "7"
 
@@ -466,6 +468,10 @@ func TestCreateValidateRichParameters(t *testing.T) {
 
 	stringRichParameters := []*proto.RichParameter{
 		{Name: stringParameterName, Type: "string", Mutable: true, ValidationRegex: "^[a-z]+$", ValidationError: "this is error"},
+	}
+
+	listOfStringsRichParameters := []*proto.RichParameter{
+		{Name: listOfStringsParameterName, Type: "list(string)", Mutable: true, DefaultValue: `["aaa","bbb","ccc"]`},
 	}
 
 	boolRichParameters := []*proto.RichParameter{
@@ -604,6 +610,43 @@ func TestCreateValidateRichParameters(t *testing.T) {
 			value := matches[i+1]
 			pty.ExpectMatch(match)
 			pty.WriteLine(value)
+		}
+		<-doneChan
+	})
+
+	t.Run("ValidateListOfStrings", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(listOfStringsRichParameters))
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
+		clitest.SetupConfig(t, client, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t)
+		cmd.SetIn(pty.Input())
+		cmd.SetOut(pty.Output())
+		go func() {
+			defer close(doneChan)
+			err := cmd.Execute()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			listOfStringsParameterName, "",
+			"aaa, bbb, ccc", "",
+			"Confirm create?", "yes",
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+			if value != "" {
+				pty.WriteLine(value)
+			}
 		}
 		<-doneChan
 	})
