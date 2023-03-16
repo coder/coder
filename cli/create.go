@@ -285,6 +285,7 @@ PromptParamLoop:
 		}
 
 		legacyParameters = append(legacyParameters, codersdk.CreateParameterRequest{
+			Name:              parameterSchema.Name,
 			SourceValue:       parameterValue,
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
 			DestinationScheme: parameterSchema.DefaultDestinationScheme,
