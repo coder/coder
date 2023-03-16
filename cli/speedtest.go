@@ -127,21 +127,18 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 	}
 	cmd.Options = clibase.OptionSet{
 		{
-			Name:        "direct",
 			Description: "Specifies whether to wait for a direct connection before testing speed.",
 			Flag:        "d",
 			Default:     "false",
 			Value:       clibase.BoolOf(&direct),
 		},
 		{
-			Name:        "direction",
 			Description: "Specifies whether to run in reverse mode where the client receives and the server sends. (up|down)",
 			Flag:        "direction",
 			Default:     "down",
 			Value:       clibase.StringOf(&direction),
 		},
 		{
-			Name:          "time",
 			Description:   "Specifies the duration to monitor traffic.",
 			Flag:          "time",
 			FlagShorthand: "t",

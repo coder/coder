@@ -142,11 +142,11 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 		Use: "coder [subcommand]",
 		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + formatExamples(
 			example{
-				Description: "Start a Coder server",
+				Description: "Start a Coder server.",
 				Command:     "coder server",
 			},
 			example{
-				Description: "Get started by creating a template from an example",
+				Description: "Get started by creating a template from an example.",
 				Command:     "coder templates init",
 			},
 		),
@@ -202,9 +202,8 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 		Name:        "Global",
 		Description: `Global options are applied to all commands. They can be set using environment variables or flags.`,
 	}
-	cmd.Options = []clibase.Option{
+	cmd.Options = clibase.OptionSet{
 		{
-			Name:        varURL,
 			Flag:        varURL,
 			Env:         envURL,
 			Description: "URL to a deployment.",
@@ -212,7 +211,6 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Group:       globalGroup,
 		},
 		{
-			Name:        varToken,
 			Flag:        varToken,
 			Env:         envSessionToken,
 			Description: fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken),
@@ -220,7 +218,6 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Group:       globalGroup,
 		},
 		{
-			Name:        varAgentToken,
 			Flag:        varAgentToken,
 			Description: "An agent authentication token.",
 			Value:       clibase.StringOf(&r.agentToken),
@@ -228,16 +225,14 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Group:       globalGroup,
 		},
 		{
-			Name:        varAgentURL,
 			Flag:        varAgentURL,
 			Env:         "CODER_AGENT_URL",
-			Description: "URL for an agent to access your deployment",
+			Description: "URL for an agent to access your deployment.",
 			Value:       clibase.URLOf(r.agentURL),
 			Hidden:      true,
 			Group:       globalGroup,
 		},
 		{
-			Name:        varNoVersionCheck,
 			Flag:        varNoVersionCheck,
 			Env:         envNoVersionCheck,
 			Description: "Suppress warning when client and server versions do not match.",
@@ -245,7 +240,6 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Group:       globalGroup,
 		},
 		{
-			Name:        varNoFeatureWarning,
 			Flag:        varNoFeatureWarning,
 			Env:         envNoFeatureWarning,
 			Description: "Suppress warnings about unlicensed features.",
@@ -253,7 +247,6 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Group:       globalGroup,
 		},
 		{
-			Name:        varHeader,
 			Flag:        varHeader,
 			Env:         "CODER_HEADER",
 			Description: "Additional HTTP headers to send to the server.",
@@ -261,7 +254,6 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Group:       globalGroup,
 		},
 		{
-			Name:        varNoOpen,
 			Flag:        varNoOpen,
 			Env:         "CODER_NO_OPEN",
 			Description: "Suppress opening the browser after logging in.",
@@ -270,7 +262,6 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Group:       globalGroup,
 		},
 		{
-			Name:        varForceTty,
 			Flag:        varForceTty,
 			Env:         "CODER_FORCE_TTY",
 			Hidden:      true,
@@ -279,7 +270,6 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Group:       globalGroup,
 		},
 		{
-			Name:          varVerbose,
 			Flag:          varVerbose,
 			FlagShorthand: "v",
 			Env:           "CODER_VERBOSE",
@@ -288,7 +278,6 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Group:         globalGroup,
 		},
 		{
-			Name:        config.FlagName,
 			Flag:        config.FlagName,
 			Env:         "CODER_CONFIG_DIR",
 			Description: "Path to the global `coder` config directory.",

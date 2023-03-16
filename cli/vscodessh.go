@@ -187,10 +187,10 @@ func (*RootCmd) vscodeSSH() *clibase.Cmd {
 			}
 		},
 	}
-	cmd.Options = []clibase.Option{
+	cmd.Options = clibase.OptionSet{
 		{
 			Flag:        "network-info-dir",
-			Description: "Specifies a directory to write network information periodically. ",
+			Description: "Specifies a directory to write network information periodically.",
 			Value:       clibase.StringOf(&networkInfoDir),
 		},
 		{

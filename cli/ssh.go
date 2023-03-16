@@ -246,7 +246,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		{
 			Flag:        "shuffle",
 			Env:         "CODER_SSH_SHUFFLE",
-			Description: "Specifies whether to choose a random workspace",
+			Description: "Specifies whether to choose a random workspace.",
 			Value:       clibase.BoolOf(&shuffle),
 			Hidden:      true,
 		},
@@ -254,7 +254,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			Flag:          "forward-agent",
 			FlagShorthand: "A",
 			Env:           "CODER_SSH_FORWARD_AGENT",
-			Description:   "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK",
+			Description:   "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK.",
 			Value:         clibase.BoolOf(&forwardAgent),
 		},
 		{

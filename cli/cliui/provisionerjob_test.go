@@ -148,8 +148,7 @@ func newProvisionerJob(t *testing.T) provisionerJobTest {
 	inv := cmd.Invoke()
 
 	ptty := ptytest.New(t)
-	inv.Stdout = ptty.Output()
-	inv.Stdin = ptty.Input()
+	ptty.Attach(inv)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)

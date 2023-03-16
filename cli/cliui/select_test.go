@@ -55,11 +55,11 @@ func TestRichSelect(t *testing.T) {
 					{
 						Name:        "A-Name",
 						Value:       "A-Value",
-						Description: "A-Description",
+						Description: "A-Description.",
 					}, {
 						Name:        "B-Name",
 						Value:       "B-Value",
-						Description: "B-Description",
+						Description: "B-Description.",
 					},
 				},
 			})

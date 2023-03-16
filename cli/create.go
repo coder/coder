@@ -161,7 +161,6 @@ func (r *RootCmd) create() *clibase.Cmd {
 	}
 	cmd.Options = append(cmd.Options,
 		clibase.Option{
-			Name:          "template",
 			Flag:          "template",
 			FlagShorthand: "t",
 			Env:           "CODER_TEMPLATE_NAME",
@@ -169,28 +168,24 @@ func (r *RootCmd) create() *clibase.Cmd {
 			Value:         clibase.StringOf(&templateName),
 		},
 		clibase.Option{
-			Name:        "parameter-file",
 			Flag:        "parameter-file",
 			Env:         "CODER_PARAMETER_FILE",
 			Description: "Specify a file path with parameter values.",
 			Value:       clibase.StringOf(&parameterFile),
 		},
 		clibase.Option{
-			Name:        "rich-parameter-file",
 			Flag:        "rich-parameter-file",
 			Env:         "CODER_RICH_PARAMETER_FILE",
 			Description: "Specify a file path with values for rich parameters defined in the template.",
 			Value:       clibase.StringOf(&richParameterFile),
 		},
 		clibase.Option{
-			Name:        "start-at",
 			Flag:        "start-at",
 			Env:         "CODER_WORKSPACE_START_AT",
 			Description: "Specify the workspace autostart schedule. Check `coder schedule start --help` for the syntax.",
 			Value:       clibase.StringOf(&startAt),
 		},
 		clibase.Option{
-			Name:        "stop-after",
 			Flag:        "stop-after",
 			Env:         "CODER_WORKSPACE_STOP_AFTER",
 			Description: "Specify a duration after which the workspace should shut down (e.g. 8h).",
@@ -290,7 +285,6 @@ PromptParamLoop:
 		}
 
 		legacyParameters = append(legacyParameters, codersdk.CreateParameterRequest{
-			Name:              parameterSchema.Name,
 			SourceValue:       parameterValue,
 			SourceScheme:      codersdk.ParameterSourceSchemeData,
 			DestinationScheme: parameterSchema.DefaultDestinationScheme,

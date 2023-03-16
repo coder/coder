@@ -245,7 +245,7 @@ func TestCommand_FlagOverride(t *testing.T) {
 
 	cmd := &clibase.Cmd{
 		Use: "1",
-		Options: []clibase.Option{
+		Options: clibase.OptionSet{
 			{
 				Flag:  "f",
 				Value: clibase.DiscardValue,
@@ -254,7 +254,7 @@ func TestCommand_FlagOverride(t *testing.T) {
 		Children: []*clibase.Cmd{
 			{
 				Use: "2",
-				Options: []clibase.Option{
+				Options: clibase.OptionSet{
 					{
 						Flag:  "f",
 						Value: clibase.StringOf(&flag),
@@ -312,7 +312,7 @@ func TestCommand_RawArgs(t *testing.T) {
 	cmd := func() *clibase.Cmd {
 		return &clibase.Cmd{
 			Use: "root",
-			Options: []clibase.Option{
+			Options: clibase.OptionSet{
 				{
 					Name:  "password",
 					Flag:  "password",

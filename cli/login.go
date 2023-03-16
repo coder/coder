@@ -268,7 +268,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Options = []clibase.Option{
+	cmd.Options = clibase.OptionSet{
 		{
 			Flag:        "first-user-email",
 			Env:         "CODER_FIRST_USER_EMAIL",

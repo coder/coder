@@ -130,7 +130,7 @@ func (r *RootCmd) list() *clibase.Cmd {
 			return err
 		},
 	}
-	cmd.Options = []clibase.Option{
+	cmd.Options = clibase.OptionSet{
 		{
 			Flag:          "all",
 			FlagShorthand: "a",

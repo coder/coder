@@ -19,7 +19,7 @@ func (r *RootCmd) stop() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.UseClient(client),
 		),
-		Options: []clibase.Option{
+		Options: clibase.OptionSet{
 			cliui.SkipPromptOption(),
 		},
 		Handler: func(inv *clibase.Invocation) error {

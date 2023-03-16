@@ -62,7 +62,7 @@ func (s *scaletestTracingFlags) attach(opts *clibase.OptionSet) {
 		clibase.Option{
 			Flag:        "trace",
 			Env:         "CODER_LOADTEST_TRACE",
-			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md",
+			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.",
 			Value:       clibase.BoolOf(&s.traceEnable),
 		},
 		clibase.Option{
@@ -820,7 +820,6 @@ It is recommended that all rate limits are disabled on the server before running
 
 	cmd.Options = clibase.OptionSet{
 		{
-			Name:          "count",
 			Flag:          "count",
 			FlagShorthand: "c",
 			Env:           "CODER_LOADTEST_COUNT",
@@ -829,7 +828,6 @@ It is recommended that all rate limits are disabled on the server before running
 			Value:         clibase.Int64Of(&count),
 		},
 		{
-			Name:          "template",
 			Flag:          "template",
 			FlagShorthand: "t",
 			Env:           "CODER_LOADTEST_TEMPLATE",
@@ -837,21 +835,18 @@ It is recommended that all rate limits are disabled on the server before running
 			Value:         clibase.StringOf(&template),
 		},
 		{
-			Name:        "parameters-file",
 			Flag:        "parameters-file",
 			Env:         "CODER_LOADTEST_PARAMETERS_FILE",
 			Description: "Path to a YAML file containing the parameters to use for each workspace.",
 			Value:       clibase.StringOf(&parametersFile),
 		},
 		{
-			Name:        "parameter",
 			Flag:        "parameter",
 			Env:         "CODER_LOADTEST_PARAMETERS",
-			Description: "Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value",
+			Description: "Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value.",
 			Value:       clibase.StringsOf(&parameters),
 		},
 		{
-			Name:          "no-plan",
 			Flag:          "no-plan",
 			FlagShorthand: "n",
 			Env:           "CODER_LOADTEST_NO_PLAN",
@@ -859,7 +854,6 @@ It is recommended that all rate limits are disabled on the server before running
 			Value:         clibase.BoolOf(&noPlan),
 		},
 		{
-			Name: "no-cleanup",
 			Flag: "no-cleanup",
 			Env:  "CODER_LOADTEST_NO_CLEANUP",
 			Description: "Do not clean up workspaces after the load test has finished. " +
@@ -867,7 +861,6 @@ It is recommended that all rate limits are disabled on the server before running
 			Value: clibase.BoolOf(&noCleanup),
 		},
 		{
-			Name: "no-wait-for-agents",
 			Flag: "no-wait-for-agents",
 			Env:  "CODER_LOADTEST_NO_WAIT_FOR_AGENTS",
 			Description: "Do not wait for agents to be ready before starting the load test. " +
@@ -875,7 +868,6 @@ It is recommended that all rate limits are disabled on the server before running
 			Value: clibase.BoolOf(&noWaitForAgents),
 		},
 		{
-			Name: "run-command",
 			Flag: "run-command",
 			Env:  "CODER_LOADTEST_RUN_COMMAND",
 			Description: "Command to run inside each workspace using reconnecting-pty (i.e. web terminal protocol). " +
@@ -883,7 +875,6 @@ It is recommended that all rate limits are disabled on the server before running
 			Value: clibase.StringOf(&runCommand),
 		},
 		{
-			Name:        "run-timeout",
 			Flag:        "run-timeout",
 			Env:         "CODER_LOADTEST_RUN_TIMEOUT",
 			Default:     "5s",
@@ -891,7 +882,6 @@ It is recommended that all rate limits are disabled on the server before running
 			Value:       clibase.DurationOf(&runTimeout),
 		},
 		{
-			Name:        "run-expect-timeout",
 			Flag:        "run-expect-timeout",
 			Env:         "CODER_LOADTEST_RUN_EXPECT_TIMEOUT",
 			Default:     "false",
@@ -899,28 +889,24 @@ It is recommended that all rate limits are disabled on the server before running
 			Value:       clibase.BoolOf(&runExpectTimeout),
 		},
 		{
-			Name:        "run-expect-output",
 			Flag:        "run-expect-output",
 			Env:         "CODER_LOADTEST_RUN_EXPECT_OUTPUT",
 			Description: "Expect the command to output the given string (on a single line). " + "If the command does not output the given string, it will be marked as failed.",
 			Value:       clibase.StringOf(&runExpectOutput),
 		},
 		{
-			Name:        "run-log-output",
 			Flag:        "run-log-output",
 			Env:         "CODER_LOADTEST_RUN_LOG_OUTPUT",
 			Description: "Log the output of the command to the test logs. " + "This should be left off unless you expect small amounts of output. " + "Large amounts of output will cause high memory usage.",
 			Value:       clibase.BoolOf(&runLogOutput),
 		},
 		{
-			Name:        "connect-url",
 			Flag:        "connect-url",
 			Env:         "CODER_LOADTEST_CONNECT_URL",
 			Description: "URL to connect to inside the the workspace over WireGuard. " + "If not specified, no connections will be made over WireGuard.",
 			Value:       clibase.StringOf(&connectURL),
 		},
 		{
-			Name:        "connect-mode",
 			Flag:        "connect-mode",
 			Env:         "CODER_LOADTEST_CONNECT_MODE",
 			Default:     "derp",
@@ -928,7 +914,6 @@ It is recommended that all rate limits are disabled on the server before running
 			Value:       clibase.StringOf(&connectMode),
 		},
 		{
-			Name:        "connect-hold",
 			Flag:        "connect-hold",
 			Env:         "CODER_LOADTEST_CONNECT_HOLD",
 			Default:     "30s",
@@ -936,14 +921,12 @@ It is recommended that all rate limits are disabled on the server before running
 			Value:       clibase.DurationOf(&connectHold),
 		},
 		{
-			Name:    "connect-interval",
 			Flag:    "connect-interval",
 			Env:     "CODER_LOADTEST_CONNECT_INTERVAL",
 			Default: "1s",
 			Value:   clibase.DurationOf(&connectInterval),
 		},
 		{
-			Name:        "connect-timeout",
 			Flag:        "connect-timeout",
 			Env:         "CODER_LOADTEST_CONNECT_TIMEOUT",
 			Default:     "5s",

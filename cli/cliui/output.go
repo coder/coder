@@ -60,12 +60,11 @@ func (f *OutputFormatter) AttachOptions(opts *clibase.OptionSet) {
 
 	*opts = append(*opts,
 		clibase.Option{
-			Name:          "output",
 			Flag:          "output",
 			FlagShorthand: "o",
 			Default:       f.formats[0].ID(),
 			Value:         clibase.StringOf(&f.formatID),
-			Description:   "Output format. Available formats: " + strings.Join(formatNames, ", "),
+			Description:   "Output format. Available formats: " + strings.Join(formatNames, ", ") + ".",
 		},
 	)
 }
@@ -132,12 +131,11 @@ func (*tableFormat) ID() string {
 func (f *tableFormat) AttachOptions(opts *clibase.OptionSet) {
 	*opts = append(*opts,
 		clibase.Option{
-			Name:          "column",
 			Flag:          "column",
 			FlagShorthand: "c",
 			Default:       strings.Join(f.defaultColumns, ","),
 			Value:         clibase.StringsOf(&f.defaultColumns),
-			Description:   "Columns to display in table output. Available columns: " + strings.Join(f.allColumns, ", "),
+			Description:   "Columns to display in table output. Available columns: " + strings.Join(f.allColumns, ", ") + ".",
 		},
 	)
 }

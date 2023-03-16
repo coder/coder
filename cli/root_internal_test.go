@@ -24,11 +24,11 @@ func Test_formatExamples(t *testing.T) {
 			name: "Output examples",
 			examples: []example{
 				{
-					Description: "Hello world",
+					Description: "Hello world.",
 					Command:     "echo hello",
 				},
 				{
-					Description: "Bye bye",
+					Description: "Bye bye.",
 					Command:     "echo bye",
 				},
 			},

@@ -65,7 +65,7 @@ func (r *RootCmd) statePull() *clibase.Cmd {
 			return os.WriteFile(inv.Args[1], state, 0o600)
 		},
 	}
-	cmd.Options = []clibase.Option{
+	cmd.Options = clibase.OptionSet{
 		buildNumberOption(&buildNumber),
 	}
 	return cmd
@@ -127,7 +127,7 @@ func (r *RootCmd) statePush() *clibase.Cmd {
 			return cliui.WorkspaceBuild(inv.Context(), inv.Stderr, client, build.ID)
 		},
 	}
-	cmd.Options = []clibase.Option{
+	cmd.Options = clibase.OptionSet{
 		buildNumberOption(&buildNumber),
 	}
 	return cmd

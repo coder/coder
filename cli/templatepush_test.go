@@ -271,7 +271,7 @@ func TestTemplatePush(t *testing.T) {
 			modifiedTemplateVariables := append(initialTemplateVariables,
 				&proto.TemplateVariable{
 					Name:        "second_variable",
-					Description: "This is the second variable",
+					Description: "This is the second variable.",
 					Type:        "string",
 					Required:    true,
 				},
@@ -334,7 +334,7 @@ func TestTemplatePush(t *testing.T) {
 			modifiedTemplateVariables := append(initialTemplateVariables,
 				&proto.TemplateVariable{
 					Name:        "second_variable",
-					Description: "This is the second variable",
+					Description: "This is the second variable.",
 					Type:        "string",
 					Required:    true,
 				},
@@ -441,7 +441,7 @@ func TestTemplatePush(t *testing.T) {
 			modifiedTemplateVariables := append(initialTemplateVariables,
 				&proto.TemplateVariable{
 					Name:        "second_variable",
-					Description: "This is the second variable",
+					Description: "This is the second variable.",
 					Type:        "string",
 					Required:    true,
 				},

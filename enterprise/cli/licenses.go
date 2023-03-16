@@ -120,7 +120,7 @@ func (r *RootCmd) licenseAdd() *clibase.Cmd {
 		},
 		{
 			Flag:        "debug",
-			Description: "Output license claims for debugging",
+			Description: "Output license claims for debugging.",
 			Value:       clibase.BoolOf(&debug),
 		},
 	}

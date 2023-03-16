@@ -31,7 +31,6 @@ const skipPromptFlag = "yes"
 // prompts.
 func SkipPromptOption() clibase.Option {
 	return clibase.Option{
-		Name:          skipPromptFlag,
 		Flag:          skipPromptFlag,
 		FlagShorthand: "y",
 		Description:   "Bypass prompts.",

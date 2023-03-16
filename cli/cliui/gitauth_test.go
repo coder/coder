@@ -43,8 +43,7 @@ func TestGitAuth(t *testing.T) {
 
 	inv := cmd.Invoke().WithContext(ctx)
 
-	inv.Stdout = ptty.Output()
-	inv.Stdin = ptty.Input()
+	ptty.Attach(inv)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)

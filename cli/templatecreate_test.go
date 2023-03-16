@@ -298,7 +298,7 @@ func TestTemplateCreate(t *testing.T) {
 		templateVariables := []*proto.TemplateVariable{
 			{
 				Name:        "first_variable",
-				Description: "This is the first variable",
+				Description: "This is the first variable.",
 				Type:        "string",
 				Required:    true,
 				Sensitive:   true,
@@ -352,7 +352,7 @@ func TestTemplateCreate(t *testing.T) {
 		templateVariables := []*proto.TemplateVariable{
 			{
 				Name:        "first_variable",
-				Description: "This is the first variable",
+				Description: "This is the first variable.",
 				Type:        "string",
 				Required:    true,
 				Sensitive:   true,
@@ -406,7 +406,7 @@ func TestTemplateCreate(t *testing.T) {
 		templateVariables := []*proto.TemplateVariable{
 			{
 				Name:        "first_variable",
-				Description: "This is the first variable",
+				Description: "This is the first variable.",
 				Type:        "string",
 				Required:    true,
 				Sensitive:   true,

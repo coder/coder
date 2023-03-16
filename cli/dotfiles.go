@@ -24,7 +24,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 		Short:      "Checkout and install a dotfiles repository from a Git URL",
 		Long: formatExamples(
 			example{
-				Description: "Check out and install a dotfiles repository without prompts",
+				Description: "Check out and install a dotfiles repository without prompts.",
 				Command:     "coder dotfiles --yes git@github.com:example/dotfiles.git",
 			},
 		),
@@ -235,9 +235,8 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Options = []clibase.Option{
+	cmd.Options = clibase.OptionSet{
 		{
-			Name:        "symlink-dir",
 			Flag:        "symlink-dir",
 			Env:         "CODER_SYMLINK_DIR",
 			Description: "Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.",

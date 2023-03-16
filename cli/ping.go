@@ -133,7 +133,7 @@ func (r *RootCmd) ping() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = []clibase.Option{
+	cmd.Options = clibase.OptionSet{
 		{
 			Flag:          "verbose",
 			FlagShorthand: "v",

@@ -238,14 +238,12 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 
 	createAdminUserCommand.Options.Add(
 		clibase.Option{
-			Name:        "postgres-url",
 			Env:         "CODER_POSTGRES_URL",
 			Flag:        "postgres-url",
 			Description: "URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case).",
 			Value:       clibase.StringOf(&newUserDBURL),
 		},
 		clibase.Option{
-			Name:        "ssh-keygen-algorithm",
 			Env:         "CODER_SSH_KEYGEN_ALGORITHM",
 			Flag:        "ssh-keygen-algorithm",
 			Description: "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
@@ -253,21 +251,18 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 			Value:       clibase.StringOf(&newUserSSHKeygenAlgorithm),
 		},
 		clibase.Option{
-			Name:        "username",
 			Env:         "CODER_USERNAME",
 			Flag:        "username",
 			Description: "The username of the new user. If not specified, you will be prompted via stdin.",
 			Value:       clibase.StringOf(&newUserUsername),
 		},
 		clibase.Option{
-			Name:        "email",
 			Env:         "CODER_EMAIL",
 			Flag:        "email",
 			Description: "The email of the new user. If not specified, you will be prompted via stdin.",
 			Value:       clibase.StringOf(&newUserEmail),
 		},
 		clibase.Option{
-			Name:        "password",
 			Env:         "CODER_PASSWORD",
 			Flag:        "password",
 			Description: "The password of the new user. If not specified, you will be prompted via stdin.",

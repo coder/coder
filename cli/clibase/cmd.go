@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
@@ -76,15 +77,21 @@ func (c *Cmd) PrepareAll() error {
 				merr = errors.Join(merr, xerrors.Errorf("option must have a Name, Flag, Env or YAML field"))
 			}
 		}
-		if opt.Description != "" && !strings.HasSuffix(opt.Description, ".") {
-			merr = errors.Join(merr, xerrors.Errorf("option %q description should end with a period", opt.Name))
+		if opt.Description != "" {
+			// Enforce that description uses sentence form.
+			if unicode.IsLower(rune(opt.Description[0])) {
+				merr = errors.Join(merr, xerrors.Errorf("option %q description should start with a capital letter", opt.Name))
+			}
+			if !strings.HasSuffix(opt.Description, ".") {
+				merr = errors.Join(merr, xerrors.Errorf("option %q description should end with a period", opt.Name))
+			}
 		}
 	}
 	for _, child := range c.Children {
 		child.Parent = c
 		err := child.PrepareAll()
-		if merr != nil {
-			merr = errors.Join(err, xerrors.Errorf("command %v: %w", child.Name(), err))
+		if err != nil {
+			merr = errors.Join(merr, xerrors.Errorf("command %v: %w", child.Name(), err))
 		}
 	}
 	return merr

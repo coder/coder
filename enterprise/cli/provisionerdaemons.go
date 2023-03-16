@@ -169,14 +169,14 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			Flag:        "poll-interval",
 			Env:         "CODER_PROVISIONERD_POLL_INTERVAL",
 			Default:     time.Second.String(),
-			Description: "How often to poll for provisioner jobs",
+			Description: "How often to poll for provisioner jobs.",
 			Value:       clibase.DurationOf(&pollInterval),
 		},
 		{
 			Flag:        "poll-jitter",
 			Env:         "CODER_PROVISIONERD_POLL_JITTER",
-			Description: "How much to jitter the poll interval by",
-			Default:     "100ms",
+			Description: "How much to jitter the poll interval by.",
+			Default:     (100 * time.Millisecond).String(),
 			Value:       clibase.DurationOf(&pollJitter),
 		},
 	}

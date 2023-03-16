@@ -116,7 +116,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Options = []clibase.Option{
+	cmd.Options = clibase.OptionSet{
 		{
 			Flag:        "parameter-file",
 			Description: "Specify a file path with parameter values.",
@@ -146,7 +146,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		uploadFlags.option(),
 		{
 			Flag:        "test.provisioner",
-			Description: "Customize the provisioner backend",
+			Description: "Customize the provisioner backend.",
 			Default:     "terraform",
 			Value:       clibase.StringOf(&provisioner),
 			Hidden:      true,

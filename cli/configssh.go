@@ -146,11 +146,11 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		Short:       "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
 		Long: formatExamples(
 			example{
-				Description: "You can use -o (or --ssh-option) so set SSH options to be used for all your workspaces",
+				Description: "You can use -o (or --ssh-option) so set SSH options to be used for all your workspaces.",
 				Command:     "coder config-ssh -o ForwardAgent=yes",
 			},
 			example{
-				Description: "You can use --dry-run (or -n) to see the changes that would be made",
+				Description: "You can use --dry-run (or -n) to see the changes that would be made.",
 				Command:     "coder config-ssh --dry-run",
 			},
 		),
@@ -370,9 +370,8 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = []clibase.Option{
+	cmd.Options = clibase.OptionSet{
 		{
-			Name:        "ssh-config-file",
 			Flag:        "ssh-config-file",
 			Env:         "CODER_SSH_CONFIG_FILE",
 			Default:     sshDefaultConfigFileName,
@@ -380,7 +379,6 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Value:       clibase.StringOf(&sshConfigFile),
 		},
 		{
-			Name:          "ssh-options",
 			Flag:          "ssh-option",
 			FlagShorthand: "o",
 			Env:           "CODER_SSH_CONFIG_OPTS",
@@ -388,7 +386,6 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Value:         clibase.StringsOf(&sshConfigOpts.sshOptions),
 		},
 		{
-			Name:          "dry-run",
 			Flag:          "dry-run",
 			FlagShorthand: "n",
 			Env:           "CODER_SSH_DRY_RUN",
@@ -396,7 +393,6 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Value:         clibase.BoolOf(&dryRun),
 		},
 		{
-			Name:        "skip-proxy-command",
 			Flag:        "skip-proxy-command",
 			Env:         "CODER_SSH_SKIP_PROXY_COMMAND",
 			Description: "Specifies whether the ProxyCommand option should be skipped. Useful for testing.",
@@ -404,7 +400,6 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Hidden:      true,
 		},
 		{
-			Name:        "use-previous-options",
 			Flag:        "use-previous-options",
 			Env:         "CODER_SSH_USE_PREVIOUS_OPTIONS",
 			Description: "Specifies whether or not to keep options from previous run of config-ssh.",

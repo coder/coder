@@ -20,15 +20,15 @@ func (r *RootCmd) tokens() *clibase.Cmd {
 		Short: "Manage personal access tokens",
 		Long: "Tokens are used to authenticate automated clients to Coder.\n" + formatExamples(
 			example{
-				Description: "Create a token for automation",
+				Description: "Create a token for automation.",
 				Command:     "coder tokens create",
 			},
 			example{
-				Description: "List your tokens",
+				Description: "List your tokens.",
 				Command:     "coder tokens ls",
 			},
 			example{
-				Description: "Remove a token by ID",
+				Description: "Remove a token by ID.",
 				Command:     "coder tokens rm WuoWs4ZsMX",
 			},
 		),
@@ -79,14 +79,12 @@ func (r *RootCmd) createToken() *clibase.Cmd {
 
 	cmd.Options = clibase.OptionSet{
 		{
-			Name:        "lifetime",
 			Flag:        "lifetime",
 			Env:         "CODER_TOKEN_LIFETIME",
 			Description: "Specify a duration for the lifetime of the token.",
 			Value:       clibase.DurationOf(&tokenLifetime),
 		},
 		{
-			Name:        "name",
 			Flag:        "name",
 			Env:         "CODER_TOKEN_NAME",
 			Description: "Specify a human-readable name.",
@@ -178,7 +176,6 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 
 	cmd.Options = clibase.OptionSet{
 		{
-			Name:          "all",
 			Flag:          "all",
 			FlagShorthand: "a",
 			Description:   "Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).",

@@ -24,7 +24,6 @@ type templateUploadFlags struct {
 
 func (pf *templateUploadFlags) option() clibase.Option {
 	return clibase.Option{
-		Name:          "directory",
 		Flag:          "directory",
 		FlagShorthand: "d",
 		Description:   "Specify the directory to create from, use '-' to read tar from stdin",
@@ -168,9 +167,8 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = []clibase.Option{
+	cmd.Options = clibase.OptionSet{
 		{
-			Name:          "provisioner",
 			Flag:          "test.provisioner",
 			FlagShorthand: "p",
 			Description:   "Customize the provisioner backend",
@@ -180,40 +178,34 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Hidden: true,
 		},
 		{
-			Name:        "parameter-file",
 			Flag:        "parameter-file",
 			Description: "Specify a file path with parameter values.",
 			Value:       clibase.StringOf(&parameterFile),
 		},
 		{
-			Name:        "variables-file",
 			Flag:        "variables-file",
 			Description: "Specify a file path with values for Terraform-managed variables.",
 			Value:       clibase.StringOf(&variablesFile),
 		},
 		{
-			Name:        "variable",
 			Flag:        "variable",
 			Description: "Specify a set of values for Terraform-managed variables.",
 			Value:       clibase.StringsOf(&variables),
 		},
 		{
-			Name:          "provisioner-tag",
 			Flag:          "provisioner-tag",
 			FlagShorthand: "t",
 			Description:   "Specify a set of tags to target provisioner daemons.",
 			Value:         clibase.StringsOf(&provisionerTags),
 		},
 		{
-			Name:        "name",
 			Flag:        "name",
 			Description: "Specify a name for the new template version. It will be automatically generated if not provided.",
 			Value:       clibase.StringOf(&versionName),
 		},
 		{
-			Name:        "always-prompt",
 			Flag:        "always-prompt",
-			Description: "Always prompt all parameters. Does not pull parameter values from active template version",
+			Description: "Always prompt all parameters. Does not pull parameter values from active template version.",
 			Value:       clibase.BoolOf(&alwaysPrompt),
 		},
 		cliui.SkipPromptOption(),
