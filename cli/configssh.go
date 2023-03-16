@@ -49,7 +49,7 @@ type sshConfigOptions struct {
 	sshOptions []string
 }
 
-// add expects an option in the form of "option=value" or "option value".
+// addOptions expects options in the form of "option=value" or "option value".
 // It will override any existing option with the same key to prevent duplicates.
 // Invalid options will return an error.
 func (o *sshConfigOptions) addOptions(options ...string) error {
