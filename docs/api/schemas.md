@@ -3777,13 +3777,14 @@ Parameter represents a set value for the scope.
 
 #### Enumerated Values
 
-| Property               | Value        |
-| ---------------------- | ------------ |
-| `type`                 | `string`     |
-| `type`                 | `number`     |
-| `type`                 | `bool`       |
-| `validation_monotonic` | `increasing` |
-| `validation_monotonic` | `decreasing` |
+| Property               | Value          |
+| ---------------------- | -------------- |
+| `type`                 | `string`       |
+| `type`                 | `number`       |
+| `type`                 | `bool`         |
+| `type`                 | `list(string)` |
+| `validation_monotonic` | `increasing`   |
+| `validation_monotonic` | `decreasing`   |
 
 ## codersdk.TemplateVersionParameterOption
 
