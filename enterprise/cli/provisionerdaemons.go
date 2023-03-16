@@ -154,7 +154,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			Flag:          "cache-dir",
 			FlagShorthand: "c",
 			Env:           "CODER_CACHE_DIRECTORY",
-			Description:   "Directory to store cached data",
+			Description:   "Directory to store cached data.",
 			Default:       codersdk.DefaultCacheDir(),
 			Value:         clibase.StringOf(&cacheDir),
 		},
@@ -162,7 +162,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			Flag:          "tag",
 			FlagShorthand: "t",
 			Env:           "CODER_PROVISIONERD_TAGS",
-			Description:   "Tags to filter provisioner jobs by",
+			Description:   "Tags to filter provisioner jobs by.",
 			Value:         clibase.StringsOf(&rawTags),
 		},
 		{

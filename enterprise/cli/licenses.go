@@ -109,13 +109,13 @@ func (r *RootCmd) licenseAdd() *clibase.Cmd {
 		{
 			Flag:          "file",
 			FlagShorthand: "f",
-			Description:   "Load license from file",
+			Description:   "Load license from file.",
 			Value:         clibase.StringOf(&filename),
 		},
 		{
 			Flag:          "license",
 			FlagShorthand: "l",
-			Description:   "License string",
+			Description:   "License string.",
 			Value:         clibase.StringOf(&license),
 		},
 		{

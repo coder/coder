@@ -45,7 +45,7 @@ func (r *RootCmd) groupCreate() *clibase.Cmd {
 	cmd.Options = clibase.OptionSet{
 		{
 			Flag:          "avatar-url",
-			Description:   `set an avatar for a group`,
+			Description:   `Set an avatar for a group.`,
 			FlagShorthand: "u",
 			Env:           "CODER_AVATAR_URL",
 			Value:         clibase.StringOf(&avatarURL),

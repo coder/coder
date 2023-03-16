@@ -81,13 +81,13 @@ func (r *RootCmd) groupEdit() *clibase.Cmd {
 		{
 			Flag:          "name",
 			FlagShorthand: "n",
-			Description:   "Update the group name",
+			Description:   "Update the group name.",
 			Value:         clibase.StringOf(&name),
 		},
 		{
 			Flag:          "avatar-url",
 			FlagShorthand: "u",
-			Description:   "Update the group avatar",
+			Description:   "Update the group avatar.",
 			Value:         clibase.StringOf(&avatarURL),
 		},
 		{

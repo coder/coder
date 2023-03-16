@@ -85,7 +85,7 @@ func (r *RootCmd) featuresList() *clibase.Cmd {
 		{
 			Flag:          "column",
 			FlagShorthand: "c",
-			Description: fmt.Sprintf("Specify a column to filter in the table. Available columns are: %s",
+			Description: fmt.Sprintf("Specify a column to filter in the table. Available columns are: %s.",
 				strings.Join(featureColumns, ", "),
 			),
 			Default: strings.Join(featureColumns, ","),
