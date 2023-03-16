@@ -305,7 +305,7 @@ func TestCreate(t *testing.T) {
 		require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status, "job is not failed")
 
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		inv, root := clitest.New(t, "create", "test", "--parameter-file", parameterFile.Name())
+		inv, root := clitest.New(t, "create", "test", "--parameter-file", parameterFile.Name(), "-y")
 		clitest.SetupConfig(t, client, root)
 		ptytest.New(t).Attach(inv)
 
