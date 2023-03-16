@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/coderd"
 )
 
-func Server(_ func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Cmd {
+func (r *RootCmd) Server(_ func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Cmd {
 	root := &clibase.Cmd{
 		Use:   "server",
 		Short: "Start a Coder server",
