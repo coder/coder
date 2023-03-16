@@ -3,6 +3,7 @@ package clibase
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -348,8 +349,11 @@ func findArg(want string, args []string, fs *pflag.FlagSet) (int, error) {
 //nolint:revive
 func (i *Invocation) Run() (err error) {
 	defer func() {
+		// Pflag is panicky, so additional context is helpful in tests.
+		if flag.Lookup("test.v") == nil {
+			return
+		}
 		if r := recover(); r != nil {
-			// Panics are difficult to debug without this additional context.
 			err = xerrors.Errorf("panic recovered for %s: %v", i.Command.FullName(), r)
 			panic(err)
 		}

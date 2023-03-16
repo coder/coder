@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	_ "embed"
-	"flag"
 	"fmt"
 	"io"
 	"sort"
@@ -32,10 +31,7 @@ type optionGroup struct {
 
 func ttyGetSize() int {
 	width, _, err := terminal.GetSize(0)
-	// Even in tests, we want to return the default width because
-	// the PTY width changes across operating systems for some
-	// unknown reason.
-	if err != nil || flag.Lookup("test.v") != nil {
+	if err != nil {
 		return 80
 	}
 	return width

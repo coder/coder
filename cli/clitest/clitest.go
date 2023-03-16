@@ -29,7 +29,7 @@ import (
 // temporary testing directory.
 func New(t *testing.T, args ...string) (*clibase.Invocation, config.Root) {
 	var root cli.RootCmd
-	cmd := root.Command(root.AGPL())
+
 	return NewWithCommand(t, cmd, args...)
 }
 
@@ -56,11 +56,22 @@ func NewWithCommand(
 	i := &clibase.Invocation{
 		Command: cmd,
 		Args:    append([]string{"--global-config", string(configDir)}, args...),
-		Stdin:   &bytes.Buffer{},
+		Stdin:   io.LimitReader(nil, 0),
 		Stdout:  (&logWriter{prefix: "stdout", t: t}),
 		Stderr:  (&logWriter{prefix: "stderr", t: t}),
 	}
 	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
+	cmd := root.Command(root.AGPL())
+	deadline, hasDeadline := ctx.Deadline()
+	if !hasDeadline {
+		// We don't want to wait the full 5 minutes for a test to time out.
+		deadline = time.Now().Add(testutil.WaitMedium)
+	}
+
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+
+	t.Cleanup(cancel)
+
 	// These can be overridden by the test.
 	return i, configDir
 }
@@ -165,7 +176,7 @@ func StartWithError(t *testing.T, inv *clibase.Invocation) <-chan error {
 	deadline, hasDeadline := ctx.Deadline()
 	if !hasDeadline {
 		// We don't want to wait the full 5 minutes for a test to time out.
-		deadline = time.Now().Add(testutil.WaitSuperLong)
+		deadline = time.Now().Add(testutil.WaitMedium)
 	}
 
 	ctx, cancel := context.WithDeadline(ctx, deadline)
