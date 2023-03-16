@@ -161,7 +161,7 @@ type DeploymentValues struct {
 	DisablePasswordAuth             clibase.Bool                    `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                   `json:"support,omitempty" typescript:",notnull"`
 	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
-	SSHConfig                       SSHConfig                       `json:"cli_ssh,omitempty" typescript:",notnull"`
+	SSHConfig                       SSHConfig                       `json:"config_ssh,omitempty" typescript:",notnull"`
 
 	Config      clibase.String `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool   `json:"write_config,omitempty" typescript:",notnull"`

@@ -359,7 +359,7 @@ export interface DeploymentValues {
   // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.GitAuthConfig]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
   readonly git_auth?: any
-  readonly cli_ssh?: SSHConfig
+  readonly config_ssh?: SSHConfig
   readonly config?: string
   readonly write_config?: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"

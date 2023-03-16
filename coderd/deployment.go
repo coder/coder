@@ -60,8 +60,8 @@ func (api *API) deploymentStats(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, stats)
 }
 
-// @Summary CLI SSH Config
-// @ID cli-ssh-config
+// @Summary SSH Config
+// @ID ssh-config
 // @Security CoderSessionToken
 // @Produce json
 // @Tags General

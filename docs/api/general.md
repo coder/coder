@@ -402,7 +402,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## CLI SSH Config
+## SSH Config
 
 ### Code samples
 

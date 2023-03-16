@@ -397,8 +397,8 @@ const docTemplate = `{
                 "tags": [
                     "General"
                 ],
-                "summary": "CLI SSH Config",
-                "operationId": "cli-ssh-config",
+                "summary": "SSH Config",
+                "operationId": "ssh-config",
                 "responses": {
                     "200": {
                         "description": "OK",
