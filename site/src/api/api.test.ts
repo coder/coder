@@ -2,6 +2,7 @@ import axios from "axios"
 import {
   MockTemplate,
   MockTemplateVersionParameter1,
+  MockTemplateVersionParameter2,
   MockWorkspace,
   MockWorkspaceBuild,
 } from "testHelpers/entities"
@@ -178,16 +179,29 @@ describe("api.ts", () => {
     it("fails when having missing parameters", async () => {
       jest
         .spyOn(api, "postWorkspaceBuild")
-        .mockResolvedValueOnce(MockWorkspaceBuild)
-      jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
-      jest.spyOn(api, "getWorkspaceBuildParameters").mockResolvedValueOnce([])
+        .mockResolvedValue(MockWorkspaceBuild)
+      jest.spyOn(api, "getTemplate").mockResolvedValue(MockTemplate)
+      jest.spyOn(api, "getWorkspaceBuildParameters").mockResolvedValue([])
       jest
         .spyOn(api, "getTemplateVersionRichParameters")
-        .mockResolvedValueOnce([MockTemplateVersionParameter1])
+        .mockResolvedValue([
+          MockTemplateVersionParameter1,
+          { ...MockTemplateVersionParameter2, mutable: false },
+        ])
 
-      await expect(api.updateWorkspace(MockWorkspace)).rejects.toThrow(
-        api.MissingBuildParameters,
-      )
+      let error = new Error()
+      try {
+        await api.updateWorkspace(MockWorkspace)
+      } catch (e) {
+        error = e as Error
+      }
+
+      expect(error).toBeInstanceOf(api.MissingBuildParameters)
+      // Verify if the correct missing parameters are being passed
+      // It should not require immutable parameters
+      expect((error as api.MissingBuildParameters).parameters).toEqual([
+        MockTemplateVersionParameter1,
+      ])
     })
   })
 })

@@ -987,8 +987,8 @@ const updateBuildParameters = (
       continue
     }
 
-    // If there is no value and it is required, add it to the list of missing parameters
-    if (parameter.required) {
+    // If there is no value, it is required and can be changed, add it to the list of missing parameters
+    if (parameter.required && parameter.mutable) {
       missingParameters.push(parameter)
     }
   }
