@@ -645,8 +645,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			ValueType: "any",
 			AboveTypeLine: fmt.Sprintf("%s\n%s",
 				indentedComment("Embedded anonymous struct, please fix by naming it"),
-				// Must include an eslint exception, otherwise the typescript linter will complain about
-				// the usage of an "any" type.
+				// Linter needs to be disabled here, or else it will complain about the "any" type.
 				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any"),
 			),
 		}, nil
