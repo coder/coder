@@ -3511,7 +3511,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg database.GetWorkspaceAgentStartupLogsAfterParams) ([]database.WorkspaceAgentStartupLog, error) {
+func (q *fakeQuerier) GetWorkspaceAgentStartupLogsAfter(_ context.Context, arg database.GetWorkspaceAgentStartupLogsAfterParams) ([]database.WorkspaceAgentStartupLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -3532,7 +3532,7 @@ func (q *fakeQuerier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg
 	return logs, nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]database.WorkspaceAgentStartupLog, error) {
+func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(_ context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]database.WorkspaceAgentStartupLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -3545,6 +3545,7 @@ func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg d
 	if len(q.workspaceAgentLogs) > 0 {
 		id = q.workspaceAgentLogs[len(q.workspaceAgentLogs)-1].ID
 	}
+	outputLength := int32(0)
 	for index, output := range arg.Output {
 		id++
 		logs = append(logs, database.WorkspaceAgentStartupLog{
@@ -3553,6 +3554,22 @@ func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg d
 			CreatedAt: arg.CreatedAt[index],
 			Output:    output,
 		})
+		outputLength += int32(len(output))
+	}
+	for index, agent := range q.workspaceAgents {
+		if agent.ID != arg.AgentID {
+			continue
+		}
+		// Greater than 1MB, same as the PostgreSQL constraint!
+		if agent.StartupLogsLength+outputLength > (1 << 20) {
+			return nil, &pq.Error{
+				Constraint: "max_startup_logs_length",
+				Table:      "workspace_agents",
+			}
+		}
+		agent.StartupLogsLength += outputLength
+		q.workspaceAgents[index] = agent
+		break
 	}
 	q.workspaceAgentLogs = append(q.workspaceAgentLogs, logs...)
 	return logs, nil
@@ -4697,6 +4714,23 @@ func (q *fakeQuerier) UpdateWorkspaceAgentLifecycleStateByID(_ context.Context, 
 	for i, agent := range q.workspaceAgents {
 		if agent.ID == arg.ID {
 			agent.LifecycleState = arg.LifecycleState
+			q.workspaceAgents[i] = agent
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateWorkspaceAgentStartupLogOverflowByID(_ context.Context, arg database.UpdateWorkspaceAgentStartupLogOverflowByIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for i, agent := range q.workspaceAgents {
+		if agent.ID == arg.ID {
+			agent.StartupLogsOverflowed = arg.StartupLogsOverflowed
 			q.workspaceAgents[i] = agent
 			return nil
 		}

@@ -255,6 +255,39 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 	})
 	if err != nil {
 		if database.IsStartupLogsLimitError(err) {
+			if !workspaceAgent.StartupLogsOverflowed {
+				err := api.Database.UpdateWorkspaceAgentStartupLogOverflowByID(ctx, database.UpdateWorkspaceAgentStartupLogOverflowByIDParams{
+					ID:                    workspaceAgent.ID,
+					StartupLogsOverflowed: true,
+				})
+				if err != nil {
+					// We don't want to return here, because the agent will retry
+					// on failure and this isn't a huge deal. The overflow state
+					// is just a hint to the user that the logs are incomplete.
+					api.Logger.Warn(ctx, "failed to update workspace agent startup log overflow", slog.Error(err))
+				}
+
+				resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
+				if err != nil {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "Failed to get workspace resource.",
+						Detail:  err.Error(),
+					})
+					return
+				}
+
+				build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
+				if err != nil {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "Internal error fetching workspace build job.",
+						Detail:  err.Error(),
+					})
+					return
+				}
+
+				api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
+			}
+
 			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "Startup logs limit exceeded",
 				Detail:  err.Error(),
@@ -1079,6 +1112,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		Architecture:                 dbAgent.Architecture,
 		OperatingSystem:              dbAgent.OperatingSystem,
 		StartupScript:                dbAgent.StartupScript.String,
+		StartupLogsOverflowed:        dbAgent.StartupLogsOverflowed,
 		Version:                      dbAgent.Version,
 		EnvironmentVariables:         envs,
 		Directory:                    dbAgent.Directory,

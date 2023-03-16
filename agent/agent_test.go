@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -38,6 +40,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/pty/ptytest"
@@ -737,25 +740,78 @@ func TestAgent_SSHConnectionEnvVars(t *testing.T) {
 
 func TestAgent_StartupScript(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("This test doesn't work on Windows for some reason...")
-	}
 	output := "something"
 	command := "sh -c 'echo " + output + "'"
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe /c echo " + output
 	}
-	//nolint:dogsled
-	_, client, _, _, _ := setupAgent(t, agentsdk.Metadata{
-		StartupScript: command,
-	}, 0)
-	assert.Eventually(t, func() bool {
-		got := client.getLifecycleStates()
-		return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
-	}, testutil.WaitShort, testutil.IntervalMedium)
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		client := &client{
+			t:       t,
+			agentID: uuid.New(),
+			metadata: agentsdk.Metadata{
+				StartupScript: command,
+				DERPMap:       &tailcfg.DERPMap{},
+			},
+			statsChan:   make(chan *agentsdk.Stats),
+			coordinator: tailnet.NewCoordinator(),
+		}
+		closer := agent.New(agent.Options{
+			Client:                 client,
+			Filesystem:             afero.NewMemMapFs(),
+			Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			ReconnectingPTYTimeout: 0,
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+		assert.Eventually(t, func() bool {
+			got := client.getLifecycleStates()
+			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
+		}, testutil.WaitShort, testutil.IntervalMedium)
 
-	require.Len(t, client.getStartupLogs(), 1)
-	require.Equal(t, output, client.getStartupLogs()[0].Output)
+		require.Len(t, client.getStartupLogs(), 1)
+		require.Equal(t, output, client.getStartupLogs()[0].Output)
+	})
+	// This ensures that even when coderd sends back that the startup
+	// script has written too many lines it will still succeed!
+	t.Run("OverflowsAndSkips", func(t *testing.T) {
+		t.Parallel()
+		client := &client{
+			t:       t,
+			agentID: uuid.New(),
+			metadata: agentsdk.Metadata{
+				StartupScript: command,
+				DERPMap:       &tailcfg.DERPMap{},
+			},
+			patchWorkspaceLogs: func() error {
+				resp := httptest.NewRecorder()
+				httpapi.Write(context.Background(), resp, http.StatusRequestEntityTooLarge, codersdk.Response{
+					Message: "Too many lines!",
+				})
+				res := resp.Result()
+				defer res.Body.Close()
+				return codersdk.ReadBodyAsError(res)
+			},
+			statsChan:   make(chan *agentsdk.Stats),
+			coordinator: tailnet.NewCoordinator(),
+		}
+		closer := agent.New(agent.Options{
+			Client:                 client,
+			Filesystem:             afero.NewMemMapFs(),
+			Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			ReconnectingPTYTimeout: 0,
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+		assert.Eventually(t, func() bool {
+			got := client.getLifecycleStates()
+			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
+		}, testutil.WaitShort, testutil.IntervalMedium)
+		require.Len(t, client.getStartupLogs(), 0)
+	})
 }
 
 func TestAgent_Lifecycle(t *testing.T) {
@@ -1481,6 +1537,7 @@ type client struct {
 	statsChan          chan *agentsdk.Stats
 	coordinator        tailnet.Coordinator
 	lastWorkspaceAgent func()
+	patchWorkspaceLogs func() error
 
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
@@ -1579,6 +1636,9 @@ func (c *client) getStartupLogs() []agentsdk.StartupLog {
 func (c *client) PatchStartupLogs(_ context.Context, logs agentsdk.PatchStartupLogs) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.patchWorkspaceLogs != nil {
+		return c.patchWorkspaceLogs()
+	}
 	c.logs = append(c.logs, logs.Logs...)
 	return nil
 }

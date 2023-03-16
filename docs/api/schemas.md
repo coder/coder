@@ -200,6 +200,25 @@
 | `startup_script_timeout`  | integer                                                 | false    |              |                                                                                                                                                            |
 | `vscode_port_proxy_uri`   | string                                                  | false    |              |                                                                                                                                                            |
 
+## agentsdk.PatchStartupLogs
+
+```json
+{
+  "logs": [
+    {
+      "created_at": "string",
+      "output": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name   | Type                                                | Required | Restrictions | Description |
+| ------ | --------------------------------------------------- | -------- | ------------ | ----------- |
+| `logs` | array of [agentsdk.StartupLog](#agentsdkstartuplog) | false    |              |             |
+
 ## agentsdk.PostAppHealthsRequest
 
 ```json

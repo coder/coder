@@ -538,6 +538,7 @@ CREATE TABLE workspace_agents (
     shutdown_script character varying(65534),
     shutdown_script_timeout_seconds integer DEFAULT 0 NOT NULL,
     startup_logs_length integer DEFAULT 0 NOT NULL,
+    startup_logs_overflowed boolean DEFAULT false NOT NULL,
     CONSTRAINT max_startup_logs_length CHECK ((startup_logs_length <= 1048576))
 );
 
@@ -562,6 +563,8 @@ COMMENT ON COLUMN workspace_agents.shutdown_script IS 'Script that is executed b
 COMMENT ON COLUMN workspace_agents.shutdown_script_timeout_seconds IS 'The number of seconds to wait for the shutdown script to complete. If the script does not complete within this time, the agent lifecycle will be marked as shutdown_timeout.';
 
 COMMENT ON COLUMN workspace_agents.startup_logs_length IS 'Total length of startup logs';
+
+COMMENT ON COLUMN workspace_agents.startup_logs_overflowed IS 'Whether the startup logs overflowed in length';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,

@@ -677,6 +677,13 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 			if err == nil {
 				break
 			}
+			var sdkErr *codersdk.Error
+			if errors.As(err, &sdkErr) {
+				if sdkErr.StatusCode() == http.StatusRequestEntityTooLarge {
+					a.logger.Warn(ctx, "startup logs too large, dropping logs")
+					break
+				}
+			}
 			a.logger.Error(ctx, "upload startup logs", slog.Error(err), slog.F("to_send", logsToSend))
 		}
 		logMutex.Lock()

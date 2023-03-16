@@ -1569,6 +1569,8 @@ type WorkspaceAgent struct {
 	ShutdownScriptTimeoutSeconds int32 `db:"shutdown_script_timeout_seconds" json:"shutdown_script_timeout_seconds"`
 	// Total length of startup logs
 	StartupLogsLength int32 `db:"startup_logs_length" json:"startup_logs_length"`
+	// Whether the startup logs overflowed in length
+	StartupLogsOverflowed bool `db:"startup_logs_overflowed" json:"startup_logs_overflowed"`
 }
 
 type WorkspaceAgentStartupLog struct {

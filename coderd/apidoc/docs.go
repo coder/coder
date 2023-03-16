@@ -4323,10 +4323,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/agentsdk.StartupLog"
-                            }
+                            "$ref": "#/definitions/agentsdk.PatchStartupLogs"
                         }
                     }
                 ],
@@ -5335,6 +5332,17 @@ const docTemplate = `{
                 },
                 "vscode_port_proxy_uri": {
                     "type": "string"
+                }
+            }
+        },
+        "agentsdk.PatchStartupLogs": {
+            "type": "object",
+            "properties": {
+                "logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.StartupLog"
+                    }
                 }
             }
         },

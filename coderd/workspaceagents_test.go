@@ -175,63 +175,126 @@ func TestWorkspaceAgent(t *testing.T) {
 	})
 }
 
-func TestWorkspaceAgentStartup(t *testing.T) {
+func TestWorkspaceAgentStartupLogs(t *testing.T) {
 	t.Parallel()
-	ctx, cancelFunc := testutil.Context(t)
-	defer cancelFunc()
-	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
-	})
-	user := coderdtest.CreateFirstUser(t, client)
-	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:         echo.ParseComplete,
-		ProvisionPlan: echo.ProvisionComplete,
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "example",
-						Type: "aws_instance",
-						Agents: []*proto.Agent{{
-							Id: uuid.NewString(),
-							Auth: &proto.Agent_Token{
-								Token: authToken,
-							},
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := testutil.Context(t)
+		defer cancelFunc()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id: uuid.NewString(),
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
 						}},
-					}},
+					},
 				},
-			},
-		}},
-	})
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	err := agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
-		Logs: []agentsdk.StartupLog{{
-			CreatedAt: database.Now(),
-			Output:    "testing",
-		}},
-	})
-	require.NoError(t, err)
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+		err := agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
+			Logs: []agentsdk.StartupLog{{
+				CreatedAt: database.Now(),
+				Output:    "testing",
+			}},
+		})
+		require.NoError(t, err)
 
-	logs, closer, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0)
-	require.NoError(t, err)
-	defer func() {
-		_ = closer.Close()
-	}()
-	var log codersdk.WorkspaceAgentStartupLog
-	select {
-	case <-ctx.Done():
-	case log = <-logs:
-	}
-	require.NoError(t, ctx.Err())
-	require.Equal(t, "testing", log.Output)
-	cancelFunc()
+		logs, closer, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, -500)
+		require.NoError(t, err)
+		defer func() {
+			_ = closer.Close()
+		}()
+		var logChunk []codersdk.WorkspaceAgentStartupLog
+		select {
+		case <-ctx.Done():
+		case logChunk = <-logs:
+		}
+		require.NoError(t, ctx.Err())
+		require.Len(t, logChunk, 1)
+		require.Equal(t, "testing", logChunk[0].Output)
+		cancelFunc()
+	})
+	t.Run("PublishesOnOverflow", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancelFunc := testutil.Context(t)
+		defer cancelFunc()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id: uuid.NewString(),
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		updates, err := client.WatchWorkspace(ctx, workspace.ID)
+		require.NoError(t, err)
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
+			Logs: []agentsdk.StartupLog{{
+				CreatedAt: database.Now(),
+				Output:    strings.Repeat("a", (1<<20)+1),
+			}},
+		})
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusRequestEntityTooLarge, apiError.StatusCode())
+
+		var update codersdk.Workspace
+		select {
+		case <-ctx.Done():
+			t.FailNow()
+		case update = <-updates:
+		}
+		// Ensure that the UI gets an update when the logs overflow!
+		require.True(t, update.LatestBuild.Resources[0].Agents[0].StartupLogsOverflowed)
+		cancelFunc()
+	})
 }
 
 func TestWorkspaceAgentListen(t *testing.T) {

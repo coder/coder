@@ -94,6 +94,14 @@ SET
 WHERE
 	id = $1;
 
+-- name: UpdateWorkspaceAgentStartupLogOverflowByID :exec
+UPDATE
+	workspace_agents
+SET
+	startup_logs_overflowed = $2
+WHERE
+	id = $1;
+
 -- name: GetWorkspaceAgentStartupLogsAfter :many
 SELECT
 	*

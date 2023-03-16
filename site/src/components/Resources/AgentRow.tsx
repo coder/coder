@@ -61,8 +61,8 @@ export const AgentRow: FC<AgentRowProps> = ({
     agent.lifecycle_state !== "ready" && hasStartupFeatures,
   )
   useEffect(() => {
-    setShowStartupLogs(agent.lifecycle_state !== "ready")
-  }, [agent.lifecycle_state])
+    setShowStartupLogs(agent.lifecycle_state !== "ready" && hasStartupFeatures)
+  }, [agent.lifecycle_state, hasStartupFeatures])
   useEffect(() => {
     // We only want to fetch logs when they are actually shown,
     // otherwise we can make a lot of requests that aren't necessary.

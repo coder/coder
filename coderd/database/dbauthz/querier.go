@@ -1237,6 +1237,24 @@ func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, ar
 	return q.db.UpdateWorkspaceAgentLifecycleStateByID(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceAgentStartupLogOverflowByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupLogOverflowByIDParams) error {
+	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agent.ID)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, workspace); err != nil {
+		return err
+	}
+
+	return q.db.UpdateWorkspaceAgentStartupLogOverflowByID(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
 	if err != nil {

@@ -995,6 +995,16 @@ func (s *MethodTestSuite) TestWorkspace() {
 			LifecycleState: database.WorkspaceAgentLifecycleStateCreated,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("UpdateWorkspaceAgentStartupLogOverflowByID", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		check.Args(database.UpdateWorkspaceAgentStartupLogOverflowByIDParams{
+			ID:                    agt.ID,
+			StartupLogsOverflowed: true,
+		}).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
 	s.Run("UpdateWorkspaceAgentStartupByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
