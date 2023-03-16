@@ -205,16 +205,12 @@ func Test_ResolveRequest(t *testing.T) {
 					_ = w.Body.Close()
 
 					require.Equal(t, &workspaceapps.Ticket{
-						AccessMethod:      req.AccessMethod,
-						UsernameOrID:      req.UsernameOrID,
-						WorkspaceNameOrID: req.WorkspaceNameOrID,
-						AgentNameOrID:     req.AgentNameOrID,
-						AppSlugOrPort:     req.AppSlugOrPort,
-						Expiry:            ticket.Expiry, // ignored to avoid flakiness
-						UserID:            me.ID,
-						WorkspaceID:       workspace.ID,
-						AgentID:           agentID,
-						AppURL:            appURL,
+						Request:     req,
+						Expiry:      ticket.Expiry, // ignored to avoid flakiness
+						UserID:      me.ID,
+						WorkspaceID: workspace.ID,
+						AgentID:     agentID,
+						AppURL:      appURL,
 					}, ticket)
 					require.NotZero(t, ticket.Expiry)
 					require.InDelta(t, time.Now().Add(workspaceapps.TicketExpiry).Unix(), ticket.Expiry, time.Minute.Seconds())
@@ -423,17 +419,20 @@ func Test_ResolveRequest(t *testing.T) {
 		t.Parallel()
 
 		badTicket := workspaceapps.Ticket{
-			AccessMethod:      workspaceapps.AccessMethodPath,
-			UsernameOrID:      me.Username,
-			WorkspaceNameOrID: workspace.Name,
-			AgentNameOrID:     agentName,
-			// App name differs
-			AppSlugOrPort: appNamePublic,
-			Expiry:        time.Now().Add(time.Minute).Unix(),
-			UserID:        me.ID,
-			WorkspaceID:   workspace.ID,
-			AgentID:       agentID,
-			AppURL:        appURL,
+			Request: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
+				BasePath:          "/app",
+				UsernameOrID:      me.Username,
+				WorkspaceNameOrID: workspace.Name,
+				AgentNameOrID:     agentName,
+				// App name differs
+				AppSlugOrPort: appNamePublic,
+			},
+			Expiry:      time.Now().Add(time.Minute).Unix(),
+			UserID:      me.ID,
+			WorkspaceID: workspace.ID,
+			AgentID:     agentID,
+			AppURL:      appURL,
 		}
 		badTicketStr, err := api.WorkspaceAppsProvider.GenerateTicket(badTicket)
 		require.NoError(t, err)
@@ -510,13 +509,37 @@ func Test_ResolveRequest(t *testing.T) {
 		}
 
 		rw := httptest.NewRecorder()
-		r := httptest.NewRequest("GET", "/app", nil)
+		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
 		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
 		require.True(t, ok)
 		require.Equal(t, req.AppSlugOrPort, ticket.AppSlugOrPort)
 		require.Equal(t, "http://127.0.0.1:9090", ticket.AppURL)
+	})
+
+	t.Run("Terminal", func(t *testing.T) {
+		t.Parallel()
+
+		req := workspaceapps.Request{
+			AccessMethod:  workspaceapps.AccessMethodTerminal,
+			BasePath:      "/app",
+			AgentNameOrID: agentID.String(),
+		}
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/app", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+		require.True(t, ok)
+		require.Equal(t, req.AccessMethod, ticket.AccessMethod)
+		require.Equal(t, req.BasePath, ticket.BasePath)
+		require.Empty(t, ticket.UsernameOrID)
+		require.Empty(t, ticket.WorkspaceNameOrID)
+		require.Equal(t, req.AgentNameOrID, ticket.Request.AgentNameOrID)
+		require.Empty(t, ticket.AppSlugOrPort)
+		require.Empty(t, ticket.AppURL)
 	})
 
 	t.Run("InsufficientPermissions", func(t *testing.T) {

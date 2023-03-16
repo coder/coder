@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
@@ -35,6 +36,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/tailnet"
@@ -240,30 +242,36 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
 
-	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
-		httpapi.ResourceNotFound(rw)
+	ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, workspaceapps.Request{
+		AccessMethod:  workspaceapps.AccessMethodTerminal,
+		BasePath:      r.URL.Path,
+		AgentNameOrID: chi.URLParam(r, "workspaceagent"),
+	})
+	if !ok {
 		return
 	}
 
-	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
-		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
-	)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error reading workspace agent.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
-		})
-		return
-	}
+	// TODO(@deansheather): bring back agent state check in the upstream ticket
+	// code
+	/*
+		apiAgent, err := convertWorkspaceAgent(
+			api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+			api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+		)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error reading workspace agent.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+			})
+			return
+		}
+	*/
 
 	reconnect, err := uuid.Parse(r.URL.Query().Get("reconnect"))
 	if err != nil {
@@ -300,7 +308,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	go httpapi.Heartbeat(ctx, conn)
 
-	agentConn, release, err := api.workspaceAgentCache.Acquire(r, workspaceAgent.ID)
+	agentConn, release, err := api.workspaceAgentCache.Acquire(r, ticket.AgentID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
