@@ -53,11 +53,11 @@ export type AuditDiff = Record<string, AuditDiffField>
 
 // From codersdk/audit.go
 export interface AuditDiffField {
-  // Empty interface{} type, cannot resolve any type.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Empty interface{} type, cannot resolve the type.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
   readonly old?: any
-  // Empty interface{} type, cannot resolve any type.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Empty interface{} type, cannot resolve the type.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
   readonly new?: any
   readonly secret: boolean
 }
@@ -69,7 +69,7 @@ export interface AuditLog {
   readonly time: string
   readonly organization_id: string
   // Named type "net/netip.Addr" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly ip: any
   readonly user_agent: string
   readonly resource_type: ResourceType
@@ -359,12 +359,12 @@ export interface DeploymentValues {
   readonly disable_password_auth?: boolean
   readonly support?: SupportConfig
   // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.GitAuthConfig]" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly git_auth?: any
   readonly config?: string
   readonly write_config?: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address?: any
 }
 
@@ -443,8 +443,8 @@ export interface License {
   readonly id: number
   readonly uuid: string
   readonly uploaded_at: string
-  // Empty interface{} type, cannot resolve any type.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Empty interface{} type, cannot resolve the type.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
   readonly claims: Record<string, any>
 }
 
@@ -580,7 +580,7 @@ export interface PatchGroupRequest {
 export interface PprofConfig {
   readonly enable: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address: any
 }
 
@@ -588,7 +588,7 @@ export interface PprofConfig {
 export interface PrometheusConfig {
   readonly enable: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address: any
 }
 
@@ -673,8 +673,8 @@ export interface Role {
 // From codersdk/serversentevents.go
 export interface ServerSentEvent {
   readonly type: ServerSentEventType
-  // Empty interface{} type, cannot resolve any type.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Empty interface{} type, cannot resolve the type.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
   readonly data: any
 }
 
@@ -696,7 +696,7 @@ export interface SessionCountDeploymentStats {
 // From codersdk/deployment.go
 export interface SupportConfig {
   // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.LinkConfig]" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly links: any
 }
 
@@ -709,7 +709,7 @@ export interface SwaggerConfig {
 export interface TLSConfig {
   readonly enable: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address: any
   readonly redirect_http: boolean
   readonly cert_file: string[]

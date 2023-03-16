@@ -646,7 +646,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			AboveTypeLine: fmt.Sprintf("%s\n%s",
 				indentedComment("Embedded anonymous struct, please fix by naming it"),
 				// Linter needs to be disabled here, or else it will complain about the "any" type.
-				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any"),
+				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- Anonymously embedded struct"),
 			),
 		}, nil
 	case *types.Map:
@@ -776,7 +776,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "any", AboveTypeLine: fmt.Sprintf("%s\n%s",
 				indentedComment(fmt.Sprintf("Named type %q unknown, using \"any\"", n.String())),
 				// Linter needs to be disabled here, or else it will complain about the "any" type.
-				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any"),
+				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type"),
 			)}, nil
 		}
 
@@ -807,7 +807,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 				AboveTypeLine: fmt.Sprintf("%s\n%s",
 					indentedComment("Empty interface{} type, cannot resolve the type."),
 					// Linter needs to be disabled here, or else it will complain about the "any" type.
-					indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any"),
+					indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}"),
 				),
 			}, nil
 		}
