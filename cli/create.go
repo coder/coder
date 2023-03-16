@@ -127,7 +127,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 				NewWorkspaceName:  workspaceName,
 			})
 			if err != nil {
-				return err
+				return xerrors.Errorf("prepare build: %w", err)
 			}
 
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
@@ -147,12 +147,12 @@ func (r *RootCmd) create() *clibase.Cmd {
 				RichParameterValues: buildParams.richParameters,
 			})
 			if err != nil {
-				return err
+				return xerrors.Errorf("create workspace: %w", err)
 			}
 
 			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, workspace.LatestBuild.ID)
 			if err != nil {
-				return err
+				return xerrors.Errorf("watch build: %w", err)
 			}
 
 			_, _ = fmt.Fprintf(inv.Stdout, "\nThe %s workspace has been created at %s!\n", cliui.Styles.Keyword.Render(workspace.Name), cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
@@ -398,7 +398,7 @@ PromptRichParamLoop:
 		Title:          "Workspace Preview",
 	})
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get resources: %w", err)
 	}
 
 	return &buildParameters{
