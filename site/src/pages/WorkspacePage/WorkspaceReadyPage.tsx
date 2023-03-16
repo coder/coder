@@ -46,7 +46,6 @@ export const WorkspaceReadyPage = ({
   const {
     workspace,
     template,
-    templateParameters,
     builds,
     getBuildsError,
     buildError,
@@ -113,7 +112,7 @@ export const WorkspaceReadyPage = ({
         handleUpdate={() => workspaceSend({ type: "UPDATE" })}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
         handleChangeVersion={() => navigate("change-version")}
-        handleBuildParameters={() => navigate("build-parameters")}
+        handleSettings={() => navigate("settings")}
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
@@ -127,7 +126,6 @@ export const WorkspaceReadyPage = ({
         buildInfo={buildInfo}
         applicationsHost={applicationsHost}
         template={template}
-        templateParameters={templateParameters}
         quota_budget={quotaState.context.quota?.budget}
       />
       <DeleteDialog

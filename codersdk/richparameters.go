@@ -113,5 +113,6 @@ func validationEnabled(param TemplateVersionParameter) bool {
 	return len(param.ValidationRegex) > 0 ||
 		(param.ValidationMin != 0 && param.ValidationMax != 0) ||
 		len(param.ValidationMonotonic) > 0 ||
-		param.Type == "bool" // boolean type doesn't have any custom validation rules, but the value must be checked (true/false).
+		param.Type == "bool" || // boolean type doesn't have any custom validation rules, but the value must be checked (true/false).
+		param.Type == "list(string)" // list(string) type doesn't have special validation, but we need to check if this is a correct list.
 }

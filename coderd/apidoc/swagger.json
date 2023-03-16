@@ -7235,7 +7235,7 @@
         },
         "type": {
           "type": "string",
-          "enum": ["string", "number", "bool"]
+          "enum": ["string", "number", "bool", "list(string)"]
         },
         "validation_error": {
           "type": "string"

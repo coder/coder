@@ -8044,7 +8044,8 @@ const docTemplate = `{
                     "enum": [
                         "string",
                         "number",
-                        "bool"
+                        "bool",
+                        "list(string)"
                     ]
                 },
                 "validation_error": {

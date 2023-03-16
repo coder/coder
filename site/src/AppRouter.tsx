@@ -7,7 +7,6 @@ import GroupsPage from "pages/GroupsPage/GroupsPage"
 import LoginPage from "pages/LoginPage/LoginPage"
 import { SetupPage } from "pages/SetupPage/SetupPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
-import { WorkspaceBuildParametersPage } from "pages/WorkspaceBuildParametersPage/WorkspaceBuildParametersPage"
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
 import UsersPage from "pages/UsersPage/UsersPage"
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage"
@@ -126,6 +125,9 @@ const CreateTemplatePage = lazy(
 const TemplateVariablesPage = lazy(
   () => import("./pages/TemplateVariablesPage/TemplateVariablesPage"),
 )
+const WorkspaceSettingsPage = lazy(
+  () => import("./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"),
+)
 
 export const AppRouter: FC = () => {
   return (
@@ -230,10 +232,7 @@ export const AppRouter: FC = () => {
                     path="change-version"
                     element={<WorkspaceChangeVersionPage />}
                   />
-                  <Route
-                    path="build-parameters"
-                    element={<WorkspaceBuildParametersPage />}
-                  />
+                  <Route path="settings" element={<WorkspaceSettingsPage />} />
                 </Route>
               </Route>
             </Route>

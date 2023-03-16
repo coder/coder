@@ -7,7 +7,7 @@ import {
   ChangeVersionButton,
   DeleteButton,
   DisabledButton,
-  BuildParametersButton,
+  SettingsButton,
   StartButton,
   StopButton,
   UpdateButton,
@@ -16,7 +16,6 @@ import { ButtonMapping, ButtonTypesEnum, buttonAbilities } from "./constants"
 
 export interface WorkspaceActionsProps {
   workspaceStatus: WorkspaceStatus
-  hasTemplateParameters: boolean
   isOutdated: boolean
   handleStart: () => void
   handleStop: () => void
@@ -24,14 +23,13 @@ export interface WorkspaceActionsProps {
   handleUpdate: () => void
   handleCancel: () => void
   handleChangeVersion: () => void
-  handleBuildParameters: () => void
+  handleSettings: () => void
   isUpdating: boolean
   children?: ReactNode
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   workspaceStatus,
-  hasTemplateParameters,
   isOutdated,
   handleStart,
   handleStop,
@@ -39,14 +37,11 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleUpdate,
   handleCancel,
   handleChangeVersion,
-  handleBuildParameters,
+  handleSettings,
   isUpdating,
 }) => {
   const { t } = useTranslation("workspacePage")
-  const { canCancel, canAcceptJobs, actions } = buttonAbilities(
-    workspaceStatus,
-    hasTemplateParameters,
-  )
+  const { canCancel, canAcceptJobs, actions } = buttonAbilities(workspaceStatus)
   const canBeUpdated = isOutdated && canAcceptJobs
 
   // A mapping of button type to the corresponding React component
@@ -58,8 +53,8 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     [ButtonTypesEnum.changeVersion]: (
       <ChangeVersionButton handleAction={handleChangeVersion} />
     ),
-    [ButtonTypesEnum.buildParameters]: (
-      <BuildParametersButton handleAction={handleBuildParameters} />
+    [ButtonTypesEnum.settings]: (
+      <SettingsButton handleAction={handleSettings} />
     ),
     [ButtonTypesEnum.start]: <StartButton handleAction={handleStart} />,
     [ButtonTypesEnum.starting]: (

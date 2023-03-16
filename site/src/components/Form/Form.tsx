@@ -24,7 +24,7 @@ type FormProps = HTMLProps<HTMLFormElement> & {
 }
 
 export const Form: FC<FormProps> = ({ direction, className, ...formProps }) => {
-  const styles = useStyles()
+  const styles = useStyles({ direction })
 
   return (
     <FormContext.Provider value={{ direction }}>
@@ -136,6 +136,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   formSectionInfo: {
+    width: "100%",
     maxWidth: ({ direction }: FormContextValue = {}) =>
       direction === "horizontal" ? 312 : undefined,
     flexShrink: 0,
