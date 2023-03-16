@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -916,13 +917,22 @@ when required by your organization's security policy.`,
 		// Provisioner settings
 		{
 			Name:        "Provisioner Daemons",
-			Description: "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
+			Description: "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this. Defaults to the number of CPUs on the machine.",
 			Flag:        "provisioner-daemons",
 			Env:         "PROVISIONER_DAEMONS",
-			Default:     "3",
-			Value:       &c.Provisioner.Daemons,
-			Group:       &deploymentGroupProvisioning,
-			YAML:        "daemons",
+			Default: func() string {
+				if flag.Lookup("test.v") != nil {
+					// We need deterministic output in tests for golden
+					// files.
+					return "4"
+				}
+				// Scaling linearly with the number of CPUs helps vertical
+				// scaling "just work".
+				return strconv.Itoa(runtime.NumCPU())
+			}(),
+			Value: &c.Provisioner.Daemons,
+			Group: &deploymentGroupProvisioning,
+			YAML:  "daemons",
 		},
 		{
 			Name:        "Poll Interval",
