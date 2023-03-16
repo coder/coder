@@ -24,10 +24,8 @@ func (m cliMessage) String() string {
 		_, _ = str.WriteString(m.Style.Bold(true).Render(m.Prefix))
 	}
 
-	_, _ = fmt.Fprintf(
-		&str, "%s\r\n",
-		m.Style.Bold(false).Render(m.Header),
-	)
+	_, _ = str.WriteString(m.Style.Bold(false).Render(m.Header))
+    _, _ = str.WriteString("\r\n"),
 	for _, line := range m.Lines {
 		_, _ = fmt.Fprintf(&str, "  %s %s\r\n", m.Style.Render("|"), line)
 	}
