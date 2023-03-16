@@ -24,7 +24,7 @@ type FormProps = HTMLProps<HTMLFormElement> & {
 }
 
 export const Form: FC<FormProps> = ({ direction, className, ...formProps }) => {
-  const styles = useStyles()
+  const styles = useStyles({ direction })
 
   return (
     <FormContext.Provider value={{ direction }}>
@@ -64,6 +64,7 @@ export const FormSection: FC<
     description: string | JSX.Element
     classes?: {
       root?: string
+      sectionInfo?: string
       infoTitle?: string
     }
   }
@@ -73,7 +74,12 @@ export const FormSection: FC<
 
   return (
     <div className={combineClasses([styles.formSection, classes.root])}>
-      <div className={styles.formSectionInfo}>
+      <div
+        className={combineClasses([
+          classes.sectionInfo,
+          styles.formSectionInfo,
+        ])}
+      >
         <h2
           className={combineClasses([
             styles.formSectionInfoTitle,
@@ -136,6 +142,7 @@ const useStyles = makeStyles((theme) => ({
   },
 
   formSectionInfo: {
+    width: "100%",
     maxWidth: ({ direction }: FormContextValue = {}) =>
       direction === "horizontal" ? 312 : undefined,
     flexShrink: 0,

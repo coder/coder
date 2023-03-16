@@ -85,3 +85,36 @@ func newRichSelect(ptty *ptytest.PTY, opts cliui.RichSelectOptions) (string, err
 	ptty.Attach(inv)
 	return value, inv.Run()
 }
+
+func TestMultiSelect(t *testing.T) {
+	t.Parallel()
+	t.Run("MultiSelect", func(t *testing.T) {
+		items := []string{"aaa", "bbb", "ccc"}
+
+		t.Parallel()
+		ptty := ptytest.New(t)
+		msgChan := make(chan []string)
+		go func() {
+			resp, err := newMultiSelect(ptty, items)
+			assert.NoError(t, err)
+			msgChan <- resp
+		}()
+		require.Equal(t, items, <-msgChan)
+	})
+}
+
+func newMultiSelect(ptty *ptytest.PTY, items []string) ([]string, error) {
+	var values []string
+	cmd := &clibase.Cmd{
+		Handler: func(inv *clibase.Invocation) error {
+			selectedItems, err := cliui.MultiSelect(inv, items)
+			if err == nil {
+				values = selectedItems
+			}
+			return err
+		},
+	}
+	inv := cmd.Invoke()
+	ptty.Attach(inv)
+	return values, inv.Run()
+}

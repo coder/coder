@@ -153,8 +153,20 @@ export const getTokens = async (
   return response.data
 }
 
-export const deleteAPIKey = async (keyId: string): Promise<void> => {
+export const deleteToken = async (keyId: string): Promise<void> => {
   await axios.delete("/api/v2/users/me/keys/" + keyId)
+}
+
+export const createToken = async (
+  params: TypesGen.CreateTokenRequest,
+): Promise<TypesGen.GenerateAPIKeyResponse> => {
+  const response = await axios.post(`/api/v2/users/me/keys/tokens`, params)
+  return response.data
+}
+
+export const getTokenConfig = async (): Promise<TypesGen.TokenConfig> => {
+  const response = await axios.get("/api/v2/users/me/keys/tokens/tokenconfig")
+  return response.data
 }
 
 export const getUsers = async (
@@ -504,6 +516,13 @@ export const createWorkspace = async (
     workspace,
   )
   return response.data
+}
+
+export const patchWorkspace = async (
+  workspaceId: string,
+  data: TypesGen.UpdateWorkspaceRequest,
+) => {
+  await axios.patch(`/api/v2/workspaces/${workspaceId}`, data)
 }
 
 export const getBuildInfo = async (): Promise<TypesGen.BuildInfoResponse> => {

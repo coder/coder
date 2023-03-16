@@ -610,6 +610,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
+			configSSHOptions, err := cfg.SSHConfig.ParseOptions()
+			if err != nil {
+				return xerrors.Errorf("parse ssh config options %q: %w", cfg.SSHConfig.SSHConfigOptions.String(), err)
+			}
+
 			options := &coderd.Options{
 				AccessURL:                   cfg.AccessURL.Value(),
 				AppHostname:                 appHostname,
@@ -634,6 +639,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
+				SSHConfig: codersdk.SSHConfigResponse{
+					HostnamePrefix:   cfg.SSHConfig.DeploymentName.String(),
+					SSHConfigOptions: configSSHOptions,
+				},
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates

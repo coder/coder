@@ -37,6 +37,19 @@ Options
         Periodically check for new releases of Coder and inform the owner. The
         check is performed once per day.
 
+Client Options 
+These options change the behavior of how clients interact with the Coder.
+Clients include the coder cli, vs code extension, and the web UI.
+
+    --ssh-config-options, $CODER_SSH_CONFIG_OPTIONS 
+        These SSH config options will override the default SSH config options.
+        Provide options in "key=value" or "key value" format separated by
+        commas.Using this incorrectly can break SSH to your deployment, use
+        cautiously.
+
+    --ssh-hostname-prefix, $CODER_SSH_HOSTNAME_PREFIX  (default: coder.) 
+        The SSH deployment prefix is used in the Host of the ssh config.
+
 Introspection / Logging Options 
     --log-human, $CODER_LOGGING_HUMAN  (default: /dev/stderr) 
         Output human-readable logs to a given file.

@@ -1,6 +1,7 @@
 package cliui
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -68,7 +69,28 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 
 	var err error
 	var value string
-	if len(templateVersionParameter.Options) > 0 {
+	if templateVersionParameter.Type == "list(string)" {
+		// Move the cursor up a single line for nicer display!
+		_, _ = fmt.Fprint(inv.Stdout, "\033[1A")
+
+		var options []string
+		err = json.Unmarshal([]byte(templateVersionParameter.DefaultValue), &options)
+		if err != nil {
+			return "", err
+		}
+
+		values, err := MultiSelect(inv, options)
+		if err == nil {
+			v, err := json.Marshal(&values)
+			if err != nil {
+				return "", err
+			}
+
+			_, _ = fmt.Fprintln(inv.Stdout)
+			_, _ = fmt.Fprintln(inv.Stdout, "  "+Styles.Prompt.String()+Styles.Field.Render(strings.Join(values, ", ")))
+			value = string(v)
+		}
+	} else if len(templateVersionParameter.Options) > 0 {
 		// Move the cursor up a single line for nicer display!
 		_, _ = fmt.Fprint(inv.Stdout, "\033[1A")
 		var richParameterOption *codersdk.TemplateVersionParameterOption

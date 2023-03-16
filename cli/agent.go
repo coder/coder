@@ -30,10 +30,11 @@ import (
 
 func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 	var (
-		auth         string
-		logDir       string
-		pprofAddress string
-		noReap       bool
+		auth          string
+		logDir        string
+		pprofAddress  string
+		noReap        bool
+		sshMaxTimeout time.Duration
 	)
 	cmd := &clibase.Cmd{
 		Use:   "agent",
@@ -200,7 +201,8 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				EnvironmentVariables: map[string]string{
 					"GIT_ASKPASS": executablePath,
 				},
-				AgentPorts: agentPorts,
+				AgentPorts:    agentPorts,
+				SSHMaxTimeout: sshMaxTimeout,
 			})
 			<-ctx.Done()
 			return closer.Close()
@@ -235,6 +237,13 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Hidden:      true,
 			Description: "Do not start a process reaper.",
 			Value:       clibase.BoolOf(&noReap),
+		},
+		{
+			Flag:        "ssh-max-timeout",
+			Default:     "0",
+			Env:         "CODER_AGENT_SSH_MAX_TIMEOUT",
+			Description: "The maximum amount of time to wait for an SSH connection to be established.",
+			Value:       clibase.DurationOf(&sshMaxTimeout),
 		},
 	}
 

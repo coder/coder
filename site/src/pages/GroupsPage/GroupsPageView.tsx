@@ -15,7 +15,7 @@ import { AvatarData } from "components/AvatarData/AvatarData"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { EmptyState } from "components/EmptyState/EmptyState"
 import { Stack } from "components/Stack/Stack"
-import { TableLoader } from "components/TableLoader/TableLoader"
+import { TableLoaderSkeleton } from "components/TableLoader/TableLoader"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { FC } from "react"
 import { Link as RouterLink, useNavigate } from "react-router-dom"
@@ -83,7 +83,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
               <TableBody>
                 <ChooseOne>
                   <Cond condition={isLoading}>
-                    <TableLoader />
+                    <TableLoaderSkeleton columns={2} useAvatarData />
                   </Cond>
 
                   <Cond condition={isEmpty}>

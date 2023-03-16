@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -45,6 +46,43 @@ const (
 // from the coder config in ~/.ssh/coder.
 type sshConfigOptions struct {
 	sshOptions []string
+}
+
+// addOptions expects options in the form of "option=value" or "option value".
+// It will override any existing option with the same key to prevent duplicates.
+// Invalid options will return an error.
+func (o *sshConfigOptions) addOptions(options ...string) error {
+	for _, option := range options {
+		err := o.addOption(option)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (o *sshConfigOptions) addOption(option string) error {
+	key, _, err := codersdk.ParseSSHConfigOption(option)
+	if err != nil {
+		return err
+	}
+	for i, existing := range o.sshOptions {
+		// Override existing option if they share the same key.
+		// This is case-insensitive. Parsing each time might be a little slow,
+		// but it is ok.
+		existingKey, _, err := codersdk.ParseSSHConfigOption(existing)
+		if err != nil {
+			// Don't mess with original values if there is an error.
+			// This could have come from the user's manual edits.
+			continue
+		}
+		if strings.EqualFold(existingKey, key) {
+			o.sshOptions[i] = option
+			return nil
+		}
+	}
+	o.sshOptions = append(o.sshOptions, option)
+	return nil
 }
 
 func (o sshConfigOptions) equal(other sshConfigOptions) bool {
@@ -138,6 +176,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		usePreviousOpts  bool
 		dryRun           bool
 		skipProxyCommand bool
+		userHostPrefix   string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -218,6 +257,13 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			if usePreviousOpts && lastConfig != nil {
 				sshConfigOpts = *lastConfig
 			} else if lastConfig != nil && !sshConfigOpts.equal(*lastConfig) {
+				for _, v := range sshConfigOpts.sshOptions {
+					// If the user passes an invalid option, we should catch
+					// this early.
+					if _, _, err := codersdk.ParseSSHConfigOption(v); err != nil {
+						return xerrors.Errorf("invalid option from flag: %w", err)
+					}
+				}
 				newOpts := sshConfigOpts.asList()
 				newOptsMsg := "\n\n  New options: none"
 				if len(newOpts) > 0 {
@@ -267,6 +313,25 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("fetch workspace configs failed: %w", err)
 			}
+
+			coderdConfig, err := client.SSHConfiguration(inv.Context())
+			if err != nil {
+				// If the error is 404, this deployment does not support
+				// this endpoint yet. Do not error, just assume defaults.
+				// TODO: Remove this in 2 months (May 31, 2023). Just return the error
+				// 	and remove this 404 check.
+				var sdkErr *codersdk.Error
+				if !(xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound) {
+					return xerrors.Errorf("fetch coderd config failed: %w", err)
+				}
+				coderdConfig.HostnamePrefix = "coder."
+			}
+
+			if userHostPrefix != "" {
+				// Override with user flag.
+				coderdConfig.HostnamePrefix = userHostPrefix
+			}
+
 			// Ensure stable sorting of output.
 			slices.SortFunc(workspaceConfigs, func(a, b sshWorkspaceConfig) bool {
 				return a.Name < b.Name
@@ -274,35 +339,59 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			for _, wc := range workspaceConfigs {
 				sort.Strings(wc.Hosts)
 				// Write agent configuration.
-				for _, hostname := range wc.Hosts {
-					configOptions := []string{
-						"Host coder." + hostname,
-					}
-					for _, option := range sshConfigOpts.sshOptions {
-						configOptions = append(configOptions, "\t"+option)
-					}
-					configOptions = append(configOptions,
-						"\tHostName coder."+hostname,
-						"\tConnectTimeout=0",
-						"\tStrictHostKeyChecking=no",
+				for _, workspaceHostname := range wc.Hosts {
+					sshHostname := fmt.Sprintf("%s%s", coderdConfig.HostnamePrefix, workspaceHostname)
+					defaultOptions := []string{
+						"HostName " + sshHostname,
+						"ConnectTimeout=0",
+						"StrictHostKeyChecking=no",
 						// Without this, the "REMOTE HOST IDENTITY CHANGED"
 						// message will appear.
-						"\tUserKnownHostsFile=/dev/null",
+						"UserKnownHostsFile=/dev/null",
 						// This disables the "Warning: Permanently added 'hostname' (RSA) to the list of known hosts."
 						// message from appearing on every SSH. This happens because we ignore the known hosts.
-						"\tLogLevel ERROR",
-					)
-					if !skipProxyCommand {
-						configOptions = append(
-							configOptions,
-							fmt.Sprintf(
-								"\tProxyCommand %s --global-config %s ssh --stdio %s",
-								escapedCoderBinary, escapedGlobalConfig, hostname,
-							),
-						)
+						"LogLevel ERROR",
 					}
 
-					_, _ = buf.WriteString(strings.Join(configOptions, "\n"))
+					if !skipProxyCommand {
+						defaultOptions = append(defaultOptions, fmt.Sprintf(
+							"ProxyCommand %s --global-config %s ssh --stdio %s",
+							escapedCoderBinary, escapedGlobalConfig, workspaceHostname,
+						))
+					}
+
+					var configOptions sshConfigOptions
+					// Add standard options.
+					err := configOptions.addOptions(defaultOptions...)
+					if err != nil {
+						return err
+					}
+
+					// Override with deployment options
+					for k, v := range coderdConfig.SSHConfigOptions {
+						opt := fmt.Sprintf("%s %s", k, v)
+						err := configOptions.addOptions(opt)
+						if err != nil {
+							return xerrors.Errorf("add coderd config option %q: %w", opt, err)
+						}
+					}
+					// Override with flag options
+					for _, opt := range sshConfigOpts.sshOptions {
+						err := configOptions.addOptions(opt)
+						if err != nil {
+							return xerrors.Errorf("add flag config option %q: %w", opt, err)
+						}
+					}
+
+					hostBlock := []string{
+						"Host " + sshHostname,
+					}
+					// Prefix with '\t'
+					for _, v := range configOptions.sshOptions {
+						hostBlock = append(hostBlock, "\t"+v)
+					}
+
+					_, _ = buf.WriteString(strings.Join(hostBlock, "\n"))
 					_ = buf.WriteByte('\n')
 				}
 			}
@@ -362,7 +451,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 
 			if len(workspaceConfigs) > 0 {
 				_, _ = fmt.Fprintln(out, "You should now be able to ssh into your workspace.")
-				_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh coder.%s\n", workspaceConfigs[0].Name)
+				_, _ = fmt.Fprintf(out, "For example, try running:\n\n\t$ ssh %s%s\n", coderdConfig.HostnamePrefix, workspaceConfigs[0].Name)
 			} else {
 				_, _ = fmt.Fprint(out, "You don't have any workspaces yet, try creating one with:\n\n\t$ coder create <workspace>\n")
 			}
@@ -404,6 +493,12 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Env:         "CODER_SSH_USE_PREVIOUS_OPTIONS",
 			Description: "Specifies whether or not to keep options from previous run of config-ssh.",
 			Value:       clibase.BoolOf(&usePreviousOpts),
+		},
+		{
+			Flag:        "ssh-host-prefix",
+			Env:         "",
+			Description: "Override the default host prefix.",
+			Value:       clibase.StringOf(&userHostPrefix),
 		},
 		cliui.SkipPromptOption(),
 	}

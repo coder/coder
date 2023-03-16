@@ -1,38 +1,33 @@
 # External provisioners
 
-By default, the Coder server runs [built-in provisioner daemons](../cli/coder_server.md#provisioner-daemons), which execute `terraform` during workspace and template builds. You can learn more about `provisionerd` in our [architecture documentation](../about/architecture.md#provisionerd).
+By default, the Coder server runs [built-in provisioner daemons](../cli/coder_server.md#provisioner-daemons), which execute `terraform` during workspace and template builds. However, there are sometimes benefits to running external provisioner daemons:
 
-> While external provisioners are stable, the feature is in an [alpha state](../contributing/feature-stages.md#alpha-features) and the behavior is subject to change in future releases. Use [GitHub issues](https://github.com/coder/coder) to leave feedback.
+- **Secure build environments:** Run build jobs in isolated containers, preventing malicious templates from gaining shell access to the Coder host.
 
-## Benefits of external provisioners
+- **Isolate APIs:** Deploy provisioners in isolated environments (on-prem, AWS, Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the Coder server. See [Provider Authentication](../templates/authentication.md) for more details.
 
-There are benefits in running external provisioner servers.
+- **Isolate secrets**: Keep Coder unaware of cloud secrets, manage/rotate secrets on provisoner servers.
 
-### Security
+- **Reduce server load**: External provisioners reduce load and build queue times from the Coder server. See [Scaling Coder](./scale.md#concurrent-workspace-builds) for more details.
 
-As you add more (template) admins in Coder, there is an increased risk of malicious code being added into templates. Isolated provisioners can prevent template admins from running code directly against the Coder server, database, or host machine.
+> External provisioners are in an [alpha state](../contributing/feature-stages.md#alpha-features) and the behavior is subject to change. Use [GitHub issues](https://github.com/coder/coder) to leave feedback.
 
-Additionally, you can configure provisioner environments to access cloud secrets that you would like to conceal from the Coder server.
+## Running external provisioners
 
-### Extensibility
+Each provisioner can run a single [concurrent workspace build](./scale.md#concurrent-workspace-builds). For example, running 30 provisioner containers will allow 30 users to start workspaces at the same time.
 
-Instead of exposing an entire API and secrets (e.g. Kubernetes, Docker, VMware) to the Coder server, you can run provisioners in each environment. See [Provider authentication](../templates/authentication.md) for more details.
+### Requirements
 
-### Scalability
+- The [Coder CLI](../cli.md) must installed on and authenticated as a user with the Owner or Template Admin role.
+- Your environment must be [authenticated](../templates/authentication.md) against the cloud environments templates need to provision against.
 
-External provisioners can reduce load and build queue times from the Coder server. See [Scaling Coder](./scale.md#concurrent-workspace-builds) for more details.
-
-## Run an external provisioner
-
-Once authenticated as a user with the Template Admin or Owner role, the [Coder CLI](../cli.md) can launch external provisioners. There are 3 types of provisioners:
+### Types of provisioners
 
 - **Generic provisioners** can pick up any build job from templates without provisioner tags.
 
   ```sh
   coder provisionerd start
   ```
-
-  > Ensure all provisioners (including [built-in provisioners](#disable-built-in-provisioners)) have similar configuration/cloud access. Otherwise, users may run into intermittent build errors depending on which provisioner picks up a job.
 
 - **Tagged provisioners** can be used to pick up build jobs from templates (and corresponding workspaces) with matching tags.
 
@@ -66,9 +61,16 @@ Once authenticated as a user with the Template Admin or Owner role, the [Coder C
     --provisioner-tag scope=user
   ```
 
-## Running external provisioners via Docker
+### Example: Running an external provisioner on a VM
 
-The following command can run a Coder provisioner isolated in a Docker container.
+```sh
+curl -L https://coder.com/install.sh | sh
+export CODER_URL=https://coder.example.com
+export CODER_SESSION_TOKEN=your_token
+coder provisionerd start
+```
+
+### Example: Running an external provisioner via Docker
 
 ```sh
 docker run --rm -it \
@@ -78,10 +80,6 @@ docker run --rm -it \
   ghcr.io/coder/coder:latest \
   provisionerd start
 ```
-
-Be sure to replace `https://coder.example.com` with your [access URL](./configure.md#access-url) and `your_token` with an [API token](../api.md).
-
-To include [provider secrets](../templates/authentication.md), modify the `docker run` command to mount environment variables or external volumes. Alternatively, you can create a custom provisioner image.
 
 ## Disable built-in provisioners
 

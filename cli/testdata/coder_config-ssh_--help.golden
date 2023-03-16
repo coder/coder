@@ -25,6 +25,9 @@ Options
         Specifies whether or not to keep options from previous run of
         config-ssh.
 
+    --ssh-host-prefix
+        Override the default host prefix.
+
     --yes, -y
         Bypass prompts.
 

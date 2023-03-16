@@ -24,6 +24,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import {
   selectInitialRichParametersValues,
   useValidationSchemaForRichParameters,
+  workspaceBuildParameterValue,
 } from "util/richParameters"
 
 export enum CreateWorkspaceErrors {
@@ -401,13 +402,3 @@ const useStyles = makeStyles((theme) => ({
     marginRight: -theme.spacing(10),
   },
 }))
-
-export const workspaceBuildParameterValue = (
-  workspaceBuildParameters: TypesGen.WorkspaceBuildParameter[],
-  parameter: TypesGen.TemplateVersionParameter,
-): string => {
-  const buildParameter = workspaceBuildParameters.find((buildParameter) => {
-    return buildParameter.name === parameter.name
-  })
-  return (buildParameter && buildParameter.value) || ""
-}
