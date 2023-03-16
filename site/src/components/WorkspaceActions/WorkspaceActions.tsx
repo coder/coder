@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next"
 import { WorkspaceStatus } from "../../api/typesGenerated"
 import {
   ActionLoadingButton,
-  ChangeVersionButton,
   DeleteButton,
   DisabledButton,
   SettingsButton,
@@ -22,7 +21,6 @@ export interface WorkspaceActionsProps {
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
-  handleChangeVersion: () => void
   handleSettings: () => void
   isUpdating: boolean
   children?: ReactNode
@@ -36,7 +34,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleDelete,
   handleUpdate,
   handleCancel,
-  handleChangeVersion,
   handleSettings,
   isUpdating,
 }) => {
@@ -49,9 +46,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     [ButtonTypesEnum.update]: <UpdateButton handleAction={handleUpdate} />,
     [ButtonTypesEnum.updating]: (
       <ActionLoadingButton label={t("actionButton.updating")} />
-    ),
-    [ButtonTypesEnum.changeVersion]: (
-      <ChangeVersionButton handleAction={handleChangeVersion} />
     ),
     [ButtonTypesEnum.settings]: (
       <SettingsButton handleAction={handleSettings} />
