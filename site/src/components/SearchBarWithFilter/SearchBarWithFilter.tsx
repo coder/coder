@@ -8,7 +8,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import { Theme } from "@material-ui/core/styles/createTheme"
 import SearchIcon from "@material-ui/icons/Search"
 import debounce from "just-debounce-it"
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { getValidationErrorMessage } from "../../api/errors"
 import { CloseDropdown, OpenDropdown } from "../DropdownArrows/DropdownArrows"
 import { Stack } from "../Stack/Stack"
@@ -35,7 +35,10 @@ export const SearchBarWithFilter: React.FC<
 > = ({ filter, onFilter, presetFilters, error, docs }) => {
   const styles = useStyles({ error: Boolean(error) })
   const searchInputRef = useRef<HTMLInputElement>(null)
-
+  const [value, setValue] = useState(filter)
+  useEffect(() => {
+    setValue(filter)
+  }, [filter])
   // debounce query string entry by user
   // we want the dependency array empty here
   // as we don't need to redefine the function
@@ -92,10 +95,11 @@ export const SearchBarWithFilter: React.FC<
           <OutlinedInput
             id="query"
             name="query"
-            defaultValue={filter}
             error={Boolean(error)}
+            value={value}
             className={styles.inputStyles}
             onChange={(event) => {
+              setValue(event.currentTarget.value)
               debouncedOnFilter(event.currentTarget.value)
             }}
             inputRef={searchInputRef}
@@ -170,9 +174,13 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   },
   buttonRoot: {
     border: `1px solid ${theme.palette.divider}`,
-    borderRight: "0px",
     borderRadius: `${theme.shape.borderRadius}px 0px 0px ${theme.shape.borderRadius}px`,
     flexShrink: 0,
+    marginRight: -1,
+
+    "&:hover": {
+      zIndex: 1,
+    },
   },
   errorRoot: {
     color: theme.palette.error.main,

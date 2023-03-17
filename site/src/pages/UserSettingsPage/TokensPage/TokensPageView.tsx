@@ -25,7 +25,6 @@ const lastUsedOrNever = (lastUsed: string) => {
 
 export interface TokensPageViewProps {
   tokens?: APIKeyWithOwner[]
-  viewAllTokens: boolean
   getTokensError?: Error | unknown
   isLoading: boolean
   hasLoaded: boolean
@@ -37,7 +36,6 @@ export const TokensPageView: FC<
   React.PropsWithChildren<TokensPageViewProps>
 > = ({
   tokens,
-  viewAllTokens,
   getTokensError,
   isLoading,
   hasLoaded,
@@ -46,7 +44,6 @@ export const TokensPageView: FC<
 }) => {
   const theme = useTheme()
   const { t } = useTranslation("tokensPage")
-  const colWidth = viewAllTokens ? "20%" : "25%"
 
   return (
     <Stack>
@@ -60,13 +57,11 @@ export const TokensPageView: FC<
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell width={colWidth}>{t("table.id")}</TableCell>
-              <TableCell width={colWidth}>{t("table.createdAt")}</TableCell>
-              <TableCell width={colWidth}>{t("table.lastUsed")}</TableCell>
-              <TableCell width={colWidth}>{t("table.expiresAt")}</TableCell>
-              {viewAllTokens && (
-                <TableCell width="20%">{t("table.owner")}</TableCell>
-              )}
+              <TableCell width="20%">{t("table.id")}</TableCell>
+              <TableCell width="20%">{t("table.name")}</TableCell>
+              <TableCell width="20%">{t("table.lastUsed")}</TableCell>
+              <TableCell width="20%">{t("table.expiresAt")}</TableCell>
+              <TableCell width="20%">{t("table.createdAt")}</TableCell>
               <TableCell width="0%"></TableCell>
             </TableRow>
           </TableHead>
@@ -94,7 +89,7 @@ export const TokensPageView: FC<
 
                       <TableCell>
                         <span style={{ color: theme.palette.text.secondary }}>
-                          {dayjs(token.created_at).fromNow()}
+                          {token.token_name}
                         </span>
                       </TableCell>
 
@@ -108,13 +103,13 @@ export const TokensPageView: FC<
                           {dayjs(token.expires_at).fromNow()}
                         </span>
                       </TableCell>
-                      {viewAllTokens && (
-                        <TableCell>
-                          <span style={{ color: theme.palette.text.secondary }}>
-                            {token.username}
-                          </span>
-                        </TableCell>
-                      )}
+
+                      <TableCell>
+                        <span style={{ color: theme.palette.text.secondary }}>
+                          {dayjs(token.created_at).fromNow()}
+                        </span>
+                      </TableCell>
+
                       <TableCell>
                         <span style={{ color: theme.palette.text.secondary }}>
                           <IconButton
@@ -122,7 +117,7 @@ export const TokensPageView: FC<
                               onDelete(token.id)
                             }}
                             size="medium"
-                            aria-label={t("deleteToken.delete")}
+                            aria-label={t("tokenActions.deleteToken.delete")}
                           >
                             <DeleteOutlineIcon />
                           </IconButton>

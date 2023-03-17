@@ -138,6 +138,9 @@ type Options struct {
 	DeploymentValues            *codersdk.DeploymentValues
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 
+	// SSHConfig is the response clients use to configure config-ssh locally.
+	SSHConfig codersdk.SSHConfigResponse
+
 	HTTPClient *http.Client
 }
 
@@ -175,6 +178,10 @@ func New(options *Options) *API {
 	if options.AgentInactiveDisconnectTimeout == 0 {
 		// Multiply the update by two to allow for some lag-time.
 		options.AgentInactiveDisconnectTimeout = options.AgentConnectionUpdateFrequency * 2
+		// Set a minimum timeout to avoid disconnecting too soon.
+		if options.AgentInactiveDisconnectTimeout < 2*time.Second {
+			options.AgentInactiveDisconnectTimeout = 2 * time.Second
+		}
 	}
 	if options.AgentStatsRefreshInterval == 0 {
 		options.AgentStatsRefreshInterval = 5 * time.Minute
@@ -205,6 +212,9 @@ func New(options *Options) *API {
 	}
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
+	}
+	if options.SSHConfig.HostnamePrefix == "" {
+		options.SSHConfig.HostnamePrefix = "coder."
 	}
 	// TODO: remove this once we promote authz_querier out of experiments.
 	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
@@ -399,6 +409,7 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
+			r.Get("/ssh", api.sshConfig)
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -557,6 +568,7 @@ func New(options *Options) *API {
 						r.Route("/tokens", func(r chi.Router) {
 							r.Post("/", api.postToken)
 							r.Get("/", api.tokens)
+							r.Get("/tokenconfig", api.tokenConfig)
 							r.Route("/{keyname}", func(r chi.Router) {
 								r.Get("/", api.apiKeyByName)
 							})
@@ -795,7 +807,8 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}()
 
 	name := namesgenerator.GetRandomName(1)
-	daemon, err := api.Database.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
+	// nolint:gocritic // Inserting a provisioner daemon is a system function.
+	daemon, err := api.Database.InsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),
 		CreatedAt:    database.Now(),
 		Name:         name,

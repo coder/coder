@@ -183,7 +183,9 @@ CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 If your OpenID Connect provider supports group claims, you can configure Coder
 to synchronize groups in your auth provider to groups within Coder.
 
-To enable group sync, ensure that the `group` claim is set:
+To enable group sync, ensure that the `groups` claim is set. If group sync is
+enabled, the user's groups will be controlled by the OIDC provider. This means
+manual group additions/removals will be overwritten on the next login.
 
 ```console
 # as an environment variable

@@ -34,6 +34,10 @@ coder:
   # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
   annotations: {}
 
+  # coder.labels -- The Deployment labels. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  labels: {}
+
   # coder.serviceAccount -- Configuration for the automatically created service
   # account. Creation of the service account cannot be disabled.
   serviceAccount:
@@ -115,6 +119,18 @@ coder:
     # will be automatically mounted into the pod if specified, and the correct
     # "CODER_TLS_*" environment variables will be set for you.
     secretNames: []
+
+  # coder.lifecycle -- container lifecycle handlers for the Coder container, allowing
+  # for lifecycle events such as postStart and preStop events
+  # See: https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/
+  lifecycle:
+    {}
+    # postStart:
+    #   exec:
+    #     command: ["/bin/sh", "-c", "echo postStart"]
+    # preStop:
+    #   exec:
+    #     command: ["/bin/sh","-c","echo preStart"]
 
   # coder.resources -- The resources to request for Coder. These are optional
   # and are not set by default.

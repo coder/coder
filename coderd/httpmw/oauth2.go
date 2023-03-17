@@ -56,6 +56,28 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client) func(http.Handler) 
 				return
 			}
 
+			// OIDC errors can be returned as query parameters. This can happen
+			// if for example we are providing and invalid scope.
+			// We should terminate the OIDC process if we encounter an error.
+			oidcError := r.URL.Query().Get("error")
+			errorDescription := r.URL.Query().Get("error_description")
+			errorURI := r.URL.Query().Get("error_uri")
+			if oidcError != "" {
+				// Combine the errors into a single string if either is provided.
+				if errorDescription == "" && errorURI != "" {
+					errorDescription = fmt.Sprintf("error_uri: %s", errorURI)
+				} else if errorDescription != "" && errorURI != "" {
+					errorDescription = fmt.Sprintf("%s, error_uri: %s", errorDescription, errorURI)
+				}
+				oidcError = fmt.Sprintf("Encountered error in oidc process: %s", oidcError)
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: oidcError,
+					// This message might be blank. This is ok.
+					Detail: errorDescription,
+				})
+				return
+			}
+
 			code := r.URL.Query().Get("code")
 			state := r.URL.Query().Get("state")
 

@@ -77,6 +77,8 @@ type Options struct {
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
 	Logger                 slog.Logger
+	AgentPorts             map[int]string
+	SSHMaxTimeout          time.Duration
 }
 
 type Client interface {
@@ -123,7 +125,9 @@ func New(options Options) io.Closer {
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
 		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
+		ignorePorts:            options.AgentPorts,
 		connStatsChan:          make(chan *agentsdk.Stats, 1),
+		sshMaxTimeout:          options.SSHMaxTimeout,
 	}
 	a.init(ctx)
 	return a
@@ -136,6 +140,10 @@ type agent struct {
 	filesystem    afero.Fs
 	logDir        string
 	tempDir       string
+	// ignorePorts tells the api handler which ports to ignore when
+	// listing all listening ports. This is helpful to hide ports that
+	// are used by the agent, that the user does not care about.
+	ignorePorts map[int]string
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -147,9 +155,10 @@ type agent struct {
 
 	envVars map[string]string
 	// metadata is atomic because values can change after reconnection.
-	metadata     atomic.Value
-	sessionToken atomic.Pointer[string]
-	sshServer    *ssh.Server
+	metadata      atomic.Value
+	sessionToken  atomic.Pointer[string]
+	sshServer     *ssh.Server
+	sshMaxTimeout time.Duration
 
 	lifecycleUpdate   chan struct{}
 	lifecycleReported chan codersdk.WorkspaceAgentLifecycle
@@ -774,6 +783,7 @@ func (a *agent) init(ctx context.Context) {
 				_ = session.Exit(1)
 			},
 		},
+		MaxTimeout: a.sshMaxTimeout,
 	}
 
 	go a.runLoop(ctx)

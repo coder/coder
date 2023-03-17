@@ -13,7 +13,11 @@ export const ConfirmDeleteDialog: FC<{
   const { t } = useTranslation("tokensPage")
 
   const description = (
-    <Trans t={t} i18nKey="deleteToken.deleteCaption" values={{ tokenId }}>
+    <Trans
+      t={t}
+      i18nKey="tokenActions.deleteToken.deleteCaption"
+      values={{ tokenId }}
+    >
       Are you sure you want to delete this token?
       <br />
       <br />
@@ -25,19 +29,22 @@ export const ConfirmDeleteDialog: FC<{
     useDeleteToken(queryKey)
 
   const onDeleteSuccess = () => {
-    displaySuccess(t("deleteToken.deleteSuccess"))
+    displaySuccess(t("tokenActions.deleteToken.deleteSuccess"))
     setTokenId(undefined)
   }
 
   const onDeleteError = (error: unknown) => {
-    const message = getErrorMessage(error, t("deleteToken.deleteFailure"))
+    const message = getErrorMessage(
+      error,
+      t("tokenActions.deleteToken.deleteFailure"),
+    )
     displayError(message)
     setTokenId(undefined)
   }
 
   return (
     <ConfirmDialog
-      title={t("deleteToken.delete")}
+      title={t("tokenActions.deleteToken.delete")}
       description={description}
       open={Boolean(tokenId) || isDeleting}
       confirmLoading={isDeleting}

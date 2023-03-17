@@ -256,6 +256,11 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if len(data.builds) == 0 || len(data.templates) == 0 {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
 		workspace,
 		data.builds[0],

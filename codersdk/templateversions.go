@@ -43,7 +43,7 @@ type TemplateVersionParameter struct {
 	Name                 string                           `json:"name"`
 	Description          string                           `json:"description"`
 	DescriptionPlaintext string                           `json:"description_plaintext"`
-	Type                 string                           `json:"type" enums:"string,number,bool"`
+	Type                 string                           `json:"type" enums:"string,number,bool,list(string)"`
 	Mutable              bool                             `json:"mutable"`
 	DefaultValue         string                           `json:"default_value"`
 	Icon                 string                           `json:"icon"`
@@ -54,6 +54,7 @@ type TemplateVersionParameter struct {
 	ValidationMax        int32                            `json:"validation_max,omitempty"`
 	ValidationMonotonic  ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
 	Required             bool                             `json:"required"`
+	LegacyVariableName   string                           `json:"legacy_variable_name,omitempty"`
 }
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.

@@ -87,8 +87,32 @@ func TestOptionSet_ParseEnv(t *testing.T) {
 			},
 		}
 
-		err := os.ParseEnv("CODER_", []string{"CODER_WORKSPACE_NAME=foo"})
+		err := os.ParseEnv([]clibase.EnvVar{
+			{Name: "WORKSPACE_NAME", Value: "foo"},
+		})
 		require.NoError(t, err)
 		require.EqualValues(t, "foo", workspaceName)
+	})
+
+	t.Run("EmptyValue", func(t *testing.T) {
+		t.Parallel()
+
+		var workspaceName clibase.String
+
+		os := clibase.OptionSet{
+			clibase.Option{
+				Name:    "Workspace Name",
+				Value:   &workspaceName,
+				Default: "defname",
+				Env:     "WORKSPACE_NAME",
+			},
+		}
+
+		err := os.SetDefaults()
+		require.NoError(t, err)
+
+		err = os.ParseEnv(clibase.ParseEnviron([]string{"CODER_WORKSPACE_NAME="}, "CODER_"))
+		require.NoError(t, err)
+		require.EqualValues(t, "defname", workspaceName)
 	})
 }

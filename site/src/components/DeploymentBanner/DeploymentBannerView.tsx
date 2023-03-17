@@ -9,7 +9,6 @@ import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import Tooltip from "@material-ui/core/Tooltip"
 import { Link as RouterLink } from "react-router-dom"
 import Link from "@material-ui/core/Link"
-import InfoIcon from "@material-ui/icons/InfoOutlined"
 import { VSCodeIcon } from "components/Icons/VSCodeIcon"
 import DownloadIcon from "@material-ui/icons/CloudDownload"
 import UploadIcon from "@material-ui/icons/CloudUpload"
@@ -118,21 +117,18 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
       </div>
       <div className={styles.group}>
         <Tooltip title={`Activity in the last ~${aggregatedMinutes} minutes`}>
-          <div className={styles.category}>
-            Transmission
-            <InfoIcon />
-          </div>
+          <div className={styles.category}>Transmission</div>
         </Tooltip>
 
         <div className={styles.values}>
-          <Tooltip title="Data sent through workspace workspaces">
+          <Tooltip title="Data sent to workspaces">
             <div className={styles.value}>
               <DownloadIcon />
               {stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
             </div>
           </Tooltip>
           <ValueSeparator />
-          <Tooltip title="Data sent from workspace connections">
+          <Tooltip title="Data sent from workspaces">
             <div className={styles.value}>
               <UploadIcon />
               {stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
@@ -196,7 +192,6 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
         <Tooltip title="A countdown until stats are fetched again. Click to refresh!">
           <Button
             className={`${styles.value} ${styles.refreshButton}`}
-            title="Refresh"
             onClick={() => {
               if (fetchStats) {
                 fetchStats()
@@ -287,12 +282,6 @@ const useStyles = makeStyles((theme) => ({
   category: {
     marginRight: theme.spacing(2),
     color: theme.palette.text.hint,
-
-    "& svg": {
-      width: 12,
-      height: 12,
-      marginBottom: 2,
-    },
   },
   values: {
     display: "flex",

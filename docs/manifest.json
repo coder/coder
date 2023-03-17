@@ -135,6 +135,12 @@
           "description": "Use docker inside containerized templates",
           "path": "./templates/docker-in-docker.md",
           "icon_path": "./images/icons/docker.svg"
+        },
+        {
+          "title": "Parameters",
+          "description": "Use parameters to customize templates",
+          "path": "./templates/parameters.md",
+          "icon_path": "./images/icons/code.svg"
         }
       ]
     },
@@ -595,10 +601,6 @@
         {
           "title": "templates list",
           "path": "./cli/coder_templates_list.md"
-        },
-        {
-          "title": "templates plan",
-          "path": "./cli/coder_templates_plan.md"
         },
         {
           "title": "templates pull",

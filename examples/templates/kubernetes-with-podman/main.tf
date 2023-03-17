@@ -2,11 +2,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.12"
+      version = "~> 0.6.17"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.10"
+      version = "~> 2.18"
     }
   }
 }
@@ -17,40 +17,60 @@ provider "kubernetes" {
 
 data "coder_workspace" "me" {}
 
-variable "os" {
-  description = "Operating system"
-  validation {
-    condition     = contains(["ubuntu", "fedora"], var.os)
-    error_message = "Invalid zone!"
-  }
+data "coder_parameter" "os" {
+  name    = "Operating system"
   default = "ubuntu"
-}
-
-variable "cpu" {
-  description = "CPU (__ cores)"
-  default     = 2
-  validation {
-    condition = contains([
-      "2",
-      "4",
-      "6",
-      "8"
-    ], var.cpu)
-    error_message = "Invalid cpu!"
+  option {
+    name  = "Ubuntu"
+    value = "ubuntu"
+    icon  = "/icon/ubuntu.svg"
+  }
+  option {
+    name  = "Fedora"
+    value = "fedora"
+    icon  = "/icon/fedora.svg"
   }
 }
 
-variable "memory" {
-  description = "Memory (__ GB)"
-  default     = 2
-  validation {
-    condition = contains([
-      "2",
-      "4",
-      "6",
-      "8"
-    ], var.memory)
-    error_message = "Invalid memory!"
+data "coder_parameter" "cpu" {
+  name    = "CPU (cores)"
+  default = "2"
+  option {
+    name  = "2 Cores"
+    value = "2"
+  }
+  option {
+    name  = "4 Cores"
+    value = "4"
+  }
+  option {
+    name  = "6 Cores"
+    value = "6"
+  }
+  option {
+    name  = "8 Cores"
+    value = "8"
+  }
+}
+
+data "coder_parameter" "memory" {
+  name    = "Memory (GB)"
+  default = "2"
+  option {
+    name  = "2 GB"
+    value = "2"
+  }
+  option {
+    name  = "4 GB"
+    value = "4"
+  }
+  option {
+    name  = "6 GB"
+    value = "6"
+  }
+  option {
+    name  = "8 GB"
+    value = "8"
   }
 }
 
@@ -72,10 +92,11 @@ resource "coder_agent" "dev" {
 
 # code-server
 resource "coder_app" "code-server" {
-  agent_id = coder_agent.dev.id
-  name     = "code-server"
-  icon     = "/icon/code.svg"
-  url      = "http://localhost:13337"
+  agent_id     = coder_agent.dev.id
+  display_name = "Code Server"
+  slug         = "code-server"
+  icon         = "/icon/code.svg"
+  url          = "http://localhost:13337"
 }
 
 resource "kubernetes_pod" "main" {
@@ -100,7 +121,7 @@ resource "kubernetes_pod" "main" {
     container {
       name = "dev"
       # We recommend building your own from our reference: see ./images directory
-      image             = "ghcr.io/coder/podman:${var.os}"
+      image             = "ghcr.io/coder/podman:${data.coder_parameter.os.value}"
       image_pull_policy = "Always"
       command           = ["/bin/bash", "-c", coder_agent.dev.init_script]
       security_context {
@@ -115,8 +136,8 @@ resource "kubernetes_pod" "main" {
         limits = {
           # Acquire a FUSE device, powered by smarter-device-manager
           "github.com/fuse" : 1
-          cpu    = "${var.cpu}"
-          memory = "${var.memory}Gi"
+          cpu    = "${data.coder_parameter.cpu.value}"
+          memory = "${data.coder_parameter.memory.value}Gi"
         }
 
       }

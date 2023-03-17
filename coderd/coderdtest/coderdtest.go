@@ -126,6 +126,8 @@ type Options struct {
 	Database database.Store
 	Pubsub   database.Pubsub
 
+	ConfigSSH codersdk.SSHConfigResponse
+
 	SwaggerEndpoint bool
 }
 
@@ -258,7 +260,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
 	t.Cleanup(stunCleanup)
 
-	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp")))
+	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
 	derpServer.SetMeshKey("test-key")
 
 	// match default with cli default
@@ -333,6 +335,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			UpdateCheckOptions:          options.UpdateCheckOptions,
 			SwaggerEndpoint:             options.SwaggerEndpoint,
 			AppSigningKey:               AppSigningKey,
+			SSHConfig:                   options.ConfigSSH,
 		}
 }
 
@@ -939,7 +942,7 @@ func (o *OIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
 	return base64.StdEncoding.EncodeToString([]byte(signed))
 }
 
-func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims) *coderd.OIDCConfig {
+func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
 	// By default, the provider can be empty.
 	// This means it won't support any endpoints!
 	provider := &oidc.Provider{}
@@ -956,7 +959,7 @@ func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims) *cod
 		}
 		provider = cfg.NewProvider(context.Background())
 	}
-	return &coderd.OIDCConfig{
+	cfg := &coderd.OIDCConfig{
 		OAuth2Config: o,
 		Verifier: oidc.NewVerifier(o.issuer, &oidc.StaticKeySet{
 			PublicKeys: []crypto.PublicKey{o.key.Public()},
@@ -965,7 +968,12 @@ func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims) *cod
 		}),
 		Provider:      provider,
 		UsernameField: "preferred_username",
+		GroupField:    "groups",
 	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	return cfg
 }
 
 // NewAzureInstanceIdentity returns a metadata client and ID token validator for faking

@@ -40,7 +40,7 @@ replace github.com/tcnksm/go-httpstat => github.com/kylecarbs/go-httpstat v0.0.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230307022319-1e5e724a3949
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230314023417-d9efcc0ac972
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
@@ -75,7 +75,7 @@ require (
 	github.com/codeclysm/extract v2.2.0+incompatible
 	github.com/coder/flog v1.0.0
 	github.com/coder/retry v1.3.1-0.20230210155434-e90a2e1e091d
-	github.com/coder/terraform-provider-coder v0.6.15
+	github.com/coder/terraform-provider-coder v0.6.20
 	github.com/coder/wgtunnel v0.1.5
 	github.com/coreos/go-oidc/v3 v3.4.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
@@ -165,7 +165,6 @@ require (
 	golang.org/x/tools v0.6.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	golang.zx2c4.com/wireguard v0.0.0-20230223181233-21636207a675
-	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230215201556-9c5414ab4bde
 	google.golang.org/api v0.108.0
 	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.28.2-0.20230118093459-a9481185b34d
@@ -193,6 +192,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
+	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230215201556-9c5414ab4bde // indirect
 )
 
 require (

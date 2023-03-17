@@ -12,8 +12,6 @@ import templateSettingsPage from "./templateSettingsPage.json"
 import templateVariablesPage from "./templateVariablesPage.json"
 import templateVersionPage from "./templateVersionPage.json"
 import loginPage from "./loginPage.json"
-import workspaceBuildParametersPage from "./workspaceBuildParametersPage.json"
-import workspaceChangeVersionPage from "./workspaceChangeVersionPage.json"
 import workspaceSchedulePage from "./workspaceSchedulePage.json"
 import appearanceSettings from "./appearanceSettings.json"
 import starterTemplatesPage from "./starterTemplatesPage.json"
@@ -21,6 +19,7 @@ import starterTemplatePage from "./starterTemplatePage.json"
 import createTemplatePage from "./createTemplatePage.json"
 import userSettingsPage from "./userSettingsPage.json"
 import tokensPage from "./tokensPage.json"
+import workspaceSettingsPage from "./workspaceSettingsPage.json"
 
 export const en = {
   common,
@@ -37,8 +36,6 @@ export const en = {
   templateVariablesPage,
   templateVersionPage,
   loginPage,
-  workspaceBuildParametersPage,
-  workspaceChangeVersionPage,
   workspaceSchedulePage,
   appearanceSettings,
   starterTemplatesPage,
@@ -46,4 +43,5 @@ export const en = {
   createTemplatePage,
   userSettingsPage,
   tokensPage,
+  workspaceSettingsPage,
 }
