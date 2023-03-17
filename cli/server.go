@@ -1230,22 +1230,6 @@ flags, and YAML configuration. The precedence is as follows:
 	return root
 }
 
-// parseURL parses a string into a URL.
-func parseURL(u string) (*url.URL, error) {
-	hasScheme := strings.HasPrefix(u, "http:") || strings.HasPrefix(u, "https:")
-
-	if !hasScheme {
-		return nil, xerrors.Errorf("URL %q must have a scheme of either http or https", u)
-	}
-
-	parsed, err := url.Parse(u)
-	if err != nil {
-		return nil, err
-	}
-
-	return parsed, nil
-}
-
 // isLocalURL returns true if the hostname of the provided URL appears to
 // resolve to a loopback address.
 func isLocalURL(ctx context.Context, u *url.URL) (bool, error) {
