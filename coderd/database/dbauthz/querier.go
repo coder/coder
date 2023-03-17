@@ -1068,7 +1068,11 @@ func (q *querier) UpdateUserHashedPassword(ctx context.Context, arg database.Upd
 
 	err = q.authorizeContext(ctx, rbac.ActionUpdate, user.UserDataRBACObject())
 	if err != nil {
-		return err
+		// Admins can update passwords for other users.
+		err = q.authorizeContext(ctx, rbac.ActionUpdate, user.RBACObject())
+		if err != nil {
+			return err
+		}
 	}
 
 	return q.db.UpdateUserHashedPassword(ctx, arg)
