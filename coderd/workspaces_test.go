@@ -47,7 +47,7 @@ func TestWorkspace(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		authz.Reset()
+		authz.Reset() // Reset all previous checks done in setup.
 		ws, err := client.Workspace(ctx, workspace.ID)
 		authz.AssertChecked(t, rbac.ActionRead, ws)
 		require.NoError(t, err)
