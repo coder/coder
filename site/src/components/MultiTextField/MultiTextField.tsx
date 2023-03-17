@@ -22,7 +22,6 @@ export const MultiTextField: FC<MultiTextFieldProps> = ({
           key={index}
           label={value}
           size="small"
-          color="primary"
           onDelete={() => {
             onChange(values.filter((oldValue) => oldValue !== value))
           }}

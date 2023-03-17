@@ -172,7 +172,9 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
         values={values}
         onChange={(values) => {
           try {
-            onChange(JSON.stringify(values))
+            const value = JSON.stringify(values)
+            setParameterValue(value)
+            onChange(value)
           } catch (e) {
             console.error("Error on change of list(string) parameter", e)
           }
