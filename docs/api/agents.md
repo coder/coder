@@ -519,6 +519,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "shutdown_script": "string",
   "shutdown_script_timeout_seconds": 0,
+  "startup_logs_overflowed": true,
   "startup_script": "string",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",

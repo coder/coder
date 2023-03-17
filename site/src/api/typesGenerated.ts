@@ -689,13 +689,6 @@ export interface SessionCountDeploymentStats {
   readonly reconnecting_pty: number
 }
 
-// From codersdk/workspacebuilds.go
-export interface StartupScriptLog {
-  readonly agent_id: string
-  readonly job_id: string
-  readonly output: string
-}
-
 // From codersdk/deployment.go
 export interface SupportConfig {
   // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.LinkConfig]" unknown, using "any"
@@ -1015,6 +1008,7 @@ export interface WorkspaceAgent {
   readonly environment_variables: Record<string, string>
   readonly operating_system: string
   readonly startup_script?: string
+  readonly startup_logs_overflowed: boolean
   readonly directory?: string
   readonly expanded_directory?: string
   readonly version: string

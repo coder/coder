@@ -8632,6 +8632,9 @@ const docTemplate = `{
                 "shutdown_script_timeout_seconds": {
                     "type": "integer"
                 },
+                "startup_logs_overflowed": {
+                    "type": "boolean"
+                },
                 "startup_script": {
                     "type": "string"
                 },

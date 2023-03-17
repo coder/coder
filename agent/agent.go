@@ -694,12 +694,12 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 		logMutex.Lock()
 		defer logMutex.Unlock()
 		queuedLogs = append(queuedLogs, log)
-		if flushLogsTimer != nil {
-			flushLogsTimer.Reset(100 * time.Millisecond)
+		if len(queuedLogs) > 25 {
+			go sendLogs()
 			return
 		}
-		if len(queuedLogs) > 100 {
-			go sendLogs()
+		if flushLogsTimer != nil {
+			flushLogsTimer.Reset(100 * time.Millisecond)
 			return
 		}
 		flushLogsTimer = time.AfterFunc(100*time.Millisecond, func() {

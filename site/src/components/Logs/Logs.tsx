@@ -89,7 +89,7 @@ const useStyles = makeStyles<
   },
   time: {
     userSelect: "none",
-    width: ({ lineNumbers }) => theme.spacing(lineNumbers ? 3 : 12.5),
+    width: ({ lineNumbers }) => theme.spacing(lineNumbers ? 3.5 : 12.5),
     whiteSpace: "pre",
     display: "inline-block",
     color: theme.palette.text.secondary,

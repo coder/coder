@@ -11,7 +11,7 @@ import { Maybe } from "components/Conditionals/Maybe"
 import { Line, Logs } from "components/Logs/Logs"
 import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
 import { VSCodeDesktopButton } from "components/VSCodeDesktopButton/VSCodeDesktopButton"
-import { FC, useEffect, useRef, useState } from "react"
+import { FC, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism"
@@ -70,6 +70,24 @@ export const AgentRow: FC<AgentRowProps> = ({
       sendLogsEvent("FETCH_STARTUP_LOGS")
     }
   }, [sendLogsEvent, showStartupLogs])
+  const startupLogs = useMemo(() => {
+    const logs =
+      logsMachine.context.startupLogs?.map(
+        (log): Line => ({
+          level: "info",
+          output: log.output,
+          time: log.created_at,
+        }),
+      ) || []
+    if (agent.startup_logs_overflowed) {
+      logs.push({
+        level: "error",
+        output: "Startup logs exceeded the max size of 1MB!",
+        time: new Date().toISOString(),
+      })
+    }
+    return logs
+  }, [logsMachine.context.startupLogs, agent.startup_logs_overflowed])
 
   return (
     <Stack
@@ -252,19 +270,7 @@ export const AgentRow: FC<AgentRowProps> = ({
         </Stack>
       </Stack>
       {showStartupLogs && (
-        <Logs
-          className={styles.startupLogs}
-          lineNumbers
-          lines={
-            logsMachine.context.startupLogs?.map(
-              (log): Line => ({
-                level: "info",
-                output: log.output,
-                time: log.created_at,
-              }),
-            ) || []
-          }
-        />
+        <Logs className={styles.startupLogs} lineNumbers lines={startupLogs} />
       )}
     </Stack>
   )
@@ -296,6 +302,7 @@ const useStyles = makeStyles((theme) => ({
     gap: 4,
     alignItems: "center",
     userSelect: "none",
+    whiteSpace: "nowrap",
 
     "& svg": {
       width: 12,
