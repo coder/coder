@@ -229,5 +229,10 @@ export const getOverrides = ({
         borderRadius: 999,
       },
     },
+    MuiChip: {
+      root: {
+        backgroundColor: colors.gray[12],
+      },
+    },
   }
 }

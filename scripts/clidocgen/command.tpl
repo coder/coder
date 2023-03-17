@@ -6,10 +6,10 @@
 
 {{ end }}
 
-{{- with .Usage }}
+{{- with .Use }}
 ## Usage
 ```console
-{{.Use}}
+{{. }}
 ```
 {{end}}
 

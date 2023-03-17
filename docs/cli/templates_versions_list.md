@@ -18,7 +18,7 @@ list <template>
 | ------- | ----------------------------------------------------- |
 | Default | <code>name,created at,created by,status,active</code> |
 
-Columns to display in table output. Available columns: name, created at, created by, status, active
+Columns to display in table output. Available columns: name, created at, created by, status, active.
 
 ### --output, -o
 
@@ -26,4 +26,4 @@ Columns to display in table output. Available columns: name, created at, created
 | ------- | ------------------ |
 | Default | <code>table</code> |
 
-Output format. Available formats: table, json
+Output format. Available formats: table, json.

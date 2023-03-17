@@ -14,11 +14,11 @@ config-ssh
 
 ```console
   - You can use -o (or --ssh-option) so set SSH options to be used for all your
-    workspaces:
+    workspaces.:
 
       $ coder config-ssh -o ForwardAgent=yes
 
-  - You can use --dry-run (or -n) to see the changes that would be made:
+  - You can use --dry-run (or -n) to see the changes that would be made.:
 
       $ coder config-ssh --dry-run
 ```
@@ -66,10 +66,16 @@ Specifies whether the ProxyCommand option should be skipped. Useful for testing.
 
 Specifies whether or not to keep options from previous run of config-ssh.
 
+### --ssh-host-prefix
+
+|     |     |
+| --- | --- |
+
+Override the default host prefix.
+
 ### --yes, -y
 
-|             |                                 |
-| ----------- | ------------------------------- |
-| Environment | <code>$CODER_SKIP_PROMPT</code> |
+|     |     |
+| --- | --- |
 
-Bypass prompts
+Bypass prompts.

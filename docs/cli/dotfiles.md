@@ -13,7 +13,7 @@ dotfiles <git_repo_url>
 ## Description
 
 ```console
-  - Check out and install a dotfiles repository without prompts:
+  - Check out and install a dotfiles repository without prompts.:
 
       $ coder dotfiles --yes git@github.com:example/dotfiles.git
 ```
@@ -30,8 +30,7 @@ Specifies the directory for the dotfiles symlink destinations. If empty will use
 
 ### --yes, -y
 
-|             |                                 |
-| ----------- | ------------------------------- |
-| Environment | <code>$CODER_SKIP_PROMPT</code> |
+|     |     |
+| --- | --- |
 
-Bypass prompts
+Bypass prompts.

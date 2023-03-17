@@ -26,7 +26,7 @@ Specifies whether to emit SSH output over stdin/stdout.
 | ----------- | ------------------------------- |
 | Environment | <code>$CODER_SSH_SHUFFLE</code> |
 
-Specifies whether to choose a random workspace
+Specifies whether to choose a random workspace.
 
 ### --forward-agent, -A
 
@@ -34,7 +34,7 @@ Specifies whether to choose a random workspace
 | ----------- | ------------------------------------- |
 | Environment | <code>$CODER_SSH_FORWARD_AGENT</code> |
 
-Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK
+Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK.
 
 ### --forward-gpg, -G
 

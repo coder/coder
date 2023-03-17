@@ -24,7 +24,7 @@ Will update and start a given workspace if it is out of date. Use --always-promp
 | ------- | ------------------ |
 | Default | <code>false</code> |
 
-Always prompt all parameters. Does not pull parameter values from existing workspace
+Always prompt all parameters. Does not pull parameter values from existing workspace.
 
 ### --parameter-file
 

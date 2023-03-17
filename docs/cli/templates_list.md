@@ -18,7 +18,7 @@ list
 | ------- | -------------------------------------- |
 | Default | <code>name,last updated,used by</code> |
 
-Columns to display in table output. Available columns: name, created at, last updated, organization id, provisioner, active version id, used by, default ttl
+Columns to display in table output. Available columns: name, created at, last updated, organization id, provisioner, active version id, used by, default ttl.
 
 ### --output, -o
 
@@ -26,4 +26,4 @@ Columns to display in table output. Available columns: name, created at, last up
 | ------- | ------------------ |
 | Default | <code>table</code> |
 
-Output format. Available formats: table, json
+Output format. Available formats: table, json.

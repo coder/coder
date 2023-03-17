@@ -18,4 +18,4 @@ create <name>
 | ----------- | ------------------------------ |
 | Environment | <code>$CODER_AVATAR_URL</code> |
 
-set an avatar for a group
+Set an avatar for a group.

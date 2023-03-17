@@ -4,6 +4,12 @@
 
 Manage provisioner daemons
 
+## Usage
+
+```console
+provisionerd
+```
+
 ## Subcommands
 
 | Name                                       | Purpose                  |

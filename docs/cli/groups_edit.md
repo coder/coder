@@ -17,14 +17,14 @@ edit <name>
 |     |     |
 | --- | --- |
 
-Update the group name
+Update the group name.
 
 ### --avatar-url, -u
 
 |     |     |
 | --- | --- |
 
-Update the group avatar
+Update the group avatar.
 
 ### --add-users, -a
 

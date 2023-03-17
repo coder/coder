@@ -34,7 +34,7 @@ Search for a workspace with a query.
 | ------- | -------------------------------------------------------------------------------- |
 | Default | <code>workspace,template,status,last built,outdated,starts at,stops after</code> |
 
-Columns to display in table output. Available columns: workspace, template, status, last built, outdated, starts at, stops after
+Columns to display in table output. Available columns: workspace, template, status, last built, outdated, starts at, stops after.
 
 ### --output, -o
 
@@ -42,4 +42,4 @@ Columns to display in table output. Available columns: workspace, template, stat
 | ------- | ------------------ |
 | Default | <code>table</code> |
 
-Output format. Available formats: table, json
+Output format. Available formats: table, json.

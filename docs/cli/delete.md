@@ -22,8 +22,7 @@ Delete a workspace without deleting its resources. This can delete a workspace i
 
 ### --yes, -y
 
-|             |                                 |
-| ----------- | ------------------------------- |
-| Environment | <code>$CODER_SKIP_PROMPT</code> |
+|     |     |
+| --- | --- |
 
-Bypass prompts
+Bypass prompts.

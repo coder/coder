@@ -54,8 +54,7 @@ Specify a duration after which the workspace should shut down (e.g. 8h).
 
 ### --yes, -y
 
-|             |                                 |
-| ----------- | ------------------------------- |
-| Environment | <code>$CODER_SKIP_PROMPT</code> |
+|     |     |
+| --- | --- |
 
-Bypass prompts
+Bypass prompts.

@@ -19,7 +19,7 @@ start
 | Environment | <code>$CODER_CACHE_DIRECTORY</code> |
 | Default     | <code>~/.cache/coder</code>         |
 
-Directory to store cached data
+Directory to store cached data.
 
 ### --tag, -t
 
@@ -27,7 +27,7 @@ Directory to store cached data
 | ----------- | ------------------------------------- |
 | Environment | <code>$CODER_PROVISIONERD_TAGS</code> |
 
-Tags to filter provisioner jobs by
+Tags to filter provisioner jobs by.
 
 ### --poll-interval
 
@@ -36,7 +36,7 @@ Tags to filter provisioner jobs by
 | Environment | <code>$CODER_PROVISIONERD_POLL_INTERVAL</code> |
 | Default     | <code>1s</code>                                |
 
-How often to poll for provisioner jobs
+How often to poll for provisioner jobs.
 
 ### --poll-jitter
 
@@ -45,4 +45,4 @@ How often to poll for provisioner jobs
 | Environment | <code>$CODER_PROVISIONERD_POLL_JITTER</code> |
 | Default     | <code>100ms</code>                           |
 
-How much to jitter the poll interval by
+How much to jitter the poll interval by.

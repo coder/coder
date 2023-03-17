@@ -18,7 +18,7 @@ push [template]
 | ------- | ---------------------- |
 | Default | <code>terraform</code> |
 
-Customize the provisioner backend
+Customize the provisioner backend.
 
 ### --parameter-file
 
@@ -60,15 +60,14 @@ Specify a name for the new template version. It will be automatically generated 
 |     |     |
 | --- | --- |
 
-Always prompt all parameters. Does not pull parameter values from active template version
+Always prompt all parameters. Does not pull parameter values from active template version.
 
 ### --yes, -y
 
-|             |                                 |
-| ----------- | ------------------------------- |
-| Environment | <code>$CODER_SKIP_PROMPT</code> |
+|     |     |
+| --- | --- |
 
-Bypass prompts
+Bypass prompts.
 
 ### --directory, -d
 
@@ -76,4 +75,4 @@ Bypass prompts
 | ------- | -------------- |
 | Default | <code>.</code> |
 
-Specify the directory to create from, use '-' to read tar from stdin
+Specify the directory to create from, use '-' to read tar from stdin.

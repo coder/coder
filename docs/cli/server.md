@@ -110,7 +110,7 @@ Path to each certificate for TLS. It requires a PEM-encoded file. To configure t
 | ----------- | -------------------------------------- |
 | Environment | <code>$CODER_TLS_CLIENT_CA_FILE</code> |
 
-PEM-encoded Certificate Authority file used for checking the authenticity of client
+PEM-encoded Certificate Authority file used for checking the authenticity of client.
 
 ### --tls-client-auth
 
@@ -136,7 +136,7 @@ Paths to the private keys for each of the certificates. It requires a PEM-encode
 | Environment | <code>$CODER_TLS_MIN_VERSION</code> |
 | Default     | <code>tls12</code>                  |
 
-Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13"
+Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13".
 
 ### --tls-client-cert-file
 
@@ -213,7 +213,7 @@ An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
 | ----------- | ----------------------------------- |
 | Environment | <code>$CODER_DERP_CONFIG_URL</code> |
 
-URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/
+URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
 ### --derp-config-path
 
@@ -221,7 +221,7 @@ URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custo
 | ----------- | ------------------------------------ |
 | Environment | <code>$CODER_DERP_CONFIG_PATH</code> |
 
-Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/
+Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
 ### --prometheus-enable
 
@@ -396,7 +396,7 @@ Change the OIDC default 'groups' claim field. By default, will be 'groups' if pr
 | Environment | <code>$CODER_OIDC_SIGN_IN_TEXT</code> |
 | Default     | <code>OpenID Connect</code>           |
 
-The text to show on the OpenID Connect sign in button
+The text to show on the OpenID Connect sign in button.
 
 ### --oidc-icon-url
 
@@ -404,7 +404,7 @@ The text to show on the OpenID Connect sign in button
 | ----------- | --------------------------------- |
 | Environment | <code>$CODER_OIDC_ICON_URL</code> |
 
-URL pointing to the icon to use on the OepnID Connect login button
+URL pointing to the icon to use on the OepnID Connect login button.
 
 ### --telemetry
 
@@ -439,7 +439,7 @@ URL to send telemetry.
 | ----------- | -------------------------------- |
 | Environment | <code>$CODER_TRACE_ENABLE</code> |
 
-Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
+Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
 
 ### --trace-honeycomb-api-key
 
@@ -604,7 +604,7 @@ Expose the swagger endpoint via /swagger.
 | ----------- | ----------------------------------------- |
 | Environment | <code>$CODER_PROXY_TRUSTED_HEADERS</code> |
 
-Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For
+Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For.
 
 ### --proxy-trusted-origins
 
@@ -612,7 +612,7 @@ Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client
 | ----------- | ----------------------------------------- |
 | Environment | <code>$CODER_PROXY_TRUSTED_ORIGINS</code> |
 
-Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24
+Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
 
 ### --cache-dir
 
@@ -680,7 +680,7 @@ The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ec
 | Environment | <code>$CODER_METRICS_CACHE_REFRESH_INTERVAL</code> |
 | Default     | <code>1h0m0s</code>                                |
 
-How frequently metrics are refreshed
+How frequently metrics are refreshed.
 
 ### --agent-stats-refresh-interval
 
@@ -689,7 +689,7 @@ How frequently metrics are refreshed
 | Environment | <code>$CODER_AGENT_STATS_REFRESH_INTERVAL</code> |
 | Default     | <code>30s</code>                                 |
 
-How frequently agent stats are recorded
+How frequently agent stats are recorded.
 
 ### --agent-fallback-troubleshooting-url
 
@@ -698,7 +698,7 @@ How frequently agent stats are recorded
 | Environment | <code>$CODER_AGENT_FALLBACK_TROUBLESHOOTING_URL</code>                                   |
 | Default     | <code>https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates</code> |
 
-URL to use for agent troubleshooting when not set in the template
+URL to use for agent troubleshooting when not set in the template.
 
 ### --audit-logging
 
@@ -769,6 +769,23 @@ Disable password authentication. This is recommended for security purposes in pr
 
 Specify a YAML file to load configuration from.
 
+### --ssh-hostname-prefix
+
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Environment | <code>$CODER_SSH_HOSTNAME_PREFIX</code> |
+| Default     | <code>coder.</code>                     |
+
+The SSH deployment prefix is used in the Host of the ssh config.
+
+### --ssh-config-options
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Environment | <code>$CODER_SSH_CONFIG_OPTIONS</code> |
+
+These SSH config options will override the default SSH config options. Provide options in "key=value" or "key value" format separated by commas.Using this incorrectly can break SSH to your deployment, use cautiously.
+
 ### --write-config
 
 |             |                                  |
@@ -789,4 +806,4 @@ Support links to display in the top right drop down menu.
 |     |     |
 | --- | --- |
 
-Git Authentication providers
+Git Authentication providers.

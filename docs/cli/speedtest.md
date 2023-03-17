@@ -26,7 +26,7 @@ Specifies whether to wait for a direct connection before testing speed.
 | ------- | ----------------- |
 | Default | <code>down</code> |
 
-Specifies whether to run in reverse mode where the client receives and the server sends. (up|down)
+Specifies whether to run in reverse mode where the client receives and the server sends.
 
 ### --time, -t
 

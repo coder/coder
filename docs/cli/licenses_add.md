@@ -17,18 +17,18 @@ add [-f file | -l license]
 |     |     |
 | --- | --- |
 
-Load license from file
+Load license from file.
 
 ### --license, -l
 
 |     |     |
 | --- | --- |
 
-License string
+License string.
 
 ### --debug
 
 |     |     |
 | --- | --- |
 
-Output license claims for debugging
+Output license claims for debugging.

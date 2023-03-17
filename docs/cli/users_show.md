@@ -24,4 +24,4 @@ show <username|user_id|'me'>
 | ------- | ------------------ |
 | Default | <code>table</code> |
 
-Output format. Available formats: table, json
+Output format. Available formats: table, json.

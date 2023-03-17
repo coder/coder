@@ -51,7 +51,7 @@ Path to a YAML file containing the parameters to use for each workspace.
 | ----------- | --------------------------------------- |
 | Environment | <code>$CODER_LOADTEST_PARAMETERS</code> |
 
-Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value
+Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value.
 
 ### --no-plan, -n
 
@@ -167,7 +167,7 @@ Timeout for the WireGuard connection to complete.
 | ----------- | ---------------------------------- |
 | Environment | <code>$CODER_LOADTEST_TRACE</code> |
 
-Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
+Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
 
 ### --trace-coder
 

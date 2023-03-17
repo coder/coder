@@ -18,12 +18,11 @@ pull <name> [destination]
 | ------- | ------------------ |
 | Default | <code>false</code> |
 
-output the template as a tar archive to stdout
+Output the template as a tar archive to stdout.
 
 ### --yes, -y
 
-|             |                                 |
-| ----------- | ------------------------------- |
-| Environment | <code>$CODER_SKIP_PROMPT</code> |
+|     |     |
+| --- | --- |
 
-Bypass prompts
+Bypass prompts.

@@ -13,7 +13,7 @@ versions
 ## Description
 
 ```console
-  - List versions of a specific template:
+  - List versions of a specific template.:
 
       $ coder templates versions list my-template
 ```

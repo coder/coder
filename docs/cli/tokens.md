@@ -14,15 +14,15 @@ tokens
 
 ```console
 Tokens are used to authenticate automated clients to Coder.
-  - Create a token for automation:
+  - Create a token for automation.:
 
       $ coder tokens create
 
-  - List your tokens:
+  - List your tokens.:
 
       $ coder tokens ls
 
-  - Remove a token by ID:
+  - Remove a token by ID.:
 
       $ coder tokens rm WuoWs4ZsMX
 ```

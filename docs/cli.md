@@ -12,11 +12,11 @@ coder [subcommand]
 
 ```console
 Coder — A tool for provisioning self-hosted development environments with Terraform.
-  - Start a Coder server:
+  - Start a Coder server.:
 
       $ coder server
 
-  - Get started by creating a template from an example:
+  - Get started by creating a template from an example.:
 
       $ coder templates init
 ```
@@ -88,7 +88,7 @@ An agent authentication token.
 | ----------- | ----------------------------- |
 | Environment | <code>$CODER_AGENT_URL</code> |
 
-URL for an agent to access your deployment
+URL for an agent to access your deployment.
 
 ### --no-version-warning
 

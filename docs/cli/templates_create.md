@@ -54,7 +54,7 @@ Specify a default TTL for workspaces created from this template.
 | ------- | -------------- |
 | Default | <code>.</code> |
 
-Specify the directory to create from, use '-' to read tar from stdin
+Specify the directory to create from, use '-' to read tar from stdin.
 
 ### --test.provisioner
 
@@ -62,12 +62,11 @@ Specify the directory to create from, use '-' to read tar from stdin
 | ------- | ---------------------- |
 | Default | <code>terraform</code> |
 
-Customize the provisioner backend
+Customize the provisioner backend.
 
 ### --yes, -y
 
-|             |                                 |
-| ----------- | ------------------------------- |
-| Environment | <code>$CODER_SKIP_PROMPT</code> |
+|     |     |
+| --- | --- |
 
-Bypass prompts
+Bypass prompts.
