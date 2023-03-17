@@ -57,8 +57,8 @@ func NewWithConfig(ctx context.Context, logger slog.Logger, cfg Config) (*tunnel
 //
 // This uses https://github.com/coder/wgtunnel as the server and client
 // implementation.
-func New(ctx context.Context, logger slog.Logger) (*tunnelsdk.Tunnel, error) {
-	cfg, err := readOrGenerateConfig()
+func New(ctx context.Context, logger slog.Logger, customTunnelHost string) (*tunnelsdk.Tunnel, error) {
+	cfg, err := readOrGenerateConfig(customTunnelHost)
 	if err != nil {
 		return nil, xerrors.Errorf("read or generate config: %w", err)
 	}
@@ -81,7 +81,7 @@ func cfgPath() (string, error) {
 	return filepath.Join(cfgDir, "devtunnel"), nil
 }
 
-func readOrGenerateConfig() (Config, error) {
+func readOrGenerateConfig(customTunnelHost string) (Config, error) {
 	cfgFi, err := cfgPath()
 	if err != nil {
 		return Config{}, xerrors.Errorf("get config path: %w", err)
@@ -90,7 +90,7 @@ func readOrGenerateConfig() (Config, error) {
 	fi, err := os.ReadFile(cfgFi)
 	if err != nil {
 		if os.IsNotExist(err) {
-			cfg, err := GenerateConfig()
+			cfg, err := GenerateConfig(customTunnelHost)
 			if err != nil {
 				return Config{}, xerrors.Errorf("generate config: %w", err)
 			}
@@ -118,7 +118,7 @@ func readOrGenerateConfig() (Config, error) {
 		_, _ = fmt.Println(cliui.Styles.Error.Render("Upgrading you to the new version now. You will need to rebuild running workspaces."))
 		_, _ = fmt.Println()
 
-		cfg, err := GenerateConfig()
+		cfg, err := GenerateConfig(customTunnelHost)
 		if err != nil {
 			return Config{}, xerrors.Errorf("generate config: %w", err)
 		}
@@ -134,7 +134,7 @@ func readOrGenerateConfig() (Config, error) {
 	return cfg, nil
 }
 
-func GenerateConfig() (Config, error) {
+func GenerateConfig(customTunnelHost string) (Config, error) {
 	priv, err := tunnelsdk.GeneratePrivateKey()
 	if err != nil {
 		return Config{}, xerrors.Errorf("generate private key: %w", err)
@@ -149,7 +149,7 @@ func GenerateConfig() (Config, error) {
 	spin.Suffix = " Finding the closest tunnel region..."
 	spin.Start()
 
-	nodes, err := Nodes()
+	nodes, err := Nodes(customTunnelHost)
 	if err != nil {
 		return Config{}, xerrors.Errorf("get nodes: %w", err)
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"math"
 	"net/http"
 	"os"
@@ -162,6 +161,7 @@ type DeploymentValues struct {
 	Support                         SupportConfig                   `json:"support,omitempty" typescript:",notnull"`
 	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                       `json:"config_ssh,omitempty" typescript:",notnull"`
+	TunnelHost                      clibase.String                  `json:"tunnel_host,omitempty" typescript:",notnull"`
 
 	Config      clibase.String `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool   `json:"write_config,omitempty" typescript:",notnull"`
@@ -199,7 +199,7 @@ func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 		return r == ' ' || r == '='
 	})
 	if idx == -1 {
-		return "", "", fmt.Errorf("invalid config-ssh option %q", opt)
+		return "", "", xerrors.Errorf("invalid config-ssh option %q", opt)
 	}
 	return opt[:idx], opt[idx+1:], nil
 }
@@ -1351,6 +1351,16 @@ Write out the current server configuration to the path specified by --config.`,
 			Description: "Git Authentication providers",
 			YAML:        "gitAuthProviders",
 			Value:       &c.GitAuthProviders,
+			Hidden:      true,
+		},
+		{
+			Name:        "Custom Tunnel Host",
+			Description: `Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By default, this will pick the best available wgtunnel server hosted by Coder. e.g. "tunnel.example.com".`,
+			Flag:        "tunnel-host",
+			Env:         "TUNNEL_HOST",
+			YAML:        "tunnelHost",
+			Value:       &c.TunnelHost,
+			Default:     "", // empty string means pick best server
 			Hidden:      true,
 		},
 	}

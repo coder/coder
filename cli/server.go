@@ -547,7 +547,7 @@ flags, and YAML configuration. The precedence is as follows:
 			)
 			if cfg.AccessURL.String() == "" {
 				cmd.Printf("Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
-				tunnel, err = devtunnel.New(ctx, logger.Named("devtunnel"))
+				tunnel, err = devtunnel.New(ctx, logger.Named("devtunnel"), cfg.TunnelHost.String())
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
 				}

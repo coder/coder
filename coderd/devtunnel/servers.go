@@ -20,13 +20,11 @@ type Region struct {
 }
 
 type Node struct {
-	ID                int    `json:"id"`
-	RegionID          int    `json:"region_id"`
-	HostnameHTTPS     string `json:"hostname_https"`
-	HostnameWireguard string `json:"hostname_wireguard"`
-	WireguardPort     uint16 `json:"wireguard_port"`
+	ID            int    `json:"id"`
+	RegionID      int    `json:"region_id"`
+	HostnameHTTPS string `json:"hostname_https"`
 
-	AvgLatency time.Duration `json:"avg_latency"`
+	AvgLatency time.Duration `json:"-"`
 }
 
 var Regions = []Region{
@@ -35,11 +33,9 @@ var Regions = []Region{
 		LocationName: "US East Pittsburgh",
 		Nodes: []Node{
 			{
-				ID:                1,
-				RegionID:          0,
-				HostnameHTTPS:     "pit-1.try.coder.app",
-				HostnameWireguard: "pit-1.try.coder.app",
-				WireguardPort:     55551,
+				ID:            1,
+				RegionID:      0,
+				HostnameHTTPS: "pit-1.try.coder.app",
 			},
 		},
 	},
@@ -47,8 +43,21 @@ var Regions = []Region{
 
 // Nodes returns a list of nodes to use for the tunnel. It will pick a random
 // node from each region.
-func Nodes() ([]Node, error) {
+//
+// If a customNode is provided, it will be returned as the only node with ID
+// 9999.
+func Nodes(customTunnelHost string) ([]Node, error) {
 	nodes := []Node{}
+
+	if customTunnelHost != "" {
+		return []Node{
+			{
+				ID:            9999,
+				RegionID:      9999,
+				HostnameHTTPS: customTunnelHost,
+			},
+		}, nil
+	}
 
 	for _, region := range Regions {
 		// Pick a random node from each region.

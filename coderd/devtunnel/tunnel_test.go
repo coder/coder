@@ -250,9 +250,9 @@ func (s *tunnelServer) config(t *testing.T, version tunnelsdk.TunnelVersion) dev
 		PrivateKey: privNoise,
 		PublicKey:  pubNoise,
 		Tunnel: devtunnel.Node{
-			HostnameHTTPS:     s.api.BaseURL.Host,
-			HostnameWireguard: "localhost",
-			WireguardPort:     s.api.WireguardPort,
+			RegionID:      0,
+			ID:            1,
+			HostnameHTTPS: s.api.BaseURL.Host,
 		},
 		HTTPClient: s.client(),
 	}
