@@ -32,6 +32,44 @@ type RBACAsserter struct {
 	Recorder *RecordingAuthorizer
 }
 
+// AssertRBAC returns an RBACAsserter for the given user. This asserter will
+// allow asserting that the correct RBAC checks are performed for the given user.
+// All checks that are not run against this user will be ignored.
+func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsserter {
+	if client.SessionToken() == "" {
+		t.Fatal("client must be logged in")
+	}
+	recorder, ok := api.Authorizer.(*RecordingAuthorizer)
+	if !ok {
+		t.Fatal("expected RecordingAuthorizer")
+	}
+
+	// We use the database directly to not cause additional auth checks on behalf
+	// of the user. This does add authz checks on behalf of the system user, but
+	// it is hard to avoid that.
+	ctx := dbauthz.AsSystemRestricted(context.Background())
+	token := client.SessionToken()
+	parts := strings.Split(token, "-")
+	key, err := api.Database.GetAPIKeyByID(ctx, parts[0])
+	require.NoError(t, err, "fetch client api key")
+
+	roles, err := api.Database.GetAuthorizationUserRoles(ctx, key.UserID)
+	require.NoError(t, err, "fetch user roles")
+
+	return RBACAsserter{
+		Subject: rbac.Subject{
+			ID:     key.UserID.String(),
+			Roles:  rbac.RoleNames(roles.Roles),
+			Groups: roles.Groups,
+			Scope:  rbac.ScopeName(key.Scope),
+		},
+		Recorder: recorder,
+	}
+}
+
+// AllCalls is for debugging. If you are not sure where calls are coming from,
+// call this and use a debugger or print them. They have small callstacks
+// on them to help locate the 'Authorize' call.
 func (a RBACAsserter) AllCalls() []AuthCall {
 	return a.Recorder.AllCalls(&a.Subject)
 }
@@ -85,48 +123,18 @@ func (a RBACAsserter) convertObjects(t *testing.T, objs ...interface{}) []rbac.O
 }
 
 // Reset will clear all previously recorded authz calls.
+// This is helpful when wanting to ignore checks run in test setup.
 func (a RBACAsserter) Reset() RBACAsserter {
 	a.Recorder.Reset()
 	return a
-}
-
-func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsserter {
-	if client.SessionToken() == "" {
-		t.Fatal("client must be logged in")
-	}
-	recorder, ok := api.Authorizer.(*RecordingAuthorizer)
-	if !ok {
-		t.Fatal("expected RecordingAuthorizer")
-	}
-
-	// We use the database directly to not cause additional auth checks on behalf
-	// of the user. This does add authz checks on behalf of the system user, but
-	// it is hard to avoid that.
-	ctx := dbauthz.AsSystemRestricted(context.Background())
-	token := client.SessionToken()
-	parts := strings.Split(token, "-")
-	key, err := api.Database.GetAPIKeyByID(ctx, parts[0])
-	require.NoError(t, err, "fetch client api key")
-
-	roles, err := api.Database.GetAuthorizationUserRoles(ctx, key.UserID)
-	require.NoError(t, err, "fetch user roles")
-
-	return RBACAsserter{
-		Subject: rbac.Subject{
-			ID:     key.UserID.String(),
-			Roles:  rbac.RoleNames(roles.Roles),
-			Groups: roles.Groups,
-			Scope:  rbac.ScopeName(key.Scope),
-		},
-		Recorder: recorder,
-	}
 }
 
 type AuthCall struct {
 	rbac.AuthCall
 
 	asserted bool
-	callers  []string
+	// callers is a small stack trace for debugging.
+	callers []string
 }
 
 var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
