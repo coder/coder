@@ -41,7 +41,7 @@ func TestTemplateVersion(t *testing.T) {
 
 		authz.Reset()
 		tv, err := client.TemplateVersion(ctx, version.ID)
-		authz.AssertChecked(t, rbac.ActionRead, tv.RBACObjectNoTemplate())
+		authz.AssertChecked(t, rbac.ActionRead, tv)
 		require.NoError(t, err)
 	})
 

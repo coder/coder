@@ -39,9 +39,10 @@ func (a RBACAsserter) AllCalls() []AuthCall {
 // AssertChecked will assert a given rbac check was performed. It does not care
 // about order of checks, or any other checks. This is useful when you do not
 // care about asserting every check that was performed.
-func (a RBACAsserter) AssertChecked(t *testing.T, action rbac.Action, objects ...rbac.Object) {
-	pairs := make([]ActionObjectPair, 0, len(objects))
-	for _, obj := range objects {
+func (a RBACAsserter) AssertChecked(t *testing.T, action rbac.Action, objects ...interface{}) {
+	converted := a.convertObjects(t, objects...)
+	pairs := make([]ActionObjectPair, 0, len(converted))
+	for _, obj := range converted {
 		pairs = append(pairs, a.Recorder.Pair(action, obj))
 	}
 	a.Recorder.AssertOutOfOrder(t, a.Subject, pairs...)
@@ -49,12 +50,38 @@ func (a RBACAsserter) AssertChecked(t *testing.T, action rbac.Action, objects ..
 
 // AssertInOrder must be called in the correct order of authz checks. If the objects
 // or actions are not in the correct order, the test will fail.
-func (a RBACAsserter) AssertInOrder(t *testing.T, action rbac.Action, objects ...rbac.Object) {
-	pairs := make([]ActionObjectPair, 0, len(objects))
-	for _, obj := range objects {
+func (a RBACAsserter) AssertInOrder(t *testing.T, action rbac.Action, objects ...interface{}) {
+	converted := a.convertObjects(t, objects...)
+	pairs := make([]ActionObjectPair, 0, len(converted))
+	for _, obj := range converted {
 		pairs = append(pairs, a.Recorder.Pair(action, obj))
 	}
 	a.Recorder.AssertActor(t, a.Subject, pairs...)
+}
+
+// convertObjects converts the codersdk types to rbac.Object. Unfortunately
+// does not have type safety, and instead uses a t.Fatal to enforce types.
+func (a RBACAsserter) convertObjects(t *testing.T, objs ...interface{}) []rbac.Object {
+	converted := make([]rbac.Object, 0, len(objs))
+	for _, obj := range objs {
+		var robj rbac.Object
+		switch obj := obj.(type) {
+		case rbac.Object:
+			robj = obj
+		case rbac.Objecter:
+			robj = obj.RBACObject()
+		case codersdk.TemplateVersion:
+			robj = rbac.ResourceTemplate.InOrg(obj.OrganizationID)
+		case codersdk.User:
+			robj = rbac.ResourceUser.WithID(obj.ID)
+		case codersdk.Workspace:
+			robj = rbac.ResourceWorkspace.WithID(obj.ID).InOrg(obj.OrganizationID).WithOwner(obj.OwnerID.String())
+		default:
+			t.Fatalf("unsupported type %T to convert to rbac.Object, add the implementation", obj)
+		}
+		converted = append(converted, robj)
+	}
+	return converted
 }
 
 // Reset will clear all previously recorded authz calls.
@@ -64,6 +91,9 @@ func (a RBACAsserter) Reset() RBACAsserter {
 }
 
 func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsserter {
+	if client.SessionToken() == "" {
+		t.Fatal("client must be logged in")
+	}
 	recorder, ok := api.Authorizer.(*RecordingAuthorizer)
 	if !ok {
 		t.Fatal("expected RecordingAuthorizer")

@@ -308,7 +308,7 @@ func TestDeleteUser(t *testing.T) {
 
 		// RBAC checks
 		authz.AssertChecked(t, rbac.ActionCreate, rbac.ResourceUser)
-		authz.AssertChecked(t, rbac.ActionDelete, coderdtest.RBACObject(another))
+		authz.AssertChecked(t, rbac.ActionDelete, another)
 	})
 	t.Run("NoPermission", func(t *testing.T) {
 		t.Parallel()
