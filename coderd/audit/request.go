@@ -73,7 +73,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 		if typed.TokenName != "nil" {
 			return typed.TokenName
 		}
-		// API Keys without names are used for Auth
+		// API Keys without names are used for auth
 		// and don't have a target
 		return ""
 	case database.License:
