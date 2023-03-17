@@ -6,45 +6,8 @@ Options
     --template, -t, $CODER_TEMPLATE_NAME 
         Specify a template name.
 
-<<<<<<< HEAD
     --parameter-file, $CODER_PARAMETER_FILE 
         Specify a file path with parameter values.
-||||||| ffca3a5fb
-Flags:
-  -h, --help                                   help for create
-      --parameter-file string                  Specify a file path with parameter values.
-                                               Consumes $CODER_PARAMETER_FILE
-      --rich-parameter-file string             Specify a file path with values for rich
-                                               parameters defined in the template.
-                                               Consumes $CODER_RICH_PARAMETER_FILE
-      --start-at coder schedule start --help   Specify the workspace autostart schedule. Check
-                                               coder schedule start --help for the syntax.
-                                               Consumes $CODER_WORKSPACE_START_AT
-      --stop-after duration                    Specify a duration after which the workspace
-                                               should shut down (e.g. 8h).
-                                               Consumes $CODER_WORKSPACE_STOP_AFTER (default
-                                               8h0m0s)
-  -t, --template string                        Specify a template name.
-                                               Consumes $CODER_TEMPLATE_NAME
-  -y, --yes                                    Bypass prompts
-=======
-Flags:
-  -h, --help                                   help for create
-      --parameter-file string                  Specify a file path with parameter values.
-                                               Consumes $CODER_PARAMETER_FILE
-      --rich-parameter-file string             Specify a file path with values for rich
-                                               parameters defined in the template.
-                                               Consumes $CODER_RICH_PARAMETER_FILE
-      --start-at coder schedule start --help   Specify the workspace autostart schedule. Check
-                                               coder schedule start --help for the syntax.
-                                               Consumes $CODER_WORKSPACE_START_AT
-      --stop-after duration                    Specify a duration after which the workspace
-                                               should shut down (e.g. 8h).
-                                               Consumes $CODER_WORKSPACE_STOP_AFTER
-  -t, --template string                        Specify a template name.
-                                               Consumes $CODER_TEMPLATE_NAME
-  -y, --yes                                    Bypass prompts
->>>>>>> origin/main
 
     --rich-parameter-file, $CODER_RICH_PARAMETER_FILE 
         Specify a file path with values for rich parameters defined in the
