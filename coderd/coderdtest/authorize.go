@@ -2,6 +2,8 @@ package coderdtest
 
 import (
 	"context"
+	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -42,7 +44,7 @@ type RBACAsserter struct {
 	Recorder *RecordingAuthorizer
 }
 
-func (a RBACAsserter) AllCalls() []rbac.AuthCall {
+func (a RBACAsserter) AllCalls() []AuthCall {
 	return a.Recorder.AllCalls(&a.Subject)
 }
 
@@ -65,6 +67,12 @@ func (a RBACAsserter) AssertInOrder(t *testing.T, action rbac.Action, objects ..
 		pairs = append(pairs, a.Recorder.Pair(action, obj))
 	}
 	a.Recorder.AssertActor(t, a.Subject, pairs...)
+}
+
+// Reset will clear all previously recorded authz calls.
+func (a RBACAsserter) Reset() RBACAsserter {
+	a.Recorder.Reset()
+	return a
 }
 
 func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsserter {
@@ -96,10 +104,11 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 	}
 }
 
-type authCall struct {
+type AuthCall struct {
 	rbac.AuthCall
 
 	asserted bool
+	caller   string
 }
 
 var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
@@ -108,7 +117,7 @@ var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
 // calls made. This is useful for testing as these calls can later be asserted.
 type RecordingAuthorizer struct {
 	sync.RWMutex
-	Called  []authCall
+	Called  []AuthCall
 	Wrapped rbac.Authorizer
 }
 
@@ -132,7 +141,7 @@ func (*RecordingAuthorizer) Pair(action rbac.Action, object rbac.Objecter) Actio
 func (r *RecordingAuthorizer) AllAsserted() error {
 	r.RLock()
 	defer r.RUnlock()
-	missed := []authCall{}
+	missed := []AuthCall{}
 	for _, c := range r.Called {
 		if !c.asserted {
 			missed = append(missed, c)
@@ -146,16 +155,16 @@ func (r *RecordingAuthorizer) AllAsserted() error {
 }
 
 // AllCalls is useful for debugging.
-func (r *RecordingAuthorizer) AllCalls(actor *rbac.Subject) []rbac.AuthCall {
+func (r *RecordingAuthorizer) AllCalls(actor *rbac.Subject) []AuthCall {
 	r.RLock()
 	defer r.RUnlock()
 
-	called := make([]rbac.AuthCall, 0, len(r.Called))
+	called := make([]AuthCall, 0, len(r.Called))
 	for _, c := range r.Called {
 		if actor != nil && !c.Actor.Equal(*actor) {
 			continue
 		}
-		called = append(called, c.AuthCall)
+		called = append(called, c)
 	}
 	return called
 }
@@ -209,12 +218,25 @@ func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did 
 func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action rbac.Action, object rbac.Object) {
 	r.Lock()
 	defer r.Unlock()
-	r.Called = append(r.Called, authCall{
+
+	pc, file, line, ok := runtime.Caller(2)
+	i := strings.Index(file, "coder")
+	if i >= 0 {
+		file = file[i:]
+	}
+	caller := fmt.Sprintf("%s:%d", file, line)
+	if ok {
+		f := runtime.FuncForPC(pc)
+		caller += " " + strings.TrimPrefix(f.Name(), "github.com/coder")
+	}
+
+	r.Called = append(r.Called, AuthCall{
 		AuthCall: rbac.AuthCall{
 			Actor:  subject,
 			Action: action,
 			Object: object,
 		},
+		caller: caller,
 	})
 }
 
@@ -254,7 +276,7 @@ func (r *RecordingAuthorizer) Reset() {
 
 // lastCall is implemented to support legacy tests.
 // Deprecated
-func (r *RecordingAuthorizer) lastCall() *authCall {
+func (r *RecordingAuthorizer) lastCall() *AuthCall {
 	r.RLock()
 	defer r.RUnlock()
 	if len(r.Called) == 0 {

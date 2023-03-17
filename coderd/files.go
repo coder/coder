@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -37,12 +36,6 @@ const (
 func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	// This requires the site wide action to create files.
-	// Once created, a user can read their own files uploaded
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceFile.WithOwner(apiKey.UserID.String())) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	contentType := r.Header.Get("Content-Type")
 
@@ -142,12 +135,6 @@ func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error fetching file.",
 			Detail:  err.Error(),
 		})
-		return
-	}
-
-	if !api.Authorize(r, rbac.ActionRead, file) {
-		// Return 404 to not leak the file exists
-		httpapi.ResourceNotFound(rw)
 		return
 	}
 
