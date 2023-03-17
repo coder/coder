@@ -1,4 +1,4 @@
-Usage: coder [subcommand]
+Usage: coder [flags] <subcommand>
 
 Coder v0.0.0-devel — A tool for provisioning self-hosted development
 environments with Terraform.

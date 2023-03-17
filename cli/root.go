@@ -139,7 +139,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
 	cmd := &clibase.Cmd{
-		Use: "coder [subcommand]",
+		Use: "coder [flags] <subcommand>",
 		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + formatExamples(
 			example{
 				Description: "Start a Coder server.",
