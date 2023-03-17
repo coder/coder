@@ -496,8 +496,11 @@ func provisionReadAndLog(sink logSink, r io.Reader, done chan<- any) {
 		if log.Diagnostic == nil {
 			continue
 		}
-		logLevel = convertTerraformLogLevel(log.Diagnostic.Severity, sink)
-		sink.Log(&proto.Log{Level: logLevel, Output: log.Diagnostic.Detail})
+		logLevel = convertTerraformLogLevel(string(log.Diagnostic.Severity), sink)
+
+		for _, diagLine := range FormatDiagnostic(log.Diagnostic) {
+			sink.Log(&proto.Log{Level: logLevel, Output: diagLine})
+		}
 	}
 }
 
@@ -509,7 +512,7 @@ func convertTerraformLogLevel(logLevel string, sink logSink) proto.LogLevel {
 		return proto.LogLevel_DEBUG
 	case "info":
 		return proto.LogLevel_INFO
-	case "warn":
+	case "warn", "warning":
 		return proto.LogLevel_WARN
 	case "error":
 		return proto.LogLevel_ERROR
@@ -526,13 +529,7 @@ type terraformProvisionLog struct {
 	Level   string `json:"@level"`
 	Message string `json:"@message"`
 
-	Diagnostic *terraformProvisionLogDiagnostic `json:"diagnostic"`
-}
-
-type terraformProvisionLogDiagnostic struct {
-	Severity string `json:"severity"`
-	Summary  string `json:"summary"`
-	Detail   string `json:"detail"`
+	Diagnostic *tfjson.Diagnostic `json:"diagnostic,omitempty"`
 }
 
 // syncWriter wraps an io.Writer in a sync.Mutex.
