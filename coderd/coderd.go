@@ -164,6 +164,9 @@ func New(options *Options) *API {
 		options = &Options{}
 	}
 
+	if options.Authorizer == nil {
+		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+	}
 	options.Database = dbauthz.New(
 		options.Database,
 		options.Authorizer,
@@ -203,9 +206,6 @@ func New(options *Options) *API {
 	}
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
-	}
-	if options.Authorizer == nil {
-		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator()

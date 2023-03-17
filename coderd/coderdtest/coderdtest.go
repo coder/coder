@@ -180,15 +180,16 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			close(options.AutobuildStats)
 		})
 	}
-	if options.Database == nil {
-		options.Database, options.Pubsub = dbtestutil.NewDB(t)
-	}
-	options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 
 	if options.Authorizer == nil {
 		options.Authorizer = &RecordingAuthorizer{
 			Wrapped: rbac.NewCachingAuthorizer(prometheus.NewRegistry()),
 		}
+	}
+
+	if options.Database == nil {
+		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	}
 
 	if options.DeploymentValues == nil {

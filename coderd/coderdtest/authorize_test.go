@@ -2,6 +2,7 @@ package coderdtest_test
 
 import (
 	"context"
+	"math/rand"
 	"os"
 	"strings"
 	"testing"
@@ -79,6 +80,42 @@ func TestAuthzRecorder(t *testing.T) {
 
 		rec.AssertActor(t, b, bPairs...)
 		rec.AssertActor(t, a, aPairs...)
+		require.NoError(t, rec.AllAsserted(), "all assertions should have been made")
+	})
+
+	t.Run("AuthorizeOutOfOrder", func(t *testing.T) {
+		t.Parallel()
+
+		rec := &coderdtest.RecordingAuthorizer{
+			Wrapped: &coderdtest.FakeAuthorizer{},
+		}
+		sub := coderdtest.RandomRBACSubject()
+		pairs := fuzzAuthz(t, sub, rec, 10)
+		rand.Shuffle(len(pairs), func(i, j int) {
+			pairs[i], pairs[j] = pairs[j], pairs[i]
+		})
+
+		rec.AssertOutOfOrder(t, sub, pairs...)
+		require.NoError(t, rec.AllAsserted(), "all assertions should have been made")
+	})
+
+	t.Run("AllCalls", func(t *testing.T) {
+		t.Parallel()
+
+		rec := &coderdtest.RecordingAuthorizer{
+			Wrapped: &coderdtest.FakeAuthorizer{},
+		}
+		sub := coderdtest.RandomRBACSubject()
+		calls := rec.AllCalls(&sub)
+		pairs := make([]coderdtest.ActionObjectPair, 0, len(calls))
+		for _, call := range calls {
+			pairs = append(pairs, coderdtest.ActionObjectPair{
+				Action: call.Action,
+				Object: call.Object,
+			})
+		}
+
+		rec.AssertActor(t, sub, pairs...)
 		require.NoError(t, rec.AllAsserted(), "all assertions should have been made")
 	})
 }

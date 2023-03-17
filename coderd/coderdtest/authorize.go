@@ -19,15 +19,91 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cryptorand"
-
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 )
+
+type CoderSDKObject interface {
+	codersdk.User
+}
+
+func RBACObject[C CoderSDKObject](o C) rbac.Object {
+	switch ro := any(o).(type) {
+	case codersdk.User:
+		return rbac.ResourceUser.WithID(ro.ID)
+	default:
+		panic("unknown object type")
+	}
+}
+
+// RBACAsserter is a helper for asserting that the correct RBAC checks are
+// performed. This struct is tied to a given user, and only authorizes calls
+// for this user are checked.
+type RBACAsserter struct {
+	Subject rbac.Subject
+
+	Recorder *RecordingAuthorizer
+}
+
+func (a RBACAsserter) AllCalls() []rbac.AuthCall {
+	return a.Recorder.AllCalls(&a.Subject)
+}
+
+// AssertChecked will assert a given rbac check was performed. It does not care
+// about order of checks, or any other checks. This is useful when you do not
+// care about asserting every check that was performed.
+func (a RBACAsserter) AssertChecked(t *testing.T, action rbac.Action, objects ...rbac.Object) {
+	pairs := make([]ActionObjectPair, 0, len(objects))
+	for _, obj := range objects {
+		pairs = append(pairs, a.Recorder.Pair(action, obj))
+	}
+	a.Recorder.AssertOutOfOrder(t, a.Subject, pairs...)
+}
+
+// AssertInOrder must be called in the correct order of authz checks. If the objects
+// or actions are not in the correct order, the test will fail.
+func (a RBACAsserter) AssertInOrder(t *testing.T, action rbac.Action, objects ...rbac.Object) {
+	pairs := make([]ActionObjectPair, 0, len(objects))
+	for _, obj := range objects {
+		pairs = append(pairs, a.Recorder.Pair(action, obj))
+	}
+	a.Recorder.AssertActor(t, a.Subject, pairs...)
+}
+
+func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsserter {
+	recorder, ok := api.Authorizer.(*RecordingAuthorizer)
+	if !ok {
+		t.Fatal("expected RecordingAuthorizer")
+	}
+
+	// We use the database directly to not cause additional auth checks on behalf
+	// of the user. This does add authz checks on behalf of the system user, but
+	// it is hard to avoid that.
+	ctx := dbauthz.AsSystemRestricted(context.Background())
+	token := client.SessionToken()
+	parts := strings.Split(token, "-")
+	key, err := api.Database.GetAPIKeyByID(ctx, parts[0])
+	require.NoError(t, err, "fetch client api key")
+
+	roles, err := api.Database.GetAuthorizationUserRoles(ctx, key.UserID)
+	require.NoError(t, err, "fetch user roles")
+
+	return RBACAsserter{
+		Subject: rbac.Subject{
+			ID:     key.UserID.String(),
+			Roles:  rbac.RoleNames(roles.Roles),
+			Groups: roles.Groups,
+			Scope:  rbac.ScopeName(key.Scope),
+		},
+		Recorder: recorder,
+	}
+}
 
 func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 	// Some quick reused objects
@@ -598,11 +674,48 @@ func (r *RecordingAuthorizer) AllAsserted() error {
 	return nil
 }
 
+// AllCalls is useful for debugging.
+func (r *RecordingAuthorizer) AllCalls(actor *rbac.Subject) []rbac.AuthCall {
+	r.RLock()
+	defer r.RUnlock()
+
+	called := make([]rbac.AuthCall, 0, len(r.Called))
+	for _, c := range r.Called {
+		if actor != nil && !c.Actor.Equal(*actor) {
+			continue
+		}
+		called = append(called, c.AuthCall)
+	}
+	return called
+}
+
+// AssertOutOfOrder asserts that the given actor performed the given action
+// on the given objects. It does not care about the order of the calls.
+// When marking authz calls as asserted, it will mark the first matching
+// calls first.
+func (r *RecordingAuthorizer) AssertOutOfOrder(t *testing.T, actor rbac.Subject, did ...ActionObjectPair) {
+	r.Lock()
+	defer r.Unlock()
+
+	for _, do := range did {
+		found := false
+		// Find the first non-asserted call that matches the actor, action, and object.
+		for i, call := range r.Called {
+			if !call.asserted && call.Actor.Equal(actor) && call.Action == do.Action && call.Object.Equal(do.Object) {
+				r.Called[i].asserted = true
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "assertion missing: %s %s %s", actor, do.Action, do.Object)
+	}
+}
+
 // AssertActor asserts in order. If the order of authz calls does not match,
 // this will fail.
 func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did ...ActionObjectPair) {
-	r.RLock()
-	defer r.RUnlock()
+	r.Lock()
+	defer r.Unlock()
 	ptr := 0
 	for i, call := range r.Called {
 		if ptr == len(did) {
