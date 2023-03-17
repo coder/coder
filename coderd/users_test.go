@@ -288,21 +288,27 @@ func TestDeleteUser(t *testing.T) {
 	t.Parallel()
 	t.Run("Works", func(t *testing.T) {
 		t.Parallel()
-		api := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, api)
-		_, another := coderdtest.CreateAnotherUser(t, api, user.OrganizationID)
-		err := api.DeleteUser(context.Background(), another.ID)
+		client, _, api := coderdtest.NewWithAPI(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		authz := coderdtest.AssertRBAC(t, api, client)
+
+		_, another := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		err := client.DeleteUser(context.Background(), another.ID)
 		require.NoError(t, err)
 		// Attempt to create a user with the same email and username, and delete them again.
-		another, err = api.CreateUser(context.Background(), codersdk.CreateUserRequest{
+		another, err = client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          another.Email,
 			Username:       another.Username,
 			Password:       "SomeSecurePassword!",
 			OrganizationID: user.OrganizationID,
 		})
 		require.NoError(t, err)
-		err = api.DeleteUser(context.Background(), another.ID)
+		err = client.DeleteUser(context.Background(), another.ID)
 		require.NoError(t, err)
+
+		// RBAC checks
+		authz.AssertChecked(t, rbac.ActionCreate, rbac.ResourceUser)
+		authz.AssertChecked(t, rbac.ActionDelete, coderdtest.RBACObject(another))
 	})
 	t.Run("NoPermission", func(t *testing.T) {
 		t.Parallel()

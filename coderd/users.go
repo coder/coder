@@ -798,7 +798,6 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		ctx = r.Context()
 		// User is the user to modify.
 		user              = httpmw.UserParam(r)
-		actorRoles        = httpmw.UserAuthorization(r)
 		apiKey            = httpmw.APIKey(r)
 		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{

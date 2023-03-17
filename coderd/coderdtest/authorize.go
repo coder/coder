@@ -3,6 +3,7 @@ package coderdtest
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -21,19 +22,6 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 )
-
-type CoderSDKObject interface {
-	codersdk.User
-}
-
-func RBACObject[C CoderSDKObject](o C) rbac.Object {
-	switch ro := any(o).(type) {
-	case codersdk.User:
-		return rbac.ResourceUser.WithID(ro.ID)
-	default:
-		panic("unknown object type")
-	}
-}
 
 // RBACAsserter is a helper for asserting that the correct RBAC checks are
 // performed. This struct is tied to a given user, and only authorizes calls
@@ -108,7 +96,7 @@ type AuthCall struct {
 	rbac.AuthCall
 
 	asserted bool
-	caller   string
+	callers  []string
 }
 
 var _ rbac.Authorizer = (*RecordingAuthorizer)(nil)
@@ -219,25 +207,36 @@ func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action rbac.
 	r.Lock()
 	defer r.Unlock()
 
-	pc, file, line, ok := runtime.Caller(2)
-	i := strings.Index(file, "coder")
-	if i >= 0 {
-		file = file[i:]
-	}
-	caller := fmt.Sprintf("%s:%d", file, line)
-	if ok {
-		f := runtime.FuncForPC(pc)
-		caller += " " + strings.TrimPrefix(f.Name(), "github.com/coder")
-	}
-
 	r.Called = append(r.Called, AuthCall{
 		AuthCall: rbac.AuthCall{
 			Actor:  subject,
 			Action: action,
 			Object: object,
 		},
-		caller: caller,
+		callers: []string{
+			// This is a decent stack trace for debugging.
+			// Some dbauthz calls are a bit nested, so we skip a few.
+			caller(2),
+			caller(3),
+			caller(4),
+			caller(5),
+		},
 	})
+}
+
+func caller(skip int) string {
+	pc, file, line, ok := runtime.Caller(skip + 1)
+	i := strings.Index(file, "coder")
+	if i >= 0 {
+		file = file[i:]
+	}
+	str := fmt.Sprintf("%s:%d", file, line)
+	if ok {
+		f := runtime.FuncForPC(pc)
+		filepath.Base(f.Name())
+		str += " | " + filepath.Base(f.Name())
+	}
+	return str
 }
 
 func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {

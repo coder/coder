@@ -1134,10 +1134,8 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	var template database.Template
 	if req.TemplateID != uuid.Nil {
-		var err error
-		template, err = api.Database.GetTemplateByID(ctx, req.TemplateID)
+		_, err := api.Database.GetTemplateByID(ctx, req.TemplateID)
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Template does not exist.",
@@ -1151,17 +1149,6 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			})
 			return
 		}
-	}
-
-	if template.ID != uuid.Nil {
-		if !api.Authorize(r, rbac.ActionCreate, template) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-	} else if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
-		// Making a new template version is the same permission as creating a new template.
-		httpapi.ResourceNotFound(rw)
-		return
 	}
 
 	// Ensures the "owner" is properly applied.
