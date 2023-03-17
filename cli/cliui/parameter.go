@@ -1,6 +1,7 @@
 package cliui
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -63,13 +64,34 @@ func ParameterSchema(cmd *cobra.Command, parameterSchema codersdk.ParameterSchem
 
 func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), Styles.Bold.Render(templateVersionParameter.Name))
-	if templateVersionParameter.Description != "" {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+strings.TrimSpace(strings.Join(strings.Split(templateVersionParameter.Description, "\n"), "\n  "))+"\n")
+	if templateVersionParameter.DescriptionPlaintext != "" {
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+strings.TrimSpace(strings.Join(strings.Split(templateVersionParameter.DescriptionPlaintext, "\n"), "\n  "))+"\n")
 	}
 
 	var err error
 	var value string
-	if len(templateVersionParameter.Options) > 0 {
+	if templateVersionParameter.Type == "list(string)" {
+		// Move the cursor up a single line for nicer display!
+		_, _ = fmt.Fprint(cmd.OutOrStdout(), "\033[1A")
+
+		var options []string
+		err = json.Unmarshal([]byte(templateVersionParameter.DefaultValue), &options)
+		if err != nil {
+			return "", err
+		}
+
+		values, err := MultiSelect(cmd, options)
+		if err == nil {
+			v, err := json.Marshal(&values)
+			if err != nil {
+				return "", err
+			}
+
+			_, _ = fmt.Fprintln(cmd.OutOrStdout())
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+Styles.Prompt.String()+Styles.Field.Render(strings.Join(values, ", ")))
+			value = string(v)
+		}
+	} else if len(templateVersionParameter.Options) > 0 {
 		// Move the cursor up a single line for nicer display!
 		_, _ = fmt.Fprint(cmd.OutOrStdout(), "\033[1A")
 		var richParameterOption *codersdk.TemplateVersionParameterOption
@@ -85,7 +107,7 @@ func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.Templat
 		}
 	} else {
 		text := "Enter a value"
-		if templateVersionParameter.DefaultValue != "" {
+		if !templateVersionParameter.Required {
 			text += fmt.Sprintf(" (default: %q)", templateVersionParameter.DefaultValue)
 		}
 		text += ":"
@@ -111,8 +133,8 @@ func RichParameter(cmd *cobra.Command, templateVersionParameter codersdk.Templat
 }
 
 func validateRichPrompt(value string, p codersdk.TemplateVersionParameter) error {
-	return codersdk.ValidateWorkspaceBuildParameter(p, codersdk.WorkspaceBuildParameter{
+	return codersdk.ValidateWorkspaceBuildParameter(p, &codersdk.WorkspaceBuildParameter{
 		Name:  p.Name,
 		Value: value,
-	})
+	}, nil)
 }

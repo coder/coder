@@ -26,7 +26,7 @@ const AuditPage: FC = () => {
     },
   })
 
-  const { auditLogs, count } = auditState.context
+  const { auditLogs, count, apiError } = auditState.context
   const paginationRef = auditState.context.paginationRef as PaginationMachineRef
   const { audit_log: isAuditLogVisible } = useFeatureVisibility()
 
@@ -45,6 +45,7 @@ const AuditPage: FC = () => {
         paginationRef={paginationRef}
         isNonInitialPage={nonInitialPage(searchParams)}
         isAuditLogVisible={isAuditLogVisible}
+        error={apiError}
       />
     </>
   )

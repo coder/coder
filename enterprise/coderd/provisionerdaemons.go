@@ -1,13 +1,16 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
@@ -24,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
 )
@@ -94,12 +98,14 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 // @Success 101
 // @Router /organizations/{organization}/provisionerdaemons/serve [get]
 func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	tags := map[string]string{}
 	if r.URL.Query().Has("tag") {
 		for _, tag := range r.URL.Query()["tag"] {
 			parts := strings.SplitN(tag, "=", 2)
 			if len(parts) < 2 {
-				httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: fmt.Sprintf("Invalid format for tag %q. Key and value must be separated with =.", tag),
 				})
 				return
@@ -108,7 +114,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 	if !r.URL.Query().Has("provisioner") {
-		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "The provisioner query parameter must be specified.",
 		})
 		return
@@ -122,7 +128,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		case string(codersdk.ProvisionerTypeTerraform):
 			provisionersMap[codersdk.ProvisionerTypeTerraform] = struct{}{}
 		default:
-			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Unknown provisioner type %q", provisioner),
 			})
 			return
@@ -137,7 +143,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 
 	if tags[provisionerdserver.TagScope] == provisionerdserver.ScopeOrganization {
 		if !api.AGPL.Authorize(r, rbac.ActionCreate, rbac.ResourceProvisionerDaemon) {
-			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: "You aren't allowed to create provisioner daemons for the organization.",
 			})
 			return
@@ -155,7 +161,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	name := namesgenerator.GetRandomName(1)
-	daemon, err := api.Database.InsertProvisionerDaemon(r.Context(), database.InsertProvisionerDaemonParams{
+	daemon, err := api.Database.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),
 		CreatedAt:    database.Now(),
 		Name:         name,
@@ -163,7 +169,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		Tags:         tags,
 	})
 	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error writing provisioner daemon.",
 			Detail:  err.Error(),
 		})
@@ -172,7 +178,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 
 	rawTags, err := json.Marshal(daemon.Tags)
 	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error marshaling daemon tags.",
 			Detail:  err.Error(),
 		})
@@ -189,7 +195,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Internal error accepting websocket connection.",
 			Detail:  err.Error(),
 		})
@@ -203,22 +209,31 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	// the same connection.
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
-	session, err := yamux.Server(websocket.NetConn(r.Context(), conn, websocket.MessageBinary), config)
+	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+	defer wsNetConn.Close()
+	session, err := yamux.Server(wsNetConn, config)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("multiplex server: %s", err))
 		return
 	}
 	mux := drpcmux.New()
+	gitAuthProviders := make([]string, 0, len(api.GitAuthConfigs))
+	for _, cfg := range api.GitAuthConfigs {
+		gitAuthProviders = append(gitAuthProviders, cfg.ID)
+	}
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
-		AccessURL:    api.AccessURL,
-		ID:           daemon.ID,
-		Database:     api.Database,
-		Pubsub:       api.Pubsub,
-		Provisioners: daemon.Provisioners,
-		Telemetry:    api.Telemetry,
-		Auditor:      &api.AGPL.Auditor,
-		Logger:       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
-		Tags:         rawTags,
+		AccessURL:             api.AccessURL,
+		GitAuthProviders:      gitAuthProviders,
+		OIDCConfig:            api.OIDCConfig,
+		ID:                    daemon.ID,
+		Database:              api.Database,
+		Pubsub:                api.Pubsub,
+		Provisioners:          daemon.Provisioners,
+		Telemetry:             api.Telemetry,
+		Auditor:               &api.AGPL.Auditor,
+		TemplateScheduleStore: &api.AGPL.TemplateScheduleStore,
+		Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		Tags:                  rawTags,
 	})
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))
@@ -229,12 +244,12 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			if xerrors.Is(err, io.EOF) {
 				return
 			}
-			api.Logger.Debug(r.Context(), "drpc server error", slog.Error(err))
+			api.Logger.Debug(ctx, "drpc server error", slog.Error(err))
 		},
 	})
-	err = server.Serve(r.Context(), session)
+	err = server.Serve(ctx, session)
 	if err != nil && !xerrors.Is(err, io.EOF) {
-		api.Logger.Debug(r.Context(), "provisioner daemon disconnected", slog.Error(err))
+		api.Logger.Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return
 	}
@@ -253,4 +268,97 @@ func convertProvisionerDaemon(daemon database.ProvisionerDaemon) codersdk.Provis
 		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))
 	}
 	return result
+}
+
+// wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func
+// is called if a read or write error is encountered.
+type wsNetConn struct {
+	cancel context.CancelFunc
+	net.Conn
+}
+
+func (c *wsNetConn) Read(b []byte) (n int, err error) {
+	n, err = c.Conn.Read(b)
+	if err != nil {
+		c.cancel()
+	}
+	return n, err
+}
+
+func (c *wsNetConn) Write(b []byte) (n int, err error) {
+	n, err = c.Conn.Write(b)
+	if err != nil {
+		c.cancel()
+	}
+	return n, err
+}
+
+func (c *wsNetConn) Close() error {
+	defer c.cancel()
+	return c.Conn.Close()
+}
+
+// websocketNetConn wraps websocket.NetConn and returns a context that
+// is tied to the parent context and the lifetime of the conn. Any error
+// during read or write will cancel the context, but not close the
+// conn. Close should be called to release context resources.
+func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websocket.MessageType) (context.Context, net.Conn) {
+	ctx, cancel := context.WithCancel(ctx)
+	nc := websocket.NetConn(ctx, conn, msgType)
+	return ctx, &wsNetConn{
+		cancel: cancel,
+		Conn:   nc,
+	}
+}
+
+type enterpriseTemplateScheduleStore struct{}
+
+var _ schedule.TemplateScheduleStore = &enterpriseTemplateScheduleStore{}
+
+func (*enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+	tpl, err := db.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return schedule.TemplateScheduleOptions{}, err
+	}
+
+	return schedule.TemplateScheduleOptions{
+		// TODO: make configurable at template level
+		UserSchedulingEnabled: true,
+		DefaultTTL:            time.Duration(tpl.DefaultTTL),
+		MaxTTL:                time.Duration(tpl.MaxTTL),
+	}, nil
+}
+
+func (*enterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts schedule.TemplateScheduleOptions) (database.Template, error) {
+	template, err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+		ID:         tpl.ID,
+		UpdatedAt:  database.Now(),
+		DefaultTTL: int64(opts.DefaultTTL),
+		MaxTTL:     int64(opts.MaxTTL),
+	})
+	if err != nil {
+		return database.Template{}, xerrors.Errorf("update template schedule: %w", err)
+	}
+
+	// Update all workspaces using the template to set the user defined schedule
+	// to be within the new bounds. This essentially does the following for each
+	// workspace using the template.
+	//   if (template.ttl != NULL) {
+	//     workspace.ttl = min(workspace.ttl, template.ttl)
+	//   }
+	//
+	// NOTE: this does not apply to currently running workspaces as their
+	// schedule information is committed to the workspace_build during start.
+	// This limitation is displayed to the user while editing the template.
+	if opts.MaxTTL > 0 {
+		err = db.UpdateWorkspaceTTLToBeWithinTemplateMax(ctx, database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams{
+			TemplateID:     template.ID,
+			TemplateMaxTTL: int64(opts.MaxTTL),
+		})
+		if err != nil {
+			return database.Template{}, xerrors.Errorf("update TTL of all workspaces on template to be within new template max TTL: %w", err)
+		}
+	}
+
+	return template, nil
 }

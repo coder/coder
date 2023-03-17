@@ -24,6 +24,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/agent"
@@ -47,6 +48,7 @@ func setupWorkspaceForAgent(t *testing.T, mutate func([]*proto.Agent) []*proto.A
 		}
 	}
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client.Logger = slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug)
 	user := coderdtest.CreateFirstUser(t, client)
 	agentToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -305,6 +307,9 @@ func TestSSH_ForwardGPG(t *testing.T) {
 		// same platform for the "client" and "workspace" as they run in the
 		// same process.
 		t.Skip("Test not supported on windows")
+	}
+	if testing.Short() {
+		t.SkipNow()
 	}
 
 	// This key is for dean@coder.com.

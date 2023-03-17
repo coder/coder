@@ -5,6 +5,15 @@ import * as Types from "../api/types"
 import * as TypesGen from "../api/typesGenerated"
 import range from "lodash/range"
 import { Permissions } from "xServices/auth/authXService"
+import { TemplateVersionFiles } from "util/templateVersion"
+import { FileTree } from "util/filetree"
+
+export const MockOrganization: TypesGen.Organization = {
+  id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  name: "Test Organization",
+  created_at: "",
+  updated_at: "",
+}
 
 export const MockTemplateDAUResponse: TypesGen.TemplateDAUsResponse = {
   entries: [
@@ -28,7 +37,22 @@ export const MockAPIKey: TypesGen.GenerateAPIKeyResponse = {
   key: "my-api-key",
 }
 
-export const MockTokens: TypesGen.APIKey[] = [
+export const MockToken: TypesGen.APIKeyWithOwner = {
+  id: "tBoVE3dqLl",
+  user_id: "f9ee61d8-1d84-4410-ab6e-c1ec1a641e0b",
+  last_used: "0001-01-01T00:00:00Z",
+  expires_at: "2023-01-15T20:10:45.637438Z",
+  created_at: "2022-12-16T20:10:45.637452Z",
+  updated_at: "2022-12-16T20:10:45.637452Z",
+  login_type: "token",
+  scope: "all",
+  lifetime_seconds: 2592000,
+  token_name: "token-one",
+  username: "admin",
+}
+
+export const MockTokens: TypesGen.APIKeyWithOwner[] = [
+  MockToken,
   {
     id: "tBoVE3dqLl",
     user_id: "f9ee61d8-1d84-4410-ab6e-c1ec1a641e0b",
@@ -39,17 +63,8 @@ export const MockTokens: TypesGen.APIKey[] = [
     login_type: "token",
     scope: "all",
     lifetime_seconds: 2592000,
-  },
-  {
-    id: "tBoVE3dqLl",
-    user_id: "f9ee61d8-1d84-4410-ab6e-c1ec1a641e0b",
-    last_used: "0001-01-01T00:00:00Z",
-    expires_at: "2023-01-15T20:10:45.637438Z",
-    created_at: "2022-12-16T20:10:45.637452Z",
-    updated_at: "2022-12-16T20:10:45.637452Z",
-    login_type: "token",
-    scope: "all",
-    lifetime_seconds: 2592000,
+    token_name: "token-two",
+    username: "admin",
   },
 ]
 
@@ -57,6 +72,25 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   external_url: "file:///mock-url",
   version: "v99.999.9999+c9cdf14",
 }
+
+export const MockSupportLinks: TypesGen.LinkConfig[] = [
+  {
+    name: "First link",
+    target: "http://first-link",
+    icon: "chat",
+  },
+  {
+    name: "Second link",
+    target: "http://second-link",
+    icon: "docs",
+  },
+  {
+    name: "Third link",
+    target:
+      "https://github.com/coder/coder/issues/new?labels=needs+grooming&body={CODER_BUILD_INFO}",
+    icon: "",
+  },
+]
 
 export const MockUpdateCheck: TypesGen.UpdateCheckResponse = {
   current: true,
@@ -117,7 +151,7 @@ export const MockUser: TypesGen.User = {
   email: "test@coder.com",
   created_at: "",
   status: "active",
-  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  organization_ids: [MockOrganization.id],
   roles: [MockOwnerRole],
   avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
   last_seen_at: "",
@@ -129,7 +163,7 @@ export const MockUserAdmin: TypesGen.User = {
   email: "test@coder.com",
   created_at: "",
   status: "active",
-  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  organization_ids: [MockOrganization.id],
   roles: [MockUserAdminRole],
   avatar_url: "",
   last_seen_at: "",
@@ -141,7 +175,7 @@ export const MockUser2: TypesGen.User = {
   email: "test2@coder.com",
   created_at: "",
   status: "active",
-  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  organization_ids: [MockOrganization.id],
   roles: [],
   avatar_url: "",
   last_seen_at: "2022-09-14T19:12:21Z",
@@ -153,17 +187,10 @@ export const SuspendedMockUser: TypesGen.User = {
   email: "iamsuspendedsad!@coder.com",
   created_at: "",
   status: "suspended",
-  organization_ids: ["fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0"],
+  organization_ids: [MockOrganization.id],
   roles: [],
   avatar_url: "",
   last_seen_at: "",
-}
-
-export const MockOrganization: TypesGen.Organization = {
-  id: "test-org",
-  name: "Test Organization",
-  created_at: "",
-  updated_at: "",
 }
 
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
@@ -178,7 +205,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   created_at: "",
   id: "test-provisioner-job",
   status: "succeeded",
-  file_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  file_id: MockOrganization.id,
   completed_at: "2022-05-17T17:39:01.382927298Z",
   tags: {},
 }
@@ -264,10 +291,79 @@ export const MockTemplate: TypesGen.Template = {
   },
   description: "This is a test description.",
   default_ttl_ms: 24 * 60 * 60 * 1000,
+  max_ttl_ms: 2 * 24 * 60 * 60 * 1000,
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
   icon: "/icon/code.svg",
   allow_user_cancel_workspace_jobs: true,
+}
+
+export const MockTemplateVersionFiles: TemplateVersionFiles = {
+  "README.md": "# Example\n\nThis is an example template.",
+  "main.tf": `// Provides info about the workspace.
+data "coder_workspace" "me" {}
+
+// Provides the startup script used to download
+// the agent and communicate with Coder.
+resource "coder_agent" "dev" {
+os = "linux"
+arch = "amd64"
+}
+
+resource "kubernetes_pod" "main" {
+// Ensures that the Pod dies when the workspace shuts down!
+count = data.coder_workspace.me.start_count
+metadata {
+  name      = "dev-\${data.coder_workspace.me.id}"
+}
+spec {
+  container {
+    image   = "ubuntu"
+    command = ["sh", "-c", coder_agent.main.init_script]
+    env {
+      name  = "CODER_AGENT_TOKEN"
+      value = coder_agent.main.token
+    }
+  }
+}
+}
+`,
+}
+
+export const MockTemplateVersionFileTree: FileTree = {
+  "README.md": "# Example\n\nThis is an example template.",
+  "main.tf": `// Provides info about the workspace.
+data "coder_workspace" "me" {}
+
+// Provides the startup script used to download
+// the agent and communicate with Coder.
+resource "coder_agent" "dev" {
+os = "linux"
+arch = "amd64"
+}
+
+resource "kubernetes_pod" "main" {
+// Ensures that the Pod dies when the workspace shuts down!
+count = data.coder_workspace.me.start_count
+metadata {
+  name      = "dev-\${data.coder_workspace.me.id}"
+}
+spec {
+  container {
+    image   = "ubuntu"
+    command = ["sh", "-c", coder_agent.main.init_script]
+    env {
+      name  = "CODER_AGENT_TOKEN"
+      value = coder_agent.main.token
+    }
+  }
+}
+}
+`,
+  images: {
+    "java.Dockerfile": "FROM eclipse-temurin:17-jdk-jammy",
+    "python.Dockerfile": "FROM python:3.8-slim-buster",
+  },
 }
 
 export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
@@ -310,6 +406,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   lifecycle_state: "starting",
   login_before_ready: false,
   startup_script_timeout_seconds: 120,
+  shutdown_script_timeout_seconds: 120,
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -385,6 +482,34 @@ export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-start-error",
   name: "a-workspace-agent-errored-while-running-startup-script",
   lifecycle_state: "start_error",
+}
+
+export const MockWorkspaceAgentShuttingDown: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-shutting-down",
+  name: "a-shutting-down-workspace-agent",
+  lifecycle_state: "shutting_down",
+}
+
+export const MockWorkspaceAgentShutdownTimeout: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-shutdown-timeout",
+  name: "a-workspace-agent-timed-out-while-running-shutdownup-script",
+  lifecycle_state: "shutdown_timeout",
+}
+
+export const MockWorkspaceAgentShutdownError: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-shutdown-error",
+  name: "a-workspace-agent-errored-while-running-shutdownup-script",
+  lifecycle_state: "shutdown_error",
+}
+
+export const MockWorkspaceAgentOff: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-off",
+  name: "a-workspace-agent-is-shut-down",
+  lifecycle_state: "off",
 }
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
@@ -635,14 +760,12 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
     name: "first_parameter",
     type: "string",
     description: "This is first parameter",
+    description_plaintext: "Markdown: This is first parameter",
     default_value: "abc",
     mutable: true,
     icon: "/icon/folder.svg",
     options: [],
-    validation_error: "",
-    validation_regex: "",
-    validation_min: 0,
-    validation_max: 0,
+    required: true,
   }
 
 export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
@@ -650,14 +773,15 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
     name: "second_parameter",
     type: "number",
     description: "This is second parameter",
+    description_plaintext: "Markdown: This is second parameter",
     default_value: "2",
     mutable: true,
     icon: "/icon/folder.svg",
     options: [],
-    validation_error: "",
-    validation_regex: "",
     validation_min: 1,
     validation_max: 3,
+    validation_monotonic: "increasing",
+    required: true,
   }
 
 export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
@@ -665,14 +789,14 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
     name: "third_parameter",
     type: "string",
     description: "This is third parameter",
+    description_plaintext: "Markdown: This is third parameter",
     default_value: "aaa",
     mutable: true,
     icon: "/icon/database.svg",
     options: [],
     validation_error: "No way!",
     validation_regex: "^[a-z]{3}$",
-    validation_min: 0,
-    validation_max: 0,
+    required: true,
   }
 
 export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
@@ -680,15 +804,79 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
     name: "fourth_parameter",
     type: "string",
     description: "This is fourth parameter",
+    description_plaintext: "Markdown: This is fourth parameter",
     default_value: "def",
     mutable: false,
     icon: "/icon/database.svg",
     options: [],
-    validation_error: "",
-    validation_regex: "",
-    validation_min: 0,
-    validation_max: 0,
+    required: true,
   }
+
+export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
+  {
+    name: "fifth_parameter",
+    type: "number",
+    description: "This is fifth parameter",
+    description_plaintext: "Markdown: This is fifth parameter",
+    default_value: "5",
+    mutable: true,
+    icon: "/icon/folder.svg",
+    options: [],
+    validation_min: 1,
+    validation_max: 10,
+    validation_monotonic: "decreasing",
+    required: true,
+  }
+
+export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
+  name: "first_variable",
+  description: "This is first variable.",
+  type: "string",
+  value: "",
+  default_value: "abc",
+  required: false,
+  sensitive: false,
+}
+
+export const MockTemplateVersionVariable2: TypesGen.TemplateVersionVariable = {
+  name: "second_variable",
+  description: "This is second variable.",
+  type: "number",
+  value: "5",
+  default_value: "3",
+  required: false,
+  sensitive: false,
+}
+
+export const MockTemplateVersionVariable3: TypesGen.TemplateVersionVariable = {
+  name: "third_variable",
+  description: "This is third variable.",
+  type: "bool",
+  value: "",
+  default_value: "false",
+  required: false,
+  sensitive: false,
+}
+
+export const MockTemplateVersionVariable4: TypesGen.TemplateVersionVariable = {
+  name: "fourth_variable",
+  description: "This is fourth variable.",
+  type: "string",
+  value: "defghijk",
+  default_value: "",
+  required: true,
+  sensitive: true,
+}
+
+export const MockTemplateVersionVariable5: TypesGen.TemplateVersionVariable = {
+  name: "fifth_variable",
+  description: "This is fifth variable.",
+  type: "string",
+  value: "",
+  default_value: "",
+  required: true,
+  sensitive: false,
+}
 
 // requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
@@ -1040,7 +1228,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
   warnings: [],
   has_license: false,
   features: withDefaultFeatures({}),
-  experimental: false,
+  require_telemetry: false,
   trial: false,
 }
 
@@ -1048,8 +1236,8 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
   errors: [],
   warnings: ["You are over your active user limit.", "And another thing."],
   has_license: true,
-  experimental: false,
   trial: false,
+  require_telemetry: false,
   features: withDefaultFeatures({
     user_limit: {
       enabled: true,
@@ -1072,7 +1260,7 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   errors: [],
   warnings: [],
   has_license: true,
-  experimental: false,
+  require_telemetry: false,
   trial: false,
   features: withDefaultFeatures({
     audit_log: {
@@ -1088,7 +1276,7 @@ export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
   request_id: "53bded77-7b9d-4e82-8771-991a34d759f9",
   time: "2022-05-19T16:45:57.122Z",
-  organization_id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  organization_id: MockOrganization.id,
   ip: "127.0.0.1",
   user_agent:
     '"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',
@@ -1182,6 +1370,26 @@ export const MockAuditLogGitSSH: TypesGen.AuditLog = {
   },
 }
 
+export const MockAuditLogSuccessfulLogin: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  resource_type: "api_key",
+  resource_target: "",
+  action: "login",
+  status_code: 201,
+  description: "{user} logged in",
+}
+
+export const MockAuditLogUnsuccessfulLoginKnownUser: TypesGen.AuditLog = {
+  ...MockAuditLogSuccessfulLogin,
+  status_code: 401,
+}
+
+export const MockAuditLogUnsuccessfulLoginUnknownUser: TypesGen.AuditLog = {
+  ...MockAuditLogSuccessfulLogin,
+  status_code: 401,
+  user: undefined,
+}
+
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
   credits_consumed: 0,
   budget: 100,
@@ -1239,8 +1447,9 @@ export const MockPermissions: Permissions = {
   readAllUsers: true,
   updateUsers: true,
   viewAuditLog: true,
-  viewDeploymentConfig: true,
+  viewDeploymentValues: true,
   viewUpdateCheck: true,
+  viewDeploymentStats: true,
 }
 
 export const MockAppearance: TypesGen.AppearanceConfig = {
@@ -1258,6 +1467,11 @@ export const MockWorkspaceBuildParameter1: TypesGen.WorkspaceBuildParameter = {
 export const MockWorkspaceBuildParameter2: TypesGen.WorkspaceBuildParameter = {
   name: MockTemplateVersionParameter2.name,
   value: "3",
+}
+
+export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
+  name: MockTemplateVersionParameter5.name,
+  value: "5",
 }
 
 export const mockParameterSchema = (
@@ -1283,4 +1497,72 @@ export const mockParameterSchema = (
     validation_value_type: "",
     ...partial,
   }
+}
+
+export const MockParameterSchemas: TypesGen.ParameterSchema[] = [
+  mockParameterSchema({
+    name: "region",
+    default_source_value: "🏈 US Central",
+    description: "Where would you like your workspace to live?",
+    redisplay_value: true,
+    validation_contains: [
+      "🏈 US Central",
+      "⚽ Brazil East",
+      "💶 EU West",
+      "🦘 Australia South",
+    ],
+  }),
+  mockParameterSchema({
+    name: "instance_size",
+    default_source_value: "Big",
+    description: "How large should you instance be?",
+    validation_contains: ["Small", "Medium", "Big"],
+    redisplay_value: true,
+  }),
+  mockParameterSchema({
+    name: "instance_size",
+    default_source_value: "Big",
+    description: "How large should your instance be?",
+    validation_contains: ["Small", "Medium", "Big"],
+    redisplay_value: true,
+  }),
+  mockParameterSchema({
+    name: "disable_docker",
+    description: "Disable Docker?",
+    validation_value_type: "bool",
+    default_source_value: "false",
+    redisplay_value: true,
+  }),
+]
+
+export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
+  id: "github",
+  type: "github",
+  authenticate_url: "https://example.com/gitauth/github",
+  authenticated: false,
+}
+
+export const MockDeploymentStats: TypesGen.DeploymentStats = {
+  aggregated_from: "2023-03-06T19:08:55.211625Z",
+  collected_at: "2023-03-06T19:12:55.211625Z",
+  next_update_at: "2023-03-06T19:20:55.211625Z",
+  session_count: {
+    vscode: 128,
+    jetbrains: 5,
+    ssh: 32,
+    reconnecting_pty: 15,
+  },
+  workspaces: {
+    building: 15,
+    failed: 12,
+    pending: 5,
+    running: 32,
+    stopped: 16,
+    connection_latency_ms: {
+      P50: 32.56,
+      P95: 15.23,
+    },
+    rx_bytes: 15613513253,
+    tx_bytes: 36113513253,
+  },
 }

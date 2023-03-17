@@ -8,7 +8,7 @@ Get Started:
 
 Flags:
   -h, --help            help for show
-  -o, --output string   Output format. Available formats are: table, json. (default "table")
+  -o, --output string   Output format. Available formats: table, json (default "table")
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

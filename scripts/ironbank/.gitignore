@@ -1,0 +1,6 @@
+coder.tar.gz
+terraform.zip
+terraform-provider-coder.zip
+
+.terraform.zip.*
+.terraform-provider-coder.zip.*

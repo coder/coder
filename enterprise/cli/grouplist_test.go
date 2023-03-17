@@ -31,8 +31,8 @@ func TestGroupList(t *testing.T) {
 		})
 
 		ctx, _ := testutil.Context(t)
-		_, user1 := coderdtest.CreateAnotherUserWithUser(t, client, admin.OrganizationID)
-		_, user2 := coderdtest.CreateAnotherUserWithUser(t, client, admin.OrganizationID)
+		_, user1 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 
 		// We intentionally create the first group as beta so that we
 		// can assert that things are being sorted by name intentionally
@@ -67,7 +67,8 @@ func TestGroupList(t *testing.T) {
 		err = cmd.Execute()
 		require.NoError(t, err)
 
-		matches := []string{"NAME", "ORGANIZATION ID", "MEMBERS", " AVATAR URL",
+		matches := []string{
+			"NAME", "ORGANIZATION ID", "MEMBERS", " AVATAR URL",
 			group2.Name, group2.OrganizationID.String(), user2.Email, group2.AvatarURL,
 			group1.Name, group1.OrganizationID.String(), user1.Email, group1.AvatarURL,
 		}

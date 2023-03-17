@@ -14,7 +14,7 @@ export const Navbar: FC = () => {
   const featureVisibility = useFeatureVisibility()
   const canViewAuditLog =
     featureVisibility["audit_log"] && Boolean(permissions.viewAuditLog)
-  const canViewDeployment = Boolean(permissions.viewDeploymentConfig)
+  const canViewDeployment = Boolean(permissions.viewDeploymentValues)
   const onSignOut = () => authSend("SIGN_OUT")
 
   return (
@@ -22,6 +22,7 @@ export const Navbar: FC = () => {
       user={me}
       logo_url={appearance.config.logo_url}
       buildInfo={buildInfo}
+      supportLinks={appearance.config.support_links}
       onSignOut={onSignOut}
       canViewAuditLog={canViewAuditLog}
       canViewDeployment={canViewDeployment}

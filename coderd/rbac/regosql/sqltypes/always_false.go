@@ -4,8 +4,10 @@ import (
 	"github.com/open-policy-agent/opa/ast"
 )
 
-var _ Node = alwaysFalse{}
-var _ VariableMatcher = alwaysFalse{}
+var (
+	_ Node            = alwaysFalse{}
+	_ VariableMatcher = alwaysFalse{}
+)
 
 type alwaysFalse struct {
 	Matcher VariableMatcher
@@ -30,6 +32,7 @@ func AlwaysFalseNode(n Node) Node {
 
 // UseAs uses a type no one supports to always override with false.
 func (alwaysFalse) UseAs() Node { return alwaysFalse{} }
+
 func (f alwaysFalse) ConvertVariable(rego ast.Ref) (Node, bool) {
 	if f.Matcher != nil {
 		n, ok := f.Matcher.ConvertVariable(rego)

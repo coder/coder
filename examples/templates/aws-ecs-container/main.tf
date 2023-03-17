@@ -1,26 +1,38 @@
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.28"
-    }
     coder = {
       source  = "coder/coder"
-      version = "0.6.10"
+      version = "~> 0.6.17"
+    }
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.55"
     }
   }
 }
 
-variable "ecs-cluster" {
-  description = "Input the ECS cluster ARN to host the workspace"
-  default     = ""
-}
-variable "cpu" {
-  default = "1024"
+provider "coder" {
+  feature_use_managed_variables = true
 }
 
-variable "memory" {
-  default = "2048"
+variable "ecs-cluster" {
+  description = "Input the ECS cluster ARN to host the workspace"
+}
+
+data "coder_parameter" "cpu" {
+  name        = "cpu"
+  description = "The number of CPU units to reserve for the container"
+  type        = "number"
+  default     = "1024"
+  mutable     = true
+}
+
+data "coder_parameter" "memory" {
+  name        = "memory"
+  description = "The amount of memory (in MiB) to allow the container to use"
+  type        = "number"
+  default     = "2048"
+  mutable     = true
 }
 
 # configure AWS provider with creds present on Coder server host
@@ -34,14 +46,14 @@ resource "aws_ecs_task_definition" "workspace" {
   family = "coder"
 
   requires_compatibilities = ["EC2"]
-  cpu                      = var.cpu
-  memory                   = var.memory
+  cpu                      = data.coder_parameter.cpu.value
+  memory                   = data.coder_parameter.memory.value
   container_definitions = jsonencode([
     {
       name      = "coder-workspace-${data.coder_workspace.me.id}"
       image     = "codercom/enterprise-base:ubuntu"
-      cpu       = 1024
-      memory    = 2048
+      cpu       = tonumber(data.coder_parameter.cpu.value)
+      memory    = tonumber(data.coder_parameter.memory.value)
       essential = true
       user      = "coder"
       command   = ["sh", "-c", coder_agent.coder.init_script]
@@ -92,19 +104,18 @@ resource "aws_ecs_service" "workspace" {
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "coder" {
-  arch = "amd64"
-  auth = "token"
-  os   = "linux"
-  dir  = "/home/coder"
-
+  arch                   = "amd64"
+  auth                   = "token"
+  os                     = "linux"
+  dir                    = "/home/coder"
   login_before_ready     = false
   startup_script_timeout = 180
   startup_script         = <<-EOT
     set -e
 
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
-    code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
+    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
 }
 

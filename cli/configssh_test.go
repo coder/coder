@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -63,7 +64,18 @@ func sshConfigFileRead(t *testing.T, name string) string {
 func TestConfigSSH(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	const hostname = "test-coder."
+	const expectedKey = "ConnectionAttempts"
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		ConfigSSH: codersdk.SSHConfigResponse{
+			HostnamePrefix: hostname,
+			SSHConfigOptions: map[string]string{
+				// Something we can test for
+				expectedKey: "3",
+			},
+		},
+	})
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -181,9 +193,13 @@ func TestConfigSSH(t *testing.T) {
 
 	<-doneChan
 
+	fileContents, err := os.ReadFile(sshConfigFile)
+	require.NoError(t, err, "read ssh config file")
+	require.Contains(t, string(fileContents), expectedKey, "ssh config file contains expected key")
+
 	home := filepath.Dir(filepath.Dir(sshConfigFile))
 	// #nosec
-	sshCmd := exec.Command("ssh", "-F", sshConfigFile, "coder."+workspace.Name, "echo", "test")
+	sshCmd := exec.Command("ssh", "-F", sshConfigFile, hostname+workspace.Name, "echo", "test")
 	pty = ptytest.New(t)
 	// Set HOME because coder config is included from ~/.ssh/coder.
 	sshCmd.Env = append(sshCmd.Env, fmt.Sprintf("HOME=%s", home))
@@ -532,7 +548,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 		{
 			name:    "Start/End out of order",
 			matches: []match{
-				//{match: "Continue?", write: "yes"},
+				// {match: "Continue?", write: "yes"},
 			},
 			writeConfig: writeConfig{
 				ssh: strings.Join([]string{
@@ -547,7 +563,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 		{
 			name:    "Multiple sections",
 			matches: []match{
-				//{match: "Continue?", write: "yes"},
+				// {match: "Continue?", write: "yes"},
 			},
 			writeConfig: writeConfig{
 				ssh: strings.Join([]string{

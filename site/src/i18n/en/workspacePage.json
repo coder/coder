@@ -28,8 +28,7 @@
     "starting": "Starting...",
     "stopping": "Stopping...",
     "deleting": "Deleting...",
-    "changeVersion": "Change version",
-    "buildParameters": "Build parameters"
+    "settings": "Settings"
   },
   "disabledButton": {
     "canceling": "Canceling",
@@ -39,7 +38,9 @@
   "agentStatus": {
     "connected": {
       "ready": "Ready",
-      "starting": "Starting..."
+      "starting": "Starting...",
+      "shuttingDown": "Stopping...",
+      "off": "Stopped"
     },
     "connecting": "Connecting...",
     "disconnected": "Disconnected",
@@ -63,5 +64,8 @@
     "agentVersionLabel": "Agent version",
     "serverVersionLabel": "Server version",
     "updateWorkspaceLabel": "Update workspace"
+  },
+  "askParametersDialog": {
+    "message": "It looks like the new version has new parameters that need to be filled in to update the workspace."
   }
 }

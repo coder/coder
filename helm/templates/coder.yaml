@@ -55,6 +55,8 @@ spec:
           imagePullPolicy: {{ .Values.coder.image.pullPolicy }}
           resources:
             {{- toYaml .Values.coder.resources | nindent 12 }}
+          lifecycle:
+            {{- toYaml .Values.coder.lifecycle | nindent 12 }}
           env:
             - name: CODER_HTTP_ADDRESS
               value: "0.0.0.0:8080"
@@ -107,6 +109,7 @@ spec:
             {{- end }}
             {{- end }}
             {{- end }}
+          securityContext: {{ toYaml .Values.coder.securityContext | nindent 12 }}
           readinessProbe:
             httpGet:
               path: /api/v2/buildinfo

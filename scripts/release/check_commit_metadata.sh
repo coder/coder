@@ -48,12 +48,16 @@ main() {
 	breaking_title="^[a-z]+(\([a-z]*\))?!:"
 	breaking_label=release/breaking
 	breaking_category=breaking
+	experimental_label=release/experimental
+	experimental_category=experimental
 
 	# Security related changes are labeled `security`.
 	security_label=security
+	security_category=security
 
 	# Get abbreviated and full commit hashes and titles for each commit.
-	mapfile -t commits < <(git log --no-merges --pretty=format:"%h %H %s" "$range")
+	git_log_out="$(git log --no-merges --pretty=format:"%h %H %s" "$range")"
+	mapfile -t commits <<<"$git_log_out"
 
 	# If this is a tag, use rev-list to find the commit it points to.
 	from_commit=$(git rev-list -n 1 "$from_ref")
@@ -69,8 +73,7 @@ main() {
 	#   27386d49d08455b6f8fbf2c18f38244d03fda892 author:hello labels:label:security
 	#   d9f2aaf3b430d8b6f3d5f24032ed6357adaab1f1 author:world
 	#   fd54512858c906e66f04b0744d8715c2e0de97e6 author:bye labels:label:stale label:enhancement
-	from_commit_date=2023-01-18
-	mapfile -t pr_labels_raw < <(
+	pr_list_out="$(
 		gh pr list \
 			--base main \
 			--state merged \
@@ -78,9 +81,10 @@ main() {
 			--search "merged:>=$from_commit_date" \
 			--json mergeCommit,labels,author \
 			--jq '.[] | "\( .mergeCommit.oid ) author:\( .author.login ) labels:\(["label:\( .labels[].name )"] | join(" "))"'
-	)
+	)"
+	mapfile -t pr_metadata_raw <<<"$pr_list_out"
 	declare -A authors labels
-	for entry in "${pr_labels_raw[@]}"; do
+	for entry in "${pr_metadata_raw[@]}"; do
 		commit_sha_long=${entry%% *}
 		commit_author=${entry#* author:}
 		commit_author=${commit_author%% *}
@@ -119,7 +123,10 @@ main() {
 			COMMIT_METADATA_BREAKING=1
 			continue
 		elif [[ ${labels[$commit_sha_long]:-} = *"label:$security_label"* ]]; then
-			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$security_label
+			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$security_category
+			continue
+		elif [[ ${labels[$commit_sha_long]:-} = *"label:$experimental_label"* ]]; then
+			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$experimental_category
 			continue
 		fi
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -18,15 +19,15 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-var validate *validator.Validate
+var Validate *validator.Validate
 
 // This init is used to create a validator and register validation-specific
 // functionality for the HTTP API.
 //
 // A single validator instance is used, because it caches struct parsing.
 func init() {
-	validate = validator.New()
-	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+	Validate = validator.New()
+	Validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
 		if name == "-" {
 			return ""
@@ -44,7 +45,7 @@ func init() {
 		return valid == nil
 	}
 	for _, tag := range []string{"username", "template_name", "workspace_name"} {
-		err := validate.RegisterValidation(tag, nameValidator)
+		err := Validate.RegisterValidation(tag, nameValidator)
 		if err != nil {
 			panic(err)
 		}
@@ -59,7 +60,7 @@ func init() {
 		valid := TemplateDisplayNameValid(str)
 		return valid == nil
 	}
-	err := validate.RegisterValidation("template_display_name", templateDisplayNameValidator)
+	err := Validate.RegisterValidation("template_display_name", templateDisplayNameValidator)
 	if err != nil {
 		panic(err)
 	}
@@ -114,6 +115,10 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetEscapeHTML(true)
+	// Pretty up JSON when testing.
+	if flag.Lookup("test.v") != nil {
+		enc.SetIndent("", "\t")
+	}
 	err := enc.Encode(response)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -144,7 +149,7 @@ func Read(ctx context.Context, rw http.ResponseWriter, r *http.Request, value in
 		})
 		return false
 	}
-	err = validate.Struct(value)
+	err = Validate.Struct(value)
 	var validationErrors validator.ValidationErrors
 	if errors.As(err, &validationErrors) {
 		apiErrors := make([]codersdk.ValidationError, 0, len(validationErrors))
@@ -182,7 +187,7 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	if len(msg) > websocketCloseMaxLen {
 		// Trim the string to 123 bytes. If we accidentally cut in the middle of
 		// a UTF-8 character, remove it from the string.
-		return strings.ToValidUTF8(string(msg[123]), "")
+		return strings.ToValidUTF8(msg[:websocketCloseMaxLen], "")
 	}
 
 	return msg

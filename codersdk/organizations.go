@@ -54,6 +54,13 @@ type CreateTemplateVersionRequest struct {
 	// ParameterValues allows for additional parameters to be provided
 	// during the dry-run provision stage.
 	ParameterValues []CreateParameterRequest `json:"parameter_values,omitempty"`
+
+	UserVariableValues []VariableValue `json:"user_variable_values,omitempty"`
+}
+
+type VariableValue struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // CreateTemplateRequest provides options when creating a template.
@@ -81,6 +88,9 @@ type CreateTemplateRequest struct {
 	// DefaultTTLMillis allows optionally specifying the default TTL
 	// for all workspaces created from this template.
 	DefaultTTLMillis *int64 `json:"default_ttl_ms,omitempty"`
+	// MaxTTLMillis allows optionally specifying the max lifetime for
+	// workspaces created from this template.
+	MaxTTLMillis *int64 `json:"max_ttl_ms,omitempty"`
 
 	// Allow users to cancel in-progress workspace jobs.
 	// *bool as the default value is "true".
@@ -158,7 +168,6 @@ func (c *Client) TemplateVersionByOrganizationAndName(ctx context.Context, organ
 		fmt.Sprintf("/api/v2/organizations/%s/templates/%s/versions/%s", organizationID.String(), templateName, versionName),
 		nil,
 	)
-
 	if err != nil {
 		return TemplateVersion{}, xerrors.Errorf("execute request: %w", err)
 	}

@@ -34,6 +34,10 @@ coder:
   # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
   annotations: {}
 
+  # coder.labels -- The Deployment labels. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  labels: {}
+
   # coder.serviceAccount -- Configuration for the automatically created service
   # account. Creation of the service account cannot be disabled.
   serviceAccount:
@@ -49,6 +53,32 @@ coder:
     annotations: {}
     # coder.serviceAccount.name -- The service account name
     name: coder
+
+  # coder.securityContext -- Fields related to the container's security
+  # context (as opposed to the pod). Some fields are also present in the pod
+  # security context, in which case these values will take precedence.
+  securityContext:
+    # coder.securityContext.runAsNonRoot -- Requires that the coder container
+    # runs as an unprivileged user. If setting runAsUser to 0 (root), this
+    # will need to be set to false.
+    runAsNonRoot: true
+    # coder.securityContext.runAsUser -- Sets the user id of the container.
+    # For security reasons, we recommend using a non-root user.
+    runAsUser: 1000
+    # coder.securityContext.runAsGroup -- Sets the group id of the container.
+    # For security reasons, we recommend using a non-root group.
+    runAsGroup: 1000
+    # coder.securityContext.readOnlyRootFilesystem -- Mounts the container's
+    # root filesystem as read-only.
+    readOnlyRootFilesystem: null
+    # coder.securityContext.seccompProfile -- Sets the seccomp profile for
+    # the coder container.
+    seccompProfile:
+      type: RuntimeDefault
+    # coder.securityContext.allowPrivilegeEscalation -- Controls whether
+    # the container can gain additional privileges, such as escalating to
+    # root. It is recommended to leave this setting disabled in production.
+    allowPrivilegeEscalation: false
 
   # coder.env -- The environment variables to set for Coder. These can be used
   # to configure all aspects of `coder server`. Please see `coder server --help`
@@ -89,6 +119,18 @@ coder:
     # will be automatically mounted into the pod if specified, and the correct
     # "CODER_TLS_*" environment variables will be set for you.
     secretNames: []
+
+  # coder.lifecycle -- container lifecycle handlers for the Coder container, allowing
+  # for lifecycle events such as postStart and preStop events
+  # See: https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/
+  lifecycle:
+    {}
+    # postStart:
+    #   exec:
+    #     command: ["/bin/sh", "-c", "echo postStart"]
+    # preStop:
+    #   exec:
+    #     command: ["/bin/sh","-c","echo preStart"]
 
   # coder.resources -- The resources to request for Coder. These are optional
   # and are not set by default.
@@ -180,12 +222,14 @@ coder:
     # coder.ingress.className -- The name of the Ingress class to use.
     className: ""
     # coder.ingress.host -- The hostname to match on.
+    # Be sure to also set CODER_ACCESS_URL within coder.env[]
     host: ""
     # coder.ingress.wildcardHost -- The wildcard hostname to match on. Should be
     # in the form "*.example.com" or "*-suffix.example.com". If you are using a
     # suffix after the wildcard, the suffix will be stripped from the created
     # ingress to ensure that it is a legal ingress host. Optional if not using
     # applications over subdomains.
+    # Be sure to also set CODER_WILDCARD_ACCESS_URL within coder.env[]
     wildcardHost: ""
     # coder.ingress.annotations -- The ingress annotations.
     annotations: {}

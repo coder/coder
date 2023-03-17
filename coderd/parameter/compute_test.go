@@ -9,8 +9,8 @@ import (
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/parameter"
-	"github.com/coder/coder/cryptorand"
 )
 
 func TestCompute(t *testing.T) {
@@ -38,22 +38,16 @@ func TestCompute(t *testing.T) {
 		if opts.DefaultDestinationScheme == "" {
 			opts.DefaultDestinationScheme = database.ParameterDestinationSchemeEnvironmentVariable
 		}
-		name, err := cryptorand.String(8)
-		require.NoError(t, err)
-		sourceValue, err := cryptorand.String(8)
-		require.NoError(t, err)
-		param, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
-			ID:                       uuid.New(),
-			Name:                     name,
+
+		param := dbgen.ParameterSchema(t, db, database.ParameterSchema{
 			JobID:                    opts.TemplateImportJobID,
 			DefaultSourceScheme:      database.ParameterSourceSchemeData,
-			DefaultSourceValue:       sourceValue,
 			AllowOverrideSource:      opts.AllowOverrideSource,
 			AllowOverrideDestination: opts.AllowOverrideDestination,
 			DefaultDestinationScheme: opts.DefaultDestinationScheme,
 			ValidationTypeSystem:     database.ParameterTypeSystemNone,
 		})
-		require.NoError(t, err)
+
 		return param
 	}
 
@@ -61,15 +55,12 @@ func TestCompute(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
 		scope := generateScope()
-		_, err := db.InsertParameterSchema(context.Background(), database.InsertParameterSchemaParams{
-			ID:                       uuid.New(),
+		_ = dbgen.ParameterSchema(t, db, database.ParameterSchema{
 			JobID:                    scope.TemplateImportJobID,
-			Name:                     "hey",
 			DefaultSourceScheme:      database.ParameterSourceSchemeNone,
 			DefaultDestinationScheme: database.ParameterDestinationSchemeNone,
 			ValidationTypeSystem:     database.ParameterTypeSystemNone,
 		})
-		require.NoError(t, err)
 		computed, err := parameter.Compute(context.Background(), db, scope, nil)
 		require.NoError(t, err)
 		require.Len(t, computed, 0)
@@ -100,8 +91,7 @@ func TestCompute(t *testing.T) {
 		parameterSchema := generateParameter(t, db, parameterOptions{
 			TemplateImportJobID: scope.TemplateImportJobID,
 		})
-		value, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
-			ID:                uuid.New(),
+		value := dbgen.ParameterValue(t, db, database.ParameterValue{
 			Name:              parameterSchema.Name,
 			Scope:             database.ParameterScopeTemplate,
 			ScopeID:           scope.TemplateID.UUID,
@@ -109,7 +99,6 @@ func TestCompute(t *testing.T) {
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
 		})
-		require.NoError(t, err)
 
 		computed, err := parameter.Compute(context.Background(), db, scope, nil)
 		require.NoError(t, err)
@@ -126,8 +115,7 @@ func TestCompute(t *testing.T) {
 			TemplateImportJobID: scope.TemplateImportJobID,
 		})
 
-		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
-			ID:                uuid.New(),
+		_ = dbgen.ParameterValue(t, db, database.ParameterValue{
 			Name:              parameterSchema.Name,
 			Scope:             database.ParameterScopeWorkspace,
 			ScopeID:           scope.WorkspaceID.UUID,
@@ -135,7 +123,6 @@ func TestCompute(t *testing.T) {
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
 		})
-		require.NoError(t, err)
 
 		computed, err := parameter.Compute(context.Background(), db, scope, nil)
 		require.NoError(t, err)
@@ -151,8 +138,7 @@ func TestCompute(t *testing.T) {
 			AllowOverrideSource: true,
 			TemplateImportJobID: scope.TemplateImportJobID,
 		})
-		_, err := db.InsertParameterValue(context.Background(), database.InsertParameterValueParams{
-			ID:                uuid.New(),
+		_ = dbgen.ParameterValue(t, db, database.ParameterValue{
 			Name:              parameterSchema.Name,
 			Scope:             database.ParameterScopeWorkspace,
 			ScopeID:           scope.WorkspaceID.UUID,
@@ -160,7 +146,6 @@ func TestCompute(t *testing.T) {
 			SourceValue:       "nop",
 			DestinationScheme: database.ParameterDestinationSchemeEnvironmentVariable,
 		})
-		require.NoError(t, err)
 
 		computed, err := parameter.Compute(context.Background(), db, scope, nil)
 		require.NoError(t, err)

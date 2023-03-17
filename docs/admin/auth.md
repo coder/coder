@@ -1,6 +1,10 @@
 # Authentication
 
-By default, Coder is accessible via password authentication.
+By default, Coder is accessible via password authentication. Coder does not
+recommend using password authentication in production, and recommends using an
+authentication provider with properly configured multi-factor authentication
+(MFA). It is your responsibility to ensure the auth provider enforces MFA
+correctly.
 
 The following steps explain how to set up GitHub OAuth or OpenID Connect.
 
@@ -46,6 +50,10 @@ CODER_OAUTH2_GITHUB_ALLOW_EVERYONE=true
 
 Once complete, run `sudo service coder restart` to reboot Coder.
 
+> We recommend requiring and auditing MFA usage for all users in your GitHub
+> organizations. This can be enforced from the organization settings page in the
+> "Authentication security" sidebar tab.
+
 ## GitLab
 
 ### Step 1: Configure the OAuth application in your GitLab instance
@@ -54,7 +62,7 @@ First, [register a GitLab OAuth application](https://docs.gitlab.com/ee/integrat
 
 - **Redirect URI**: Set to `https://coder.domain.com/api/v2/users/oidc/callback`
 
-### Step 2: Configure Coder with the OpenID Connect credentials
+### Step 2: Configure Coder with the Gitlab OpenID Connect credentials
 
 Navigate to your Coder host and run the following command to start up the Coder
 server:
@@ -76,6 +84,12 @@ CODER_OIDC_CLIENT_SECRET="G0CSP...7qSM"
 
 Once complete, run `sudo service coder restart` to reboot Coder.
 
+> We recommend requiring and auditing MFA usage for all users in your GitLab
+> organizations or deployment. This can be enforced for an organization from the
+> organization settings page in the "Permissions and group features" section.
+> For deployments, this can be enforced in the Admin area, under the "Settings >
+> General" sidebar tab in the "Sign-in restrictions" section.
+
 ### Additional Notes
 
 GitLab maintains configuration settings for OIDC applications at the following URL:
@@ -96,7 +110,7 @@ First, [register a Google OAuth application](https://support.google.com/cloud/an
 - **Authorized JavaScript origins**: Set to your Coder domain (e.g. `https://coder.domain.com`)
 - **Redirect URIs**: Set to `https://coder.domain.com/api/v2/users/oidc/callback`
 
-### Step 2: Configure Coder with the OpenID Connect credentials
+### Step 2: Configure Coder with the Google OpenID Connect credentials
 
 Navigate to your Coder host and run the following command to start up the Coder
 server:
@@ -120,18 +134,24 @@ Once complete, run `sudo service coder restart` to reboot Coder.
 
 ## OIDC Claims
 
-Coder requires all OIDC email addresses to be verified by default. If the `email_verified` claim is present in the token response from the identity provider, Coder will validate that its value is `true`.
-If needed, you can disable this behavior with the following setting:
+Coder requires all OIDC email addresses to be verified by default. If the
+`email_verified` claim is present in the token response from the identity
+provider, Coder will validate that its value is `true`. If needed, you can
+disable this behavior with the following setting:
 
 ```console
 CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
 ```
 
-> **Note:** This will cause Coder to implicitly treat all OIDC emails as "verified".
+> **Note:** This will cause Coder to implicitly treat all OIDC emails as
+> "verified".
 
-When a new user is created, the `preferred_username` claim becomes the username. If this claim is empty, the email address will be stripped of the domain, and become the username (e.g. `example@coder.com` becomes `example`).
+When a new user is created, the `preferred_username` claim becomes the username.
+If this claim is empty, the email address will be stripped of the domain, and
+become the username (e.g. `example@coder.com` becomes `example`).
 
-If you'd like to change the OpenID Connect button text and/or icon, you can configure them like so:
+If you'd like to change the OpenID Connect button text and/or icon, you can
+configure them like so:
 
 ```console
 CODER_OIDC_SIGN_IN_TEXT="Sign in with Gitea"
@@ -157,3 +177,24 @@ If your OpenID Connect provider requires client TLS certificates for authenticat
 CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem
 CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 ```
+
+## Group Sync (enterprise)
+
+If your OpenID Connect provider supports group claims, you can configure Coder
+to synchronize groups in your auth provider to groups within Coder.
+
+To enable group sync, ensure that the `groups` claim is set. If group sync is
+enabled, the user's groups will be controlled by the OIDC provider. This means
+manual group additions/removals will be overwritten on the next login.
+
+```console
+# as an environment variable
+CODER_OIDC_SCOPES=openid,profile,email,groups
+# as a flag
+--oidc-scopes openid,profile,email,groups
+```
+
+On login, users will automatically be assigned to groups that have matching
+names in Coder and removed from groups that the user no longer belongs to.
+
+> **Note:** Groups are only updated on login.

@@ -1,16 +1,18 @@
 import { makeStyles } from "@material-ui/core/styles"
 import { useMachine } from "@xstate/react"
-import { Loader } from "components/Loader/Loader"
-import { FC, Suspense } from "react"
-import { Navbar } from "../Navbar/Navbar"
-import { UpdateCheckBanner } from "components/UpdateCheckBanner/UpdateCheckBanner"
-import { Margins } from "components/Margins/Margins"
-import { Outlet } from "react-router-dom"
-import { LicenseBanner } from "components/LicenseBanner/LicenseBanner"
-import { ServiceBanner } from "components/ServiceBanner/ServiceBanner"
-import { updateCheckMachine } from "xServices/updateCheck/updateCheckXService"
-import { usePermissions } from "hooks/usePermissions"
 import { UpdateCheckResponse } from "api/typesGenerated"
+import { DeploymentBanner } from "components/DeploymentBanner/DeploymentBanner"
+import { LicenseBanner } from "components/LicenseBanner/LicenseBanner"
+import { Loader } from "components/Loader/Loader"
+import { Margins } from "components/Margins/Margins"
+import { ServiceBanner } from "components/ServiceBanner/ServiceBanner"
+import { UpdateCheckBanner } from "components/UpdateCheckBanner/UpdateCheckBanner"
+import { usePermissions } from "hooks/usePermissions"
+import { FC, Suspense } from "react"
+import { Outlet } from "react-router-dom"
+import { dashboardContentBottomPadding } from "theme/constants"
+import { updateCheckMachine } from "xServices/updateCheck/updateCheckXService"
+import { Navbar } from "../Navbar/Navbar"
 import { DashboardProvider } from "./DashboardProvider"
 
 export const DashboardLayout: FC = () => {
@@ -50,6 +52,8 @@ export const DashboardLayout: FC = () => {
             <Outlet />
           </Suspense>
         </div>
+
+        <DeploymentBanner />
       </div>
     </DashboardProvider>
   )
@@ -71,6 +75,6 @@ const useStyles = makeStyles((theme) => ({
   },
   siteContent: {
     flex: 1,
-    paddingBottom: theme.spacing(10),
+    paddingBottom: dashboardContentBottomPadding, // Add bottom space since we don't use a footer
   },
 }))

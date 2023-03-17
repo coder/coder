@@ -13,9 +13,12 @@ export const RequireAuth: FC = () => {
 
   if (authState.matches("signedOut")) {
     return <Navigate to={navigateTo} state={{ isRedirect: !isHomePage }} />
-  } else if (authState.matches("waitingForTheFirstUser")) {
+  } else if (authState.matches("configuringTheFirstUser")) {
     return <Navigate to="/setup" />
-  } else if (authState.hasTag("loading")) {
+  } else if (
+    authState.matches("loadingInitialAuthData") ||
+    authState.matches("signingOut")
+  ) {
     return <FullScreenLoader />
   } else {
     return <Outlet />

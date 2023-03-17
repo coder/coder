@@ -1,3 +1,4 @@
+import { makeStyles } from "@material-ui/core/styles"
 import Button from "@material-ui/core/Button"
 import { getApiKey } from "api/api"
 import { VSCodeIcon } from "components/Icons/VSCodeIcon"
@@ -7,18 +8,21 @@ export interface VSCodeDesktopButtonProps {
   userName: string
   workspaceName: string
   agentName?: string
+  folderPath?: string
 }
 
 export const VSCodeDesktopButton: FC<
   PropsWithChildren<VSCodeDesktopButtonProps>
-> = ({ userName, workspaceName, agentName }) => {
+> = ({ userName, workspaceName, agentName, folderPath }) => {
   const [loading, setLoading] = useState(false)
+  const styles = useStyles()
 
   return (
     <Button
       startIcon={<VSCodeIcon />}
       size="small"
       disabled={loading}
+      className={styles.button}
       onClick={() => {
         setLoading(true)
         getApiKey()
@@ -31,6 +35,9 @@ export const VSCodeDesktopButton: FC<
             })
             if (agentName) {
               query.set("agent", agentName)
+            }
+            if (folderPath) {
+              query.set("folder", folderPath)
             }
 
             location.href = `vscode://coder.coder-remote/open?${query.toString()}`
@@ -47,3 +54,14 @@ export const VSCodeDesktopButton: FC<
     </Button>
   )
 }
+
+const useStyles = makeStyles((theme) => ({
+  button: {
+    whiteSpace: "nowrap",
+    backgroundColor: theme.palette.background.default,
+
+    "&:hover": {
+      backgroundColor: `${theme.palette.background.default} !important`,
+    },
+  },
+}))

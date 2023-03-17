@@ -1,4 +1,5 @@
 import { useMachine } from "@xstate/react"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
@@ -26,8 +27,10 @@ export const TemplateSettingsPage: FC = () => {
     templateSettings: template,
     saveTemplateSettingsError,
     getTemplateError,
-    deleteTemplateError,
   } = state.context
+  const { entitlements } = useDashboard()
+  const canSetMaxTTL =
+    entitlements.features["advanced_template_scheduling"].enabled
 
   return (
     <>
@@ -35,12 +38,12 @@ export const TemplateSettingsPage: FC = () => {
         <title>{pageTitle(t("title"))}</title>
       </Helmet>
       <TemplateSettingsPageView
+        canSetMaxTTL={canSetMaxTTL}
         isSubmitting={state.hasTag("submitting")}
         template={template}
         errors={{
           getTemplateError,
           saveTemplateSettingsError,
-          deleteTemplateError,
         }}
         onCancel={() => {
           navigate(`/templates/${templateName}`)
@@ -48,14 +51,6 @@ export const TemplateSettingsPage: FC = () => {
         onSubmit={(templateSettings) => {
           send({ type: "SAVE", templateSettings })
         }}
-        onDelete={() => {
-          send("DELETE")
-        }}
-        onConfirmDelete={() => send("CONFIRM_DELETE")}
-        onCancelDelete={() => send("CANCEL_DELETE")}
-        isConfirmingDelete={state.matches("confirmingDelete")}
-        isDeleting={state.matches("deleting")}
-        isDeleted={state.matches("deleted")}
       />
     </>
   )

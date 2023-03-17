@@ -3,8 +3,11 @@
 package reaper_test
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
+	"syscall"
 	"testing"
 	"time"
 
@@ -15,9 +18,8 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
+//nolint:paralleltest // Non-parallel subtest.
 func TestReap(t *testing.T) {
-	t.Parallel()
-
 	// Don't run the reaper test in CI. It does weird
 	// things like forkexecing which may have unintended
 	// consequences in CI.
@@ -28,8 +30,9 @@ func TestReap(t *testing.T) {
 	// OK checks that's the reaper is successfully reaping
 	// exited processes and passing the PIDs through the shared
 	// channel.
+
+	//nolint:paralleltest // Signal handling.
 	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
 		pids := make(reap.PidCh, 1)
 		err := reaper.ForkReap(
 			reaper.WithPIDCallback(pids),
@@ -63,4 +66,40 @@ func TestReap(t *testing.T) {
 			}
 		}
 	})
+}
+
+//nolint:paralleltest // Signal handling.
+func TestReapInterrupt(t *testing.T) {
+	// Don't run the reaper test in CI. It does weird
+	// things like forkexecing which may have unintended
+	// consequences in CI.
+	if _, ok := os.LookupEnv("CI"); ok {
+		t.Skip("Detected CI, skipping reaper tests")
+	}
+
+	errC := make(chan error, 1)
+	pids := make(reap.PidCh, 1)
+
+	// Use signals to notify when the child process is ready for the
+	//  next step of our test.
+	usrSig := make(chan os.Signal, 1)
+	signal.Notify(usrSig, syscall.SIGUSR1, syscall.SIGUSR2)
+	defer signal.Stop(usrSig)
+
+	go func() {
+		errC <- reaper.ForkReap(
+			reaper.WithPIDCallback(pids),
+			reaper.WithCatchSignals(os.Interrupt),
+			// Signal propagation does not extend to children of children, so
+			// we create a little bash script to ensure sleep is interrupted.
+			reaper.WithExecArgs("/bin/sh", "-c", fmt.Sprintf("pid=0; trap 'kill -USR2 %d; kill -TERM $pid' INT; sleep 10 &\npid=$!; kill -USR1 %d; wait", os.Getpid(), os.Getpid())),
+		)
+	}()
+
+	require.Equal(t, <-usrSig, syscall.SIGUSR1)
+	err := syscall.Kill(os.Getpid(), syscall.SIGINT)
+	require.NoError(t, err)
+	require.Equal(t, <-usrSig, syscall.SIGUSR2)
+
+	require.NoError(t, <-errC)
 }

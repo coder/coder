@@ -30,9 +30,11 @@ test-results/*
 e2e/test-results/*
 e2e/states/*.json
 playwright-report/*
+.swc
 
 # Make target for updating golden files.
 ../cli/testdata/.gen-golden
+../helm/tests/testdata/.gen-golden
 
 # Build
 ../build/

@@ -22,6 +22,7 @@ const (
 	ResourceTypeGitSSHKey       ResourceType = "git_ssh_key"
 	ResourceTypeAPIKey          ResourceType = "api_key"
 	ResourceTypeGroup           ResourceType = "group"
+	ResourceTypeLicense         ResourceType = "license"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -41,9 +42,11 @@ func (r ResourceType) FriendlyString() string {
 	case ResourceTypeGitSSHKey:
 		return "git ssh key"
 	case ResourceTypeAPIKey:
-		return "api key"
+		return "token"
 	case ResourceTypeGroup:
 		return "group"
+	case ResourceTypeLicense:
+		return "license"
 	default:
 		return "unknown"
 	}
@@ -57,6 +60,8 @@ const (
 	AuditActionDelete AuditAction = "delete"
 	AuditActionStart  AuditAction = "start"
 	AuditActionStop   AuditAction = "stop"
+	AuditActionLogin  AuditAction = "login"
+	AuditActionLogout AuditAction = "logout"
 )
 
 func (a AuditAction) Friendly() string {
@@ -71,6 +76,10 @@ func (a AuditAction) Friendly() string {
 		return "started"
 	case AuditActionStop:
 		return "stopped"
+	case AuditActionLogin:
+		return "logged in"
+	case AuditActionLogout:
+		return "logged out"
 	default:
 		return "unknown"
 	}

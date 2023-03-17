@@ -13,17 +13,13 @@ import (
 )
 
 func groupCreate() *cobra.Command {
-	var (
-		avatarURL string
-	)
+	var avatarURL string
 	cmd := &cobra.Command{
 		Use:   "create <name>",
 		Short: "Create a user group",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var (
-				ctx = cmd.Context()
-			)
+			ctx := cmd.Context()
 
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {

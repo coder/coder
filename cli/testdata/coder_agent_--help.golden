@@ -2,14 +2,16 @@ Usage:
   coder agent [flags]
 
 Flags:
-      --auth string            Specify the authentication type to use for the agent.
-                               Consumes $CODER_AGENT_AUTH (default "token")
-  -h, --help                   help for agent
-      --log-dir string         Specify the location for the agent log files.
-                               Consumes $CODER_AGENT_LOG_DIR (default "/tmp")
-      --no-reap                Do not start a process reaper.
-      --pprof-address string   The address to serve pprof.
-                               Consumes $CODER_AGENT_PPROF_ADDRESS (default "127.0.0.1:6060")
+      --auth string                Specify the authentication type to use for the agent.
+                                   Consumes $CODER_AGENT_AUTH (default "token")
+  -h, --help                       help for agent
+      --log-dir string             Specify the location for the agent log files.
+                                   Consumes $CODER_AGENT_LOG_DIR (default "/tmp")
+      --no-reap                    Do not start a process reaper.
+      --pprof-address string       The address to serve pprof.
+                                   Consumes $CODER_AGENT_PPROF_ADDRESS (default "127.0.0.1:6060")
+      --ssh-max-timeout duration   Specify the max timeout for a SSH connection.
+                                   Consumes $CODER_AGENT_SSH_MAX_TIMEOUT
 
 Global Flags:
       --global-config coder   Path to the global coder config directory.

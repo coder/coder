@@ -144,6 +144,8 @@ const (
 	AuditActionDelete AuditAction = "delete"
 	AuditActionStart  AuditAction = "start"
 	AuditActionStop   AuditAction = "stop"
+	AuditActionLogin  AuditAction = "login"
+	AuditActionLogout AuditAction = "logout"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
@@ -187,7 +189,9 @@ func (e AuditAction) Valid() bool {
 		AuditActionWrite,
 		AuditActionDelete,
 		AuditActionStart,
-		AuditActionStop:
+		AuditActionStop,
+		AuditActionLogin,
+		AuditActionLogout:
 		return true
 	}
 	return false
@@ -200,6 +204,8 @@ func AllAuditActionValues() []AuditAction {
 		AuditActionDelete,
 		AuditActionStart,
 		AuditActionStop,
+		AuditActionLogin,
+		AuditActionLogout,
 	}
 }
 
@@ -877,6 +883,7 @@ const (
 	ResourceTypeApiKey          ResourceType = "api_key"
 	ResourceTypeGroup           ResourceType = "group"
 	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
+	ResourceTypeLicense         ResourceType = "license"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -924,7 +931,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeGitSshKey,
 		ResourceTypeApiKey,
 		ResourceTypeGroup,
-		ResourceTypeWorkspaceBuild:
+		ResourceTypeWorkspaceBuild,
+		ResourceTypeLicense:
 		return true
 	}
 	return false
@@ -941,6 +949,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeApiKey,
 		ResourceTypeGroup,
 		ResourceTypeWorkspaceBuild,
+		ResourceTypeLicense,
 	}
 }
 
@@ -1005,11 +1014,15 @@ func AllUserStatusValues() []UserStatus {
 type WorkspaceAgentLifecycleState string
 
 const (
-	WorkspaceAgentLifecycleStateCreated      WorkspaceAgentLifecycleState = "created"
-	WorkspaceAgentLifecycleStateStarting     WorkspaceAgentLifecycleState = "starting"
-	WorkspaceAgentLifecycleStateStartTimeout WorkspaceAgentLifecycleState = "start_timeout"
-	WorkspaceAgentLifecycleStateStartError   WorkspaceAgentLifecycleState = "start_error"
-	WorkspaceAgentLifecycleStateReady        WorkspaceAgentLifecycleState = "ready"
+	WorkspaceAgentLifecycleStateCreated         WorkspaceAgentLifecycleState = "created"
+	WorkspaceAgentLifecycleStateStarting        WorkspaceAgentLifecycleState = "starting"
+	WorkspaceAgentLifecycleStateStartTimeout    WorkspaceAgentLifecycleState = "start_timeout"
+	WorkspaceAgentLifecycleStateStartError      WorkspaceAgentLifecycleState = "start_error"
+	WorkspaceAgentLifecycleStateReady           WorkspaceAgentLifecycleState = "ready"
+	WorkspaceAgentLifecycleStateShuttingDown    WorkspaceAgentLifecycleState = "shutting_down"
+	WorkspaceAgentLifecycleStateShutdownTimeout WorkspaceAgentLifecycleState = "shutdown_timeout"
+	WorkspaceAgentLifecycleStateShutdownError   WorkspaceAgentLifecycleState = "shutdown_error"
+	WorkspaceAgentLifecycleStateOff             WorkspaceAgentLifecycleState = "off"
 )
 
 func (e *WorkspaceAgentLifecycleState) Scan(src interface{}) error {
@@ -1053,7 +1066,11 @@ func (e WorkspaceAgentLifecycleState) Valid() bool {
 		WorkspaceAgentLifecycleStateStarting,
 		WorkspaceAgentLifecycleStateStartTimeout,
 		WorkspaceAgentLifecycleStateStartError,
-		WorkspaceAgentLifecycleStateReady:
+		WorkspaceAgentLifecycleStateReady,
+		WorkspaceAgentLifecycleStateShuttingDown,
+		WorkspaceAgentLifecycleStateShutdownTimeout,
+		WorkspaceAgentLifecycleStateShutdownError,
+		WorkspaceAgentLifecycleStateOff:
 		return true
 	}
 	return false
@@ -1066,6 +1083,10 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 		WorkspaceAgentLifecycleStateStartTimeout,
 		WorkspaceAgentLifecycleStateStartError,
 		WorkspaceAgentLifecycleStateReady,
+		WorkspaceAgentLifecycleStateShuttingDown,
+		WorkspaceAgentLifecycleStateShutdownTimeout,
+		WorkspaceAgentLifecycleStateShutdownError,
+		WorkspaceAgentLifecycleStateOff,
 	}
 }
 
@@ -1207,16 +1228,7 @@ type APIKey struct {
 	LifetimeSeconds int64       `db:"lifetime_seconds" json:"lifetime_seconds"`
 	IPAddress       pqtype.Inet `db:"ip_address" json:"ip_address"`
 	Scope           APIKeyScope `db:"scope" json:"scope"`
-}
-
-type AgentStat struct {
-	ID          uuid.UUID       `db:"id" json:"id"`
-	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
-	UserID      uuid.UUID       `db:"user_id" json:"user_id"`
-	AgentID     uuid.UUID       `db:"agent_id" json:"agent_id"`
-	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	TemplateID  uuid.UUID       `db:"template_id" json:"template_id"`
-	Payload     json.RawMessage `db:"payload" json:"payload"`
+	TokenName       string      `db:"token_name" json:"token_name"`
 }
 
 type AuditLog struct {
@@ -1282,8 +1294,8 @@ type License struct {
 	UploadedAt time.Time `db:"uploaded_at" json:"uploaded_at"`
 	JWT        string    `db:"jwt" json:"jwt"`
 	// exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.
-	Exp  time.Time     `db:"exp" json:"exp"`
-	Uuid uuid.NullUUID `db:"uuid" json:"uuid"`
+	Exp  time.Time `db:"exp" json:"exp"`
+	UUID uuid.UUID `db:"uuid" json:"uuid"`
 }
 
 type Organization struct {
@@ -1361,6 +1373,7 @@ type ProvisionerJob struct {
 	WorkerID       uuid.NullUUID            `db:"worker_id" json:"worker_id"`
 	FileID         uuid.UUID                `db:"file_id" json:"file_id"`
 	Tags           dbtype.StringMap         `db:"tags" json:"tags"`
+	ErrorCode      sql.NullString           `db:"error_code" json:"error_code"`
 }
 
 type ProvisionerJobLog struct {
@@ -1411,7 +1424,8 @@ type Template struct {
 	// Display name is a custom, human-friendly template name that user can set.
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Allow users to cancel in-progress workspace jobs.
-	AllowUserCancelWorkspaceJobs bool `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
+	AllowUserCancelWorkspaceJobs bool  `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
+	MaxTTL                       int64 `db:"max_ttl" json:"max_ttl"`
 }
 
 type TemplateVersion struct {
@@ -1424,6 +1438,8 @@ type TemplateVersion struct {
 	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
+	// IDs of Git auth providers for a specific template version
+	GitAuthProviders []string `db:"git_auth_providers" json:"git_auth_providers"`
 }
 
 type TemplateVersionParameter struct {
@@ -1450,6 +1466,30 @@ type TemplateVersionParameter struct {
 	ValidationMax int32 `db:"validation_max" json:"validation_max"`
 	// Validation: error displayed when the regex does not match.
 	ValidationError string `db:"validation_error" json:"validation_error"`
+	// Validation: consecutive values preserve the monotonic order
+	ValidationMonotonic string `db:"validation_monotonic" json:"validation_monotonic"`
+	// Is parameter required?
+	Required bool `db:"required" json:"required"`
+	// Name of the legacy variable for migration purposes
+	LegacyVariableName string `db:"legacy_variable_name" json:"legacy_variable_name"`
+}
+
+type TemplateVersionVariable struct {
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	// Variable name
+	Name string `db:"name" json:"name"`
+	// Variable description
+	Description string `db:"description" json:"description"`
+	// Variable type
+	Type string `db:"type" json:"type"`
+	// Variable value
+	Value string `db:"value" json:"value"`
+	// Variable default value
+	DefaultValue string `db:"default_value" json:"default_value"`
+	// Required variables needs a default value or a value provided by template admin
+	Required bool `db:"required" json:"required"`
+	// Sensitive variables have their values redacted in logs or site UI
+	Sensitive bool `db:"sensitive" json:"sensitive"`
 }
 
 type User struct {
@@ -1523,6 +1563,32 @@ type WorkspaceAgent struct {
 	LoginBeforeReady bool `db:"login_before_ready" json:"login_before_ready"`
 	// The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
 	StartupScriptTimeoutSeconds int32 `db:"startup_script_timeout_seconds" json:"startup_script_timeout_seconds"`
+	// The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder
+	ExpandedDirectory string `db:"expanded_directory" json:"expanded_directory"`
+	// Script that is executed before the agent is stopped.
+	ShutdownScript sql.NullString `db:"shutdown_script" json:"shutdown_script"`
+	// The number of seconds to wait for the shutdown script to complete. If the script does not complete within this time, the agent lifecycle will be marked as shutdown_timeout.
+	ShutdownScriptTimeoutSeconds int32 `db:"shutdown_script_timeout_seconds" json:"shutdown_script_timeout_seconds"`
+}
+
+type WorkspaceAgentStat struct {
+	ID                          uuid.UUID       `db:"id" json:"id"`
+	CreatedAt                   time.Time       `db:"created_at" json:"created_at"`
+	UserID                      uuid.UUID       `db:"user_id" json:"user_id"`
+	AgentID                     uuid.UUID       `db:"agent_id" json:"agent_id"`
+	WorkspaceID                 uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	TemplateID                  uuid.UUID       `db:"template_id" json:"template_id"`
+	ConnectionsByProto          json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
+	ConnectionCount             int64           `db:"connection_count" json:"connection_count"`
+	RxPackets                   int64           `db:"rx_packets" json:"rx_packets"`
+	RxBytes                     int64           `db:"rx_bytes" json:"rx_bytes"`
+	TxPackets                   int64           `db:"tx_packets" json:"tx_packets"`
+	TxBytes                     int64           `db:"tx_bytes" json:"tx_bytes"`
+	ConnectionMedianLatencyMS   float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	SessionCountVSCode          int64           `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
 }
 
 type WorkspaceApp struct {
@@ -1557,6 +1623,7 @@ type WorkspaceBuild struct {
 	Deadline          time.Time           `db:"deadline" json:"deadline"`
 	Reason            BuildReason         `db:"reason" json:"reason"`
 	DailyCost         int32               `db:"daily_cost" json:"daily_cost"`
+	MaxDeadline       time.Time           `db:"max_deadline" json:"max_deadline"`
 }
 
 type WorkspaceBuildParameter struct {

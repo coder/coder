@@ -17,7 +17,10 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-var AgentStartError = xerrors.New("agent startup exited with non-zero exit status")
+var (
+	AgentStartError   = xerrors.New("agent startup exited with non-zero exit status")
+	AgentShuttingDown = xerrors.New("agent is shutting down")
+)
 
 type AgentOptions struct {
 	WorkspaceName string
@@ -146,6 +149,10 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 				case codersdk.WorkspaceAgentLifecycleStartError:
 					showMessage()
 					return AgentStartError
+				case codersdk.WorkspaceAgentLifecycleShuttingDown, codersdk.WorkspaceAgentLifecycleShutdownTimeout,
+					codersdk.WorkspaceAgentLifecycleShutdownError, codersdk.WorkspaceAgentLifecycleOff:
+					showMessage()
+					return AgentShuttingDown
 				default:
 					select {
 					case <-warningShown:
@@ -229,6 +236,22 @@ func waitingMessage(agent codersdk.WorkspaceAgent, opts AgentOptions) (m *messag
 			m.Spin = ""
 			m.Prompt = "The workspace ran into a problem while getting ready, the agent startup script exited with non-zero status."
 		default:
+			switch agent.LifecycleState {
+			case codersdk.WorkspaceAgentLifecycleShutdownTimeout:
+				m.Spin = ""
+				m.Prompt = "The workspace is shutting down, but is taking longer than expected to shut down and the agent shutdown script is still executing."
+				m.Troubleshoot = true
+			case codersdk.WorkspaceAgentLifecycleShutdownError:
+				m.Spin = ""
+				m.Prompt = "The workspace ran into a problem while shutting down, the agent shutdown script exited with non-zero status."
+				m.Troubleshoot = true
+			case codersdk.WorkspaceAgentLifecycleShuttingDown:
+				m.Spin = ""
+				m.Prompt = "The workspace is shutting down."
+			case codersdk.WorkspaceAgentLifecycleOff:
+				m.Spin = ""
+				m.Prompt = "The workspace is not running."
+			}
 			// Not a failure state, no troubleshooting necessary.
 			return m
 		}

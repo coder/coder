@@ -6,8 +6,8 @@ Usage:
   coder state [command]
 
 Commands:
-  pull        
-  push        
+  pull        Pull a Terraform state file from a workspace.
+  push        Push a Terraform state file to a workspace.
 
 Flags:
   -h, --help   help for state

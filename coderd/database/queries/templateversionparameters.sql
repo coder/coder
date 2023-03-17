@@ -12,7 +12,10 @@ INSERT INTO
         validation_regex,
         validation_min,
         validation_max,
-        validation_error
+        validation_error,
+        validation_monotonic,
+        required,
+        legacy_variable_name
     )
 VALUES
     (
@@ -27,7 +30,10 @@ VALUES
         $9,
         $10,
         $11,
-        $12
+        $12,
+        $13,
+        $14,
+        $15
     ) RETURNING *;
 
 -- name: GetTemplateVersionParameters :many

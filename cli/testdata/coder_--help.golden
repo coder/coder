@@ -36,6 +36,7 @@ Workspace Commands:
   create         Create a workspace
   delete         Delete a workspace
   list           List workspaces
+  ping           Ping a workspace
   rename         Rename a workspace
   restart        Restart a workspace
   schedule       Schedule automated start and stop times for workspaces
@@ -44,7 +45,7 @@ Workspace Commands:
   ssh            Start a shell into a workspace
   start          Start a workspace
   stop           Stop a workspace
-  update         Update a workspace
+  update         Will update and start a given workspace if it is out of date.
 
 Flags:
       --global-config coder   Path to the global coder config directory.

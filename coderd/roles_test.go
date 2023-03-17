@@ -19,8 +19,8 @@ func TestListRoles(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	// Create admin, member, and org admin
 	admin := coderdtest.CreateFirstUser(t, client)
-	member := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-	orgAdmin := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
+	member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+	orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	t.Cleanup(cancel)
@@ -30,7 +30,7 @@ func TestListRoles(t *testing.T) {
 	})
 	require.NoError(t, err, "create org")
 
-	const forbidden = "Forbidden"
+	const notFound = "Resource not found"
 	testCases := []struct {
 		Name            string
 		Client          *codersdk.Client
@@ -66,7 +66,7 @@ func TestListRoles(t *testing.T) {
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return member.ListOrganizationRoles(ctx, otherOrg.ID)
 			},
-			AuthorizedError: forbidden,
+			AuthorizedError: notFound,
 		},
 		// Org admin
 		{
@@ -95,7 +95,7 @@ func TestListRoles(t *testing.T) {
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, otherOrg.ID)
 			},
-			AuthorizedError: forbidden,
+			AuthorizedError: notFound,
 		},
 		// Admin
 		{
@@ -133,7 +133,7 @@ func TestListRoles(t *testing.T) {
 			if c.AuthorizedError != "" {
 				var apiErr *codersdk.Error
 				require.ErrorAs(t, err, &apiErr)
-				require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+				require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 				require.Contains(t, apiErr.Message, c.AuthorizedError)
 			} else {
 				require.NoError(t, err)

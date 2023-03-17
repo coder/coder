@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -30,10 +31,11 @@ import (
 
 func workspaceAgent() *cobra.Command {
 	var (
-		auth         string
-		logDir       string
-		pprofAddress string
-		noReap       bool
+		auth          string
+		logDir        string
+		pprofAddress  string
+		noReap        bool
+		sshMaxTimeout time.Duration
 	)
 	cmd := &cobra.Command{
 		Use: "agent",
@@ -51,6 +53,7 @@ func workspaceAgent() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("parse %q: %w", rawURL, err)
 			}
+			agentPorts := map[int]string{}
 
 			isLinux := runtime.GOOS == "linux"
 
@@ -68,7 +71,10 @@ func workspaceAgent() *cobra.Command {
 				// Do not start a reaper on the child process. It's important
 				// to do this else we fork bomb ourselves.
 				args := append(os.Args, "--no-reap")
-				err := reaper.ForkReap(reaper.WithExecArgs(args...))
+				err := reaper.ForkReap(
+					reaper.WithExecArgs(args...),
+					reaper.WithCatchSignals(InterruptSignals...),
+				)
 				if err != nil {
 					logger.Error(ctx, "failed to reap", slog.Error(err))
 					return xerrors.Errorf("fork reap: %w", err)
@@ -119,6 +125,10 @@ func workspaceAgent() *cobra.Command {
 			_ = pprof.Handler
 			pprofSrvClose := serveHandler(ctx, logger, nil, pprofAddress, "pprof")
 			defer pprofSrvClose()
+			// Do a best effort here. If this fails, it's not a big deal.
+			if port, err := urlPort(pprofAddress); err == nil {
+				agentPorts[port] = "pprof"
+			}
 
 			// exchangeToken returns a session token.
 			// This is abstracted to allow for the same looping condition
@@ -199,6 +209,8 @@ func workspaceAgent() *cobra.Command {
 				EnvironmentVariables: map[string]string{
 					"GIT_ASKPASS": executablePath,
 				},
+				AgentPorts:    agentPorts,
+				SSHMaxTimeout: sshMaxTimeout,
 			})
 			<-ctx.Done()
 			return closer.Close()
@@ -209,6 +221,7 @@ func workspaceAgent() *cobra.Command {
 	cliflag.StringVarP(cmd.Flags(), &logDir, "log-dir", "", "CODER_AGENT_LOG_DIR", os.TempDir(), "Specify the location for the agent log files")
 	cliflag.StringVarP(cmd.Flags(), &pprofAddress, "pprof-address", "", "CODER_AGENT_PPROF_ADDRESS", "127.0.0.1:6060", "The address to serve pprof.")
 	cliflag.BoolVarP(cmd.Flags(), &noReap, "no-reap", "", "", false, "Do not start a process reaper.")
+	cliflag.DurationVarP(cmd.Flags(), &sshMaxTimeout, "ssh-max-timeout", "", "CODER_AGENT_SSH_MAX_TIMEOUT", time.Duration(0), "Specify the max timeout for a SSH connection")
 	return cmd
 }
 
@@ -260,4 +273,36 @@ func (c *closeWriter) Write(p []byte) (int, error) {
 		return 0, io.ErrClosedPipe
 	}
 	return c.w.Write(p)
+}
+
+// extractPort handles different url strings.
+// - localhost:6060
+// - http://localhost:6060
+func extractPort(u string) (int, error) {
+	port, firstError := urlPort(u)
+	if firstError == nil {
+		return port, nil
+	}
+
+	// Try with a scheme
+	port, err := urlPort("http://" + u)
+	if err == nil {
+		return port, nil
+	}
+	return -1, xerrors.Errorf("invalid url %q: %w", u, firstError)
+}
+
+// urlPort extracts the port from a valid URL.
+func urlPort(u string) (int, error) {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return -1, xerrors.Errorf("invalid url %q: %w", u, err)
+	}
+	if parsed.Port() != "" {
+		port, err := strconv.ParseInt(parsed.Port(), 10, 64)
+		if err == nil && port > 0 {
+			return int(port), nil
+		}
+	}
+	return -1, xerrors.Errorf("invalid port: %s", u)
 }

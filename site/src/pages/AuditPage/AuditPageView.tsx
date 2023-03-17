@@ -37,12 +37,12 @@ const presetFilters = [
   { query: "resource_type:template action:create", name: "Added templates" },
   { query: "resource_type:user action:delete", name: "Deleted users" },
   {
-    query: "resource_type:workspace_build action:start",
-    name: "Started builds",
-  },
-  {
     query: "resource_type:workspace_build action:start build_reason:initiator",
     name: "Builds started by a user",
+  },
+  {
+    query: "resource_type:api_key action:login",
+    name: "User logins",
   },
 ]
 
@@ -54,6 +54,7 @@ export interface AuditPageViewProps {
   paginationRef: PaginationMachineRef
   isNonInitialPage: boolean
   isAuditLogVisible: boolean
+  error?: Error | unknown
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
@@ -64,8 +65,10 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
   paginationRef,
   isNonInitialPage,
   isAuditLogVisible,
+  error,
 }) => {
   const { t } = useTranslation("auditLog")
+
   const isLoading = auditLogs === undefined || count === undefined
   const isEmpty = !isLoading && auditLogs.length === 0
 
@@ -88,12 +91,21 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
             filter={filter}
             onFilter={onFilter}
             presetFilters={presetFilters}
+            error={error}
           />
 
           <TableContainer>
             <Table>
               <TableBody>
                 <ChooseOne>
+                  {/* Error condition should just show an empty table. */}
+                  <Cond condition={Boolean(error)}>
+                    <TableRow>
+                      <TableCell colSpan={999}>
+                        <EmptyState message={t("table.noLogs")} />
+                      </TableCell>
+                    </TableRow>
+                  </Cond>
                   <Cond condition={isLoading}>
                     <TableLoader />
                   </Cond>

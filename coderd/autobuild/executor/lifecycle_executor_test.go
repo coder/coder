@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/autobuild/executor"
-	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -99,14 +99,14 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 		close(tickCh)
 	}()
 
-	// Then: the workspace should be started using the previous template version, and not the updated version.
+	// Then: the workspace is started using the new template version, not the old one.
 	stats := <-statsCh
 	assert.NoError(t, stats.Error)
 	assert.Len(t, stats.Transitions, 1)
 	assert.Contains(t, stats.Transitions, workspace.ID)
 	assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
 	ws := coderdtest.MustWorkspace(t, client, workspace.ID)
-	assert.Equal(t, workspace.LatestBuild.TemplateVersionID, ws.LatestBuild.TemplateVersionID, "expected workspace build to be using the old template version")
+	assert.Equal(t, newVersion.ID, ws.LatestBuild.TemplateVersionID, "expected workspace build to be using the new template version")
 }
 
 func TestExecutorAutostartAlreadyRunning(t *testing.T) {
@@ -628,7 +628,8 @@ func mustProvisionWorkspaceWithParameters(t *testing.T, client *codersdk.Client,
 						Parameters: richParameters,
 					},
 				},
-			}},
+			},
+		},
 		ProvisionApply: []*proto.Provision_Response{
 			{
 				Type: &proto.Provision_Response_Complete{

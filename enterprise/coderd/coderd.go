@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/enterprise/derpmesh"
@@ -47,7 +48,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
 	if options.Options.Authorizer == nil {
-		options.Options.Authorizer = rbac.NewAuthorizer(options.PrometheusRegistry)
+		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
@@ -62,7 +63,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
-	apiKeyMiddleware := httpmw.ExtractAPIKey(httpmw.ExtractAPIKeyConfig{
+	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:              options.Database,
 		OAuth2Configs:   oauthConfigs,
 		RedirectToLogin: false,
@@ -144,7 +145,9 @@ func New(ctx context.Context, options *Options) (*API, error) {
 
 	if len(options.SCIMAPIKey) != 0 {
 		api.AGPL.RootHandler.Route("/scim/v2", func(r chi.Router) {
-			r.Use(api.scimEnabledMW)
+			r.Use(
+				api.scimEnabledMW,
+			)
 			r.Post("/Users", api.scimPostUser)
 			r.Route("/Users", func(r chi.Router) {
 				r.Get("/", api.scimGetUsers)
@@ -240,19 +243,34 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	api.entitlementsMu.Lock()
 	defer api.entitlementsMu.Unlock()
 
-	entitlements, err := license.Entitlements(ctx, api.Database, api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.Keys, map[codersdk.FeatureName]bool{
-		codersdk.FeatureAuditLog:                   api.AuditLogging,
-		codersdk.FeatureBrowserOnly:                api.BrowserOnly,
-		codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
-		codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
-		codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
-		codersdk.FeatureTemplateRBAC:               api.RBAC,
-		codersdk.FeatureExternalProvisionerDaemons: true,
-	})
+	entitlements, err := license.Entitlements(
+		ctx, api.Database,
+		api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.Keys, map[codersdk.FeatureName]bool{
+			codersdk.FeatureAuditLog:                   api.AuditLogging,
+			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
+			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
+			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
+			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
+			codersdk.FeatureTemplateRBAC:               api.RBAC,
+			codersdk.FeatureExternalProvisionerDaemons: true,
+			codersdk.FeatureAdvancedTemplateScheduling: true,
+		})
 	if err != nil {
 		return err
 	}
-	entitlements.Experimental = api.DeploymentConfig.Experimental.Value || len(api.AGPL.Experiments) != 0
+
+	if entitlements.RequireTelemetry && !api.DeploymentValues.Telemetry.Enable.Value() {
+		// We can't fail because then the user couldn't remove the offending
+		// license w/o a restart.
+		//
+		// We don't simply append to entitlement.Errors since we don't want any
+		// enterprise features enabled.
+		api.entitlements.Errors = []string{
+			"License requires telemetry but telemetry is disabled",
+		}
+		api.Logger.Error(ctx, "license requires telemetry enabled")
+		return nil
+	}
 
 	featureChanged := func(featureName codersdk.FeatureName) (changed bool, enabled bool) {
 		if api.entitlements.Features == nil {
@@ -289,6 +307,17 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			api.AGPL.QuotaCommitter.Store(&ptr)
 		} else {
 			api.AGPL.QuotaCommitter.Store(nil)
+		}
+	}
+
+	if changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); changed {
+		if enabled {
+			store := &enterpriseTemplateScheduleStore{}
+			ptr := schedule.TemplateScheduleStore(store)
+			api.AGPL.TemplateScheduleStore.Store(&ptr)
+		} else {
+			store := schedule.NewAGPLTemplateScheduleStore()
+			api.AGPL.TemplateScheduleStore.Store(&store)
 		}
 	}
 

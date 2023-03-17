@@ -7,10 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -19,14 +17,14 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/autobuild/schedule"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/provisionerdserver"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/schedule"
+	"github.com/coder/coder/coderd/searchquery"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/util/ptr"
@@ -126,7 +124,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := workspaceSearchQuery(queryStr, page, api.AgentInactiveDisconnectTimeout)
+	filter, errs := searchquery.Workspaces(queryStr, page, api.AgentInactiveDisconnectTimeout)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -258,6 +256,11 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if len(data.builds) == 0 || len(data.templates) == 0 {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
 		workspace,
 		data.builds[0],
@@ -271,10 +274,12 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Summary Create user workspace by organization
 // @ID create-user-workspace-by-organization
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Workspaces
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param user path string true "Username, UUID, or me"
+// @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
 // @Success 200 {object} codersdk.Workspace
 // @Router /organizations/{organization}/members/{user}/workspaces [post]
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -360,7 +365,16 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, template.DefaultTTL)
+	templateSchedule, err := (*api.TemplateScheduleStore.Load()).GetTemplateScheduleOptions(ctx, api.Database, template.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template schedule.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, templateSchedule.DefaultTTL, templateSchedule.MaxTTL)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Workspace Time to Shutdown.",
@@ -369,6 +383,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// TODO: This should be a system call as the actor might not be able to
+	// read other workspaces. Ideally we check the error on create and look for
+	// a postgres conflict error.
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
 		OwnerID: user.ID,
 		Name:    createWorkspace.Name,
@@ -419,7 +436,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	err = codersdk.ValidateWorkspaceBuildParameters(templateVersionParameters, createWorkspace.RichParameterValues)
+	err = codersdk.ValidateNewWorkspaceParameters(templateVersionParameters, createWorkspace.RichParameterValues)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Error validating workspace build parameters.",
@@ -456,7 +473,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	tags := provisionerdserver.MutateTags(user.ID, templateVersionJob.Tags)
-
 	var (
 		provisionerJob database.ProvisionerJob
 		workspaceBuild database.WorkspaceBuild
@@ -566,7 +582,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 	aReq.New = workspace
 
-	users, err := api.Database.GetUsersByIDs(ctx, []uuid.UUID{user.ID, workspaceBuild.InitiatorID})
+	initiator, err := api.Database.GetUserByID(ctx, workspaceBuild.InitiatorID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user.",
@@ -580,6 +596,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(workspaceBuild)},
 	})
 
+	users := []database.User{user, initiator}
 	apiBuild, err := api.convertWorkspaceBuild(
 		workspaceBuild,
 		workspace,
@@ -795,9 +812,15 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	var dbTTL sql.NullInt64
 
 	err := api.Database.InTx(func(s database.Store) error {
+		templateSchedule, err := (*api.TemplateScheduleStore.Load()).GetTemplateScheduleOptions(ctx, s, workspace.TemplateID)
+		if err != nil {
+			return xerrors.Errorf("get template schedule: %w", err)
+		}
+
+		// don't override 0 ttl with template default here because it indicates
+		// disabled auto-stop
 		var validityErr error
-		// don't override 0 ttl with template default here because it indicates disabled auto-stop
-		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0)
+		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0, templateSchedule.MaxTTL)
 		if validityErr != nil {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: validityErr.Error()}
 		}
@@ -902,12 +925,18 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			resp.Message = "Cannot extend workspace: " + err.Error()
 			return err
 		}
+		if !build.MaxDeadline.IsZero() && newDeadline.After(build.MaxDeadline) {
+			code = http.StatusBadRequest
+			resp.Message = "Cannot extend workspace beyond max deadline."
+			return xerrors.New("Cannot extend workspace: deadline is beyond max deadline imposed by template")
+		}
 
 		if _, err := s.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               build.ID,
 			UpdatedAt:        build.UpdatedAt,
 			ProvisionerState: build.ProvisionerState,
 			Deadline:         newDeadline,
+			MaxDeadline:      build.MaxDeadline,
 		}); err != nil {
 			code = http.StatusInternalServerError
 			resp.Message = "Failed to extend workspace deadline."
@@ -1177,14 +1206,25 @@ func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 	return &millis
 }
 
-func validWorkspaceTTLMillis(millis *int64, def int64) (sql.NullInt64, error) {
+func validWorkspaceTTLMillis(millis *int64, templateDefault, templateMax time.Duration) (sql.NullInt64, error) {
+	if templateDefault == 0 && templateMax != 0 || (templateMax > 0 && templateDefault > templateMax) {
+		templateDefault = templateMax
+	}
+
 	if ptr.NilOrZero(millis) {
-		if def == 0 {
+		if templateDefault == 0 {
+			if templateMax > 0 {
+				return sql.NullInt64{
+					Int64: int64(templateMax),
+					Valid: true,
+				}, nil
+			}
+
 			return sql.NullInt64{}, nil
 		}
 
 		return sql.NullInt64{
-			Int64: def,
+			Int64: int64(templateDefault),
 			Valid: true,
 		}, nil
 	}
@@ -1197,6 +1237,10 @@ func validWorkspaceTTLMillis(millis *int64, def int64) (sql.NullInt64, error) {
 
 	if truncated > ttlMax {
 		return sql.NullInt64{}, errTTLMax
+	}
+
+	if templateMax > 0 && truncated > templateMax {
+		return sql.NullInt64{}, xerrors.Errorf("time until shutdown must be less than or equal to the template's maximum TTL %q", templateMax.String())
 	}
 
 	return sql.NullInt64{
@@ -1233,89 +1277,6 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 		Valid:  true,
 		String: *s,
 	}, nil
-}
-
-// workspaceSearchQuery takes a query string and returns the workspace filter.
-// It also can return the list of validation errors to return to the api.
-func workspaceSearchQuery(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
-	filter := database.GetWorkspacesParams{
-		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
-
-		Offset: int32(page.Offset),
-		Limit:  int32(page.Limit),
-	}
-	searchParams := make(url.Values)
-	if query == "" {
-		// No filter
-		return filter, nil
-	}
-	query = strings.ToLower(query)
-	// Because we do this in 2 passes, we want to maintain quotes on the first
-	// pass.Further splitting occurs on the second pass and quotes will be
-	// dropped.
-	elements := splitQueryParameterByDelimiter(query, ' ', true)
-	for _, element := range elements {
-		parts := splitQueryParameterByDelimiter(element, ':', false)
-		switch len(parts) {
-		case 1:
-			// No key:value pair. It is a workspace name, and maybe includes an owner
-			parts = splitQueryParameterByDelimiter(element, '/', false)
-			switch len(parts) {
-			case 1:
-				searchParams.Set("name", parts[0])
-			case 2:
-				searchParams.Set("owner", parts[0])
-				searchParams.Set("name", parts[1])
-			default:
-				return database.GetWorkspacesParams{}, []codersdk.ValidationError{
-					{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 '/'", element)},
-				}
-			}
-		case 2:
-			searchParams.Set(parts[0], parts[1])
-		default:
-			return database.GetWorkspacesParams{}, []codersdk.ValidationError{
-				{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 ':'", element)},
-			}
-		}
-	}
-
-	// Using the query param parser here just returns consistent errors with
-	// other parsing.
-	parser := httpapi.NewQueryParamParser()
-	filter.OwnerUsername = parser.String(searchParams, "", "owner")
-	filter.TemplateName = parser.String(searchParams, "", "template")
-	filter.Name = parser.String(searchParams, "", "name")
-	filter.Status = parser.String(searchParams, "", "status")
-	filter.HasAgent = parser.String(searchParams, "", "has-agent")
-	return filter, parser.Errors
-}
-
-// splitQueryParameterByDelimiter takes a query string and splits it into the individual elements
-// of the query. Each element is separated by a delimiter. All quoted strings are
-// kept as a single element.
-//
-// Although all our names cannot have spaces, that is a validation error.
-// We should still parse the quoted string as a single value so that validation
-// can properly fail on the space. If we do not, a value of `template:"my name"`
-// will search `template:"my name:name"`, which produces an empty list instead of
-// an error.
-// nolint:revive
-func splitQueryParameterByDelimiter(query string, delimiter rune, maintainQuotes bool) []string {
-	quoted := false
-	parts := strings.FieldsFunc(query, func(r rune) bool {
-		if r == '"' {
-			quoted = !quoted
-		}
-		return !quoted && r == delimiter
-	})
-	if !maintainQuotes {
-		for i, part := range parts {
-			parts[i] = strings.Trim(part, "\"")
-		}
-	}
-
-	return parts
 }
 
 func watchWorkspaceChannel(id uuid.UUID) string {

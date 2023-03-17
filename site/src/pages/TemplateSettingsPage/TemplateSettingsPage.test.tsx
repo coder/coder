@@ -11,24 +11,26 @@ import i18next from "i18next"
 
 const { t } = i18next
 
-const renderTemplateSettingsPage = async () => {
-  const renderResult = renderWithAuth(<TemplateSettingsPage />, {
-    route: `/templates/${MockTemplate.name}/settings`,
-    path: `/templates/:templateId/settings`,
-  })
-  // Wait the form to be rendered
-  const label = t("nameLabel", { ns: "templateSettingsPage" })
-  await screen.findAllByLabelText(label)
-  return renderResult
-}
-
 const validFormValues = {
   name: "Name",
   display_name: "A display name",
   description: "A description",
   icon: "vscode.png",
+  // these are the form values which are actually hours
   default_ttl_ms: 1,
+  max_ttl_ms: 2,
   allow_user_cancel_workspace_jobs: false,
+}
+
+const renderTemplateSettingsPage = async () => {
+  renderWithAuth(<TemplateSettingsPage />, {
+    route: `/templates/${MockTemplate.name}/settings`,
+    path: `/templates/:template/settings`,
+    extraRoutes: [{ path: "templates/:template", element: <></> }],
+  })
+  // Wait the form to be rendered
+  const label = t("nameLabel", { ns: "templateSettingsPage" })
+  await screen.findAllByLabelText(label)
 }
 
 const fillAndSubmitForm = async ({
@@ -36,6 +38,7 @@ const fillAndSubmitForm = async ({
   display_name,
   description,
   default_ttl_ms,
+  max_ttl_ms,
   icon,
   allow_user_cancel_workspace_jobs,
 }: Required<UpdateTemplateMeta>) => {
@@ -61,9 +64,17 @@ const fillAndSubmitForm = async ({
   await userEvent.type(iconField, icon)
 
   const defaultTtlLabel = t("defaultTtlLabel", { ns: "templateSettingsPage" })
-  const maxTtlField = await screen.findByLabelText(defaultTtlLabel)
-  await userEvent.clear(maxTtlField)
-  await userEvent.type(maxTtlField, default_ttl_ms.toString())
+  const defaultTtlField = await screen.findByLabelText(defaultTtlLabel)
+  await userEvent.clear(defaultTtlField)
+  await userEvent.type(defaultTtlField, default_ttl_ms.toString())
+
+  const entitlements = await API.getEntitlements()
+  if (entitlements.features["advanced_template_scheduling"].enabled) {
+    const maxTtlLabel = t("maxTtlLabel", { ns: "templateSettingsPage" })
+    const maxTtlField = await screen.findByLabelText(maxTtlLabel)
+    await userEvent.clear(maxTtlField)
+    await userEvent.type(maxTtlField, max_ttl_ms.toString())
+  }
 
   const allowCancelJobsField = screen.getByRole("checkbox")
   // checkbox is checked by default, so it must be clicked to get unchecked
@@ -88,16 +99,6 @@ describe("TemplateSettingsPage", () => {
     expect(element).toBeDefined()
   })
 
-  it("allows an admin to delete a template", async () => {
-    const { t } = i18next
-    await renderTemplateSettingsPage()
-    const deleteCta = t("dangerZone.deleteCta", {
-      ns: "templateSettingsPage",
-    })
-    const deleteButton = await screen.findByText(deleteCta)
-    expect(deleteButton).toBeDefined()
-  })
-
   it("succeeds", async () => {
     await renderTemplateSettingsPage()
 
@@ -119,15 +120,16 @@ describe("TemplateSettingsPage", () => {
     })
 
     await fillAndSubmitForm(validFormValues)
-    expect(screen.getByDisplayValue(1)).toBeInTheDocument() // the default_ttl_ms
     await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1))
-
     await waitFor(() =>
       expect(API.updateTemplateMeta).toBeCalledWith(
         "test-template",
         expect.objectContaining({
           ...validFormValues,
-          default_ttl_ms: 3600000, // the default_ttl_ms to ms
+          // convert from the display value (hours) to ms
+          default_ttl_ms: validFormValues.default_ttl_ms * 3600000,
+          // this value is undefined if not entitled
+          max_ttl_ms: undefined,
         }),
       ),
     )
@@ -158,7 +160,7 @@ describe("TemplateSettingsPage", () => {
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).toThrowError(
-      t("ttlMaxError", { ns: "templateSettingsPage" }),
+      t("defaultTTLMaxError", { ns: "templateSettingsPage" }),
     )
   })
 

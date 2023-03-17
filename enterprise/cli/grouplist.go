@@ -14,14 +14,17 @@ import (
 )
 
 func groupList() *cobra.Command {
+	formatter := cliui.NewOutputFormatter(
+		cliui.TableFormat([]groupTableRow{}, nil),
+		cliui.JSONFormat(),
+	)
+
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List user groups",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var (
-				ctx = cmd.Context()
-			)
+			ctx := cmd.Context()
 
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {
@@ -44,7 +47,8 @@ func groupList() *cobra.Command {
 				return nil
 			}
 
-			out, err := displayGroups(groups...)
+			rows := groupsToRows(groups...)
+			out, err := formatter.Format(cmd.Context(), rows)
 			if err != nil {
 				return xerrors.Errorf("display groups: %w", err)
 			}
@@ -53,17 +57,23 @@ func groupList() *cobra.Command {
 			return nil
 		},
 	}
+
+	formatter.AttachFlags(cmd)
 	return cmd
 }
 
 type groupTableRow struct {
-	Name           string    `table:"name"`
-	OrganizationID uuid.UUID `table:"organization_id"`
-	Members        []string  `table:"members"`
-	AvatarURL      string    `table:"avatar_url"`
+	// For json output:
+	Group codersdk.Group `table:"-"`
+
+	// For table output:
+	Name           string    `json:"-" table:"name,default_sort"`
+	OrganizationID uuid.UUID `json:"-" table:"organization_id"`
+	Members        []string  `json:"-" table:"members"`
+	AvatarURL      string    `json:"-" table:"avatar_url"`
 }
 
-func displayGroups(groups ...codersdk.Group) (string, error) {
+func groupsToRows(groups ...codersdk.Group) []groupTableRow {
 	rows := make([]groupTableRow, 0, len(groups))
 	for _, group := range groups {
 		members := make([]string, 0, len(group.Members))
@@ -78,5 +88,5 @@ func displayGroups(groups ...codersdk.Group) (string, error) {
 		})
 	}
 
-	return cliui.DisplayTable(rows, "name", nil)
+	return rows
 }

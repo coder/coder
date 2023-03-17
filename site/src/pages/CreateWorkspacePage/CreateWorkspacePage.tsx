@@ -33,8 +33,10 @@ const CreateWorkspacePage: FC = () => {
     templates,
     templateParameters,
     templateSchema,
+    templateGitAuth,
     selectedTemplate,
     getTemplateSchemaError,
+    getTemplateGitAuthError,
     getTemplatesError,
     createWorkspaceError,
     permissions,
@@ -61,11 +63,14 @@ const CreateWorkspacePage: FC = () => {
         selectedTemplate={selectedTemplate}
         templateParameters={orderedTemplateParameters(templateParameters)}
         templateSchema={templateSchema}
+        templateGitAuth={templateGitAuth}
         createWorkspaceErrors={{
           [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: getTemplatesError,
           [CreateWorkspaceErrors.GET_TEMPLATE_SCHEMA_ERROR]:
             getTemplateSchemaError,
           [CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]: createWorkspaceError,
+          [CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR]:
+            getTemplateGitAuthError,
         }}
         canCreateForUser={permissions?.createWorkspaceForUser}
         owner={owner}

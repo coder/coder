@@ -28,8 +28,10 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-const fakeLicenseJWT = "test.jwt.sig"
-const testWarning = "This is a test warning"
+const (
+	fakeLicenseJWT = "test.jwt.sig"
+	testWarning    = "This is a test warning"
+)
 
 func TestLicensesAddFake(t *testing.T) {
 	t.Parallel()
@@ -69,7 +71,7 @@ func TestLicensesAddFake(t *testing.T) {
 		defer cancel()
 		dir := t.TempDir()
 		filename := filepath.Join(dir, "license.jwt")
-		err := os.WriteFile(filename, []byte(fakeLicenseJWT), 0600)
+		err := os.WriteFile(filename, []byte(fakeLicenseJWT), 0o600)
 		require.NoError(t, err)
 		cmd := setupFakeLicenseServerTest(t, "license", "add", "-f", filename)
 		pty := attachPty(t, cmd)
@@ -346,9 +348,8 @@ func (*fakeLicenseAPI) entitlements(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Entitlements{
-		Features:     features,
-		Warnings:     []string{testWarning},
-		HasLicense:   true,
-		Experimental: true,
+		Features:   features,
+		Warnings:   []string{testWarning},
+		HasLicense: true,
 	})
 }

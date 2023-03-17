@@ -47,8 +47,9 @@ rcodesign encode-app-store-connect-api-key \
 # The notarization process is very fragile and heavily dependent on Apple's
 # notarization server not returning server errors, so we retry this step twice
 # with a delay of 30 seconds between attempts.
+NOTARY_SUBMIT_ATTEMPTS=2
 rc=0
-for i in $(seq 1 2); do
+for i in $(seq 1 $NOTARY_SUBMIT_ATTEMPTS); do
 	# -v is quite verbose, the default output is pretty good on it's own. Adding
 	# -v makes it dump the credentials used for uploading to Apple's S3 bucket.
 	rcodesign notary-submit \
@@ -58,7 +59,7 @@ for i in $(seq 1 2); do
 		1>&2 && rc=0 && break || rc=$?
 
 	log "rcodesign exit code: $rc"
-	if [[ $i -lt 5 ]]; then
+	if [[ $i -lt $NOTARY_SUBMIT_ATTEMPTS ]]; then
 		log
 		log "Retrying notarization in 30 seconds"
 		log

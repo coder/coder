@@ -12,6 +12,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/metricscache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
@@ -30,7 +31,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 	)
 
 	type args struct {
-		rows []database.InsertAgentStatParams
+		rows []database.InsertWorkspaceAgentStatParams
 	}
 	type want struct {
 		entries     []codersdk.DAUEntry
@@ -44,7 +45,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 		{"empty", args{}, want{nil, 0}},
 		{
 			"one hole", args{
-				rows: []database.InsertAgentStatParams{
+				rows: []database.InsertWorkspaceAgentStatParams{
 					{
 						CreatedAt: date(2022, 8, 27),
 						UserID:    zebra,
@@ -74,7 +75,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 			}, 1},
 		},
 		{"no holes", args{
-			rows: []database.InsertAgentStatParams{
+			rows: []database.InsertWorkspaceAgentStatParams{
 				{
 					CreatedAt: date(2022, 8, 27),
 					UserID:    zebra,
@@ -103,7 +104,7 @@ func TestCache_TemplateUsers(t *testing.T) {
 			},
 		}, 1}},
 		{"holes", args{
-			rows: []database.InsertAgentStatParams{
+			rows: []database.InsertWorkspaceAgentStatParams{
 				{
 					CreatedAt: date(2022, 1, 1),
 					UserID:    zebra,
@@ -163,37 +164,34 @@ func TestCache_TemplateUsers(t *testing.T) {
 			t.Parallel()
 			var (
 				db    = dbfake.New()
-				cache = metricscache.New(db, slogtest.Make(t, nil), testutil.IntervalFast)
+				cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
+					TemplateDAUs: testutil.IntervalFast,
+				})
 			)
 
 			defer cache.Close()
 
-			templateID := uuid.New()
-			db.InsertTemplate(context.Background(), database.InsertTemplateParams{
-				ID:          templateID,
+			template := dbgen.Template(t, db, database.Template{
 				Provisioner: database.ProvisionerTypeEcho,
 			})
 
-			gotUniqueUsers, ok := cache.TemplateUniqueUsers(templateID)
-			require.False(t, ok, "template shouldn't have loaded yet")
-			require.EqualValues(t, -1, gotUniqueUsers)
-
 			for _, row := range tt.args.rows {
-				row.TemplateID = templateID
-				db.InsertAgentStat(context.Background(), row)
+				row.TemplateID = template.ID
+				row.ConnectionCount = 1
+				db.InsertWorkspaceAgentStat(context.Background(), row)
 			}
 
 			require.Eventuallyf(t, func() bool {
-				_, ok := cache.TemplateDAUs(templateID)
+				_, ok := cache.TemplateDAUs(template.ID)
 				return ok
 			}, testutil.WaitShort, testutil.IntervalMedium,
 				"TemplateDAUs never populated",
 			)
 
-			gotUniqueUsers, ok = cache.TemplateUniqueUsers(templateID)
+			gotUniqueUsers, ok := cache.TemplateUniqueUsers(template.ID)
 			require.True(t, ok)
 
-			gotEntries, ok := cache.TemplateDAUs(templateID)
+			gotEntries, ok := cache.TemplateDAUs(template.ID)
 			require.True(t, ok)
 			require.Equal(t, tt.want.entries, gotEntries.Entries)
 			require.Equal(t, tt.want.uniqueUsers, gotUniqueUsers)
@@ -290,7 +288,9 @@ func TestCache_BuildTime(t *testing.T) {
 
 			var (
 				db    = dbfake.New()
-				cache = metricscache.New(db, slogtest.Make(t, nil), testutil.IntervalFast)
+				cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
+					TemplateDAUs: testutil.IntervalFast,
+				})
 			)
 
 			defer cache.Close()
@@ -373,4 +373,31 @@ func TestCache_BuildTime(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCache_DeploymentStats(t *testing.T) {
+	t.Parallel()
+	db := dbfake.New()
+	cache := metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
+		DeploymentStats: testutil.IntervalFast,
+	})
+
+	_, err := db.InsertWorkspaceAgentStat(context.Background(), database.InsertWorkspaceAgentStatParams{
+		ID:                 uuid.New(),
+		AgentID:            uuid.New(),
+		CreatedAt:          database.Now(),
+		ConnectionCount:    1,
+		RxBytes:            1,
+		TxBytes:            1,
+		SessionCountVSCode: 1,
+	})
+	require.NoError(t, err)
+
+	var stat codersdk.DeploymentStats
+	require.Eventually(t, func() bool {
+		var ok bool
+		stat, ok = cache.DeploymentStats()
+		return ok
+	}, testutil.WaitLong, testutil.IntervalMedium)
+	require.Equal(t, int64(1), stat.SessionCount.VSCode)
 }

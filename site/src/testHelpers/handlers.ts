@@ -90,6 +90,18 @@ export const handlers = [
     },
   ),
   rest.get(
+    "/api/v2/templateversions/:templateVersionId/rich-parameters",
+    async (req, res, ctx) => {
+      return res(ctx.status(200), ctx.json([]))
+    },
+  ),
+  rest.get(
+    "/api/v2/templateversions/:templateVersionId/gitauth",
+    async (req, res, ctx) => {
+      return res(ctx.status(200), ctx.json([]))
+    },
+  ),
+  rest.get(
     "api/v2/organizations/:organizationId/templates/:templateName/versions/:templateVersionName",
     async (req, res, ctx) => {
       return res(ctx.status(200), ctx.json(M.MockTemplateVersion))
@@ -295,4 +307,15 @@ export const handlers = [
   rest.get("/api/v2/appearance", (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockAppearance))
   }),
+
+  rest.get("/api/v2/deployment/stats", (_, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockDeploymentStats))
+  }),
+
+  rest.get(
+    "/api/v2/workspacebuilds/:workspaceBuildId/parameters",
+    (_, res, ctx) => {
+      return res(ctx.status(200), ctx.json([M.MockWorkspaceBuildParameter1]))
+    },
+  ),
 ]

@@ -16,7 +16,9 @@ CREATE TYPE audit_action AS ENUM (
     'write',
     'delete',
     'start',
-    'stop'
+    'stop',
+    'login',
+    'logout'
 );
 
 CREATE TYPE build_reason AS ENUM (
@@ -91,7 +93,8 @@ CREATE TYPE resource_type AS ENUM (
     'git_ssh_key',
     'api_key',
     'group',
-    'workspace_build'
+    'workspace_build',
+    'license'
 );
 
 CREATE TYPE user_status AS ENUM (
@@ -104,7 +107,11 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'starting',
     'start_timeout',
     'start_error',
-    'ready'
+    'ready',
+    'shutting_down',
+    'shutdown_timeout',
+    'shutdown_error',
+    'off'
 );
 
 CREATE TYPE workspace_app_health AS ENUM (
@@ -120,16 +127,6 @@ CREATE TYPE workspace_transition AS ENUM (
     'delete'
 );
 
-CREATE TABLE agent_stats (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    user_id uuid NOT NULL,
-    agent_id uuid NOT NULL,
-    workspace_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    payload jsonb NOT NULL
-);
-
 CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
@@ -141,7 +138,8 @@ CREATE TABLE api_keys (
     login_type login_type NOT NULL,
     lifetime_seconds bigint DEFAULT 86400 NOT NULL,
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
-    scope api_key_scope DEFAULT 'all'::api_key_scope NOT NULL
+    scope api_key_scope DEFAULT 'all'::api_key_scope NOT NULL,
+    token_name text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN api_keys.hashed_secret IS 'hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.';
@@ -209,7 +207,7 @@ CREATE TABLE licenses (
     uploaded_at timestamp with time zone NOT NULL,
     jwt text NOT NULL,
     exp timestamp with time zone NOT NULL,
-    uuid uuid
+    uuid uuid NOT NULL
 );
 
 COMMENT ON COLUMN licenses.exp IS 'exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.';
@@ -317,7 +315,8 @@ CREATE TABLE provisioner_jobs (
     input jsonb NOT NULL,
     worker_id uuid,
     file_id uuid NOT NULL,
-    tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL
+    tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL,
+    error_code text
 );
 
 CREATE TABLE replicas (
@@ -351,7 +350,11 @@ CREATE TABLE template_version_parameters (
     validation_regex text NOT NULL,
     validation_min integer NOT NULL,
     validation_max integer NOT NULL,
-    validation_error text DEFAULT ''::text NOT NULL
+    validation_error text DEFAULT ''::text NOT NULL,
+    validation_monotonic text DEFAULT ''::text NOT NULL,
+    required boolean DEFAULT true NOT NULL,
+    legacy_variable_name text DEFAULT ''::text NOT NULL,
+    CONSTRAINT validation_monotonic_order CHECK ((validation_monotonic = ANY (ARRAY['increasing'::text, 'decreasing'::text, ''::text])))
 );
 
 COMMENT ON COLUMN template_version_parameters.name IS 'Parameter name';
@@ -376,6 +379,37 @@ COMMENT ON COLUMN template_version_parameters.validation_max IS 'Validation: max
 
 COMMENT ON COLUMN template_version_parameters.validation_error IS 'Validation: error displayed when the regex does not match.';
 
+COMMENT ON COLUMN template_version_parameters.validation_monotonic IS 'Validation: consecutive values preserve the monotonic order';
+
+COMMENT ON COLUMN template_version_parameters.required IS 'Is parameter required?';
+
+COMMENT ON COLUMN template_version_parameters.legacy_variable_name IS 'Name of the legacy variable for migration purposes';
+
+CREATE TABLE template_version_variables (
+    template_version_id uuid NOT NULL,
+    name text NOT NULL,
+    description text NOT NULL,
+    type text NOT NULL,
+    value text NOT NULL,
+    default_value text NOT NULL,
+    required boolean NOT NULL,
+    sensitive boolean NOT NULL
+);
+
+COMMENT ON COLUMN template_version_variables.name IS 'Variable name';
+
+COMMENT ON COLUMN template_version_variables.description IS 'Variable description';
+
+COMMENT ON COLUMN template_version_variables.type IS 'Variable type';
+
+COMMENT ON COLUMN template_version_variables.value IS 'Variable value';
+
+COMMENT ON COLUMN template_version_variables.default_value IS 'Variable default value';
+
+COMMENT ON COLUMN template_version_variables.required IS 'Required variables needs a default value or a value provided by template admin';
+
+COMMENT ON COLUMN template_version_variables.sensitive IS 'Sensitive variables have their values redacted in logs or site UI';
+
 CREATE TABLE template_versions (
     id uuid NOT NULL,
     template_id uuid,
@@ -385,8 +419,11 @@ CREATE TABLE template_versions (
     name character varying(64) NOT NULL,
     readme character varying(1048576) NOT NULL,
     job_id uuid NOT NULL,
-    created_by uuid NOT NULL
+    created_by uuid NOT NULL,
+    git_auth_providers text[]
 );
+
+COMMENT ON COLUMN template_versions.git_auth_providers IS 'IDs of Git auth providers for a specific template version';
 
 CREATE TABLE templates (
     id uuid NOT NULL,
@@ -404,7 +441,8 @@ CREATE TABLE templates (
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     display_name character varying(64) DEFAULT ''::character varying NOT NULL,
-    allow_user_cancel_workspace_jobs boolean DEFAULT true NOT NULL
+    allow_user_cancel_workspace_jobs boolean DEFAULT true NOT NULL,
+    max_ttl bigint DEFAULT '0'::bigint NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for auto-stop for workspaces created from this template.';
@@ -437,6 +475,26 @@ CREATE TABLE users (
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
 );
 
+CREATE TABLE workspace_agent_stats (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    user_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    connections_by_proto jsonb DEFAULT '{}'::jsonb NOT NULL,
+    connection_count bigint DEFAULT 0 NOT NULL,
+    rx_packets bigint DEFAULT 0 NOT NULL,
+    rx_bytes bigint DEFAULT 0 NOT NULL,
+    tx_packets bigint DEFAULT 0 NOT NULL,
+    tx_bytes bigint DEFAULT 0 NOT NULL,
+    connection_median_latency_ms double precision DEFAULT '-1'::integer NOT NULL,
+    session_count_vscode bigint DEFAULT 0 NOT NULL,
+    session_count_jetbrains bigint DEFAULT 0 NOT NULL,
+    session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
+    session_count_ssh bigint DEFAULT 0 NOT NULL
+);
+
 CREATE TABLE workspace_agents (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -462,7 +520,10 @@ CREATE TABLE workspace_agents (
     motd_file text DEFAULT ''::text NOT NULL,
     lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
     login_before_ready boolean DEFAULT true NOT NULL,
-    startup_script_timeout_seconds integer DEFAULT 0 NOT NULL
+    startup_script_timeout_seconds integer DEFAULT 0 NOT NULL,
+    expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL,
+    shutdown_script character varying(65534),
+    shutdown_script_timeout_seconds integer DEFAULT 0 NOT NULL
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
@@ -478,6 +539,12 @@ COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle sta
 COMMENT ON COLUMN workspace_agents.login_before_ready IS 'If true, the agent will not prevent login before it is ready (e.g. startup script is still executing).';
 
 COMMENT ON COLUMN workspace_agents.startup_script_timeout_seconds IS 'The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.';
+
+COMMENT ON COLUMN workspace_agents.expanded_directory IS 'The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder';
+
+COMMENT ON COLUMN workspace_agents.shutdown_script IS 'Script that is executed before the agent is stopped.';
+
+COMMENT ON COLUMN workspace_agents.shutdown_script_timeout_seconds IS 'The number of seconds to wait for the shutdown script to complete. If the script does not complete within this time, the agent lifecycle will be marked as shutdown_timeout.';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
@@ -520,7 +587,8 @@ CREATE TABLE workspace_builds (
     job_id uuid NOT NULL,
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
-    daily_cost integer DEFAULT 0 NOT NULL
+    daily_cost integer DEFAULT 0 NOT NULL,
+    max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_resource_metadata (
@@ -573,7 +641,7 @@ ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provi
 
 ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval('workspace_resource_metadata_id_seq'::regclass);
 
-ALTER TABLE ONLY agent_stats
+ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY api_keys
@@ -645,6 +713,9 @@ ALTER TABLE ONLY site_configs
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
 
+ALTER TABLE ONLY template_version_variables
+    ADD CONSTRAINT template_version_variables_template_version_id_name_key UNIQUE (template_version_id, name);
+
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_pkey PRIMARY KEY (id);
 
@@ -693,9 +764,11 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
-CREATE INDEX idx_agent_stats_created_at ON agent_stats USING btree (created_at);
+CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
-CREATE INDEX idx_agent_stats_user_id ON agent_stats USING btree (user_id);
+CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
+
+CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (user_id, token_name) WHERE (login_type = 'token'::login_type);
 
 CREATE INDEX idx_api_keys_user ON api_keys USING btree (user_id);
 
@@ -769,6 +842,9 @@ ALTER TABLE ONLY provisioner_jobs
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_variables
+    ADD CONSTRAINT template_version_variables_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT;

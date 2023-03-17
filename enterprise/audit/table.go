@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/coder/coder/coderd/database"
@@ -13,15 +14,15 @@ import (
 // AuditableResources map (below) as our documentation - generated in scripts/auditdocgen/main.go -
 // depends upon it.
 var AuditActionMap = map[string][]codersdk.AuditAction{
-	"GitSSHKey":          {codersdk.AuditActionCreate},
-	"OrganizationMember": {},
-	"Organization":       {},
-	"Template":           {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"TemplateVersion":    {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
-	"User":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"Workspace":          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"WorkspaceBuild":     {codersdk.AuditActionStart, codersdk.AuditActionStop},
-	"Group":              {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"GitSSHKey":       {codersdk.AuditActionCreate},
+	"Template":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"TemplateVersion": {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
+	"User":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"Workspace":       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"WorkspaceBuild":  {codersdk.AuditActionStart, codersdk.AuditActionStop},
+	"Group":           {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"APIKey":          {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"License":         {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 }
 
 type Action string
@@ -42,8 +43,11 @@ const (
 type Table map[string]map[string]Action
 
 // AuditableResources contains a definitive list of all auditable resources and
-// which fields are auditable.
-var AuditableResources = auditMap(map[any]map[string]Action{
+// which fields are auditable. All resource types must be valid audit.Auditable
+// types.
+var AuditableResources = auditMap(auditableResourcesTypes)
+
+var auditableResourcesTypes = map[any]map[string]Action{
 	&database.GitSSHKey{}: {
 		"user_id":     ActionTrack,
 		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
@@ -64,23 +68,23 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"description":                      ActionTrack,
 		"icon":                             ActionTrack,
 		"default_ttl":                      ActionTrack,
-		"min_autostart_interval":           ActionTrack,
 		"created_by":                       ActionTrack,
-		"is_private":                       ActionTrack,
 		"group_acl":                        ActionTrack,
 		"user_acl":                         ActionTrack,
 		"allow_user_cancel_workspace_jobs": ActionTrack,
+		"max_ttl":                          ActionTrack,
 	},
 	&database.TemplateVersion{}: {
-		"id":              ActionTrack,
-		"template_id":     ActionTrack,
-		"organization_id": ActionIgnore, // Never changes.
-		"created_at":      ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"name":            ActionTrack,
-		"readme":          ActionTrack,
-		"job_id":          ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
-		"created_by":      ActionTrack,
+		"id":                 ActionTrack,
+		"template_id":        ActionTrack,
+		"organization_id":    ActionIgnore, // Never changes.
+		"created_at":         ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"name":               ActionTrack,
+		"readme":             ActionTrack,
+		"job_id":             ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
+		"created_by":         ActionTrack,
+		"git_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
 	},
 	&database.User{}: {
 		"id":              ActionTrack,
@@ -109,7 +113,6 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"ttl":                ActionTrack,
 		"last_used_at":       ActionIgnore,
 	},
-	// We don't show any diff for the WorkspaceBuild resource
 	&database.WorkspaceBuild{}: {
 		"id":                  ActionIgnore,
 		"created_at":          ActionIgnore,
@@ -124,6 +127,7 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"deadline":            ActionIgnore,
 		"reason":              ActionIgnore,
 		"daily_cost":          ActionIgnore,
+		"max_deadline":        ActionIgnore,
 	},
 	&database.AuditableGroup{}: {
 		"id":              ActionTrack,
@@ -133,7 +137,30 @@ var AuditableResources = auditMap(map[any]map[string]Action{
 		"quota_allowance": ActionTrack,
 		"members":         ActionTrack,
 	},
-})
+	&database.APIKey{}: {
+		"id":               ActionIgnore,
+		"hashed_secret":    ActionIgnore,
+		"user_id":          ActionTrack,
+		"last_used":        ActionTrack,
+		"expires_at":       ActionTrack,
+		"created_at":       ActionTrack,
+		"updated_at":       ActionIgnore,
+		"login_type":       ActionIgnore,
+		"lifetime_seconds": ActionIgnore,
+		"ip_address":       ActionIgnore,
+		"scope":            ActionIgnore,
+		"token_name":       ActionIgnore,
+	},
+	// TODO: track an ID here when the below ticket is completed:
+	// https://github.com/coder/coder/pull/6012
+	&database.License{}: {
+		"id":          ActionIgnore,
+		"uploaded_at": ActionTrack,
+		"jwt":         ActionIgnore,
+		"exp":         ActionTrack,
+		"uuid":        ActionTrack,
+	},
+}
 
 // auditMap converts a map of struct pointers to a map of struct names as
 // strings. It's a convenience wrapper so that structs can be passed in by value
@@ -142,10 +169,59 @@ func auditMap(m map[any]map[string]Action) Table {
 	out := make(Table, len(m))
 
 	for k, v := range m {
-		out[structName(reflect.TypeOf(k).Elem())] = v
+		tableKey, tableValue := entry(k, v)
+		out[tableKey] = tableValue
 	}
 
 	return out
+}
+
+// entry is a helper function that checks the json tags to make sure all fields
+// are tracked. And no excess fields are tracked.
+func entry(v any, f map[string]Action) (string, map[string]Action) {
+	vt := reflect.TypeOf(v)
+	for vt.Kind() == reflect.Ptr {
+		vt = vt.Elem()
+	}
+
+	// This should never happen because audit.Audible only allows structs in
+	// its union.
+	if vt.Kind() != reflect.Struct {
+		panic(fmt.Sprintf("audit table entry value must be a struct, got %T", v))
+	}
+
+	name := structName(vt)
+
+	// Use the flattenStructFields to recurse anonymously embedded structs
+	vv := reflect.ValueOf(v)
+	diffs, err := flattenStructFields(vv, vv)
+	if err != nil {
+		panic(fmt.Sprintf("audit table entry type %T failed to flatten", v))
+	}
+
+	fcpy := make(map[string]Action, len(f))
+	for k, v := range f {
+		fcpy[k] = v
+	}
+	for _, d := range diffs {
+		jsonTag := d.FieldType.Tag.Get("json")
+		if jsonTag == "-" {
+			// This field is explicitly ignored.
+			continue
+		}
+		if _, ok := fcpy[jsonTag]; !ok {
+			panic(fmt.Sprintf("audit table entry missing action for field %q in type %q", d.FieldType.Name, name))
+		}
+		delete(fcpy, jsonTag)
+	}
+
+	// If there are any fields left in fcpy, they are extra fields that don't
+	// exist in the struct. Don't track them.
+	if len(fcpy) > 0 {
+		panic(fmt.Sprintf("audit table entry has extra actions for type %q: %v", name, fcpy))
+	}
+
+	return structName(vt), f
 }
 
 func (t Action) String() string {

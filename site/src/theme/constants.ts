@@ -8,3 +8,4 @@ export const containerWidth = 1380
 export const containerWidthMedium = 1080
 export const sidePadding = 24
 export const CardPadding = 20
+export const dashboardContentBottomPadding = 8 * 6

@@ -26,11 +26,17 @@
       "displayName": "Display name",
       "description": "Description",
       "icon": "Icon",
-      "autoStop": "Auto-stop default",
+      "autoStop": "Default auto-stop",
+      "maxTTL": "Max. Lifetime (alpha)",
       "allowUsersToCancel": "Allow users to cancel in-progress workspace jobs"
     },
     "helperText": {
-      "autoStop": "Time in hours",
+      "defaultTTLHelperText_zero": "Workspaces will run until stopped manually.",
+      "defaultTTLHelperText_one": "Workspaces will default to stopping after {{count}} hour.",
+      "defaultTTLHelperText_other": "Workspaces will default to stopping after {{count}} hours.",
+      "maxTTLHelperText_zero": "Workspaces may run indefinitely.",
+      "maxTTLHelperText_one": "Workspaces must stop within 1 hour of starting.",
+      "maxTTLHelperText_other": "Workspaces must stop within {{count}} hours of starting.",
       "allowUsersToCancel": "If checked, users may be able to corrupt their workspace."
     },
     "upload": {
@@ -39,6 +45,13 @@
     },
     "tooltip": {
       "allowUsersToCancel": "Depending on your template, canceling builds may leave workspaces in an unhealthy state. This option isn't recommended for most use cases."
+    },
+    "error": {
+      "descriptionMax": "Please enter a description that is less than or equal to 128 characters.",
+      "defaultTTLMax": "Please enter a limit that is less than or equal to 168 hours (7 days).",
+      "defaultTTLMin": "Default time until auto-stop must not be less than 0.",
+      "maxTTLMax": "Please enter a limit that is less than or equal to 168 hours (7 days).",
+      "maxTTLMin": "Maximum time until auto-stop must not be less than 0."
     }
   }
 }

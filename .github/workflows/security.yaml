@@ -6,17 +6,11 @@ permissions:
   security-events: write
 
 on:
-  push:
-    branches: ["main"]
-
-  pull_request:
-    branches: ["main"]
-
   workflow_dispatch:
 
   schedule:
-    # Run every week at 10:24 on Thursday.
-    - cron: "24 10 * * 4"
+    # Run every 6 hours Monday-Friday!
+    - cron: "0 0,6,12,18 * * 1-5"
 
 # Cancel in-progress runs for pull requests when developers push
 # additional changes
@@ -59,6 +53,17 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
 
+      - name: Send Slack notification on failure
+        if: ${{ failure() }}
+        run: |
+          msg="❌ CodeQL Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl \
+            -qfsSL \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data "{\"content\": \"$msg\"}" \
+            "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
+
   trivy:
     runs-on: ${{ github.repository_owner == 'coder' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
     steps:
@@ -92,16 +97,47 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
+      - name: Install yq
+        run: go run github.com/mikefarah/yq/v4@v4.30.6
+      - name: Install protoc-gen-go
+        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
+      - name: Install protoc-gen-go-drpc
+        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.26
+      - name: Install Protoc
+        run: |
+          # protoc must be in lockstep with our dogfood Dockerfile or the
+          # version in the comments will differ. This is also defined in
+          # ci.yaml.
+          set -x
+          cd dogfood
+          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
+          protoc_path=/usr/local/bin/protoc
+          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
+          chmod +x $protoc_path
+          protoc --version
+
       - name: Build Coder linux amd64 Docker image
         id: build
         run: |
           set -euo pipefail
-          image_job="build/coder_$(./scripts/version.sh)_linux_amd64.tag"
-          DOCKER_IMAGE_NO_PREREQUISITES=true make -j "$image_job"
+
+          version="$(./scripts/version.sh)"
+          image_job="build/coder_${version}_linux_amd64.tag"
+
+          # This environment variable force make to not build packages and
+          # archives (which the Docker image depends on due to technical reasons
+          # related to concurrent FS writes).
+          export DOCKER_IMAGE_NO_PREREQUISITES=true
+          # This environment variables forces scripts/build_docker.sh to build
+          # the base image tag locally instead of using the cached version from
+          # the registry.
+          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+
+          make -j "$image_job"
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@9ab158e8597f3b310480b9a69402b419bc03dbd5
+        uses: aquasecurity/trivy-action@8bd2f9fbda2109502356ff8a6a89da55b1ead252
         with:
           image-ref: ${{ steps.build.outputs.image }}
           format: sarif
@@ -112,10 +148,22 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: trivy-results.sarif
+          category: "Trivy"
 
       - name: Upload Trivy scan results as an artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: trivy
           path: trivy-results.sarif
           retention-days: 7
+
+      - name: Send Slack notification on failure
+        if: ${{ failure() }}
+        run: |
+          msg="❌ CodeQL Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl \
+            -qfsSL \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data "{\"content\": \"$msg\"}" \
+            "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"

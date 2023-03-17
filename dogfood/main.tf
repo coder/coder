@@ -45,7 +45,7 @@ locals {
     ""              = "tcp://100.94.74.63:2375"
     "us-pittsburgh" = "tcp://100.94.74.63:2375"
     "eu-helsinki"   = "tcp://100.117.102.81:2375"
-    "ap-sydney"     = "tcp://100.127.2.1:2375"
+    "ap-sydney"     = "tcp://100.87.194.110:2375"
   }
 }
 
@@ -64,10 +64,10 @@ resource "coder_agent" "dev" {
   login_before_ready     = false
   startup_script_timeout = 60
   startup_script         = <<-EOT
-    set -ex
+    set -eux -o pipefail
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
-    code-server --auth none --port 13337 &
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
+    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
     sudo service docker start
     DOTFILES_URI=${var.dotfiles_uri}
     rm -f ~/.personalize.log

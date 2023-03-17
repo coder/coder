@@ -22,6 +22,12 @@ func TempFile(t *testing.T, dir, pattern string) string {
 	err = os.Remove(name)
 	require.NoError(t, err, "remove temp file")
 
+	t.Cleanup(func() {
+		// The test might have created created and it may have already removed it,
+		// so we ignore the error.
+		_ = os.Remove(name)
+	})
+
 	return name
 }
 

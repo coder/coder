@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -231,6 +233,41 @@ func main() {
 				WorkspaceName:  "dev",
 				HideAgentState: false,
 				HideAccess:     false,
+			})
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
+		Use: "git-auth",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var count atomic.Int32
+			var githubAuthed atomic.Bool
+			var gitlabAuthed atomic.Bool
+			go func() {
+				// Sleep to display the loading indicator.
+				time.Sleep(time.Second)
+				// Swap to true to display success and move onto GitLab.
+				githubAuthed.Store(true)
+				// Show the loading indicator again...
+				time.Sleep(time.Second * 2)
+				// Complete the auth!
+				gitlabAuthed.Store(true)
+			}()
+			return cliui.GitAuth(cmd.Context(), cmd.OutOrStdout(), cliui.GitAuthOptions{
+				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionGitAuth, error) {
+					count.Add(1)
+					return []codersdk.TemplateVersionGitAuth{{
+						ID:              "github",
+						Type:            codersdk.GitProviderGitHub,
+						Authenticated:   githubAuthed.Load(),
+						AuthenticateURL: "https://example.com/gitauth/github?redirect=" + url.QueryEscape("/gitauth?notify"),
+					}, {
+						ID:              "gitlab",
+						Type:            codersdk.GitProviderGitLab,
+						Authenticated:   gitlabAuthed.Load(),
+						AuthenticateURL: "https://example.com/gitauth/gitlab?redirect=" + url.QueryEscape("/gitauth?notify"),
+					}}, nil
+				},
 			})
 		},
 	})

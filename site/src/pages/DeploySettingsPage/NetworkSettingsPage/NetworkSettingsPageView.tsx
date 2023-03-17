@@ -1,4 +1,4 @@
-import { DeploymentConfig } from "api/typesGenerated"
+import { DeploymentOption } from "api/types"
 import {
   Badges,
   EnabledBadge,
@@ -7,13 +7,17 @@ import {
 import { Header } from "components/DeploySettingsLayout/Header"
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { Stack } from "components/Stack/Stack"
+import {
+  deploymentGroupHasParent,
+  useDeploymentOptions,
+} from "util/deployOptions"
 
 export type NetworkSettingsPageViewProps = {
-  deploymentConfig: Pick<DeploymentConfig, "derp" | "wildcard_access_url">
+  options: DeploymentOption[]
 }
 
 export const NetworkSettingsPageView = ({
-  deploymentConfig,
+  options: options,
 }: NetworkSettingsPageViewProps): JSX.Element => (
   <Stack direction="column" spacing={6}>
     <div>
@@ -23,13 +27,9 @@ export const NetworkSettingsPageView = ({
         docsHref="https://coder.com/docs/coder-oss/latest/networking"
       />
       <OptionsTable
-        options={{
-          derp_server_enable: deploymentConfig.derp.server.enable,
-          derp_server_region_name: deploymentConfig.derp.server.region_name,
-          derp_server_stun_addresses:
-            deploymentConfig.derp.server.stun_addresses,
-          derp_config_url: deploymentConfig.derp.config.url,
-        }}
+        options={options.filter((o) =>
+          deploymentGroupHasParent(o.group, "Networking"),
+        )}
       />
     </div>
 
@@ -42,7 +42,8 @@ export const NetworkSettingsPageView = ({
       />
 
       <Badges>
-        {deploymentConfig.wildcard_access_url.value !== "" ? (
+        {useDeploymentOptions(options, "Wildcard Access URL")[0].value !==
+        "" ? (
           <EnabledBadge />
         ) : (
           <DisabledBadge />
