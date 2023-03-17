@@ -42,7 +42,7 @@ func (r ResourceType) FriendlyString() string {
 	case ResourceTypeGitSSHKey:
 		return "git ssh key"
 	case ResourceTypeAPIKey:
-		return "api key"
+		return "token"
 	case ResourceTypeGroup:
 		return "group"
 	case ResourceTypeLicense:
