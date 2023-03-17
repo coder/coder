@@ -28,7 +28,7 @@ export interface TokensPageViewProps {
   getTokensError?: Error | unknown
   isLoading: boolean
   hasLoaded: boolean
-  onDelete: (id: string) => void
+  onDelete: (token: APIKeyWithOwner) => void
   deleteTokenError?: Error | unknown
 }
 
@@ -114,7 +114,7 @@ export const TokensPageView: FC<
                         <span style={{ color: theme.palette.text.secondary }}>
                           <IconButton
                             onClick={() => {
-                              onDelete(token.id)
+                              onDelete(token)
                             }}
                             size="medium"
                             aria-label={t("tokenActions.deleteToken.delete")}
