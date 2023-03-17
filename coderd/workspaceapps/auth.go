@@ -121,8 +121,7 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 	// is not running.
 
 	// Verify the user has access to the app.
-	// TODO(@deansheather): this should be a different auth check for terminal reqs
-	authed, ok := p.fetchWorkspaceApplicationAuth(rw, r, authz, appReq.AccessMethod, dbReq.Workspace, dbReq.AppSharingLevel)
+	authed, ok := p.verifyAuthz(rw, r, authz, dbReq)
 	if !ok {
 		return nil, false
 	}
@@ -188,7 +187,8 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 	return &ticket, true
 }
 
-func (p *Provider) authorizeWorkspaceApp(ctx context.Context, roles *httpmw.Authorization, accessMethod AccessMethod, sharingLevel database.AppSharingLevel, workspace database.Workspace) (bool, error) {
+func (p *Provider) authorizeRequest(ctx context.Context, roles *httpmw.Authorization, dbReq *databaseRequest) (bool, error) {
+	accessMethod := dbReq.AccessMethod
 	if accessMethod == "" {
 		accessMethod = AccessMethodPath
 	}
@@ -200,6 +200,7 @@ func (p *Provider) authorizeWorkspaceApp(ctx context.Context, roles *httpmw.Auth
 	//
 	// Site owners are blocked from accessing path-based apps unless the
 	// Dangerous.AllowPathAppSiteOwnerAccess flag is enabled in the check below.
+	sharingLevel := dbReq.AppSharingLevel
 	if isPathApp && !p.DeploymentValues.Dangerous.AllowPathAppSharing.Value() {
 		sharingLevel = database.AppSharingLevelOwner
 	}
@@ -220,9 +221,24 @@ func (p *Provider) authorizeWorkspaceApp(ctx context.Context, roles *httpmw.Auth
 	// workspaces owned by different users.
 	if isPathApp &&
 		sharingLevel == database.AppSharingLevelOwner &&
-		workspace.OwnerID.String() != roles.Actor.ID &&
+		dbReq.Workspace.OwnerID.String() != roles.Actor.ID &&
 		!p.DeploymentValues.Dangerous.AllowPathAppSiteOwnerAccess.Value() {
 		return false, nil
+	}
+
+	// Figure out which RBAC resource to check. For terminals we use execution
+	// instead of application connect.
+	var (
+		rbacAction   rbac.Action = rbac.ActionCreate
+		rbacResource rbac.Object = dbReq.Workspace.ApplicationConnectRBAC()
+		// rbacResourceOwned is for the level "authenticated". We still need to
+		// make sure the API key has permissions to connect to the actor's own
+		// workspace. Scopes would prevent this.
+		rbacResourceOwned rbac.Object = rbac.ResourceWorkspaceApplicationConnect.WithOwner(roles.Actor.ID)
+	)
+	if dbReq.AccessMethod == AccessMethodTerminal {
+		rbacResource = dbReq.Workspace.ExecutionRBAC()
+		rbacResourceOwned = rbac.ResourceWorkspaceExecution.WithOwner(roles.Actor.ID)
 	}
 
 	// Do a standard RBAC check. This accounts for share level "owner" and any
@@ -231,7 +247,7 @@ func (p *Provider) authorizeWorkspaceApp(ctx context.Context, roles *httpmw.Auth
 	// Regardless of share level or whether it's enabled or not, the owner of
 	// the workspace can always access applications (as long as their API key's
 	// scope allows it).
-	err := p.Authorizer.Authorize(ctx, roles.Actor, rbac.ActionCreate, workspace.ApplicationConnectRBAC())
+	err := p.Authorizer.Authorize(ctx, roles.Actor, rbacAction, rbacResource)
 	if err == nil {
 		return true, nil
 	}
@@ -242,19 +258,16 @@ func (p *Provider) authorizeWorkspaceApp(ctx context.Context, roles *httpmw.Auth
 		// Owners can always access their own apps according to RBAC rules, so
 		// they have already been returned from this function.
 	case database.AppSharingLevelAuthenticated:
-		// The user is authenticated at this point, but we need to make sure
-		// that they have ApplicationConnect permissions to their own
-		// workspaces. This ensures that the key's scope has permission to
-		// connect to workspace apps.
-		object := rbac.ResourceWorkspaceApplicationConnect.WithOwner(roles.Actor.ID)
-		err := p.Authorizer.Authorize(ctx, roles.Actor, rbac.ActionCreate, object)
+		// Check with the owned resource to ensure the API key has permissions
+		// to connect to the actor's own workspace. This enforces scopes.
+		err := p.Authorizer.Authorize(ctx, roles.Actor, rbacAction, rbacResourceOwned)
 		if err == nil {
 			return true, nil
 		}
 	case database.AppSharingLevelPublic:
 		// We don't really care about scopes and stuff if it's public anyways.
-		// Someone with a restricted-scope API key could just not submit the
-		// API key cookie in the request and access the page.
+		// Someone with a restricted-scope API key could just not submit the API
+		// key cookie in the request and access the page.
 		return true, nil
 	}
 
@@ -262,12 +275,12 @@ func (p *Provider) authorizeWorkspaceApp(ctx context.Context, roles *httpmw.Auth
 	return false, nil
 }
 
-// fetchWorkspaceApplicationAuth authorizes the user using api.Authorizer for a
+// verifyAuthz authorizes the user using api.Authorizer for a
 // given app share level in the given workspace. The user's authorization status
 // is returned. If a server error occurs, a HTML error page is rendered and
 // false is returned so the caller can return early.
-func (p *Provider) fetchWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, authz *httpmw.Authorization, accessMethod AccessMethod, workspace database.Workspace, appSharingLevel database.AppSharingLevel) (authed bool, ok bool) {
-	ok, err := p.authorizeWorkspaceApp(r.Context(), authz, accessMethod, appSharingLevel, workspace)
+func (p *Provider) verifyAuthz(rw http.ResponseWriter, r *http.Request, authz *httpmw.Authorization, dbReq *databaseRequest) (authed bool, ok bool) {
+	ok, err := p.authorizeRequest(r.Context(), authz, dbReq)
 	if err != nil {
 		p.Logger.Error(r.Context(), "authorize workspace app", slog.Error(err))
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
