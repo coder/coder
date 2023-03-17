@@ -111,7 +111,6 @@ export const WorkspaceReadyPage = ({
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
         handleUpdate={() => workspaceSend({ type: "UPDATE" })}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
-        handleChangeVersion={() => navigate("change-version")}
         handleSettings={() => navigate("settings")}
         resources={workspace.latest_build.resources}
         builds={builds}

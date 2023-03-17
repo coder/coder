@@ -42,6 +42,13 @@ Specifies the path to an SSH config.
 | Consumes | <code>$CODER_SSH_CONFIG_FILE</code> |
 | Default | <code>~/.ssh/config</code> |
 
+### --ssh-host-prefix
+
+Override the default host prefix.
+<br/>
+| | |
+| --- | --- |
+
 ### --ssh-option, -o
 
 Specifies additional SSH options to embed in each host stanza.

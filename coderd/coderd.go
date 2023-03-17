@@ -138,6 +138,9 @@ type Options struct {
 	DeploymentValues            *codersdk.DeploymentValues
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 
+	// SSHConfig is the response clients use to configure config-ssh locally.
+	SSHConfig codersdk.SSHConfigResponse
+
 	HTTPClient *http.Client
 }
 
@@ -402,6 +405,7 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
+			r.Get("/ssh", api.sshConfig)
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

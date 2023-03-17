@@ -43,7 +43,7 @@ Specify a duration after which the workspace should shut down (e.g. 8h).
 | | |
 | --- | --- |
 | Consumes | <code>$CODER_WORKSPACE_STOP_AFTER</code> |
-| Default | <code>8h0m0s</code> |
+| Default | <code>0s</code> |
 
 ### --template, -t
 

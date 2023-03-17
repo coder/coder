@@ -26,7 +26,7 @@ import {
   PageHeaderTitle,
 } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
-import { TableLoader } from "../../components/TableLoader/TableLoader"
+import { TableLoaderSkeleton } from "../../components/TableLoader/TableLoader"
 import {
   HelpTooltip,
   HelpTooltipLink,
@@ -210,7 +210,7 @@ export const TemplatesPageView: FC<
               </TableHead>
               <TableBody>
                 <Maybe condition={isLoading}>
-                  <TableLoader />
+                  <TableLoaderSkeleton columns={4} useAvatarData />
                 </Maybe>
 
                 <ChooseOne>

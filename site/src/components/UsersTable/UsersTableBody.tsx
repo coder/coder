@@ -11,7 +11,7 @@ import * as TypesGen from "../../api/typesGenerated"
 import { combineClasses } from "../../util/combineClasses"
 import { AvatarData } from "../AvatarData/AvatarData"
 import { EmptyState } from "../EmptyState/EmptyState"
-import { TableLoader } from "../TableLoader/TableLoader"
+import { TableLoaderSkeleton } from "../TableLoader/TableLoader"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { EditRolesButton } from "components/EditRolesButton/EditRolesButton"
 import { Stack } from "components/Stack/Stack"
@@ -70,7 +70,7 @@ export const UsersTableBody: FC<
   return (
     <ChooseOne>
       <Cond condition={Boolean(isLoading)}>
-        <TableLoader />
+        <TableLoaderSkeleton columns={4} useAvatarData />
       </Cond>
       <Cond condition={!users || users.length === 0}>
         <ChooseOne>

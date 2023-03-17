@@ -125,6 +125,8 @@ type Options struct {
 	Database database.Store
 	Pubsub   database.Pubsub
 
+	ConfigSSH codersdk.SSHConfigResponse
+
 	SwaggerEndpoint bool
 }
 
@@ -332,6 +334,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			UpdateCheckOptions:          options.UpdateCheckOptions,
 			SwaggerEndpoint:             options.SwaggerEndpoint,
 			AppSigningKey:               AppSigningKey,
+			SSHConfig:                   options.ConfigSSH,
 		}
 }
 

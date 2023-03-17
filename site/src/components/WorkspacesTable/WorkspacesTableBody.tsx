@@ -8,7 +8,7 @@ import { TableEmpty } from "components/TableEmpty/TableEmpty"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { Link as RouterLink } from "react-router-dom"
-import { TableLoader } from "../TableLoader/TableLoader"
+import { TableLoaderSkeleton } from "../TableLoader/TableLoader"
 import { WorkspacesRow } from "./WorkspacesRow"
 
 interface TableBodyProps {
@@ -29,7 +29,7 @@ export const WorkspacesTableBody: FC<
   }
 
   if (!workspaces) {
-    return <TableLoader />
+    return <TableLoaderSkeleton columns={4} useAvatarData />
   }
 
   if (workspaces.length === 0) {
