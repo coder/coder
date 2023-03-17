@@ -41,7 +41,4 @@ export const props = {
   MuiPaper: {
     elevation: 0,
   },
-  MuiSkeleton: {
-    animation: "wave",
-  },
 } as ComponentsProps
