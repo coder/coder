@@ -9,6 +9,7 @@ import { Stack } from "components/Stack/Stack"
 import Button from "@material-ui/core/Button"
 import { Link as RouterLink } from "react-router-dom"
 import AddIcon from "@material-ui/icons/AddOutlined"
+import { APIKeyWithOwner } from "api/typesGenerated"
 
 export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
   const styles = useStyles()
@@ -30,9 +31,9 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
     </Stack>
   )
 
-  const [tokenIdToDelete, setTokenIdToDelete] = useState<string | undefined>(
-    undefined,
-  )
+  const [tokenToDelete, setTokenToDelete] = useState<
+    APIKeyWithOwner | undefined
+  >(undefined)
 
   const {
     data: tokens,
@@ -60,15 +61,15 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
           isLoading={isFetching}
           hasLoaded={isFetched}
           getTokensError={getTokensError}
-          onDelete={(id) => {
-            setTokenIdToDelete(id)
+          onDelete={(token) => {
+            setTokenToDelete(token)
           }}
         />
       </Section>
       <ConfirmDeleteDialog
         queryKey={queryKey}
-        tokenId={tokenIdToDelete}
-        setTokenId={setTokenIdToDelete}
+        token={tokenToDelete}
+        setToken={setTokenToDelete}
       />
     </>
   )
