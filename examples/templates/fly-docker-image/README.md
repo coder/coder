@@ -1,4 +1,11 @@
-# Coder Docker Image fly.io Template
+---
+name: Develop on a Fly.io container
+description: Run workspaces as Firecracker VMs on Fly.io
+tags: [docker, fly.io]
+icon: /icon/fly.io.svg
+---
+
+# Coder Fly.io Template
 
 This template provisions a [code-server](https://github.com/coder/code-server) instance on [fly.io](https://fly.io) using the [codercom/code-server](https://hub.docker.com/r/codercom/code-server) image.
 
@@ -14,10 +21,12 @@ This template provisions a [code-server](https://github.com/coder/code-server) i
 3. Create the new template by running the following command from the `fly-docker-image` directory:
 
 ```bash
-coder templates create fly-docker-image --variable fly_api_token=$(flyctl auth token)
+coder templates create fly-docker-image \
+  --variable fly_api_token=$(flyctl auth token) \
+  --variable fly_org=personal
 ```
 
-> If your Coder is also running as a fly.io app, then instead of setting variable `fly_api_token` you can also set a fly.io secret with the name `FLY_API_TOKEN`
+> If the Coder server is also running as a fly.io app, then instead of setting variable `fly_api_token` you can also set a fly.io secret with the name `FLY_API_TOKEN`
 >
 > ```bash
 > flyctl secrets set FLY_API_TOKEN=$(flyctl auth token) --app <your-coder-app-name>
