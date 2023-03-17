@@ -70,6 +70,10 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 // AllCalls is for debugging. If you are not sure where calls are coming from,
 // call this and use a debugger or print them. They have small callstacks
 // on them to help locate the 'Authorize' call.
+// Only calls to Authorize by the given subject will be returned.
+// Note that duplicate rbac calls are handled by the rbac.Cacher(), but
+// will be recorded twice. So AllCalls() returns calls regardless if they
+// were returned from the cached or not.
 func (a RBACAsserter) AllCalls() []AuthCall {
 	return a.Recorder.AllCalls(&a.Subject)
 }
