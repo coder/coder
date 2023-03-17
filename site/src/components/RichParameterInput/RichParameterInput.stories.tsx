@@ -31,6 +31,7 @@ const createTemplateVersionParameter = (
     validation_max: 0,
     validation_monotonic: "increasing",
     description_plaintext: "",
+    required: true,
     ...partial,
   }
 }
@@ -96,6 +97,17 @@ OptionsType.args = {
         icon: "/icon/aws.png",
       },
     ],
+  }),
+}
+
+export const ListStringType = Template.bind({})
+ListStringType.args = {
+  initialValue: JSON.stringify(["first", "second", "third"]),
+  id: "list_string_parameter",
+  parameter: createTemplateVersionParameter({
+    name: "list_string_parameter",
+    type: "list(string)",
+    description: "List string parameter",
   }),
 }
 

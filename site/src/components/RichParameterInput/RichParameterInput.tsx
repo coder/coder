@@ -8,6 +8,7 @@ import { FC, useState } from "react"
 import { TemplateVersionParameter } from "../../api/typesGenerated"
 import { colors } from "theme/colors"
 import { MemoizedMarkdown } from "components/Markdown/Markdown"
+import { MultiTextField } from "components/MultiTextField/MultiTextField"
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool"
@@ -151,6 +152,32 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
           />
         ))}
       </RadioGroup>
+    )
+  }
+
+  if (parameter.type === "list(string)") {
+    let values: string[] = []
+
+    if (parameterValue) {
+      try {
+        values = JSON.parse(parameterValue) as string[]
+      } catch (e) {
+        console.error("Error parsing list(string) parameter", e)
+      }
+    }
+
+    return (
+      <MultiTextField
+        label={props.label as string}
+        values={values}
+        onChange={(values) => {
+          try {
+            onChange(JSON.stringify(values))
+          } catch (e) {
+            console.error("Error on change of list(string) parameter", e)
+          }
+        }}
+      />
     )
   }
 

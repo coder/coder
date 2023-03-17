@@ -71,6 +71,7 @@ const useStyles = makeStyles((theme) => ({
     flexWrap: "wrap",
     gap: theme.spacing(1),
     position: "relative",
+    margin: theme.spacing(1, 0, 0.5), // Have same margin than TextField
 
     "&:has(input:focus)": {
       borderColor: theme.palette.primary.main,
