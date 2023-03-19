@@ -16,8 +16,10 @@ import (
 // string or an integer.
 type Duration time.Duration
 
-var _ json.Marshaler = Duration(0)
-var _ json.Unmarshaler = (*Duration)(nil)
+var (
+	_ json.Marshaler   = Duration(0)
+	_ json.Unmarshaler = (*Duration)(nil)
+)
 
 // MarshalJSON implements json.Marshaler.
 func (d Duration) MarshalJSON() ([]byte, error) {

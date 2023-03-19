@@ -1,17 +1,19 @@
-import { DeploymentConfig, DeploymentDAUsResponse } from "api/typesGenerated"
+import { DeploymentOption } from "api/types"
+import { DeploymentDAUsResponse } from "api/typesGenerated"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { DAUChart } from "components/DAUChart/DAUChart"
 import { Header } from "components/DeploySettingsLayout/Header"
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { Stack } from "components/Stack/Stack"
+import { useDeploymentOptions } from "util/deployOptions"
 
 export type GeneralSettingsPageViewProps = {
-  deploymentConfig: Pick<DeploymentConfig, "access_url" | "wildcard_access_url">
+  deploymentOptions: DeploymentOption[]
   deploymentDAUs?: DeploymentDAUsResponse
   getDeploymentDAUsError: unknown
 }
 export const GeneralSettingsPageView = ({
-  deploymentConfig,
+  deploymentOptions,
   deploymentDAUs,
   getDeploymentDAUsError,
 }: GeneralSettingsPageViewProps): JSX.Element => {
@@ -28,10 +30,11 @@ export const GeneralSettingsPageView = ({
         )}
         {deploymentDAUs && <DAUChart daus={deploymentDAUs} />}
         <OptionsTable
-          options={{
-            access_url: deploymentConfig.access_url,
-            wildcard_access_url: deploymentConfig.wildcard_access_url,
-          }}
+          options={useDeploymentOptions(
+            deploymentOptions,
+            "Access URL",
+            "Wildcard Access URL",
+          )}
         />
       </Stack>
     </>

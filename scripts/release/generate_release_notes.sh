@@ -81,6 +81,7 @@ declare -a section_order=(
 	chore
 	revert
 	other
+	experimental
 )
 
 declare -A section_titles=(
@@ -97,6 +98,7 @@ declare -A section_titles=(
 	[chore]='Chores'
 	[revert]='Reverts'
 	[other]='Other changes'
+	[experimental]='Experimental changes'
 )
 
 # Verify that all items in section_order exist as keys in section_titles and
@@ -134,6 +136,9 @@ changelog="$(
 		changes="$(eval "echo -e \"\${${cat}_changelog:-}\"")"
 		if ((${#changes} > 0)); then
 			echo -e "\n### ${section_titles["$cat"]}\n"
+			if [[ $cat == experimental ]]; then
+				echo -e "These changes are feature-flagged and can be enabled with the \`--experiments\` server flag. They may change or be removed in future releases.\n"
+			fi
 			echo -e "$changes"
 		fi
 	done

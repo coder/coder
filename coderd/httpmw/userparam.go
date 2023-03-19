@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 )
@@ -68,7 +69,8 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 					})
 					return
 				}
-				user, err = db.GetUserByID(ctx, apiKey.UserID)
+				//nolint:gocritic // System needs to be able to get user from param.
+				user, err = db.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 				if xerrors.Is(err, sql.ErrNoRows) {
 					httpapi.ResourceNotFound(rw)
 					return
@@ -81,8 +83,8 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 					return
 				}
 			} else if userID, err := uuid.Parse(userQuery); err == nil {
-				// If the userQuery is a valid uuid
-				user, err = db.GetUserByID(ctx, userID)
+				//nolint:gocritic // If the userQuery is a valid uuid
+				user, err = db.GetUserByID(dbauthz.AsSystemRestricted(ctx), userID)
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 						Message: userErrorMessage,
@@ -90,8 +92,8 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 					return
 				}
 			} else {
-				// Try as a username last
-				user, err = db.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+				// nolint:gocritic // Try as a username last
+				user, err = db.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 					Username: userQuery,
 				})
 				if err != nil {

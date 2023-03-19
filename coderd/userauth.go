@@ -18,9 +18,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -57,7 +57,8 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+	//nolint:gocritic // In order to login, we need to get the user first!
+	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 		Email: loginWithPassword.Email,
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -88,20 +89,11 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 
 	// If password authentication is disabled and the user does not have the
 	// owner role, block the request.
-	if api.DeploymentConfig.DisablePasswordAuth.Value {
-		permitted := false
-		for _, role := range user.RBACRoles {
-			if role == rbac.RoleOwner() {
-				permitted = true
-				break
-			}
-		}
-		if !permitted {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: "Password authentication is disabled. Only administrators can sign in with password authentication.",
-			})
-			return
-		}
+	if api.DeploymentValues.DisablePasswordAuth {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Password authentication is disabled.",
+		})
+		return
 	}
 
 	if user.LoginType != database.LoginTypePassword {
@@ -111,15 +103,32 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//nolint:gocritic // System needs to fetch user roles in order to login user.
+	roles, err := api.Database.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+		})
+		return
+	}
+
 	// If the user logged into a suspended account, reject the login request.
-	if user.Status != database.UserStatusActive {
+	if roles.Status != database.UserStatusActive {
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Your account is suspended. Contact an admin to reactivate your account.",
 		})
 		return
 	}
 
-	cookie, key, err := api.createAPIKey(ctx, createAPIKeyParams{
+	userSubj := rbac.Subject{
+		ID:     user.ID.String(),
+		Roles:  rbac.RoleNames(roles.Roles),
+		Groups: roles.Groups,
+		Scope:  rbac.ScopeAll,
+	}
+
+	//nolint:gocritic // Creating the API key as the user instead of as system.
+	cookie, key, err := api.createAPIKey(dbauthz.As(ctx, userSubj), createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  database.LoginTypePassword,
 		RemoteAddr: r.RemoteAddr,
@@ -188,11 +197,11 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	// Deployments should not host app tokens on the same domain as the
 	// primary deployment. But in the case they are, we should also delete this
 	// token.
-	if appCookie, _ := r.Cookie(httpmw.DevURLSessionTokenCookie); appCookie != nil {
+	if appCookie, _ := r.Cookie(codersdk.DevURLSessionTokenCookie); appCookie != nil {
 		appCookieRemove := &http.Cookie{
 			// MaxAge < 0 means to delete the cookie now.
 			MaxAge: -1,
-			Name:   httpmw.DevURLSessionTokenCookie,
+			Name:   codersdk.DevURLSessionTokenCookie,
 			Path:   "/",
 			Domain: "." + api.AccessURL.Hostname(),
 		}
@@ -276,7 +285,7 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
 		Password: codersdk.AuthMethod{
-			Enabled: !api.DeploymentConfig.DisablePasswordAuth.Value,
+			Enabled: !api.DeploymentValues.DisablePasswordAuth.Value(),
 		},
 		Github: codersdk.AuthMethod{Enabled: api.GithubOAuth2Config != nil},
 		OIDC: codersdk.OIDCAuthMethod{
@@ -295,7 +304,9 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/oauth2/github/callback [get]
 func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx               = r.Context()
+		// userOAuth2Github is a system function.
+		//nolint:gocritic
+		ctx               = dbauthz.AsSystemRestricted(r.Context())
 		state             = httpmw.OAuth2(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
@@ -466,6 +477,10 @@ type OIDCConfig struct {
 	// UsernameField selects the claim field to be used as the created user's
 	// username.
 	UsernameField string
+	// GroupField selects the claim field to be used as the created user's
+	// groups. If the group field is the empty string, then no group updates
+	// will ever come from the OIDC provider.
+	GroupField string
 	// SignInText is the text to display on the OIDC login button
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
@@ -480,7 +495,9 @@ type OIDCConfig struct {
 // @Router /users/oidc/callback [get]
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx               = r.Context()
+		// userOIDC is a system function.
+		//nolint:gocritic
+		ctx               = dbauthz.AsSystemRestricted(r.Context())
 		state             = httpmw.OAuth2(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
@@ -552,6 +569,20 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Log all of the field names returned in the ID token claims, and the
+	// userinfo returned from the provider.
+	{
+		fields := make([]string, 0, len(claims))
+		for f := range claims {
+			fields = append(fields, f)
+		}
+
+		api.Logger.Debug(ctx, "got oidc claims",
+			slog.F("user_info", userInfo),
+			slog.F("claim_fields", fields),
+		)
+	}
+
 	usernameRaw, ok := claims[api.OIDCConfig.UsernameField]
 	var username string
 	if ok {
@@ -596,21 +627,36 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var usingGroups bool
 	var groups []string
-	groupsRaw, ok := claims["groups"]
-	if ok {
-		// Convert the []interface{} we get to a []string.
-		groupsInterface, ok := groupsRaw.([]interface{})
-		if ok {
-			for _, groupInterface := range groupsInterface {
-				group, ok := groupInterface.(string)
-				if !ok {
-					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-						Message: fmt.Sprintf("Invalid group type. Expected string, got: %t", emailRaw),
-					})
-					return
+	// If the GroupField is the empty string, then groups from OIDC are not used.
+	// This is so we can support manual group assignment.
+	if api.OIDCConfig.GroupField != "" {
+		usingGroups = true
+		groupsRaw, ok := claims[api.OIDCConfig.GroupField]
+		if ok && api.OIDCConfig.GroupField != "" {
+			// Convert the []interface{} we get to a []string.
+			groupsInterface, ok := groupsRaw.([]interface{})
+			if ok {
+				api.Logger.Debug(ctx, "groups returned in oidc claims",
+					slog.F("len", len(groupsInterface)),
+					slog.F("groups", groupsInterface),
+				)
+
+				for _, groupInterface := range groupsInterface {
+					group, ok := groupInterface.(string)
+					if !ok {
+						httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+							Message: fmt.Sprintf("Invalid group type. Expected string, got: %t", emailRaw),
+						})
+						return
+					}
+					groups = append(groups, group)
 				}
-				groups = append(groups, group)
+			} else {
+				api.Logger.Debug(ctx, "groups field was an unknown type",
+					slog.F("type", fmt.Sprintf("%T", groupsRaw)),
+				)
 			}
 		}
 	}
@@ -671,6 +717,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		Email:        email,
 		Username:     username,
 		AvatarURL:    picture,
+		UsingGroups:  usingGroups,
 		Groups:       groups,
 	})
 	var httpErr httpError
@@ -712,7 +759,10 @@ type oauthLoginParams struct {
 	Email        string
 	Username     string
 	AvatarURL    string
-	Groups       []string
+	// Is UsingGroups is true, then the user will be assigned
+	// to the Groups provided.
+	UsingGroups bool
+	Groups      []string
 }
 
 type httpError struct {
@@ -765,7 +815,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		// with OIDC for the first time.
 		if user.ID == uuid.Nil {
 			var organizationID uuid.UUID
-			organizations, _ := tx.GetOrganizations(ctx)
+			//nolint:gocritic
+			organizations, _ := tx.GetOrganizations(dbauthz.AsSystemRestricted(ctx))
 			if len(organizations) > 0 {
 				// Add the user to the first organization. Once multi-organization
 				// support is added, we should enable a configuration map of user
@@ -773,7 +824,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				organizationID = organizations[0].ID
 			}
 
-			_, err := tx.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+			//nolint:gocritic
+			_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 				Username: params.Username,
 			})
 			if err == nil {
@@ -786,7 +838,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 
 					params.Username = httpapi.UsernameFrom(alternate)
 
-					_, err := tx.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+					//nolint:gocritic
+					_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 						Username: params.Username,
 					})
 					if xerrors.Is(err, sql.ErrNoRows) {
@@ -805,7 +858,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 				}
 			}
 
-			user, _, err = api.CreateUser(ctx, tx, CreateUserRequest{
+			//nolint:gocritic
+			user, _, err = api.CreateUser(dbauthz.AsSystemRestricted(ctx), tx, CreateUserRequest{
 				CreateUserRequest: codersdk.CreateUserRequest{
 					Email:          params.Email,
 					Username:       params.Username,
@@ -819,7 +873,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		if link.UserID == uuid.Nil {
-			link, err = tx.InsertUserLink(ctx, database.InsertUserLinkParams{
+			//nolint:gocritic
+			link, err = tx.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
 				UserID:            user.ID,
 				LoginType:         params.LoginType,
 				LinkedID:          params.LinkedID,
@@ -833,7 +888,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		if link.UserID != uuid.Nil {
-			link, err = tx.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+			//nolint:gocritic
+			link, err = tx.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
 				UserID:            user.ID,
 				LoginType:         params.LoginType,
 				OAuthAccessToken:  params.State.Token.AccessToken,
@@ -846,8 +902,9 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		}
 
 		// Ensure groups are correct.
-		if len(params.Groups) > 0 {
-			err := api.Options.SetUserGroups(ctx, tx, user.ID, params.Groups)
+		if params.UsingGroups {
+			//nolint:gocritic
+			err := api.Options.SetUserGroups(dbauthz.AsSystemRestricted(ctx), tx, user.ID, params.Groups)
 			if err != nil {
 				return xerrors.Errorf("set user groups: %w", err)
 			}
@@ -880,7 +937,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			// In such cases in the current implementation this user can now no
 			// longer sign in until an administrator finds the offending built-in
 			// user and changes their username.
-			user, err = tx.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
+			//nolint:gocritic
+			user, err = tx.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
 				ID:        user.ID,
 				Email:     user.Email,
 				Username:  user.Username,
@@ -898,7 +956,8 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		return nil, database.APIKey{}, xerrors.Errorf("in tx: %w", err)
 	}
 
-	cookie, key, err := api.createAPIKey(ctx, createAPIKeyParams{
+	//nolint:gocritic
+	cookie, key, err := api.createAPIKey(dbauthz.AsSystemRestricted(ctx), createAPIKeyParams{
 		UserID:     user.ID,
 		LoginType:  params.LoginType,
 		RemoteAddr: r.RemoteAddr,

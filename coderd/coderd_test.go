@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -78,11 +79,17 @@ func TestDERP(t *testing.T) {
 		DERPMap:   derpMap,
 	})
 	require.NoError(t, err)
+
+	w2Ready := make(chan struct{})
+	w2ReadyOnce := sync.Once{}
 	w1.SetNodeCallback(func(node *tailnet.Node) {
-		w2.UpdateNodes([]*tailnet.Node{node})
+		w2.UpdateNodes([]*tailnet.Node{node}, false)
+		w2ReadyOnce.Do(func() {
+			close(w2Ready)
+		})
 	})
 	w2.SetNodeCallback(func(node *tailnet.Node) {
-		w1.UpdateNodes([]*tailnet.Node{node})
+		w1.UpdateNodes([]*tailnet.Node{node}, false)
 	})
 
 	conn := make(chan struct{})
@@ -98,6 +105,7 @@ func TestDERP(t *testing.T) {
 	}()
 
 	<-conn
+	<-w2Ready
 	nc, err := w2.DialContextTCP(context.Background(), netip.AddrPortFrom(w1IP, 35565))
 	require.NoError(t, err)
 	_ = nc.Close()
@@ -115,6 +123,7 @@ func TestDERPLatencyCheck(t *testing.T) {
 	defer res.Body.Close()
 	require.Equal(t, http.StatusOK, res.StatusCode)
 }
+
 func TestHealthz(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)

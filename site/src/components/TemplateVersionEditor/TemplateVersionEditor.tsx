@@ -2,9 +2,9 @@ import Button from "@material-ui/core/Button"
 import IconButton from "@material-ui/core/IconButton"
 import { makeStyles, Theme } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
-import CreateIcon from "@material-ui/icons/AddBox"
+import CreateIcon from "@material-ui/icons/AddOutlined"
 import BuildIcon from "@material-ui/icons/BuildOutlined"
-import PreviewIcon from "@material-ui/icons/Visibility"
+import PreviewIcon from "@material-ui/icons/VisibilityOutlined"
 import {
   ProvisionerJobLog,
   Template,
@@ -13,18 +13,21 @@ import {
 } from "api/typesGenerated"
 import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
+import { bannerHeight } from "components/DeploymentBanner/DeploymentBannerView"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import { FC, useCallback, useEffect, useRef, useState } from "react"
 import { navHeight, dashboardContentBottomPadding } from "theme/constants"
 import {
+  createFile,
   existsFile,
   FileTree,
   getFileContent,
   isFolder,
+  moveFile,
   removeFile,
-  setFile,
   traverse,
+  updateFile,
 } from "util/filetree"
 import {
   CreateFileDialog,
@@ -44,13 +47,14 @@ export interface TemplateVersionEditorProps {
   defaultFileTree: FileTree
   buildLogs?: ProvisionerJobLog[]
   resources?: WorkspaceResource[]
+  deploymentBannerVisible?: boolean
   disablePreview: boolean
   disableUpdate: boolean
   onPreview: (files: FileTree) => void
   onUpdate: () => void
 }
 
-const topbarHeight = navHeight
+const topbarHeight = 80
 
 const findInitialFile = (fileTree: FileTree): string | undefined => {
   let initialFile: string | undefined
@@ -68,6 +72,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   disablePreview,
   disableUpdate,
   template,
+  deploymentBannerVisible,
   templateVersion,
   defaultFileTree,
   onPreview,
@@ -146,6 +151,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   const styles = useStyles({
     templateVersionSucceeded,
     showBuildLogs,
+    deploymentBannerVisible,
   })
 
   return (
@@ -161,28 +167,26 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               )
             }
           />
-          <div>Used By: {template.active_user_count} developers</div>
         </div>
 
         <div className={styles.topbarSides}>
           <div className={styles.buildStatus}>
-            Build Status:
             <TemplateVersionStatusBadge version={templateVersion} />
           </div>
 
           <Button
+            title="Build template (Ctrl + Enter)"
             size="small"
             variant="outlined"
-            color="primary"
             disabled={disablePreview}
             onClick={() => {
               triggerPreview()
             }}
           >
-            Build (Ctrl + Enter)
+            Build template
           </Button>
 
-          <Tooltip
+          <Button
             title={
               dirty
                 ? "You have edited files! Run another build before updating."
@@ -190,28 +194,19 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 ? "Something"
                 : ""
             }
+            size="small"
+            disabled={dirty || disableUpdate}
+            onClick={onUpdate}
           >
-            <span>
-              <Button
-                size="small"
-                variant="contained"
-                color="primary"
-                disabled={dirty || disableUpdate}
-                onClick={() => {
-                  onUpdate()
-                }}
-              >
-                Publish New Version
-              </Button>
-            </span>
-          </Tooltip>
+            Publish version
+          </Button>
         </div>
       </div>
 
       <div className={styles.sidebarAndEditor}>
         <div className={styles.sidebar}>
           <div className={styles.sidebarTitle}>
-            Template Editor
+            Template files
             <div className={styles.sidebarActions}>
               <Tooltip title="Create File" placement="top">
                 <IconButton
@@ -227,13 +222,14 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               </Tooltip>
             </div>
             <CreateFileDialog
+              fileTree={fileTree}
               open={createFileOpen}
               onClose={() => {
                 setCreateFileOpen(false)
               }}
               checkExists={(path) => existsFile(path, fileTree)}
               onConfirm={(path) => {
-                setFileTree((fileTree) => setFile(path, "", fileTree))
+                setFileTree((fileTree) => createFile(path, fileTree, ""))
                 setActivePath(path)
                 setCreateFileOpen(false)
                 setDirty(true)
@@ -256,6 +252,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               filename={deleteFileOpen || ""}
             />
             <RenameFileDialog
+              fileTree={fileTree}
               open={Boolean(renameFileOpen)}
               onClose={() => {
                 setRenameFileOpen(undefined)
@@ -266,15 +263,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 if (!renameFileOpen) {
                   return
                 }
-                setFileTree((fileTree) => {
-                  fileTree = setFile(
-                    newPath,
-                    getFileContent(renameFileOpen, fileTree) as string,
-                    fileTree,
-                  )
-                  fileTree = removeFile(renameFileOpen, fileTree)
-                  return fileTree
-                })
+                setFileTree((fileTree) =>
+                  moveFile(renameFileOpen, newPath, fileTree),
+                )
                 setActivePath(newPath)
                 setRenameFileOpen(undefined)
                 setDirty(true)
@@ -305,7 +296,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                     return
                   }
                   setFileTree((fileTree) =>
-                    setFile(activePath, value, fileTree),
+                    updateFile(activePath, value, fileTree),
                   )
                   setDirty(true)
                 }}
@@ -396,10 +387,14 @@ const useStyles = makeStyles<
   {
     templateVersionSucceeded: boolean
     showBuildLogs: boolean
+    deploymentBannerVisible: boolean
   }
 >((theme) => ({
   root: {
-    height: `calc(100vh - ${navHeight}px)`,
+    height: (props) =>
+      `calc(100vh - ${
+        navHeight + (props.deploymentBannerVisible ? bannerHeight : 0)
+      }px)`,
     background: theme.palette.background.default,
     flex: 1,
     display: "flex",
@@ -413,11 +408,12 @@ const useStyles = makeStyles<
     alignItems: "center",
     justifyContent: "space-between",
     height: topbarHeight,
+    background: theme.palette.background.paper,
   },
   topbarSides: {
     display: "flex",
     alignItems: "center",
-    gap: 16,
+    gap: theme.spacing(2),
   },
   buildStatus: {
     display: "flex",
@@ -430,26 +426,30 @@ const useStyles = makeStyles<
   },
   sidebar: {
     minWidth: 256,
+    backgroundColor: theme.palette.background.paper,
+    borderRight: `1px solid ${theme.palette.divider}`,
   },
   sidebarTitle: {
-    fontSize: 12,
+    fontSize: 10,
     textTransform: "uppercase",
-    padding: "8px 16px",
-    color: theme.palette.text.hint,
+    padding: theme.spacing(1, 2),
+    color: theme.palette.text.primary,
+    fontWeight: 500,
+    letterSpacing: "0.5px",
     display: "flex",
     alignItems: "center",
   },
   sidebarActions: {
     marginLeft: "auto",
     "& svg": {
-      fill: theme.palette.text.hint,
+      fill: theme.palette.text.primary,
     },
   },
   editorPane: {
     display: "grid",
     width: "100%",
     gridTemplateColumns: (props) =>
-      props.showBuildLogs ? "0.6fr 0.4fr" : "1fr 0fr",
+      props.showBuildLogs ? "1fr 1fr" : "1fr 0fr",
     height: `calc(100vh - ${navHeight + topbarHeight}px)`,
     overflow: "hidden",
   },
@@ -464,6 +464,8 @@ const useStyles = makeStyles<
     overflowY: "auto",
   },
   panel: {
+    padding: theme.spacing(1),
+
     "&.hidden": {
       display: "none",
     },
@@ -482,26 +484,42 @@ const useStyles = makeStyles<
   },
   tab: {
     cursor: "pointer",
-    padding: "8px 12px",
-    fontSize: 14,
+    padding: theme.spacing(1.5),
+    fontSize: 10,
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    fontWeight: 600,
     background: "transparent",
     fontFamily: "inherit",
     border: 0,
-    color: theme.palette.text.hint,
+    color: theme.palette.text.secondary,
     transition: "150ms ease all",
     display: "flex",
     gap: 8,
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
 
     "& svg": {
-      maxWidth: 16,
-      maxHeight: 16,
+      maxWidth: 12,
+      maxHeight: 12,
     },
 
     "&.active": {
-      color: "white",
-      background: theme.palette.background.paperLight,
+      color: theme.palette.text.primary,
+      "&:after": {
+        content: '""',
+        display: "block",
+        width: "100%",
+        height: 1,
+        backgroundColor: theme.palette.text.primary,
+        bottom: -1,
+        position: "absolute",
+      },
+    },
+
+    "&:hover": {
+      color: theme.palette.text.primary,
     },
   },
   tabBar: {

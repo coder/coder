@@ -15,9 +15,7 @@ import (
 )
 
 func resetPassword() *cobra.Command {
-	var (
-		postgresURL string
-	)
+	var postgresURL string
 
 	root := &cobra.Command{
 		Use:   "reset-password <username>",

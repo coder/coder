@@ -15,10 +15,10 @@ import (
 
 // activityBumpWorkspace automatically bumps the workspace's auto-off timer
 // if it is set to expire soon.
-func activityBumpWorkspace(log slog.Logger, db database.Store, workspaceID uuid.UUID) {
+func activityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Store, workspaceID uuid.UUID) {
 	// We set a short timeout so if the app is under load, these
 	// low priority operations fail first.
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 	defer cancel()
 
 	err := db.InTx(func(s database.Store) error {
@@ -70,21 +70,28 @@ func activityBumpWorkspace(log slog.Logger, db database.Store, workspaceID uuid.
 		}
 
 		newDeadline := database.Now().Add(bumpAmount)
+		if !build.MaxDeadline.IsZero() && newDeadline.After(build.MaxDeadline) {
+			newDeadline = build.MaxDeadline
+		}
 
 		if _, err := s.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               build.ID,
 			UpdatedAt:        database.Now(),
 			ProvisionerState: build.ProvisionerState,
 			Deadline:         newDeadline,
+			MaxDeadline:      build.MaxDeadline,
 		}); err != nil {
 			return xerrors.Errorf("update workspace build: %w", err)
 		}
 		return nil
 	}, nil)
 	if err != nil {
-		log.Error(ctx, "bump failed", slog.Error(err),
-			slog.F("workspace_id", workspaceID),
-		)
+		if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
+			// Bump will fail if the context is canceled, but this is ok.
+			log.Error(ctx, "bump failed", slog.Error(err),
+				slog.F("workspace_id", workspaceID),
+			)
+		}
 		return
 	}
 

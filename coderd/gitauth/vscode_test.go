@@ -45,7 +45,7 @@ func TestOverrideVSCodeConfigs(t *testing.T) {
 		data, err := json.Marshal(mapping)
 		require.NoError(t, err)
 		for _, configPath := range configPaths {
-			err = afero.WriteFile(fs, configPath, data, 0600)
+			err = afero.WriteFile(fs, configPath, data, 0o600)
 			require.NoError(t, err)
 		}
 		err = gitauth.OverrideVSCodeConfigs(fs)

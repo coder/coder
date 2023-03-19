@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -16,10 +14,12 @@ import (
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/searchquery"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/coderd/util/slice"
@@ -37,7 +37,8 @@ import (
 // @Router /users/first [get]
 func (api *API) firstUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	userCount, err := api.Database.GetUserCount(ctx)
+	// nolint:gocritic // Getting user count is a system function.
+	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user count.",
@@ -77,7 +78,8 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// This should only function for the first user.
-	userCount, err := api.Database.GetUserCount(ctx)
+	// nolint:gocritic // Getting user count is a system function.
+	userCount, err := api.Database.GetUserCount(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user count.",
@@ -117,7 +119,8 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, organizationID, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
+	//nolint:gocritic // needed to create first user
+	user, organizationID, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Email:    createUser.Email,
 			Username: createUser.Username,
@@ -146,7 +149,8 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// 	the user. Maybe I add this ability to grant roles in the createUser api
 	//	and add some rbac bypass when calling api functions this way??
 	// Add the admin role to this first user.
-	_, err = api.Database.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
+	//nolint:gocritic // needed to create first user
+	_, err = api.Database.UpdateUserRoles(dbauthz.AsSystemRestricted(ctx), database.UpdateUserRolesParams{
 		GrantedRoles: []string{rbac.RoleOwner()},
 		ID:           user.ID,
 	})
@@ -178,7 +182,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query().Get("q")
-	params, errs := userSearchQuery(query)
+	params, errs := searchquery.Users(query)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid user search query.",
@@ -293,6 +297,15 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If password auth is disabled, don't allow new users to be
+	// created with a password!
+	if api.DeploymentValues.DisablePasswordAuth {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You cannot manually provision new users with password authentication disabled!",
+		})
+		return
+	}
+
 	// TODO: @emyrk Authorize the organization create if the createUser will do that.
 
 	_, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
@@ -374,6 +387,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := *api.Auditor.Load()
 	user := httpmw.UserParam(r)
+	auth := httpmw.UserAuthorization(r)
 	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
 		Audit:   auditor,
 		Log:     api.Logger,
@@ -385,6 +399,13 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 
 	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceUser) {
 		httpapi.Forbidden(rw)
+		return
+	}
+
+	if auth.Actor.ID == user.ID.String() {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You cannot delete yourself!",
+		})
 		return
 	}
 
@@ -987,7 +1008,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	organizationName := chi.URLParam(r, "organizationname")
 	organization, err := api.Database.GetOrganizationByName(ctx, organizationName)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) || rbac.IsUnauthorizedError(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -1145,60 +1166,6 @@ func findUser(id uuid.UUID, users []database.User) *database.User {
 	return nil
 }
 
-func userSearchQuery(query string) (database.GetUsersParams, []codersdk.ValidationError) {
-	searchParams := make(url.Values)
-	if query == "" {
-		// No filter
-		return database.GetUsersParams{}, nil
-	}
-	query = strings.ToLower(query)
-	// Because we do this in 2 passes, we want to maintain quotes on the first
-	// pass.Further splitting occurs on the second pass and quotes will be
-	// dropped.
-	elements := splitQueryParameterByDelimiter(query, ' ', true)
-	for _, element := range elements {
-		parts := splitQueryParameterByDelimiter(element, ':', false)
-		switch len(parts) {
-		case 1:
-			// No key:value pair.
-			searchParams.Set("search", parts[0])
-		case 2:
-			searchParams.Set(parts[0], parts[1])
-		default:
-			return database.GetUsersParams{}, []codersdk.ValidationError{
-				{Field: "q", Detail: fmt.Sprintf("Query element %q can only contain 1 ':'", element)},
-			}
-		}
-	}
-
-	parser := httpapi.NewQueryParamParser()
-	filter := database.GetUsersParams{
-		Search:   parser.String(searchParams, "", "search"),
-		Status:   httpapi.ParseCustom(parser, searchParams, []database.UserStatus{}, "status", parseUserStatus),
-		RbacRole: parser.Strings(searchParams, []string{}, "role"),
-	}
-
-	return filter, parser.Errors
-}
-
-// parseUserStatus ensures proper enums are used for user statuses
-func parseUserStatus(v string) ([]database.UserStatus, error) {
-	var statuses []database.UserStatus
-	if v == "" {
-		return statuses, nil
-	}
-	parts := strings.Split(v, ",")
-	for _, part := range parts {
-		switch database.UserStatus(part) {
-		case database.UserStatusActive, database.UserStatusSuspended:
-			statuses = append(statuses, database.UserStatus(part))
-		default:
-			return []database.UserStatus{}, xerrors.Errorf("%q is not a valid user status", part)
-		}
-	}
-	return statuses, nil
-}
-
 func convertAPIKey(k database.APIKey) codersdk.APIKey {
 	return codersdk.APIKey{
 		ID:              k.ID,
@@ -1210,5 +1177,6 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		LoginType:       codersdk.LoginType(k.LoginType),
 		Scope:           codersdk.APIKeyScope(k.Scope),
 		LifetimeSeconds: k.LifetimeSeconds,
+		TokenName:       k.TokenName,
 	}
 }

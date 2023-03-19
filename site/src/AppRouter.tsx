@@ -7,7 +7,6 @@ import GroupsPage from "pages/GroupsPage/GroupsPage"
 import LoginPage from "pages/LoginPage/LoginPage"
 import { SetupPage } from "pages/SetupPage/SetupPage"
 import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
-import { WorkspaceBuildParametersPage } from "pages/WorkspaceBuildParametersPage/WorkspaceBuildParametersPage"
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
 import UsersPage from "pages/UsersPage/UsersPage"
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage"
@@ -44,9 +43,6 @@ const WorkspaceBuildPage = lazy(
   () => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"),
 )
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"))
-const WorkspaceChangeVersionPage = lazy(
-  () => import("./pages/WorkspaceChangeVersionPage/WorkspaceChangeVersionPage"),
-)
 const WorkspaceSchedulePage = lazy(
   () => import("./pages/WorkspaceSchedulePage/WorkspaceSchedulePage"),
 )
@@ -123,6 +119,16 @@ const StarterTemplatePage = lazy(
 const CreateTemplatePage = lazy(
   () => import("./pages/CreateTemplatePage/CreateTemplatePage"),
 )
+const TemplateVariablesPage = lazy(
+  () => import("./pages/TemplateVariablesPage/TemplateVariablesPage"),
+)
+const WorkspaceSettingsPage = lazy(
+  () => import("./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"),
+)
+
+const CreateTokenPage = lazy(
+  () => import("./pages/CreateTokenPage/CreateTokenPage"),
+)
 
 export const AppRouter: FC = () => {
   return (
@@ -160,6 +166,7 @@ export const AppRouter: FC = () => {
 
                   <Route path="workspace" element={<CreateWorkspacePage />} />
                   <Route path="settings" element={<TemplateSettingsPage />} />
+                  <Route path="variables" element={<TemplateVariablesPage />} />
                   <Route path="versions">
                     <Route path=":version">
                       <Route index element={<TemplateVersionPage />} />
@@ -211,7 +218,10 @@ export const AppRouter: FC = () => {
                 <Route path="account" element={<AccountPage />} />
                 <Route path="security" element={<SecurityPage />} />
                 <Route path="ssh-keys" element={<SSHKeysPage />} />
-                <Route path="tokens" element={<TokensPage />} />
+                <Route path="tokens">
+                  <Route index element={<TokensPage />} />
+                  <Route path="new" element={<CreateTokenPage />} />
+                </Route>
               </Route>
 
               <Route path="/@:username">
@@ -222,14 +232,7 @@ export const AppRouter: FC = () => {
                     path="builds/:buildNumber"
                     element={<WorkspaceBuildPage />}
                   />
-                  <Route
-                    path="change-version"
-                    element={<WorkspaceChangeVersionPage />}
-                  />
-                  <Route
-                    path="build-parameters"
-                    element={<WorkspaceBuildParametersPage />}
-                  />
+                  <Route path="settings" element={<WorkspaceSettingsPage />} />
                 </Route>
               </Route>
             </Route>

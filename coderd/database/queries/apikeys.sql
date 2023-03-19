@@ -8,11 +8,27 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetAPIKeyByName :one
+SELECT
+	*
+FROM
+	api_keys
+WHERE
+	user_id = @user_id AND
+	token_name = @token_name AND
+-- there is no unique constraint on empty token names
+	token_name != ''
+LIMIT
+	1;
+
 -- name: GetAPIKeysLastUsedAfter :many
 SELECT * FROM api_keys WHERE last_used > $1;
 
 -- name: GetAPIKeysByLoginType :many
 SELECT * FROM api_keys WHERE login_type = $1;
+
+-- name: GetAPIKeysByUserID :many
+SELECT * FROM api_keys WHERE login_type = $1 AND user_id = $2;
 
 -- name: InsertAPIKey :one
 INSERT INTO
@@ -27,7 +43,8 @@ INSERT INTO
 		created_at,
 		updated_at,
 		login_type,
-		scope
+		scope,
+		token_name
 	)
 VALUES
 	(@id,
@@ -36,7 +53,7 @@ VALUES
 	     WHEN 0 THEN 86400
 		 ELSE @lifetime_seconds::bigint
 	 END
-	 , @hashed_secret, @ip_address, @user_id, @last_used, @expires_at, @created_at, @updated_at, @login_type, @scope) RETURNING *;
+	 , @hashed_secret, @ip_address, @user_id, @last_used, @expires_at, @created_at, @updated_at, @login_type, @scope, @token_name) RETURNING *;
 
 -- name: UpdateAPIKeyByID :exec
 UPDATE

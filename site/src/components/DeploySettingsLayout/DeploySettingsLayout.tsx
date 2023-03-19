@@ -5,15 +5,16 @@ import { Sidebar } from "./Sidebar"
 import { createContext, Suspense, useContext, FC } from "react"
 import { useMachine } from "@xstate/react"
 import { Loader } from "components/Loader/Loader"
-import { DeploymentConfig, DeploymentDAUsResponse } from "api/typesGenerated"
+import { DeploymentDAUsResponse } from "api/typesGenerated"
 import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
 import { usePermissions } from "hooks/usePermissions"
 import { Outlet } from "react-router-dom"
+import { DeploymentConfig } from "api/types"
 
 type DeploySettingsContextValue = {
-  deploymentConfig: DeploymentConfig
-  getDeploymentConfigError: unknown
+  deploymentValues: DeploymentConfig
+  getDeploymentValuesError: unknown
   deploymentDAUs?: DeploymentDAUsResponse
   getDeploymentDAUsError: unknown
 }
@@ -36,24 +37,24 @@ export const DeploySettingsLayout: FC = () => {
   const [state] = useMachine(deploymentConfigMachine)
   const styles = useStyles()
   const {
-    deploymentConfig,
+    deploymentValues,
     deploymentDAUs,
-    getDeploymentConfigError,
+    getDeploymentValuesError,
     getDeploymentDAUsError,
   } = state.context
   const permissions = usePermissions()
 
   return (
-    <RequirePermission isFeatureVisible={permissions.viewDeploymentConfig}>
+    <RequirePermission isFeatureVisible={permissions.viewDeploymentValues}>
       <Margins>
         <Stack className={styles.wrapper} direction="row" spacing={6}>
           <Sidebar />
           <main className={styles.content}>
-            {deploymentConfig ? (
+            {deploymentValues ? (
               <DeploySettingsContext.Provider
                 value={{
-                  deploymentConfig,
-                  getDeploymentConfigError,
+                  deploymentValues,
+                  getDeploymentValuesError,
                   deploymentDAUs,
                   getDeploymentDAUsError,
                 }}

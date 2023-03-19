@@ -3,7 +3,6 @@ import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import BlockIcon from "@material-ui/icons/Block"
 import CloudQueueIcon from "@material-ui/icons/CloudQueue"
-import UpdateOutlined from "@material-ui/icons/UpdateOutlined"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
 import CropSquareIcon from "@material-ui/icons/CropSquare"
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline"
@@ -26,6 +25,7 @@ export const UpdateButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
 
   return (
     <Button
+      variant="outlined"
       className={styles.actionButton}
       startIcon={<CloudQueueIcon />}
       onClick={handleAction}
@@ -35,36 +35,20 @@ export const UpdateButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
   )
 }
 
-export const ChangeVersionButton: FC<
-  React.PropsWithChildren<WorkspaceAction>
-> = ({ handleAction }) => {
+export const SettingsButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
+  handleAction,
+}) => {
   const styles = useStyles()
   const { t } = useTranslation("workspacePage")
 
   return (
     <Button
-      className={styles.actionButton}
-      startIcon={<UpdateOutlined />}
-      onClick={handleAction}
-    >
-      {t("actionButton.changeVersion")}
-    </Button>
-  )
-}
-
-export const BuildParametersButton: FC<
-  React.PropsWithChildren<WorkspaceAction>
-> = ({ handleAction }) => {
-  const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
-
-  return (
-    <Button
+      variant="outlined"
       className={styles.actionButton}
       startIcon={<SettingsOutlined />}
       onClick={handleAction}
     >
-      {t("actionButton.buildParameters")}
+      {t("actionButton.settings")}
     </Button>
   )
 }
@@ -150,7 +134,7 @@ export const DisabledButton: FC<React.PropsWithChildren<DisabledProps>> = ({
   const styles = useStyles()
 
   return (
-    <Button disabled className={styles.actionButton}>
+    <Button variant="outlined" disabled className={styles.actionButton}>
       {label}
     </Button>
   )
@@ -167,6 +151,7 @@ export const ActionLoadingButton: FC<React.PropsWithChildren<LoadingProps>> = ({
   return (
     <LoadingButton
       loading
+      variant="outlined"
       loadingLabel={label}
       className={combineClasses([styles.loadingButton, styles.actionButton])}
     />
@@ -178,13 +163,17 @@ const useStyles = makeStyles((theme) => ({
     // Set fixed width for the action buttons so they will not change the size
     // during the transitions
     width: theme.spacing(20),
-    border: "none",
     borderRadius: `${theme.shape.borderRadius}px 0px 0px ${theme.shape.borderRadius}px`,
+    // This is used to show the hover effect
+    marginRight: -1,
+    position: "relative",
+    "&:hover": {
+      zIndex: 1,
+    },
   },
   cancelButton: {
     "&.MuiButton-root": {
       padding: "0px 0px !important",
-      border: "none",
       borderLeft: `1px solid ${theme.palette.divider}`,
       borderRadius: `0px ${theme.shape.borderRadius}px ${theme.shape.borderRadius}px 0px`,
       width: "63px", // matching dropdown button so button grouping doesn't grow in size

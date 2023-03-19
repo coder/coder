@@ -10,6 +10,12 @@ import {
 export default {
   title: "pages/TemplateSettingsPageView",
   component: TemplateSettingsPageView,
+  args: {
+    canSetMaxTTL: true,
+    template: Mocks.MockTemplate,
+    onSubmit: action("onSubmit"),
+    onCancel: action("cancel"),
+  },
 }
 
 const Template: Story<TemplateSettingsPageViewProps> = (args) => (
@@ -17,10 +23,11 @@ const Template: Story<TemplateSettingsPageViewProps> = (args) => (
 )
 
 export const Example = Template.bind({})
-Example.args = {
-  template: Mocks.MockTemplate,
-  onSubmit: action("onSubmit"),
-  onCancel: action("cancel"),
+Example.args = {}
+
+export const CantSetMaxTTL = Template.bind({})
+CantSetMaxTTL.args = {
+  canSetMaxTTL: false,
 }
 
 export const GetTemplateError = Template.bind({})
@@ -32,13 +39,10 @@ GetTemplateError.args = {
       detail: "You do not have permission to access this resource.",
     }),
   },
-  onSubmit: action("onSubmit"),
-  onCancel: action("cancel"),
 }
 
 export const SaveTemplateSettingsError = Template.bind({})
 SaveTemplateSettingsError.args = {
-  template: Mocks.MockTemplate,
   errors: {
     saveTemplateSettingsError: makeMockApiError({
       message: 'Template "test" already exists.',
@@ -51,8 +55,6 @@ SaveTemplateSettingsError.args = {
     }),
   },
   initialTouched: {
-    name: true,
+    allow_user_cancel_workspace_jobs: true,
   },
-  onSubmit: action("onSubmit"),
-  onCancel: action("cancel"),
 }

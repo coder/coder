@@ -11,7 +11,7 @@ import * as TypesGen from "../../api/typesGenerated"
 import { combineClasses } from "../../util/combineClasses"
 import { AvatarData } from "../AvatarData/AvatarData"
 import { EmptyState } from "../EmptyState/EmptyState"
-import { TableLoader } from "../TableLoader/TableLoader"
+import { TableLoaderSkeleton } from "../TableLoader/TableLoader"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { EditRolesButton } from "components/EditRolesButton/EditRolesButton"
 import { Stack } from "components/Stack/Stack"
@@ -44,6 +44,7 @@ interface UsersTableBodyProps {
     roles: TypesGen.Role["name"][],
   ) => void
   isNonInitialPage: boolean
+  actorID: string
 }
 
 export const UsersTableBody: FC<
@@ -61,6 +62,7 @@ export const UsersTableBody: FC<
   canEditUsers,
   isLoading,
   isNonInitialPage,
+  actorID,
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("usersPage")
@@ -68,7 +70,7 @@ export const UsersTableBody: FC<
   return (
     <ChooseOne>
       <Cond condition={Boolean(isLoading)}>
-        <TableLoader />
+        <TableLoaderSkeleton columns={4} useAvatarData />
       </Cond>
       <Cond condition={!users || users.length === 0}>
         <ChooseOne>
@@ -165,26 +167,31 @@ export const UsersTableBody: FC<
                                 {
                                   label: t("suspendMenuItem"),
                                   onClick: onSuspendUser,
+                                  disabled: false,
                                 },
                               ]
                             : [
                                 {
                                   label: t("activateMenuItem"),
                                   onClick: onActivateUser,
+                                  disabled: false,
                                 },
                               ]
                           ).concat(
                             {
                               label: t("deleteMenuItem"),
                               onClick: onDeleteUser,
+                              disabled: user.id === actorID,
                             },
                             {
                               label: t("listWorkspacesMenuItem"),
                               onClick: onListWorkspaces,
+                              disabled: false,
                             },
                             {
                               label: t("resetPasswordMenuItem"),
                               onClick: onResetUserPassword,
+                              disabled: false,
                             },
                           )
                         }

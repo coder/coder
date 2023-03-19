@@ -73,6 +73,12 @@ Use the following `make` commands and scripts in development:
 - `make install` installs binaries to `$GOPATH/bin`
 - `make test`
 
+### Running Coder on development mode
+
+- Run `./scripts/develop.sh`
+- Access `http://localhost:8080`
+- The default user is `admin@coder.com` and the default password is `SomeSecurePassword!`
+
 ### Adding database migrations and fixtures
 
 #### Database migrations
@@ -236,3 +242,7 @@ Breaking changes can be triggered in two ways:
 ### Security
 
 The [`security`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Asecurity) label can be added to PRs that have, or will be, merged into `main`. Doing so will make sure the change stands out in the release notes.
+
+### Experimental
+
+The [`release/experimental`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Arelease%2Fexperimental) label can be used to move the note to the bottom of the release notes under a separate title.

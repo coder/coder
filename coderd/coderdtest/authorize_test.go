@@ -2,15 +2,21 @@ package coderdtest_test
 
 import (
 	"context"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/codersdk"
 )
 
 func TestAuthorizeAllEndpoints(t *testing.T) {
+	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), string(codersdk.ExperimentAuthzQuerier)) {
+		t.Skip("Skipping TestAuthorizeAllEndpoints for authz_querier experiment")
+	}
 	t.Parallel()
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		// Required for any subdomain-based proxy tests to pass.

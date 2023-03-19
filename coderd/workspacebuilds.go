@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/provisionerdserver"
@@ -46,6 +47,24 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
 			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Ensure we have the job and template version for the workspace build.
+	// Otherwise we risk a panic in the api.convertWorkspaceBuild call below.
+	if len(data.jobs) == 0 {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Internal error getting workspace build data.",
+			Detail:  "No job found for workspace build.",
+		})
+		return
+	}
+
+	if len(data.templateVersions) == 0 {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Internal error getting workspace build data.",
+			Detail:  "No template version found for workspace build.",
 		})
 		return
 	}
@@ -477,6 +496,39 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 	apiLastBuildParameters := convertWorkspaceBuildParameters(lastBuildParameters)
 
+	legacyParameters, err := api.Database.ParameterValues(ctx, database.ParameterValuesParams{
+		Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
+		ScopeIds: []uuid.UUID{workspace.ID},
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error fetching previous legacy parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Rich parameters migration: include legacy variables to the last build parameters
+	for _, templateVersionParameter := range templateVersionParameters {
+		// Check if parameter is defined in previous build
+		if _, found := findWorkspaceBuildParameter(apiLastBuildParameters, templateVersionParameter.Name); found {
+			continue
+		}
+
+		// Check if legacy variable is defined
+		for _, legacyParameter := range legacyParameters {
+			if legacyParameter.Name != templateVersionParameter.LegacyVariableName {
+				continue
+			}
+
+			apiLastBuildParameters = append(apiLastBuildParameters, codersdk.WorkspaceBuildParameter{
+				Name:  templateVersionParameter.Name,
+				Value: legacyParameter.SourceValue,
+			})
+			break
+		}
+	}
+
 	err = codersdk.ValidateWorkspaceBuildParameters(templateVersionParameters, createBuild.RichParameterValues, apiLastBuildParameters)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -492,7 +544,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		if buildParameter, found := findWorkspaceBuildParameter(createBuild.RichParameterValues, templateVersionParameter.Name); found {
 			if !templateVersionParameter.Mutable {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: fmt.Sprintf("Parameter %q is mutable, so it can't be updated after creating workspace.", templateVersionParameter.Name),
+					Message: fmt.Sprintf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", templateVersionParameter.Name),
 				})
 				return
 			}
@@ -504,26 +556,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		if buildParameter, found := findWorkspaceBuildParameter(apiLastBuildParameters, templateVersionParameter.Name); found {
 			parameters = append(parameters, *buildParameter)
 		}
-	}
-
-	legacyParameters, err := api.Database.ParameterValues(ctx, database.ParameterValuesParams{
-		Scopes:   []database.ParameterScope{database.ParameterScopeWorkspace},
-		ScopeIds: []uuid.UUID{workspace.ID},
-	})
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error fetching previous legacy parameters.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	if createBuild.Transition == codersdk.WorkspaceTransitionStart &&
-		len(legacyParameters) > 0 && len(parameters) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Rich parameters can't be used together with legacy parameters.",
-		})
-		return
 	}
 
 	var workspaceBuild database.WorkspaceBuild
@@ -892,8 +924,18 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get template",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
+	// You must have update permissions on the template to get the state.
+	// This matches a push!
+	if !api.Authorize(r, rbac.ActionUpdate, template.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -939,12 +981,15 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	for _, build := range workspaceBuilds {
 		templateVersionIDs = append(templateVersionIDs, build.TemplateVersionID)
 	}
-	templateVersions, err := api.Database.GetTemplateVersionsByIDs(ctx, templateVersionIDs)
+
+	// nolint:gocritic // Getting template versions by ID is a system function.
+	templateVersions, err := api.Database.GetTemplateVersionsByIDs(dbauthz.AsSystemRestricted(ctx), templateVersionIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get template versions: %w", err)
 	}
 
-	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(ctx, jobIDs)
+	// nolint:gocritic // Getting workspace resources by job ID is a system function.
+	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(dbauthz.AsSystemRestricted(ctx), jobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get workspace resources by job: %w", err)
 	}
@@ -962,12 +1007,14 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 		resourceIDs = append(resourceIDs, resource.ID)
 	}
 
-	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(ctx, resourceIDs)
+	// nolint:gocritic // Getting workspace resource metadata by resource ID is a system function.
+	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("fetching resource metadata: %w", err)
 	}
 
-	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	// nolint:gocritic // Getting workspace agents by resource IDs is a system function.
+	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get workspace agents: %w", err)
 	}
@@ -987,7 +1034,8 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 		agentIDs = append(agentIDs, agent.ID)
 	}
 
-	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(ctx, agentIDs)
+	// nolint:gocritic // Getting workspace apps by agent IDs is a system function.
+	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("fetching workspace apps: %w", err)
 	}
@@ -1112,7 +1160,10 @@ func (api *API) convertWorkspaceBuild(
 		apiAgents := make([]codersdk.WorkspaceAgent, 0)
 		for _, agent := range agents {
 			apps := appsByAgentID[agent.ID]
-			apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(apps), api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
+			apiAgent, err := convertWorkspaceAgent(
+				api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(apps), api.AgentInactiveDisconnectTimeout,
+				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+			)
 			if err != nil {
 				return codersdk.WorkspaceBuild{}, xerrors.Errorf("converting workspace agent: %w", err)
 			}
@@ -1139,6 +1190,7 @@ func (api *API) convertWorkspaceBuild(
 		InitiatorUsername:   initiator.Username,
 		Job:                 apiJob,
 		Deadline:            codersdk.NewNullTime(build.Deadline, !build.Deadline.IsZero()),
+		MaxDeadline:         codersdk.NewNullTime(build.MaxDeadline, !build.MaxDeadline.IsZero()),
 		Reason:              codersdk.BuildReason(build.Reason),
 		Resources:           apiResources,
 		Status:              convertWorkspaceStatus(apiJob.Status, transition),
@@ -1206,7 +1258,7 @@ func convertWorkspaceStatus(jobStatus codersdk.ProvisionerJobStatus, transition 
 }
 
 func convertWorkspaceBuildParameters(parameters []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
-	var apiParameters = make([]codersdk.WorkspaceBuildParameter, 0, len(parameters))
+	apiParameters := make([]codersdk.WorkspaceBuildParameter, 0, len(parameters))
 
 	for _, p := range parameters {
 		apiParameter := codersdk.WorkspaceBuildParameter{

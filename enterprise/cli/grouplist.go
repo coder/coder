@@ -24,9 +24,7 @@ func groupList() *cobra.Command {
 		Short: "List user groups",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var (
-				ctx = cmd.Context()
-			)
+			ctx := cmd.Context()
 
 			client, err := agpl.CreateClient(cmd)
 			if err != nil {

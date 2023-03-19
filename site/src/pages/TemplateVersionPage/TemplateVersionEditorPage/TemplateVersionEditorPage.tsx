@@ -1,6 +1,7 @@
 import { useMachine } from "@xstate/react"
 import { TemplateVersionEditor } from "components/TemplateVersionEditor/TemplateVersionEditor"
 import { useOrganizationId } from "hooks/useOrganizationId"
+import { usePermissions } from "hooks/usePermissions"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useParams } from "react-router-dom"
@@ -16,14 +17,22 @@ type Params = {
 export const TemplateVersionEditorPage: FC = () => {
   const { version: versionName, template: templateName } = useParams() as Params
   const orgId = useOrganizationId()
-  const { isSuccess, data } = useTemplateVersionData(
-    orgId,
-    templateName,
-    versionName,
-  )
   const [editorState, sendEvent] = useMachine(templateVersionEditorMachine, {
     context: { orgId },
   })
+  const permissions = usePermissions()
+  const { isSuccess, data } = useTemplateVersionData(
+    {
+      orgId,
+      templateName,
+      versionName,
+    },
+    {
+      onSuccess(data) {
+        sendEvent({ type: "INITIALIZE", tarReader: data.tarReader })
+      },
+    },
+  )
 
   return (
     <>
@@ -34,7 +43,8 @@ export const TemplateVersionEditorPage: FC = () => {
       {isSuccess && (
         <TemplateVersionEditor
           template={data.template}
-          templateVersion={editorState.context.version || data.currentVersion}
+          deploymentBannerVisible={permissions.viewDeploymentStats}
+          templateVersion={editorState.context.version || data.version}
           defaultFileTree={data.fileTree}
           onPreview={(fileTree) => {
             sendEvent({

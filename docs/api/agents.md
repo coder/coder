@@ -369,6 +369,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/metadata \
   },
   "git_auth_configs": 0,
   "motd_file": "string",
+  "shutdown_script": "string",
+  "shutdown_script_timeout": 0,
   "startup_script": "string",
   "startup_script_timeout": 0,
   "vscode_port_proxy_uri": "string"
@@ -401,13 +403,18 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-stats \
 
 ```json
 {
-  "conns_by_proto": {
+  "connection_count": 0,
+  "connection_median_latency_ms": 0,
+  "connections_by_proto": {
     "property1": 0,
     "property2": 0
   },
-  "num_comms": 0,
   "rx_bytes": 0,
   "rx_packets": 0,
+  "session_count_jetbrains": 0,
+  "session_count_reconnecting_pty": 0,
+  "session_count_ssh": 0,
+  "session_count_vscode": 0,
   "tx_bytes": 0,
   "tx_packets": 0
 }
@@ -510,6 +517,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "name": "string",
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+  "shutdown_script": "string",
+  "shutdown_script_timeout_seconds": 0,
   "startup_script": "string",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",

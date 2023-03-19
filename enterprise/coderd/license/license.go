@@ -12,6 +12,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -39,12 +40,14 @@ func Entitlements(
 		}
 	}
 
-	licenses, err := db.GetUnexpiredLicenses(ctx)
+	// nolint:gocritic // Getting unexpired licenses is a system function.
+	licenses, err := db.GetUnexpiredLicenses(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return entitlements, err
 	}
 
-	activeUserCount, err := db.GetActiveUserCount(ctx)
+	// nolint:gocritic // Getting active user count is a system function.
+	activeUserCount, err := db.GetActiveUserCount(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
 		return entitlements, xerrors.Errorf("query active user count: %w", err)
 	}
@@ -98,6 +101,7 @@ func Entitlements(
 		if claims.AllFeatures {
 			allFeatures = true
 		}
+		entitlements.RequireTelemetry = entitlements.RequireTelemetry || claims.RequireTelemetry
 	}
 
 	if allFeatures {
@@ -224,13 +228,14 @@ type Claims struct {
 	// the end of the grace period (identical to LicenseExpires if there is no grace period).
 	// The reason we use the standard claim for the end of the grace period is that we want JWT
 	// processing libraries to consider the token "valid" until then.
-	LicenseExpires *jwt.NumericDate `json:"license_expires,omitempty"`
-	AccountType    string           `json:"account_type,omitempty"`
-	AccountID      string           `json:"account_id,omitempty"`
-	Trial          bool             `json:"trial"`
-	AllFeatures    bool             `json:"all_features"`
-	Version        uint64           `json:"version"`
-	Features       Features         `json:"features"`
+	LicenseExpires   *jwt.NumericDate `json:"license_expires,omitempty"`
+	AccountType      string           `json:"account_type,omitempty"`
+	AccountID        string           `json:"account_id,omitempty"`
+	Trial            bool             `json:"trial"`
+	AllFeatures      bool             `json:"all_features"`
+	Version          uint64           `json:"version"`
+	Features         Features         `json:"features"`
+	RequireTelemetry bool             `json:"require_telemetry,omitempty"`
 }
 
 // ParseRaw consumes a license and returns the claims.

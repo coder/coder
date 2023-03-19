@@ -811,7 +811,7 @@ func TestAuthorizeScope(t *testing.T) {
 			Role: Role{
 				Name:        "workspace_agent",
 				DisplayName: "Workspace Agent",
-				Site: permissions(map[string][]Action{
+				Site: Permissions(map[string][]Action{
 					// Only read access for workspaces.
 					ResourceWorkspace.Type: {ActionRead},
 				}),
@@ -900,7 +900,7 @@ func TestAuthorizeScope(t *testing.T) {
 			Role: Role{
 				Name:        "create_workspace",
 				DisplayName: "Create Workspace",
-				Site: permissions(map[string][]Action{
+				Site: Permissions(map[string][]Action{
 					// Only read access for workspaces.
 					ResourceWorkspace.Type: {ActionCreate},
 				}),
@@ -1038,7 +1038,6 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 		}
 	}
 }
-
 
 func must[T any](value T, err error) T {
 	if err != nil {

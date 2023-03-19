@@ -20,6 +20,8 @@ type cachedCalls struct {
 // multiple calls are made to the Authorizer for the same subject, action, and
 // object. The cache is on each `ctx` and is not shared between requests.
 // If no cache is found on the context, the Authorizer is called as normal.
+//
+// Cacher is safe for multiple actors.
 func Cacher(authz Authorizer) Authorizer {
 	return &cachedCalls{authz: authz}
 }
@@ -57,7 +59,7 @@ type authorizeCache struct {
 	calls []cachedAuthCall
 }
 
-//nolint:error-return,revive
+//nolint:revive
 func (c *authorizeCache) Load(subject Subject, action Action, object Object) (error, bool) {
 	if c == nil {
 		return nil, false

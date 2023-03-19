@@ -25,6 +25,13 @@ func setup(db *sql.DB) (source.Driver, *migrate.Migrate, error) {
 		return nil, nil, xerrors.Errorf("create iofs: %w", err)
 	}
 
+	// migration_cursor is a v1 migration table. If this exists, we're on v1.
+	// Do no run v2 migrations on a v1 database!
+	row := db.QueryRowContext(ctx, "SELECT * FROM migration_cursor;")
+	if row.Err() == nil {
+		return nil, nil, xerrors.Errorf("currently connected to a Coder v1 database, aborting database setup")
+	}
+
 	// there is a postgres.WithInstance() method that takes the DB instance,
 	// but, when you close the resulting Migrate, it closes the DB, which
 	// we don't want.  Instead, create just a connection that will get closed

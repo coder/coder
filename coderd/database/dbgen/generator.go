@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net"
 	"testing"
@@ -60,13 +61,12 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		Provisioner:                  takeFirst(seed.Provisioner, database.ProvisionerTypeEcho),
 		ActiveVersionID:              takeFirst(seed.ActiveVersionID, uuid.New()),
 		Description:                  takeFirst(seed.Description, namesgenerator.GetRandomName(1)),
-		DefaultTTL:                   takeFirst(seed.DefaultTTL, 3600),
 		CreatedBy:                    takeFirst(seed.CreatedBy, uuid.New()),
 		Icon:                         takeFirst(seed.Icon, namesgenerator.GetRandomName(1)),
 		UserACL:                      seed.UserACL,
 		GroupACL:                     seed.GroupACL,
 		DisplayName:                  takeFirst(seed.DisplayName, namesgenerator.GetRandomName(1)),
-		AllowUserCancelWorkspaceJobs: takeFirst(seed.AllowUserCancelWorkspaceJobs, true),
+		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
 	})
 	require.NoError(t, err, "insert template")
 	return template
@@ -90,6 +90,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 		UpdatedAt:       takeFirst(seed.UpdatedAt, database.Now()),
 		LoginType:       takeFirst(seed.LoginType, database.LoginTypePassword),
 		Scope:           takeFirst(seed.Scope, database.APIKeyScopeAll),
+		TokenName:       takeFirst(seed.TokenName),
 	})
 	require.NoError(t, err, "insert api key")
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
@@ -369,11 +370,8 @@ func GitAuthLink(t testing.TB, db database.Store, orig database.GitAuthLink) dat
 
 func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVersion) database.TemplateVersion {
 	version, err := db.InsertTemplateVersion(context.Background(), database.InsertTemplateVersionParams{
-		ID: takeFirst(orig.ID, uuid.New()),
-		TemplateID: uuid.NullUUID{
-			UUID:  takeFirst(orig.TemplateID.UUID, uuid.New()),
-			Valid: takeFirst(orig.TemplateID.Valid, true),
-		},
+		ID:             takeFirst(orig.ID, uuid.New()),
+		TemplateID:     orig.TemplateID,
 		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
 		CreatedAt:      takeFirst(orig.CreatedAt, database.Now()),
 		UpdatedAt:      takeFirst(orig.UpdatedAt, database.Now()),
@@ -383,6 +381,21 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 		CreatedBy:      takeFirst(orig.CreatedBy, uuid.New()),
 	})
 	require.NoError(t, err, "insert template version")
+	return version
+}
+
+func TemplateVersionVariable(t testing.TB, db database.Store, orig database.TemplateVersionVariable) database.TemplateVersionVariable {
+	version, err := db.InsertTemplateVersionVariable(context.Background(), database.InsertTemplateVersionVariableParams{
+		TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
+		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		Description:       takeFirst(orig.Description, namesgenerator.GetRandomName(1)),
+		Type:              takeFirst(orig.Type, "string"),
+		Value:             takeFirst(orig.Value, ""),
+		DefaultValue:      takeFirst(orig.DefaultValue, namesgenerator.GetRandomName(1)),
+		Required:          takeFirst(orig.Required, false),
+		Sensitive:         takeFirst(orig.Sensitive, false),
+	})
+	require.NoError(t, err, "insert template version variable")
 	return version
 }
 
@@ -423,5 +436,32 @@ func ParameterValue(t testing.TB, db database.Store, seed database.ParameterValu
 		DestinationScheme: takeFirst(seed.DestinationScheme, database.ParameterDestinationSchemeNone),
 	})
 	require.NoError(t, err, "insert parameter value")
+	return scheme
+}
+
+func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.WorkspaceAgentStat) database.WorkspaceAgentStat {
+	if orig.ConnectionsByProto == nil {
+		orig.ConnectionsByProto = json.RawMessage([]byte("{}"))
+	}
+	scheme, err := db.InsertWorkspaceAgentStat(context.Background(), database.InsertWorkspaceAgentStatParams{
+		ID:                          takeFirst(orig.ID, uuid.New()),
+		CreatedAt:                   takeFirst(orig.CreatedAt, database.Now()),
+		UserID:                      takeFirst(orig.UserID, uuid.New()),
+		TemplateID:                  takeFirst(orig.TemplateID, uuid.New()),
+		WorkspaceID:                 takeFirst(orig.WorkspaceID, uuid.New()),
+		AgentID:                     takeFirst(orig.AgentID, uuid.New()),
+		ConnectionsByProto:          orig.ConnectionsByProto,
+		ConnectionCount:             takeFirst(orig.ConnectionCount, 0),
+		RxPackets:                   takeFirst(orig.RxPackets, 0),
+		RxBytes:                     takeFirst(orig.RxBytes, 0),
+		TxPackets:                   takeFirst(orig.TxPackets, 0),
+		TxBytes:                     takeFirst(orig.TxBytes, 0),
+		SessionCountVSCode:          takeFirst(orig.SessionCountVSCode, 0),
+		SessionCountJetBrains:       takeFirst(orig.SessionCountJetBrains, 0),
+		SessionCountReconnectingPTY: takeFirst(orig.SessionCountReconnectingPTY, 0),
+		SessionCountSSH:             takeFirst(orig.SessionCountSSH, 0),
+		ConnectionMedianLatencyMS:   takeFirst(orig.ConnectionMedianLatencyMS, 0),
+	})
+	require.NoError(t, err, "insert workspace agent stat")
 	return scheme
 }

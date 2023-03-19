@@ -67,14 +67,12 @@ func TestTelemetry(t *testing.T) {
 		_ = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			Transition: database.WorkspaceTransitionStart,
 		})
+		_ = dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{})
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: database.Now(),
 			JWT:        "",
 			Exp:        database.Now().Add(time.Hour),
-			Uuid: uuid.NullUUID{
-				UUID:  uuid.New(),
-				Valid: true,
-			},
+			UUID:       uuid.New(),
 		})
 		assert.NoError(t, err)
 		_, snapshot := collectSnapshot(t, db)
@@ -89,6 +87,7 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceAgents, 1)
 		require.Len(t, snapshot.WorkspaceBuilds, 1)
 		require.Len(t, snapshot.WorkspaceResources, 1)
+		require.Len(t, snapshot.WorkspaceAgentStats, 1)
 	})
 	t.Run("HashedEmail", func(t *testing.T) {
 		t.Parallel()

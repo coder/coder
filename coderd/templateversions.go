@@ -19,6 +19,7 @@ import (
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/parameter"
@@ -241,6 +242,149 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, templateVersionParameters)
+}
+
+// @Summary Get git auth by template version
+// @ID get-git-auth-by-template-version
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Success 200 {array} codersdk.TemplateVersionGitAuth
+// @Router /templateversions/{templateversion}/gitauth [get]
+func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var (
+		apiKey          = httpmw.APIKey(r)
+		templateVersion = httpmw.TemplateVersionParam(r)
+		template        = httpmw.TemplateParam(r)
+	)
+
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	rawProviders := templateVersion.GitAuthProviders
+	providers := make([]codersdk.TemplateVersionGitAuth, 0)
+	for _, rawProvider := range rawProviders {
+		var config *gitauth.Config
+		for _, provider := range api.GitAuthConfigs {
+			if provider.ID == rawProvider {
+				config = provider
+				break
+			}
+		}
+		if config == nil {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("The template version references a Git auth provider %q that no longer exists.", rawProvider),
+				Detail:  "You'll need to update the template version to use a different provider.",
+			})
+			return
+		}
+
+		// This is the URL that will redirect the user with a state token.
+		redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/gitauth/%s", config.ID))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to parse access URL.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		query := redirectURL.Query()
+		// The frontend uses a BroadcastChannel to notify listening pages for
+		// Git auth updates if the "notify" query parameter is set.
+		//
+		// It's important we do this in the backend, because the same endpoint
+		// is used for CLI authentication.
+		query.Add("redirect", "/gitauth?notify")
+		redirectURL.RawQuery = query.Encode()
+
+		provider := codersdk.TemplateVersionGitAuth{
+			ID:              config.ID,
+			Type:            config.Type,
+			AuthenticateURL: redirectURL.String(),
+		}
+
+		authLink, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+			ProviderID: config.ID,
+			UserID:     apiKey.UserID,
+		})
+		// If there isn't an auth link, then the user just isn't authenticated.
+		if errors.Is(err, sql.ErrNoRows) {
+			providers = append(providers, provider)
+			continue
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching git auth link.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		_, updated, err := refreshGitToken(ctx, api.Database, apiKey.UserID, config, authLink)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to refresh git auth token.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		// If the token couldn't be validated, then we assume the user isn't
+		// authenticated and return early.
+		if !updated {
+			providers = append(providers, provider)
+			continue
+		}
+		provider.Authenticated = true
+		providers = append(providers, provider)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, providers)
+}
+
+// @Summary Get template variables by template version
+// @ID get-template-variables-by-template-version
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Success 200 {array} codersdk.TemplateVersionVariable
+// @Router /templateversions/{templateversion}/variables [get]
+func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	templateVersion := httpmw.TemplateVersionParam(r)
+	template := httpmw.TemplateParam(r)
+	if !api.Authorize(r, rbac.ActionRead, templateVersion.RBACObject(template)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !job.CompletedAt.Valid {
+		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+			Message: "Job hasn't completed!",
+		})
+		return
+	}
+	dbTemplateVersionVariables, err := api.Database.GetTemplateVersionVariables(ctx, templateVersion.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version variables.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersionVariables(dbTemplateVersionVariables))
 }
 
 // @Summary Get parameters by template version
@@ -906,7 +1050,6 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		Name:           templateVersionName,
 		TemplateID:     templateVersion.TemplateID,
 	})
-
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -1036,7 +1179,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 // @Produce json
 // @Tags Templates
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.CreateTemplateVersionDryRunRequest true "Create template version request"
+// @Param request body codersdk.CreateTemplateVersionRequest true "Create template version request"
 // @Success 201 {object} codersdk.TemplateVersion
 // @Router /organizations/{organization}/templateversions [post]
 func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -1260,7 +1403,8 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 		templateVersionID := uuid.New()
 		jobInput, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
-			TemplateVersionID: templateVersionID,
+			TemplateVersionID:  templateVersionID,
+			UserVariableValues: req.UserVariableValues,
 		})
 		if err != nil {
 			return xerrors.Errorf("marshal job input: %w", err)
@@ -1477,7 +1621,36 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		ValidationMax:        param.ValidationMax,
 		ValidationError:      param.ValidationError,
 		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
+		Required:             param.Required,
+		LegacyVariableName:   param.LegacyVariableName,
 	}, nil
+}
+
+func convertTemplateVersionVariables(dbVariables []database.TemplateVersionVariable) []codersdk.TemplateVersionVariable {
+	variables := make([]codersdk.TemplateVersionVariable, 0)
+	for _, dbVariable := range dbVariables {
+		variables = append(variables, convertTemplateVersionVariable(dbVariable))
+	}
+	return variables
+}
+
+const redacted = "*redacted*"
+
+func convertTemplateVersionVariable(variable database.TemplateVersionVariable) codersdk.TemplateVersionVariable {
+	templateVariable := codersdk.TemplateVersionVariable{
+		Name:         variable.Name,
+		Description:  variable.Description,
+		Type:         variable.Type,
+		Value:        variable.Value,
+		DefaultValue: variable.DefaultValue,
+		Required:     variable.Required,
+		Sensitive:    variable.Sensitive,
+	}
+	if templateVariable.Sensitive {
+		templateVariable.Value = redacted
+		templateVariable.DefaultValue = redacted
+	}
+	return templateVariable
 }
 
 func watchTemplateChannel(id uuid.UUID) string {

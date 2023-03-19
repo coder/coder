@@ -8,23 +8,28 @@ import { TableEmpty } from "components/TableEmpty/TableEmpty"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { Link as RouterLink } from "react-router-dom"
-import { TableLoader } from "../TableLoader/TableLoader"
+import { TableLoaderSkeleton } from "../TableLoader/TableLoader"
 import { WorkspacesRow } from "./WorkspacesRow"
 
 interface TableBodyProps {
   workspaces?: Workspace[]
   isUsingFilter: boolean
   onUpdateWorkspace: (workspace: Workspace) => void
+  error?: Error | unknown
 }
 
 export const WorkspacesTableBody: FC<
   React.PropsWithChildren<TableBodyProps>
-> = ({ workspaces, isUsingFilter, onUpdateWorkspace }) => {
+> = ({ workspaces, isUsingFilter, onUpdateWorkspace, error }) => {
   const { t } = useTranslation("workspacesPage")
   const styles = useStyles()
 
+  if (error) {
+    return <TableEmpty message={t("emptyResultsMessage")} />
+  }
+
   if (!workspaces) {
-    return <TableLoader />
+    return <TableLoaderSkeleton columns={4} useAvatarData />
   }
 
   if (workspaces.length === 0) {

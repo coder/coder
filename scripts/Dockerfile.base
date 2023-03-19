@@ -4,12 +4,15 @@
 FROM alpine:latest
 
 # We use a single RUN command to reduce the number of layers in the image.
+# NOTE: Keep the Terraform version in sync with minTerraformVersion and
+# maxTerraformVersion in provisioner/terraform/install.go.
 RUN apk add --no-cache \
 		curl \
 		wget \
 		bash \
 		git \
-		openssh-client && \
+		openssh-client \
+		terraform=1.3.4-r2 && \
 	addgroup \
 		-g 1000 \
 		coder && \

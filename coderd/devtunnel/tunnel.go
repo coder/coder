@@ -219,7 +219,7 @@ func cfgPath() (string, error) {
 	}
 
 	cfgDir = filepath.Join(cfgDir, "coderv2")
-	err = os.MkdirAll(cfgDir, 0750)
+	err = os.MkdirAll(cfgDir, 0o750)
 	if err != nil {
 		return "", xerrors.Errorf("mkdirall config dir %q: %w", cfgDir, err)
 	}
@@ -327,7 +327,7 @@ func writeConfig(cfg Config) error {
 		return xerrors.Errorf("marshal config: %w", err)
 	}
 
-	err = os.WriteFile(cfgFi, raw, 0600)
+	err = os.WriteFile(cfgFi, raw, 0o600)
 	if err != nil {
 		return xerrors.Errorf("write file: %w", err)
 	}

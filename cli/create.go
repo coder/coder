@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"time"
@@ -141,11 +142,18 @@ func create() *cobra.Command {
 				return err
 			}
 
+			var ttlMillis *int64
+			if stopAfter > 0 {
+				ttlMillis = ptr.Ref(stopAfter.Milliseconds())
+			} else if template.MaxTTLMillis > 0 {
+				ttlMillis = &template.MaxTTLMillis
+			}
+
 			workspace, err := client.CreateWorkspace(cmd.Context(), organization.ID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 				TemplateID:          template.ID,
 				Name:                workspaceName,
 				AutostartSchedule:   schedSpec,
-				TTLMillis:           ptr.Ref(stopAfter.Milliseconds()),
+				TTLMillis:           ttlMillis,
 				ParameterValues:     buildParams.parameters,
 				RichParameterValues: buildParams.richParameters,
 			})
@@ -168,7 +176,7 @@ func create() *cobra.Command {
 	cliflag.StringVarP(cmd.Flags(), &parameterFile, "parameter-file", "", "CODER_PARAMETER_FILE", "", "Specify a file path with parameter values.")
 	cliflag.StringVarP(cmd.Flags(), &richParameterFile, "rich-parameter-file", "", "CODER_RICH_PARAMETER_FILE", "", "Specify a file path with values for rich parameters defined in the template.")
 	cliflag.StringVarP(cmd.Flags(), &startAt, "start-at", "", "CODER_WORKSPACE_START_AT", "", "Specify the workspace autostart schedule. Check `coder schedule start --help` for the syntax.")
-	cliflag.DurationVarP(cmd.Flags(), &stopAfter, "stop-after", "", "CODER_WORKSPACE_STOP_AFTER", 8*time.Hour, "Specify a duration after which the workspace should shut down (e.g. 8h).")
+	cliflag.DurationVarP(cmd.Flags(), &stopAfter, "stop-after", "", "CODER_WORKSPACE_STOP_AFTER", 0, "Specify a duration after which the workspace should shut down (e.g. 8h).")
 	return cmd
 }
 
@@ -322,6 +330,15 @@ PromptRichParamLoop:
 
 	if disclaimerPrinted {
 		_, _ = fmt.Fprintln(cmd.OutOrStdout())
+	}
+
+	err = cliui.GitAuth(ctx, cmd.OutOrStdout(), cliui.GitAuthOptions{
+		Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionGitAuth, error) {
+			return client.TemplateVersionGitAuth(ctx, templateVersion.ID)
+		},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("template version git auth: %w", err)
 	}
 
 	// Run a dry-run with the given parameters to check correctness

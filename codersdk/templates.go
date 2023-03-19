@@ -28,8 +28,11 @@ type Template struct {
 	Description      string                 `json:"description"`
 	Icon             string                 `json:"icon"`
 	DefaultTTLMillis int64                  `json:"default_ttl_ms"`
-	CreatedByID      uuid.UUID              `json:"created_by_id" format:"uuid"`
-	CreatedByName    string                 `json:"created_by_name"`
+	// MaxTTLMillis is an enterprise feature. It's value is only used if your
+	// license is entitled to use the advanced template scheduling feature.
+	MaxTTLMillis  int64     `json:"max_ttl_ms"`
+	CreatedByID   uuid.UUID `json:"created_by_id" format:"uuid"`
+	CreatedByName string    `json:"created_by_name"`
 
 	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
 }
@@ -39,10 +42,12 @@ type TransitionStats struct {
 	P95 *int64 `example:"146"`
 }
 
-type TemplateBuildTimeStats map[WorkspaceTransition]TransitionStats
-type UpdateActiveTemplateVersion struct {
-	ID uuid.UUID `json:"id" validate:"required" format:"uuid"`
-}
+type (
+	TemplateBuildTimeStats      map[WorkspaceTransition]TransitionStats
+	UpdateActiveTemplateVersion struct {
+		ID uuid.UUID `json:"id" validate:"required" format:"uuid"`
+	}
+)
 
 type TemplateRole string
 
@@ -73,12 +78,16 @@ type UpdateTemplateACL struct {
 }
 
 type UpdateTemplateMeta struct {
-	Name                         string `json:"name,omitempty" validate:"omitempty,template_name"`
-	DisplayName                  string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
-	Description                  string `json:"description,omitempty"`
-	Icon                         string `json:"icon,omitempty"`
-	DefaultTTLMillis             int64  `json:"default_ttl_ms,omitempty"`
-	AllowUserCancelWorkspaceJobs bool   `json:"allow_user_cancel_workspace_jobs,omitempty"`
+	Name             string `json:"name,omitempty" validate:"omitempty,template_name"`
+	DisplayName      string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
+	Description      string `json:"description,omitempty"`
+	Icon             string `json:"icon,omitempty"`
+	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
+	// MaxTTLMillis can only be set if your license includes the advanced
+	// template scheduling feature. If you attempt to set this value while
+	// unlicensed, it will be ignored.
+	MaxTTLMillis                 int64 `json:"max_ttl_ms,omitempty"`
+	AllowUserCancelWorkspaceJobs bool  `json:"allow_user_cancel_workspace_jobs,omitempty"`
 }
 
 type TemplateExample struct {
@@ -236,8 +245,7 @@ func (c *Client) TemplateDAUs(ctx context.Context, templateID uuid.UUID) (*Templ
 // AgentStatsReportRequest is a WebSocket request by coderd
 // to the agent for stats.
 // @typescript-ignore AgentStatsReportRequest
-type AgentStatsReportRequest struct {
-}
+type AgentStatsReportRequest struct{}
 
 // AgentStatsReportResponse is returned for each report
 // request by the agent.

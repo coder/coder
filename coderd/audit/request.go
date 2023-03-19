@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/tabbed/pqtype"
@@ -69,8 +70,14 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.AuditableGroup:
 		return typed.Group.Name
 	case database.APIKey:
-		// this isn't used
+		if typed.TokenName != "nil" {
+			return typed.TokenName
+		}
+		// API Keys without names are used for auth
+		// and don't have a target
 		return ""
+	case database.License:
+		return strconv.Itoa(int(typed.ID))
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -94,6 +101,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.Group.ID
 	case database.APIKey:
 		return typed.UserID
+	case database.License:
+		return typed.UUID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -117,6 +126,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeGroup
 	case database.APIKey:
 		return database.ResourceTypeApiKey
+	case database.License:
+		return database.ResourceTypeLicense
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -151,9 +162,11 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			}
 		}
 
-		var diffRaw = []byte("{}")
-		// Only generate diffs if the request succeeded.
-		if sw.Status < 400 {
+		diffRaw := []byte("{}")
+		// Only generate diffs if the request succeeded
+		// and only if we aren't auditing authentication actions
+		if sw.Status < 400 &&
+			req.params.Action != database.AuditActionLogin && req.params.Action != database.AuditActionLogout {
 			diff := Diff(p.Audit, req.Old, req.New)
 
 			var err error

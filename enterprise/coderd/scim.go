@@ -14,6 +14,7 @@ import (
 
 	agpl "github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 )
@@ -155,7 +156,8 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, _, err := api.AGPL.CreateUser(ctx, api.Database, agpl.CreateUserRequest{
+	//nolint:gocritic // needed for SCIM
+	user, _, err := api.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, agpl.CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Username: sUser.UserName,
 			Email:    email,
@@ -207,7 +209,8 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbUser, err := api.Database.GetUserByID(ctx, uid)
+	//nolint:gocritic // needed for SCIM
+	dbUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), uid)
 	if err != nil {
 		_ = handlerutil.WriteError(rw, err)
 		return
@@ -220,7 +223,8 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 		status = database.UserStatusSuspended
 	}
 
-	_, err = api.Database.UpdateUserStatus(r.Context(), database.UpdateUserStatusParams{
+	//nolint:gocritic // needed for SCIM
+	_, err = api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
 		ID:        dbUser.ID,
 		Status:    status,
 		UpdatedAt: database.Now(),

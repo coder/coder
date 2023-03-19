@@ -185,41 +185,7 @@ coder dotfiles -y ${var.dotfiles_uri}
 }
 ```
 
-### Parameters
-
-Templates often contain _parameters_. These are defined by `variable` blocks in
-Terraform. There are two types of parameters:
-
-- **Admin/template-wide parameters** are set when a template is created/updated.
-  These values are often cloud configuration, such as a `VPC`, and are annotated
-  with `sensitive = true` in the template code.
-- **User/workspace parameters** are set when a user creates a workspace. These
-  values are often personalization settings such as "preferred region", "machine
-  type" or "workspace image".
-
-The template sample below uses _admin and user parameters_ to allow developers
-to create workspaces from any image as long as it is in the proper registry:
-
-```hcl
-variable "image_registry_url" {
-  description = "The image registry developers can select"
-  default     = "artifactory1.organization.com"
-  sensitive   = true # admin (template-wide) parameter
-}
-
-variable "docker_image_name" {
-  description = "The image your workspace will start from"
-  default     = "base_image"
-  sensitive   = false # user (workspace) parameter
-}
-
-resource "docker_image" "workspace" {
-  # ... other config
-  name = "${var.image_registry_url}/${var.docker_image_name}"
-}
-```
-
-#### Start/stop
+### Start/stop
 
 [Learn about resource persistence in Coder](./templates/resource-persistence.md)
 
@@ -399,8 +365,9 @@ practices:
   URL](./admin/configure.md#access-url)
 - Manually connect to the resource and check the agent logs (e.g., `kubectl exec`, `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
-  - The Coder agent startup script logs are typically stored in
-    `/tmp/coder-startup-script.log`
+  - The Coder agent startup script logs are typically stored in `/tmp/coder-startup-script.log`
+  - The Coder agent shutdown script logs are typically stored in `/tmp/coder-shutdown-script.log`
+- This can also happen if the websockets are not being forwarded correctly when running Coder behind a reverse proxy. [Read our reverse-proxy docs](https://coder.com/docs/v2/latest/admin/configure#tls--reverse-proxy)
 
 ### Agent does not become ready
 

@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/cryptorand"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -20,8 +19,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cryptorand"
+
 	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/codersdk"
@@ -30,12 +30,6 @@ import (
 )
 
 func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
-	// For any route using SQL filters, we need to know if the database is an
-	// in memory fake. This is because the in memory fake does not use SQL, and
-	// still uses rego. So this boolean indicates how to assert the expected
-	// behavior.
-	_, isMemoryDB := a.api.Database.(dbfake.FakeDatabase)
-
 	// Some quick reused objects
 	workspaceRBACObj := rbac.ResourceWorkspace.WithID(a.Workspace.ID).InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
 	workspaceExecObj := rbac.ResourceWorkspaceExecution.WithID(a.Workspace.ID).InOrg(a.Organization.ID).WithOwner(a.Workspace.OwnerID.String())
@@ -63,6 +57,7 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/csp/reports":      {NoAuthorize: true},
 		"POST:/api/v2/authcheck":        {NoAuthorize: true},
 		"GET:/api/v2/applications/host": {NoAuthorize: true},
+		"GET:/api/v2/deployment/ssh":    {NoAuthorize: true, StatusCode: http.StatusOK},
 
 		// Has it's own auth
 		"GET:/api/v2/users/oauth2/github/callback": {NoAuthorize: true},
@@ -101,6 +96,11 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertObject: rbac.ResourceAPIKey,
 			AssertAction: rbac.ActionRead,
 		},
+		"GET:/api/v2/users/{user}/keys/tokens/{keyname}": {
+			AssertObject: rbac.ResourceAPIKey,
+			AssertAction: rbac.ActionRead,
+		},
+		"GET:/api/v2/users/{user}/keys/tokens/tokenconfig": {NoAuthorize: true},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}": {
 			AssertAction: rbac.ActionRead,
 			AssertObject: workspaceRBACObj,
@@ -134,8 +134,8 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 			AssertObject: workspaceRBACObj,
 		},
 		"GET:/api/v2/workspacebuilds/{workspacebuild}/state": {
-			AssertAction: rbac.ActionRead,
-			AssertObject: workspaceRBACObj,
+			AssertAction: rbac.ActionUpdate,
+			AssertObject: templateObj,
 		},
 		"GET:/api/v2/workspaceagents/{workspaceagent}": {
 			AssertAction: rbac.ActionRead,
@@ -269,16 +269,17 @@ func AGPLRoutes(a *AuthTester) (map[string]string, map[string]RouteCheck) {
 		"POST:/api/v2/workspaces/{workspace}/builds":                    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 		"POST:/api/v2/organizations/{organization}/templateversions":    {StatusCode: http.StatusBadRequest, NoAuthorize: true},
 
-		// Endpoints that use the SQLQuery filter.
+		// For any route using SQL filters, we do not check authorization.
+		// This is because the in memory fake does not use SQL.
 		"GET:/api/v2/workspaces/": {
 			StatusCode:   http.StatusOK,
-			NoAuthorize:  !isMemoryDB,
+			NoAuthorize:  true,
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceWorkspace,
 		},
 		"GET:/api/v2/organizations/{organization}/templates": {
 			StatusCode:   http.StatusOK,
-			NoAuthorize:  !isMemoryDB,
+			NoAuthorize:  true,
 			AssertAction: rbac.ActionRead,
 			AssertObject: rbac.ResourceTemplate,
 		},
@@ -347,12 +348,15 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		t.Fail()
 	}
 	_, err := client.CreateToken(ctx, admin.UserID.String(), codersdk.CreateTokenRequest{
-		Lifetime: time.Hour,
-		Scope:    codersdk.APIKeyScopeAll,
+		Lifetime:  time.Hour,
+		Scope:     codersdk.APIKeyScopeAll,
+		TokenName: namesgenerator.GetRandomName(1),
 	})
 	require.NoError(t, err, "create token")
 
-	apiKeys, err := client.Tokens(ctx, admin.UserID.String())
+	apiKeys, err := client.Tokens(ctx, admin.UserID.String(), codersdk.TokensFilter{
+		IncludeAll: true,
+	})
 	require.NoError(t, err, "get tokens")
 	apiKey := apiKeys[0]
 
@@ -422,6 +426,7 @@ func NewAuthTester(ctx context.Context, t *testing.T, client *codersdk.Client, a
 		"{templatename}":        template.Name,
 		"{workspace_and_agent}": workspace.Name + "." + workspace.LatestBuild.Resources[0].Agents[0].Name,
 		"{keyid}":               apiKey.ID,
+		"{keyname}":             apiKey.TokenName,
 		// Only checking template scoped params here
 		"parameters/{scope}/{id}": fmt.Sprintf("parameters/%s/%s",
 			string(templateParam.Scope), templateParam.ScopeID.String()),
@@ -698,6 +703,7 @@ func (s *PreparedRecorder) Authorize(ctx context.Context, object rbac.Object) er
 	}
 	return s.prepped.Authorize(ctx, object)
 }
+
 func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
 	s.rw.Lock()
 	defer s.rw.Unlock()
@@ -788,7 +794,7 @@ func randomRBACType() string {
 		rbac.ResourceOrganizationMember.Type,
 		rbac.ResourceWildcard.Type,
 		rbac.ResourceLicense.Type,
-		rbac.ResourceDeploymentConfig.Type,
+		rbac.ResourceDeploymentValues.Type,
 		rbac.ResourceReplicas.Type,
 		rbac.ResourceDebugInfo.Type,
 	}

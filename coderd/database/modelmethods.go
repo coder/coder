@@ -2,9 +2,37 @@ package database
 
 import (
 	"sort"
+	"strconv"
 
 	"github.com/coder/coder/coderd/rbac"
 )
+
+type WorkspaceStatus string
+
+const (
+	WorkspaceStatusPending   WorkspaceStatus = "pending"
+	WorkspaceStatusStarting  WorkspaceStatus = "starting"
+	WorkspaceStatusRunning   WorkspaceStatus = "running"
+	WorkspaceStatusStopping  WorkspaceStatus = "stopping"
+	WorkspaceStatusStopped   WorkspaceStatus = "stopped"
+	WorkspaceStatusFailed    WorkspaceStatus = "failed"
+	WorkspaceStatusCanceling WorkspaceStatus = "canceling"
+	WorkspaceStatusCanceled  WorkspaceStatus = "canceled"
+	WorkspaceStatusDeleting  WorkspaceStatus = "deleting"
+	WorkspaceStatusDeleted   WorkspaceStatus = "deleted"
+)
+
+func (s WorkspaceStatus) Valid() bool {
+	switch s {
+	case WorkspaceStatusPending, WorkspaceStatusStarting, WorkspaceStatusRunning,
+		WorkspaceStatusStopping, WorkspaceStatusStopped, WorkspaceStatusFailed,
+		WorkspaceStatusCanceling, WorkspaceStatusCanceled, WorkspaceStatusDeleting,
+		WorkspaceStatusDeleted:
+		return true
+	default:
+		return false
+	}
+}
 
 type AuditableGroup struct {
 	Group
@@ -63,6 +91,11 @@ func (TemplateVersion) RBACObject(template Template) rbac.Object {
 	return template.RBACObject()
 }
 
+// RBACObjectNoTemplate is for orphaned template versions.
+func (v TemplateVersion) RBACObjectNoTemplate() rbac.Object {
+	return rbac.ResourceTemplate.InOrg(v.OrganizationID)
+}
+
 func (g Group) RBACObject() rbac.Object {
 	return rbac.ResourceGroup.WithID(g.ID).
 		InOrg(g.OrganizationID)
@@ -94,6 +127,13 @@ func (m OrganizationMember) RBACObject() rbac.Object {
 		InOrg(m.OrganizationID)
 }
 
+func (m GetOrganizationIDsByMemberIDsRow) RBACObject() rbac.Object {
+	// TODO: This feels incorrect as we are really returning a list of orgmembers.
+	// This return type should be refactored to return a list of orgmembers, not this
+	// special type.
+	return rbac.ResourceUser.WithID(m.UserID)
+}
+
 func (o Organization) RBACObject() rbac.Object {
 	return rbac.ResourceOrganization.
 		WithID(o.ID).
@@ -118,11 +158,29 @@ func (u User) RBACObject() rbac.Object {
 }
 
 func (u User) UserDataRBACObject() rbac.Object {
-	return rbac.ResourceUser.WithID(u.ID).WithOwner(u.ID.String())
+	return rbac.ResourceUserData.WithID(u.ID).WithOwner(u.ID.String())
 }
 
-func (License) RBACObject() rbac.Object {
-	return rbac.ResourceLicense
+func (u GetUsersRow) RBACObject() rbac.Object {
+	return rbac.ResourceUser.WithID(u.ID)
+}
+
+func (u GitSSHKey) RBACObject() rbac.Object {
+	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
+}
+
+func (u GitAuthLink) RBACObject() rbac.Object {
+	// I assume UserData is ok?
+	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
+}
+
+func (u UserLink) RBACObject() rbac.Object {
+	// I assume UserData is ok?
+	return rbac.ResourceUserData.WithOwner(u.UserID.String()).WithID(u.UserID)
+}
+
+func (l License) RBACObject() rbac.Object {
+	return rbac.ResourceLicense.WithIDString(strconv.FormatInt(int64(l.ID), 10))
 }
 
 func ConvertUserRows(rows []GetUsersRow) []User {

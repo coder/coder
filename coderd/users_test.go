@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
@@ -186,10 +187,9 @@ func TestPostLogin(t *testing.T) {
 	t.Run("DisabledPasswordAuth", func(t *testing.T) {
 		t.Parallel()
 
-		dc := coderdtest.DeploymentConfig(t)
-		dc.DisablePasswordAuth.Value = true
+		dc := coderdtest.DeploymentValues(t)
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentConfig: dc,
+			DeploymentValues: dc,
 		})
 
 		first := coderdtest.CreateFirstUser(t, client)
@@ -207,6 +207,8 @@ func TestPostLogin(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		dc.DisablePasswordAuth = clibase.Bool(true)
+
 		userClient := codersdk.New(client.URL)
 		_, err = userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    user.Email,
@@ -217,20 +219,6 @@ func TestPostLogin(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Password authentication is disabled")
-
-		// Promote the user account to an owner.
-		_, err = client.UpdateUserRoles(ctx, user.ID.String(), codersdk.UpdateRoles{
-			Roles: []string{rbac.RoleOwner(), rbac.RoleMember()},
-		})
-		require.NoError(t, err)
-
-		// Login with the user account.
-		res, err := userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-			Email:    user.Email,
-			Password: password,
-		})
-		require.NoError(t, err)
-		require.NotEmpty(t, res.SessionToken)
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -279,7 +267,7 @@ func TestPostLogin(t *testing.T) {
 		defer cancel()
 
 		split := strings.Split(client.SessionToken(), "-")
-		key, err := client.APIKey(ctx, admin.UserID.String(), split[0])
+		key, err := client.APIKeyByID(ctx, admin.UserID.String(), split[0])
 		require.NoError(t, err, "fetch login key")
 		require.Equal(t, int64(86400), key.LifetimeSeconds, "default should be 86400")
 
@@ -287,7 +275,7 @@ func TestPostLogin(t *testing.T) {
 		token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
 		require.NoError(t, err, "make new token api key")
 		split = strings.Split(token.Key, "-")
-		apiKey, err := client.APIKey(ctx, admin.UserID.String(), split[0])
+		apiKey, err := client.APIKeyByID(ctx, admin.UserID.String(), split[0])
 		require.NoError(t, err, "fetch api key")
 
 		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*29)), "default tokens lasts more than 29 days")
@@ -340,6 +328,16 @@ func TestDeleteUser(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusExpectationFailed, apiErr.StatusCode())
 	})
+	t.Run("Self", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		err := client.DeleteUser(context.Background(), user.UserID)
+		var apiErr *codersdk.Error
+		require.Error(t, err, "should not be able to delete self")
+		require.ErrorAs(t, err, &apiErr, "should be a coderd error")
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode(), "should be forbidden")
+	})
 }
 
 func TestPostLogout(t *testing.T) {
@@ -359,7 +357,7 @@ func TestPostLogout(t *testing.T) {
 		defer cancel()
 
 		keyID := strings.Split(client.SessionToken(), "-")[0]
-		apiKey, err := client.APIKey(ctx, admin.UserID.String(), keyID)
+		apiKey, err := client.APIKeyByID(ctx, admin.UserID.String(), keyID)
 		require.NoError(t, err)
 		require.Equal(t, keyID, apiKey.ID, "API key should exist in the database")
 
@@ -388,7 +386,7 @@ func TestPostLogout(t *testing.T) {
 		}
 		require.True(t, found, "auth cookie should be returned")
 
-		_, err = client.APIKey(ctx, admin.UserID.String(), keyID)
+		_, err = client.APIKeyByID(ctx, admin.UserID.String(), keyID)
 		sdkErr := &codersdk.Error{}
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode(), "Expecting 401")
@@ -726,7 +724,7 @@ func TestUpdateUserPassword(t *testing.T) {
 
 		// Trying to get an API key should fail since our client's token
 		// has been deleted.
-		_, err = client.APIKey(ctx, user.UserID.String(), apikey1.Key)
+		_, err = client.APIKeyByID(ctx, user.UserID.String(), apikey1.Key)
 		require.Error(t, err)
 		cerr := coderdtest.SDKError(t, err)
 		require.Equal(t, http.StatusUnauthorized, cerr.StatusCode())
@@ -741,12 +739,12 @@ func TestUpdateUserPassword(t *testing.T) {
 
 		// Trying to get an API key should fail since all keys are deleted
 		// on password change.
-		_, err = client.APIKey(ctx, user.UserID.String(), apikey1.Key)
+		_, err = client.APIKeyByID(ctx, user.UserID.String(), apikey1.Key)
 		require.Error(t, err)
 		cerr = coderdtest.SDKError(t, err)
 		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
 
-		_, err = client.APIKey(ctx, user.UserID.String(), apikey2.Key)
+		_, err = client.APIKeyByID(ctx, user.UserID.String(), apikey2.Key)
 		require.Error(t, err)
 		cerr = coderdtest.SDKError(t, err)
 		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
@@ -854,7 +852,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			AssignToUser: randOrgUser.ID.String(),
 			Roles:        []string{rbac.RoleOrgMember(randOrg.ID)},
 			Error:        true,
-			StatusCode:   http.StatusForbidden,
+			StatusCode:   http.StatusNotFound,
 		},
 		{
 			Name:         "AdminUpdateOrgSelf",

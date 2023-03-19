@@ -9,16 +9,17 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/atomic"
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -32,6 +33,7 @@ import (
 func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
 	var (
 		ctx       = r.Context()
+		actor, _  = dbauthz.ActorFromContext(ctx)
 		logger    = api.Logger.With(slog.F("job_id", job.ID))
 		follow    = r.URL.Query().Has("follow")
 		afterRaw  = r.URL.Query().Get("after")
@@ -47,9 +49,9 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	// if we are following logs, start the subscription before we query the database, so that we don't miss any logs
 	// between the end of our query and the start of the subscription.  We might get duplicates, so we'll keep track
 	// of processed IDs.
-	var bufferedLogs <-chan database.ProvisionerJobLog
+	var bufferedLogs <-chan *database.ProvisionerJobLog
 	if follow {
-		bl, closeFollow, err := api.followLogs(job.ID)
+		bl, closeFollow, err := api.followLogs(actor, job.ID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error watching provisioner logs.",
@@ -171,8 +173,9 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			logger.Debug(context.Background(), "job logs context canceled")
 			return
 		case log, ok := <-bufferedLogs:
-			if !ok {
-				logger.Debug(context.Background(), "done with published logs")
+			// A nil log is sent when complete!
+			if !ok || log == nil {
+				logger.Debug(context.Background(), "reached the end of published logs")
 				return
 			}
 			if logIdsDone[log.ID] {
@@ -181,7 +184,7 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			} else {
 				logger.Debug(ctx, "subscribe encoding log",
 					slog.F("stage", log.Stage))
-				err = encoder.Encode(convertProvisionerJobLog(log))
+				err = encoder.Encode(convertProvisionerJobLog(*log))
 				if err != nil {
 					return
 				}
@@ -198,7 +201,9 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
-	resources, err := api.Database.GetWorkspaceResourcesByJobID(ctx, job.ID)
+
+	// nolint:gocritic // GetWorkspaceResourcesByJobID is a system function.
+	resources, err := api.Database.GetWorkspaceResourcesByJobID(dbauthz.AsSystemRestricted(ctx), job.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
@@ -213,7 +218,9 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	for _, resource := range resources {
 		resourceIDs = append(resourceIDs, resource.ID)
 	}
-	resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+
+	// nolint:gocritic // GetWorkspaceAgentsByResourceIDs is a system function.
+	resourceAgents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
@@ -228,6 +235,8 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 	for _, agent := range resourceAgents {
 		resourceAgentIDs = append(resourceAgentIDs, agent.ID)
 	}
+
+	// nolint:gocritic // GetWorkspaceAppsByAgentIDs is a system function.
 	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(ctx, resourceAgentIDs)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -239,7 +248,9 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		})
 		return
 	}
-	resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(ctx, resourceIDs)
+
+	// nolint:gocritic // GetWorkspaceResourceMetadataByResourceIDs is a system function.
+	resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace metadata.",
@@ -262,7 +273,10 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 				}
 			}
 
-			apiAgent, err := convertWorkspaceAgent(api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout, api.DeploymentConfig.AgentFallbackTroubleshootingURL.Value)
+			apiAgent, err := convertWorkspaceAgent(
+				api.DERPMap, *api.TailnetCoordinator.Load(), agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout,
+				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+			)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Internal error reading job agent.",
@@ -311,6 +325,7 @@ func convertProvisionerJob(provisionerJob database.ProvisionerJob) codersdk.Prov
 		ID:        provisionerJob.ID,
 		CreatedAt: provisionerJob.CreatedAt,
 		Error:     provisionerJob.Error.String,
+		ErrorCode: codersdk.JobErrorCode(provisionerJob.ErrorCode.String),
 		FileID:    provisionerJob.FileID,
 		Tags:      provisionerJob.Tags,
 	}
@@ -367,23 +382,34 @@ type provisionerJobLogsMessage struct {
 	EndOfLogs    bool  `json:"end_of_logs,omitempty"`
 }
 
-func (api *API) followLogs(jobID uuid.UUID) (<-chan database.ProvisionerJobLog, func(), error) {
+func (api *API) followLogs(actor rbac.Subject, jobID uuid.UUID) (<-chan *database.ProvisionerJobLog, func(), error) {
 	logger := api.Logger.With(slog.F("job_id", jobID))
 
 	var (
-		closed       = make(chan struct{})
-		bufferedLogs = make(chan database.ProvisionerJobLog, 128)
-		logMut       = &sync.Mutex{}
+		bufferedLogs  = make(chan *database.ProvisionerJobLog, 128)
+		endOfLogs     atomic.Bool
+		lastSentLogID atomic.Int64
 	)
+
+	sendLog := func(log *database.ProvisionerJobLog) {
+		select {
+		case bufferedLogs <- log:
+			logger.Debug(context.Background(), "subscribe buffered log", slog.F("stage", log.Stage))
+			lastSentLogID.Store(log.ID)
+		default:
+			// If this overflows users could miss logs streaming. This can happen
+			// we get a lot of logs and consumer isn't keeping up.  We don't want to block the pubsub,
+			// so just drop them.
+			logger.Warn(context.Background(), "provisioner job log overflowing channel")
+		}
+	}
+
 	closeSubscribe, err := api.Pubsub.Subscribe(
 		provisionerJobLogsChannel(jobID),
 		func(ctx context.Context, message []byte) {
-			select {
-			case <-closed:
+			if endOfLogs.Load() {
 				return
-			default:
 			}
-
 			jlMsg := provisionerJobLogsMessage{}
 			err := json.Unmarshal(message, &jlMsg)
 			if err != nil {
@@ -391,8 +417,9 @@ func (api *API) followLogs(jobID uuid.UUID) (<-chan database.ProvisionerJobLog, 
 				return
 			}
 
+			// CreatedAfter is sent when logs are streaming!
 			if jlMsg.CreatedAfter != 0 {
-				logs, err := api.Database.GetProvisionerLogsByIDBetween(ctx, database.GetProvisionerLogsByIDBetweenParams{
+				logs, err := api.Database.GetProvisionerLogsByIDBetween(dbauthz.As(ctx, actor), database.GetProvisionerLogsByIDBetweenParams{
 					JobID:        jobID,
 					CreatedAfter: jlMsg.CreatedAfter,
 				})
@@ -400,52 +427,44 @@ func (api *API) followLogs(jobID uuid.UUID) (<-chan database.ProvisionerJobLog, 
 					logger.Warn(ctx, "get provisioner logs", slog.Error(err))
 					return
 				}
-
 				for _, log := range logs {
-					// Sadly we have to use a mutex here because events may be
-					// handled out of order due to golang goroutine scheduling
-					// semantics (even though Postgres guarantees ordering of
-					// notifications).
-					logMut.Lock()
-					select {
-					case <-closed:
-						logMut.Unlock()
+					if endOfLogs.Load() {
+						// An end of logs message came in while we were fetching
+						// logs or processing them!
 						return
-					default:
 					}
-
-					select {
-					case bufferedLogs <- log:
-						logger.Debug(ctx, "subscribe buffered log", slog.F("stage", log.Stage))
-					default:
-						// If this overflows users could miss logs streaming. This can happen
-						// we get a lot of logs and consumer isn't keeping up.  We don't want to block the pubsub,
-						// so just drop them.
-						logger.Warn(ctx, "provisioner job log overflowing channel")
-					}
-					logMut.Unlock()
+					log := log
+					sendLog(&log)
 				}
 			}
 
+			// EndOfLogs is sent when logs are done streaming.
+			// We don't want to end the stream until we've sent all the logs,
+			// so we fetch logs after the last ID we've seen and send them!
 			if jlMsg.EndOfLogs {
-				// This mutex is to guard double-closes.
-				logMut.Lock()
-				select {
-				case <-closed:
-					logMut.Unlock()
+				endOfLogs.Store(true)
+				logs, err := api.Database.GetProvisionerLogsByIDBetween(dbauthz.As(ctx, actor), database.GetProvisionerLogsByIDBetweenParams{
+					JobID:        jobID,
+					CreatedAfter: lastSentLogID.Load(),
+				})
+				if err != nil {
+					logger.Warn(ctx, "get provisioner logs", slog.Error(err))
 					return
-				default:
+				}
+				for _, log := range logs {
+					log := log
+					sendLog(&log)
 				}
 				logger.Debug(ctx, "got End of Logs")
-
-				close(closed)
-				close(bufferedLogs)
-				logMut.Unlock()
+				bufferedLogs <- nil
 			}
+
+			lastSentLogID.Store(jlMsg.CreatedAfter)
 		},
 	)
 	if err != nil {
 		return nil, nil, err
 	}
+	// We don't need to close the bufferedLogs channel because it will be garbage collected!
 	return bufferedLogs, closeSubscribe, nil
 }
