@@ -306,7 +306,7 @@ resource "coder_metadata" "workspace" {
     value = data.coder_parameter.memory.value
   }
   item {
-    key   = "Volume Size"
+    key   = "Volume Size (GB)"
     value = data.coder_parameter.volume-size.value
   }
 }
