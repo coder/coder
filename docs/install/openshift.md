@@ -15,11 +15,8 @@ locally in order to log in and manage templates.
 Run the following command to login to your OpenShift cluster:
 
 ```console
-oc login <cluster-url>
+oc login --token=w4r...04s --server=<cluster-url>
 ```
-
-This will configure your local `~/.kube/config` file with the cluster credentials
-needed when installing Coder via `helm`.
 
 Next, you will run the below command to create a project for Coder:
 
