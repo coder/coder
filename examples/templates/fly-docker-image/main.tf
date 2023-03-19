@@ -27,10 +27,10 @@ resource "fly_app" "workspace" {
   org  = var.fly_org
 }
 
-resource "fly_ip" "workspace-ip4" {
-  app  = fly_app.workspace.name
-  type = "v4"
-}
+# resource "fly_ip" "workspace-ip4" {
+#   app  = fly_app.workspace.name
+#   type = "v4"
+# }
 
 resource "fly_volume" "home-volume" {
   app    = fly_app.workspace.name
@@ -46,11 +46,13 @@ resource "fly_machine" "workspace" {
   name     = data.coder_workspace.me.name
   image    = data.coder_parameter.docker-image.value
   cpus     = data.coder_parameter.cpu.value
+  cputype  = data.coder_parameter.cputype.value
   memorymb = data.coder_parameter.memory.value * 1024
   env = {
     CODER_AGENT_TOKEN = "${coder_agent.main.token}"
   }
-  entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "${fly_ip.workspace-ip4.address}")] # replace localhost with the IP of the workspace
+  # entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "${fly_ip.workspace-ip4.address}")] # replace localhost with the IP of the workspace
+  entrypoint = ["sh", "-c", coder_agent.main.init_script]
   services = [
     {
       ports = [
@@ -125,15 +127,31 @@ data "coder_parameter" "cpu" {
   }
 }
 
+data "coder_parameter" "cputype" {
+  name        = "CPU Type"
+  description = "Which CPU type do you want?"
+  default     = "shared"
+  icon        = "https://raw.githubusercontent.com/matifali/logos/main/cpu-1.svg"
+  mutable     = true
+  option {
+    name  = "Shared"
+    value = "shared"
+  }
+  option {
+    name  = "Performance"
+    value = "performance"
+  }
+}
+
 data "coder_parameter" "memory" {
   name        = "Memory (GB)"
-  description = "The amount of memory to allocate to the workspace in GB (1-16)"
+  description = "The amount of memory to allocate to the workspace in GB (up to 16GB)"
   type        = "number"
-  default     = "1"
+  default     = "2"
   icon        = "/icon/memory.svg"
   mutable     = true
   validation {
-    min = 1
+    min = data.coder_parameter.cputype.value == "performance" ? 2 : 1 # if the CPU type is performance, the minimum memory is 2GB
     max = 16
   }
 }
@@ -142,7 +160,7 @@ data "coder_parameter" "volume-size" {
   name        = "Volume Size"
   description = "The size of the volume to create for the workspace in GB (1-20)"
   type        = "number"
-  default     = "3"
+  default     = "1"
   icon        = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
   validation {
     min = 1
@@ -261,7 +279,36 @@ resource "coder_agent" "main" {
     code-server --auth none >/tmp/code-server.log 2>&1 &
     # Set the hostname to the workspace name
     sudo hostname -b "${data.coder_workspace.me.name}-fly"
+    # Install the Fly CLI and add it to the PATH
+    curl -L https://fly.io/install.sh | sh
+    echo "export PATH=\$PATH:/home/coder/.fly" >> ~/.bashrc
   EOT
+}
+
+resource "coder_metadata" "workspace" {
+  count       = data.coder_workspace.me.start_count
+  resource_id = fly_app.workspace.id
+  icon        = data.coder_parameter.region.option[index(data.coder_parameter.region.option.*.value, data.coder_parameter.region.value)].icon
+  item {
+    key   = "Region"
+    value = data.coder_parameter.region.option[index(data.coder_parameter.region.option.*.value, data.coder_parameter.region.value)].name
+  }
+  item {
+    key   = "CPU Type"
+    value = data.coder_parameter.cputype.option[index(data.coder_parameter.cputype.option.*.value, data.coder_parameter.cputype.value)].name
+  }
+  item {
+    key   = "CPU Count"
+    value = data.coder_parameter.cpu.value
+  }
+  item {
+    key   = "Memory (GB)"
+    value = data.coder_parameter.memory.value
+  }
+  item {
+    key   = "Volume Size (GB)"
+    value = data.coder_parameter.volume-size.value
+  }
 }
 
 data "coder_provisioner" "me" {
