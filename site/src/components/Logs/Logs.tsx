@@ -51,6 +51,33 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
   )
 }
 
+export const logLineHeight = 20
+
+export const LogLine: FC<{
+  line: Line
+  hideTimestamp?: boolean
+  number?: number
+  style?: React.CSSProperties
+}> = ({ line, hideTimestamp, number, style }) => {
+  const styles = useStyles({
+    lineNumbers: Boolean(number),
+  })
+
+  return (
+    <div className={combineClasses([styles.line, line.level])} style={style}>
+      {!hideTimestamp && (
+        <>
+          <span className={styles.time}>
+            {number ? number : dayjs(line.time).format(`HH:mm:ss.SSS`)}
+          </span>
+          <span className={styles.space}>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+        </>
+      )}
+      <span>{line.output}</span>
+    </div>
+  )
+}
+
 const useStyles = makeStyles<
   Theme,
   {
@@ -59,19 +86,20 @@ const useStyles = makeStyles<
 >((theme) => ({
   root: {
     minHeight: 156,
-    background: theme.palette.background.default,
-    color: theme.palette.text.primary,
-    fontFamily: MONOSPACE_FONT_FAMILY,
     fontSize: 13,
-    wordBreak: "break-all",
     padding: theme.spacing(2, 0),
     borderRadius: theme.shape.borderRadius,
     overflowX: "auto",
+    background: theme.palette.background.default,
   },
   scrollWrapper: {
     width: "fit-content",
   },
   line: {
+    wordBreak: "break-all",
+    color: theme.palette.text.primary,
+    fontFamily: MONOSPACE_FONT_FAMILY,
+    height: logLineHeight,
     // Whitespace is significant in terminal output for alignment
     whiteSpace: "pre-line",
     padding: theme.spacing(0, 3),

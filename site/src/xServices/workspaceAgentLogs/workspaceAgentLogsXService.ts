@@ -1,25 +1,35 @@
 import * as API from "api/api"
 import { createMachine, assign } from "xstate"
 import * as TypesGen from "api/typesGenerated"
+import { Line } from "components/Logs/Logs"
+
+// Logs are stored as the Line interface to make rendering
+// much more efficient. Instead of mapping objects each time, we're
+// able to just pass the array of logs to the component.
+interface LineWithID extends Line {
+  id: number
+}
 
 export const workspaceAgentLogsMachine = createMachine(
   {
     predictableActionArguments: true,
     id: "workspaceAgentLogsMachine",
     schema: {
-      events: {} as {
-        type: "ADD_STARTUP_LOGS"
-        logs: TypesGen.WorkspaceAgentStartupLog[]
-      } | {
-        type: "FETCH_STARTUP_LOGS",
-      },
+      events: {} as
+        | {
+            type: "ADD_STARTUP_LOGS"
+            logs: LineWithID[]
+          }
+        | {
+            type: "FETCH_STARTUP_LOGS"
+          },
       context: {} as {
         agentID: string
-        startupLogs?: TypesGen.WorkspaceAgentStartupLog[]
+        startupLogs?: LineWithID[]
       },
       services: {} as {
         getStartupLogs: {
-          data: TypesGen.WorkspaceAgentStartupLog[]
+          data: LineWithID[]
         }
       },
     },
@@ -59,7 +69,15 @@ export const workspaceAgentLogsMachine = createMachine(
   },
   {
     services: {
-      getStartupLogs: (ctx) => API.getWorkspaceAgentStartupLogs(ctx.agentID),
+      getStartupLogs: (ctx) =>
+        API.getWorkspaceAgentStartupLogs(ctx.agentID).then((data) =>
+          data.map((log) => ({
+            id: log.id,
+            level: "info" as TypesGen.LogLevel,
+            output: log.output,
+            time: log.created_at,
+          })),
+        ),
       streamStartupLogs: (ctx) => async (callback) => {
         return new Promise<void>((resolve, reject) => {
           const proto = location.protocol === "https:" ? "wss:" : "ws:"
@@ -72,7 +90,18 @@ export const workspaceAgentLogsMachine = createMachine(
           )
           socket.binaryType = "blob"
           socket.addEventListener("message", (event) => {
-            callback({ type: "ADD_STARTUP_LOGS", logs: JSON.parse(event.data) })
+            const logs = JSON.parse(
+              event.data,
+            ) as TypesGen.WorkspaceAgentStartupLog[]
+            callback({
+              type: "ADD_STARTUP_LOGS",
+              logs: logs.map((log) => ({
+                id: log.id,
+                level: "info" as TypesGen.LogLevel,
+                output: log.output,
+                time: log.created_at,
+              })),
+            })
           })
           socket.addEventListener("error", () => {
             reject(new Error("socket errored"))

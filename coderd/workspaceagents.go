@@ -238,7 +238,12 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
+	if len(req.Logs) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "No logs provided.",
+		})
+		return
+	}
 	createdAt := make([]time.Time, 0)
 	output := make([]string, 0)
 	outputLength := 0
@@ -342,11 +347,11 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Request) {
 	// This mostly copies how provisioner job logs are streamed!
 	var (
-		ctx      = r.Context()
-		agent    = httpmw.WorkspaceAgentParam(r)
-		logger   = api.Logger.With(slog.F("workspace_agent_id", agent.ID))
-		follow   = r.URL.Query().Has("follow")
-		afterRaw = r.URL.Query().Get("after")
+		ctx            = r.Context()
+		workspaceAgent = httpmw.WorkspaceAgentParam(r)
+		logger         = api.Logger.With(slog.F("workspace_agent_id", workspaceAgent.ID))
+		follow         = r.URL.Query().Has("follow")
+		afterRaw       = r.URL.Query().Get("after")
 	)
 
 	var after int64
@@ -366,7 +371,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	}
 
 	logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(ctx, database.GetWorkspaceAgentStartupLogsAfterParams{
-		AgentID:      agent.ID,
+		AgentID:      workspaceAgent.ID,
 		CreatedAfter: after,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -412,7 +417,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	if err != nil {
 		return
 	}
-	if agent.LifecycleState == database.WorkspaceAgentLifecycleStateReady {
+	if workspaceAgent.LifecycleState == database.WorkspaceAgentLifecycleStateReady {
 		// The startup script has finished running, so we can close the connection.
 		return
 	}
@@ -434,7 +439,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	}
 
 	closeSubscribe, err := api.Pubsub.Subscribe(
-		agentsdk.StartupLogsNotifyChannel(agent.ID),
+		agentsdk.StartupLogsNotifyChannel(workspaceAgent.ID),
 		func(ctx context.Context, message []byte) {
 			if endOfLogs.Load() {
 				return
@@ -448,7 +453,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 
 			if jlMsg.CreatedAfter != 0 {
 				logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(ctx, database.GetWorkspaceAgentStartupLogsAfterParams{
-					AgentID:      agent.ID,
+					AgentID:      workspaceAgent.ID,
 					CreatedAfter: jlMsg.CreatedAfter,
 				})
 				if err != nil {
@@ -461,7 +466,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 			if jlMsg.EndOfLogs {
 				endOfLogs.Store(true)
 				logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(ctx, database.GetWorkspaceAgentStartupLogsAfterParams{
-					AgentID:      agent.ID,
+					AgentID:      workspaceAgent.ID,
 					CreatedAfter: lastSentLogID.Load(),
 				})
 				if err != nil {

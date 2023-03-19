@@ -3,7 +3,7 @@ import { Avatar } from "components/Avatar/Avatar"
 import { AgentRow } from "components/Resources/AgentRow"
 import {
   ActiveTransition,
-  WorkspaceBuildProgress
+  WorkspaceBuildProgress,
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
@@ -15,7 +15,7 @@ import { Margins } from "../Margins/Margins"
 import {
   PageHeader,
   PageHeaderSubtitle,
-  PageHeaderTitle
+  PageHeaderTitle,
 } from "../PageHeader/PageHeader"
 import { Resources } from "../Resources/Resources"
 import { Stack } from "../Stack/Stack"

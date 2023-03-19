@@ -649,27 +649,46 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 		_ = fileWriter.Close()
 	}()
 
+	// Create pipes for startup logs reader and writer
 	startupLogsReader, startupLogsWriter := io.Pipe()
+
+	// Close the pipes when the function returns
 	defer func() {
 		_ = startupLogsReader.Close()
 		_ = startupLogsWriter.Close()
 	}()
+
+	// Create a multi-writer for startup logs and file writer
 	writer := io.MultiWriter(startupLogsWriter, fileWriter)
 
+	// Initialize variables for log management
 	queuedLogs := make([]agentsdk.StartupLog, 0)
 	var flushLogsTimer *time.Timer
 	var logMutex sync.Mutex
 	var logsSending bool
+
+	// sendLogs function uploads the queued logs to the server
 	sendLogs := func() {
+		// Lock logMutex and check if logs are already being sent
 		logMutex.Lock()
 		if logsSending {
 			logMutex.Unlock()
 			return
 		}
-		logsSending = true
+		if flushLogsTimer != nil {
+			flushLogsTimer.Stop()
+		}
+		if len(queuedLogs) == 0 {
+			logMutex.Unlock()
+			return
+		}
+		// Move the current queued logs to logsToSend and clear the queue
 		logsToSend := queuedLogs
+		logsSending = true
 		queuedLogs = make([]agentsdk.StartupLog, 0)
 		logMutex.Unlock()
+
+		// Retry uploading logs until successful or a specific error occurs
 		for r := retry.New(time.Second, 5*time.Second); r.Wait(ctx); {
 			err := a.client.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
 				Logs: logsToSend,
@@ -686,25 +705,30 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 			}
 			a.logger.Error(ctx, "upload startup logs", slog.Error(err), slog.F("to_send", logsToSend))
 		}
+		// Reset logsSending flag
 		logMutex.Lock()
 		logsSending = false
 		logMutex.Unlock()
 	}
+	// queueLog function appends a log to the queue and triggers sendLogs if necessary
 	queueLog := func(log agentsdk.StartupLog) {
 		logMutex.Lock()
 		defer logMutex.Unlock()
+
+		// Append log to the queue
 		queuedLogs = append(queuedLogs, log)
-		if len(queuedLogs) > 25 {
+
+		// If there are more than 100 logs, send them immediately
+		if len(queuedLogs) > 100 {
 			go sendLogs()
 			return
 		}
+		// Reset or set the flushLogsTimer to trigger sendLogs after 100 milliseconds
 		if flushLogsTimer != nil {
 			flushLogsTimer.Reset(100 * time.Millisecond)
 			return
 		}
-		flushLogsTimer = time.AfterFunc(100*time.Millisecond, func() {
-			sendLogs()
-		})
+		flushLogsTimer = time.AfterFunc(100*time.Millisecond, sendLogs)
 	}
 	err = a.trackConnGoroutine(func() {
 		scanner := bufio.NewScanner(startupLogsReader)

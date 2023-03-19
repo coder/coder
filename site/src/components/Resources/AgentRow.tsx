@@ -8,13 +8,23 @@ import { Skeleton } from "@material-ui/lab"
 import { useMachine } from "@xstate/react"
 import { AppLinkSkeleton } from "components/AppLink/AppLinkSkeleton"
 import { Maybe } from "components/Conditionals/Maybe"
-import { Line, Logs } from "components/Logs/Logs"
+import { LogLine, logLineHeight } from "components/Logs/Logs"
 import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
 import { VSCodeDesktopButton } from "components/VSCodeDesktopButton/VSCodeDesktopButton"
-import { FC, useEffect, useMemo, useRef, useState } from "react"
+import {
+  FC,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react"
 import { useTranslation } from "react-i18next"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism"
+import AutoSizer from "react-virtualized-auto-sizer"
+import { FixedSizeList as List, ListOnScrollProps } from "react-window"
 import { workspaceAgentLogsMachine } from "xServices/workspaceAgentLogs/workspaceAgentLogsXService"
 import { Workspace, WorkspaceAgent } from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
@@ -70,17 +80,15 @@ export const AgentRow: FC<AgentRowProps> = ({
       sendLogsEvent("FETCH_STARTUP_LOGS")
     }
   }, [sendLogsEvent, showStartupLogs])
+  const logListRef = useRef<List>(null)
+  const logListDivRef = useRef<HTMLDivElement>(null)
   const startupLogs = useMemo(() => {
-    const logs =
-      logsMachine.context.startupLogs?.map(
-        (log): Line => ({
-          level: "info",
-          output: log.output,
-          time: log.created_at,
-        }),
-      ) || []
+    const allLogs = logsMachine.context.startupLogs || []
+
+    const logs = [...allLogs]
     if (agent.startup_logs_overflowed) {
       logs.push({
+        id: -1,
         level: "error",
         output: "Startup logs exceeded the max size of 1MB!",
         time: new Date().toISOString(),
@@ -88,6 +96,33 @@ export const AgentRow: FC<AgentRowProps> = ({
     }
     return logs
   }, [logsMachine.context.startupLogs, agent.startup_logs_overflowed])
+  const [bottomOfLogs, setBottomOfLogs] = useState(true)
+  useLayoutEffect(() => {
+    if (bottomOfLogs && logListRef.current) {
+      logListRef.current.scrollToItem(startupLogs.length - 1, "end")
+    }
+  }, [showStartupLogs, startupLogs, logListRef, bottomOfLogs])
+  const handleLogScroll = useCallback(
+    (props: ListOnScrollProps) => {
+      if (
+        props.scrollOffset === 0 ||
+        props.scrollUpdateWasRequested ||
+        !logListDivRef.current
+      ) {
+        return
+      }
+      // The parent holds the height of the list!
+      const parent = logListDivRef.current.parentElement
+      if (!parent) {
+        return
+      }
+      const distanceFromBottom =
+        logListDivRef.current.scrollHeight -
+        (props.scrollOffset + parent.clientHeight)
+      setBottomOfLogs(distanceFromBottom < logLineHeight)
+    },
+    [logListDivRef],
+  )
 
   return (
     <Stack
@@ -269,8 +304,30 @@ export const AgentRow: FC<AgentRowProps> = ({
           )}
         </Stack>
       </Stack>
+
       {showStartupLogs && (
-        <Logs className={styles.startupLogs} lineNumbers lines={startupLogs} />
+        <AutoSizer disableHeight>
+          {({ width }) => (
+            <List
+              ref={logListRef}
+              innerRef={logListDivRef}
+              height={256}
+              itemCount={startupLogs.length}
+              itemSize={logLineHeight}
+              width={width}
+              className={styles.startupLogs}
+              onScroll={handleLogScroll}
+            >
+              {({ index, style }) => (
+                <LogLine
+                  line={startupLogs[index]}
+                  number={index + 1}
+                  style={style}
+                />
+              )}
+            </List>
+          )}
+        </AutoSizer>
       )}
     </Stack>
   )
@@ -312,8 +369,7 @@ const useStyles = makeStyles((theme) => ({
 
   startupLogs: {
     maxHeight: 256,
-    display: "flex",
-    flexDirection: "column-reverse",
+    background: theme.palette.background.default,
   },
 
   startupScriptPopover: {

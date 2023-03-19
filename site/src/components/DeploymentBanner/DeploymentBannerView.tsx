@@ -192,7 +192,6 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
         <Tooltip title="A countdown until stats are fetched again. Click to refresh!">
           <Button
             className={`${styles.value} ${styles.refreshButton}`}
-            title="Refresh"
             onClick={() => {
               if (fetchStats) {
                 fetchStats()
