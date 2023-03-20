@@ -15,8 +15,7 @@ Flags:
                                                Consumes $CODER_WORKSPACE_START_AT
       --stop-after duration                    Specify a duration after which the workspace
                                                should shut down (e.g. 8h).
-                                               Consumes $CODER_WORKSPACE_STOP_AFTER (default
-                                               8h0m0s)
+                                               Consumes $CODER_WORKSPACE_STOP_AFTER
   -t, --template string                        Specify a template name.
                                                Consumes $CODER_TEMPLATE_NAME
   -y, --yes                                    Bypass prompts

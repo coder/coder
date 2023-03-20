@@ -21,7 +21,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Workspace":       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"WorkspaceBuild":  {codersdk.AuditActionStart, codersdk.AuditActionStop},
 	"Group":           {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"APIKey":          {codersdk.AuditActionWrite},
+	"APIKey":          {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"License":         {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 }
 
@@ -137,14 +137,13 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"quota_allowance": ActionTrack,
 		"members":         ActionTrack,
 	},
-	// We don't show any diff for the APIKey resource
 	&database.APIKey{}: {
 		"id":               ActionIgnore,
 		"hashed_secret":    ActionIgnore,
-		"user_id":          ActionIgnore,
-		"last_used":        ActionIgnore,
-		"expires_at":       ActionIgnore,
-		"created_at":       ActionIgnore,
+		"user_id":          ActionTrack,
+		"last_used":        ActionTrack,
+		"expires_at":       ActionTrack,
+		"created_at":       ActionTrack,
 		"updated_at":       ActionIgnore,
 		"login_type":       ActionIgnore,
 		"lifetime_seconds": ActionIgnore,
