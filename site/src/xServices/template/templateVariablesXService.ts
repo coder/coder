@@ -28,6 +28,8 @@ type TemplateVariablesContext = {
 
   getTemplateDataError?: Error | unknown
   updateTemplateError?: Error | unknown
+
+  jobError?: TemplateVersion["job"]["error"]
 }
 
 type UpdateTemplateEvent = {
@@ -117,7 +119,7 @@ export const templateVariablesMachine = createMachine(
       fillingParams: {
         on: {
           UPDATE_TEMPLATE_EVENT: {
-            actions: ["assignCreateTemplateVersionRequest"],
+            actions: ["assignCreateTemplateVersionRequest", "clearJobError"],
             target: "creatingTemplateVersion",
           },
         },
@@ -141,6 +143,11 @@ export const templateVariablesMachine = createMachine(
         invoke: {
           src: "waitForJobToBeCompleted",
           onDone: [
+            {
+              target: "fillingParams",
+              cond: "hasJobError",
+              actions: ["assignJobError"],
+            },
             {
               actions: ["assignNewTemplateVersion"],
               target: "updatingTemplate",
@@ -258,6 +265,17 @@ export const templateVariablesMachine = createMachine(
       clearUpdateTemplateError: assign({
         updateTemplateError: (_) => undefined,
       }),
+      assignJobError: assign({
+        jobError: (_, event) => event.data.job.error,
+      }),
+      clearJobError: assign({
+        jobError: (_) => undefined,
+      }),
+    },
+    guards: {
+      hasJobError: (_, { data }) => {
+        return Boolean(data.job.error)
+      },
     },
   },
 )

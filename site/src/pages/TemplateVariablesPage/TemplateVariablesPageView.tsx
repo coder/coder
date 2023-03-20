@@ -22,6 +22,7 @@ export interface TemplateVariablesPageViewProps {
   errors?: {
     getTemplateDataError?: unknown
     updateTemplateError?: unknown
+    jobError?: TemplateVersion["job"]["error"]
   }
   initialTouched?: ComponentProps<
     typeof TemplateVariablesForm
@@ -46,44 +47,53 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
   const { t } = useTranslation("templateVariablesPage")
 
   return (
-    <FullPageHorizontalForm title={t("title")} onCancel={onCancel}>
-      {Boolean(errors.getTemplateDataError) && (
-        <Stack className={classes.errorContainer}>
-          <AlertBanner severity="error" error={errors.getTemplateDataError} />
-        </Stack>
-      )}
-      {Boolean(errors.updateTemplateError) && (
-        <Stack className={classes.errorContainer}>
-          <AlertBanner severity="error" error={errors.updateTemplateError} />
-        </Stack>
-      )}
-      {isLoading && <Loader />}
-      {templateVersion && templateVariables && templateVariables.length > 0 && (
-        <TemplateVariablesForm
-          initialTouched={initialTouched}
-          isSubmitting={isSubmitting}
-          templateVersion={templateVersion}
-          templateVariables={templateVariables}
-          onSubmit={onSubmit}
-          onCancel={onCancel}
-          error={errors.updateTemplateError}
-        />
-      )}
-      {templateVariables && templateVariables.length === 0 && (
-        <div>
-          <AlertBanner severity="info" text={t("unusedVariablesNotice")} />
-          <div className={classes.goBackSection}>
-            <GoBackButton onClick={onCancel} />
+    <>
+      <FullPageHorizontalForm title={t("title")} onCancel={onCancel}>
+        {Boolean(errors.getTemplateDataError) && (
+          <Stack className={classes.errorContainer}>
+            <AlertBanner severity="error" error={errors.getTemplateDataError} />
+          </Stack>
+        )}
+        {Boolean(errors.updateTemplateError) && (
+          <Stack className={classes.errorContainer}>
+            <AlertBanner severity="error" error={errors.updateTemplateError} />
+          </Stack>
+        )}
+        {Boolean(errors.jobError) && (
+          <Stack className={classes.errorContainer}>
+            <AlertBanner severity="error" text={errors.jobError} />
+          </Stack>
+        )}
+        {isLoading && <Loader />}
+        {templateVersion &&
+          templateVariables &&
+          templateVariables.length > 0 && (
+            <TemplateVariablesForm
+              initialTouched={initialTouched}
+              isSubmitting={isSubmitting}
+              templateVersion={templateVersion}
+              templateVariables={templateVariables}
+              onSubmit={onSubmit}
+              onCancel={onCancel}
+              error={errors.updateTemplateError}
+            />
+          )}
+        {templateVariables && templateVariables.length === 0 && (
+          <div>
+            <AlertBanner severity="info" text={t("unusedVariablesNotice")} />
+            <div className={classes.goBackSection}>
+              <GoBackButton onClick={onCancel} />
+            </div>
           </div>
-        </div>
-      )}
-    </FullPageHorizontalForm>
+        )}
+      </FullPageHorizontalForm>
+    </>
   )
 }
 
 const useStyles = makeStyles((theme) => ({
   errorContainer: {
-    marginBottom: theme.spacing(2),
+    marginBottom: theme.spacing(8),
   },
   goBackSection: {
     display: "flex",
