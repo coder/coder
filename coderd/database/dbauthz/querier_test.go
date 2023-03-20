@@ -1003,17 +1003,11 @@ func (s *MethodTestSuite) TestWorkspace() {
 	s.Run("GetWorkspaceAgentStartupLogsAfter", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-		check.Args(build.JobID).Asserts(ws, rbac.ActionRead).Returns([]database.WorkspaceAgentStartupLog{})
-	}))
-	s.Run("InsertWorkspaceAgentStartupLogs", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		check.Args(database.InsertWorkspaceAgentStartupLogsParams{
+		check.Args(database.GetWorkspaceAgentStartupLogsAfterParams{
 			AgentID: agt.ID,
-			Output:  []string{"test"},
-		}).Asserts(ws, rbac.ActionUpdate).Returns()
+		}).Asserts(ws, rbac.ActionRead).Returns([]database.WorkspaceAgentStartupLog{})
 	}))
 	s.Run("GetWorkspaceAppByAgentIDAndSlug", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
