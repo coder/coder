@@ -79,7 +79,9 @@ func Prompt(inv *clibase.Invocation, opts PromptOptions) (string, error) {
 
 	errCh := make(chan error, 1)
 	lineCh := make(chan string)
+
 	go func() {
+		defer close(lineCh)
 		var line string
 		var err error
 
@@ -109,7 +111,10 @@ func Prompt(inv *clibase.Invocation, opts PromptOptions) (string, error) {
 		if line == "" {
 			line = opts.Default
 		}
-		lineCh <- line
+		select {
+		case <-inv.Context().Done():
+		case lineCh <- line:
+		}
 	}()
 
 	select {

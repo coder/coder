@@ -187,7 +187,7 @@ func (p *PTY) ExpectMatchContext(ctx context.Context, str string) string {
 		p.fatalf("read error", "%v (wanted %q; got %q)", err, str, buffer.String())
 		return ""
 	}
-	p.logf("matched %q = %q", str, buffer.String())
+	p.logf("matched %q = %q", str, stripansi.Strip(buffer.String()))
 	return buffer.String()
 }
 
