@@ -984,7 +984,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 //nolint:tparallel
 func TestTemplateAccess(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	// TODO: This context is for all the subtests. Each subtest should have its
+	// own context.
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*3)
 	t.Cleanup(cancel)
 
 	ownerClient := coderdenttest.New(t, nil)
