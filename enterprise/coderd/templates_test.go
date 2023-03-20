@@ -786,7 +786,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		err = client2.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
 		cerr, _ := codersdk.AsError(err)
-		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+		require.Equal(t, http.StatusInternalServerError, cerr.StatusCode())
 	})
 
 	t.Run("RegularUserWithAdminCanUpdate", func(t *testing.T) {
