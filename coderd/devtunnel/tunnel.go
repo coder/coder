@@ -165,9 +165,14 @@ func GenerateConfig(customTunnelHost string) (Config, error) {
 		_, _ = fmt.Println("Defaulting to", Regions[0].LocationName)
 	}
 
+	locationName := "Unknown"
+	if node.RegionID < len(Regions) {
+		locationName = Regions[node.RegionID].LocationName
+	}
+
 	spin.Stop()
 	_, _ = fmt.Printf("Using tunnel in %s with latency %s.\n",
-		cliui.Styles.Keyword.Render(Regions[node.RegionID].LocationName),
+		cliui.Styles.Keyword.Render(locationName),
 		cliui.Styles.Code.Render(node.AvgLatency.String()),
 	)
 
