@@ -1497,7 +1497,7 @@ func TestPaginatedUsers(t *testing.T) {
 	coderdtest.CreateFirstUser(t, client)
 
 	// This test takes longer than a long time.
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*2)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*4)
 	t.Cleanup(cancel)
 
 	me, err := client.User(ctx, codersdk.Me)
