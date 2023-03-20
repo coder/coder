@@ -1,8 +1,5 @@
 import Button from "@material-ui/core/Button"
-import DeleteOutlined from "@material-ui/icons/DeleteOutlined"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
-import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
-import CodeOutlined from "@material-ui/icons/CodeOutlined"
 import { AuthorizationResponse, Template } from "api/typesGenerated"
 import { Avatar } from "components/Avatar/Avatar"
 import { Maybe } from "components/Conditionals/Maybe"
@@ -13,10 +10,13 @@ import {
   PageHeaderSubtitle,
 } from "components/PageHeader/PageHeader"
 import { Stack } from "components/Stack/Stack"
-import { FC } from "react"
+import { FC, useState } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { useDeleteTemplate } from "./deleteTemplate"
 import { Margins } from "components/Margins/Margins"
+import MoreVertOutlined from "@material-ui/icons/MoreVertOutlined"
+import Menu from "@material-ui/core/Menu"
+import MenuItem from "@material-ui/core/MenuItem"
 
 const Language = {
   editButton: "Edit",
@@ -26,31 +26,60 @@ const Language = {
   deleteButton: "Delete",
 }
 
-const TemplateSettingsButton: FC<{ templateName: string }> = ({
+const TemplateMenu: FC<{ templateName: string; onDelete: () => void }> = ({
   templateName,
-}) => (
-  <Button
-    variant="outlined"
-    component={RouterLink}
-    to={`/templates/${templateName}/settings`}
-    startIcon={<SettingsOutlined />}
-  >
-    {Language.settingsButton}
-  </Button>
-)
+  onDelete,
+}) => {
+  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null)
 
-const TemplateVariablesButton: FC<{ templateName: string }> = ({
-  templateName,
-}) => (
-  <Button
-    variant="outlined"
-    component={RouterLink}
-    to={`/templates/${templateName}/variables`}
-    startIcon={<CodeOutlined />}
-  >
-    {Language.variablesButton}
-  </Button>
-)
+  const handleClose = () => {
+    setAnchorEl(null)
+  }
+
+  return (
+    <div>
+      <Button
+        variant="outlined"
+        aria-controls="template-options"
+        aria-haspopup="true"
+        onClick={(e) => setAnchorEl(e.currentTarget)}
+      >
+        <MoreVertOutlined />
+      </Button>
+
+      <Menu
+        id="template-options"
+        anchorEl={anchorEl}
+        keepMounted
+        open={Boolean(anchorEl)}
+        onClose={handleClose}
+      >
+        <MenuItem
+          onClick={handleClose}
+          component={RouterLink}
+          to={`/templates/${templateName}/settings`}
+        >
+          {Language.settingsButton}
+        </MenuItem>
+        <MenuItem
+          component={RouterLink}
+          to={`/templates/${templateName}/variables`}
+          onClick={handleClose}
+        >
+          {Language.variablesButton}
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            onDelete()
+            handleClose()
+          }}
+        >
+          {Language.deleteButton}
+        </MenuItem>
+      </Menu>
+    </div>
+  )
+}
 
 const CreateWorkspaceButton: FC<{
   templateName: string
@@ -62,12 +91,6 @@ const CreateWorkspaceButton: FC<{
     to={`/templates/${templateName}/workspace`}
   >
     {Language.createButton}
-  </Button>
-)
-
-const DeleteTemplateButton: FC<{ onClick: () => void }> = ({ onClick }) => (
-  <Button variant="outlined" startIcon={<DeleteOutlined />} onClick={onClick}>
-    {Language.deleteButton}
   </Button>
 )
 
@@ -90,14 +113,13 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
       <PageHeader
         actions={
           <>
-            <Maybe condition={permissions.canUpdateTemplate}>
-              <DeleteTemplateButton
-                onClick={deleteTemplate.openDeleteConfirmation}
-              />
-              <TemplateSettingsButton templateName={template.name} />
-              <TemplateVariablesButton templateName={template.name} />
-            </Maybe>
             <CreateWorkspaceButton templateName={template.name} />
+            <Maybe condition={permissions.canUpdateTemplate}>
+              <TemplateMenu
+                templateName={template.name}
+                onDelete={deleteTemplate.openDeleteConfirmation}
+              />
+            </Maybe>
           </>
         }
       >
