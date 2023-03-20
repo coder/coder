@@ -4,6 +4,13 @@ import * as Types from "./types"
 import { DeploymentConfig } from "./types"
 import * as TypesGen from "./typesGenerated"
 
+// Adds 304 for the default axios validateStatus function
+// https://github.com/axios/axios#handling-errors
+// Check status here https://httpstatusdogs.com/
+axios.defaults.validateStatus = (status) => {
+  return (status >= 200 && status < 300) || status === 304
+}
+
 export const hardCodedCSRFCookie = (): string => {
   // This is a hard coded CSRF token/cookie pair for local development.
   // In prod, the GoLang webserver generates a random cookie with a new token for
