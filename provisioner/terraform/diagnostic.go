@@ -12,11 +12,11 @@ import (
 // This implementation bases on the original Terraform formatter, which unfortunately is internal:
 // https://github.com/hashicorp/terraform/blob/6b35927cf0988262739a5f0acea4790ae58a16d3/internal/command/format/diagnostic.go#L125
 
-func FormatDiagnostic(diag *tfjson.Diagnostic) []string {
+func FormatDiagnostic(diag *tfjson.Diagnostic) string {
 	var buf bytes.Buffer
 	appendSourceSnippets(&buf, diag)
 	_, _ = buf.WriteString(diag.Detail)
-	return strings.Split(buf.String(), "\n")
+	return buf.String()
 }
 
 func appendSourceSnippets(buf *bytes.Buffer, diag *tfjson.Diagnostic) {

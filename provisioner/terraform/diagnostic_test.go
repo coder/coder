@@ -2,6 +2,7 @@ package terraform_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -56,7 +57,7 @@ func TestFormatDiagnostic(t *testing.T) {
 			require.NoError(t, err)
 
 			output := terraform.FormatDiagnostic(d.Diagnostic)
-			require.Equal(t, tc.expected, output)
+			require.Equal(t, tc.expected, strings.Split(output, "\n"))
 		})
 	}
 }

@@ -497,8 +497,7 @@ func provisionReadAndLog(sink logSink, r io.Reader, done chan<- any) {
 			continue
 		}
 		logLevel = convertTerraformLogLevel(string(log.Diagnostic.Severity), sink)
-
-		for _, diagLine := range FormatDiagnostic(log.Diagnostic) {
+		for _, diagLine := range strings.Split(FormatDiagnostic(log.Diagnostic), "\n") {
 			sink.Log(&proto.Log{Level: logLevel, Output: diagLine})
 		}
 	}
