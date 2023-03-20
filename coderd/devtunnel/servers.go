@@ -76,9 +76,6 @@ func FindClosestNode(nodes []Node) (Node, error) {
 	if len(nodes) == 0 {
 		return Node{}, xerrors.New("no wgtunnel nodes")
 	}
-	if len(nodes) == 1 {
-		return nodes[0], nil
-	}
 
 	// Copy the nodes so we don't mutate the original.
 	nodes = append([]Node{}, nodes...)
