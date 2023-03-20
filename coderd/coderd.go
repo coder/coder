@@ -219,7 +219,9 @@ func New(options *Options) *API {
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
 	}
-
+	if options.SSHConfig.HostnamePrefix == "" {
+		options.SSHConfig.HostnamePrefix = "coder."
+	}
 	if options.SetUserGroups == nil {
 		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
 	}
