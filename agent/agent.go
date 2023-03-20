@@ -652,22 +652,48 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 		_ = fileWriter.Close()
 	}()
 
-	// Create pipes for startup logs reader and writer
-	startupLogsReader, startupLogsWriter := io.Pipe()
+	var writer io.Writer = fileWriter
+	if lifecycle == "startup" {
+		// Create pipes for startup logs reader and writer
+		logsReader, logsWriter := io.Pipe()
+		defer func() {
+			_ = logsReader.Close()
+		}()
+		writer = io.MultiWriter(fileWriter, logsWriter)
+		flushedLogs, err := a.trackScriptLogs(ctx, logsReader)
+		if err != nil {
+			return xerrors.Errorf("track script logs: %w", err)
+		}
+		defer func() {
+			_ = logsWriter.Close()
+			<-flushedLogs
+		}()
+	}
 
-	// Close the pipes when the function returns
-	defer func() {
-		_ = startupLogsReader.Close()
-		_ = startupLogsWriter.Close()
-	}()
+	cmd, err := a.createCommand(ctx, script, nil)
+	if err != nil {
+		return xerrors.Errorf("create command: %w", err)
+	}
+	cmd.Stdout = writer
+	cmd.Stderr = writer
+	err = cmd.Run()
+	if err != nil {
+		// cmd.Run does not return a context canceled error, it returns "signal: killed".
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 
-	// Create a multi-writer for startup logs and file writer
-	writer := io.MultiWriter(startupLogsWriter, fileWriter)
+		return xerrors.Errorf("run: %w", err)
+	}
+	return nil
+}
 
+func (a *agent) trackScriptLogs(ctx context.Context, reader io.Reader) (chan struct{}, error) {
 	// Initialize variables for log management
 	queuedLogs := make([]agentsdk.StartupLog, 0)
 	var flushLogsTimer *time.Timer
 	var logMutex sync.Mutex
+	logsFlushed := sync.NewCond(&sync.Mutex{})
 	var logsSending bool
 	defer func() {
 		logMutex.Lock()
@@ -720,6 +746,7 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 		logsSending = false
 		flushLogsTimer.Reset(100 * time.Millisecond)
 		logMutex.Unlock()
+		logsFlushed.Broadcast()
 	}
 	// queueLog function appends a log to the queue and triggers sendLogs if necessary
 	queueLog := func(log agentsdk.StartupLog) {
@@ -743,36 +770,37 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 		}
 		flushLogsTimer = time.AfterFunc(100*time.Millisecond, sendLogs)
 	}
-	err = a.trackConnGoroutine(func() {
-		scanner := bufio.NewScanner(startupLogsReader)
+
+	// It's important that we either flush or drop all logs before returning
+	// because the startup state is reported after flush.
+	//
+	// It'd be weird for the startup state to be ready, but logs are still
+	// coming in.
+	logsFinished := make(chan struct{})
+	err := a.trackConnGoroutine(func() {
+		scanner := bufio.NewScanner(reader)
 		for scanner.Scan() {
 			queueLog(agentsdk.StartupLog{
 				CreatedAt: database.Now(),
 				Output:    scanner.Text(),
 			})
 		}
+		defer close(logsFinished)
+		logsFlushed.L.Lock()
+		for {
+			logMutex.Lock()
+			if len(queuedLogs) == 0 {
+				logMutex.Unlock()
+				break
+			}
+			logMutex.Unlock()
+			logsFlushed.Wait()
+		}
 	})
 	if err != nil {
-		return xerrors.Errorf("track conn goroutine: %w", err)
+		return nil, xerrors.Errorf("track conn goroutine: %w", err)
 	}
-
-	cmd, err := a.createCommand(ctx, script, nil)
-	if err != nil {
-		return xerrors.Errorf("create command: %w", err)
-	}
-	cmd.Stdout = writer
-	cmd.Stderr = writer
-	err = cmd.Run()
-	if err != nil {
-		// cmd.Run does not return a context canceled error, it returns "signal: killed".
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-
-		return xerrors.Errorf("run: %w", err)
-	}
-
-	return nil
+	return logsFinished, nil
 }
 
 func (a *agent) init(ctx context.Context) {
