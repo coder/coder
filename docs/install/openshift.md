@@ -36,49 +36,41 @@ coder:
     runAsUser: <project-specific UID>
     runAsGroup: <project-specific GID>
     readOnlyRootFilesystem: false
-    seccompProfile:
-      type: RuntimeDefault
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop:
-        - ALL
 ```
 
 The above values are the Coder defaults. You will need to change these values in
-accordance with the applied SCC. To get a current list of SCCs, run the below command:
+accordance with the applied SCC. Retrieve the project UID range with the following
+command:
 
 ```console
-oc get scc
+oc get project coder -o json | jq -r '.metadata.annotations'
+{
+  "openshift.io/sa.scc.uid-range": "1000680000/10000"
+}
 ```
 
-> Note: you must have cluster-admin privileges to manage SCCs
+### 3. Configure the Coder service, connection URLs, and cache values
 
-### 3. Set the `CODER_CACHE_DIRECTORY` environment variable
+To establish a connection to PostgreSQL, set the `CODER_PG_CONNECTION_URL` value.
+[See our Helm documentation](./kubernetes.md) on configuring the PostgreSQL connection
+URL as a secret. Additionally, if accessing Coder over a hostname, set the `CODER_ACCESS_URL`
+value.
 
 By default, Coder creates the cache directory in `/home/coder/.cache`. Given the
 OpenShift-provided UID, the Coder container does not have permission to write to
-this directory.
+this directory. To fix this, set the `CODER_CACHE_DIRECTORY` environment variable
+to `/tmp/coder-cache`.
 
-To address this issue, you will need to set the `CODER_CACHE_DIRECTORY` environment
-variable in your Helm values to the following:
+Additionally, create the Coder service as a `ClusterIP`. In the next step,
+you will create an OpenShift route that points to the service HTTP target port.
 
 ```yaml
 coder:
+  service:
+    type: ClusterIP
   env:
     - name: CODER_CACHE_DIRECTORY
       value: /tmp/coder-cache
-```
-
-### 4. Set access URL, PostgreSQL connection values
-
-Set the `CODER_PG_CONNECTION_URL` value to enable Coder to establish a connection
-to a PostgreSQL instance. [See our Helm documentation](./kubernetes.md) on configuring
-the PostgreSQL connection URL as a secret. Additionally, if accessing Coder over a hostname, set
-the `CODER_ACCESS_URL` value.
-
-```yaml
-coder:
-  env:
     - name: CODER_PG_CONNECTION_URL
       valueFrom:
         secretKeyRef:
@@ -86,23 +78,17 @@ coder:
           name: coder-db-url
     - name: CODER_ACCESS_URL
       value: "https://coder-example.apps.openshiftapps.com"
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: <project-specific UID>
+    runAsGroup: <project-specific GID>
+    readOnlyRootFilesystem: false
 ```
 
-### 5. Configure the Coder service
+> Note: OpenShift provides a Developer Catalog offering you can use to
+> install PostgreSQL into your cluster.
 
-In this step, we will configure the Coder service as a `ClusterIP`, and create an
-OpenShift route that points to the service HTTP target port.
-
-> Note that setting the `ClusterIP` service type for Coder is not required.
-> `LoadBalancer` and `NodePort` services types can be used.
-
-Below are the Helm chart values for configuring the Coder service as a `ClusterIP`:
-
-```yaml
-coder:
-  service:
-    type: ClusterIP
-```
+### 4. Create the OpenShift route
 
 Below is the YAML spec for creating an OpenShift route that sends traffic to the
 HTTP port of the Coder service:
@@ -134,7 +120,7 @@ Once complete, you can create this route in OpenShift via:
 oc apply -f route.yaml
 ```
 
-### 6. Install Coder
+### 5. Install Coder
 
 You can now install Coder using the values you've set from the above steps. To do
 so, run the series of `helm` commands below:
@@ -147,7 +133,7 @@ helm install coder coder-v2/coder \
   --values values.yaml
 ```
 
-### 7. Create an OpenShift-compatible image
+### 6. Create an OpenShift-compatible image
 
 While the deployment is spinning up, we will need to create some images that
 are compatible with OpenShift. These images can then be run without modifying
@@ -234,7 +220,7 @@ the Security Context Constraints (SCCs) in OpenShift.
    enterprise-base:latest   image-registry.openshift-image-registry.svc:5000/coder/enterprise-base@sha256:1dbbe4ee11be9218e1e4741264135a4f57501fe592d94d20db6bfe11692accd1   55 minutes ago
    ```
 
-### 8. Create an OpenShift-compatible template
+### 7. Create an OpenShift-compatible template
 
 Start from the default "Kubernetes" template:
 
