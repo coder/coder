@@ -130,6 +130,17 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
             >
               Permissions
             </NavLink>
+            <NavLink
+              to={`/templates/${template}/files`}
+              className={({ isActive }) =>
+                combineClasses([
+                  styles.tabItem,
+                  isActive ? styles.tabItemActive : undefined,
+                ])
+              }
+            >
+              Source Code
+            </NavLink>
           </Stack>
         </Margins>
       </div>
