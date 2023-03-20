@@ -11,33 +11,37 @@ environments with Terraform.
       $ coder templates init
 
 Subcommands
-        dotfiles            Checkout and install a dotfiles repository from a Git URL
-        login               Authenticate with Coder deployment
-        logout              Unauthenticate your local session
-        port-forward        Forward ports from machine to a workspace
-        publickey           Output your Coder public key used for Git operations
-        reset-password      Directly connect to the database to reset a user's password
-        state               Manually manage Terraform state to fix broken workspaces
-        templates           Manage templates
-        users               Manage users
-        tokens              Manage personal access tokens
-        version             Show coder version
-        config-ssh          Add an SSH Host entry for your workspaces "ssh coder.workspace"
-        rename              Rename a workspace
-        ping                Ping a workspace
-        create              Create a workspace
-        delete              Delete a workspace
-        list                List workspaces
-        schedule            Schedule automated start and stop times for workspaces
-        show                Display details of a workspace's resources and agents
-        speedtest           Run upload and download tests from your machine to a workspace
-        ssh                 Start a shell into a workspace
-        start               Start a workspace
-        stop                Stop a workspace
-        update              Will update and start a given workspace if it is out of date.
-        restart             Restart a workspace
-        scaletest           Run a scale test against the Coder API
-        server              Start a Coder server
+    dotfiles          Checkout and install a dotfiles repository from a Git URL
+    login             Authenticate with Coder deployment
+    logout            Unauthenticate your local session
+    port-forward      Forward ports from machine to a workspace
+    publickey         Output your Coder public key used for Git operations
+    reset-password    Directly connect to the database to reset a user's
+                      password
+    state             Manually manage Terraform state to fix broken workspaces
+    templates         Manage templates
+    users             Manage users
+    tokens            Manage personal access tokens
+    version           Show coder version
+    config-ssh        Add an SSH Host entry for your workspaces "ssh
+                      coder.workspace"
+    rename            Rename a workspace
+    ping              Ping a workspace
+    create            Create a workspace
+    delete            Delete a workspace
+    list              List workspaces
+    schedule          Schedule automated start and stop times for workspaces
+    show              Display details of a workspace's resources and agents
+    speedtest         Run upload and download tests from your machine to a
+                      workspace
+    ssh               Start a shell into a workspace
+    start             Start a workspace
+    stop              Stop a workspace
+    update            Will update and start a given workspace if it is out of
+                      date.
+    restart           Restart a workspace
+    scaletest         Run a scale test against the Coder API
+    server            Start a Coder server
 Global Options 
 Global options are applied to all commands. They can be set using environment
 variables or flags.

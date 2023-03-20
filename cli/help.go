@@ -78,6 +78,41 @@ var usageTemplate = template.Must(
 				}
 				return sb.String()
 			},
+			"formatSubcommand": func(cmd *clibase.Cmd) string {
+				// Minimize padding by finding the longest neighboring name.
+				maxNameLength := len(cmd.Name())
+				if parent := cmd.Parent; parent != nil {
+					for _, c := range parent.Children {
+						if len(c.Name()) > maxNameLength {
+							maxNameLength = len(c.Name())
+						}
+					}
+				}
+
+				var sb strings.Builder
+				_, _ = fmt.Fprintf(
+					&sb, "%s%s%s",
+					strings.Repeat(" ", 4), cmd.Name(), strings.Repeat(" ", maxNameLength-len(cmd.Name())+4),
+				)
+
+				// This is the point at which indentation begins if there's a
+				// next line.
+				descStart := sb.Len()
+
+				twidth := ttyGetSize()
+
+				for i, line := range strings.Split(
+					wordwrap.WrapString(cmd.Short, uint(twidth-descStart)), "\n",
+				) {
+					if i > 0 {
+						_, _ = sb.WriteString(strings.Repeat(" ", descStart))
+					}
+					_, _ = sb.WriteString(line)
+					_, _ = sb.WriteString("\n")
+				}
+
+				return sb.String()
+			},
 			"envName": func(opt clibase.Option) string {
 				if opt.Env == "" {
 					return ""

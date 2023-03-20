@@ -13,7 +13,8 @@ Usage: {{.FullUsage}}
 {{- if eq $index 0 }}
 {{ prettyHeader "Subcommands"}}
 {{- end }}
-    {{ indent $child.Name 1 | trimNewline }}{{"\t"}}{{ indent $child.Short 1 | trimNewline }}
+    {{- "\n" }}
+    {{- formatSubcommand . | trimNewline }}
 {{- end }}
 {{- range $index, $group := optionGroups . }}
 {{ with $group.Name }} {{- print $group.Name " Options" | prettyHeader }} {{ else -}} {{ prettyHeader "Options"}}{{- end -}}
