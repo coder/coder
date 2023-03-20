@@ -276,7 +276,6 @@ func caller(skip int) string {
 	str := fmt.Sprintf("%s:%d", file, line)
 	if ok {
 		f := runtime.FuncForPC(pc)
-		filepath.Base(f.Name())
 		str += " | " + filepath.Base(f.Name())
 	}
 	return str
