@@ -117,7 +117,10 @@ func workspaceAgent() *cobra.Command {
 			client := agentsdk.New(coderURL)
 			client.SDK.Logger = logger
 			// Set a reasonable timeout so requests can't hang forever!
-			client.SDK.HTTPClient.Timeout = 10 * time.Second
+			// The timeout needs to be reasonably long, because requests
+			// with large payloads can take a bit. e.g. startup scripts
+			// may take a while to insert.
+			client.SDK.HTTPClient.Timeout = 30 * time.Second
 
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.

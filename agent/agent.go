@@ -666,6 +666,13 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 	var flushLogsTimer *time.Timer
 	var logMutex sync.Mutex
 	var logsSending bool
+	defer func() {
+		logMutex.Lock()
+		if flushLogsTimer != nil {
+			flushLogsTimer.Stop()
+		}
+		logMutex.Unlock()
+	}()
 
 	// sendLogs function uploads the queued logs to the server
 	sendLogs := func() {
@@ -708,6 +715,7 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 		// Reset logsSending flag
 		logMutex.Lock()
 		logsSending = false
+		flushLogsTimer.Reset(100 * time.Millisecond)
 		logMutex.Unlock()
 	}
 	// queueLog function appends a log to the queue and triggers sendLogs if necessary
@@ -720,8 +728,10 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 
 		// If there are more than 100 logs, send them immediately
 		if len(queuedLogs) > 100 {
+			// Don't early return after this, because we still want
+			// to reset the timer just in case logs come in while
+			// we're sending.
 			go sendLogs()
-			return
 		}
 		// Reset or set the flushLogsTimer to trigger sendLogs after 100 milliseconds
 		if flushLogsTimer != nil {

@@ -97,11 +97,17 @@ export const AgentRow: FC<AgentRowProps> = ({
     return logs
   }, [logsMachine.context.startupLogs, agent.startup_logs_overflowed])
   const [bottomOfLogs, setBottomOfLogs] = useState(true)
+  // This is a layout effect to remove flicker when we're scrolling to the bottom.
   useLayoutEffect(() => {
+    // If we're currently watching the bottom, we always want to stay at the bottom.
     if (bottomOfLogs && logListRef.current) {
       logListRef.current.scrollToItem(startupLogs.length - 1, "end")
     }
   }, [showStartupLogs, startupLogs, logListRef, bottomOfLogs])
+
+  // This is a bit of a hack on the react-window API to get the scroll position.
+  // If we're scrolled to the bottom, we want to keep the list scrolled to the bottom.
+  // This makes it feel similar to a terminal that auto-scrolls downwards!
   const handleLogScroll = useCallback(
     (props: ListOnScrollProps) => {
       if (
