@@ -6776,11 +6776,9 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "authz_querier",
                 "template_editor"
             ],
             "x-enum-varnames": [
-                "ExperimentAuthzQuerier",
                 "ExperimentTemplateEditor"
             ]
         },

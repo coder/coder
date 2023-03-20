@@ -2342,7 +2342,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ## codersdk.Experiment
 
 ```json
-"authz_querier"
+"template_editor"
 ```
 
 ### Properties
@@ -2351,7 +2351,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 | Value             |
 | ----------------- |
-| `authz_querier`   |
 | `template_editor` |
 
 ## codersdk.Feature
