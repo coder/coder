@@ -17,8 +17,8 @@ const Template: Story<TemplateSummaryPageViewProps> = (args) => (
 export const Example = Template.bind({})
 Example.args = {
   template: Mocks.MockTemplate,
+  activeVersion: Mocks.MockTemplateVersion,
   data: {
-    activeVersion: Mocks.MockTemplateVersion,
     resources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
     versions: [Mocks.MockTemplateVersion],
     daus: Mocks.MockTemplateDAUResponse,
@@ -28,8 +28,8 @@ Example.args = {
 export const NoIcon = Template.bind({})
 NoIcon.args = {
   template: { ...Mocks.MockTemplate, icon: "" },
+  activeVersion: Mocks.MockTemplateVersion,
   data: {
-    activeVersion: Mocks.MockTemplateVersion,
     resources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
     versions: [Mocks.MockTemplateVersion],
     daus: Mocks.MockTemplateDAUResponse,
@@ -39,10 +39,9 @@ NoIcon.args = {
 export const SmallViewport = Template.bind({})
 SmallViewport.args = {
   template: Mocks.MockTemplate,
-  data: {
-    activeVersion: {
-      ...Mocks.MockTemplateVersion,
-      readme: `---
+  activeVersion: {
+    ...Mocks.MockTemplateVersion,
+    readme: `---
   name:Template test
   ---
   ## Instructions
@@ -53,7 +52,8 @@ SmallViewport.args = {
   # This is a really long sentence to test that the code block wraps into a new line properly.
   \`\`\`
   `,
-    },
+  },
+  data: {
     resources: [Mocks.MockWorkspaceResource, Mocks.MockWorkspaceResource2],
     versions: [Mocks.MockTemplateVersion],
     daus: Mocks.MockTemplateDAUResponse,

@@ -1,5 +1,9 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { Template, WorkspaceResource } from "api/typesGenerated"
+import {
+  Template,
+  TemplateVersion,
+  WorkspaceResource,
+} from "api/typesGenerated"
 import { Loader } from "components/Loader/Loader"
 import { MemoizedMarkdown } from "components/Markdown/Markdown"
 import { Stack } from "components/Stack/Stack"
@@ -14,11 +18,13 @@ import { TemplateSummaryData } from "./data"
 export interface TemplateSummaryPageViewProps {
   data?: TemplateSummaryData
   template: Template
+  activeVersion: TemplateVersion
 }
 
 export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
   data,
   template,
+  activeVersion,
 }) => {
   const styles = useStyles()
 
@@ -26,7 +32,7 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
     return <Loader />
   }
 
-  const { activeVersion, daus, resources, versions } = data
+  const { daus, resources, versions } = data
   const readme = frontMatter(activeVersion.readme)
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
