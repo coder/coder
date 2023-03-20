@@ -104,7 +104,7 @@ func (a RBACAsserter) AssertInOrder(t *testing.T, action rbac.Action, objects ..
 
 // convertObjects converts the codersdk types to rbac.Object. Unfortunately
 // does not have type safety, and instead uses a t.Fatal to enforce types.
-func (a RBACAsserter) convertObjects(t *testing.T, objs ...interface{}) []rbac.Object {
+func (RBACAsserter) convertObjects(t *testing.T, objs ...interface{}) []rbac.Object {
 	converted := make([]rbac.Object, 0, len(objs))
 	for _, obj := range objs {
 		var robj rbac.Object
