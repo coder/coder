@@ -126,6 +126,8 @@ type Options struct {
 	Database database.Store
 	Pubsub   database.Pubsub
 
+	ConfigSSH codersdk.SSHConfigResponse
+
 	SwaggerEndpoint bool
 }
 
@@ -258,7 +260,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
 	t.Cleanup(stunCleanup)
 
-	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp")))
+	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
 	derpServer.SetMeshKey("test-key")
 
 	// match default with cli default
@@ -333,6 +335,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			UpdateCheckOptions:          options.UpdateCheckOptions,
 			SwaggerEndpoint:             options.SwaggerEndpoint,
 			AppSigningKey:               AppSigningKey,
+			SSHConfig:                   options.ConfigSSH,
 		}
 }
 

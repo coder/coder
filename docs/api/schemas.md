@@ -1722,6 +1722,10 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "browser_only": true,
     "cache_directory": "string",
     "config": "string",
+    "config_ssh": {
+      "deploymentName": "string",
+      "sshconfigOptions": ["string"]
+    },
     "dangerous": {
       "allow_path_app_sharing": true,
       "allow_path_app_site_owner_access": true
@@ -2062,6 +2066,10 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "browser_only": true,
   "cache_directory": "string",
   "config": "string",
+  "config_ssh": {
+    "deploymentName": "string",
+    "sshconfigOptions": ["string"]
+  },
   "dangerous": {
     "allow_path_app_sharing": true,
     "allow_path_app_site_owner_access": true
@@ -2273,6 +2281,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `browser_only`                       | boolean                                                                                    | false    |              |                                                                    |
 | `cache_directory`                    | string                                                                                     | false    |              |                                                                    |
 | `config`                             | string                                                                                     | false    |              |                                                                    |
+| `config_ssh`                         | [codersdk.SSHConfig](#codersdksshconfig)                                                   | false    |              |                                                                    |
 | `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                       | false    |              |                                                                    |
 | `derp`                               | [codersdk.DERP](#codersdkderp)                                                             | false    |              |                                                                    |
 | `disable_password_auth`              | boolean                                                                                    | false    |              |                                                                    |
@@ -3353,6 +3362,42 @@ Parameter represents a set value for the scope.
 | `display_name` | string | false    |              |             |
 | `name`         | string | false    |              |             |
 
+## codersdk.SSHConfig
+
+```json
+{
+  "deploymentName": "string",
+  "sshconfigOptions": ["string"]
+}
+```
+
+### Properties
+
+| Name               | Type            | Required | Restrictions | Description                                                                                         |
+| ------------------ | --------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------- |
+| `deploymentName`   | string          | false    |              | Deploymentname is the config-ssh Hostname prefix                                                    |
+| `sshconfigOptions` | array of string | false    |              | Sshconfigoptions are additional options to add to the ssh config file. This will override defaults. |
+
+## codersdk.SSHConfigResponse
+
+```json
+{
+  "hostname_prefix": "string",
+  "ssh_config_options": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                 | Type   | Required | Restrictions | Description |
+| -------------------- | ------ | -------- | ------------ | ----------- |
+| `hostname_prefix`    | string | false    |              |             |
+| `ssh_config_options` | object | false    |              |             |
+| » `[any property]`   | string | false    |              |             |
+
 ## codersdk.ServiceBannerConfig
 
 ```json
@@ -3769,6 +3814,7 @@ Parameter represents a set value for the scope.
   "description": "string",
   "description_plaintext": "string",
   "icon": "string",
+  "legacy_variable_name": "string",
   "mutable": true,
   "name": "string",
   "options": [
@@ -3797,6 +3843,7 @@ Parameter represents a set value for the scope.
 | `description`           | string                                                                                      | false    |              |             |
 | `description_plaintext` | string                                                                                      | false    |              |             |
 | `icon`                  | string                                                                                      | false    |              |             |
+| `legacy_variable_name`  | string                                                                                      | false    |              |             |
 | `mutable`               | boolean                                                                                     | false    |              |             |
 | `name`                  | string                                                                                      | false    |              |             |
 | `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
@@ -3810,13 +3857,14 @@ Parameter represents a set value for the scope.
 
 #### Enumerated Values
 
-| Property               | Value        |
-| ---------------------- | ------------ |
-| `type`                 | `string`     |
-| `type`                 | `number`     |
-| `type`                 | `bool`       |
-| `validation_monotonic` | `increasing` |
-| `validation_monotonic` | `decreasing` |
+| Property               | Value          |
+| ---------------------- | -------------- |
+| `type`                 | `string`       |
+| `type`                 | `number`       |
+| `type`                 | `bool`         |
+| `type`                 | `list(string)` |
+| `validation_monotonic` | `increasing`   |
+| `validation_monotonic` | `decreasing`   |
 
 ## codersdk.TemplateVersionParameterOption
 
@@ -3871,6 +3919,20 @@ Parameter represents a set value for the scope.
 | `type`   | `string` |
 | `type`   | `number` |
 | `type`   | `bool`   |
+
+## codersdk.TokenConfig
+
+```json
+{
+  "max_token_lifetime": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+| -------------------- | ------- | -------- | ------------ | ----------- |
+| `max_token_lifetime` | integer | false    |              |             |
 
 ## codersdk.TraceConfig
 

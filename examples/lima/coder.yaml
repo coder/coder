@@ -93,7 +93,7 @@ provision:
       # If we are already logged in, nothing to do
       coder templates list >/dev/null 2>&1 && exit 0
       # Set up initial user
-      [ ! -e ~/.config/coderv2/session ] && coder login http://localhost:3000 --first-user-username admin --first-user-email admin@coder.com --first-user-password $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c8 | tee ${HOME}/.config/coderv2/password)
+      [ ! -e ~/.config/coderv2/session ] && coder login http://localhost:3000 --first-user-username admin --first-user-email admin@coder.com --first-user-password $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c12 | tee ${HOME}/.config/coderv2/password)
       # Create an initial template
       temp_template_dir=$(mktemp -d)
       echo code-server | coder templates init "${temp_template_dir}"

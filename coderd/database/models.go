@@ -1470,6 +1470,8 @@ type TemplateVersionParameter struct {
 	ValidationMonotonic string `db:"validation_monotonic" json:"validation_monotonic"`
 	// Is parameter required?
 	Required bool `db:"required" json:"required"`
+	// Name of the legacy variable for migration purposes
+	LegacyVariableName string `db:"legacy_variable_name" json:"legacy_variable_name"`
 }
 
 type TemplateVersionVariable struct {

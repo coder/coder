@@ -85,6 +85,7 @@ message RichParameter {
     int32 validation_max = 11;
     string validation_monotonic = 12;
 	bool required = 13;
+	string legacy_variable_name = 14;
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.
@@ -230,6 +231,7 @@ message Provision {
         string workspace_owner_email = 7;
         string template_name = 8;
         string template_version = 9;
+        string workspace_owner_oidc_access_token = 10;
     }
 
     // Config represents execution configuration shared by both Plan and

@@ -46,9 +46,9 @@ subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 
 The Coder server can directly use TLS certificates with `CODER_TLS_ENABLE` and accompanying configuration flags. However, Coder can also run behind a reverse-proxy to terminate TLS certificates from LetsEncrypt, for example.
 
-- Apache: [Run Coder with Apache and LetsEncrypt](https://github.com/coder/coder/tree/main/examples/web-server/apache)
-- Caddy: [Run Coder with Caddy and LetsEncrypt](https://github.com/coder/coder/tree/main/examples/web-server/caddy)
-- NGINX: [Run Coder with Nginx and LetsEncrypt](https://github.com/coder/coder/tree/main/examples/web-server/nginx)
+- [Apache](https://github.com/coder/coder/tree/main/examples/web-server/apache)
+- [Caddy](https://github.com/coder/coder/tree/main/examples/web-server/caddy)
+- [NGINX](https://github.com/coder/coder/tree/main/examples/web-server/nginx)
 
 ## PostgreSQL Database
 

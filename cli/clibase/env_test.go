@@ -16,7 +16,7 @@ func TestFilterNamePrefix(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want []clibase.EnvVar
+		want clibase.Environ
 	}{
 		{"empty", args{[]string{}, "SHIRE"}, nil},
 		{
@@ -36,8 +36,8 @@ func TestFilterNamePrefix(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := clibase.EnvsWithPrefix(tt.args.environ, tt.args.prefix); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("EnvsWithPrefix() = %v, want %v", got, tt.want)
+			if got := clibase.ParseEnviron(tt.args.environ, tt.args.prefix); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("FilterNamePrefix() = %v, want %v", got, tt.want)
 			}
 		})
 	}

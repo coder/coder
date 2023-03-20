@@ -23,7 +23,12 @@ export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
   }
 
   return (
-    <Stack spacing={1.5} direction="row" alignItems="center">
+    <Stack
+      spacing={1.5}
+      direction="row"
+      alignItems="center"
+      className={styles.root}
+    >
       {avatar}
 
       <Stack spacing={0}>
@@ -35,6 +40,10 @@ export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
 }
 
 const useStyles = makeStyles((theme) => ({
+  root: {
+    minHeight: theme.spacing(5), // Make it predictable for the skeleton
+  },
+
   title: {
     color: theme.palette.text.primary,
     fontWeight: 600,

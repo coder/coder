@@ -140,3 +140,29 @@ Choosing what to test is not always easy since there are a lot of flows and a lo
 - Things that can block the user
 - Reported bugs
 - Regression issues
+
+### Tests getting too slow
+
+A few times you can notice tests can take a very long time to get done. Sometimes it is because the test itself is complex and runs a lot of stuff, and sometimes it is because of how we are querying things. In the next section, we are going to talk more about them.
+
+#### Using `ByRole` queries
+
+One thing we figured out that was slowing down our tests was the use of `ByRole` queries because of how it calculates the role attribute for every element on the `screen`. You can read more about it on the links below:
+
+- https://stackoverflow.com/questions/69711888/react-testing-library-getbyrole-is-performing-extremely-slowly
+- https://github.com/testing-library/dom-testing-library/issues/552#issuecomment-625172052
+
+Even with `ByRole` having performance issues we still want to use it but for that, we have to scope the "querying" area by using the `within` command. So instead of using `screen.getByRole("button")` directly we could do `within(form).getByRole("button")`.
+
+❌ Not ideal. If the screen has a hundred or thousand elements it can be VERY slow.
+
+```tsx
+user.click(screen.getByRole("button"))
+```
+
+✅ Better. We can limit the number of elements we are querying.
+
+```tsx
+const form = screen.getByTestId("form")
+user.click(within(form).getByRole("button"))
+```

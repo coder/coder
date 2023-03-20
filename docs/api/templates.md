@@ -2213,6 +2213,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
     "description": "string",
     "description_plaintext": "string",
     "icon": "string",
+    "legacy_variable_name": "string",
     "mutable": true,
     "name": "string",
     "options": [
@@ -2251,6 +2252,7 @@ Status Code **200**
 | `» description`           | string                                                                           | false    |              |             |
 | `» description_plaintext` | string                                                                           | false    |              |             |
 | `» icon`                  | string                                                                           | false    |              |             |
+| `» legacy_variable_name`  | string                                                                           | false    |              |             |
 | `» mutable`               | boolean                                                                          | false    |              |             |
 | `» name`                  | string                                                                           | false    |              |             |
 | `» options`               | array                                                                            | false    |              |             |
@@ -2268,13 +2270,14 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property               | Value        |
-| ---------------------- | ------------ |
-| `type`                 | `string`     |
-| `type`                 | `number`     |
-| `type`                 | `bool`       |
-| `validation_monotonic` | `increasing` |
-| `validation_monotonic` | `decreasing` |
+| Property               | Value          |
+| ---------------------- | -------------- |
+| `type`                 | `string`       |
+| `type`                 | `number`       |
+| `type`                 | `bool`         |
+| `type`                 | `list(string)` |
+| `validation_monotonic` | `increasing`   |
+| `validation_monotonic` | `decreasing`   |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

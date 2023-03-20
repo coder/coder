@@ -743,7 +743,7 @@ func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersi
 		object = tv.RBACObject(template)
 	}
 
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, object); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, object); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateVersionVariables(ctx, templateVersionID)
@@ -969,6 +969,18 @@ func (q *querier) GetUserByEmailOrUsername(ctx context.Context, arg database.Get
 
 func (q *querier) GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error) {
 	return fetch(q.log, q.auth, q.db.GetUserByID)(ctx, id)
+}
+
+// GetUsersByIDs is only used for usernames on workspace return data.
+// This function should be replaced by joining this data to the workspace query
+// itself.
+func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
+	for _, uid := range ids {
+		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(uid)); err != nil {
+			return nil, err
+		}
+	}
+	return q.db.GetUsersByIDs(ctx, ids)
 }
 
 func (q *querier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {

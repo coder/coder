@@ -512,7 +512,7 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - run: yarn test:ci
+      - run: yarn test:ci --max-workers ${{ steps.cpu-cores.outputs.count }}
         working-directory: site
 
       - uses: codecov/codecov-action@v3

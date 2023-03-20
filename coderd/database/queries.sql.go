@@ -3608,7 +3608,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required FROM template_version_parameters WHERE template_version_id = $1
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name FROM template_version_parameters WHERE template_version_id = $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -3635,6 +3635,7 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.ValidationError,
 			&i.ValidationMonotonic,
 			&i.Required,
+			&i.LegacyVariableName,
 		); err != nil {
 			return nil, err
 		}
@@ -3665,7 +3666,8 @@ INSERT INTO
         validation_max,
         validation_error,
         validation_monotonic,
-        required
+        required,
+        legacy_variable_name
     )
 VALUES
     (
@@ -3682,8 +3684,9 @@ VALUES
         $11,
         $12,
         $13,
-        $14
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required
+        $14,
+        $15
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name
 `
 
 type InsertTemplateVersionParameterParams struct {
@@ -3701,6 +3704,7 @@ type InsertTemplateVersionParameterParams struct {
 	ValidationError     string          `db:"validation_error" json:"validation_error"`
 	ValidationMonotonic string          `db:"validation_monotonic" json:"validation_monotonic"`
 	Required            bool            `db:"required" json:"required"`
+	LegacyVariableName  string          `db:"legacy_variable_name" json:"legacy_variable_name"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -3719,6 +3723,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.ValidationError,
 		arg.ValidationMonotonic,
 		arg.Required,
+		arg.LegacyVariableName,
 	)
 	var i TemplateVersionParameter
 	err := row.Scan(
@@ -3736,6 +3741,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.ValidationError,
 		&i.ValidationMonotonic,
 		&i.Required,
+		&i.LegacyVariableName,
 	)
 	return i, err
 }
@@ -5747,6 +5753,91 @@ func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, templateID uuid.UUID) 
 	for rows.Next() {
 		var i GetTemplateDAUsRow
 		if err := rows.Scan(&i.Date, &i.UserID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceAgentStats = `-- name: GetWorkspaceAgentStats :many
+WITH agent_stats AS (
+	SELECT
+		user_id,
+		agent_id,
+		workspace_id,
+		template_id,
+		MIN(created_at)::timestamptz AS aggregated_from,
+		coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
+		coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
+		coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
+		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
+	 FROM workspace_agent_stats
+	 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
+		WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 GROUP BY user_id, agent_id, workspace_id, template_id
+), latest_agent_stats AS (
+	SELECT
+		a.agent_id,
+		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
+	 FROM (
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		FROM workspace_agent_stats WHERE created_at > $1
+	) AS a WHERE a.rn = 1 GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
+)
+SELECT user_id, agent_stats.agent_id, workspace_id, template_id, aggregated_from, workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, latest_agent_stats.agent_id, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id
+`
+
+type GetWorkspaceAgentStatsRow struct {
+	UserID                       uuid.UUID `db:"user_id" json:"user_id"`
+	AgentID                      uuid.UUID `db:"agent_id" json:"agent_id"`
+	WorkspaceID                  uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	TemplateID                   uuid.UUID `db:"template_id" json:"template_id"`
+	AggregatedFrom               time.Time `db:"aggregated_from" json:"aggregated_from"`
+	WorkspaceRxBytes             int64     `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
+	WorkspaceTxBytes             int64     `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
+	WorkspaceConnectionLatency50 float64   `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64   `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	AgentID_2                    uuid.UUID `db:"agent_id_2" json:"agent_id_2"`
+	SessionCountVSCode           int64     `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountSSH              int64     `db:"session_count_ssh" json:"session_count_ssh"`
+	SessionCountJetBrains        int64     `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY  int64     `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStats, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceAgentStatsRow
+	for rows.Next() {
+		var i GetWorkspaceAgentStatsRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.AgentID,
+			&i.WorkspaceID,
+			&i.TemplateID,
+			&i.AggregatedFrom,
+			&i.WorkspaceRxBytes,
+			&i.WorkspaceTxBytes,
+			&i.WorkspaceConnectionLatency50,
+			&i.WorkspaceConnectionLatency95,
+			&i.AgentID_2,
+			&i.SessionCountVSCode,
+			&i.SessionCountSSH,
+			&i.SessionCountJetBrains,
+			&i.SessionCountReconnectingPTY,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -40,7 +40,7 @@ replace github.com/tcnksm/go-httpstat => github.com/kylecarbs/go-httpstat v0.0.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230307022319-1e5e724a3949
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230314023417-d9efcc0ac972
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
@@ -76,7 +76,7 @@ require (
 	github.com/codeclysm/extract v2.2.0+incompatible
 	github.com/coder/flog v1.0.0
 	github.com/coder/retry v1.3.1-0.20230210155434-e90a2e1e091d
-	github.com/coder/terraform-provider-coder v0.6.15
+	github.com/coder/terraform-provider-coder v0.6.20
 	github.com/coreos/go-oidc/v3 v3.4.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.18
