@@ -21,7 +21,7 @@ func (r *RootCmd) userCreate() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:        "create",
-		Middleware: clibase.Chain(r.UseClient(client)),
+		Middleware: clibase.Chain(r.InitClient(client)),
 		Handler: func(inv *clibase.Invocation) error {
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {

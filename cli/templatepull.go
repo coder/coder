@@ -23,7 +23,7 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 		Short: "Download the latest version of a template to a path.",
 		Middleware: clibase.Chain(
 			clibase.RequireRangeArgs(1, 2),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			var (

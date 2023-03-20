@@ -2,7 +2,7 @@ Usage: coder users [subcommand]
 
 Manage users
 
-Subcommands
+[1mSubcommands[0m
     create      
     list        
     show        Show a single user. Use 'me' to indicate the currently

@@ -5,7 +5,7 @@ Cleanup any orphaned scaletest resources
 Cleanup scaletest workspaces, then cleanup scaletest users. The strategy flags
 will apply to each stage of the cleanup process.
 
-Options
+[1mOptions[0m
     --cleanup-concurrency, $CODER_LOADTEST_CLEANUP_CONCURRENCY  (default: 1) 
         Number of concurrent cleanup jobs to run. 0 means unlimited.
 

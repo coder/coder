@@ -17,7 +17,7 @@ func (r *RootCmd) publickey() *clibase.Cmd {
 		Use:        "publickey",
 		Aliases:    []string{"pubkey"},
 		Short:      "Output your Coder public key used for Git operations",
-		Middleware: r.UseClient(client),
+		Middleware: r.InitClient(client),
 		Handler: func(inv *clibase.Invocation) error {
 			if reset {
 				// Confirm prompt if using --reset. We don't want to accidentally

@@ -2,7 +2,7 @@ Usage: coder start <workspace>
 
 Start a workspace
 
-Options
+[1mOptions[0m
     --yes, -y
         Bypass prompts.
 

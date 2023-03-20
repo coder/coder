@@ -2,7 +2,7 @@ Usage: coder tokens create
 
 Create a token
 
-Options
+[1mOptions[0m
     --lifetime, $CODER_TOKEN_LIFETIME 
         Specify a duration for the lifetime of the token.
 

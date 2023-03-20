@@ -3,7 +3,7 @@ Usage: coder server create-admin-user
 Create a new admin user with the given username, email and password and adds it
 to every organization.
 
-Options
+[1mOptions[0m
     --postgres-url, $CODER_POSTGRES_URL 
         URL of a PostgreSQL database. If empty, the built-in PostgreSQL
         deployment will be used (Coder must not be already running in this

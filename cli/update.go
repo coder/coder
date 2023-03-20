@@ -23,7 +23,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 			"the parameter values of the workspace.",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])

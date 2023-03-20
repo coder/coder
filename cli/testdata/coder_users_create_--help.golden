@@ -1,6 +1,6 @@
 Usage: coder users create
 
-Options
+[1mOptions[0m
     --email, -e
         Specifies an email address for the new user.
 

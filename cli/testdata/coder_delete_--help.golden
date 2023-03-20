@@ -2,7 +2,7 @@ Usage: coder delete <workspace>
 
 Delete a workspace
 
-Options
+[1mOptions[0m
     --orphan (default: false) 
         Delete a workspace without deleting its resources. This can delete a
         workspace in a broken state, but may also lead to unaccounted cloud

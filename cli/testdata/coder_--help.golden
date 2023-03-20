@@ -4,13 +4,13 @@ Coder v0.0.0-devel — A tool for provisioning self-hosted development
 environments with Terraform.
   - Start a Coder server.:                                                      
 
-      $ coder server 
+      [;m$ coder server[0m 
 
   - Get started by creating a template from an example.:                        
 
-      $ coder templates init
+      [;m$ coder templates init[0m
 
-Subcommands
+[1mSubcommands[0m
     dotfiles          Checkout and install a dotfiles repository from a Git URL
     login             Authenticate with Coder deployment
     logout            Unauthenticate your local session
@@ -42,7 +42,7 @@ Subcommands
     restart           Restart a workspace
     scaletest         Run a scale test against the Coder API
     server            Start a Coder server
-Global Options 
+[1mGlobal Options[0m 
 Global options are applied to all commands. They can be set using environment
 variables or flags.
 

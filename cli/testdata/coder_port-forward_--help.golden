@@ -5,24 +5,24 @@ Forward ports from machine to a workspace
 - Port forward a single TCP port from 1234 in the workspace to port 5678 on   
     your local machine.:                                                        
 
-      $ coder port-forward <workspace> --tcp 5678:1234 
+      [;m$ coder port-forward <workspace> --tcp 5678:1234[0m 
 
   - Port forward a single UDP port from port 9000 to port 9000 on your local    
     machine.:                                                                   
 
-      $ coder port-forward <workspace> --udp 9000 
+      [;m$ coder port-forward <workspace> --udp 9000[0m 
 
   - Port forward multiple TCP ports and a UDP port.:                            
 
-      $ coder port-forward <workspace> --tcp 8080:8080 --tcp 9000:3000 --udp
-5353:53 
+      [;m$ coder port-forward <workspace> --tcp 8080:8080 --tcp 9000:3000 --udp
+5353:53[0m 
 
   - Port forward multiple ports (TCP or UDP) in condensed syntax.:              
 
-      $ coder port-forward <workspace> --tcp
-8080,9000:3000,9090-9092,10000-10002:10010-10012
+      [;m$ coder port-forward <workspace> --tcp
+8080,9000:3000,9090-9092,10000-10002:10010-10012[0m
 
-Options
+[1mOptions[0m
     --tcp, -p, $CODER_PORT_FORWARD_TCP 
         Forward TCP port(s) from the workspace to the local machine.
 

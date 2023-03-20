@@ -2,7 +2,7 @@ Usage: coder templates edit <template> [flags]
 
 Edit the metadata of a template by name.
 
-Options
+[1mOptions[0m
     --name
         Edit the template name.
 

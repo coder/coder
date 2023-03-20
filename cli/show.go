@@ -15,7 +15,7 @@ func (r *RootCmd) show() *clibase.Cmd {
 		Short: "Display details of a workspace's resources and agents",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(i *clibase.Invocation) error {
 			buildInfo, err := client.BuildInfo(i.Context())

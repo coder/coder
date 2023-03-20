@@ -42,7 +42,7 @@ func (r *RootCmd) featuresList() *clibase.Cmd {
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Middleware: clibase.Chain(
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			entitlements, err := client.Entitlements(inv.Context())

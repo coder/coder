@@ -17,7 +17,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 		Short:       "Restart a workspace",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Options: clibase.OptionSet{
 			cliui.SkipPromptOption(),

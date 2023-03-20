@@ -46,7 +46,7 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 		),
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			identifier := inv.Args[0]

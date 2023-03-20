@@ -34,7 +34,7 @@ func (r *RootCmd) statePull() *clibase.Cmd {
 		Short: "Pull a Terraform state file from a workspace.",
 		Middleware: clibase.Chain(
 			clibase.RequireRangeArgs(1, -1),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			var err error
@@ -89,7 +89,7 @@ func (r *RootCmd) statePush() *clibase.Cmd {
 		Short: "Push a Terraform state file to a workspace.",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(2),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])

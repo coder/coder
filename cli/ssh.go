@@ -53,7 +53,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		Use:         "ssh <workspace>",
 		Short:       "Start a shell into a workspace",
 		Middleware: clibase.Chain(
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
@@ -267,19 +267,20 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		{
 			Flag:        "identity-agent",
 			Env:         "CODER_SSH_IDENTITY_AGENT",
-			Description: "Specifies the path to the SSH agent socket to use for identity forwarding. Defaults to $SSH_AUTH_SOCK.",
+			Description: "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled.",
 			Value:       clibase.StringOf(&identityAgent),
 		},
 		{
 			Flag:        "workspace-poll-interval",
 			Env:         "CODER_WORKSPACE_POLL_INTERVAL",
-			Description: "Specifies the interval at which to poll for a workspace to be ready. Defaults to 1s.",
+			Description: "Specifies how often to poll for workspace automated shutdown.",
+			Default:     "1m",
 			Value:       clibase.DurationOf(&wsPollInterval),
 		},
 		{
 			Flag:        "no-wait",
 			Env:         "CODER_SSH_NO_WAIT",
-			Description: "Specifies whether to wait for the workspace to be ready before connecting. Defaults to false.",
+			Description: "Specifies whether to wait for the workspace to be ready before connecting.",
 			Value:       clibase.BoolOf(&noWait),
 		},
 	}

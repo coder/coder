@@ -20,7 +20,6 @@ func (r *RootCmd) ping() *clibase.Cmd {
 		pingNum     int64
 		pingTimeout time.Duration
 		pingWait    time.Duration
-		verbose     bool
 	)
 
 	client := new(codersdk.Client)
@@ -30,7 +29,7 @@ func (r *RootCmd) ping() *clibase.Cmd {
 		Short:       "Ping a workspace",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
@@ -46,7 +45,7 @@ func (r *RootCmd) ping() *clibase.Cmd {
 			}
 
 			var logger slog.Logger
-			if verbose {
+			if r.verbose {
 				logger = slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
 			}
 
@@ -134,12 +133,6 @@ func (r *RootCmd) ping() *clibase.Cmd {
 	}
 
 	cmd.Options = clibase.OptionSet{
-		{
-			Flag:          "verbose",
-			FlagShorthand: "v",
-			Description:   "Enables verbose logging.",
-			Value:         clibase.BoolOf(&verbose),
-		},
 		{
 			Flag:        "wait",
 			Description: "Specifies how long to wait between pings.",

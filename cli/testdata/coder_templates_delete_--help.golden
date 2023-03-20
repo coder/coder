@@ -2,7 +2,7 @@ Usage: coder templates delete [name...]
 
 Delete templates
 
-Options
+[1mOptions[0m
     --yes, -y
         Bypass prompts.
 

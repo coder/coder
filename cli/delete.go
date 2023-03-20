@@ -20,7 +20,7 @@ func (r *RootCmd) deleteWorkspace() *clibase.Cmd {
 		Aliases:     []string{"rm"},
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{

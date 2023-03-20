@@ -167,7 +167,7 @@ func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identit
 			// OpenSSH on Windows is weird, it supports using (and does
 			// use) mixed \ and / in paths.
 			//
-			// Long: C:\Users\ZeroCool/.ssh/known_hosts
+			// Example: C:\Users\ZeroCool/.ssh/known_hosts
 			//
 			// To check the file existence in Go, though, we want to use
 			// proper Windows paths.

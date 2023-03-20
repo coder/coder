@@ -2,7 +2,7 @@ Usage: coder restart <workspace>
 
 Restart a workspace
 
-Options
+[1mOptions[0m
     --yes, -y
         Bypass prompts.
 

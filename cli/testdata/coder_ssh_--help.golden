@@ -2,7 +2,7 @@ Usage: coder ssh <workspace>
 
 Start a shell into a workspace
 
-Options
+[1mOptions[0m
     --stdio, $CODER_SSH_STDIO 
         Specifies whether to emit SSH output over stdin/stdout.
 
@@ -15,16 +15,15 @@ Options
         and gpg-agent to be installed on the host.
 
     --identity-agent, $CODER_SSH_IDENTITY_AGENT 
-        Specifies the path to the SSH agent socket to use for identity
-        forwarding. Defaults to $SSH_AUTH_SOCK.
+        Specifies which identity agent to use (overrides $SSH_AUTH_SOCK),
+        forward agent must also be enabled.
 
-    --workspace-poll-interval, $CODER_WORKSPACE_POLL_INTERVAL 
-        Specifies the interval at which to poll for a workspace to be ready.
-        Defaults to 1s.
+    --workspace-poll-interval, $CODER_WORKSPACE_POLL_INTERVAL  (default: 1m) 
+        Specifies how often to poll for workspace automated shutdown.
 
     --no-wait, $CODER_SSH_NO_WAIT 
         Specifies whether to wait for the workspace to be ready before
-        connecting. Defaults to false.
+        connecting.
 
 ---
 Run `coder --help` for a list of global options.

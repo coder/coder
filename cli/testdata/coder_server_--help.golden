@@ -2,14 +2,14 @@ Usage: coder server
 
 Start a Coder server
 
-Subcommands
+[1mSubcommands[0m
     create-admin-user         Create a new admin user with the given username,
                               email and password and adds it to every
                               organization.
     postgres-builtin-url      Output the connection URL for the built-in
                               PostgreSQL deployment.
     postgres-builtin-serve    Run the built-in PostgreSQL deployment.
-Options
+[1mOptions[0m
     --cache-dir, $CODER_CACHE_DIRECTORY  (default: ~/.cache/coder) 
         The directory to cache temporary files. If unspecified and
         $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.
@@ -44,7 +44,7 @@ Options
         Periodically check for new releases of Coder and inform the owner. The
         check is performed once per day.
 
-Client Options 
+[1mClient Options[0m 
 These options change the behavior of how clients interact with the Coder.
 Clients include the coder cli, vs code extension, and the web UI.
 
@@ -57,7 +57,7 @@ Clients include the coder cli, vs code extension, and the web UI.
     --ssh-hostname-prefix, $CODER_SSH_HOSTNAME_PREFIX  (default: coder.) 
         The SSH deployment prefix is used in the Host of the ssh config.
 
-Introspection / Logging Options 
+[1mIntrospection / Logging Options[0m 
     --log-human, $CODER_LOGGING_HUMAN  (default: /dev/stderr) 
         Output human-readable logs to a given file.
 
@@ -70,14 +70,14 @@ Introspection / Logging Options
     --verbose, -v, $CODER_VERBOSE  (default: false) 
         Output debug-level logs.
 
-Introspection / Prometheus Options 
+[1mIntrospection / Prometheus Options[0m 
     --prometheus-address, $CODER_PROMETHEUS_ADDRESS  (default: 127.0.0.1:2112) 
         The bind address to serve prometheus metrics.
 
     --prometheus-enable, $CODER_PROMETHEUS_ENABLE 
         Serve prometheus metrics on the address defined by prometheus address.
 
-Introspection / Tracing Options 
+[1mIntrospection / Tracing Options[0m 
     --trace-logs, $CODER_TRACE_LOGS 
         Enables capturing of logs as events in traces. This is useful for
         debugging, but may result in a very large amount of events being sent to
@@ -92,14 +92,14 @@ Introspection / Tracing Options
     --trace-honeycomb-api-key, $CODER_TRACE_HONEYCOMB_API_KEY 
         Enables trace exporting to Honeycomb.io using the provided API Key.
 
-Introspection / pprof Options 
+[1mIntrospection / pprof Options[0m 
     --pprof-address, $CODER_PPROF_ADDRESS  (default: 127.0.0.1:6060) 
         The bind address to serve pprof.
 
     --pprof-enable, $CODER_PPROF_ENABLE 
         Serve pprof metrics on the address defined by pprof address.
 
-Networking Options 
+[1mNetworking Options[0m 
     --access-url, $CODER_ACCESS_URL 
         The URL that users will use to access the Coder deployment.
 
@@ -122,7 +122,7 @@ Networking Options
         Specifies the wildcard hostname to use for workspace applications in the
         form "*.example.com".
 
-Networking / DERP Options 
+[1mNetworking / DERP Options[0m 
 Most Coder deployments never have to think about DERP because all connections
 between workspaces and users are peer-to-peer. However, when Coder cannot
 establish a peer to peer connection, Coder uses a distributed relay network
@@ -152,7 +152,7 @@ backed by Tailscale and WireGuard.
         Addresses for STUN servers to establish P2P connections. Set empty to
         disable P2P connections.
 
-Networking / HTTP Options 
+[1mNetworking / HTTP Options[0m 
     --disable-password-auth, $CODER_DISABLE_PASSWORD_AUTH  (default: false) 
         Disable password authentication. This is recommended for security
         purposes in production deployments that rely on an identity provider.
@@ -178,7 +178,7 @@ Networking / HTTP Options
         if they are actively making requests, but this functionality can be
         disabled via --disable-session-expiry-refresh.
 
-Networking / TLS Options 
+[1mNetworking / TLS Options[0m 
 Configure TLS / HTTPS for your Coder deployment. If you're running Coder behind
 a TLS-terminating reverse proxy or are accessing Coder over a secure link, you
 can safely ignore these settings.
@@ -230,7 +230,7 @@ can safely ignore these settings.
         Minimum supported version of TLS. Accepted values are "tls10", "tls11",
         "tls12" or "tls13".
 
-OAuth2 / GitHub Options 
+[1mOAuth2 / GitHub Options[0m 
     --oauth2-github-allow-everyone, $CODER_OAUTH2_GITHUB_ALLOW_EVERYONE 
         Allow all logins, setting this option means allowed orgs and teams must
         be empty.
@@ -254,7 +254,7 @@ OAuth2 / GitHub Options
     --oauth2-github-enterprise-base-url, $CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL 
         Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 
-OIDC Options 
+[1mOIDC Options[0m 
     --oidc-allow-signups, $CODER_OIDC_ALLOW_SIGNUPS  (default: true) 
         Whether new users can sign up with OIDC.
 
@@ -289,7 +289,7 @@ OIDC Options
     --oidc-icon-url, $CODER_OIDC_ICON_URL 
         URL pointing to the icon to use on the OepnID Connect login button.
 
-Provisioning Options 
+[1mProvisioning Options[0m 
 Tune the behavior of the provisioner, which is responsible for creating,
 updating, and deleting workspace resources.
 
@@ -306,7 +306,7 @@ updating, and deleting workspace resources.
         Number of provisioner daemons to create on start. If builds are stuck in
         queued state for a long time, consider increasing this.
 
-Telemetry Options 
+[1mTelemetry Options[0m 
 Telemetry is critical to our ability to improve Coder. We strip all
 personalinformation before sending data to our servers. Please only disable
 telemetrywhen required by your organization's security policy.
@@ -320,7 +320,7 @@ telemetrywhen required by your organization's security policy.
         anonymized application tracing to help improve our product. Disabling
         telemetry also disables this option.
 
-⚠️ Dangerous Options 
+[1m⚠️ Dangerous Options[0m 
     --dangerous-allow-path-app-sharing, $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING  (default: false) 
         Allow workspace apps that are not served from subdomains to be shared.
         Path-based app sharing is DISABLED by default for security purposes.
@@ -335,7 +335,7 @@ telemetrywhen required by your organization's security policy.
         risk when the workspace serves malicious JavaScript. Path-based apps can
         be disabled entirely with --disable-path-apps for further security.
 
-Enterprise Options 
+[1mEnterprise Options[0m 
 These options are only available in the Enterprise Edition.
 
     --audit-logging, $CODER_AUDIT_LOGGING  (default: true) 

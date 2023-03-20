@@ -25,7 +25,7 @@ func (r *RootCmd) groupList() *clibase.Cmd {
 		Short: "List user groups",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(0),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()

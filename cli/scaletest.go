@@ -365,7 +365,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 		Short: "Cleanup any orphaned scaletest resources",
 		Long:  "Cleanup scaletest workspaces, then cleanup scaletest users. The strategy flags will apply to each stage of the cleanup process.",
 		Middleware: clibase.Chain(
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
@@ -550,7 +550,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 		Long: `Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
 
 It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
-		Middleware: r.UseClient(client),
+		Middleware: r.InitClient(client),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 

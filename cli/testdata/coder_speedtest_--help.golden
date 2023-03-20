@@ -2,7 +2,7 @@ Usage: coder speedtest <workspace>
 
 Run upload and download tests from your machine to a workspace
 
-Options
+[1mOptions[0m
     --d (default: false) 
         Specifies whether to wait for a direct connection before testing speed.
 

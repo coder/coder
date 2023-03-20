@@ -195,7 +195,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		),
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(0),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			recvWorkspaceConfigs := sshPrepareWorkspaceConfigs(inv.Context(), client)

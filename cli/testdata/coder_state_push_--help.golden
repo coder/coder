@@ -2,7 +2,7 @@ Usage: coder state push <workspace> <file>
 
 Push a Terraform state file to a workspace.
 
-Options
+[1mOptions[0m
     --build, -b (default: 0) 
         Specify a workspace build to target by name.
 

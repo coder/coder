@@ -2,10 +2,7 @@ Usage: coder ping <workspace>
 
 Ping a workspace
 
-Options
-    --verbose, -v
-        Enables verbose logging.
-
+[1mOptions[0m
     --wait
         Specifies how long to wait between pings.
 

@@ -54,7 +54,7 @@ func (r *RootCmd) createToken() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:        "create",
 		Short:      "Create a token",
-		Middleware: r.UseClient(client),
+		Middleware: r.InitClient(client),
 		Handler: func(inv *clibase.Invocation) error {
 			res, err := client.CreateToken(inv.Context(), codersdk.Me, codersdk.CreateTokenRequest{
 				Lifetime:  tokenLifetime,
@@ -142,7 +142,7 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 		Use:        "list",
 		Aliases:    []string{"ls"},
 		Short:      "List tokens",
-		Middleware: r.UseClient(client),
+		Middleware: r.InitClient(client),
 		Handler: func(inv *clibase.Invocation) error {
 			tokens, err := client.Tokens(inv.Context(), codersdk.Me, codersdk.TokensFilter{
 				IncludeAll: all,
@@ -195,7 +195,7 @@ func (r *RootCmd) removeToken() *clibase.Cmd {
 		Short:   "Delete a token",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			token, err := client.APIKeyByName(inv.Context(), codersdk.Me, inv.Args[0])

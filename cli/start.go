@@ -17,7 +17,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 		Short:       "Start a workspace",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			clibase.Chain(r.UseClient(client)),
+			clibase.Chain(r.InitClient(client)),
 		),
 		Options: clibase.OptionSet{
 			cliui.SkipPromptOption(),

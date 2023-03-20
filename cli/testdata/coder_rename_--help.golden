@@ -2,7 +2,7 @@ Usage: coder rename <workspace> <new name>
 
 Rename a workspace
 
-Options
+[1mOptions[0m
     --yes, -y
         Bypass prompts.
 

@@ -64,7 +64,11 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--log-dir", logDir,
 		)
 
+		pty := ptytest.New(t).Attach(inv)
+
 		clitest.Start(t, inv)
+		pty.ExpectMatch("starting agent")
+
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		info, err := os.Stat(filepath.Join(logDir, "coder-agent.log"))

@@ -23,7 +23,7 @@ func (r *RootCmd) userList() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:        "list",
 		Aliases:    []string{"ls"},
-		Middleware: clibase.Chain(r.UseClient(client)),
+		Middleware: clibase.Chain(r.InitClient(client)),
 		Handler: func(inv *clibase.Invocation) error {
 			res, err := client.Users(inv.Context(), codersdk.UsersRequest{})
 			if err != nil {
@@ -61,7 +61,7 @@ func (r *RootCmd) userSingle() *clibase.Cmd {
 		),
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			user, err := client.User(inv.Context(), inv.Args[0])

@@ -19,7 +19,7 @@ func (r *RootCmd) groupCreate() *clibase.Cmd {
 		Short: "Create a user group",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()

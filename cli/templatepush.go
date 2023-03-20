@@ -106,7 +106,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		Short: "Push a new template version from the current directory or as specified by flag",
 		Middleware: clibase.Chain(
 			clibase.RequireRangeArgs(0, 1),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			organization, err := CurrentOrganization(inv, client)

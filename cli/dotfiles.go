@@ -239,7 +239,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 		{
 			Flag:        "symlink-dir",
 			Env:         "CODER_SYMLINK_DIR",
-			Description: "Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.",
+			Description: "Specifies the directory for the dotfiles symlink destinations. If empty, will use $HOME.",
 			Value:       clibase.StringOf(&symlinkDir),
 		},
 		cliui.SkipPromptOption(),

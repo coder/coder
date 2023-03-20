@@ -355,9 +355,9 @@ type RootCmd struct {
 	noFeatureWarning bool
 }
 
-// UseClient returns a new client from the command context.
+// InitClient sets client to a new client.
 // It reads from global configuration files if flags are not set.
-func (r *RootCmd) UseClient(client *codersdk.Client) clibase.MiddlewareFunc {
+func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 	if client == nil {
 		panic("client is nil")
 	}

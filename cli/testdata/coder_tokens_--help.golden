@@ -5,17 +5,17 @@ Manage personal access tokens
 Tokens are used to authenticate automated clients to Coder.
   - Create a token for automation.:                                             
 
-      $ coder tokens create 
+      [;m$ coder tokens create[0m 
 
   - List your tokens.:                                                          
 
-      $ coder tokens ls 
+      [;m$ coder tokens ls[0m 
 
   - Remove a token by ID.:                                                      
 
-      $ coder tokens rm WuoWs4ZsMX
+      [;m$ coder tokens rm WuoWs4ZsMX[0m
 
-Subcommands
+[1mSubcommands[0m
     create    Create a token
     list      List tokens
     remove    Delete a token

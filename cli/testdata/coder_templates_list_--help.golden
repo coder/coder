@@ -2,7 +2,7 @@ Usage: coder templates list
 
 List all the templates available for the organization
 
-Options
+[1mOptions[0m
     --column, -c (default: name,last updated,used by) 
         Columns to display in table output. Available columns: name, created at,
         last updated, organization id, provisioner, active version id, used by,

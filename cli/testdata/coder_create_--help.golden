@@ -2,7 +2,7 @@ Usage: coder create [name]
 
 Create a workspace
 
-Options
+[1mOptions[0m
     --template, -t, $CODER_TEMPLATE_NAME 
         Specify a template name.
 

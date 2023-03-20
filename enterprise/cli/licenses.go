@@ -46,7 +46,7 @@ func (r *RootCmd) licenseAdd() *clibase.Cmd {
 		Use:   "add [-f file | -l license]",
 		Short: "Add license to Coder deployment",
 		Middleware: clibase.Chain(
-			r.UseClient(client),
+			r.InitClient(client),
 			clibase.RequireNArgs(0),
 		),
 		Handler: func(inv *clibase.Invocation) error {
@@ -142,7 +142,7 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 		Aliases: []string{"ls"},
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(0),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			licenses, err := client.Licenses(inv.Context())
@@ -170,7 +170,7 @@ func (r *RootCmd) licenseDelete() *clibase.Cmd {
 		Aliases: []string{"del", "rm"},
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			id, err := strconv.ParseInt(inv.Args[0], 10, 32)

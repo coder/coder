@@ -18,7 +18,7 @@ func (r *RootCmd) groupDelete() *clibase.Cmd {
 		Short: "Delete a user group",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			var (

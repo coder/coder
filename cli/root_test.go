@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/acarl005/stripansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -132,8 +131,6 @@ ExtractCommandPathsLoop:
 			for k, v := range replacements {
 				actual = bytes.ReplaceAll(actual, []byte(k), []byte(v))
 			}
-
-			actual = []byte(stripansi.Strip(string(actual)))
 
 			// Replace any timestamps with a placeholder.
 			actual = timestampRegex.ReplaceAll(actual, []byte("[timestamp]"))

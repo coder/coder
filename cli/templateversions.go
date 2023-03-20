@@ -45,7 +45,7 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use: "list <template>",
 		Middleware: clibase.Chain(
-			r.UseClient(client),
+			r.InitClient(client),
 			clibase.RequireNArgs(1),
 		),
 		Short: "List all the versions of the specified template",

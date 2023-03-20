@@ -38,7 +38,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		Short: "Create a template from the current directory or as specified by flag",
 		Middleware: clibase.Chain(
 			clibase.RequireRangeArgs(0, 1),
-			r.UseClient(client),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			organization, err := CurrentOrganization(inv, client)
