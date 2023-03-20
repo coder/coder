@@ -4630,6 +4630,24 @@ Parameter represents a set value for the scope.
 | ------- | ------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `ports` | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | If there are no ports in the list, nothing should be displayed in the UI. There must not be a "no ports available" message or anything similar, as there will always be no ports displayed on platforms where our port detection logic is unsupported. |
 
+## codersdk.WorkspaceAgentStartupLog
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": 0,
+  "output": "string"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `created_at` | string  | false    |              |             |
+| `id`         | integer | false    |              |             |
+| `output`     | string  | false    |              |             |
+
 ## codersdk.WorkspaceAgentStatus
 
 ```json

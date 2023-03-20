@@ -4373,8 +4373,8 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Submit most recent workspace agent startup logs",
-                "operationId": "insert-update-startup-script-logs",
+                "summary": "Patch workspace agent startup logs",
+                "operationId": "patch-workspace-agent-startup-logs",
                 "parameters": [
                     {
                         "description": "Startup logs",
@@ -4388,7 +4388,10 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "x-apidocgen": {
@@ -4566,9 +4569,6 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -4607,11 +4607,14 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceAgentStartupLog"
+                            }
+                        }
                     }
-                },
-                "x-apidocgen": {
-                    "skip": true
                 }
             }
         },
@@ -8819,6 +8822,21 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPort"
                     }
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentStartupLog": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "output": {
+                    "type": "string"
                 }
             }
         },
