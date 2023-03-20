@@ -6714,6 +6714,9 @@ const docTemplate = `{
                 "trace": {
                     "$ref": "#/definitions/codersdk.TraceConfig"
                 },
+                "tunnel_host": {
+                    "type": "string"
+                },
                 "update_check": {
                     "type": "boolean"
                 },

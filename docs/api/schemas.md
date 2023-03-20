@@ -1870,6 +1870,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "enable": true,
       "honeycomb_api_key": "string"
     },
+    "tunnel_host": "string",
     "update_check": true,
     "verbose": true,
     "wildcard_access_url": {
@@ -2214,6 +2215,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "enable": true,
     "honeycomb_api_key": "string"
   },
+  "tunnel_host": "string",
   "update_check": true,
   "verbose": true,
   "wildcard_access_url": {
@@ -2280,6 +2282,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                       | false    |              |                                                                    |
 | `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                   | false    |              |                                                                    |
 | `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                               | false    |              |                                                                    |
+| `tunnel_host`                        | string                                                                                     | false    |              |                                                                    |
 | `update_check`                       | boolean                                                                                    | false    |              |                                                                    |
 | `verbose`                            | boolean                                                                                    | false    |              |                                                                    |
 | `wildcard_access_url`                | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
