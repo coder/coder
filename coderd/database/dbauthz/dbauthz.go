@@ -50,8 +50,9 @@ func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 			//
 			// NotAuthorizedError is == to sql.ErrNoRows, which is not correct
 			// if it's actually a canceled context.
-			internalError.SetInternal(context.Canceled)
-			return internalError
+			contextError := *internalError
+			contextError.SetInternal(context.Canceled)
+			return &contextError
 		}
 		logger.Debug(ctx, "unauthorized",
 			slog.F("internal", internalError.Internal()),
