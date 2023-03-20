@@ -316,17 +316,6 @@ func (r *RecordingAuthorizer) Reset() {
 	r.Called = nil
 }
 
-// lastCall is implemented to support legacy tests.
-// Deprecated
-func (r *RecordingAuthorizer) lastCall() *AuthCall {
-	r.RLock()
-	defer r.RUnlock()
-	if len(r.Called) == 0 {
-		return nil
-	}
-	return &r.Called[len(r.Called)-1]
-}
-
 // PreparedRecorder is the prepared version of the RecordingAuthorizer.
 // It records the Authorize() calls to the original recorder. If the caller
 // uses CompileToSQL, all recording stops. This is to support parity between
