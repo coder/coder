@@ -1534,7 +1534,7 @@ func asVariableValues(templateVariables []database.TemplateVersionVariable) []*s
 		if value != "" || v.Required {
 			apiVariableValues = append(apiVariableValues, &sdkproto.VariableValue{
 				Name:      v.Name,
-				Value:     v.Value,
+				Value:     value,
 				Sensitive: v.Sensitive,
 			})
 		}
