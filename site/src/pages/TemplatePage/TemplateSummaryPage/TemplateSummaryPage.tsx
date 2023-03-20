@@ -3,21 +3,10 @@ import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import { TemplateSummaryPageView } from "./TemplateSummaryPageView"
-import { Loader } from "components/Loader/Loader"
 
 export const TemplateSummaryPage: FC = () => {
-  const { context } = useTemplateLayoutContext()
-  const {
-    template,
-    activeTemplateVersion,
-    templateResources,
-    templateVersions,
-    templateDAUs,
-  } = context
-
-  if (!template || !activeTemplateVersion || !templateResources) {
-    return <Loader />
-  }
+  const { template, activeVersion, resources, versions, daus } =
+    useTemplateLayoutContext()
 
   return (
     <>
@@ -34,10 +23,10 @@ export const TemplateSummaryPage: FC = () => {
       </Helmet>
       <TemplateSummaryPageView
         template={template}
-        activeTemplateVersion={activeTemplateVersion}
-        templateResources={templateResources}
-        templateVersions={templateVersions}
-        templateDAUs={templateDAUs}
+        activeTemplateVersion={activeVersion}
+        templateResources={resources}
+        templateVersions={versions}
+        templateDAUs={daus}
       />
     </>
   )
