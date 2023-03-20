@@ -1002,6 +1002,7 @@ export interface Workspace {
   readonly updated_at: string
   readonly owner_id: string
   readonly owner_name: string
+  readonly organization_id: string
   readonly template_id: string
   readonly template_name: string
   readonly template_display_name: string

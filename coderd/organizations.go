@@ -24,7 +24,7 @@ import (
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {object} codersdk.Organization
 // @Router /organizations/{organization} [get]
-func (API) organization(rw http.ResponseWriter, r *http.Request) {
+func (*API) organization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
 
