@@ -6,7 +6,6 @@ import {
   PageHeaderSubtitle,
 } from "components/PageHeader/PageHeader"
 import Button from "@material-ui/core/Button"
-import { makeStyles } from "@material-ui/core/styles"
 
 export interface FullPageHorizontalFormProps {
   title: string
@@ -17,8 +16,6 @@ export interface FullPageHorizontalFormProps {
 export const FullPageHorizontalForm: FC<
   React.PropsWithChildren<FullPageHorizontalFormProps>
 > = ({ title, detail, onCancel, children }) => {
-  const styles = useStyles()
-
   return (
     <Margins size="medium">
       <PageHeader
@@ -34,13 +31,7 @@ export const FullPageHorizontalForm: FC<
         {detail && <PageHeaderSubtitle>{detail}</PageHeaderSubtitle>}
       </PageHeader>
 
-      <main className={styles.form}>{children}</main>
+      <main>{children}</main>
     </Margins>
   )
 }
-
-const useStyles = makeStyles((theme) => ({
-  form: {
-    marginTop: theme.spacing(1),
-  },
-}))
