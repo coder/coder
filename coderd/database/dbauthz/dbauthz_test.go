@@ -22,6 +22,7 @@ func TestAsNoActor(t *testing.T) {
 	t.Parallel()
 
 	t.Run("NoError", func(t *testing.T) {
+		t.Parallel()
 		require.False(t, dbauthz.IsNotAuthorizedError(nil), "no error")
 	})
 
