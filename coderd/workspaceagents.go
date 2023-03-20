@@ -223,14 +223,14 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
 
-// @Summary Submit most recent workspace agent startup logs
-// @ID insert-update-startup-script-logs
+// @Summary Patch workspace agent startup logs
+// @ID patch-workspace-agent-startup-logs
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Agents
 // @Param request body agentsdk.PatchStartupLogs true "Startup logs"
-// @Success 200
+// @Success 200 {object} codersdk.Response
 // @Router /workspaceagents/me/startup-logs [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Request) {
@@ -337,25 +337,28 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 // @Summary Get startup logs by workspace agent
 // @ID get-startup-logs-by-workspace-agent
 // @Security CoderSessionToken
-// @Accept json
 // @Produce json
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Param before query int false "Before log id"
 // @Param after query int false "After log id"
 // @Param follow query bool false "Follow log stream"
-// @Success 200
+// @Success 200 {array} codersdk.WorkspaceAgentStartupLog
 // @Router /workspaceagents/{workspaceagent}/startup-logs [get]
-// @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Request) {
 	// This mostly copies how provisioner job logs are streamed!
 	var (
 		ctx            = r.Context()
 		workspaceAgent = httpmw.WorkspaceAgentParam(r)
+		workspace      = httpmw.WorkspaceParam(r)
 		logger         = api.Logger.With(slog.F("workspace_agent_id", workspaceAgent.ID))
 		follow         = r.URL.Query().Has("follow")
 		afterRaw       = r.URL.Query().Get("after")
 	)
+	if !api.Authorize(r, rbac.ActionRead, workspace) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	var after int64
 	// Only fetch logs created after the time provided.
