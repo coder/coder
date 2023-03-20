@@ -9,6 +9,12 @@ Usage: {{.FullUsage}}
 {{- formatLong . }}
 {{ "\n" }}
 {{- end }}
+{{- range $index, $child := visibleChildren . }}
+{{- if eq $index 0 }}
+{{ prettyHeader "Subcommands"}}
+{{- end }}
+    {{ indent $child.Name 1 | trimNewline }}{{"\t"}}{{ indent $child.Short 1 | trimNewline }}
+{{- end }}
 {{- range $index, $group := optionGroups . }}
 {{ with $group.Name }} {{- print $group.Name " Options" | prettyHeader }} {{ else -}} {{ prettyHeader "Options"}}{{- end -}}
 {{- with $group.Description }}
@@ -26,12 +32,6 @@ Usage: {{.FullUsage}}
 {{- if isDeprecated $option }} DEPRECATED {{ end }}
         {{- end -}}
     {{- end }}
-{{- end }}
-{{- range $index, $child := visibleChildren . }}
-{{- if eq $index 0 }}
-{{ prettyHeader "Subcommands"}}
-{{- end }}
-    {{ indent $child.Name 1 | trimNewline }}{{"\t"}}{{ indent $child.Short 1 | trimNewline }}
 {{- end }}
 ---
 Report bugs and request features at https://github.com/coder/coder/issues/new
