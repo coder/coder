@@ -19,6 +19,7 @@ import (
 	"github.com/tabbed/pqtype"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
@@ -58,6 +60,7 @@ type Server struct {
 	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 
 	AcquireJobDebounce time.Duration
+	OIDCConfig         httpmw.OAuth2Config
 }
 
 // AcquireJob queries the database to lock a job.
@@ -168,6 +171,14 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			return nil, failJob(fmt.Sprintf("publish workspace update: %s", err))
 		}
 
+		var workspaceOwnerOIDCAccessToken string
+		if server.OIDCConfig != nil {
+			workspaceOwnerOIDCAccessToken, err = obtainOIDCAccessToken(ctx, server.Database, server.OIDCConfig, owner.ID)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("obtain OIDC access token: %s", err))
+			}
+		}
+
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID: templateVersion.JobID,
@@ -208,15 +219,16 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 				RichParameterValues: convertRichParameterValues(workspaceBuildParameters),
 				VariableValues:      asVariableValues(templateVariables),
 				Metadata: &sdkproto.Provision_Metadata{
-					CoderUrl:            server.AccessURL.String(),
-					WorkspaceTransition: transition,
-					WorkspaceName:       workspace.Name,
-					WorkspaceOwner:      owner.Username,
-					WorkspaceOwnerEmail: owner.Email,
-					WorkspaceId:         workspace.ID.String(),
-					WorkspaceOwnerId:    owner.ID.String(),
-					TemplateName:        template.Name,
-					TemplateVersion:     templateVersion.Name,
+					CoderUrl:                      server.AccessURL.String(),
+					WorkspaceTransition:           transition,
+					WorkspaceName:                 workspace.Name,
+					WorkspaceOwner:                owner.Username,
+					WorkspaceOwnerEmail:           owner.Email,
+					WorkspaceOwnerOidcAccessToken: workspaceOwnerOIDCAccessToken,
+					WorkspaceId:                   workspace.ID.String(),
+					WorkspaceOwnerId:              owner.ID.String(),
+					TemplateName:                  template.Name,
+					TemplateVersion:               templateVersion.Name,
 				},
 			},
 		}
@@ -1293,6 +1305,51 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	}
 
 	return nil
+}
+
+// obtainOIDCAccessToken returns a valid OpenID Connect access token
+// for the user if it's able to obtain one, otherwise it returns an empty string.
+func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig httpmw.OAuth2Config, userID uuid.UUID) (string, error) {
+	link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+		UserID:    userID,
+		LoginType: database.LoginTypeOIDC,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		return "", xerrors.Errorf("get owner oidc link: %w", err)
+	}
+
+	if link.OAuthExpiry.Before(database.Now()) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
+		token, err := oidcConfig.TokenSource(ctx, &oauth2.Token{
+			AccessToken:  link.OAuthAccessToken,
+			RefreshToken: link.OAuthRefreshToken,
+			Expiry:       link.OAuthExpiry,
+		}).Token()
+		if err != nil {
+			// If OIDC fails to refresh, we return an empty string and don't fail.
+			// There isn't a way to hard-opt in to OIDC from a template, so we don't
+			// want to fail builds if users haven't authenticated for a while or something.
+			return "", nil
+		}
+		link.OAuthAccessToken = token.AccessToken
+		link.OAuthRefreshToken = token.RefreshToken
+		link.OAuthExpiry = token.Expiry
+
+		link, err = db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+			UserID:            userID,
+			LoginType:         database.LoginTypeOIDC,
+			OAuthAccessToken:  link.OAuthAccessToken,
+			OAuthRefreshToken: link.OAuthRefreshToken,
+			OAuthExpiry:       link.OAuthExpiry,
+		})
+		if err != nil {
+			return "", xerrors.Errorf("update user link: %w", err)
+		}
+	}
+
+	return link.OAuthAccessToken, nil
 }
 
 func convertValidationTypeSystem(typeSystem sdkproto.ParameterSchema_TypeSystem) (database.ParameterTypeSystem, error) {

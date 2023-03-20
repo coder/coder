@@ -735,7 +735,7 @@ func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersi
 		object = tv.RBACObject(template)
 	}
 
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, object); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, object); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateVersionVariables(ctx, templateVersionID)
