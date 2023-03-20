@@ -344,6 +344,12 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		CreateUserRequest: req,
 		LoginType:         database.LoginTypePassword,
 	})
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You are not authorized to create users.",
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating user.",
@@ -412,6 +418,10 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		ID:      user.ID,
 		Deleted: true,
 	})
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting user.",
@@ -825,6 +835,10 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		GrantedRoles: params.Roles,
 		ID:           user.ID,
 	})
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: err.Error(),

@@ -38,6 +38,13 @@ func (NotAuthorizedError) Unwrap() error {
 	return sql.ErrNoRows
 }
 
+func IsNotAuthorizedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return xerrors.As(err, &NotAuthorizedError{})
+}
+
 func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) error {
 	// Only log the errors if it is an UnauthorizedError error.
 	internalError := new(rbac.UnauthorizedError)
