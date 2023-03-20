@@ -55,7 +55,6 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = database.APIKey{}
 	defer commitAudit()
 
-
 	var createToken codersdk.CreateTokenRequest
 	if !httpapi.Read(ctx, rw, r, &createToken) {
 		return
@@ -308,7 +307,6 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		user              = httpmw.UserParam(r)
 		keyID             = chi.URLParam(r, "keyid")
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
@@ -324,7 +322,6 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.Old = key
 	defer commitAudit()
-
 
 	err = api.Database.DeleteAPIKeyByID(ctx, keyID)
 	if errors.Is(err, sql.ErrNoRows) {

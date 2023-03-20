@@ -40,9 +40,7 @@ import (
 // @Router /templateversions/{templateversion} [get]
 func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var (
-		templateVersion = httpmw.TemplateVersionParam(r)
-	)
+	templateVersion := httpmw.TemplateVersionParam(r)
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
@@ -75,9 +73,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 // @Router /templateversions/{templateversion}/cancel [patch]
 func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var (
-		templateVersion = httpmw.TemplateVersionParam(r)
-	)
+	templateVersion := httpmw.TemplateVersionParam(r)
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
@@ -133,9 +129,7 @@ func (api *API) patchCancelTemplateVersion(rw http.ResponseWriter, r *http.Reque
 // @Router /templateversions/{templateversion}/schema [get]
 func (api *API) templateVersionSchema(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var (
-		templateVersion = httpmw.TemplateVersionParam(r)
-	)
+	templateVersion := httpmw.TemplateVersionParam(r)
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
@@ -366,9 +360,7 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 // @Router /templateversions/{templateversion}/parameters [get]
 func (api *API) templateVersionParameters(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var (
-		templateVersion = httpmw.TemplateVersionParam(r)
-	)
+	templateVersion := httpmw.TemplateVersionParam(r)
 
 	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
 	if err != nil {
