@@ -10,4 +10,4 @@ Override the stop time of a currently running workspace instance.
   $ coder schedule override-stop my-workspace 90m
 
 ---
-Report bugs and request features at https://github.com/coder/coder/issues/new
+Run `coder --help` for a list of global options.

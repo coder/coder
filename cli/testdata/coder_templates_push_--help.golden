@@ -30,4 +30,4 @@ Options
         Specify the directory to create from, use '-' to read tar from stdin.
 
 ---
-Report bugs and request features at https://github.com/coder/coder/issues/new
+Run `coder --help` for a list of global options.

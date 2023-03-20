@@ -35,4 +35,8 @@ Usage: {{.FullUsage}}
     {{- end }}
 {{- end }}
 ---
+{{- if .Parent }}
+Run `coder --help` for a list of global options.
+{{- else }}
 Report bugs and request features at https://github.com/coder/coder/issues/new
+{{- end }}

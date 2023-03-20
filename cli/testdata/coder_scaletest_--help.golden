@@ -8,4 +8,4 @@ Subcommands
     cleanup              Cleanup any orphaned scaletest resources
     create-workspaces    Creates many workspaces and waits for them to be ready
 ---
-Report bugs and request features at https://github.com/coder/coder/issues/new
+Run `coder --help` for a list of global options.

@@ -9,4 +9,4 @@ Shows the following information for the given workspace:
   * The next scheduled stop time
 
 ---
-Report bugs and request features at https://github.com/coder/coder/issues/new
+Run `coder --help` for a list of global options.

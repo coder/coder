@@ -37,7 +37,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 		sshMaxTimeout time.Duration
 	)
 	cmd := &clibase.Cmd{
-		Use:   "agent",
+		Use:   "agent [flags]",
 		Short: `Starts the Coder workspace agent.`,
 		// This command isn't useful to manually execute.
 		Hidden: true,

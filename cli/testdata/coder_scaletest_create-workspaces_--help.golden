@@ -114,4 +114,4 @@ Options
         path will default to stdout. Available formats: text, json.
 
 ---
-Report bugs and request features at https://github.com/coder/coder/issues/new
+Run `coder --help` for a list of global options.

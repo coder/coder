@@ -8,4 +8,4 @@ Subcommands
     stop             Edit workspace stop schedule
     override-stop    Edit stop time of active workspace
 ---
-Report bugs and request features at https://github.com/coder/coder/issues/new
+Run `coder --help` for a list of global options.

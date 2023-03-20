@@ -1,4 +1,4 @@
-Usage: coder agent
+Usage: coder agent [flags]
 
 Starts the Coder workspace agent.
 
@@ -15,4 +15,4 @@ Options
         established.
 
 ---
-Report bugs and request features at https://github.com/coder/coder/issues/new
+Run `coder --help` for a list of global options.

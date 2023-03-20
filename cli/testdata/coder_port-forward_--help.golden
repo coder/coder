@@ -31,4 +31,4 @@ Options
         connection has TCP-like semantics to support stateful UDP protocols.
 
 ---
-Report bugs and request features at https://github.com/coder/coder/issues/new
+Run `coder --help` for a list of global options.

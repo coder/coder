@@ -17,4 +17,4 @@ Options
         concurrency limits.
 
 ---
-Report bugs and request features at https://github.com/coder/coder/issues/new
+Run `coder --help` for a list of global options.

@@ -21,4 +21,4 @@ shows in the demo widget on the right.
       $ coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin
 
 ---
-Report bugs and request features at https://github.com/coder/coder/issues/new
+Run `coder --help` for a list of global options.

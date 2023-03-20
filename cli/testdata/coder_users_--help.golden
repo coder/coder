@@ -12,4 +12,4 @@ Subcommands
     suspend     Update a user's status to 'suspended'. A suspended user cannot
                 log into the platform
 ---
-Report bugs and request features at https://github.com/coder/coder/issues/new
+Run `coder --help` for a list of global options.
