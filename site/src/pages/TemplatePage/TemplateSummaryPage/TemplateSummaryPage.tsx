@@ -1,12 +1,51 @@
+import { useQuery } from "@tanstack/react-query"
+import {
+  getTemplateVersion,
+  getTemplateVersionResources,
+  getTemplateVersions,
+  getTemplateDAUs,
+} from "api/api"
 import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import { TemplateSummaryPageView } from "./TemplateSummaryPageView"
 
+const fetchTemplateSummary = async (
+  templateId: string,
+  activeVersionId: string,
+) => {
+  const [activeVersion, resources, versions, daus] = await Promise.all([
+    getTemplateVersion(activeVersionId),
+    getTemplateVersionResources(activeVersionId),
+    getTemplateVersions(templateId),
+    getTemplateDAUs(templateId),
+  ])
+
+  return {
+    activeVersion,
+    resources,
+    versions,
+    daus,
+  }
+}
+
+const useTemplateSummaryData = (
+  templateId: string,
+  activeVersionId: string,
+) => {
+  return useQuery({
+    queryKey: ["template", templateId, "summary"],
+    queryFn: () => fetchTemplateSummary(templateId, activeVersionId),
+  })
+}
+
 export const TemplateSummaryPage: FC = () => {
-  const { template, activeVersion, resources, versions, daus } =
-    useTemplateLayoutContext()
+  const { template } = useTemplateLayoutContext()
+  const { data } = useTemplateSummaryData(
+    template.id,
+    template.active_version_id,
+  )
 
   return (
     <>
@@ -21,13 +60,7 @@ export const TemplateSummaryPage: FC = () => {
           )}
         </title>
       </Helmet>
-      <TemplateSummaryPageView
-        template={template}
-        activeTemplateVersion={activeVersion}
-        templateResources={resources}
-        templateVersions={versions}
-        templateDAUs={daus}
-      />
+      <TemplateSummaryPageView data={data} template={template} />
     </>
   )
 }

@@ -1,10 +1,6 @@
 import { makeStyles } from "@material-ui/core/styles"
-import {
-  Template,
-  TemplateDAUsResponse,
-  TemplateVersion,
-  WorkspaceResource,
-} from "api/typesGenerated"
+import { Template, WorkspaceResource } from "api/typesGenerated"
+import { Loader } from "components/Loader/Loader"
 import { MemoizedMarkdown } from "components/Markdown/Markdown"
 import { Stack } from "components/Stack/Stack"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
@@ -13,26 +9,25 @@ import { VersionsTable } from "components/VersionsTable/VersionsTable"
 import frontMatter from "front-matter"
 import { FC } from "react"
 import { DAUChart } from "../../../components/DAUChart/DAUChart"
+import { TemplateSummaryData } from "./data"
 
 export interface TemplateSummaryPageViewProps {
+  data?: TemplateSummaryData
   template: Template
-  activeTemplateVersion: TemplateVersion
-  templateResources: WorkspaceResource[]
-  templateVersions?: TemplateVersion[]
-  templateDAUs?: TemplateDAUsResponse
 }
 
-export const TemplateSummaryPageView: FC<
-  React.PropsWithChildren<TemplateSummaryPageViewProps>
-> = ({
+export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
+  data,
   template,
-  activeTemplateVersion,
-  templateResources,
-  templateVersions,
-  templateDAUs,
 }) => {
   const styles = useStyles()
-  const readme = frontMatter(activeTemplateVersion.readme)
+
+  if (!data) {
+    return <Loader />
+  }
+
+  const { activeVersion, daus, resources, versions } = data
+  const readme = frontMatter(activeVersion.readme)
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
     return resources.filter(
@@ -42,14 +37,9 @@ export const TemplateSummaryPageView: FC<
 
   return (
     <Stack spacing={4}>
-      <TemplateStats
-        template={template}
-        activeVersion={activeTemplateVersion}
-      />
-      {templateDAUs && <DAUChart daus={templateDAUs} />}
-      <TemplateResourcesTable
-        resources={getStartedResources(templateResources)}
-      />
+      <TemplateStats template={template} activeVersion={activeVersion} />
+      {daus && <DAUChart daus={daus} />}
+      <TemplateResourcesTable resources={getStartedResources(resources)} />
 
       <div className={styles.markdownSection} id="readme">
         <div className={styles.readmeLabel}>README.md</div>
@@ -58,7 +48,7 @@ export const TemplateSummaryPageView: FC<
         </div>
       </div>
 
-      <VersionsTable versions={templateVersions} />
+      <VersionsTable versions={versions} />
     </Stack>
   )
 }
