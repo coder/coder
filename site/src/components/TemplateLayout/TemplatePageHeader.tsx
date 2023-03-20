@@ -1,6 +1,10 @@
 import Button from "@material-ui/core/Button"
 import AddCircleOutline from "@material-ui/icons/AddCircleOutline"
-import { AuthorizationResponse, Template } from "api/typesGenerated"
+import {
+  AuthorizationResponse,
+  Template,
+  TemplateVersion,
+} from "api/typesGenerated"
 import { Avatar } from "components/Avatar/Avatar"
 import { Maybe } from "components/Conditionals/Maybe"
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
@@ -19,17 +23,19 @@ import Menu from "@material-ui/core/Menu"
 import MenuItem from "@material-ui/core/MenuItem"
 
 const Language = {
-  editButton: "Edit",
   variablesButton: "Variables",
   settingsButton: "Settings",
   createButton: "Create workspace",
   deleteButton: "Delete",
+  editFilesButton: "Edit files",
 }
 
-const TemplateMenu: FC<{ templateName: string; onDelete: () => void }> = ({
-  templateName,
-  onDelete,
-}) => {
+const TemplateMenu: FC<{
+  templateName: string
+  templateVersion: string
+  canEditFiles: boolean
+  onDelete: () => void
+}> = ({ templateName, templateVersion, canEditFiles, onDelete }) => {
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null)
 
   const handleClose = () => {
@@ -68,6 +74,15 @@ const TemplateMenu: FC<{ templateName: string; onDelete: () => void }> = ({
         >
           {Language.variablesButton}
         </MenuItem>
+        {canEditFiles && (
+          <MenuItem
+            component={RouterLink}
+            to={`/templates/${templateName}/versions/${templateVersion}/edit`}
+            onClick={handleClose}
+          >
+            {Language.editFilesButton}
+          </MenuItem>
+        )}
         <MenuItem
           onClick={() => {
             onDelete()
@@ -96,13 +111,17 @@ const CreateWorkspaceButton: FC<{
 
 export type TemplatePageHeaderProps = {
   template: Template
+  activeVersion: TemplateVersion
   permissions: AuthorizationResponse
+  canEditFiles: boolean
   onDeleteTemplate: () => void
 }
 
 export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
   template,
+  activeVersion,
   permissions,
+  canEditFiles,
   onDeleteTemplate,
 }) => {
   const hasIcon = template.icon && template.icon !== ""
@@ -116,8 +135,10 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
             <CreateWorkspaceButton templateName={template.name} />
             <Maybe condition={permissions.canUpdateTemplate}>
               <TemplateMenu
+                templateVersion={activeVersion.name}
                 templateName={template.name}
                 onDelete={deleteTemplate.openDeleteConfirmation}
+                canEditFiles={canEditFiles}
               />
             </Maybe>
           </>

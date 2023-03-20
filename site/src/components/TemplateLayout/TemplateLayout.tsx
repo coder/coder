@@ -11,12 +11,10 @@ import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import {
   checkAuthorization,
   getTemplateByName,
-  getTemplateDAUs,
   getTemplateVersion,
-  getTemplateVersionResources,
-  getTemplateVersions,
 } from "api/api"
 import { useQuery } from "@tanstack/react-query"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 
 const templatePermissions = (templateId: string) => ({
   canUpdateTemplate: {
@@ -30,23 +28,16 @@ const templatePermissions = (templateId: string) => ({
 
 const fetchTemplate = async (orgId: string, templateName: string) => {
   const template = await getTemplateByName(orgId, templateName)
-  const [activeVersion, resources, versions, daus, permissions] =
-    await Promise.all([
-      getTemplateVersion(template.active_version_id),
-      getTemplateVersionResources(template.active_version_id),
-      getTemplateVersions(template.id),
-      getTemplateDAUs(template.id),
-      checkAuthorization({
-        checks: templatePermissions(template.id),
-      }),
-    ])
+  const [activeVersion, permissions] = await Promise.all([
+    getTemplateVersion(template.active_version_id),
+    checkAuthorization({
+      checks: templatePermissions(template.id),
+    }),
+  ])
 
   return {
     template,
     activeVersion,
-    resources,
-    versions,
-    daus,
     permissions,
   }
 }
@@ -82,6 +73,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   const orgId = useOrganizationId()
   const { template } = useParams() as { template: string }
   const templateData = useTemplateData(orgId, template)
+  const dashboard = useDashboard()
 
   if (templateData.error) {
     return (
@@ -104,7 +96,9 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
     <>
       <TemplatePageHeader
         template={templateData.data.template}
+        activeVersion={templateData.data.activeVersion}
         permissions={templateData.data.permissions}
+        canEditFiles={dashboard.experiments.includes("template_editor")}
         onDeleteTemplate={() => {
           navigate("/templates")
         }}
