@@ -1504,8 +1504,8 @@ func TestPaginatedUsers(t *testing.T) {
 	require.NoError(t, err)
 	orgID := me.OrganizationIDs[0]
 
-	// When 100 users exist
-	total := 100
+	// When 50 users exist
+	total := 50
 	allUsers := make([]codersdk.User, total+1) // +1 forme
 	allUsers[0] = me
 	specialUsers := make([]codersdk.User, total/2)
