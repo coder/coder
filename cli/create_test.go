@@ -648,7 +648,6 @@ func TestCreateValidateRichParameters(t *testing.T) {
 
 		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
 		clitest.Start(t, inv)
 
@@ -665,7 +664,6 @@ func TestCreateValidateRichParameters(t *testing.T) {
 				pty.WriteLine(value)
 			}
 		}
-		<-doneChan
 	})
 
 	t.Run("ValidateListOfStrings_YAMLFile", func(t *testing.T) {
