@@ -1978,6 +1978,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Templates"],
         "summary": "Patch template version by ID",
