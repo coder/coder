@@ -197,4 +197,20 @@ CODER_OIDC_SCOPES=openid,profile,email,groups
 On login, users will automatically be assigned to groups that have matching
 names in Coder and removed from groups that the user no longer belongs to.
 
+For cases when an OIDC provider only returns group IDs ([Azure AD][azure-gids])
+or you want to have different group names in Coder than in your OIDC provider,
+you can configure mapping between the two.
+
+```console
+# as an environment variable
+CODER_OIDC_GROUP_MAPPING='{"myOIDCGroupID": "myCoderGroupName"}'
+# as a flag
+--oidc-group-mapping '{"myOIDCGroupID": "myCoderGroupName"}'
+```
+
+From the example above, users that belong to the `myOIDCGroupID` group in your
+OIDC provider will be added to the `myCoderGroupName` group in Coder.
+
 > **Note:** Groups are only updated on login.
+
+[azure-gids]: https://github.com/MicrosoftDocs/azure-docs/issues/59766#issuecomment-664387195
