@@ -1,20 +1,20 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # restart
 
+ 
 Restart a workspace
 
-## Usage
 
+## Usage
 ```console
-restart <workspace>
+coder restart <workspace>
 ```
 
+
 ## Options
-
 ### --yes, -y
-
-|     |     |
+ 
+| | |
 | --- | --- |
 
 Bypass prompts.

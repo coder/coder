@@ -1,17 +1,16 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # schedule show
 
+ 
 Show workspace schedule
 
-## Usage
 
+## Usage
 ```console
-show <workspace-name>
+coder schedule show <workspace-name>
 ```
 
 ## Description
-
 ```console
 Shows the following information for the given workspace:
   * The automatic start schedule
@@ -20,3 +19,4 @@ Shows the following information for the given workspace:
   * The next scheduled stop time
 
 ```
+

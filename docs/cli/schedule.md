@@ -1,20 +1,19 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # schedule
 
+ 
 Schedule automated start and stop times for workspaces
 
-## Usage
 
+## Usage
 ```console
-schedule { show | start | stop | override } <workspace>
+coder schedule { show | start | stop | override } <workspace>
 ```
 
 ## Subcommands
-
-| Name                                                   | Purpose                            |
-| ------------------------------------------------------ | ---------------------------------- |
-| [<code>show</code>](./schedule_show)                   | Show workspace schedule            |
-| [<code>start</code>](./schedule_start)                 | Edit workspace start schedule      |
-| [<code>stop</code>](./schedule_stop)                   | Edit workspace stop schedule       |
+| Name |   Purpose |
+| ---- |   ----- |
+| [<code>show</code>](./schedule_show) | Show workspace schedule |
+| [<code>start</code>](./schedule_start) | Edit workspace start schedule |
+| [<code>stop</code>](./schedule_stop) | Edit workspace stop schedule |
 | [<code>override-stop</code>](./schedule_override-stop) | Edit stop time of active workspace |

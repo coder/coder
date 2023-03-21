@@ -1,27 +1,28 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # users activate
 
+ 
 Update a user's status to 'active'. Active users can fully interact with the platform
 
-## Usage
 
+## Usage
 ```console
-activate <username|user_id>
+coder users activate <username|user_id>
 ```
 
 ## Description
-
 ```console
-  $ coder users activate example_user
+  $ coder users activate example_user 
 ```
 
+
 ## Options
-
 ### --column, -c
+ 
+| | |
+| --- | --- |
+| Default |     <code>username,email,created_at,status</code> |
 
-|         |                                               |
-| ------- | --------------------------------------------- |
-| Default | <code>username,email,created_at,status</code> |
+
 
 Specify a column to filter in the table.

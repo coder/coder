@@ -1,20 +1,20 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # stop
 
+ 
 Stop a workspace
 
-## Usage
 
+## Usage
 ```console
-stop <workspace>
+coder stop <workspace>
 ```
 
+
 ## Options
-
 ### --yes, -y
-
-|     |     |
+ 
+| | |
 | --- | --- |
 
 Bypass prompts.

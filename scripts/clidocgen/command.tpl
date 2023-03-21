@@ -6,10 +6,10 @@
 
 {{ end }}
 
-{{- with .Use }}
+{{- if .Use }}
 ## Usage
 ```console
-{{. }}
+{{ .FullUsage }}
 ```
 {{end}}
 

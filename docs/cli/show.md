@@ -1,11 +1,12 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # show
 
+ 
 Display details of a workspace's resources and agents
 
-## Usage
 
+## Usage
 ```console
-show <workspace>
+coder show <workspace>
 ```
+

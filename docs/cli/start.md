@@ -1,20 +1,20 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # start
 
+ 
 Start a workspace
 
-## Usage
 
+## Usage
 ```console
-start <workspace>
+coder start <workspace>
 ```
 
+
 ## Options
-
 ### --yes, -y
-
-|     |     |
+ 
+| | |
 | --- | --- |
 
 Bypass prompts.

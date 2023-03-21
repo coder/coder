@@ -1,11 +1,12 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # templates plan
 
+ 
 Plan a template push from the current directory
 
-## Usage
 
+## Usage
 ```console
-plan <directory>
+coder templates plan <directory>
 ```
+

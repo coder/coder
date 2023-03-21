@@ -1,11 +1,12 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # version
 
+ 
 Show coder version
 
-## Usage
 
+## Usage
 ```console
-version
+coder version
 ```
+

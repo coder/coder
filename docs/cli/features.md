@@ -1,17 +1,16 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # features
 
+ 
 List Enterprise features
 
-## Usage
 
+## Usage
 ```console
-features
+coder features
 ```
 
 ## Subcommands
-
-| Name                                 | Purpose |
-| ------------------------------------ | ------- |
-| [<code>list</code>](./features_list) |         |
+| Name |   Purpose |
+| ---- |   ----- |
+| [<code>list</code>](./features_list) |  |

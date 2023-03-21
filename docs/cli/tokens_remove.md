@@ -1,11 +1,12 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # tokens remove
 
+ 
 Delete a token
 
-## Usage
 
+## Usage
 ```console
-remove [name]
+coder tokens remove [name]
 ```
+

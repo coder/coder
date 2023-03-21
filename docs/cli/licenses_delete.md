@@ -1,11 +1,12 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # licenses delete
 
+ 
 Delete license by ID
 
-## Usage
 
+## Usage
 ```console
-delete <id>
+coder licenses delete <id>
 ```
+

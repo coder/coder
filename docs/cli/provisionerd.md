@@ -1,17 +1,16 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # provisionerd
 
+ 
 Manage provisioner daemons
 
-## Usage
 
+## Usage
 ```console
-provisionerd
+coder provisionerd
 ```
 
 ## Subcommands
-
-| Name                                       | Purpose                  |
-| ------------------------------------------ | ------------------------ |
+| Name |   Purpose |
+| ---- |   ----- |
 | [<code>start</code>](./provisionerd_start) | Run a provisioner daemon |

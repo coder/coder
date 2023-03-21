@@ -1,11 +1,12 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # templates init
 
+ 
 Get started with a templated template.
 
-## Usage
 
+## Usage
 ```console
-init [directory]
+coder templates init [directory]
 ```
+

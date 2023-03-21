@@ -1,18 +1,17 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # state
 
+ 
 Manually manage Terraform state to fix broken workspaces
 
-## Usage
 
+## Usage
 ```console
-state
+coder state
 ```
 
 ## Subcommands
-
-| Name                              | Purpose                                       |
-| --------------------------------- | --------------------------------------------- |
+| Name |   Purpose |
+| ---- |   ----- |
 | [<code>pull</code>](./state_pull) | Pull a Terraform state file from a workspace. |
-| [<code>push</code>](./state_push) | Push a Terraform state file to a workspace.   |
+| [<code>push</code>](./state_push) | Push a Terraform state file to a workspace. |

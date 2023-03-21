@@ -1,20 +1,20 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # templates delete
 
+ 
 Delete templates
 
-## Usage
 
+## Usage
 ```console
-delete [name...]
+coder templates delete [name...]
 ```
 
+
 ## Options
-
 ### --yes, -y
-
-|     |     |
+ 
+| | |
 | --- | --- |
 
 Bypass prompts.
