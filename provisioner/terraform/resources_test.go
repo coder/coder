@@ -279,12 +279,14 @@ func TestConvertResources(t *testing.T) {
 				Name: "dev",
 				Type: "null_resource",
 				Agents: []*proto.Agent{{
-					Name:                     "dev",
-					OperatingSystem:          "windows",
-					Architecture:             "arm64",
-					Auth:                     &proto.Agent_Token{},
-					LoginBeforeReady:         true,
-					ConnectionTimeoutSeconds: 120,
+					Name:                         "dev",
+					OperatingSystem:              "windows",
+					ShutdownScriptTimeoutSeconds: 300,
+					StartupScriptTimeoutSeconds:  300,
+					Architecture:                 "arm64",
+					Auth:                         &proto.Agent_Token{},
+					LoginBeforeReady:             true,
+					ConnectionTimeoutSeconds:     120,
 				}},
 			}},
 			parameters: []*proto.RichParameter{{
@@ -298,6 +300,11 @@ func TestConvertResources(t *testing.T) {
 					Value: "second",
 				}},
 				Required: true,
+			}, {
+				Name:         "Example 2",
+				Type:         "string",
+				Description:  "blah blah",
+				DefaultValue: "ok",
 			}},
 		},
 		"git-auth-providers": {

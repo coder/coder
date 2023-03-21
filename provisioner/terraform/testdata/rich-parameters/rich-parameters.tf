@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.6.6"
+      version = "0.6.20"
     }
   }
 }
@@ -21,8 +21,10 @@ data "coder_parameter" "example" {
 }
 
 data "coder_parameter" "example2" {
+  name = "Example 2"
   type = "string"
   description = "blah blah"
+  default = "ok"
 }
 
 resource "coder_agent" "dev" {
