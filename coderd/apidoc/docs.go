@@ -2278,6 +2278,15 @@ const docTemplate = `{
                         "name": "templateversion",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Patch template version request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchTemplateVersionRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -7426,6 +7435,14 @@ const docTemplate = `{
                 "ParameterSourceSchemeNone",
                 "ParameterSourceSchemeData"
             ]
+        },
+        "codersdk.PatchTemplateVersionRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.PprofConfig": {
             "type": "object",

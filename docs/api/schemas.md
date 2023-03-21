@@ -3002,6 +3002,20 @@ Parameter represents a set value for the scope.
 | `none` |
 | `data` |
 
+## codersdk.PatchTemplateVersionRequest
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| `name` | string | false    |              |             |
+
 ## codersdk.PprofConfig
 
 ```json

@@ -1257,17 +1257,27 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion} \
+  -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `PATCH /templateversions/{templateversion}`
 
+> Body parameter
+
+```json
+{
+  "name": "string"
+}
+```
+
 ### Parameters
 
-| Name              | In   | Type         | Required | Description         |
-| ----------------- | ---- | ------------ | -------- | ------------------- |
-| `templateversion` | path | string(uuid) | true     | Template version ID |
+| Name              | In   | Type                                                                                   | Required | Description                    |
+| ----------------- | ---- | -------------------------------------------------------------------------------------- | -------- | ------------------------------ |
+| `templateversion` | path | string(uuid)                                                                           | true     | Template version ID            |
+| `body`            | body | [codersdk.PatchTemplateVersionRequest](schemas.md#codersdkpatchtemplateversionrequest) | true     | Patch template version request |
 
 ### Example responses
 

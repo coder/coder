@@ -69,6 +69,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
+// @Param request body codersdk.PatchTemplateVersionRequest true "Patch template version request"
 // @Success 200 {object} codersdk.TemplateVersion
 // @Router /templateversions/{templateversion} [patch]
 func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
