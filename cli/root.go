@@ -185,11 +185,6 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 		}
 	})
 
-	err := cmd.PrepareAll()
-	if err != nil {
-		panic(err)
-	}
-
 	if r.agentURL == nil {
 		r.agentURL = new(url.URL)
 	}
@@ -284,6 +279,11 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Value:       clibase.StringOf(&r.globalConfig),
 			Group:       globalGroup,
 		},
+	}
+
+	err := cmd.PrepareAll()
+	if err != nil {
+		panic(err)
 	}
 
 	return cmd
