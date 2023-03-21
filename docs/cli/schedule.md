@@ -14,7 +14,7 @@ coder schedule { show | start | stop | override } <workspace>
 
 | Name                                                   | Purpose                            |
 | ------------------------------------------------------ | ---------------------------------- |
+| [<code>override-stop</code>](./schedule_override-stop) | Edit stop time of active workspace |
 | [<code>show</code>](./schedule_show)                   | Show workspace schedule            |
 | [<code>start</code>](./schedule_start)                 | Edit workspace start schedule      |
 | [<code>stop</code>](./schedule_stop)                   | Edit workspace stop schedule       |
-| [<code>override-stop</code>](./schedule_override-stop) | Edit stop time of active workspace |

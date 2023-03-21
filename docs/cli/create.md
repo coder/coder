@@ -12,14 +12,6 @@ coder create [name]
 
 ## Options
 
-### --template, -t
-
-|             |                                   |
-| ----------- | --------------------------------- |
-| Environment | <code>$CODER_TEMPLATE_NAME</code> |
-
-Specify a template name.
-
 ### --parameter-file
 
 |             |                                    |
@@ -51,6 +43,14 @@ Specify the workspace autostart schedule. Check `coder schedule start --help` fo
 | Environment | <code>$CODER_WORKSPACE_STOP_AFTER</code> |
 
 Specify a duration after which the workspace should shut down (e.g. 8h).
+
+### --template, -t
+
+|             |                                   |
+| ----------- | --------------------------------- |
+| Environment | <code>$CODER_TEMPLATE_NAME</code> |
+
+Specify a template name.
 
 ### --yes, -y
 

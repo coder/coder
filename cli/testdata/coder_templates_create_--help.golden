@@ -3,23 +3,23 @@ Usage: coder templates create [name]
 Create a template from the current directory or as specified by flag
 
 [1mOptions[0m
-    --parameter-file
-        Specify a file path with parameter values.
-
-    --variables-file
-        Specify a file path with values for Terraform-managed variables.
-
-    --variable
-        Specify a set of values for Terraform-managed variables.
-
-    --provisioner-tag
-        Specify a set of tags to target provisioner daemons.
-
     --default-ttl (default: 24h) 
         Specify a default TTL for workspaces created from this template.
 
     --directory, -d (default: .) 
         Specify the directory to create from, use '-' to read tar from stdin.
+
+    --parameter-file
+        Specify a file path with parameter values.
+
+    --provisioner-tag
+        Specify a set of tags to target provisioner daemons.
+
+    --variable
+        Specify a set of values for Terraform-managed variables.
+
+    --variables-file
+        Specify a file path with values for Terraform-managed variables.
 
     --yes, -y
         Bypass prompts.

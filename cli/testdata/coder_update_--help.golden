@@ -10,10 +10,10 @@ Will update and start a given workspace if it is out of date. Use
         Always prompt all parameters. Does not pull parameter values from
         existing workspace.
 
-    --parameter-file, $CODER_PARAMETER_FILE 
+    --parameter-file, $CODER_PARAMETER_FILE
         Specify a file path with parameter values.
 
-    --rich-parameter-file, $CODER_RICH_PARAMETER_FILE 
+    --rich-parameter-file, $CODER_RICH_PARAMETER_FILE
         Specify a file path with values for rich parameters defined in the
         template.
 

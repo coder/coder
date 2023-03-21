@@ -4,11 +4,11 @@ Usage: coder users create
     --email, -e
         Specifies an email address for the new user.
 
-    --username, -u
-        Specifies a username for the new user.
-
     --password, -p
         Specifies a password for the new user.
+
+    --username, -u
+        Specifies a username for the new user.
 
 ---
 Run `coder --help` for a list of global options.

@@ -27,15 +27,6 @@ Cleanup scaletest workspaces, then cleanup scaletest users. The strategy flags w
 
 Number of concurrent cleanup jobs to run. 0 means unlimited.
 
-### --cleanup-timeout
-
-|             |                                               |
-| ----------- | --------------------------------------------- |
-| Environment | <code>$CODER_SCALETEST_CLEANUP_TIMEOUT</code> |
-| Default     | <code>30m</code>                              |
-
-Timeout for the entire cleanup run. 0 means unlimited.
-
 ### --cleanup-job-timeout
 
 |             |                                                   |
@@ -44,3 +35,12 @@ Timeout for the entire cleanup run. 0 means unlimited.
 | Default     | <code>5m</code>                                   |
 
 Timeout per job. Jobs may take longer to complete under higher concurrency limits.
+
+### --cleanup-timeout
+
+|             |                                               |
+| ----------- | --------------------------------------------- |
+| Environment | <code>$CODER_SCALETEST_CLEANUP_TIMEOUT</code> |
+| Default     | <code>30m</code>                              |
+
+Timeout for the entire cleanup run. 0 means unlimited.

@@ -3,10 +3,10 @@ Usage: coder tokens create
 Create a token
 
 [1mOptions[0m
-    --lifetime, $CODER_TOKEN_LIFETIME  (default: 720h0m0s) 
+    --lifetime, $CODER_TOKEN_LIFETIME (default: 720h0m0s) 
         Specify a duration for the lifetime of the token.
 
-    --name, -n, $CODER_TOKEN_NAME 
+    --name, -n, $CODER_TOKEN_NAME
         Specify a human-readable name.
 
 ---

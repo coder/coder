@@ -12,22 +12,6 @@ coder templates create [name]
 
 ## Options
 
-### --parameter-file
-
-Specify a file path with parameter values.
-
-### --variables-file
-
-Specify a file path with values for Terraform-managed variables.
-
-### --variable
-
-Specify a set of values for Terraform-managed variables.
-
-### --provisioner-tag
-
-Specify a set of tags to target provisioner daemons.
-
 ### --default-ttl
 
 |         |                  |
@@ -43,6 +27,22 @@ Specify a default TTL for workspaces created from this template.
 | Default | <code>.</code> |
 
 Specify the directory to create from, use '-' to read tar from stdin.
+
+### --parameter-file
+
+Specify a file path with parameter values.
+
+### --provisioner-tag
+
+Specify a set of tags to target provisioner daemons.
+
+### --variable
+
+Specify a set of values for Terraform-managed variables.
+
+### --variables-file
+
+Specify a file path with values for Terraform-managed variables.
 
 ### --yes, -y
 

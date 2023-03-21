@@ -20,14 +20,6 @@ coder list
 
 Specifies whether all workspaces will be listed or not.
 
-### --search
-
-|         |                       |
-| ------- | --------------------- |
-| Default | <code>owner:me</code> |
-
-Search for a workspace with a query.
-
 ### --column, -c
 
 |         |                                                                                  |
@@ -43,3 +35,11 @@ Columns to display in table output. Available columns: workspace, template, stat
 | Default | <code>table</code> |
 
 Output format. Available formats: table, json.
+
+### --search
+
+|         |                       |
+| ------- | --------------------- |
+| Default | <code>owner:me</code> |
+
+Search for a workspace with a query.

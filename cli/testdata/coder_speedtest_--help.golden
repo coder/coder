@@ -6,7 +6,7 @@ Run upload and download tests from your machine to a workspace
     --d (default: false) 
         Specifies whether to wait for a direct connection before testing speed.
 
-    --direction (default: down)  one of up|down 
+    --direction (default: down) one of up|down
         Specifies whether to run in reverse mode where the client receives and
         the server sends.
 

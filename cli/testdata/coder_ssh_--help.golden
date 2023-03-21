@@ -3,27 +3,27 @@ Usage: coder ssh <workspace>
 Start a shell into a workspace
 
 [1mOptions[0m
-    --stdio, $CODER_SSH_STDIO 
-        Specifies whether to emit SSH output over stdin/stdout.
-
-    --forward-agent, -A, $CODER_SSH_FORWARD_AGENT 
+    --forward-agent, -A, $CODER_SSH_FORWARD_AGENT
         Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK.
 
-    --forward-gpg, -G, $CODER_SSH_FORWARD_GPG 
+    --forward-gpg, -G, $CODER_SSH_FORWARD_GPG
         Specifies whether to forward the GPG agent. Unsupported on Windows
         workspaces, but supports all clients. Requires gnupg (gpg, gpg2, gpgsm)
         and gpg-agent to be installed on the host.
 
-    --identity-agent, $CODER_SSH_IDENTITY_AGENT 
+    --identity-agent, $CODER_SSH_IDENTITY_AGENT
         Specifies which identity agent to use (overrides $SSH_AUTH_SOCK),
         forward agent must also be enabled.
 
-    --workspace-poll-interval, $CODER_WORKSPACE_POLL_INTERVAL  (default: 1m) 
-        Specifies how often to poll for workspace automated shutdown.
-
-    --no-wait, $CODER_SSH_NO_WAIT 
+    --no-wait, $CODER_SSH_NO_WAIT
         Specifies whether to wait for the workspace to be ready before
         connecting.
+
+    --stdio, $CODER_SSH_STDIO
+        Specifies whether to emit SSH output over stdin/stdout.
+
+    --workspace-poll-interval, $CODER_WORKSPACE_POLL_INTERVAL (default: 1m) 
+        Specifies how often to poll for workspace automated shutdown.
 
 ---
 Run `coder --help` for a list of global options.

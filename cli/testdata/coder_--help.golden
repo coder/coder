@@ -11,61 +11,61 @@ environments with Terraform.
       [;m$ coder templates init[0m
 
 [1mSubcommands[0m
-    dotfiles          Checkout and install a dotfiles repository from a Git URL
-    login             Authenticate with Coder deployment
-    logout            Unauthenticate your local session
-    port-forward      Forward ports from machine to a workspace
-    publickey         Output your Coder public key used for Git operations
-    reset-password    Directly connect to the database to reset a user's
-                      password
-    state             Manually manage Terraform state to fix broken workspaces
-    templates         Manage templates
-    users             Manage users
-    tokens            Manage personal access tokens
-    version           Show coder version
     config-ssh        Add an SSH Host entry for your workspaces "ssh
                       coder.workspace"
-    rename            Rename a workspace
-    ping              Ping a workspace
     create            Create a workspace
     delete            Delete a workspace
+    dotfiles          Checkout and install a dotfiles repository from a Git URL
     list              List workspaces
+    login             Authenticate with Coder deployment
+    logout            Unauthenticate your local session
+    ping              Ping a workspace
+    port-forward      Forward ports from machine to a workspace
+    publickey         Output your Coder public key used for Git operations
+    rename            Rename a workspace
+    reset-password    Directly connect to the database to reset a user's
+                      password
+    restart           Restart a workspace
+    scaletest         Run a scale test against the Coder API
     schedule          Schedule automated start and stop times for workspaces
+    server            Start a Coder server
     show              Display details of a workspace's resources and agents
     speedtest         Run upload and download tests from your machine to a
                       workspace
     ssh               Start a shell into a workspace
     start             Start a workspace
+    state             Manually manage Terraform state to fix broken workspaces
     stop              Stop a workspace
+    templates         Manage templates
+    tokens            Manage personal access tokens
     update            Will update and start a given workspace if it is out of
                       date.
-    restart           Restart a workspace
-    scaletest         Run a scale test against the Coder API
-    server            Start a Coder server
+    users             Manage users
+    version           Show coder version
 [1mGlobal Options[0m 
 Global options are applied to all commands. They can be set using environment
 variables or flags.
 
-    --url, $CODER_URL 
+    --url, $CODER_URL
         URL to a deployment.
 
-    --token, $CODER_SESSION_TOKEN 
+    --token, $CODER_SESSION_TOKEN
         Specify an authentication token. For security reasons setting
         CODER_SESSION_TOKEN is preferred.
 
-    --no-version-warning, $CODER_NO_VERSION_WARNING 
+    --no-version-warning, $CODER_NO_VERSION_WARNING
         Suppress warning when client and server versions do not match.
 
-    --no-feature-warning, $CODER_NO_FEATURE_WARNING 
+    --no-feature-warning, $CODER_NO_FEATURE_WARNING
         Suppress warnings about unlicensed features.
 
-    --header, $CODER_HEADER 
+    --header, $CODER_HEADER
         Additional HTTP headers to send to the server.
 
-    --verbose, -v, $CODER_VERBOSE 
+    --verbose, -v, $CODER_VERBOSE
         Enable verbose logging.
 
-    --global-config, $CODER_CONFIG_DIR  (default: ~/.config/coderv2) 
+    --global-config, $CODER_CONFIG_DIR (default: ~/.config/coderv2) 
         Path to the global `coder` config directory.
 
 ---

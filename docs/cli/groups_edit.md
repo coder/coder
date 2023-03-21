@@ -12,17 +12,17 @@ coder groups edit <name>
 
 ## Options
 
-### --name, -n
+### --add-users, -a
 
-Update the group name.
+Add users to the group. Accepts emails or IDs.
 
 ### --avatar-url, -u
 
 Update the group avatar.
 
-### --add-users, -a
+### --name, -n
 
-Add users to the group. Accepts emails or IDs.
+Update the group name.
 
 ### --rm-users, -r
 

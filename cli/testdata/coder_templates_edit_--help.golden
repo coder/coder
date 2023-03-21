@@ -3,29 +3,29 @@ Usage: coder templates edit <template> [flags]
 Edit the metadata of a template by name.
 
 [1mOptions[0m
-    --name
-        Edit the template name.
-
-    --display-name
-        Edit the template display name.
-
-    --description
-        Edit the template description.
-
-    --icon
-        Edit the template icon path.
+    --allow-user-cancel-workspace-jobs (default: true) 
+        Allow users to cancel in-progress workspace jobs.
 
     --default-ttl
         Edit the template default time before shutdown - workspaces created from
         this template default to this value.
+
+    --description
+        Edit the template description.
+
+    --display-name
+        Edit the template display name.
+
+    --icon
+        Edit the template icon path.
 
     --max-ttl
         Edit the template maximum time before shutdown - workspaces created from
         this template must shutdown within the given duration after starting.
         This is an enterprise-only feature.
 
-    --allow-user-cancel-workspace-jobs (default: true) 
-        Allow users to cancel in-progress workspace jobs.
+    --name
+        Edit the template name.
 
     --yes, -y
         Bypass prompts.

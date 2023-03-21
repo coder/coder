@@ -15,10 +15,14 @@ coder server
 | Name                                                                   | Purpose                                                                                                |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | [<code>create-admin-user</code>](./server_create-admin-user)           | Create a new admin user with the given username, email and password and adds it to every organization. |
-| [<code>postgres-builtin-url</code>](./server_postgres-builtin-url)     | Output the connection URL for the built-in PostgreSQL deployment.                                      |
 | [<code>postgres-builtin-serve</code>](./server_postgres-builtin-serve) | Run the built-in PostgreSQL deployment.                                                                |
+| [<code>postgres-builtin-url</code>](./server_postgres-builtin-url)     | Output the connection URL for the built-in PostgreSQL deployment.                                      |
 
 ## Options
+
+### --
+
+Support links to display in the top right drop down menu.
 
 ### --access-url
 
@@ -28,105 +32,65 @@ coder server
 
 The URL that users will use to access the Coder deployment.
 
-### --wildcard-access-url
-
-|             |                                         |
-| ----------- | --------------------------------------- |
-| Environment | <code>$CODER_WILDCARD_ACCESS_URL</code> |
-
-Specifies the wildcard hostname to use for workspace applications in the form "\*.example.com".
-
-### --redirect-to-access-url
-
-|             |                                            |
-| ----------- | ------------------------------------------ |
-| Environment | <code>$CODER_REDIRECT_TO_ACCESS_URL</code> |
-
-Specifies whether to redirect requests that do not match the access URL host.
-
-### --http-address
-
-|             |                                  |
-| ----------- | -------------------------------- |
-| Environment | <code>$CODER_HTTP_ADDRESS</code> |
-| Default     | <code>127.0.0.1:3000</code>      |
-
-HTTP bind address of the server. Unset to disable the HTTP endpoint.
-
-### --tls-address
-
-|             |                                 |
-| ----------- | ------------------------------- |
-| Environment | <code>$CODER_TLS_ADDRESS</code> |
-| Default     | <code>127.0.0.1:3443</code>     |
-
-HTTPS bind address of the server.
-
-### --tls-enable
-
-|             |                                |
-| ----------- | ------------------------------ |
-| Environment | <code>$CODER_TLS_ENABLE</code> |
-
-Whether TLS will be enabled.
-
-### --tls-cert-file
+### --audit-logging
 
 |             |                                   |
 | ----------- | --------------------------------- |
-| Environment | <code>$CODER_TLS_CERT_FILE</code> |
+| Environment | <code>$CODER_AUDIT_LOGGING</code> |
+| Default     | <code>true</code>                 |
 
-Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.
+Specifies whether audit logging is enabled.
 
-### --tls-client-ca-file
-
-|             |                                        |
-| ----------- | -------------------------------------- |
-| Environment | <code>$CODER_TLS_CLIENT_CA_FILE</code> |
-
-PEM-encoded Certificate Authority file used for checking the authenticity of client.
-
-### --tls-client-auth
-
-|             |                                     |
-| ----------- | ----------------------------------- |
-| Environment | <code>$CODER_TLS_CLIENT_AUTH</code> |
-| Default     | <code>none</code>                   |
-
-Policy the server will follow for TLS Client Authentication. Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify".
-
-### --tls-key-file
+### --browser-only
 
 |             |                                  |
 | ----------- | -------------------------------- |
-| Environment | <code>$CODER_TLS_KEY_FILE</code> |
+| Environment | <code>$CODER_BROWSER_ONLY</code> |
 
-Paths to the private keys for each of the certificates. It requires a PEM-encoded file.
+Whether Coder only allows connections to workspaces via the browser.
 
-### --tls-min-version
+### --cache-dir
 
 |             |                                     |
 | ----------- | ----------------------------------- |
-| Environment | <code>$CODER_TLS_MIN_VERSION</code> |
-| Default     | <code>tls12</code>                  |
+| Environment | <code>$CODER_CACHE_DIRECTORY</code> |
+| Default     | <code>~/.cache/coder</code>         |
 
-Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13".
+The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.
 
-### --tls-client-cert-file
+### --dangerous-allow-path-app-sharing
 
-|             |                                          |
-| ----------- | ---------------------------------------- |
-| Environment | <code>$CODER_TLS_CLIENT_CERT_FILE</code> |
+|             |                                                      |
+| ----------- | ---------------------------------------------------- |
+| Environment | <code>$CODER_DANGEROUS_ALLOW_PATH_APP_SHARING</code> |
+| Default     | <code>false</code>                                   |
 
-Path to certificate for client TLS authentication. It requires a PEM-encoded file.
+Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
 
-### --tls-client-key-file
+### --dangerous-allow-path-app-site-owner-access
 
-|             |                                         |
-| ----------- | --------------------------------------- |
-| Environment | <code>$CODER_TLS_CLIENT_KEY_FILE</code> |
+|             |                                                                |
+| ----------- | -------------------------------------------------------------- |
+| Environment | <code>$CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS</code> |
+| Default     | <code>false</code>                                             |
 
-Path to key for client TLS authentication. It requires a PEM-encoded file.
+Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
+
+### --derp-config-path
+
+|             |                                      |
+| ----------- | ------------------------------------ |
+| Environment | <code>$CODER_DERP_CONFIG_PATH</code> |
+
+Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.
+
+### --derp-config-url
+
+|             |                                     |
+| ----------- | ----------------------------------- |
+| Environment | <code>$CODER_DERP_CONFIG_URL</code> |
+
+URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
 ### --derp-server-enable
 
@@ -137,15 +101,6 @@ Path to key for client TLS authentication. It requires a PEM-encoded file.
 
 Whether to enable or disable the embedded DERP relay server.
 
-### --derp-server-region-id
-
-|             |                                           |
-| ----------- | ----------------------------------------- |
-| Environment | <code>$CODER_DERP_SERVER_REGION_ID</code> |
-| Default     | <code>999</code>                          |
-
-Region ID to use for the embedded DERP server.
-
 ### --derp-server-region-code
 
 |             |                                             |
@@ -154,6 +109,15 @@ Region ID to use for the embedded DERP server.
 | Default     | <code>coder</code>                          |
 
 Region code to use for the embedded DERP server.
+
+### --derp-server-region-id
+
+|             |                                           |
+| ----------- | ----------------------------------------- |
+| Environment | <code>$CODER_DERP_SERVER_REGION_ID</code> |
+| Default     | <code>999</code>                          |
+
+Region ID to use for the embedded DERP server.
 
 ### --derp-server-region-name
 
@@ -164,6 +128,14 @@ Region code to use for the embedded DERP server.
 
 Region name that for the embedded DERP server.
 
+### --derp-server-relay-url
+
+|             |                                           |
+| ----------- | ----------------------------------------- |
+| Environment | <code>$CODER_DERP_SERVER_RELAY_URL</code> |
+
+An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.
+
 ### --derp-server-stun-addresses
 
 |             |                                                |
@@ -173,79 +145,99 @@ Region name that for the embedded DERP server.
 
 Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.
 
-### --derp-server-relay-url
+### --disable-password-auth
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
-| Environment | <code>$CODER_DERP_SERVER_RELAY_URL</code> |
+| Environment | <code>$CODER_DISABLE_PASSWORD_AUTH</code> |
+| Default     | <code>false</code>                        |
 
-An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.
+Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.
 
-### --derp-config-url
-
-|             |                                     |
-| ----------- | ----------------------------------- |
-| Environment | <code>$CODER_DERP_CONFIG_URL</code> |
-
-URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.
-
-### --derp-config-path
-
-|             |                                      |
-| ----------- | ------------------------------------ |
-| Environment | <code>$CODER_DERP_CONFIG_PATH</code> |
-
-Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.
-
-### --prometheus-enable
+### --disable-path-apps
 
 |             |                                       |
 | ----------- | ------------------------------------- |
-| Environment | <code>$CODER_PROMETHEUS_ENABLE</code> |
+| Environment | <code>$CODER_DISABLE_PATH_APPS</code> |
+| Default     | <code>false</code>                    |
 
-Serve prometheus metrics on the address defined by prometheus address.
+Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.
 
-### --prometheus-address
+### --disable-session-expiry-refresh
 
-|             |                                        |
-| ----------- | -------------------------------------- |
-| Environment | <code>$CODER_PROMETHEUS_ADDRESS</code> |
-| Default     | <code>127.0.0.1:2112</code>            |
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Environment | <code>$CODER_DISABLE_SESSION_EXPIRY_REFRESH</code> |
+| Default     | <code>false</code>                                 |
 
-The bind address to serve prometheus metrics.
+Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.
 
-### --pprof-enable
+### --experiments
+
+|             |                                 |
+| ----------- | ------------------------------- |
+| Environment | <code>$CODER_EXPERIMENTS</code> |
+
+Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '\*' to opt-in to all available experiments.
+
+### --http-address
 
 |             |                                  |
 | ----------- | -------------------------------- |
-| Environment | <code>$CODER_PPROF_ENABLE</code> |
+| Environment | <code>$CODER_HTTP_ADDRESS</code> |
+| Default     | <code>127.0.0.1:3000</code>      |
 
-Serve pprof metrics on the address defined by pprof address.
+HTTP bind address of the server. Unset to disable the HTTP endpoint.
 
-### --pprof-address
+### --log-human
 
 |             |                                   |
 | ----------- | --------------------------------- |
-| Environment | <code>$CODER_PPROF_ADDRESS</code> |
-| Default     | <code>127.0.0.1:6060</code>       |
+| Environment | <code>$CODER_LOGGING_HUMAN</code> |
+| Default     | <code>/dev/stderr</code>          |
 
-The bind address to serve pprof.
+Output human-readable logs to a given file.
 
-### --oauth2-github-client-id
+### --log-json
 
-|             |                                             |
-| ----------- | ------------------------------------------- |
-| Environment | <code>$CODER_OAUTH2_GITHUB_CLIENT_ID</code> |
+|             |                                  |
+| ----------- | -------------------------------- |
+| Environment | <code>$CODER_LOGGING_JSON</code> |
 
-Client ID for Login with GitHub.
+Output JSON logs to a given file.
 
-### --oauth2-github-client-secret
+### --log-stackdriver
+
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Environment | <code>$CODER_LOGGING_STACKDRIVER</code> |
+
+Output Stackdriver compatible logs to a given file.
+
+### --max-token-lifetime
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Environment | <code>$CODER_MAX_TOKEN_LIFETIME</code> |
+| Default     | <code>2562047h47m16.854775807s</code>  |
+
+The maximum lifetime duration users can specify when creating an API token.
+
+### --oauth2-github-allow-everyone
+
+|             |                                                  |
+| ----------- | ------------------------------------------------ |
+| Environment | <code>$CODER_OAUTH2_GITHUB_ALLOW_EVERYONE</code> |
+
+Allow all logins, setting this option means allowed orgs and teams must be empty.
+
+### --oauth2-github-allow-signups
 
 |             |                                                 |
 | ----------- | ----------------------------------------------- |
-| Environment | <code>$CODER_OAUTH2_GITHUB_CLIENT_SECRET</code> |
+| Environment | <code>$CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS</code> |
 
-Client secret for Login with GitHub.
+Whether new users can sign up with GitHub.
 
 ### --oauth2-github-allowed-orgs
 
@@ -263,21 +255,21 @@ Organizations the user must be a member of to Login with GitHub.
 
 Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.
 
-### --oauth2-github-allow-signups
+### --oauth2-github-client-id
+
+|             |                                             |
+| ----------- | ------------------------------------------- |
+| Environment | <code>$CODER_OAUTH2_GITHUB_CLIENT_ID</code> |
+
+Client ID for Login with GitHub.
+
+### --oauth2-github-client-secret
 
 |             |                                                 |
 | ----------- | ----------------------------------------------- |
-| Environment | <code>$CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS</code> |
+| Environment | <code>$CODER_OAUTH2_GITHUB_CLIENT_SECRET</code> |
 
-Whether new users can sign up with GitHub.
-
-### --oauth2-github-allow-everyone
-
-|             |                                                  |
-| ----------- | ------------------------------------------------ |
-| Environment | <code>$CODER_OAUTH2_GITHUB_ALLOW_EVERYONE</code> |
-
-Allow all logins, setting this option means allowed orgs and teams must be empty.
+Client secret for Login with GitHub.
 
 ### --oauth2-github-enterprise-base-url
 
@@ -320,6 +312,31 @@ Client secret to use for Login with OIDC.
 
 Email domains that clients logging in with OIDC must match.
 
+### --oidc-group-field
+
+|             |                                      |
+| ----------- | ------------------------------------ |
+| Environment | <code>$CODER_OIDC_GROUP_FIELD</code> |
+
+Change the OIDC default 'groups' claim field. By default, will be 'groups' if present in the oidc scopes argument.
+
+### --oidc-icon-url
+
+|             |                                   |
+| ----------- | --------------------------------- |
+| Environment | <code>$CODER_OIDC_ICON_URL</code> |
+
+URL pointing to the icon to use on the OepnID Connect login button.
+
+### --oidc-ignore-email-verified
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Environment | <code>$CODER_OIDC_IGNORE_EMAIL_VERIFIED</code> |
+| Default     | <code>false</code>                             |
+
+Ignore the email_verified claim from the upstream provider.
+
 ### --oidc-issuer-url
 
 |             |                                     |
@@ -337,14 +354,14 @@ Issuer URL to use for Login with OIDC.
 
 Scopes to grant when authenticating with OIDC.
 
-### --oidc-ignore-email-verified
+### --oidc-sign-in-text
 
-|             |                                                |
-| ----------- | ---------------------------------------------- |
-| Environment | <code>$CODER_OIDC_IGNORE_EMAIL_VERIFIED</code> |
-| Default     | <code>false</code>                             |
+|             |                                       |
+| ----------- | ------------------------------------- |
+| Environment | <code>$CODER_OIDC_SIGN_IN_TEXT</code> |
+| Default     | <code>OpenID Connect</code>           |
 
-Ignore the email_verified claim from the upstream provider.
+The text to show on the OpenID Connect sign in button.
 
 ### --oidc-username-field
 
@@ -355,30 +372,184 @@ Ignore the email_verified claim from the upstream provider.
 
 OIDC claim field to use as the username.
 
-### --oidc-group-field
-
-|             |                                      |
-| ----------- | ------------------------------------ |
-| Environment | <code>$CODER_OIDC_GROUP_FIELD</code> |
-
-Change the OIDC default 'groups' claim field. By default, will be 'groups' if present in the oidc scopes argument.
-
-### --oidc-sign-in-text
+### --postgres-url
 
 |             |                                       |
 | ----------- | ------------------------------------- |
-| Environment | <code>$CODER_OIDC_SIGN_IN_TEXT</code> |
-| Default     | <code>OpenID Connect</code>           |
+| Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
-The text to show on the OpenID Connect sign in button.
+URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url".
 
-### --oidc-icon-url
+### --pprof-address
 
 |             |                                   |
 | ----------- | --------------------------------- |
-| Environment | <code>$CODER_OIDC_ICON_URL</code> |
+| Environment | <code>$CODER_PPROF_ADDRESS</code> |
+| Default     | <code>127.0.0.1:6060</code>       |
 
-URL pointing to the icon to use on the OepnID Connect login button.
+The bind address to serve pprof.
+
+### --pprof-enable
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Environment | <code>$CODER_PPROF_ENABLE</code> |
+
+Serve pprof metrics on the address defined by pprof address.
+
+### --prometheus-address
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Environment | <code>$CODER_PROMETHEUS_ADDRESS</code> |
+| Default     | <code>127.0.0.1:2112</code>            |
+
+The bind address to serve prometheus metrics.
+
+### --prometheus-enable
+
+|             |                                       |
+| ----------- | ------------------------------------- |
+| Environment | <code>$CODER_PROMETHEUS_ENABLE</code> |
+
+Serve prometheus metrics on the address defined by prometheus address.
+
+### --provisioner-daemon-poll-interval
+
+|             |                                                      |
+| ----------- | ---------------------------------------------------- |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_POLL_INTERVAL</code> |
+| Default     | <code>1s</code>                                      |
+
+Time to wait before polling for a new job.
+
+### --provisioner-daemon-poll-jitter
+
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_POLL_JITTER</code> |
+| Default     | <code>100ms</code>                                 |
+
+Random jitter added to the poll interval.
+
+### --provisioner-daemons
+
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Environment | <code>$CODER_PROVISIONER_DAEMONS</code> |
+| Default     | <code>3</code>                          |
+
+Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.
+
+### --provisioner-force-cancel-interval
+
+|             |                                                       |
+| ----------- | ----------------------------------------------------- |
+| Environment | <code>$CODER_PROVISIONER_FORCE_CANCEL_INTERVAL</code> |
+| Default     | <code>10m0s</code>                                    |
+
+Time to force cancel provisioning tasks that are stuck.
+
+### --proxy-trusted-headers
+
+|             |                                           |
+| ----------- | ----------------------------------------- |
+| Environment | <code>$CODER_PROXY_TRUSTED_HEADERS</code> |
+
+Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For.
+
+### --proxy-trusted-origins
+
+|             |                                           |
+| ----------- | ----------------------------------------- |
+| Environment | <code>$CODER_PROXY_TRUSTED_ORIGINS</code> |
+
+Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
+
+### --redirect-to-access-url
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Environment | <code>$CODER_REDIRECT_TO_ACCESS_URL</code> |
+
+Specifies whether to redirect requests that do not match the access URL host.
+
+### --scim-auth-header
+
+|             |                                      |
+| ----------- | ------------------------------------ |
+| Environment | <code>$CODER_SCIM_AUTH_HEADER</code> |
+
+Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.
+
+### --secure-auth-cookie
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Environment | <code>$CODER_SECURE_AUTH_COOKIE</code> |
+
+Controls if the 'Secure' property is set on browser session cookies.
+
+### --session-duration
+
+|             |                                      |
+| ----------- | ------------------------------------ |
+| Environment | <code>$CODER_SESSION_DURATION</code> |
+| Default     | <code>24h0m0s</code>                 |
+
+The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.
+
+### --ssh-config-options
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Environment | <code>$CODER_SSH_CONFIG_OPTIONS</code> |
+
+These SSH config options will override the default SSH config options. Provide options in "key=value" or "key value" format separated by commas.Using this incorrectly can break SSH to your deployment, use cautiously.
+
+### --ssh-hostname-prefix
+
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Environment | <code>$CODER_SSH_HOSTNAME_PREFIX</code> |
+| Default     | <code>coder.</code>                     |
+
+The SSH deployment prefix is used in the Host of the ssh config.
+
+### --ssh-keygen-algorithm
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Environment | <code>$CODER_SSH_KEYGEN_ALGORITHM</code> |
+| Default     | <code>ed25519</code>                     |
+
+The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
+
+### --strict-transport-security
+
+|             |                                               |
+| ----------- | --------------------------------------------- |
+| Environment | <code>$CODER_STRICT_TRANSPORT_SECURITY</code> |
+| Default     | <code>0</code>                                |
+
+Controls if the 'Strict-Transport-Security' header is set on all static file responses. This header should only be set if the server is accessed via HTTPS. This value is the MaxAge in seconds of the header.
+
+### --strict-transport-security-options
+
+|             |                                                       |
+| ----------- | ----------------------------------------------------- |
+| Environment | <code>$CODER_STRICT_TRANSPORT_SECURITY_OPTIONS</code> |
+
+Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.
+
+### --swagger-enable
+
+|             |                                    |
+| ----------- | ---------------------------------- |
+| Environment | <code>$CODER_SWAGGER_ENABLE</code> |
+| Default     | <code>false</code>                 |
+
+Expose the swagger endpoint via /swagger.
 
 ### --telemetry
 
@@ -397,6 +568,81 @@ Whether telemetry is enabled or not. Coder collects anonymized usage data to hel
 | Default     | <code>true</code>                   |
 
 Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.
+
+### --tls-address
+
+|             |                                 |
+| ----------- | ------------------------------- |
+| Environment | <code>$CODER_TLS_ADDRESS</code> |
+| Default     | <code>127.0.0.1:3443</code>     |
+
+HTTPS bind address of the server.
+
+### --tls-cert-file
+
+|             |                                   |
+| ----------- | --------------------------------- |
+| Environment | <code>$CODER_TLS_CERT_FILE</code> |
+
+Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.
+
+### --tls-client-auth
+
+|             |                                     |
+| ----------- | ----------------------------------- |
+| Environment | <code>$CODER_TLS_CLIENT_AUTH</code> |
+| Default     | <code>none</code>                   |
+
+Policy the server will follow for TLS Client Authentication. Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify".
+
+### --tls-client-ca-file
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Environment | <code>$CODER_TLS_CLIENT_CA_FILE</code> |
+
+PEM-encoded Certificate Authority file used for checking the authenticity of client.
+
+### --tls-client-cert-file
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Environment | <code>$CODER_TLS_CLIENT_CERT_FILE</code> |
+
+Path to certificate for client TLS authentication. It requires a PEM-encoded file.
+
+### --tls-client-key-file
+
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Environment | <code>$CODER_TLS_CLIENT_KEY_FILE</code> |
+
+Path to key for client TLS authentication. It requires a PEM-encoded file.
+
+### --tls-enable
+
+|             |                                |
+| ----------- | ------------------------------ |
+| Environment | <code>$CODER_TLS_ENABLE</code> |
+
+Whether TLS will be enabled.
+
+### --tls-key-file
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Environment | <code>$CODER_TLS_KEY_FILE</code> |
+
+Paths to the private keys for each of the certificates. It requires a PEM-encoded file.
+
+### --tls-min-version
+
+|             |                                     |
+| ----------- | ----------------------------------- |
+| Environment | <code>$CODER_TLS_MIN_VERSION</code> |
+| Default     | <code>tls12</code>                  |
+
+Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13".
 
 ### --trace
 
@@ -422,41 +668,14 @@ Enables trace exporting to Honeycomb.io using the provided API Key.
 
 Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.
 
-### --provisioner-daemons
+### --update-check
 
-|             |                                         |
-| ----------- | --------------------------------------- |
-| Environment | <code>$CODER_PROVISIONER_DAEMONS</code> |
-| Default     | <code>3</code>                          |
+|             |                                  |
+| ----------- | -------------------------------- |
+| Environment | <code>$CODER_UPDATE_CHECK</code> |
+| Default     | <code>false</code>               |
 
-Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.
-
-### --provisioner-daemon-poll-interval
-
-|             |                                                      |
-| ----------- | ---------------------------------------------------- |
-| Environment | <code>$CODER_PROVISIONER_DAEMON_POLL_INTERVAL</code> |
-| Default     | <code>1s</code>                                      |
-
-Time to wait before polling for a new job.
-
-### --provisioner-daemon-poll-jitter
-
-|             |                                                    |
-| ----------- | -------------------------------------------------- |
-| Environment | <code>$CODER_PROVISIONER_DAEMON_POLL_JITTER</code> |
-| Default     | <code>100ms</code>                                 |
-
-Random jitter added to the poll interval.
-
-### --provisioner-force-cancel-interval
-
-|             |                                                       |
-| ----------- | ----------------------------------------------------- |
-| Environment | <code>$CODER_PROVISIONER_FORCE_CANCEL_INTERVAL</code> |
-| Default     | <code>10m0s</code>                                    |
-
-Time to force cancel provisioning tasks that are stuck.
+Periodically check for new releases of Coder and inform the owner. The check is performed once per day.
 
 ### --verbose, -v
 
@@ -467,229 +686,10 @@ Time to force cancel provisioning tasks that are stuck.
 
 Output debug-level logs.
 
-### --log-human
-
-|             |                                   |
-| ----------- | --------------------------------- |
-| Environment | <code>$CODER_LOGGING_HUMAN</code> |
-| Default     | <code>/dev/stderr</code>          |
-
-Output human-readable logs to a given file.
-
-### --log-json
-
-|             |                                  |
-| ----------- | -------------------------------- |
-| Environment | <code>$CODER_LOGGING_JSON</code> |
-
-Output JSON logs to a given file.
-
-### --log-stackdriver
+### --wildcard-access-url
 
 |             |                                         |
 | ----------- | --------------------------------------- |
-| Environment | <code>$CODER_LOGGING_STACKDRIVER</code> |
+| Environment | <code>$CODER_WILDCARD_ACCESS_URL</code> |
 
-Output Stackdriver compatible logs to a given file.
-
-### --dangerous-allow-path-app-sharing
-
-|             |                                                      |
-| ----------- | ---------------------------------------------------- |
-| Environment | <code>$CODER_DANGEROUS_ALLOW_PATH_APP_SHARING</code> |
-| Default     | <code>false</code>                                   |
-
-Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
-
-### --dangerous-allow-path-app-site-owner-access
-
-|             |                                                                |
-| ----------- | -------------------------------------------------------------- |
-| Environment | <code>$CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS</code> |
-| Default     | <code>false</code>                                             |
-
-Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
-
-### --experiments
-
-|             |                                 |
-| ----------- | ------------------------------- |
-| Environment | <code>$CODER_EXPERIMENTS</code> |
-
-Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '\*' to opt-in to all available experiments.
-
-### --update-check
-
-|             |                                  |
-| ----------- | -------------------------------- |
-| Environment | <code>$CODER_UPDATE_CHECK</code> |
-| Default     | <code>false</code>               |
-
-Periodically check for new releases of Coder and inform the owner. The check is performed once per day.
-
-### --max-token-lifetime
-
-|             |                                        |
-| ----------- | -------------------------------------- |
-| Environment | <code>$CODER_MAX_TOKEN_LIFETIME</code> |
-| Default     | <code>2562047h47m16.854775807s</code>  |
-
-The maximum lifetime duration users can specify when creating an API token.
-
-### --swagger-enable
-
-|             |                                    |
-| ----------- | ---------------------------------- |
-| Environment | <code>$CODER_SWAGGER_ENABLE</code> |
-| Default     | <code>false</code>                 |
-
-Expose the swagger endpoint via /swagger.
-
-### --proxy-trusted-headers
-
-|             |                                           |
-| ----------- | ----------------------------------------- |
-| Environment | <code>$CODER_PROXY_TRUSTED_HEADERS</code> |
-
-Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For.
-
-### --proxy-trusted-origins
-
-|             |                                           |
-| ----------- | ----------------------------------------- |
-| Environment | <code>$CODER_PROXY_TRUSTED_ORIGINS</code> |
-
-Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
-
-### --cache-dir
-
-|             |                                     |
-| ----------- | ----------------------------------- |
-| Environment | <code>$CODER_CACHE_DIRECTORY</code> |
-| Default     | <code>~/.cache/coder</code>         |
-
-The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.
-
-### --postgres-url
-
-|             |                                       |
-| ----------- | ------------------------------------- |
-| Environment | <code>$CODER_PG_CONNECTION_URL</code> |
-
-URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url".
-
-### --secure-auth-cookie
-
-|             |                                        |
-| ----------- | -------------------------------------- |
-| Environment | <code>$CODER_SECURE_AUTH_COOKIE</code> |
-
-Controls if the 'Secure' property is set on browser session cookies.
-
-### --strict-transport-security
-
-|             |                                               |
-| ----------- | --------------------------------------------- |
-| Environment | <code>$CODER_STRICT_TRANSPORT_SECURITY</code> |
-| Default     | <code>0</code>                                |
-
-Controls if the 'Strict-Transport-Security' header is set on all static file responses. This header should only be set if the server is accessed via HTTPS. This value is the MaxAge in seconds of the header.
-
-### --strict-transport-security-options
-
-|             |                                                       |
-| ----------- | ----------------------------------------------------- |
-| Environment | <code>$CODER_STRICT_TRANSPORT_SECURITY_OPTIONS</code> |
-
-Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.
-
-### --ssh-keygen-algorithm
-
-|             |                                          |
-| ----------- | ---------------------------------------- |
-| Environment | <code>$CODER_SSH_KEYGEN_ALGORITHM</code> |
-| Default     | <code>ed25519</code>                     |
-
-The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
-
-### --audit-logging
-
-|             |                                   |
-| ----------- | --------------------------------- |
-| Environment | <code>$CODER_AUDIT_LOGGING</code> |
-| Default     | <code>true</code>                 |
-
-Specifies whether audit logging is enabled.
-
-### --browser-only
-
-|             |                                  |
-| ----------- | -------------------------------- |
-| Environment | <code>$CODER_BROWSER_ONLY</code> |
-
-Whether Coder only allows connections to workspaces via the browser.
-
-### --scim-auth-header
-
-|             |                                      |
-| ----------- | ------------------------------------ |
-| Environment | <code>$CODER_SCIM_AUTH_HEADER</code> |
-
-Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.
-
-### --disable-path-apps
-
-|             |                                       |
-| ----------- | ------------------------------------- |
-| Environment | <code>$CODER_DISABLE_PATH_APPS</code> |
-| Default     | <code>false</code>                    |
-
-Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.
-
-### --session-duration
-
-|             |                                      |
-| ----------- | ------------------------------------ |
-| Environment | <code>$CODER_SESSION_DURATION</code> |
-| Default     | <code>24h0m0s</code>                 |
-
-The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.
-
-### --disable-session-expiry-refresh
-
-|             |                                                    |
-| ----------- | -------------------------------------------------- |
-| Environment | <code>$CODER_DISABLE_SESSION_EXPIRY_REFRESH</code> |
-| Default     | <code>false</code>                                 |
-
-Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.
-
-### --disable-password-auth
-
-|             |                                           |
-| ----------- | ----------------------------------------- |
-| Environment | <code>$CODER_DISABLE_PASSWORD_AUTH</code> |
-| Default     | <code>false</code>                        |
-
-Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.
-
-### --ssh-hostname-prefix
-
-|             |                                         |
-| ----------- | --------------------------------------- |
-| Environment | <code>$CODER_SSH_HOSTNAME_PREFIX</code> |
-| Default     | <code>coder.</code>                     |
-
-The SSH deployment prefix is used in the Host of the ssh config.
-
-### --ssh-config-options
-
-|             |                                        |
-| ----------- | -------------------------------------- |
-| Environment | <code>$CODER_SSH_CONFIG_OPTIONS</code> |
-
-These SSH config options will override the default SSH config options. Provide options in "key=value" or "key value" format separated by commas.Using this incorrectly can break SSH to your deployment, use cautiously.
-
-### --
-
-Support links to display in the top right drop down menu.
+Specifies the wildcard hostname to use for workspace applications in the form "\*.example.com".

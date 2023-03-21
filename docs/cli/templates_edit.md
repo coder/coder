@@ -12,30 +12,6 @@ coder templates edit <template> [flags]
 
 ## Options
 
-### --name
-
-Edit the template name.
-
-### --display-name
-
-Edit the template display name.
-
-### --description
-
-Edit the template description.
-
-### --icon
-
-Edit the template icon path.
-
-### --default-ttl
-
-Edit the template default time before shutdown - workspaces created from this template default to this value.
-
-### --max-ttl
-
-Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.
-
 ### --allow-user-cancel-workspace-jobs
 
 |         |                   |
@@ -43,6 +19,30 @@ Edit the template maximum time before shutdown - workspaces created from this te
 | Default | <code>true</code> |
 
 Allow users to cancel in-progress workspace jobs.
+
+### --default-ttl
+
+Edit the template default time before shutdown - workspaces created from this template default to this value.
+
+### --description
+
+Edit the template description.
+
+### --display-name
+
+Edit the template display name.
+
+### --icon
+
+Edit the template icon path.
+
+### --max-ttl
+
+Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.
+
+### --name
+
+Edit the template name.
 
 ### --yes, -y
 

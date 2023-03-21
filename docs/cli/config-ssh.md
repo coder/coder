@@ -25,6 +25,14 @@ coder config-ssh
 
 ## Options
 
+### --dry-run, -n
+
+|             |                                 |
+| ----------- | ------------------------------- |
+| Environment | <code>$CODER_SSH_DRY_RUN</code> |
+
+Perform a trial run with no changes made, showing a diff at the end.
+
 ### --ssh-config-file
 
 |             |                                     |
@@ -34,6 +42,10 @@ coder config-ssh
 
 Specifies the path to an SSH config.
 
+### --ssh-host-prefix
+
+Override the default host prefix.
+
 ### --ssh-option, -o
 
 |             |                                     |
@@ -42,14 +54,6 @@ Specifies the path to an SSH config.
 
 Specifies additional SSH options to embed in each host stanza.
 
-### --dry-run, -n
-
-|             |                                 |
-| ----------- | ------------------------------- |
-| Environment | <code>$CODER_SSH_DRY_RUN</code> |
-
-Perform a trial run with no changes made, showing a diff at the end.
-
 ### --use-previous-options
 
 |             |                                              |
@@ -57,10 +61,6 @@ Perform a trial run with no changes made, showing a diff at the end.
 | Environment | <code>$CODER_SSH_USE_PREVIOUS_OPTIONS</code> |
 
 Specifies whether or not to keep options from previous run of config-ssh.
-
-### --ssh-host-prefix
-
-Override the default host prefix.
 
 ### --yes, -y
 

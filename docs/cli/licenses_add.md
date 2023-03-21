@@ -12,6 +12,10 @@ coder licenses add [-f file | -l license]
 
 ## Options
 
+### --debug
+
+Output license claims for debugging.
+
 ### --file, -f
 
 Load license from file.
@@ -19,7 +23,3 @@ Load license from file.
 ### --license, -l
 
 License string.
-
-### --debug
-
-Output license claims for debugging.

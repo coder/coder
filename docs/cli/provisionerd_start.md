@@ -21,14 +21,6 @@ coder provisionerd start
 
 Directory to store cached data.
 
-### --tag, -t
-
-|             |                                       |
-| ----------- | ------------------------------------- |
-| Environment | <code>$CODER_PROVISIONERD_TAGS</code> |
-
-Tags to filter provisioner jobs by.
-
 ### --poll-interval
 
 |             |                                                |
@@ -46,3 +38,11 @@ How often to poll for provisioner jobs.
 | Default     | <code>100ms</code>                           |
 
 How much to jitter the poll interval by.
+
+### --tag, -t
+
+|             |                                       |
+| ----------- | ------------------------------------- |
+| Environment | <code>$CODER_PROVISIONERD_TAGS</code> |
+
+Tags to filter provisioner jobs by.

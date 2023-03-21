@@ -12,9 +12,13 @@ coder ping <workspace>
 
 ## Options
 
-### --wait
+### --num, -n
 
-Specifies how long to wait between pings.
+|         |                 |
+| ------- | --------------- |
+| Default | <code>10</code> |
+
+Specifies the number of pings to perform.
 
 ### --timeout, -t
 
@@ -24,10 +28,6 @@ Specifies how long to wait between pings.
 
 Specifies how long to wait for a ping to complete.
 
-### --num, -n
+### --wait
 
-|         |                 |
-| ------- | --------------- |
-| Default | <code>10</code> |
-
-Specifies the number of pings to perform.
+Specifies how long to wait between pings.

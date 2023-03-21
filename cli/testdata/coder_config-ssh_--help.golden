@@ -12,21 +12,21 @@ Add an SSH Host entry for your workspaces "ssh coder.workspace"
       [;m$ coder config-ssh --dry-run[0m
 
 [1mOptions[0m
-    --ssh-config-file, $CODER_SSH_CONFIG_FILE  (default: ~/.ssh/config) 
-        Specifies the path to an SSH config.
-
-    --ssh-option, -o, $CODER_SSH_CONFIG_OPTS 
-        Specifies additional SSH options to embed in each host stanza.
-
-    --dry-run, -n, $CODER_SSH_DRY_RUN 
+    --dry-run, -n, $CODER_SSH_DRY_RUN
         Perform a trial run with no changes made, showing a diff at the end.
 
-    --use-previous-options, $CODER_SSH_USE_PREVIOUS_OPTIONS 
-        Specifies whether or not to keep options from previous run of
-        config-ssh.
+    --ssh-config-file, $CODER_SSH_CONFIG_FILE (default: ~/.ssh/config) 
+        Specifies the path to an SSH config.
 
     --ssh-host-prefix
         Override the default host prefix.
+
+    --ssh-option, -o, $CODER_SSH_CONFIG_OPTS
+        Specifies additional SSH options to embed in each host stanza.
+
+    --use-previous-options, $CODER_SSH_USE_PREVIOUS_OPTIONS
+        Specifies whether or not to keep options from previous run of
+        config-ssh.
 
     --yes, -y
         Bypass prompts.

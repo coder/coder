@@ -20,14 +20,14 @@ workspaces
 [1mSubcommands[0m
     create      Create a template from the current directory or as specified by
                 flag
+    delete      Delete templates
     edit        Edit the metadata of a template by name.
     init        Get started with a templated template.
     list        List all the templates available for the organization
     plan        Plan a template push from the current directory
+    pull        Download the latest version of a template to a path.
     push        Push a new template version from the current directory or as
                 specified by flag
     versions    Manage different versions of the specified template
-    delete      Delete templates
-    pull        Download the latest version of a template to a path.
 ---
 Run `coder --help` for a list of global options.
