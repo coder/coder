@@ -34,7 +34,7 @@ export const useWorkspacesData = ({
         limit: limit,
         // If the page is <= 0, just use offset 0. This usually happens
         // if the page is not provided.
-        offset: page <= 0 ? 0 : (page-1)*limit ,
+        offset: page <= 0 ? 0 : (page - 1) * limit,
       }),
     refetchInterval: 5_000,
   })
