@@ -1473,7 +1473,7 @@ func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.Ins
 }
 
 func (q *querier) InsertOrUpdateWorkspaceAgentMetadata(ctx context.Context, arg database.InsertOrUpdateWorkspaceAgentMetadataParams) error {
-	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceAgentID)
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
 		return err
 	}

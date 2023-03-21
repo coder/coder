@@ -1047,18 +1047,19 @@ func ellipse(s string, maxLength int) string {
 func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	var req agentsdk.PostMetadataRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
 	workspaceAgent := httpmw.WorkspaceAgent(r)
+
 	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to get workspace.",
 			Detail:  err.Error(),
 		})
-		return
-	}
-
-	var req agentsdk.PostMetadataRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
@@ -1079,7 +1080,7 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 	}
 
 	api.Logger.Debug(
-		ctx, "read metadata report",
+		ctx, "accepted metadata report",
 		slog.F("agent", workspaceAgent.ID),
 		slog.F("workspace", workspace.ID),
 		slog.F("key", datum.Key),
