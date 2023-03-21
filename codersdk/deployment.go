@@ -161,7 +161,7 @@ type DeploymentValues struct {
 	Support                         SupportConfig                   `json:"support,omitempty" typescript:",notnull"`
 	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                       `json:"config_ssh,omitempty" typescript:",notnull"`
-	TunnelHost                      clibase.String                  `json:"tunnel_host,omitempty" typescript:",notnull"`
+	WgtunnelHost                    clibase.String                  `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 
 	Config      clibase.String `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool   `json:"write_config,omitempty" typescript:",notnull"`
@@ -1354,12 +1354,12 @@ Write out the current server configuration to the path specified by --config.`,
 			Hidden:      true,
 		},
 		{
-			Name:        "Custom Tunnel Host",
+			Name:        "Custom wgtunnel Host",
 			Description: `Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By default, this will pick the best available wgtunnel server hosted by Coder. e.g. "tunnel.example.com".`,
-			Flag:        "tunnel-host",
-			Env:         "TUNNEL_HOST",
-			YAML:        "tunnelHost",
-			Value:       &c.TunnelHost,
+			Flag:        "wg-tunnel-host",
+			Env:         "WGTUNNEL_HOST",
+			YAML:        "wgtunnelHost",
+			Value:       &c.WgtunnelHost,
 			Default:     "", // empty string means pick best server
 			Hidden:      true,
 		},

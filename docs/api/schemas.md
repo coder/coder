@@ -1870,9 +1870,9 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "enable": true,
       "honeycomb_api_key": "string"
     },
-    "tunnel_host": "string",
     "update_check": true,
     "verbose": true,
+    "wgtunnel_host": "string",
     "wildcard_access_url": {
       "forceQuery": true,
       "fragment": "string",
@@ -2215,9 +2215,9 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "enable": true,
     "honeycomb_api_key": "string"
   },
-  "tunnel_host": "string",
   "update_check": true,
   "verbose": true,
+  "wgtunnel_host": "string",
   "wildcard_access_url": {
     "forceQuery": true,
     "fragment": "string",
@@ -2282,9 +2282,9 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                       | false    |              |                                                                    |
 | `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                   | false    |              |                                                                    |
 | `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                               | false    |              |                                                                    |
-| `tunnel_host`                        | string                                                                                     | false    |              |                                                                    |
 | `update_check`                       | boolean                                                                                    | false    |              |                                                                    |
 | `verbose`                            | boolean                                                                                    | false    |              |                                                                    |
+| `wgtunnel_host`                      | string                                                                                     | false    |              |                                                                    |
 | `wildcard_access_url`                | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                    | false    |              |                                                                    |
 
