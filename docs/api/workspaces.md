@@ -175,6 +175,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
     "workspace_owner_name": "string"
   },
   "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -344,6 +345,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "workspace_owner_name": "string"
   },
   "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -532,6 +534,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
         "workspace_owner_name": "string"
       },
       "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "outdated": true,
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
@@ -702,6 +705,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
     "workspace_owner_name": "string"
   },
   "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",

@@ -59,37 +59,14 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 
 ## Options
 
-### --url
+### --global-config
 
-|             |                         |
-| ----------- | ----------------------- |
-| Environment | <code>$CODER_URL</code> |
+|             |                                |
+| ----------- | ------------------------------ |
+| Environment | <code>$CODER_CONFIG_DIR</code> |
+| Default     | <code>~/.config/coderv2</code> |
 
-URL to a deployment.
-
-### --token
-
-|             |                                   |
-| ----------- | --------------------------------- |
-| Environment | <code>$CODER_SESSION_TOKEN</code> |
-
-Specify an authentication token. For security reasons setting CODER_SESSION_TOKEN is preferred.
-
-### --no-version-warning
-
-|             |                                        |
-| ----------- | -------------------------------------- |
-| Environment | <code>$CODER_NO_VERSION_WARNING</code> |
-
-Suppress warning when client and server versions do not match.
-
-### --no-feature-warning
-
-|             |                                        |
-| ----------- | -------------------------------------- |
-| Environment | <code>$CODER_NO_FEATURE_WARNING</code> |
-
-Suppress warnings about unlicensed features.
+Path to the global `coder` config directory.
 
 ### --header
 
@@ -99,6 +76,38 @@ Suppress warnings about unlicensed features.
 
 Additional HTTP headers to send to the server.
 
+### --no-feature-warning
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Environment | <code>$CODER_NO_FEATURE_WARNING</code> |
+
+Suppress warnings about unlicensed features.
+
+### --no-version-warning
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Environment | <code>$CODER_NO_VERSION_WARNING</code> |
+
+Suppress warning when client and server versions do not match.
+
+### --token
+
+|             |                                   |
+| ----------- | --------------------------------- |
+| Environment | <code>$CODER_SESSION_TOKEN</code> |
+
+Specify an authentication token. For security reasons setting CODER_SESSION_TOKEN is preferred.
+
+### --url
+
+|             |                         |
+| ----------- | ----------------------- |
+| Environment | <code>$CODER_URL</code> |
+
+URL to a deployment.
+
 ### -v, --verbose
 
 |             |                             |
@@ -106,12 +115,3 @@ Additional HTTP headers to send to the server.
 | Environment | <code>$CODER_VERBOSE</code> |
 
 Enable verbose logging.
-
-### --global-config
-
-|             |                                |
-| ----------- | ------------------------------ |
-| Environment | <code>$CODER_CONFIG_DIR</code> |
-| Default     | <code>~/.config/coderv2</code> |
-
-Path to the global `coder` config directory.

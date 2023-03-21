@@ -21,6 +21,11 @@ import (
 func TestAsNoActor(t *testing.T) {
 	t.Parallel()
 
+	t.Run("NoError", func(t *testing.T) {
+		t.Parallel()
+		require.False(t, dbauthz.IsNotAuthorizedError(nil), "no error")
+	})
+
 	t.Run("AsRemoveActor", func(t *testing.T) {
 		t.Parallel()
 		_, ok := dbauthz.ActorFromContext(context.Background())
@@ -80,6 +85,7 @@ func TestInTX(t *testing.T) {
 	}, nil)
 	require.Error(t, err, "must error")
 	require.ErrorAs(t, err, &dbauthz.NotAuthorizedError{}, "must be an authorized error")
+	require.True(t, dbauthz.IsNotAuthorizedError(err), "must be an authorized error")
 }
 
 // TestNew should not double wrap a querier.

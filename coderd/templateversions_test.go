@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/provisionerdserver"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/examples"
 	"github.com/coder/coder/provisioner/echo"
@@ -28,14 +29,19 @@ func TestTemplateVersion(t *testing.T) {
 	t.Parallel()
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client, _, api := coderdtest.NewWithAPI(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
+		authz := coderdtest.AssertRBAC(t, api, client).Reset()
+
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		authz.AssertChecked(t, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(user.OrganizationID))
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.TemplateVersion(ctx, version.ID)
+		authz.Reset()
+		tv, err := client.TemplateVersion(ctx, version.ID)
+		authz.AssertChecked(t, rbac.ActionRead, tv)
 		require.NoError(t, err)
 	})
 

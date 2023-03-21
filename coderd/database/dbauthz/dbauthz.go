@@ -38,6 +38,13 @@ func (NotAuthorizedError) Unwrap() error {
 	return sql.ErrNoRows
 }
 
+func IsNotAuthorizedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return xerrors.As(err, &NotAuthorizedError{})
+}
+
 func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) error {
 	// Only log the errors if it is an UnauthorizedError error.
 	internalError := new(rbac.UnauthorizedError)
@@ -50,8 +57,9 @@ func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 			//
 			// NotAuthorizedError is == to sql.ErrNoRows, which is not correct
 			// if it's actually a canceled context.
-			internalError.SetInternal(context.Canceled)
-			return internalError
+			contextError := *internalError
+			contextError.SetInternal(context.Canceled)
+			return &contextError
 		}
 		logger.Debug(ctx, "unauthorized",
 			slog.F("internal", internalError.Internal()),

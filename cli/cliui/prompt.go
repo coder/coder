@@ -81,7 +81,6 @@ func Prompt(inv *clibase.Invocation, opts PromptOptions) (string, error) {
 	lineCh := make(chan string)
 
 	go func() {
-		defer close(lineCh)
 		var line string
 		var err error
 

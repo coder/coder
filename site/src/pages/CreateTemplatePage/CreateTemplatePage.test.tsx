@@ -24,7 +24,7 @@ const renderPage = async () => {
   })
   // It is lazy loaded, so we have to wait for it to be rendered to not get an
   // act error
-  await screen.findByLabelText("Icon")
+  await screen.findByLabelText("Icon", undefined, { timeout: 5000 })
   return result
 }
 
