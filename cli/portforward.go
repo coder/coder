@@ -32,19 +32,19 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 		Aliases: []string{"tunnel"},
 		Long: formatExamples(
 			example{
-				Description: "Port forward a single TCP port from 1234 in the workspace to port 5678 on your local machine.",
+				Description: "Port forward a single TCP port from 1234 in the workspace to port 5678 on your local machine",
 				Command:     "coder port-forward <workspace> --tcp 5678:1234",
 			},
 			example{
-				Description: "Port forward a single UDP port from port 9000 to port 9000 on your local machine.",
+				Description: "Port forward a single UDP port from port 9000 to port 9000 on your local machine",
 				Command:     "coder port-forward <workspace> --udp 9000",
 			},
 			example{
-				Description: "Port forward multiple TCP ports and a UDP port.",
+				Description: "Port forward multiple TCP ports and a UDP port",
 				Command:     "coder port-forward <workspace> --tcp 8080:8080 --tcp 9000:3000 --udp 5353:53",
 			},
 			example{
-				Description: "Port forward multiple ports (TCP or UDP) in condensed syntax.",
+				Description: "Port forward multiple ports (TCP or UDP) in condensed syntax",
 				Command:     "coder port-forward <workspace> --tcp 8080,9000:3000,9090-9092,10000-10002:10010-10012",
 			},
 		),

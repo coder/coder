@@ -14,11 +14,11 @@ coder config-ssh
 
 ```console
   - You can use -o (or --ssh-option) so set SSH options to be used for all your
-    workspaces.:
+    workspaces:
 
       $ coder config-ssh -o ForwardAgent=yes
 
-  - You can use --dry-run (or -n) to see the changes that would be made.:
+  - You can use --dry-run (or -n) to see the changes that would be made:
 
       $ coder config-ssh --dry-run
 ```

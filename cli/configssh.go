@@ -185,11 +185,11 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		Short:       "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
 		Long: formatExamples(
 			example{
-				Description: "You can use -o (or --ssh-option) so set SSH options to be used for all your workspaces.",
+				Description: "You can use -o (or --ssh-option) so set SSH options to be used for all your workspaces",
 				Command:     "coder config-ssh -o ForwardAgent=yes",
 			},
 			example{
-				Description: "You can use --dry-run (or -n) to see the changes that would be made.",
+				Description: "You can use --dry-run (or -n) to see the changes that would be made",
 				Command:     "coder config-ssh --dry-run",
 			},
 		),

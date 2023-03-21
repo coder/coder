@@ -11,8 +11,7 @@ Starts the Coder workspace agent.
 
       --pprof-address, $CODER_AGENT_PPROF_ADDRESS (default: 127.0.0.1:6060)
       --ssh-max-timeout, $CODER_AGENT_SSH_MAX_TIMEOUT (default: 0)
-          The maximum amount of time to wait for an SSH connection to be
-          established.
+          Specify the max timeout for a SSH connection.
 
 ---
 Run `coder --help` for a list of global options.

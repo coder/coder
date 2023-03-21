@@ -242,7 +242,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Flag:        "ssh-max-timeout",
 			Default:     "0",
 			Env:         "CODER_AGENT_SSH_MAX_TIMEOUT",
-			Description: "The maximum amount of time to wait for an SSH connection to be established.",
+			Description: "Specify the max timeout for a SSH connection.",
 			Value:       clibase.DurationOf(&sshMaxTimeout),
 		},
 	}

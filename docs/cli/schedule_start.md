@@ -23,7 +23,7 @@ Schedule format: <start-time> [day-of-week] [location].
     If omitted, we will fall back to either the TZ environment variable or /etc/localtime.
     You can check your corresponding location by visiting https://ipinfo.io - it shows in the demo widget on the right.
 
-  - Set the workspace to start at 9:30am (in Dublin) from Monday to Friday.:
+  - Set the workspace to start at 9:30am (in Dublin) from Monday to Friday:
 
       $ coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin
 ```

@@ -100,7 +100,7 @@ func (r *RootCmd) scheduleStart() *clibase.Cmd {
 		Use: "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
 		Long: scheduleStartDescriptionLong + "\n" + formatExamples(
 			example{
-				Description: "Set the workspace to start at 9:30am (in Dublin) from Monday to Friday.",
+				Description: "Set the workspace to start at 9:30am (in Dublin) from Monday to Friday",
 				Command:     "coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin",
 			},
 		),

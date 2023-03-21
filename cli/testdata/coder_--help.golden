@@ -50,7 +50,8 @@ variables or flags.
           Path to the global `coder` config directory.
 
       --header, $CODER_HEADER
-          Additional HTTP headers to send to the server.
+          Additional HTTP headers added to all requests. Provide as key=value.
+          Can be specified multiple times.
 
       --no-feature-warning, $CODER_NO_FEATURE_WARNING
           Suppress warnings about unlicensed features.

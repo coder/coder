@@ -74,7 +74,7 @@ Path to the global `coder` config directory.
 | ----------- | -------------------------- |
 | Environment | <code>$CODER_HEADER</code> |
 
-Additional HTTP headers to send to the server.
+Additional HTTP headers added to all requests. Provide as key=value. Can be specified multiple times.
 
 ### --no-feature-warning
 
