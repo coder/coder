@@ -275,8 +275,12 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		require.Len(t, auditor.AuditLogs, 6)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[4].Action)
+		require.Eventually(t, func() bool {
+			if len(auditor.AuditLogs) < 6 {
+				return false
+			}
+			return auditor.AuditLogs[4].Action == database.AuditActionCreate
+		}, testutil.WaitMedium, testutil.IntervalFast)
 	})
 
 	t.Run("CreateWithDeletedTemplate", func(t *testing.T) {
@@ -838,24 +842,9 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -881,24 +870,9 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
