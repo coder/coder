@@ -79,7 +79,7 @@ export const WorkspaceSettingsForm: FC<{
           description={t("parametersDescription")}
         >
           <FormFields>
-            {settings.templateVersionRichParameters.map((parameter, index) => (
+            {mutableParameters.map((parameter, index) => (
               <RichParameterInput
                 {...getFieldHelpers(
                   "rich_parameter_values[" + index + "].value",
