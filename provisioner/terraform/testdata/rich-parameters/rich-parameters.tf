@@ -21,10 +21,10 @@ data "coder_parameter" "example" {
 }
 
 data "coder_parameter" "example2" {
-  name = "Example 2"
-  type = "string"
+  name        = "Example 2"
+  type        = "string"
   description = "blah blah"
-  default = "ok"
+  default     = "ok"
 }
 
 resource "coder_agent" "dev" {
