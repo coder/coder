@@ -98,7 +98,7 @@ Timeout for the WireGuard connection to complete.
 
 URL to connect to inside the the workspace over WireGuard. If not specified, no connections will be made over WireGuard.
 
-### --count, -c
+### -c, --count
 
 |             |                                     |
 | ----------- | ----------------------------------- |
@@ -124,7 +124,7 @@ Timeout per job. Jobs may take longer to complete under higher concurrency limit
 
 Do not clean up workspaces after the load test has finished. Useful for debugging.
 
-### --no-plan, -n
+### -n, --no-plan
 
 |             |                                       |
 | ----------- | ------------------------------------- |
@@ -207,7 +207,7 @@ Log the output of the command to the test logs. This should be left off unless y
 
 Timeout for the command to complete.
 
-### --template, -t
+### -t, --template
 
 |             |                                        |
 | ----------- | -------------------------------------- |

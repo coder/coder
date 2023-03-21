@@ -28,7 +28,7 @@ Specifies whether to wait for a direct connection before testing speed.
 
 Specifies whether to run in reverse mode where the client receives and the server sends.
 
-### --time, -t
+### -t, --time
 
 |         |                 |
 | ------- | --------------- |

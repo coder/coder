@@ -16,7 +16,7 @@ coder templates push [template]
 
 Always prompt all parameters. Does not pull parameter values from active template version.
 
-### --directory, -d
+### -d, --directory
 
 |         |                |
 | ------- | -------------- |
@@ -32,7 +32,7 @@ Specify a name for the new template version. It will be automatically generated 
 
 Specify a file path with parameter values.
 
-### --provisioner-tag, -t
+### -t, --provisioner-tag
 
 Specify a set of tags to target provisioner daemons.
 
@@ -44,6 +44,6 @@ Specify a set of values for Terraform-managed variables.
 
 Specify a file path with values for Terraform-managed variables.
 
-### --yes, -y
+### -y, --yes
 
 Bypass prompts.

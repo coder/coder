@@ -12,7 +12,7 @@ coder provisionerd start
 
 ## Options
 
-### --cache-dir, -c
+### -c, --cache-dir
 
 |             |                                     |
 | ----------- | ----------------------------------- |
@@ -39,7 +39,7 @@ How often to poll for provisioner jobs.
 
 How much to jitter the poll interval by.
 
-### --tag, -t
+### -t, --tag
 
 |             |                                       |
 | ----------- | ------------------------------------- |

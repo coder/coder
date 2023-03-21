@@ -12,6 +12,6 @@ coder templates delete [name...]
 
 ## Options
 
-### --yes, -y
+### -y, --yes
 
 Bypass prompts.

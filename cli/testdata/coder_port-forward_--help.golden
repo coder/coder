@@ -23,12 +23,12 @@ Forward ports from machine to a workspace
 8080,9000:3000,9090-9092,10000-10002:10010-10012[0m
 
 [1mOptions[0m
-    --tcp, -p, $CODER_PORT_FORWARD_TCP
-        Forward TCP port(s) from the workspace to the local machine.
+  -p, --tcp, $CODER_PORT_FORWARD_TCP
+          Forward TCP port(s) from the workspace to the local machine.
 
-    --udp, $CODER_PORT_FORWARD_UDP
-        Forward UDP port(s) from the workspace to the local machine. The UDP
-        connection has TCP-like semantics to support stateful UDP protocols.
+      --udp, $CODER_PORT_FORWARD_UDP
+          Forward UDP port(s) from the workspace to the local machine. The UDP
+          connection has TCP-like semantics to support stateful UDP protocols.
 
 ---
 Run `coder --help` for a list of global options.

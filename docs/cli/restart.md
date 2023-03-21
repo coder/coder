@@ -12,6 +12,6 @@ coder restart <workspace>
 
 ## Options
 
-### --yes, -y
+### -y, --yes
 
 Bypass prompts.

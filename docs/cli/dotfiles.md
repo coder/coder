@@ -28,6 +28,6 @@ coder dotfiles <git_repo_url>
 
 Specifies the directory for the dotfiles symlink destinations. If empty, will use $HOME.
 
-### --yes, -y
+### -y, --yes
 
 Bypass prompts.

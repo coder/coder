@@ -1,14 +1,14 @@
 Usage: coder users create
 
 [1mOptions[0m
-    --email, -e
-        Specifies an email address for the new user.
+  -e, --email
+          Specifies an email address for the new user.
 
-    --password, -p
-        Specifies a password for the new user.
+  -p, --password
+          Specifies a password for the new user.
 
-    --username, -u
-        Specifies a username for the new user.
+  -u, --username
+          Specifies a username for the new user.
 
 ---
 Run `coder --help` for a list of global options.

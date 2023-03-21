@@ -12,6 +12,6 @@ coder logout
 
 ## Options
 
-### --yes, -y
+### -y, --yes
 
 Bypass prompts.

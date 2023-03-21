@@ -44,7 +44,7 @@ Specify the workspace autostart schedule. Check `coder schedule start --help` fo
 
 Specify a duration after which the workspace should shut down (e.g. 8h).
 
-### --template, -t
+### -t, --template
 
 |             |                                   |
 | ----------- | --------------------------------- |
@@ -52,6 +52,6 @@ Specify a duration after which the workspace should shut down (e.g. 8h).
 
 Specify a template name.
 
-### --yes, -y
+### -y, --yes
 
 Bypass prompts.

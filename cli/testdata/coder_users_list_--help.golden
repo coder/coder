@@ -1,12 +1,12 @@
 Usage: coder users list
 
 [1mOptions[0m
-    --column, -c (default: username,email,created_at,status) 
-        Columns to display in table output. Available columns: id, username,
-        email, created at, status.
+  -c, --column (default: username,email,created_at,status)
+          Columns to display in table output. Available columns: id, username,
+          email, created at, status.
 
-    --output, -o (default: table) 
-        Output format. Available formats: table, json.
+  -o, --output (default: table)
+          Output format. Available formats: table, json.
 
 ---
 Run `coder --help` for a list of global options.

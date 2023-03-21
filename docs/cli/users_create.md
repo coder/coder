@@ -10,14 +10,14 @@ coder users create
 
 ## Options
 
-### --email, -e
+### -e, --email
 
 Specifies an email address for the new user.
 
-### --password, -p
+### -p, --password
 
 Specifies a password for the new user.
 
-### --username, -u
+### -u, --username
 
 Specifies a username for the new user.

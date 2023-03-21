@@ -12,7 +12,7 @@ coder list
 
 ## Options
 
-### --all, -a
+### -a, --all
 
 |         |                    |
 | ------- | ------------------ |
@@ -20,7 +20,7 @@ coder list
 
 Specifies whether all workspaces will be listed or not.
 
-### --column, -c
+### -c, --column
 
 |         |                                                                                  |
 | ------- | -------------------------------------------------------------------------------- |
@@ -28,7 +28,7 @@ Specifies whether all workspaces will be listed or not.
 
 Columns to display in table output. Available columns: workspace, template, status, last built, outdated, starts at, stops after.
 
-### --output, -o
+### -o, --output
 
 |         |                    |
 | ------- | ------------------ |

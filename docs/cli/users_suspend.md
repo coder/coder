@@ -18,7 +18,7 @@ coder users suspend <username|user_id>
 
 ## Options
 
-### --column, -c
+### -c, --column
 
 |         |                                               |
 | ------- | --------------------------------------------- |

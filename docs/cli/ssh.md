@@ -12,7 +12,7 @@ coder ssh <workspace>
 
 ## Options
 
-### --forward-agent, -A
+### -A, --forward-agent
 
 |             |                                       |
 | ----------- | ------------------------------------- |
@@ -20,7 +20,7 @@ coder ssh <workspace>
 
 Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK.
 
-### --forward-gpg, -G
+### -G, --forward-gpg
 
 |             |                                     |
 | ----------- | ----------------------------------- |

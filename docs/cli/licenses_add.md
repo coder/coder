@@ -16,10 +16,10 @@ coder licenses add [-f file | -l license]
 
 Output license claims for debugging.
 
-### --file, -f
+### -f, --file
 
 Load license from file.
 
-### --license, -l
+### -l, --license
 
 License string.

@@ -20,7 +20,7 @@ coder templates create [name]
 
 Specify a default TTL for workspaces created from this template.
 
-### --directory, -d
+### -d, --directory
 
 |         |                |
 | ------- | -------------- |
@@ -44,6 +44,6 @@ Specify a set of values for Terraform-managed variables.
 
 Specify a file path with values for Terraform-managed variables.
 
-### --yes, -y
+### -y, --yes
 
 Bypass prompts.

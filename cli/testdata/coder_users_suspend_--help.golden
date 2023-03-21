@@ -6,8 +6,8 @@ platform
 [;m$ coder users suspend example_user[0m
 
 [1mOptions[0m
-    --column, -c (default: username,email,created_at,status) 
-        Specify a column to filter in the table.
+  -c, --column (default: username,email,created_at,status)
+          Specify a column to filter in the table.
 
 ---
 Run `coder --help` for a list of global options.

@@ -12,7 +12,7 @@ coder groups list
 
 ## Options
 
-### --column, -c
+### -c, --column
 
 |         |                                                      |
 | ------- | ---------------------------------------------------- |
@@ -20,7 +20,7 @@ coder groups list
 
 Columns to display in table output. Available columns: name, organization id, members, avatar url.
 
-### --output, -o
+### -o, --output
 
 |         |                    |
 | ------- | ------------------ |

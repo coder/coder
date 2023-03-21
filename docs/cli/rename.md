@@ -12,6 +12,6 @@ coder rename <workspace> <new name>
 
 ## Options
 
-### --yes, -y
+### -y, --yes
 
 Bypass prompts.

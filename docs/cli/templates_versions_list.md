@@ -12,7 +12,7 @@ coder templates versions list <template>
 
 ## Options
 
-### --column, -c
+### -c, --column
 
 |         |                                                       |
 | ------- | ----------------------------------------------------- |
@@ -20,7 +20,7 @@ coder templates versions list <template>
 
 Columns to display in table output. Available columns: name, created at, created by, status, active.
 
-### --output, -o
+### -o, --output
 
 |         |                    |
 | ------- | ------------------ |

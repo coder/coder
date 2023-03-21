@@ -12,6 +12,6 @@ coder stop <workspace>
 
 ## Options
 
-### --yes, -y
+### -y, --yes
 
 Bypass prompts.

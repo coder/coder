@@ -12,7 +12,7 @@ coder templates list
 
 ## Options
 
-### --column, -c
+### -c, --column
 
 |         |                                        |
 | ------- | -------------------------------------- |
@@ -20,7 +20,7 @@ coder templates list
 
 Columns to display in table output. Available columns: name, created at, last updated, organization id, provisioner, active version id, used by, default ttl.
 
-### --output, -o
+### -o, --output
 
 |         |                    |
 | ------- | ------------------ |

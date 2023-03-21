@@ -3,8 +3,8 @@ Usage: coder templates delete [name...]
 Delete templates
 
 [1mOptions[0m
-    --yes, -y
-        Bypass prompts.
+  -y, --yes
+          Bypass prompts.
 
 ---
 Run `coder --help` for a list of global options.

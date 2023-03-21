@@ -34,7 +34,7 @@ coder port-forward <workspace>
 
 ## Options
 
-### --tcp, -p
+### -p, --tcp
 
 |             |                                      |
 | ----------- | ------------------------------------ |

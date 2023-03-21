@@ -3,12 +3,12 @@ Usage: coder templates versions list <template>
 List all the versions of the specified template
 
 [1mOptions[0m
-    --column, -c (default: name,created at,created by,status,active) 
-        Columns to display in table output. Available columns: name, created at,
-        created by, status, active.
+  -c, --column (default: name,created at,created by,status,active)
+          Columns to display in table output. Available columns: name, created
+          at, created by, status, active.
 
-    --output, -o (default: table) 
-        Output format. Available formats: table, json.
+  -o, --output (default: table)
+          Output format. Available formats: table, json.
 
 ---
 Run `coder --help` for a list of global options.

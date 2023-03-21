@@ -3,16 +3,16 @@ Usage: coder tokens list
 List tokens
 
 [1mOptions[0m
-    --all, -a
-        Specifies whether all users' tokens will be listed or not (must have
-        Owner role to see all tokens).
+  -a, --all
+          Specifies whether all users' tokens will be listed or not (must have
+          Owner role to see all tokens).
 
-    --column, -c (default: id,name,last used,expires at,created at) 
-        Columns to display in table output. Available columns: id, name, last
-        used, expires at, created at, owner.
+  -c, --column (default: id,name,last used,expires at,created at)
+          Columns to display in table output. Available columns: id, name, last
+          used, expires at, created at, owner.
 
-    --output, -o (default: table) 
-        Output format. Available formats: table, json.
+  -o, --output (default: table)
+          Output format. Available formats: table, json.
 
 ---
 Run `coder --help` for a list of global options.

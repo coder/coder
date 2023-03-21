@@ -7,12 +7,12 @@ Checkout and install a dotfiles repository from a Git URL
       [;m$ coder dotfiles --yes git@github.com:example/dotfiles.git[0m
 
 [1mOptions[0m
-    --symlink-dir, $CODER_SYMLINK_DIR
-        Specifies the directory for the dotfiles symlink destinations. If empty,
-        will use $HOME.
+      --symlink-dir, $CODER_SYMLINK_DIR
+          Specifies the directory for the dotfiles symlink destinations. If
+          empty, will use $HOME.
 
-    --yes, -y
-        Bypass prompts.
+  -y, --yes
+          Bypass prompts.
 
 ---
 Run `coder --help` for a list of global options.

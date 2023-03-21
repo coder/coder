@@ -16,6 +16,6 @@ coder publickey
 
 Regenerate your public key. This will require updating the key on any services it's registered with.
 
-### --yes, -y
+### -y, --yes
 
 Bypass prompts.

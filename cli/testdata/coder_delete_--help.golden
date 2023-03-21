@@ -3,13 +3,13 @@ Usage: coder delete <workspace>
 Delete a workspace
 
 [1mOptions[0m
-    --orphan (default: false) 
-        Delete a workspace without deleting its resources. This can delete a
-        workspace in a broken state, but may also lead to unaccounted cloud
-        resources.
+      --orphan (default: false)
+          Delete a workspace without deleting its resources. This can delete a
+          workspace in a broken state, but may also lead to unaccounted cloud
+          resources.
 
-    --yes, -y
-        Bypass prompts.
+  -y, --yes
+          Bypass prompts.
 
 ---
 Run `coder --help` for a list of global options.

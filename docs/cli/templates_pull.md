@@ -20,6 +20,6 @@ coder templates pull <name> [destination]
 
 Output the template as a tar archive to stdout.
 
-### --yes, -y
+### -y, --yes
 
 Bypass prompts.

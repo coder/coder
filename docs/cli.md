@@ -99,7 +99,7 @@ Suppress warnings about unlicensed features.
 
 Additional HTTP headers to send to the server.
 
-### --verbose, -v
+### -v, --verbose
 
 |             |                             |
 | ----------- | --------------------------- |

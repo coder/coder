@@ -12,7 +12,7 @@ coder groups create <name>
 
 ## Options
 
-### --avatar-url, -u
+### -u, --avatar-url
 
 |             |                                |
 | ----------- | ------------------------------ |

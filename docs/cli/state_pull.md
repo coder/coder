@@ -12,7 +12,7 @@ coder state pull <workspace> [file]
 
 ## Options
 
-### --build, -b
+### -b, --build
 
 |         |                |
 | ------- | -------------- |

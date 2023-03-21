@@ -3,12 +3,12 @@ Usage: coder publickey
 Output your Coder public key used for Git operations
 
 [1mOptions[0m
-    --reset
-        Regenerate your public key. This will require updating the key on any
-        services it's registered with.
+      --reset
+          Regenerate your public key. This will require updating the key on any
+          services it's registered with.
 
-    --yes, -y
-        Bypass prompts.
+  -y, --yes
+          Bypass prompts.
 
 ---
 Run `coder --help` for a list of global options.

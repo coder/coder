@@ -677,7 +677,7 @@ Enables capturing of logs as events in traces. This is useful for debugging, but
 
 Periodically check for new releases of Coder and inform the owner. The check is performed once per day.
 
-### --verbose, -v
+### -v, --verbose
 
 |             |                             |
 | ----------- | --------------------------- |

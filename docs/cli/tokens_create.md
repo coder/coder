@@ -21,7 +21,7 @@ coder tokens create
 
 Specify a duration for the lifetime of the token.
 
-### --name, -n
+### -n, --name
 
 |             |                                |
 | ----------- | ------------------------------ |

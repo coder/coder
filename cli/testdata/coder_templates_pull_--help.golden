@@ -3,11 +3,11 @@ Usage: coder templates pull <name> [destination]
 Download the latest version of a template to a path.
 
 [1mOptions[0m
-    --tar (default: false) 
-        Output the template as a tar archive to stdout.
+      --tar (default: false)
+          Output the template as a tar archive to stdout.
 
-    --yes, -y
-        Bypass prompts.
+  -y, --yes
+          Bypass prompts.
 
 ---
 Run `coder --help` for a list of global options.

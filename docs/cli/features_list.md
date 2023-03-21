@@ -10,7 +10,7 @@ coder features list
 
 ## Options
 
-### --column, -c
+### -c, --column
 
 |         |                                                    |
 | ------- | -------------------------------------------------- |
@@ -18,7 +18,7 @@ coder features list
 
 Specify a column to filter in the table. Available columns are: Name, Entitlement, Enabled, Limit, Actual.
 
-### --output, -o
+### -o, --output
 
 |         |                    |
 | ------- | ------------------ |

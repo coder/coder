@@ -12,7 +12,7 @@ coder state push <workspace> <file>
 
 ## Options
 
-### --build, -b
+### -b, --build
 
 |         |                |
 | ------- | -------------- |

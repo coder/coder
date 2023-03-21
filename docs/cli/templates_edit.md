@@ -44,6 +44,6 @@ Edit the template maximum time before shutdown - workspaces created from this te
 
 Edit the template name.
 
-### --yes, -y
+### -y, --yes
 
 Bypass prompts.

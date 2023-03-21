@@ -10,7 +10,7 @@ coder users list
 
 ## Options
 
-### --column, -c
+### -c, --column
 
 |         |                                               |
 | ------- | --------------------------------------------- |
@@ -18,7 +18,7 @@ coder users list
 
 Columns to display in table output. Available columns: id, username, email, created at, status.
 
-### --output, -o
+### -o, --output
 
 |         |                    |
 | ------- | ------------------ |

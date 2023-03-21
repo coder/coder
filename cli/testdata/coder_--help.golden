@@ -46,27 +46,27 @@ environments with Terraform.
 Global options are applied to all commands. They can be set using environment
 variables or flags.
 
-    --url, $CODER_URL
-        URL to a deployment.
+      --url, $CODER_URL
+          URL to a deployment.
 
-    --token, $CODER_SESSION_TOKEN
-        Specify an authentication token. For security reasons setting
-        CODER_SESSION_TOKEN is preferred.
+      --token, $CODER_SESSION_TOKEN
+          Specify an authentication token. For security reasons setting
+          CODER_SESSION_TOKEN is preferred.
 
-    --no-version-warning, $CODER_NO_VERSION_WARNING
-        Suppress warning when client and server versions do not match.
+      --no-version-warning, $CODER_NO_VERSION_WARNING
+          Suppress warning when client and server versions do not match.
 
-    --no-feature-warning, $CODER_NO_FEATURE_WARNING
-        Suppress warnings about unlicensed features.
+      --no-feature-warning, $CODER_NO_FEATURE_WARNING
+          Suppress warnings about unlicensed features.
 
-    --header, $CODER_HEADER
-        Additional HTTP headers to send to the server.
+      --header, $CODER_HEADER
+          Additional HTTP headers to send to the server.
 
-    --verbose, -v, $CODER_VERBOSE
-        Enable verbose logging.
+  -v, --verbose, $CODER_VERBOSE
+          Enable verbose logging.
 
-    --global-config, $CODER_CONFIG_DIR (default: ~/.config/coderv2) 
-        Path to the global `coder` config directory.
+      --global-config, $CODER_CONFIG_DIR (default: ~/.config/coderv2)
+          Path to the global `coder` config directory.
 
 ---
 Report bugs and request features at https://github.com/coder/coder/issues/new

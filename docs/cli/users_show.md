@@ -18,7 +18,7 @@ coder users show <username|user_id|'me'>
 
 ## Options
 
-### --output, -o
+### -o, --output
 
 |         |                    |
 | ------- | ------------------ |

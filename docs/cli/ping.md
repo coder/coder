@@ -12,7 +12,7 @@ coder ping <workspace>
 
 ## Options
 
-### --num, -n
+### -n, --num
 
 |         |                 |
 | ------- | --------------- |
@@ -20,7 +20,7 @@ coder ping <workspace>
 
 Specifies the number of pings to perform.
 
-### --timeout, -t
+### -t, --timeout
 
 |         |                 |
 | ------- | --------------- |

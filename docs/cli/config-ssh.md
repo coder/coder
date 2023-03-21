@@ -25,7 +25,7 @@ coder config-ssh
 
 ## Options
 
-### --dry-run, -n
+### -n, --dry-run
 
 |             |                                 |
 | ----------- | ------------------------------- |
@@ -46,7 +46,7 @@ Specifies the path to an SSH config.
 
 Override the default host prefix.
 
-### --ssh-option, -o
+### -o, --ssh-option
 
 |             |                                     |
 | ----------- | ----------------------------------- |
@@ -62,6 +62,6 @@ Specifies additional SSH options to embed in each host stanza.
 
 Specifies whether or not to keep options from previous run of config-ssh.
 
-### --yes, -y
+### -y, --yes
 
 Bypass prompts.

@@ -3,8 +3,8 @@ Usage: coder state pull <workspace> [file]
 Pull a Terraform state file from a workspace.
 
 [1mOptions[0m
-    --build, -b (default: 0) 
-        Specify a workspace build to target by name.
+  -b, --build (default: 0)
+          Specify a workspace build to target by name.
 
 ---
 Run `coder --help` for a list of global options.
