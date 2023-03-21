@@ -14,7 +14,7 @@ func takeFirstIP(values ...net.IPNet) net.IPNet {
 // []any is not a comparable type.
 func takeFirstSlice[T any](values ...[]T) []T {
 	return takeFirstF(values, func(v []T) bool {
-		return v != nil && len(v) != 0
+		return len(v) != 0
 	})
 }
 
