@@ -92,6 +92,9 @@ func (c *Cmd) PrepareAll() error {
 			}
 		}
 	}
+	slices.SortFunc(c.Children, func(a, b *Cmd) bool {
+		return a.Name() < b.Name()
+	})
 	for _, child := range c.Children {
 		child.Parent = c
 		err := child.PrepareAll()
