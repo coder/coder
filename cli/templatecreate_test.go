@@ -258,9 +258,7 @@ func TestTemplateCreate(t *testing.T) {
 		inv, root := clitest.New(t, "templates", "create", "1234567890123456789012345678901234567891", "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 
-		cliErr := clitest.StartWithError(t, inv)
-
-		require.ErrorContains(t, <-cliErr, "Template name must be less than 32 characters")
+		clitest.StartWithWaiter(t, inv).RequireContains("Template name must be less than 32 characters")
 	})
 
 	t.Run("WithVariablesFileWithoutRequiredValue", func(t *testing.T) {

@@ -129,13 +129,7 @@ func TestTemplatePull(t *testing.T) {
 
 		ptytest.New(t).Attach(inv)
 
-		errChan := make(chan error)
-		go func() {
-			defer close(errChan)
-			errChan <- inv.Run()
-		}()
-
-		require.NoError(t, <-errChan)
+		require.NoError(t, inv.Run())
 
 		require.Equal(t,
 			dirSum(t, expectedDest),
@@ -193,16 +187,12 @@ func TestTemplatePull(t *testing.T) {
 
 		pty := ptytest.New(t).Attach(inv)
 
-		errChan := make(chan error)
-		go func() {
-			defer close(errChan)
-			errChan <- inv.Run()
-		}()
+		waiter := clitest.StartWithWaiter(t, inv)
 
 		pty.ExpectMatch("not empty")
 		pty.WriteLine("no")
 
-		require.Error(t, <-errChan)
+		waiter.RequireError()
 
 		ents, err := os.ReadDir(conflictDest)
 		require.NoError(t, err)

@@ -15,7 +15,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/clitest"
@@ -127,9 +126,9 @@ func TestLicensesAddReal(t *testing.T) {
 		)
 		clitest.SetupConfig(t, client, conf)
 
-		err := <-clitest.StartWithError(t, inv)
+		waiter := clitest.StartWithWaiter(t, inv)
 		var coderError *codersdk.Error
-		require.True(t, xerrors.As(err, &coderError))
+		waiter.RequireAs(&coderError)
 		assert.Equal(t, 400, coderError.StatusCode())
 		assert.Contains(t, "Invalid license", coderError.Message)
 	})
@@ -215,9 +214,8 @@ func TestLicensesDeleteReal(t *testing.T) {
 			"licenses", "delete", "1")
 		clitest.SetupConfig(t, client, conf)
 
-		err := <-clitest.StartWithError(t, inv)
 		var coderError *codersdk.Error
-		require.True(t, xerrors.As(err, &coderError))
+		clitest.StartWithWaiter(t, inv).RequireAs(&coderError)
 		assert.Equal(t, 404, coderError.StatusCode())
 		assert.Contains(t, "Unknown license ID", coderError.Message)
 	})

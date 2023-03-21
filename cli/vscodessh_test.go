@@ -59,7 +59,7 @@ func TestVSCodeSSH(t *testing.T) {
 	)
 	ptytest.New(t).Attach(inv)
 
-	errCh := clitest.StartWithError(t, inv.WithContext(ctx))
+	waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
 
 	assert.Eventually(t, func() bool {
 		entries, err := afero.ReadDir(fs, "/net")
@@ -69,8 +69,7 @@ func TestVSCodeSSH(t *testing.T) {
 		return len(entries) > 0
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	err = <-errCh
-	if err != nil {
-		assert.ErrorIs(t, err, context.Canceled)
+	if err := waiter.Wait(); err != nil {
+		waiter.RequireIs(context.Canceled)
 	}
 }

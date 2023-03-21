@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -131,7 +132,7 @@ func Start(t *testing.T, inv *clibase.Invocation) {
 	closeCh := make(chan struct{})
 	go func() {
 		defer close(closeCh)
-		err := <-StartWithError(t, inv)
+		err := StartWithWaiter(t, inv).Wait()
 		switch {
 		case errors.Is(err, context.Canceled):
 			return
@@ -153,9 +154,48 @@ func Run(t *testing.T, inv *clibase.Invocation) {
 	require.NoError(t, err)
 }
 
-// StartWithError runs the command in a goroutine but returns the error
+type ErrorWaiter struct {
+	waitOnce    sync.Once
+	cachedError error
+
+	c <-chan error
+	t *testing.T
+}
+
+func (w *ErrorWaiter) Wait() error {
+	w.waitOnce.Do(func() {
+		var ok bool
+		w.cachedError, ok = <-w.c
+		if !ok {
+			panic("unexpoected channel close")
+		}
+	})
+	return w.cachedError
+}
+
+func (w *ErrorWaiter) RequireSuccess() {
+	require.NoError(w.t, w.Wait())
+}
+
+func (w *ErrorWaiter) RequireError() {
+	require.Error(w.t, w.Wait())
+}
+
+func (w *ErrorWaiter) RequireContains(s string) {
+	require.ErrorContains(w.t, w.Wait(), s)
+}
+
+func (w *ErrorWaiter) RequireIs(want error) {
+	require.ErrorIs(w.t, w.Wait(), want)
+}
+
+func (w *ErrorWaiter) RequireAs(want interface{}) {
+	require.ErrorAs(w.t, w.Wait(), want)
+}
+
+// StartWithWaiter runs the command in a goroutine but returns the error
 // instead of asserting it. This is useful for testing error cases.
-func StartWithError(t *testing.T, inv *clibase.Invocation) <-chan error {
+func StartWithWaiter(t *testing.T, inv *clibase.Invocation) *ErrorWaiter {
 	t.Helper()
 
 	errCh := make(chan error, 1)
@@ -192,5 +232,5 @@ func StartWithError(t *testing.T, inv *clibase.Invocation) <-chan error {
 		cleaningUp.Store(true)
 		<-errCh
 	})
-	return errCh
+	return &ErrorWaiter{c: errCh, t: t}
 }

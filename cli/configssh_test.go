@@ -175,7 +175,7 @@ func TestConfigSSH(t *testing.T) {
 	inv.Stdin = pty.Input()
 	inv.Stdout = pty.Output()
 
-	errCh := clitest.StartWithError(t, inv)
+	waiter := clitest.StartWithWaiter(t, inv)
 
 	matches := []struct {
 		match, write string
@@ -187,7 +187,7 @@ func TestConfigSSH(t *testing.T) {
 		pty.WriteLine(m.write)
 	}
 
-	require.NoError(t, <-errCh)
+	waiter.RequireSuccess()
 
 	fileContents, err := os.ReadFile(sshConfigFile)
 	require.NoError(t, err, "read ssh config file")

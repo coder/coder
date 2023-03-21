@@ -104,7 +104,7 @@ func TestCreate(t *testing.T) {
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
-		errCh := clitest.StartWithError(t, inv)
+		waiter := clitest.StartWithWaiter(t, inv)
 		matches := []struct {
 			match string
 			write string
@@ -119,7 +119,7 @@ func TestCreate(t *testing.T) {
 				pty.WriteLine(m.write)
 			}
 		}
-		require.NoError(t, <-errCh)
+		waiter.RequireSuccess()
 
 		ws, err := client.WorkspaceByOwnerAndName(context.Background(), "testuser", "my-workspace", codersdk.WorkspaceOptions{})
 		require.NoError(t, err, "expected workspace to be created")

@@ -179,7 +179,7 @@ func TestTemplatePush(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		cliErrCh := clitest.StartWithError(t, inv)
+		waiter := clitest.StartWithWaiter(t, inv)
 
 		matches := []struct {
 			match string
@@ -192,7 +192,7 @@ func TestTemplatePush(t *testing.T) {
 			pty.WriteLine(m.write)
 		}
 
-		require.NoError(t, <-cliErrCh)
+		waiter.RequireSuccess()
 
 		// Assert that the template version changed.
 		templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
