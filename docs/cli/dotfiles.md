@@ -26,7 +26,7 @@ dotfiles <git_repo_url>
 | ----------- | ------------------------------- |
 | Environment | <code>$CODER_SYMLINK_DIR</code> |
 
-Specifies the directory for the dotfiles symlink destinations. If empty will use $HOME.
+Specifies the directory for the dotfiles symlink destinations. If empty, will use $HOME.
 
 ### --yes, -y
 

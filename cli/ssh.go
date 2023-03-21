@@ -40,7 +40,6 @@ var (
 func (r *RootCmd) ssh() *clibase.Cmd {
 	var (
 		stdio          bool
-		shuffle        bool
 		forwardAgent   bool
 		forwardGPG     bool
 		identityAgent  string
@@ -54,20 +53,13 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		Short:       "Start a shell into a workspace",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
+			clibase.RequireNArgs(1),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			if shuffle && len(inv.Args) > 0 {
-				return xerrors.New("cannot specify workspace name when using --shuffle")
-			}
-
-			if len(inv.Args) < 1 {
-				return xerrors.New("missing workspace name")
-			}
-
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0], shuffle)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -244,13 +236,6 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			Value:       clibase.BoolOf(&stdio),
 		},
 		{
-			Flag:        "shuffle",
-			Env:         "CODER_SSH_SHUFFLE",
-			Description: "Specifies whether to choose a random workspace.",
-			Value:       clibase.BoolOf(&shuffle),
-			Hidden:      true,
-		},
-		{
 			Flag:          "forward-agent",
 			FlagShorthand: "A",
 			Env:           "CODER_SSH_FORWARD_AGENT",
@@ -290,32 +275,16 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 // getWorkspaceAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in` or picks a random workspace and agent
 // if `shuffle` is true.
-func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *codersdk.Client, userID string, in string, shuffle bool) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *codersdk.Client, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
 		workspace      codersdk.Workspace
 		workspaceParts = strings.Split(in, ".")
 		err            error
 	)
-	if shuffle {
-		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Owner: userID,
-		})
-		if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
-		}
-		if len(res.Workspaces) == 0 {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("no workspaces to shuffle")
-		}
 
-		workspace, err = cryptorand.Element(res.Workspaces)
-		if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
-		}
-	} else {
-		workspace, err = namedWorkspace(inv.Context(), client, workspaceParts[0])
-		if err != nil {
-			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
-		}
+	workspace, err = namedWorkspace(inv.Context(), client, workspaceParts[0])
+	if err != nil {
+		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 	}
 
 	if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
@@ -355,9 +324,6 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 	}
 	if workspaceAgent.ID == uuid.Nil {
 		if len(agents) > 1 {
-			if !shuffle {
-				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.New("you must specify the name of an agent")
-			}
 			workspaceAgent, err = cryptorand.Element(agents)
 			if err != nil {
 				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err

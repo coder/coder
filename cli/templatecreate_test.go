@@ -59,10 +59,7 @@ func TestTemplateCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- inv.Run()
-		}()
+		clitest.Start(t, inv)
 
 		matches := []struct {
 			match string
@@ -79,8 +76,6 @@ func TestTemplateCreate(t *testing.T) {
 				pty.WriteLine(m.write)
 			}
 		}
-
-		require.NoError(t, <-execDone)
 	})
 
 	t.Run("CreateStdin", func(t *testing.T) {
@@ -107,12 +102,7 @@ func TestTemplateCreate(t *testing.T) {
 		inv.Stdin = bytes.NewReader(source)
 		inv.Stdout = pty.Output()
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- inv.Run()
-		}()
-
-		require.NoError(t, <-execDone)
+		require.NoError(t, inv.Run())
 	})
 
 	t.Run("WithParameter", func(t *testing.T) {
@@ -128,11 +118,7 @@ func TestTemplateCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- inv.Run()
-		}()
-
+		clitest.Start(t, inv)
 		matches := []struct {
 			match string
 			write string
@@ -145,8 +131,6 @@ func TestTemplateCreate(t *testing.T) {
 			pty.ExpectMatch(m.match)
 			pty.WriteLine(m.write)
 		}
-
-		require.NoError(t, <-execDone)
 	})
 
 	t.Run("WithParameterFileContainingTheValue", func(t *testing.T) {
@@ -166,10 +150,7 @@ func TestTemplateCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- inv.Run()
-		}()
+		clitest.Start(t, inv)
 
 		matches := []struct {
 			match string
@@ -182,8 +163,6 @@ func TestTemplateCreate(t *testing.T) {
 			pty.ExpectMatch(m.match)
 			pty.WriteLine(m.write)
 		}
-
-		require.NoError(t, <-execDone)
 	})
 
 	t.Run("WithParameterFileNotContainingTheValue", func(t *testing.T) {
@@ -203,10 +182,7 @@ func TestTemplateCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- inv.Run()
-		}()
+		clitest.Start(t, inv)
 
 		matches := []struct {
 			match string
@@ -229,8 +205,6 @@ func TestTemplateCreate(t *testing.T) {
 			pty.ExpectMatch(m.match)
 			pty.WriteLine(m.write)
 		}
-
-		require.NoError(t, <-execDone)
 	})
 
 	t.Run("Recreate template with same name (create, delete, create)", func(t *testing.T) {
@@ -322,11 +296,7 @@ func TestTemplateCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- inv.Run()
-		}()
-
+		clitest.Start(t, inv)
 		matches := []struct {
 			match string
 			write string
@@ -339,8 +309,6 @@ func TestTemplateCreate(t *testing.T) {
 				pty.WriteLine(m.write)
 			}
 		}
-
-		require.Error(t, <-execDone)
 	})
 
 	t.Run("WithVariablesFileWithTheRequiredValue", func(t *testing.T) {
@@ -376,10 +344,7 @@ func TestTemplateCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- inv.Run()
-		}()
+		clitest.Start(t, inv)
 
 		matches := []struct {
 			match string
@@ -394,8 +359,6 @@ func TestTemplateCreate(t *testing.T) {
 				pty.WriteLine(m.write)
 			}
 		}
-
-		require.NoError(t, <-execDone)
 	})
 	t.Run("WithVariableOption", func(t *testing.T) {
 		t.Parallel()
@@ -418,10 +381,7 @@ func TestTemplateCreate(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- inv.Run()
-		}()
+		clitest.Start(t, inv)
 
 		matches := []struct {
 			match string
@@ -434,8 +394,6 @@ func TestTemplateCreate(t *testing.T) {
 			pty.ExpectMatch(m.match)
 			pty.WriteLine(m.write)
 		}
-
-		require.NoError(t, <-execDone)
 	})
 }
 

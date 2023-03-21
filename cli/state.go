@@ -33,7 +33,7 @@ func (r *RootCmd) statePull() *clibase.Cmd {
 		Use:   "pull <workspace> [file]",
 		Short: "Pull a Terraform state file from a workspace.",
 		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(1, -1),
+			clibase.RequireRangeArgs(1, 2),
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {

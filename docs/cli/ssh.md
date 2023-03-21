@@ -20,14 +20,6 @@ ssh <workspace>
 
 Specifies whether to emit SSH output over stdin/stdout.
 
-### --shuffle
-
-|             |                                 |
-| ----------- | ------------------------------- |
-| Environment | <code>$CODER_SSH_SHUFFLE</code> |
-
-Specifies whether to choose a random workspace.
-
 ### --forward-agent, -A
 
 |             |                                       |
@@ -50,15 +42,16 @@ Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, b
 | ----------- | -------------------------------------- |
 | Environment | <code>$CODER_SSH_IDENTITY_AGENT</code> |
 
-Specifies the path to the SSH agent socket to use for identity forwarding. Defaults to $SSH_AUTH_SOCK.
+Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled.
 
 ### --workspace-poll-interval
 
 |             |                                             |
 | ----------- | ------------------------------------------- |
 | Environment | <code>$CODER_WORKSPACE_POLL_INTERVAL</code> |
+| Default     | <code>1m</code>                             |
 
-Specifies the interval at which to poll for a workspace to be ready. Defaults to 1s.
+Specifies how often to poll for workspace automated shutdown.
 
 ### --no-wait
 
@@ -66,4 +59,4 @@ Specifies the interval at which to poll for a workspace to be ready. Defaults to
 | ----------- | ------------------------------- |
 | Environment | <code>$CODER_SSH_NO_WAIT</code> |
 
-Specifies whether to wait for the workspace to be ready before connecting. Defaults to false.
+Specifies whether to wait for the workspace to be ready before connecting.

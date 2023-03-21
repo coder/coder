@@ -29,7 +29,7 @@
 | [{{ $cmd.Name | wrapCode }}](./{{if atRoot $}}cli/{{end}}{{commandURI $cmd}}) | {{ $cmd.Short }} |
 {{- end}}
 {{ "" }}
-{{- range $index, $opt := .Options }}
+{{- range $index, $opt := visibleOptions . }}
 {{- if eq $index 0 }}
 ## Options
 {{- end }}

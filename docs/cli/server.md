@@ -44,15 +44,6 @@ Specifies the wildcard hostname to use for workspace applications in the form "\
 
 Specifies whether to redirect requests that do not match the access URL host.
 
-### --autobuild-poll-interval
-
-|             |                                             |
-| ----------- | ------------------------------------------- |
-| Environment | <code>$CODER_AUTOBUILD_POLL_INTERVAL</code> |
-| Default     | <code>1m0s</code>                           |
-
-Interval to poll for scheduled workspace builds.
-
 ### --http-address
 
 |             |                                  |
@@ -71,14 +62,6 @@ HTTP bind address of the server. Unset to disable the HTTP endpoint.
 
 HTTPS bind address of the server.
 
-### --address, -a
-
-|             |                             |
-| ----------- | --------------------------- |
-| Environment | <code>$CODER_ADDRESS</code> |
-
-Bind address of the server.
-
 ### --tls-enable
 
 |             |                                |
@@ -86,15 +69,6 @@ Bind address of the server.
 | Environment | <code>$CODER_TLS_ENABLE</code> |
 
 Whether TLS will be enabled.
-
-### --tls-redirect-http-to-https
-
-|             |                                                |
-| ----------- | ---------------------------------------------- |
-| Environment | <code>$CODER_TLS_REDIRECT_HTTP_TO_HTTPS</code> |
-| Default     | <code>true</code>                              |
-
-Whether HTTP requests will be redirected to the access URL (if it's a https URL and TLS is enabled). Requests to local IP addresses are never redirected regardless of this setting.
 
 ### --tls-cert-file
 
@@ -424,15 +398,6 @@ Whether telemetry is enabled or not. Coder collects anonymized usage data to hel
 
 Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.
 
-### --telemetry-url
-
-|             |                                          |
-| ----------- | ---------------------------------------- |
-| Environment | <code>$CODER_TELEMETRY_URL</code>        |
-| Default     | <code>https://telemetry.coder.com</code> |
-
-URL to send telemetry.
-
 ### --trace
 
 |             |                                  |
@@ -492,24 +457,6 @@ Random jitter added to the poll interval.
 | Default     | <code>10m0s</code>                                    |
 
 Time to force cancel provisioning tasks that are stuck.
-
-### --dangerous-disable-rate-limits
-
-|             |                                                   |
-| ----------- | ------------------------------------------------- |
-| Environment | <code>$CODER_DANGEROUS_DISABLE_RATE_LIMITS</code> |
-| Default     | <code>false</code>                                |
-
-Disables all rate limits. This is not recommended in production.
-
-### --api-rate-limit
-
-|             |                                    |
-| ----------- | ---------------------------------- |
-| Environment | <code>$CODER_API_RATE_LIMIT</code> |
-| Default     | <code>512</code>                   |
-
-Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints have separate strict rate limits regardless of this value to prevent denial-of-service or brute force attacks.
 
 ### --verbose, -v
 
@@ -623,14 +570,6 @@ Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
 
 The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.
 
-### --in-memory
-
-|             |                               |
-| ----------- | ----------------------------- |
-| Environment | <code>$CODER_IN_MEMORY</code> |
-
-Controls whether data will be stored in an in-memory database.
-
 ### --postgres-url
 
 |             |                                       |
@@ -672,33 +611,6 @@ Two optional fields can be set in the Strict-Transport-Security header; 'include
 | Default     | <code>ed25519</code>                     |
 
 The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
-
-### --metrics-cache-refresh-interval
-
-|             |                                                    |
-| ----------- | -------------------------------------------------- |
-| Environment | <code>$CODER_METRICS_CACHE_REFRESH_INTERVAL</code> |
-| Default     | <code>1h0m0s</code>                                |
-
-How frequently metrics are refreshed.
-
-### --agent-stats-refresh-interval
-
-|             |                                                  |
-| ----------- | ------------------------------------------------ |
-| Environment | <code>$CODER_AGENT_STATS_REFRESH_INTERVAL</code> |
-| Default     | <code>30s</code>                                 |
-
-How frequently agent stats are recorded.
-
-### --agent-fallback-troubleshooting-url
-
-|             |                                                                                          |
-| ----------- | ---------------------------------------------------------------------------------------- |
-| Environment | <code>$CODER_AGENT_FALLBACK_TROUBLESHOOTING_URL</code>                                   |
-| Default     | <code>https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates</code> |
-
-URL to use for agent troubleshooting when not set in the template.
 
 ### --audit-logging
 
@@ -761,14 +673,6 @@ Disable automatic session expiry bumping due to activity. This forces all sessio
 
 Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.
 
-### --config, -c
-
-|             |                                 |
-| ----------- | ------------------------------- |
-| Environment | <code>$CODER_CONFIG_PATH</code> |
-
-Specify a YAML file to load configuration from.
-
 ### --ssh-hostname-prefix
 
 |             |                                         |
@@ -786,24 +690,9 @@ The SSH deployment prefix is used in the Host of the ssh config.
 
 These SSH config options will override the default SSH config options. Provide options in "key=value" or "key value" format separated by commas.Using this incorrectly can break SSH to your deployment, use cautiously.
 
-### --write-config
-
-|             |                                  |
-| ----------- | -------------------------------- |
-| Environment | <code>$CODER_WRITE_CONFIG</code> |
-
-<br/>Write out the current server configuration to the path specified by --config.
-
 ### --
 
 |     |     |
 | --- | --- |
 
 Support links to display in the top right drop down menu.
-
-### --
-
-|     |     |
-| --- | --- |
-
-Git Authentication providers.

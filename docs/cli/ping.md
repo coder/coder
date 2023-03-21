@@ -12,13 +12,6 @@ ping <workspace>
 
 ## Options
 
-### --verbose, -v
-
-|     |     |
-| --- | --- |
-
-Enables verbose logging.
-
 ### --wait
 
 |     |     |

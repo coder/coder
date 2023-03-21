@@ -38,7 +38,7 @@ func (r *RootCmd) ping() *clibase.Cmd {
 			workspaceName := inv.Args[0]
 			_, workspaceAgent, err := getWorkspaceAndAgent(
 				ctx, inv, client,
-				codersdk.Me, workspaceName, false,
+				codersdk.Me, workspaceName,
 			)
 			if err != nil {
 				return err

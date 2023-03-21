@@ -50,14 +50,6 @@ Specifies additional SSH options to embed in each host stanza.
 
 Perform a trial run with no changes made, showing a diff at the end.
 
-### --skip-proxy-command
-
-|             |                                            |
-| ----------- | ------------------------------------------ |
-| Environment | <code>$CODER_SSH_SKIP_PROXY_COMMAND</code> |
-
-Specifies whether the ProxyCommand option should be skipped. Useful for testing.
-
 ### --use-previous-options
 
 |             |                                              |

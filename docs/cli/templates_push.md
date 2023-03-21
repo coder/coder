@@ -12,14 +12,6 @@ push [template]
 
 ## Options
 
-### --test.provisioner, -p
-
-|         |                        |
-| ------- | ---------------------- |
-| Default | <code>terraform</code> |
-
-Customize the provisioner backend.
-
 ### --parameter-file
 
 |     |     |

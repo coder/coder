@@ -52,9 +52,12 @@ func (r *RootCmd) createToken() *clibase.Cmd {
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:        "create",
-		Short:      "Create a token",
-		Middleware: r.InitClient(client),
+		Use:   "create",
+		Short: "Create a token",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(0),
+			r.InitClient(client),
+		),
 		Handler: func(inv *clibase.Invocation) error {
 			res, err := client.CreateToken(inv.Context(), codersdk.Me, codersdk.CreateTokenRequest{
 				Lifetime:  tokenLifetime,
@@ -82,13 +85,15 @@ func (r *RootCmd) createToken() *clibase.Cmd {
 			Flag:        "lifetime",
 			Env:         "CODER_TOKEN_LIFETIME",
 			Description: "Specify a duration for the lifetime of the token.",
+			Default:     (time.Hour * 24 * 30).String(),
 			Value:       clibase.DurationOf(&tokenLifetime),
 		},
 		{
-			Flag:        "name",
-			Env:         "CODER_TOKEN_NAME",
-			Description: "Specify a human-readable name.",
-			Value:       clibase.StringOf(&name),
+			Flag:          "name",
+			FlagShorthand: "n",
+			Env:           "CODER_TOKEN_NAME",
+			Description:   "Specify a human-readable name.",
+			Value:         clibase.StringOf(&name),
 		},
 	}
 
@@ -139,10 +144,13 @@ func (r *RootCmd) listTokens() *clibase.Cmd {
 
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:        "list",
-		Aliases:    []string{"ls"},
-		Short:      "List tokens",
-		Middleware: r.InitClient(client),
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "List tokens",
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(0),
+			r.InitClient(client),
+		),
 		Handler: func(inv *clibase.Invocation) error {
 			tokens, err := client.Tokens(inv.Context(), codersdk.Me, codersdk.TokensFilter{
 				IncludeAll: all,

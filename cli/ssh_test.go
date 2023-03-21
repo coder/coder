@@ -89,10 +89,7 @@ func TestSSH(t *testing.T) {
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		inv, root := clitest.New(t, "ssh", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stderr = pty.Output()
-		inv.Stdout = pty.Output()
+		pty := ptytest.New(t).Attach(inv)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()

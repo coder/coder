@@ -15,8 +15,9 @@ import (
 
 func (*RootCmd) templateInit() *clibase.Cmd {
 	return &clibase.Cmd{
-		Use:   "init [directory]",
-		Short: "Get started with a templated template.",
+		Use:        "init [directory]",
+		Short:      "Get started with a templated template.",
+		Middleware: clibase.RequireRangeArgs(0, 1),
 		Handler: func(inv *clibase.Invocation) error {
 			exampleList, err := examples.List()
 			if err != nil {

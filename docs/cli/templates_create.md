@@ -56,14 +56,6 @@ Specify a default TTL for workspaces created from this template.
 
 Specify the directory to create from, use '-' to read tar from stdin.
 
-### --test.provisioner
-
-|         |                        |
-| ------- | ---------------------- |
-| Default | <code>terraform</code> |
-
-Customize the provisioner backend.
-
 ### --yes, -y
 
 |     |     |

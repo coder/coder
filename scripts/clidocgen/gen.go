@@ -35,6 +35,16 @@ func init() {
 				}
 				return visible
 			},
+			"visibleOptions": func(cmd *clibase.Cmd) []clibase.Option {
+				var visible []clibase.Option
+				for _, opt := range cmd.Options {
+					if opt.Hidden {
+						continue
+					}
+					visible = append(visible, opt)
+				}
+				return visible
+			},
 			"atRoot": func(cmd *clibase.Cmd) bool {
 				return cmd.FullName() == "coder"
 			},

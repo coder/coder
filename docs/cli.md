@@ -5,7 +5,7 @@
 ## Usage
 
 ```console
-coder [subcommand]
+coder [flags] <subcommand>
 ```
 
 ## Description
@@ -75,21 +75,6 @@ URL to a deployment.
 
 Specify an authentication token. For security reasons setting CODER_SESSION_TOKEN is preferred.
 
-### --agent-token
-
-|     |     |
-| --- | --- |
-
-An agent authentication token.
-
-### --agent-url
-
-|             |                               |
-| ----------- | ----------------------------- |
-| Environment | <code>$CODER_AGENT_URL</code> |
-
-URL for an agent to access your deployment.
-
 ### --no-version-warning
 
 |             |                                        |
@@ -113,22 +98,6 @@ Suppress warnings about unlicensed features.
 | Environment | <code>$CODER_HEADER</code> |
 
 Additional HTTP headers to send to the server.
-
-### --no-open
-
-|             |                             |
-| ----------- | --------------------------- |
-| Environment | <code>$CODER_NO_OPEN</code> |
-
-Suppress opening the browser after logging in.
-
-### --force-tty
-
-|             |                               |
-| ----------- | ----------------------------- |
-| Environment | <code>$CODER_FORCE_TTY</code> |
-
-Force the use of a TTY.
 
 ### --verbose, -v
 
