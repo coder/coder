@@ -30,7 +30,7 @@ export const DropdownButton: FC<DropdownButtonProps> = ({
   const canOpen = secondaryActions.length > 0
 
   return (
-    <span className={styles.buttonContainer}>
+    <span className={styles.buttonContainer} data-testid="workspace-actions">
       {/* primary workspace CTA */}
       <span data-testid="primary-cta" className={styles.primaryCta}>
         {primaryAction}

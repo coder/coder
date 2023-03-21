@@ -793,12 +793,16 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 
 		boolParameterName  = "bool_parameter"
 		boolParameterValue = "true"
+
+		listOfStringsParameterName  = "list_of_strings_parameter"
+		listOfStringsParameterValue = `["a","b","c"]`
 	)
 
 	initialBuildParameters := []codersdk.WorkspaceBuildParameter{
 		{Name: stringParameterName, Value: stringParameterValue},
 		{Name: numberParameterName, Value: numberParameterValue},
 		{Name: boolParameterName, Value: boolParameterValue},
+		{Name: listOfStringsParameterName, Value: listOfStringsParameterValue},
 	}
 
 	prepareEchoResponses := func(richParameters []*proto.RichParameter) *echo.Responses {
@@ -902,6 +906,10 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
+		listOfStringsRichParameters := []*proto.RichParameter{
+			{Name: listOfStringsParameterName, Type: "list(string)", Mutable: true},
+		}
+
 		tests := []struct {
 			parameterName  string
 			value          string
@@ -930,6 +938,11 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			{boolParameterName, "true", true, boolRichParameters},
 			{boolParameterName, "false", true, boolRichParameters},
 			{boolParameterName, "cat", false, boolRichParameters},
+
+			{listOfStringsParameterName, `[]`, true, listOfStringsRichParameters},
+			{listOfStringsParameterName, `["aa"]`, true, listOfStringsRichParameters},
+			{listOfStringsParameterName, `["aa]`, false, listOfStringsRichParameters},
+			{listOfStringsParameterName, ``, false, listOfStringsRichParameters},
 		}
 
 		for _, tc := range tests {
@@ -970,4 +983,171 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestMigrateLegacyToRichParameters(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// 1. Prepare a template with legacy parameters.
+	templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: []*proto.Parse_Response{{
+			Type: &proto.Parse_Response_Complete{
+				Complete: &proto.Parse_Complete{
+					ParameterSchemas: []*proto.ParameterSchema{
+						{
+							AllowOverrideSource: true,
+							Name:                "example",
+							Description:         "description 1",
+							DefaultSource: &proto.ParameterSource{
+								Scheme: proto.ParameterSource_DATA,
+								Value:  "tomato",
+							},
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
+						},
+					},
+				},
+			},
+		}},
+		ProvisionApply: echo.ProvisionComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
+
+	// Create a workspace
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.ParameterValues = []codersdk.CreateParameterRequest{
+			{
+				Name:              "example",
+				SourceValue:       "carrot",
+				SourceScheme:      codersdk.ParameterSourceSchemeData,
+				DestinationScheme: codersdk.ParameterDestinationSchemeEnvironmentVariable,
+			},
+		}
+	})
+	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+	// 2. Upload the template with legacy and rich parameters.
+	templateWithParameters := &echo.Responses{
+		Parse: []*proto.Parse_Response{{
+			Type: &proto.Parse_Response_Complete{
+				Complete: &proto.Parse_Complete{
+					ParameterSchemas: []*proto.ParameterSchema{
+						{
+							AllowOverrideSource: true,
+							Name:                "example",
+							Description:         "description 1",
+							DefaultSource: &proto.ParameterSource{
+								Scheme: proto.ParameterSource_DATA,
+								Value:  "tomato",
+							},
+							DefaultDestination: &proto.ParameterDestination{
+								Scheme: proto.ParameterDestination_PROVISIONER_VARIABLE,
+							},
+						},
+					},
+				},
+			},
+		}},
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:               "new_example",
+								Type:               "string",
+								Mutable:            true,
+								Required:           true,
+								LegacyVariableName: "example",
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: echo.ProvisionComplete,
+	}
+	templateVersion = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, templateWithParameters, template.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+
+	// Check if rich parameters are expected
+	richParameters, err := client.TemplateVersionRichParameters(ctx, templateVersion.ID)
+	require.NoError(t, err)
+	require.Len(t, richParameters, 1)
+	require.Equal(t, "new_example", richParameters[0].Name)
+
+	// Update workspace to use rich parameters and template variables
+	workspaceBuild, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		TemplateVersionID: templateVersion.ID,
+		Transition:        codersdk.WorkspaceTransitionStart,
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		workspaceBuild = coderdtest.AwaitWorkspaceBuildJob(t, client, workspaceBuild.ID)
+		return codersdk.WorkspaceStatusRunning == workspaceBuild.Status
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// Check if variable value has been imported
+	buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+	require.Len(t, buildParameters, 1)
+	require.Equal(t, "carrot", buildParameters[0].Value)
+
+	// 3. Upload the template with rich parameters only
+	templateWithParameters = &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:               "new_example",
+								Type:               "string",
+								Mutable:            true,
+								Required:           true,
+								LegacyVariableName: "example",
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: echo.ProvisionComplete,
+	}
+	templateVersion = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, templateWithParameters, template.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+
+	// Check if rich parameters are expected
+	richParameters, err = client.TemplateVersionRichParameters(ctx, templateVersion.ID)
+	require.NoError(t, err)
+	require.Len(t, richParameters, 1)
+	require.Equal(t, "new_example", richParameters[0].Name)
+
+	// Update workspace to use rich parameters and template variables
+	workspaceBuild, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		TemplateVersionID: templateVersion.ID,
+		Transition:        codersdk.WorkspaceTransitionStart,
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		workspaceBuild = coderdtest.AwaitWorkspaceBuildJob(t, client, workspaceBuild.ID)
+		return codersdk.WorkspaceStatusRunning == workspaceBuild.Status
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// Check if build parameters have been pulled from last build
+	buildParameters, err = client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+	require.Len(t, buildParameters, 1)
+	require.Equal(t, "carrot", buildParameters[0].Value)
 }

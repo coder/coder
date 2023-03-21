@@ -87,6 +87,6 @@ export function renderWithAuth(
 }
 
 export const waitForLoaderToBeRemoved = (): Promise<void> =>
-  waitForElementToBeRemoved(() => screen.getByRole("progressbar"))
+  waitForElementToBeRemoved(() => screen.getByTestId("loader"))
 
 export * from "./entities"

@@ -3,7 +3,6 @@ import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import BlockIcon from "@material-ui/icons/Block"
 import CloudQueueIcon from "@material-ui/icons/CloudQueue"
-import UpdateOutlined from "@material-ui/icons/UpdateOutlined"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
 import CropSquareIcon from "@material-ui/icons/CropSquare"
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline"
@@ -36,27 +35,9 @@ export const UpdateButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
   )
 }
 
-export const ChangeVersionButton: FC<
-  React.PropsWithChildren<WorkspaceAction>
-> = ({ handleAction }) => {
-  const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
-
-  return (
-    <Button
-      variant="outlined"
-      className={styles.actionButton}
-      startIcon={<UpdateOutlined />}
-      onClick={handleAction}
-    >
-      {t("actionButton.changeVersion")}
-    </Button>
-  )
-}
-
-export const BuildParametersButton: FC<
-  React.PropsWithChildren<WorkspaceAction>
-> = ({ handleAction }) => {
+export const SettingsButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
+  handleAction,
+}) => {
   const styles = useStyles()
   const { t } = useTranslation("workspacePage")
 
@@ -67,7 +48,7 @@ export const BuildParametersButton: FC<
       startIcon={<SettingsOutlined />}
       onClick={handleAction}
     >
-      {t("actionButton.buildParameters")}
+      {t("actionButton.settings")}
     </Button>
   )
 }

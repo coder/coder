@@ -2,18 +2,21 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.12"
+      version = "~> 0.6.17"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.12.1"
+      version = "~> 2.18"
     }
   }
 }
 
+provider "coder" {
+  feature_use_managed_variables = true
+}
+
 variable "use_kubeconfig" {
   type        = bool
-  sensitive   = true
   description = <<-EOF
   Use host kubeconfig? (true/false)
 
@@ -23,49 +26,69 @@ variable "use_kubeconfig" {
   Set this to true if the Coder host is running outside the Kubernetes cluster
   for workspaces.  A valid "~/.kube/config" must be present on the Coder host.
   EOF
+  default     = false
 }
 
 variable "namespace" {
   type        = string
-  sensitive   = true
   description = "The Kubernetes namespace to create workspaces in (must exist prior to creating workspaces)"
 }
 
-variable "cpu" {
-  description = "CPU (__ cores)"
-  default     = 2
-  validation {
-    condition = contains([
-      "2",
-      "4",
-      "6",
-      "8"
-    ], var.cpu)
-    error_message = "Invalid cpu!"
+data "coder_parameter" "cpu" {
+  name    = "CPU (cores)"
+  default = "2"
+  icon    = "/icon/memory.svg"
+  mutable = true
+  option {
+    name  = "2 Cores"
+    value = "2"
+  }
+  option {
+    name  = "4 Cores"
+    value = "4"
+  }
+  option {
+    name  = "6 Cores"
+    value = "6"
+  }
+  option {
+    name  = "8 Cores"
+    value = "8"
   }
 }
 
-variable "memory" {
-  description = "Memory (__ GB)"
-  default     = 2
-  validation {
-    condition = contains([
-      "2",
-      "4",
-      "6",
-      "8"
-    ], var.memory)
-    error_message = "Invalid memory!"
+data "coder_parameter" "memory" {
+  name    = "Memory (GB)"
+  default = "2"
+  icon    = "/icon/memory.svg"
+  mutable = true
+  option {
+    name  = "2 GB"
+    value = "2"
+  }
+  option {
+    name  = "4 GB"
+    value = "4"
+  }
+  option {
+    name  = "6 GB"
+    value = "6"
+  }
+  option {
+    name  = "8 GB"
+    value = "8"
   }
 }
 
-variable "home_disk_size" {
-  type        = number
-  description = "How large would you like your home volume to be (in GB)?"
-  default     = 10
+data "coder_parameter" "home_disk_size" {
+  name    = "Home Disk Size (GB)"
+  default = "10"
+  type    = "number"
+  icon    = "/emojis/1f4be.png"
+  mutable = false
   validation {
-    condition     = var.home_disk_size >= 1
-    error_message = "Value must be greater than or equal to 1."
+    min = 1
+    max = 99999
   }
 }
 
@@ -77,9 +100,8 @@ provider "kubernetes" {
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "main" {
-  os   = "linux"
-  arch = "amd64"
-
+  os                     = "linux"
+  arch                   = "amd64"
   login_before_ready     = false
   startup_script_timeout = 180
   startup_script         = <<-EOT
@@ -132,7 +154,7 @@ resource "kubernetes_persistent_volume_claim" "home" {
     access_modes = ["ReadWriteOnce"]
     resources {
       requests = {
-        storage = "${var.home_disk_size}Gi"
+        storage = "${data.coder_parameter.home_disk_size.value}Gi"
       }
     }
   }
@@ -181,8 +203,8 @@ resource "kubernetes_pod" "main" {
           "memory" = "512Mi"
         }
         limits = {
-          "cpu"    = "${var.cpu}"
-          "memory" = "${var.memory}Gi"
+          "cpu"    = "${data.coder_parameter.cpu.value}"
+          "memory" = "${data.coder_parameter.memory.value}Gi"
         }
       }
       volume_mount {

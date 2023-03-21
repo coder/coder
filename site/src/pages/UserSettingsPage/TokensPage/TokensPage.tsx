@@ -3,8 +3,13 @@ import { Section } from "components/SettingsLayout/Section"
 import { TokensPageView } from "./TokensPageView"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import { useTranslation, Trans } from "react-i18next"
-import { useTokensData, useCheckTokenPermissions } from "./hooks"
-import { TokensSwitch, ConfirmDeleteDialog } from "./components"
+import { useTokensData } from "./hooks"
+import { ConfirmDeleteDialog } from "./components"
+import { Stack } from "components/Stack/Stack"
+import Button from "@material-ui/core/Button"
+import { Link as RouterLink } from "react-router-dom"
+import AddIcon from "@material-ui/icons/AddOutlined"
+import { APIKeyWithOwner } from "api/typesGenerated"
 
 export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
   const styles = useStyles()
@@ -18,11 +23,17 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
     </Trans>
   )
 
-  const [tokenIdToDelete, setTokenIdToDelete] = useState<string | undefined>(
-    undefined,
+  const TokenActions = () => (
+    <Stack direction="row" justifyContent="end" className={styles.tokenActions}>
+      <Button startIcon={<AddIcon />} component={RouterLink} to="new">
+        {t("tokenActions.addToken")}
+      </Button>
+    </Stack>
   )
-  const [viewAllTokens, setViewAllTokens] = useState<boolean>(false)
-  const { data: perms } = useCheckTokenPermissions()
+
+  const [tokenToDelete, setTokenToDelete] = useState<
+    APIKeyWithOwner | undefined
+  >(undefined)
 
   const {
     data: tokens,
@@ -31,7 +42,9 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
     isFetched,
     queryKey,
   } = useTokensData({
-    include_all: viewAllTokens,
+    // we currently do not show all tokens in the UI, even if
+    // the user has read all permissions
+    include_all: false,
   })
 
   return (
@@ -42,26 +55,21 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
         description={description}
         layout="fluid"
       >
-        <TokensSwitch
-          hasReadAll={perms?.readAllApiKeys ?? false}
-          viewAllTokens={viewAllTokens}
-          setViewAllTokens={setViewAllTokens}
-        />
+        <TokenActions />
         <TokensPageView
           tokens={tokens}
-          viewAllTokens={viewAllTokens}
           isLoading={isFetching}
           hasLoaded={isFetched}
           getTokensError={getTokensError}
-          onDelete={(id) => {
-            setTokenIdToDelete(id)
+          onDelete={(token) => {
+            setTokenToDelete(token)
           }}
         />
       </Section>
       <ConfirmDeleteDialog
         queryKey={queryKey}
-        tokenId={tokenIdToDelete}
-        setTokenId={setTokenIdToDelete}
+        token={tokenToDelete}
+        setToken={setTokenToDelete}
       />
     </>
   )
@@ -76,6 +84,9 @@ const useStyles = makeStyles((theme) => ({
       color: theme.palette.text.primary,
       borderRadius: 2,
     },
+  },
+  tokenActions: {
+    marginBottom: theme.spacing(1),
   },
 }))
 

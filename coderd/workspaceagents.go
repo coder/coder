@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -50,11 +51,7 @@ import (
 func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+
 	dbApps, err := api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -324,12 +321,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 // @Router /workspaceagents/{workspaceagent}/listening-ports [get]
 func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	workspace := httpmw.WorkspaceParam(r)
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	apiAgent, err := convertWorkspaceAgent(
 		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
@@ -428,44 +420,9 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	ctx := r.Context()
 	clientConn, serverConn := net.Pipe()
 
-	derpMap := api.DERPMap.Clone()
-	for _, region := range derpMap.Regions {
-		if !region.EmbeddedRelay {
-			continue
-		}
-		var node *tailcfg.DERPNode
-		for _, n := range region.Nodes {
-			if n.STUNOnly {
-				continue
-			}
-			node = n
-			break
-		}
-		if node == nil {
-			continue
-		}
-		// TODO: This should dial directly to execute the
-		// DERP server instead of contacting localhost.
-		//
-		// This requires modification of Tailscale internals
-		// to pipe through a proxy function per-region, so
-		// this is an easy and mostly reliable hack for now.
-		cloned := node.Clone()
-		// Add p for proxy.
-		// This first node supports TLS.
-		cloned.Name += "p"
-		cloned.IPv4 = "127.0.0.1"
-		cloned.InsecureForTests = true
-		region.Nodes = append(region.Nodes, cloned.Clone())
-		// This second node forces HTTP.
-		cloned.Name += "-http"
-		cloned.ForceHTTP = true
-		region.Nodes = append(region.Nodes, cloned)
-	}
-
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:   derpMap,
+		DERPMap:   api.DERPMap,
 		Logger:    api.Logger.Named("tailnet"),
 	})
 	if err != nil {
@@ -473,6 +430,19 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 		_ = serverConn.Close()
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
+	conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
+		if !region.EmbeddedRelay {
+			return nil
+		}
+		left, right := net.Pipe()
+		go func() {
+			defer left.Close()
+			defer right.Close()
+			brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
+			api.DERPServer.Accept(ctx, right, brw, r.RemoteAddr)
+		}()
+		return left
+	})
 
 	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
 		err = conn.UpdateNodes(node, true)
@@ -513,11 +483,7 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 // @Router /workspaceagents/{workspaceagent}/connection [get]
 func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
 		DERPMap: api.DERPMap,
 	})
@@ -615,7 +581,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 
 	// We use a custom heartbeat routine here instead of `httpapi.Heartbeat`
 	// because we want to log the agent's last ping time.
-	var lastPing time.Time
+	lastPing := time.Now() // Since the agent initiated the request, assume it's alive.
 	var pingMu sync.Mutex
 	go pprof.Do(ctx, pprof.Labels("agent", workspaceAgent.ID.String()), func(ctx context.Context) {
 		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
