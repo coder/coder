@@ -83,13 +83,8 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
     )
   }
 
-  if (templateData.isLoading) {
+  if (templateData.isLoading || !templateData.data) {
     return <Loader />
-  }
-
-  // Make typescript happy
-  if (!templateData.data) {
-    return <></>
   }
 
   return (
