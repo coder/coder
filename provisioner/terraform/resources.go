@@ -101,7 +101,6 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 	tfResourcesByLabel := map[string]map[string]*tfjson.StateResource{}
 
 	// Extra array to preserve the order of rich parameters.
-	// Duplicated entries are not possible.
 	tfResourcesRichParameters := make([]*tfjson.StateResource, 0)
 
 	var findTerraformResources func(mod *tfjson.StateModule)

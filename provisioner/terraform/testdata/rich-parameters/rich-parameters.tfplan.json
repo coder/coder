@@ -120,7 +120,7 @@
               "default": null,
               "description": null,
               "icon": null,
-              "id": "658ab537-6656-4590-b0cd-5ee63da99dae",
+              "id": "5820e575-2637-4830-b6a3-75f4c664b447",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -152,21 +152,21 @@
             }
           },
           {
-            "address": "data.coder_parameter.example2",
+            "address": "data.coder_parameter.sample",
             "mode": "data",
             "type": "coder_parameter",
-            "name": "example2",
+            "name": "sample",
             "provider_name": "registry.terraform.io/coder/coder",
             "schema_version": 0,
             "values": {
               "default": "ok",
               "description": "blah blah",
               "icon": null,
-              "id": "b99f330d-bf4d-4164-a647-1a7cf0cc0788",
+              "id": "9cac2300-0618-45f6-97d9-2f0395b1a0b4",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
-              "name": "Example 2",
+              "name": "Sample",
               "option": null,
               "optional": true,
               "type": "string",
@@ -255,10 +255,10 @@
           "schema_version": 0
         },
         {
-          "address": "data.coder_parameter.example2",
+          "address": "data.coder_parameter.sample",
           "mode": "data",
           "type": "coder_parameter",
-          "name": "example2",
+          "name": "sample",
           "provider_config_key": "coder",
           "expressions": {
             "default": {
@@ -268,7 +268,7 @@
               "constant_value": "blah blah"
             },
             "name": {
-              "constant_value": "Example 2"
+              "constant_value": "Sample"
             },
             "type": {
               "constant_value": "string"

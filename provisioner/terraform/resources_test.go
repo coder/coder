@@ -301,7 +301,7 @@ func TestConvertResources(t *testing.T) {
 				}},
 				Required: true,
 			}, {
-				Name:         "Example 2",
+				Name:         "Sample",
 				Type:         "string",
 				Description:  "blah blah",
 				DefaultValue: "ok",
