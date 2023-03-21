@@ -4,20 +4,28 @@ import { useTranslation, Trans } from "react-i18next"
 import { useDeleteToken } from "../hooks"
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils"
 import { getErrorMessage } from "api/errors"
+import { APIKeyWithOwner } from "api/typesGenerated"
 
-export const ConfirmDeleteDialog: FC<{
+export interface ConfirmDeleteDialogProps {
   queryKey: (string | boolean)[]
-  tokenId: string | undefined
-  setTokenId: (arg: string | undefined) => void
-}> = ({ queryKey, tokenId, setTokenId }) => {
-  const { t } = useTranslation("tokensPage")
+  token: APIKeyWithOwner | undefined
+  setToken: (arg: APIKeyWithOwner | undefined) => void
+}
 
+export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
+  queryKey,
+  token,
+  setToken,
+}) => {
+  const { t } = useTranslation("tokensPage")
+  const tokenName = token?.token_name
   const description = (
-    <Trans t={t} i18nKey="deleteToken.deleteCaption" values={{ tokenId }}>
-      Are you sure you want to delete this token?
-      <br />
-      <br />
-      {{ tokenId }}
+    <Trans
+      t={t}
+      i18nKey="tokenActions.deleteToken.deleteCaption"
+      values={{ tokenName }}
+    >
+      Are you sure you want to permanently delete token {{ tokenName }}?
     </Trans>
   )
 
@@ -25,33 +33,37 @@ export const ConfirmDeleteDialog: FC<{
     useDeleteToken(queryKey)
 
   const onDeleteSuccess = () => {
-    displaySuccess(t("deleteToken.deleteSuccess"))
-    setTokenId(undefined)
+    displaySuccess(t("tokenActions.deleteToken.deleteSuccess"))
+    setToken(undefined)
   }
 
   const onDeleteError = (error: unknown) => {
-    const message = getErrorMessage(error, t("deleteToken.deleteFailure"))
+    const message = getErrorMessage(
+      error,
+      t("tokenActions.deleteToken.deleteFailure"),
+    )
     displayError(message)
-    setTokenId(undefined)
+    setToken(undefined)
   }
 
   return (
     <ConfirmDialog
-      title={t("deleteToken.delete")}
+      type="delete"
+      title={t("tokenActions.deleteToken.delete")}
       description={description}
-      open={Boolean(tokenId) || isDeleting}
+      open={Boolean(token) || isDeleting}
       confirmLoading={isDeleting}
       onConfirm={() => {
-        if (!tokenId) {
+        if (!token) {
           return
         }
-        deleteToken(tokenId, {
+        deleteToken(token.id, {
           onError: onDeleteError,
           onSuccess: onDeleteSuccess,
         })
       }}
       onClose={() => {
-        setTokenId(undefined)
+        setToken(undefined)
       }}
     />
   )

@@ -296,12 +296,14 @@ func TestConvertResources(t *testing.T) {
 				Name: "dev",
 				Type: "null_resource",
 				Agents: []*proto.Agent{{
-					Name:                     "dev",
-					OperatingSystem:          "windows",
-					Architecture:             "arm64",
-					Auth:                     &proto.Agent_Token{},
-					LoginBeforeReady:         true,
-					ConnectionTimeoutSeconds: 120,
+					Name:                         "dev",
+					OperatingSystem:              "windows",
+					ShutdownScriptTimeoutSeconds: 300,
+					StartupScriptTimeoutSeconds:  300,
+					Architecture:                 "arm64",
+					Auth:                         &proto.Agent_Token{},
+					LoginBeforeReady:             true,
+					ConnectionTimeoutSeconds:     120,
 				}},
 			}},
 			parameters: []*proto.RichParameter{{
@@ -315,6 +317,11 @@ func TestConvertResources(t *testing.T) {
 					Value: "second",
 				}},
 				Required: true,
+			}, {
+				Name:         "Sample",
+				Type:         "string",
+				Description:  "blah blah",
+				DefaultValue: "ok",
 			}},
 		},
 		"git-auth-providers": {
@@ -362,7 +369,6 @@ func TestConvertResources(t *testing.T) {
 				state, err := terraform.ConvertState(modules, string(tfPlanGraph))
 				require.NoError(t, err)
 				sortResources(state.Resources)
-				sortParameters(state.Parameters)
 				sort.Strings(state.GitAuthProviders)
 
 				expectedNoMetadata := make([]*proto.Resource, 0)
@@ -416,7 +422,6 @@ func TestConvertResources(t *testing.T) {
 				state, err := terraform.ConvertState([]*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph))
 				require.NoError(t, err)
 				sortResources(state.Resources)
-				sortParameters(state.Parameters)
 				sort.Strings(state.GitAuthProviders)
 				for _, resource := range state.Resources {
 					for _, agent := range resource.Agents {
@@ -632,17 +637,6 @@ func sortResources(resources []*proto.Resource) {
 		}
 		sort.Slice(resource.Agents, func(i, j int) bool {
 			return resource.Agents[i].Name < resource.Agents[j].Name
-		})
-	}
-}
-
-func sortParameters(parameters []*proto.RichParameter) {
-	sort.Slice(parameters, func(i, j int) bool {
-		return parameters[i].Name < parameters[j].Name
-	})
-	for _, parameter := range parameters {
-		sort.Slice(parameter.Options, func(i, j int) bool {
-			return parameter.Options[i].Name < parameter.Options[j].Name
 		})
 	}
 }

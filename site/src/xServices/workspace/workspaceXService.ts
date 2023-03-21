@@ -55,7 +55,6 @@ export interface WorkspaceContext {
   eventSource?: EventSource
   workspace?: TypesGen.Workspace
   template?: TypesGen.Template
-  templateParameters?: TypesGen.TemplateVersionParameter[]
   build?: TypesGen.WorkspaceBuild
   getWorkspaceError?: Error | unknown
   getTemplateWarning: Error | unknown
@@ -203,7 +202,7 @@ export const workspaceMachine = createMachine(
           onDone: [
             {
               actions: ["assignTemplate", "clearGetTemplateWarning"],
-              target: "gettingTemplateParameters",
+              target: "gettingPermissions",
             },
           ],
           onError: [
@@ -211,31 +210,6 @@ export const workspaceMachine = createMachine(
               actions: [
                 "assignGetTemplateWarning",
                 "displayGetTemplateWarning",
-              ],
-              target: "error",
-            },
-          ],
-        },
-        tags: "loading",
-      },
-      gettingTemplateParameters: {
-        invoke: {
-          src: "getTemplateParameters",
-          id: "getTemplateParameters",
-          onDone: [
-            {
-              actions: [
-                "assignTemplateParameters",
-                "clearGetTemplateParametersWarning",
-              ],
-              target: "gettingPermissions",
-            },
-          ],
-          onError: [
-            {
-              actions: [
-                "assignGetTemplateParametersWarning",
-                "displayGetTemplateParametersWarning",
               ],
               target: "error",
             },
@@ -524,9 +498,6 @@ export const workspaceMachine = createMachine(
       assignTemplate: assign({
         template: (_, event) => event.data,
       }),
-      assignTemplateParameters: assign({
-        templateParameters: (_, event) => event.data,
-      }),
       assignPermissions: assign({
         // Setting event.data as Permissions to be more stricted. So we know
         // what permissions we asked for.
@@ -586,15 +557,6 @@ export const workspaceMachine = createMachine(
       },
       clearGetTemplateWarning: assign({
         getTemplateWarning: (_) => undefined,
-      }),
-      assignGetTemplateParametersWarning: assign({
-        getTemplateParametersWarning: (_, event) => event.data,
-      }),
-      displayGetTemplateParametersWarning: () => {
-        displayError(Language.getTemplateParametersWarning)
-      },
-      clearGetTemplateParametersWarning: assign({
-        getTemplateParametersWarning: (_) => undefined,
       }),
       // Timeline
       assignBuilds: assign({
@@ -665,15 +627,6 @@ export const workspaceMachine = createMachine(
           return await API.getTemplate(context.workspace.template_id)
         } else {
           throw Error("Cannot get template without workspace")
-        }
-      },
-      getTemplateParameters: async (context) => {
-        if (context.workspace) {
-          return await API.getTemplateVersionRichParameters(
-            context.workspace.latest_build.template_version_id,
-          )
-        } else {
-          throw Error("Cannot get template parameters without workspace")
         }
       },
       updateWorkspace:

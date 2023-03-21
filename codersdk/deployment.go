@@ -160,12 +160,47 @@ type DeploymentValues struct {
 	DisablePasswordAuth             clibase.Bool                    `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                   `json:"support,omitempty" typescript:",notnull"`
 	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
+	SSHConfig                       SSHConfig                       `json:"config_ssh,omitempty" typescript:",notnull"`
 
 	Config      clibase.String `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool   `json:"write_config,omitempty" typescript:",notnull"`
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 	Address clibase.HostPort `json:"address,omitempty" typescript:",notnull"`
+}
+
+// SSHConfig is configuration the cli & vscode extension use for configuring
+// ssh connections.
+type SSHConfig struct {
+	// DeploymentName is the config-ssh Hostname prefix
+	DeploymentName clibase.String
+	// SSHConfigOptions are additional options to add to the ssh config file.
+	// This will override defaults.
+	SSHConfigOptions clibase.Strings
+}
+
+func (c SSHConfig) ParseOptions() (map[string]string, error) {
+	m := make(map[string]string)
+	for _, opt := range c.SSHConfigOptions {
+		key, value, err := ParseSSHConfigOption(opt)
+		if err != nil {
+			return nil, err
+		}
+		m[key] = value
+	}
+	return m, nil
+}
+
+// ParseSSHConfigOption parses a single ssh config option into it's key/value pair.
+func ParseSSHConfigOption(opt string) (key string, value string, err error) {
+	// An equal sign or whitespace is the separator between the key and value.
+	idx := strings.IndexFunc(opt, func(r rune) bool {
+		return r == ' ' || r == '='
+	})
+	if idx == -1 {
+		return "", "", xerrors.Errorf("invalid config-ssh option %q", opt)
+	}
+	return opt[:idx], opt[idx+1:], nil
 }
 
 type DERP struct {
@@ -212,17 +247,18 @@ type OAuth2GithubConfig struct {
 }
 
 type OIDCConfig struct {
-	AllowSignups        clibase.Bool    `json:"allow_signups" typescript:",notnull"`
-	ClientID            clibase.String  `json:"client_id" typescript:",notnull"`
-	ClientSecret        clibase.String  `json:"client_secret" typescript:",notnull"`
-	EmailDomain         clibase.Strings `json:"email_domain" typescript:",notnull"`
-	IssuerURL           clibase.String  `json:"issuer_url" typescript:",notnull"`
-	Scopes              clibase.Strings `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified clibase.Bool    `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField       clibase.String  `json:"username_field" typescript:",notnull"`
-	GroupField          clibase.String  `json:"groups_field" typescript:",notnull"`
-	SignInText          clibase.String  `json:"sign_in_text" typescript:",notnull"`
-	IconURL             clibase.URL     `json:"icon_url" typescript:",notnull"`
+	AllowSignups        clibase.Bool                      `json:"allow_signups" typescript:",notnull"`
+	ClientID            clibase.String                    `json:"client_id" typescript:",notnull"`
+	ClientSecret        clibase.String                    `json:"client_secret" typescript:",notnull"`
+	EmailDomain         clibase.Strings                   `json:"email_domain" typescript:",notnull"`
+	IssuerURL           clibase.String                    `json:"issuer_url" typescript:",notnull"`
+	Scopes              clibase.Strings                   `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified clibase.Bool                      `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       clibase.String                    `json:"username_field" typescript:",notnull"`
+	GroupField          clibase.String                    `json:"groups_field" typescript:",notnull"`
+	GroupMapping        clibase.Struct[map[string]string] `json:"group_mapping" typescript:",notnull"`
+	SignInText          clibase.String                    `json:"sign_in_text" typescript:",notnull"`
+	IconURL             clibase.URL                       `json:"icon_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -389,6 +425,11 @@ when required by your organization's security policy.`,
 		}
 		deploymentGroupDangerous = clibase.Group{
 			Name: "⚠️ Dangerous",
+		}
+		deploymentGroupClient = clibase.Group{
+			Name: "Client",
+			Description: "These options change the behavior of how clients interact with the Coder. " +
+				"Clients include the coder cli, vs code extension, and the web UI.",
 		}
 		deploymentGroupConfig = clibase.Group{
 			Name:        "Config",
@@ -835,6 +876,16 @@ when required by your organization's security policy.`,
 			YAML:    "groupField",
 		},
 		{
+			Name:        "OIDC Group Mapping",
+			Description: "A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.",
+			Flag:        "oidc-group-mapping",
+			Env:         "OIDC_GROUP_MAPPING",
+			Default:     "{}",
+			Value:       &c.OIDC.GroupMapping,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "groupMapping",
+		},
+		{
 			Name:        "OpenID Connect sign in text",
 			Description: "The text to show on the OpenID Connect sign in button",
 			Flag:        "oidc-sign-in-text",
@@ -1266,6 +1317,29 @@ when required by your organization's security policy.`,
 			Value:         &c.Config,
 		},
 		{
+			Name:        "SSH Host Prefix",
+			Description: "The SSH deployment prefix is used in the Host of the ssh config.",
+			Flag:        "ssh-hostname-prefix",
+			Env:         "SSH_HOSTNAME_PREFIX",
+			YAML:        "sshHostnamePrefix",
+			Group:       &deploymentGroupClient,
+			Value:       &c.SSHConfig.DeploymentName,
+			Hidden:      false,
+			Default:     "coder.",
+		},
+		{
+			Name: "SSH Config Options",
+			Description: "These SSH config options will override the default SSH config options. " +
+				"Provide options in \"key=value\" or \"key value\" format separated by commas." +
+				"Using this incorrectly can break SSH to your deployment, use cautiously.",
+			Flag:   "ssh-config-options",
+			Env:    "SSH_CONFIG_OPTIONS",
+			YAML:   "sshConfigOptions",
+			Group:  &deploymentGroupClient,
+			Value:  &c.SSHConfig.SSHConfigOptions,
+			Hidden: false,
+		},
+		{
 			Name: "Write Config",
 			Description: `
 Write out the current server configuration to the path specified by --config.`,
@@ -1452,10 +1526,6 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 type Experiment string
 
 const (
-	// ExperimentAuthzQuerier is an internal experiment that enables the ExperimentAuthzQuerier
-	// interface for all RBAC operations. NOT READY FOR PRODUCTION USE.
-	ExperimentAuthzQuerier Experiment = "authz_querier"
-
 	// ExperimentTemplateEditor is an internal experiment that enables the template editor
 	// for all users.
 	ExperimentTemplateEditor Experiment = "template_editor"
@@ -1579,4 +1649,26 @@ type DeploymentStats struct {
 
 	Workspaces   WorkspaceDeploymentStats    `json:"workspaces"`
 	SessionCount SessionCountDeploymentStats `json:"session_count"`
+}
+
+type SSHConfigResponse struct {
+	HostnamePrefix   string            `json:"hostname_prefix"`
+	SSHConfigOptions map[string]string `json:"ssh_config_options"`
+}
+
+// SSHConfiguration returns information about the SSH configuration for the
+// Coder instance.
+func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/ssh", nil)
+	if err != nil {
+		return SSHConfigResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return SSHConfigResponse{}, ReadBodyAsError(res)
+	}
+
+	var sshConfig SSHConfigResponse
+	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
 }

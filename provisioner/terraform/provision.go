@@ -213,6 +213,7 @@ func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue
 		"CODER_WORKSPACE_NAME="+config.Metadata.WorkspaceName,
 		"CODER_WORKSPACE_OWNER="+config.Metadata.WorkspaceOwner,
 		"CODER_WORKSPACE_OWNER_EMAIL="+config.Metadata.WorkspaceOwnerEmail,
+		"CODER_WORKSPACE_OWNER_OIDC_ACCESS_TOKEN="+config.Metadata.WorkspaceOwnerOidcAccessToken,
 		"CODER_WORKSPACE_ID="+config.Metadata.WorkspaceId,
 		"CODER_WORKSPACE_OWNER_ID="+config.Metadata.WorkspaceOwnerId,
 	)

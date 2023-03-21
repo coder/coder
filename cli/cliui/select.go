@@ -35,6 +35,21 @@ func init() {
   {{- template "option" $.IterateOption $ix $option}}
 {{- end}}
 {{- end }}`
+
+	survey.MultiSelectQuestionTemplate = `
+{{- define "option"}}
+    {{- if eq .SelectedIndex .CurrentIndex }}{{color .Config.Icons.SelectFocus.Format }}{{ .Config.Icons.SelectFocus.Text }}{{color "reset"}}{{else}} {{end}}
+    {{- if index .Checked .CurrentOpt.Index }}{{color .Config.Icons.MarkedOption.Format }} {{ .Config.Icons.MarkedOption.Text }} {{else}}{{color .Config.Icons.UnmarkedOption.Format }} {{ .Config.Icons.UnmarkedOption.Text }} {{end}}
+    {{- color "reset"}}
+    {{- " "}}{{- .CurrentOpt.Value}}
+{{end}}
+{{- if .ShowHelp }}{{- color .Config.Icons.Help.Format }}{{ .Config.Icons.Help.Text }} {{ .Help }}{{color "reset"}}{{"\n"}}{{end}}
+{{- if not .ShowAnswer }}
+  {{- "\n"}}
+  {{- range $ix, $option := .PageEntries}}
+    {{- template "option" $.IterateOption $ix $option}}
+  {{- end}}
+{{- end}}`
 }
 
 type SelectOptions struct {
@@ -116,6 +131,29 @@ func Select(cmd *cobra.Command, opts SelectOptions) (string, error) {
 		return value, Canceled
 	}
 	return value, err
+}
+
+func MultiSelect(cmd *cobra.Command, items []string) ([]string, error) {
+	// Similar hack is applied to Select()
+	if flag.Lookup("test.v") != nil {
+		return items, nil
+	}
+
+	prompt := &survey.MultiSelect{
+		Options: items,
+		Default: items,
+	}
+
+	var values []string
+	err := survey.AskOne(prompt, &values, survey.WithStdio(fileReadWriter{
+		Reader: cmd.InOrStdin(),
+	}, fileReadWriter{
+		Writer: cmd.OutOrStdout(),
+	}, cmd.OutOrStdout()))
+	if errors.Is(err, terminal.InterruptErr) {
+		return nil, Canceled
+	}
+	return values, err
 }
 
 type fileReadWriter struct {

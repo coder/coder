@@ -146,3 +146,13 @@ export const useValidationSchemaForRichParameters = (
     )
     .required()
 }
+
+export const workspaceBuildParameterValue = (
+  workspaceBuildParameters: WorkspaceBuildParameter[],
+  parameter: TemplateVersionParameter,
+): string => {
+  const buildParameter = workspaceBuildParameters.find((buildParameter) => {
+    return buildParameter.name === parameter.name
+  })
+  return (buildParameter && buildParameter.value) || ""
+}

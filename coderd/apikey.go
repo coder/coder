@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"github.com/tabbed/pqtype"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -39,13 +41,19 @@ import (
 // @Success 201 {object} codersdk.GenerateAPIKeyResponse
 // @Router /users/{user}/keys/tokens [post]
 func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	user := httpmw.UserParam(r)
-
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+	var (
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	aReq.Old = database.APIKey{}
+	defer commitAudit()
 
 	var createToken codersdk.CreateTokenRequest
 	if !httpapi.Read(ctx, rw, r, &createToken) {
@@ -78,7 +86,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
+	cookie, key, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:          user.ID,
 		LoginType:       database.LoginTypeToken,
 		ExpiresAt:       database.Now().Add(lifeTime),
@@ -103,7 +111,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
+	aReq.New = *key
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.GenerateAPIKeyResponse{Key: cookie.Value})
 }
 
@@ -120,11 +128,6 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
-
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	lifeTime := time.Hour * 24 * 7
 	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
@@ -177,11 +180,6 @@ func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionRead, key) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(key))
 }
 
@@ -214,11 +212,6 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error fetching API key.",
 			Detail:  err.Error(),
 		})
-		return
-	}
-
-	if !api.Authorize(r, rbac.ActionRead, token) {
-		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -313,17 +306,24 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/{user}/keys/{keyid} [delete]
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx   = r.Context()
-		user  = httpmw.UserParam(r)
-		keyID = chi.URLParam(r, "keyid")
+		ctx               = r.Context()
+		keyID             = chi.URLParam(r, "keyid")
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
+		key, err = api.Database.GetAPIKeyByID(ctx, keyID)
 	)
-
-	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceAPIKey.WithIDString(keyID).WithOwner(user.ID.String())) {
-		httpapi.ResourceNotFound(rw)
-		return
+	if err != nil {
+		api.Logger.Warn(ctx, "get API Key for audit log")
 	}
+	aReq.Old = key
+	defer commitAudit()
 
-	err := api.Database.DeleteAPIKeyByID(ctx, keyID)
+	err = api.Database.DeleteAPIKeyByID(ctx, keyID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -337,6 +337,38 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
+// @Summary Get token config
+// @ID get-token-config
+// @Security CoderSessionToken
+// @Produce json
+// @Tags General
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.TokenConfig
+// @Router /users/{user}/keys/tokens/tokenconfig [get]
+func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
+	values, err := api.DeploymentValues.WithoutSecrets()
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	var maxTokenLifetime time.Duration
+	// if --max-token-lifetime is unset (default value is math.MaxInt64)
+	// send back a falsy value
+	if values.MaxTokenLifetime.Value() == time.Duration(math.MaxInt64) {
+		maxTokenLifetime = 0
+	} else {
+		maxTokenLifetime = values.MaxTokenLifetime.Value()
+	}
+
+	httpapi.Write(
+		r.Context(), rw, http.StatusOK,
+		codersdk.TokenConfig{
+			MaxTokenLifetime: maxTokenLifetime,
+		},
+	)
 }
 
 // Generates a new ID and secret for an API key.

@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd/audit"
@@ -100,6 +101,12 @@ func TestAcquireJob(t *testing.T) {
 		ctx := context.Background()
 
 		user := dbgen.User(t, srv.Database, database.User{})
+		link := dbgen.UserLink(t, srv.Database, database.UserLink{
+			LoginType:        database.LoginTypeOIDC,
+			UserID:           user.ID,
+			OAuthExpiry:      database.Now().Add(time.Hour),
+			OAuthAccessToken: "access-token",
+		})
 		template := dbgen.Template(t, srv.Database, database.Template{
 			Name:        "template",
 			Provisioner: database.ProvisionerTypeEcho,
@@ -208,15 +215,16 @@ func TestAcquireJob(t *testing.T) {
 					},
 				},
 				Metadata: &sdkproto.Provision_Metadata{
-					CoderUrl:            srv.AccessURL.String(),
-					WorkspaceTransition: sdkproto.WorkspaceTransition_START,
-					WorkspaceName:       workspace.Name,
-					WorkspaceOwner:      user.Username,
-					WorkspaceOwnerEmail: user.Email,
-					WorkspaceId:         workspace.ID.String(),
-					WorkspaceOwnerId:    user.ID.String(),
-					TemplateName:        template.Name,
-					TemplateVersion:     version.Name,
+					CoderUrl:                      srv.AccessURL.String(),
+					WorkspaceTransition:           sdkproto.WorkspaceTransition_START,
+					WorkspaceName:                 workspace.Name,
+					WorkspaceOwner:                user.Username,
+					WorkspaceOwnerEmail:           user.Email,
+					WorkspaceOwnerOidcAccessToken: link.OAuthAccessToken,
+					WorkspaceId:                   workspace.ID.String(),
+					WorkspaceOwnerId:              user.ID.String(),
+					TemplateName:                  template.Name,
+					TemplateVersion:               version.Name,
 				},
 			},
 		})
@@ -1152,6 +1160,7 @@ func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 	return &provisionerdserver.Server{
 		ID:                    uuid.New(),
 		Logger:                slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
+		OIDCConfig:            &oauth2.Config{},
 		AccessURL:             &url.URL{},
 		Provisioners:          []database.ProvisionerType{database.ProvisionerTypeEcho},
 		Database:              db,

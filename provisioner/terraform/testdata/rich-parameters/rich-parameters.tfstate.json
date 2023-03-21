@@ -17,13 +17,16 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "72a4ca97-32b3-4e34-b8f0-6133270dc29a",
+            "id": "c2c2da59-b4e6-4f4d-910c-ef38f232a98f",
             "init_script": "",
+            "login_before_ready": true,
             "motd_file": null,
             "os": "windows",
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "token": "72393c2d-e496-4e30-9bd6-3d5c42d4567a",
+            "startup_script_timeout": 300,
+            "token": "a83c1896-a982-4824-a4c2-ad0d64f76b8d",
             "troubleshooting_url": null
           },
           "sensitive_values": {}
@@ -39,7 +42,9 @@
             "default": null,
             "description": null,
             "icon": null,
-            "id": "6cced87d-2b1c-4681-877f-129862b1fe06",
+            "id": "6d2aa78b-4ecf-403b-a3b4-0e768ee9a5f5",
+            "legacy_variable": null,
+            "legacy_variable_name": null,
             "mutable": false,
             "name": "Example",
             "option": [
@@ -56,6 +61,7 @@
                 "value": "second"
               }
             ],
+            "optional": false,
             "type": "string",
             "validation": null,
             "value": ""
@@ -68,6 +74,30 @@
           }
         },
         {
+          "address": "data.coder_parameter.sample",
+          "mode": "data",
+          "type": "coder_parameter",
+          "name": "sample",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "default": "ok",
+            "description": "blah blah",
+            "icon": null,
+            "id": "e283cee4-8bf5-44f0-a72e-07bb7b17c076",
+            "legacy_variable": null,
+            "legacy_variable_name": null,
+            "mutable": false,
+            "name": "Sample",
+            "option": null,
+            "optional": true,
+            "type": "string",
+            "validation": null,
+            "value": "ok"
+          },
+          "sensitive_values": {}
+        },
+        {
           "address": "null_resource.dev",
           "mode": "managed",
           "type": "null_resource",
@@ -75,7 +105,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "8376977411041104706",
+            "id": "7053363743816333889",
             "triggers": null
           },
           "sensitive_values": {},

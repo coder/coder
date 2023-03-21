@@ -672,6 +672,11 @@ flags, and YAML configuration. The precedence is as follows:
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
+			configSSHOptions, err := cfg.SSHConfig.ParseOptions()
+			if err != nil {
+				return xerrors.Errorf("parse ssh config options %q: %w", cfg.SSHConfig.SSHConfigOptions.String(), err)
+			}
+
 			options := &coderd.Options{
 				AccessURL:                   cfg.AccessURL.Value(),
 				AppHostname:                 appHostname,
@@ -696,6 +701,10 @@ flags, and YAML configuration. The precedence is as follows:
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
+				SSHConfig: codersdk.SSHConfigResponse{
+					HostnamePrefix:   cfg.SSHConfig.DeploymentName.String(),
+					SSHConfigOptions: configSSHOptions,
+				},
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates
@@ -787,6 +796,7 @@ flags, and YAML configuration. The precedence is as follows:
 					AllowSignups:        cfg.OIDC.AllowSignups.Value(),
 					UsernameField:       cfg.OIDC.UsernameField.String(),
 					GroupField:          cfg.OIDC.GroupField.String(),
+					GroupMapping:        cfg.OIDC.GroupMapping.Value,
 					SignInText:          cfg.OIDC.SignInText.String(),
 					IconURL:             cfg.OIDC.IconURL.String(),
 					IgnoreEmailVerified: cfg.OIDC.IgnoreEmailVerified.Value(),

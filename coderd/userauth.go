@@ -481,6 +481,10 @@ type OIDCConfig struct {
 	// groups. If the group field is the empty string, then no group updates
 	// will ever come from the OIDC provider.
 	GroupField string
+	// GroupMapping controls how groups returned by the OIDC provider get mapped
+	// to groups within Coder.
+	// map[oidcGroupName]coderGroupName
+	GroupMapping map[string]string
 	// SignInText is the text to display on the OIDC login button
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
@@ -569,6 +573,20 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Log all of the field names returned in the ID token claims, and the
+	// userinfo returned from the provider.
+	{
+		fields := make([]string, 0, len(claims))
+		for f := range claims {
+			fields = append(fields, f)
+		}
+
+		api.Logger.Debug(ctx, "got oidc claims",
+			slog.F("user_info", userInfo),
+			slog.F("claim_fields", fields),
+		)
+	}
+
 	usernameRaw, ok := claims[api.OIDCConfig.UsernameField]
 	var username string
 	if ok {
@@ -624,6 +642,11 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			// Convert the []interface{} we get to a []string.
 			groupsInterface, ok := groupsRaw.([]interface{})
 			if ok {
+				api.Logger.Debug(ctx, "groups returned in oidc claims",
+					slog.F("len", len(groupsInterface)),
+					slog.F("groups", groupsInterface),
+				)
+
 				for _, groupInterface := range groupsInterface {
 					group, ok := groupInterface.(string)
 					if !ok {
@@ -632,8 +655,17 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 						})
 						return
 					}
+
+					if mappedGroup, ok := api.OIDCConfig.GroupMapping[group]; ok {
+						group = mappedGroup
+					}
+
 					groups = append(groups, group)
 				}
+			} else {
+				api.Logger.Debug(ctx, "groups field was an unknown type",
+					slog.F("type", fmt.Sprintf("%T", groupsRaw)),
+				)
 			}
 		}
 	}

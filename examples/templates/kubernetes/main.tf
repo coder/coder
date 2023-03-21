@@ -94,7 +94,7 @@ data "coder_parameter" "home_disk_size" {
 
 provider "kubernetes" {
   # Authenticate via ~/.kube/config or a Coder-specific ServiceAccount, depending on admin preferences
-  config_path = var.namespace == true ? "~/.kube/config" : null
+  config_path = var.use_kubeconfig == true ? "~/.kube/config" : null
 }
 
 data "coder_workspace" "me" {}

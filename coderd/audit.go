@@ -37,10 +37,6 @@ import (
 // @Router /audit [get]
 func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAuditLog) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	page, ok := parsePagination(rw, r)
 	if !ok {
@@ -90,10 +86,6 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 // @Router /audit/testgenerate [post]
 func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAuditLog) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	key := httpmw.APIKey(r)
 	user, err := api.Database.GetUserByID(ctx, key.UserID)
@@ -254,9 +246,10 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 		codersdk.AuditAction(alog.Action).Friendly(),
 	)
 
-	// API Key resources do not have targets and follow the below format:
+	// API Key resources (used for authentication) do not have targets and follow the below format:
 	// "User {logged in | logged out}"
-	if alog.ResourceType == database.ResourceTypeApiKey {
+	if alog.ResourceType == database.ResourceTypeApiKey &&
+		(alog.Action == database.AuditActionLogin || alog.Action == database.AuditActionLogout) {
 		return str
 	}
 

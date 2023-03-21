@@ -384,6 +384,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/deployment/ssh": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "SSH Config",
+                "operationId": "ssh-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.SSHConfigResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/deployment/stats": {
             "get": {
                 "security": [
@@ -3357,6 +3382,40 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.GenerateAPIKeyResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{user}/keys/tokens/tokenconfig": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get token config",
+                "operationId": "get-token-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TokenConfig"
                         }
                     }
                 }
@@ -6619,6 +6678,9 @@ const docTemplate = `{
                 "config": {
                     "type": "string"
                 },
+                "config_ssh": {
+                    "$ref": "#/definitions/codersdk.SSHConfig"
+                },
                 "dangerous": {
                     "$ref": "#/definitions/codersdk.DangerousConfig"
                 },
@@ -6793,11 +6855,9 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "authz_querier",
                 "template_editor"
             ],
             "x-enum-varnames": [
-                "ExperimentAuthzQuerier",
                 "ExperimentTemplateEditor"
             ]
         },
@@ -7156,6 +7216,9 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "group_mapping": {
+                    "type": "object"
                 },
                 "groups_field": {
                     "type": "string"
@@ -7733,6 +7796,36 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.SSHConfig": {
+            "type": "object",
+            "properties": {
+                "deploymentName": {
+                    "description": "DeploymentName is the config-ssh Hostname prefix",
+                    "type": "string"
+                },
+                "sshconfigOptions": {
+                    "description": "SSHConfigOptions are additional options to add to the ssh config file.\nThis will override defaults.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.SSHConfigResponse": {
+            "type": "object",
+            "properties": {
+                "hostname_prefix": {
+                    "type": "string"
+                },
+                "ssh_config_options": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.ServiceBannerConfig": {
             "type": "object",
             "properties": {
@@ -8123,7 +8216,8 @@ const docTemplate = `{
                     "enum": [
                         "string",
                         "number",
-                        "bool"
+                        "bool",
+                        "list(string)"
                     ]
                 },
                 "validation_error": {
@@ -8196,6 +8290,14 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.TokenConfig": {
+            "type": "object",
+            "properties": {
+                "max_token_lifetime": {
+                    "type": "integer"
                 }
             }
         },
@@ -8481,6 +8583,10 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "outdated": {
                     "type": "boolean"

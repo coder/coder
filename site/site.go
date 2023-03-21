@@ -6,8 +6,10 @@ import (
 	"crypto/sha1" //#nosec // Not used for cryptography.
 	_ "embed"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	htmltemplate "html/template"
 	"io"
 	"io/fs"
@@ -28,6 +30,7 @@ import (
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 )
@@ -102,10 +105,20 @@ func Handler(siteFS fs.FS, binFS http.FileSystem, binHashes map[string]string) h
 	})))
 	mux.Handle("/", http.FileServer(http.FS(siteFS))) // All other non-html static files.
 
+	buildInfo := codersdk.BuildInfoResponse{
+		ExternalURL: buildinfo.ExternalURL(),
+		Version:     buildinfo.Version(),
+	}
+	buildInfoResponse, err := json.Marshal(buildInfo)
+	if err != nil {
+		panic("failed to marshal build info: " + err.Error())
+	}
+
 	return secureHeaders(&handler{
-		fs:        siteFS,
-		htmlFiles: files,
-		h:         mux,
+		fs:            siteFS,
+		htmlFiles:     files,
+		h:             mux,
+		buildInfoJSON: html.EscapeString(string(buildInfoResponse)),
 	})
 }
 
@@ -117,8 +130,9 @@ type handler struct {
 	// scripts, and that nonce is passed through a template.
 	// We only do this for html files to reduce the amount of in memory caching
 	// of duplicate files as `fs`.
-	htmlFiles *htmlTemplates
-	h         http.Handler
+	htmlFiles     *htmlTemplates
+	h             http.Handler
+	buildInfoJSON string
 }
 
 // filePath returns the filepath of the requested file.
@@ -138,8 +152,9 @@ func (h *handler) exists(filePath string) bool {
 }
 
 type htmlState struct {
-	CSP  cspState
-	CSRF csrfState
+	CSP       cspState
+	CSRF      csrfState
+	BuildInfo string
 }
 
 type cspState struct {
@@ -184,7 +199,8 @@ func (h *handler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	reqFile := filePath(req.URL.Path)
 	state := htmlState{
 		// Token is the CSRF token for the given request
-		CSRF: csrfState{Token: nosurf.Token(req)},
+		CSRF:      csrfState{Token: nosurf.Token(req)},
+		BuildInfo: h.buildInfoJSON,
 	}
 
 	// First check if it's a file we have in our templates
@@ -310,7 +326,8 @@ func cspHeaders(next http.Handler) http.Handler {
 			CSPDirectiveScriptSrc: {"'self' https://cdn.jsdelivr.net"},
 			CSPDirectiveStyleSrc:  {"'self' 'unsafe-inline' https://cdn.jsdelivr.net"},
 			// data: is used by monaco editor on FE for Syntax Highlight
-			CSPDirectiveFontSrc: {"'self' data:"},
+			CSPDirectiveFontSrc:   {"'self' https://cdn.jsdelivr.net data:"},
+			CSPDirectiveWorkerSrc: {"'self' blob:"},
 			// object-src is needed to support code-server
 			CSPDirectiveObjectSrc: {"'self'"},
 			// blob: for loading the pwa manifest for code-server

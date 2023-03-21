@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -15,19 +17,32 @@ import (
 // Throws an error if the file name is empty.
 func createParameterMapFromFile(parameterFile string) (map[string]string, error) {
 	if parameterFile != "" {
-		parameterMap := make(map[string]string)
-
 		parameterFileContents, err := os.ReadFile(parameterFile)
 		if err != nil {
 			return nil, err
 		}
 
-		err = yaml.Unmarshal(parameterFileContents, &parameterMap)
-
+		mapStringInterface := make(map[string]interface{})
+		err = yaml.Unmarshal(parameterFileContents, &mapStringInterface)
 		if err != nil {
 			return nil, err
 		}
 
+		parameterMap := map[string]string{}
+		for k, v := range mapStringInterface {
+			switch val := v.(type) {
+			case string, bool, int:
+				parameterMap[k] = fmt.Sprintf("%v", val)
+			case []interface{}:
+				b, err := json.Marshal(&val)
+				if err != nil {
+					return nil, err
+				}
+				parameterMap[k] = string(b)
+			default:
+				return nil, xerrors.Errorf("invalid parameter type: %T", v)
+			}
+		}
 		return parameterMap, nil
 	}
 

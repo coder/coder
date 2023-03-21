@@ -60,7 +60,7 @@ func TestCreateParameterMapFromFile(t *testing.T) {
 		parameterMapFromFile, err := createParameterMapFromFile(parameterFile.Name())
 
 		assert.Nil(t, parameterMapFromFile)
-		assert.EqualError(t, err, "yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `region ...` into map[string]string")
+		assert.EqualError(t, err, "yaml: unmarshal errors:\n  line 1: cannot unmarshal !!str `region ...` into map[string]interface {}")
 
 		removeTmpDirUntilSuccess(t, tempDir)
 	})

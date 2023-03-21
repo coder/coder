@@ -4,6 +4,13 @@ import * as Types from "./types"
 import { DeploymentConfig } from "./types"
 import * as TypesGen from "./typesGenerated"
 
+// Adds 304 for the default axios validateStatus function
+// https://github.com/axios/axios#handling-errors
+// Check status here https://httpstatusdogs.com/
+axios.defaults.validateStatus = (status) => {
+  return (status >= 200 && status < 300) || status === 304
+}
+
 export const hardCodedCSRFCookie = (): string => {
   // This is a hard coded CSRF token/cookie pair for local development.
   // In prod, the GoLang webserver generates a random cookie with a new token for
@@ -153,8 +160,20 @@ export const getTokens = async (
   return response.data
 }
 
-export const deleteAPIKey = async (keyId: string): Promise<void> => {
+export const deleteToken = async (keyId: string): Promise<void> => {
   await axios.delete("/api/v2/users/me/keys/" + keyId)
+}
+
+export const createToken = async (
+  params: TypesGen.CreateTokenRequest,
+): Promise<TypesGen.GenerateAPIKeyResponse> => {
+  const response = await axios.post(`/api/v2/users/me/keys/tokens`, params)
+  return response.data
+}
+
+export const getTokenConfig = async (): Promise<TypesGen.TokenConfig> => {
+  const response = await axios.get("/api/v2/users/me/keys/tokens/tokenconfig")
+  return response.data
 }
 
 export const getUsers = async (
@@ -504,6 +523,13 @@ export const createWorkspace = async (
     workspace,
   )
   return response.data
+}
+
+export const patchWorkspace = async (
+  workspaceId: string,
+  data: TypesGen.UpdateWorkspaceRequest,
+) => {
+  await axios.patch(`/api/v2/workspaces/${workspaceId}`, data)
 }
 
 export const getBuildInfo = async (): Promise<TypesGen.BuildInfoResponse> => {
@@ -927,11 +953,12 @@ export const updateWorkspace = async (
   const templateParameters = await getTemplateVersionRichParameters(
     activeVersionId,
   )
-  const [updatedBuildParameters, missingParameters] = updateBuildParameters(
+  const missingParameters = getMissingParameters(
     oldBuildParameters,
     newBuildParameters,
     templateParameters,
   )
+
   if (missingParameters.length > 0) {
     throw new MissingBuildParameters(missingParameters)
   }
@@ -939,19 +966,21 @@ export const updateWorkspace = async (
   return postWorkspaceBuild(workspace.id, {
     transition: "start",
     template_version_id: activeVersionId,
-    rich_parameter_values: updatedBuildParameters,
+    rich_parameter_values: newBuildParameters,
   })
 }
 
-const updateBuildParameters = (
+const getMissingParameters = (
   oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
   newBuildParameters: TypesGen.WorkspaceBuildParameter[],
   templateParameters: TypesGen.TemplateVersionParameter[],
 ) => {
   const missingParameters: TypesGen.TemplateVersionParameter[] = []
-  const updatedBuildParameters: TypesGen.WorkspaceBuildParameter[] = []
+  const requiredParameters = templateParameters.filter(
+    (p) => p.required && p.mutable,
+  )
 
-  for (const parameter of templateParameters) {
+  for (const parameter of requiredParameters) {
     // Check if there is a new value
     let buildParameter = newBuildParameters.find(
       (p) => p.name === parameter.name,
@@ -962,17 +991,13 @@ const updateBuildParameters = (
       buildParameter = oldBuildParameters.find((p) => p.name === parameter.name)
     }
 
-    // If there is a value from the new or old one, add it to the list
+    // If there is a value from the new or old one, it is not missed
     if (buildParameter) {
-      updatedBuildParameters.push(buildParameter)
       continue
     }
 
-    // If there is no value and it is required, add it to the list of missing parameters
-    if (parameter.required) {
-      missingParameters.push(parameter)
-    }
+    missingParameters.push(parameter)
   }
 
-  return [updatedBuildParameters, missingParameters] as const
+  return missingParameters
 }

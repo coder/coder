@@ -229,5 +229,18 @@ export const getOverrides = ({
         borderRadius: 999,
       },
     },
+    MuiChip: {
+      root: {
+        backgroundColor: colors.gray[12],
+      },
+    },
+    MuiMenu: {
+      paper: {
+        marginTop: 8,
+        borderRadius: 4,
+        padding: "4px 0",
+        minWidth: 120,
+      },
+    },
   }
 }

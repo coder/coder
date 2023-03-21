@@ -1762,7 +1762,7 @@ func (q *fakeQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (databa
 func (q *fakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (database.Template, error) {
 	for _, template := range q.templates {
 		if template.ID == id {
-			return template, nil
+			return template.DeepCopy(), nil
 		}
 	}
 	return database.Template{}, sql.ErrNoRows
@@ -1786,7 +1786,7 @@ func (q *fakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg da
 		if template.Deleted != arg.Deleted {
 			continue
 		}
-		return template, nil
+		return template.DeepCopy(), nil
 	}
 	return database.Template{}, sql.ErrNoRows
 }
@@ -1809,7 +1809,7 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.Description = arg.Description
 		tpl.Icon = arg.Icon
 		q.templates[idx] = tpl
-		return tpl, nil
+		return tpl.DeepCopy(), nil
 	}
 
 	return database.Template{}, sql.ErrNoRows
@@ -1831,7 +1831,7 @@ func (q *fakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.DefaultTTL = arg.DefaultTTL
 		tpl.MaxTTL = arg.MaxTTL
 		q.templates[idx] = tpl
-		return tpl, nil
+		return tpl.DeepCopy(), nil
 	}
 
 	return database.Template{}, sql.ErrNoRows
@@ -1890,7 +1890,7 @@ func (q *fakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 				continue
 			}
 		}
-		templates = append(templates, template)
+		templates = append(templates, template.DeepCopy())
 	}
 	if len(templates) > 0 {
 		slices.SortFunc(templates, func(i, j database.Template) bool {
@@ -2191,6 +2191,9 @@ func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	defer q.mutex.RUnlock()
 
 	templates := slices.Clone(q.templates)
+	for i := range templates {
+		templates[i] = templates[i].DeepCopy()
+	}
 	slices.SortFunc(templates, func(i, j database.Template) bool {
 		if i.Name != j.Name {
 			return i.Name < j.Name
@@ -2800,7 +2803,7 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		AllowUserCancelWorkspaceJobs: arg.AllowUserCancelWorkspaceJobs,
 	}
 	q.templates = append(q.templates, template)
-	return template, nil
+	return template.DeepCopy(), nil
 }
 
 func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
@@ -3428,7 +3431,7 @@ func (q *fakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.Upda
 			template.UserACL = arg.UserACL
 
 			q.templates[i] = template
-			return template, nil
+			return template.DeepCopy(), nil
 		}
 	}
 
