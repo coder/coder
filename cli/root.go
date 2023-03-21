@@ -774,10 +774,7 @@ func (prettyErrorFormatter) prefixLines(spaces int, s string) string {
 func (p *prettyErrorFormatter) format(err error) {
 	underErr := errors.Unwrap(err)
 
-	var (
-		finalErrorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644")).Background(lipgloss.Color("#000000")).Bold(false)
-		arrowStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#515151"))
-	)
+	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#515151"))
 
 	//nolint:errorlint
 	if _, ok := err.(*clibase.RunCommandError); ok && p.level == 0 && underErr != nil {
@@ -805,19 +802,22 @@ func (p *prettyErrorFormatter) format(err error) {
 		return
 	}
 
-	// This is the last error in a tree.
-	p.wrappedPrintf(
-		"%s",
-		p.prefixLines(
-			len(padding)+arrowWidth,
-			fmt.Sprintf(
-				"%s %s %s",
-				lipgloss.NewStyle().Inherit(finalErrorStyle).Underline(true).Render("ERROR"),
-				arrowStyle.Render("►"),
-				finalErrorStyle.Render(err.Error()),
+	{
+		style := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644")).Background(lipgloss.Color("#000000")).Bold(false)
+		// This is the last error in a tree.
+		p.wrappedPrintf(
+			"%s",
+			p.prefixLines(
+				len(padding)+arrowWidth,
+				fmt.Sprintf(
+					"%s%s%s",
+					lipgloss.NewStyle().Inherit(style).Underline(true).Render("ERROR"),
+					lipgloss.NewStyle().Inherit(style).Foreground(arrowStyle.GetForeground()).Render(" ► "),
+					style.Render(err.Error()),
+				),
 			),
-		),
-	)
+		)
+	}
 }
 
 func (p *prettyErrorFormatter) wrappedPrintf(format string, a ...interface{}) {

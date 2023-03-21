@@ -44,6 +44,11 @@ func (e Environ) Lookup(name string) (string, bool) {
 	return "", false
 }
 
+func (e Environ) Get(name string) string {
+	v, _ := e.Lookup(name)
+	return v
+}
+
 func (e *Environ) Set(name, value string) {
 	for i, v := range *e {
 		if v.Name == name {

@@ -401,7 +401,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 				// DEPRECATED: This redirect used to default to true.
 				// It made more sense to have the redirect be opt-in.
-				if os.Getenv("CODER_TLS_REDIRECT_HTTP") == "true" || inv.ParsedFlags().Changed("tls-redirect-http-to-https") {
+				if inv.Environ.Get("CODER_TLS_REDIRECT_HTTP") == "true" || inv.ParsedFlags().Changed("tls-redirect-http-to-https") {
 					cliui.Warn(inv.Stderr, "--tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
 					cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
 				}
@@ -1115,7 +1115,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			switch {
 			case xerrors.Is(exitErr, context.DeadlineExceeded):
-				cliui.Warnf(inv.Stderr, "Graceful shutdown timed out, forcing exit")
+				cliui.Warnf(inv.Stderr, "Graceful shutdown timed out")
 				// Errors here cause a significant number of benign CI failures.
 				return nil
 			case xerrors.Is(exitErr, context.Canceled):

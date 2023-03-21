@@ -17,16 +17,16 @@ func (r *RootCmd) show() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(i *clibase.Invocation) error {
-			buildInfo, err := client.BuildInfo(i.Context())
+		Handler: func(inv *clibase.Invocation) error {
+			buildInfo, err := client.BuildInfo(inv.Context())
 			if err != nil {
 				return xerrors.Errorf("get server version: %w", err)
 			}
-			workspace, err := namedWorkspace(i.Context(), client, i.Args[0])
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
-			return cliui.WorkspaceResources(i.Stdout, workspace.LatestBuild.Resources, cliui.WorkspaceResourcesOptions{
+			return cliui.WorkspaceResources(inv.Stdout, workspace.LatestBuild.Resources, cliui.WorkspaceResourcesOptions{
 				WorkspaceName: workspace.Name,
 				ServerVersion: buildInfo.Version,
 			})
