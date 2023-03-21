@@ -1,5 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import { MockTemplate } from "testHelpers/entities"
+import { MockTemplate, MockTemplateVersion } from "testHelpers/entities"
 import {
   TemplatePageHeader,
   TemplatePageHeaderProps,
@@ -11,6 +11,9 @@ export default {
   argTypes: {
     template: {
       defaultValue: MockTemplate,
+    },
+    activeVersion: {
+      defaultValue: MockTemplateVersion,
     },
     permissions: {
       defaultValue: {

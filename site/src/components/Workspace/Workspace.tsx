@@ -42,8 +42,7 @@ export interface WorkspaceProps {
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
-  handleChangeVersion: () => void
-  handleBuildParameters: () => void
+  handleSettings: () => void
   isUpdating: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
@@ -55,7 +54,6 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
   template?: TypesGen.Template
-  templateParameters?: TypesGen.TemplateVersionParameter[]
   quota_budget?: number
 }
 
@@ -69,8 +67,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleDelete,
   handleUpdate,
   handleCancel,
-  handleChangeVersion,
-  handleBuildParameters,
+  handleSettings,
   workspace,
   isUpdating,
   resources,
@@ -82,7 +79,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   applicationsHost,
   template,
-  templateParameters,
   quota_budget,
 }) => {
   const styles = useStyles()
@@ -126,17 +122,13 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             />
             <WorkspaceActions
               workspaceStatus={workspace.latest_build.status}
-              hasTemplateParameters={
-                templateParameters ? templateParameters.length > 0 : false
-              }
               isOutdated={workspace.outdated}
               handleStart={handleStart}
               handleStop={handleStop}
               handleDelete={handleDelete}
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
-              handleChangeVersion={handleChangeVersion}
-              handleBuildParameters={handleBuildParameters}
+              handleSettings={handleSettings}
               isUpdating={isUpdating}
             />
           </Stack>

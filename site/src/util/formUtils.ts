@@ -69,10 +69,11 @@ export const getFormHelpers =
   }
 
 export const onChangeTrimmed =
-  <T>(form: FormikContextType<T>) =>
+  <T>(form: FormikContextType<T>, callback?: () => void) =>
   (event: ChangeEvent<HTMLInputElement>): void => {
     event.target.value = event.target.value.trim()
     form.handleChange(event)
+    callback && callback()
   }
 
 // REMARK: Keep these consts in sync with coderd/httpapi/httpapi.go

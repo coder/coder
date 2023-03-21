@@ -138,6 +138,9 @@ type Options struct {
 	DeploymentValues            *codersdk.DeploymentValues
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 
+	// SSHConfig is the response clients use to configure config-ssh locally.
+	SSHConfig codersdk.SSHConfigResponse
+
 	HTTPClient *http.Client
 }
 
@@ -163,6 +166,15 @@ func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}
 	}
+
+	if options.Authorizer == nil {
+		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+	}
+	options.Database = dbauthz.New(
+		options.Database,
+		options.Authorizer,
+		options.Logger.Named("authz_querier"),
+	)
 	experiments := initExperiments(
 		options.Logger, options.DeploymentValues.Experiments.Value(),
 	)
@@ -198,9 +210,6 @@ func New(options *Options) *API {
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
-	if options.Authorizer == nil {
-		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
-	}
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator()
 	}
@@ -210,13 +219,8 @@ func New(options *Options) *API {
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
 	}
-	// TODO: remove this once we promote authz_querier out of experiments.
-	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
-		options.Database = dbauthz.New(
-			options.Database,
-			options.Authorizer,
-			options.Logger.Named("authz_querier"),
-		)
+	if options.SSHConfig.HostnamePrefix == "" {
+		options.SSHConfig.HostnamePrefix = "coder."
 	}
 	if options.SetUserGroups == nil {
 		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
@@ -403,6 +407,7 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
+			r.Get("/ssh", api.sshConfig)
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -561,6 +566,7 @@ func New(options *Options) *API {
 						r.Route("/tokens", func(r chi.Router) {
 							r.Post("/", api.postToken)
 							r.Get("/", api.tokens)
+							r.Get("/tokenconfig", api.tokenConfig)
 							r.Route("/{keyname}", func(r chi.Router) {
 								r.Get("/", api.apiKeyByName)
 							})
@@ -827,6 +833,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
 		AccessURL:             api.AccessURL,
 		ID:                    daemon.ID,
+		OIDCConfig:            api.OIDCConfig,
 		Database:              api.Database,
 		Pubsub:                api.Pubsub,
 		Provisioners:          daemon.Provisioners,

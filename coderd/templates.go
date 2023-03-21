@@ -39,11 +39,6 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, api.Database, []database.Template{template})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -78,11 +73,6 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 	aReq.Old = template
-
-	if !api.Authorize(r, rbac.ActionDelete, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	// This is just to get the workspace count, so we use a system context to
 	// return ALL workspaces. Not just workspaces the user can view.
@@ -155,11 +145,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	)
 	defer commitTemplateAudit()
 	defer commitTemplateVersionAudit()
-
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(organization.ID)) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	if !httpapi.Read(ctx, rw, r, &createTemplate) {
 		return
@@ -461,11 +446,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 	aReq.Old = template
-
-	if !api.Authorize(r, rbac.ActionUpdate, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	var req codersdk.UpdateTemplateMeta
 	if !httpapi.Read(ctx, rw, r, &req) {

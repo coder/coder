@@ -70,7 +70,11 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.AuditableGroup:
 		return typed.Group.Name
 	case database.APIKey:
-		// this isn't used
+		if typed.TokenName != "nil" {
+			return typed.TokenName
+		}
+		// API Keys without names are used for auth
+		// and don't have a target
 		return ""
 	case database.License:
 		return strconv.Itoa(int(typed.ID))
@@ -159,8 +163,10 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		}
 
 		diffRaw := []byte("{}")
-		// Only generate diffs if the request succeeded.
-		if sw.Status < 400 {
+		// Only generate diffs if the request succeeded
+		// and only if we aren't auditing authentication actions
+		if sw.Status < 400 &&
+			req.params.Action != database.AuditActionLogin && req.params.Action != database.AuditActionLogout {
 			diff := Diff(p.Audit, req.Old, req.New)
 
 			var err error

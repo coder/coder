@@ -76,3 +76,20 @@ WithUpdateTemplateError.args = {
   onSubmit: action("onSubmit"),
   onCancel: action("cancel"),
 }
+
+export const WithJobError = TemplateVariables.bind({})
+WithJobError.args = {
+  templateVersion: MockTemplateVersion,
+  templateVariables: [
+    MockTemplateVersionVariable1,
+    MockTemplateVersionVariable2,
+    MockTemplateVersionVariable3,
+    MockTemplateVersionVariable4,
+  ],
+  errors: {
+    jobError:
+      "template import provision for start: recv import provision: plan terraform: terraform plan: exit status 1",
+  },
+  onSubmit: action("onSubmit"),
+  onCancel: action("cancel"),
+}

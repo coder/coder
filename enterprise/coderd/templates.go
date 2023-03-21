@@ -32,11 +32,6 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		template = httpmw.TemplateParam(r)
 	)
 
-	if !api.Authorize(r, rbac.ActionRead, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	users, err := api.Database.GetTemplateUserRoles(ctx, template.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -119,13 +114,6 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 	aReq.Old = template
-
-	// Only users who are able to create templates (aka template admins)
-	// are able to control permissions.
-	if !api.Authorize(r, rbac.ActionCreate, template) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	var req codersdk.UpdateTemplateACL
 	if !httpapi.Read(ctx, rw, r, &req) {
