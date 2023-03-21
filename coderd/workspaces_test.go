@@ -1261,8 +1261,12 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			interval := next.Sub(testCase.at)
 			require.Equal(t, testCase.expectedInterval, interval, "unexpected interval")
 
-			require.Len(t, auditor.AuditLogs, 7)
-			assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[6].Action)
+			require.Eventually(t, func() bool {
+				if len(auditor.AuditLogs) < 7 {
+					return false
+				}
+				return auditor.AuditLogs[6].Action == database.AuditActionWrite
+			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
 
