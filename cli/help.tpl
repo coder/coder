@@ -23,13 +23,16 @@ Usage: {{.FullUsage}}
 {{- else }}
 {{- end }}
     {{- range $index, $option := $group.Options }}
-    {{- with flagName $option }}
-    --{{- . -}} {{ end }} {{- with $option.FlagShorthand }}, -{{- . -}} {{ end }}
-    {{- with envName $option }}, ${{- . -}} {{ end }}
-    {{- with $option.Default }} (default: {{ . }}) {{ end }} {{- with typeHelper $option }} {{- . -}} {{ end }}
+	{{- if not (eq $option.FlagShorthand "") }}{{- print "\n  -" $option.FlagShorthand ", " -}}
+	{{- else }}{{- print "\n      " -}}
+	{{- end }}
+    {{- with flagName $option }}--{{ . }}{{ end }}
+    {{- with envName $option }}, ${{ . }}{{ end }}
+    {{- with $option.Default }} (default: {{ . }}){{ end }}
+	{{- with typeHelper $option }} {{ . }}{{ end }}
         {{- with $option.Description }}
             {{- $desc := $option.Description }}
-{{ indent $desc 2 }}
+{{ indent $desc 10 }}
 {{- if isDeprecated $option }} DEPRECATED {{ end }}
         {{- end -}}
     {{- end }}

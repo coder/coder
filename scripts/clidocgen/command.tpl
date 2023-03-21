@@ -1,7 +1,7 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # {{ fullName . }}
 
-{{ with .Short }} 
+{{ with .Short }}
 {{ . }}
 
 {{ end }}
@@ -33,9 +33,9 @@
 {{- if eq $index 0 }}
 ## Options
 {{- end }}
-### --{{ $opt.Flag }}{{ with $opt.FlagShorthand}}, -{{ . }}{{end}}
+### {{ with $opt.FlagShorthand}}-{{ . }}, {{end}}--{{ $opt.Flag }}
 {{" "}}
-{{ $printedHeader := false }} 
+{{ $printedHeader := false }}
 {{- with $opt.Env }}
 {{- if not $printedHeader }} {{ tableHeader }} {{ $printedHeader = true}} {{ end }}
 | Environment | {{ (print "$" .) | wrapCode }} |

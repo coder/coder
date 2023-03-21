@@ -60,10 +60,10 @@ var usageTemplate = template.Must(
 					return ""
 				}
 			},
-			"indent": func(body string, tabs int) string {
+			"indent": func(body string, spaces int) string {
 				twidth := ttyWidth()
 
-				spacing := strings.Repeat(" ", tabs*4)
+				spacing := strings.Repeat(" ", spaces)
 
 				body = wordwrap.WrapString(body, uint(twidth-len(spacing)))
 
