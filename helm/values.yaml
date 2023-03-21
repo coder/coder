@@ -13,7 +13,7 @@ coder:
     # if not set. If you're using the chart directly from git, the default
     # app version will not work and you'll need to set this value. The helm
     # chart helpfully fails quickly in this case.
-    tag: ""
+    tag: "0.19.2"
     # coder.image.pullPolicy -- The pull policy to use for the image. See:
     # https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
     pullPolicy: IfNotPresent
@@ -32,7 +32,13 @@ coder:
 
   # coder.annotations -- The Deployment annotations. See:
   # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
-  annotations: {}
+  annotations:
+    imageregistry: "https://hub.docker.com/"
+
+  # coder.podAnnotations -- The Coder pod annotations. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  podAnnotations:
+    imageregistry: "https://hub.docker.com/"
 
   # coder.labels -- The Deployment labels. See:
   # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
