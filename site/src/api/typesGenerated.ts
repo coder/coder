@@ -1047,7 +1047,6 @@ export interface WorkspaceAgent {
   readonly startup_script_timeout_seconds: number
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
-  readonly metadata: WorkspaceAgentMetadataResult[]
 }
 
 // From codersdk/workspaceagentconn.go

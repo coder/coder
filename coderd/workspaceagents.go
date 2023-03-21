@@ -1086,7 +1086,96 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 		slog.F("key", datum.Key),
 	)
 
+	err = api.Pubsub.Publish(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), []byte(datum.Key))
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
+// @Summary Watch for workspace agent metadata updates
+// @ID watch-workspace-agent-metadata
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Agents
+// @Success 200 "Success"
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Router /workspaceagents/{workspaceagent}/watch-metadata [get]
+// @x-apidocgen {"skip": true}
+func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx            = r.Context()
+		workspaceAgent = httpmw.WorkspaceAgentParam(r)
+	)
+
+	sendEvent, senderClosed, err := httpapi.ServerSentEventSender(rw, r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error setting up server-sent events.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Prevent handler from returning until the sender is closed.
+	defer func() {
+		<-senderClosed
+	}()
+
+	// We don't want this intentionally long request to skew our tracing
+	// reports.
+	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
+
+	sendMetadata := func(ctx context.Context) {
+		data, err := api.Database.GetWorkspaceAgentMetadata(ctx, workspaceAgent.ID)
+		if err != nil {
+			_ = sendEvent(ctx, codersdk.ServerSentEvent{
+				Type: codersdk.ServerSentEventTypeError,
+				Data: codersdk.Response{
+					Message: "Internal getting metadata.",
+					Detail:  err.Error(),
+				},
+			})
+			return
+		}
+		_ = sendEvent(ctx, codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeData,
+			Data: convertWorkspaceAgentMetadata(data),
+		})
+	}
+
+	// Send initial metadata.
+	sendMetadata(ctx)
+
+	// Send metadata on updates.
+	cancelSub, err := api.Pubsub.Subscribe(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(ctx context.Context, _ []byte) {
+		sendMetadata(ctx)
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	defer cancelSub()
+
+	<-senderClosed
+}
+
+func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadataResult {
+	var result []codersdk.WorkspaceAgentMetadataResult
+	for _, datum := range db {
+		result = append(result, codersdk.WorkspaceAgentMetadataResult{
+			Key:         datum.Key,
+			Value:       datum.Value,
+			Error:       datum.Error,
+			CollectedAt: datum.CollectedAt,
+		})
+	}
+	return result
+}
+
+func watchWorkspaceAgentMetadataChannel(id uuid.UUID) string {
+	return "workspace_agent_metadata:" + id.String()
 }
 
 // @Summary Submit workspace agent lifecycle state

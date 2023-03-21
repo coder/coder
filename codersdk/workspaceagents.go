@@ -18,6 +18,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/retry"
 )
@@ -259,6 +260,53 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	}
 
 	return agentConn, nil
+}
+
+func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) (<-chan []WorkspaceAgentMetadataResult, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	//nolint:bodyclose
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/watch-metadata", id), nil)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	nextEvent := ServerSentEventReader(ctx, res.Body)
+
+	ch := make(chan []WorkspaceAgentMetadataResult, 256)
+	go func() {
+		defer close(ch)
+		defer res.Body.Close()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				sse, err := nextEvent()
+				if err != nil {
+					return
+				}
+				if sse.Type != ServerSentEventTypeData {
+					continue
+				}
+				var met []WorkspaceAgentMetadataResult
+				b, ok := sse.Data.([]byte)
+				if !ok {
+					return
+				}
+				err = json.Unmarshal(b, &met)
+				if err != nil {
+					return
+				}
+				ch <- met
+			}
+		}
+	}()
+
+	return ch, nil
 }
 
 // WorkspaceAgent returns an agent by ID.

@@ -1149,6 +1149,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
+	agentID := uuid.New()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:         echo.ParseComplete,
 		ProvisionPlan: echo.ProvisionComplete,
@@ -1159,7 +1160,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 						Name: "example",
 						Type: "aws_instance",
 						Agents: []*proto.Agent{{
-							Id: uuid.NewString(),
+							Id: agentID.String(),
 							Auth: &proto.Agent_Token{
 								Token: authToken,
 							},
@@ -1186,15 +1187,23 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	ctx, cancel := testutil.Context(t)
 	defer cancel()
 
-	err := agentClient.PostMetadata(ctx, codersdk.WorkspaceAgentMetadataResult{
+	wantMetadata := codersdk.WorkspaceAgentMetadataResult{
 		CollectedAt: time.Now(),
 		Key:         "foo",
 		Value:       "bar",
-	})
+	}
+	err := agentClient.PostMetadata(ctx, wantMetadata)
 	require.NoError(t, err, "post metadata", t)
 
 	workspace, err = client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "get workspace")
 
 	t.Logf("%+v", workspace.LatestBuild.Resources[0])
+
+	updates, err := client.WatchWorkspaceAgentMetadata(ctx, agentID)
+	require.NoError(t, err)
+
+	update := <-updates
+	require.Len(t, update, 1)
+	require.Equal(t, wantMetadata, update[0])
 }

@@ -2687,6 +2687,19 @@ func (q *fakeQuerier) InsertOrUpdateWorkspaceAgentMetadata(_ context.Context, ar
 	return nil
 }
 
+func (q *fakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	metadata := make([]database.WorkspaceAgentMetadatum, 0)
+	for _, m := range q.workspaceAgentMetadata {
+		if m.WorkspaceAgentID == workspaceAgentID {
+			metadata = append(metadata, m)
+		}
+	}
+	return metadata, nil
+}
+
 func (q *fakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParams) (database.File, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.File{}, err

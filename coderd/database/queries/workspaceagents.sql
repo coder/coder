@@ -110,3 +110,11 @@ ON CONFLICT (workspace_agent_id, key) DO UPDATE SET
 	value = $4,
 	error = $5,
 	collected_at = $6;
+
+-- name: GetWorkspaceAgentMetadata :many
+SELECT
+	*
+FROM
+	workspace_agent_metadata
+WHERE
+	workspace_agent_id = $1;

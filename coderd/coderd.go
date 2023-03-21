@@ -618,6 +618,7 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
+				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadata)
 				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
