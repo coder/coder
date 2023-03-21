@@ -10,6 +10,7 @@ import * as API from "api/api"
 import { FileTree, traverse } from "util/filetree"
 import { isAllowedFile } from "util/templateVersion"
 import { TarReader, TarWriter } from "util/tar"
+import { PublishVersionData } from "pages/TemplateVersionPage/TemplateVersionEditorPage/types"
 
 export interface CreateVersionData {
   file: File
@@ -41,7 +42,10 @@ export const templateVersionEditorMachine = createMachine(
           }
         | { type: "CANCEL_VERSION" }
         | { type: "ADD_BUILD_LOG"; log: ProvisionerJobLog }
-        | { type: "UPDATE_ACTIVE_VERSION" },
+        | { type: "PUBLISH" }
+        | ({ type: "CONFIRM_PUBLISH" } & PublishVersionData)
+        | { type: "CANCEL_PUBLISH" },
+
       services: {} as {
         uploadTar: {
           data: UploadResponse
@@ -58,7 +62,7 @@ export const templateVersionEditorMachine = createMachine(
         getResources: {
           data: WorkspaceResource[]
         }
-        updateActiveVersion: {
+        publishingVersion: {
           data: void
         }
       },
@@ -80,18 +84,24 @@ export const templateVersionEditorMachine = createMachine(
             actions: ["assignCreateBuild"],
             target: "cancelingBuild",
           },
-          UPDATE_ACTIVE_VERSION: {
-            target: "updatingActiveVersion",
+          PUBLISH: {
+            target: "askPublishParameters",
           },
         },
       },
-      updatingActiveVersion: {
+      askPublishParameters: {
+        on: {
+          CANCEL_PUBLISH: "idle",
+          CONFIRM_PUBLISH: "publishingVersion",
+        },
+      },
+      publishingVersion: {
         tags: "loading",
         invoke: {
-          id: "updateActiveVersion",
-          src: "updateActiveVersion",
+          id: "publishingVersion",
+          src: "publishingVersion",
           onDone: {
-            target: "idle",
+            actions: ["onPublish"],
           },
         },
       },
@@ -321,16 +331,29 @@ export const templateVersionEditorMachine = createMachine(
           await API.cancelTemplateVersionBuild(ctx.version.id)
         }
       },
-      updateActiveVersion: async (ctx) => {
-        if (!ctx.templateId) {
+      publishingVersion: async (
+        { orgId, templateId, uploadResponse },
+        { name, isActiveVersion },
+      ) => {
+        if (!templateId) {
           throw new Error("template must be set")
         }
-        if (!ctx.version) {
-          throw new Error("template version must be set")
+        if (!uploadResponse) {
+          throw new Error("upload response must be set")
         }
-        await API.updateActiveTemplateVersion(ctx.templateId, {
-          id: ctx.version.id,
+        const newestVersion = await API.createTemplateVersion(orgId, {
+          name,
+          provisioner: "terraform",
+          storage_method: "file",
+          tags: {},
+          template_id: templateId,
+          file_id: uploadResponse.hash,
         })
+        if (isActiveVersion) {
+          await API.updateActiveTemplateVersion(templateId, {
+            id: newestVersion.id,
+          })
+        }
       },
     },
   },
