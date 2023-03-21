@@ -1402,8 +1402,12 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 
 			require.Equal(t, testCase.ttlMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
 
-			require.Len(t, auditor.AuditLogs, 7)
-			assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[6].Action)
+			require.Eventually(t, func() bool {
+				if len(auditor.AuditLogs) != 7 {
+					return false
+				}
+				return auditor.AuditLogs[6].Action == database.AuditActionWrite
+			}, testutil.WaitMedium, testutil.IntervalFast, "expected audit log to be written")
 		})
 	}
 

@@ -915,7 +915,9 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 			// to start up.
 			workspaceAgent.Status = codersdk.WorkspaceAgentConnecting
 		}
-	case dbAgent.DisconnectedAt.Time.After(dbAgent.LastConnectedAt.Time):
+	// We check before instead of after because last connected at and
+	// disconnected at can be equal timestamps in tight-timed tests.
+	case !dbAgent.DisconnectedAt.Time.Before(dbAgent.LastConnectedAt.Time):
 		// If we've disconnected after our last connection, we know the
 		// agent is no longer connected.
 		workspaceAgent.Status = codersdk.WorkspaceAgentDisconnected
