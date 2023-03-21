@@ -517,7 +517,7 @@ coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) 
 update-golden-files: cli/testdata/.gen-golden helm/tests/testdata/.gen-golden
 .PHONY: update-golden-files
 
-cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(GO_SRC_FILES)
+cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES)
 	go test ./cli -run=TestCommandHelp -update
 	touch "$@"
 

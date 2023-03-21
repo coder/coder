@@ -25,8 +25,8 @@ Usage: {{.FullUsage}}
     {{- range $index, $option := $group.Options }}
     {{- with flagName $option }}
     --{{- . -}} {{ end }} {{- with $option.FlagShorthand }}, -{{- . -}} {{ end }}
-    {{- with envName $option }}, ${{ . }} {{ end }}
-    {{- with $option.Default }} (default: {{ . }}) {{ end }} {{- with typeHelper $option }} {{ . }} {{ end }}
+    {{- with envName $option }}, ${{- . -}} {{ end }}
+    {{- with $option.Default }} (default: {{ . }}) {{ end }} {{- with typeHelper $option }} {{- . -}} {{ end }}
         {{- with $option.Description }}
             {{- $desc := $option.Description }}
 {{ indent $desc 2 }}
