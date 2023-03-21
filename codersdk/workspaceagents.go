@@ -143,10 +143,11 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	}
 
 	ip := tailnet.IP()
+	header := c.DERPHeader.Clone()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:      []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:        connInfo.DERPMap,
-		DERPHeader:     c.DERPHeader,
+		DERPHeader:     &header,
 		Logger:         options.Logger,
 		BlockEndpoints: options.BlockEndpoints,
 	})

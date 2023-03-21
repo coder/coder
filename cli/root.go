@@ -346,7 +346,6 @@ func createUnauthenticatedClient(cmd *cobra.Command, serverURL *url.URL) (*coder
 
 	client.HTTPClient.Transport = transport
 	client.DERPHeader = &http.Header{}
-
 	for header, value := range transport.headers {
 		client.DERPHeader.Set(header, value)
 	}
