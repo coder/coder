@@ -378,6 +378,10 @@ github.com/coder/ssh v0.0.0-20220811105153-fcea99919338 h1:tN5GKFT68YLVzJoA8AHui
 github.com/coder/ssh v0.0.0-20220811105153-fcea99919338/go.mod h1:ZSS+CUoKHDrqVakTfTWUlKSr9MtMFkC4UvtQKD7O914=
 github.com/coder/tailscale v1.1.1-0.20230314023417-d9efcc0ac972 h1:193YGsJz8hc4yxqAclE36paKl+9CQ6KGLgdleIguCVE=
 github.com/coder/tailscale v1.1.1-0.20230314023417-d9efcc0ac972/go.mod h1:jpg+77g19FpXL43U1VoIqoSg1K/Vh5CVxycGldQ8KhA=
+github.com/coder/tailscale v1.1.1-0.20230321164649-3362540e3026 h1:6YnWw08eQEGc/7KyweGWP8urOb9TDlo6S35ZqNm8qsQ=
+github.com/coder/tailscale v1.1.1-0.20230321164649-3362540e3026/go.mod h1:jpg+77g19FpXL43U1VoIqoSg1K/Vh5CVxycGldQ8KhA=
+github.com/coder/tailscale v1.1.1-0.20230321171725-fed359a0cafa h1:EjRGgTz7BUECmbV8jHTi1/rKdDjJESGSlm1Jp7evvCQ=
+github.com/coder/tailscale v1.1.1-0.20230321171725-fed359a0cafa/go.mod h1:jpg+77g19FpXL43U1VoIqoSg1K/Vh5CVxycGldQ8KhA=
 github.com/coder/terraform-provider-coder v0.6.20 h1:bVyITX9JlbnGzKzTj0qi/JziUCGqD2DiN3cXaWyDcxE=
 github.com/coder/terraform-provider-coder v0.6.20/go.mod h1:UIfU3bYNeSzJJvHyJ30tEKjD6Z9utloI+HUM/7n94CY=
 github.com/containerd/aufs v0.0.0-20200908144142-dab0cbea06f4/go.mod h1:nukgQABAEopAHvB6j7cnP5zJ+/3aVcE7hCYqvIwAHyE=
