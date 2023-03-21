@@ -1334,3 +1334,38 @@ func TestTemplateVersionVariables(t *testing.T) {
 		require.Equal(t, "*redacted*", actualVariables[0].Value)
 	})
 }
+
+func TestTemplateVersionPatch(t *testing.T) {
+	t.Parallel()
+	t.Run("Update the name", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		updatedVersion, err := client.UpdateTemplateVersion(ctx, version.ID, codersdk.PatchTemplateVersionRequest{
+			Name: "new name",
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, updatedVersion.Name, "new name")
+	})
+
+	t.Run("Use the same name if a new name is not passed", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		updatedVersion, err := client.UpdateTemplateVersion(ctx, version.ID, codersdk.PatchTemplateVersionRequest{})
+
+		require.NoError(t, err)
+		require.Equal(t, updatedVersion.Name, version.Name)
+	})
+}

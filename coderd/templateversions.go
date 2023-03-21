@@ -79,6 +79,9 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
+	if params.Name == "" {
+		params.Name = templateVersion.Name
+	}
 	templateVersion, err := api.Database.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
 		ID:   templateVersion.ID,
 		Name: params.Name,

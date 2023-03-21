@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"math"
 	"net/http"
 	"os"
@@ -199,7 +198,7 @@ func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 		return r == ' ' || r == '='
 	})
 	if idx == -1 {
-		return "", "", xerrors.New(fmt.Sprintf("invalid config-ssh option %q", opt))
+		return "", "", xerrors.Errorf("invalid config-ssh option %q", opt)
 	}
 	return opt[:idx], opt[idx+1:], nil
 }
