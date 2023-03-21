@@ -40,7 +40,6 @@ func TestCommandHelp(t *testing.T) {
 	type testCase struct {
 		name string
 		cmd  []string
-		env  map[string]string
 	}
 	tests := []testCase{
 		{
@@ -50,9 +49,6 @@ func TestCommandHelp(t *testing.T) {
 		{
 			name: "coder server --help",
 			cmd:  []string{"server", "--help"},
-			env: map[string]string{
-				"CACHE_DIRECTORY": "~/.cache/",
-			},
 		},
 		{
 			name: "coder agent --help",
@@ -95,9 +91,7 @@ ExtractCommandPathsLoop:
 			inv.Stdout = &outBuf
 			inv.Environ.Set("CODER_URL", rootClient.URL.String())
 			inv.Environ.Set("CODER_SESSION_TOKEN", rootClient.SessionToken())
-			for k, v := range tt.env {
-				inv.Environ.Set(k, v)
-			}
+			inv.Environ.Set("CODER_CACHE_DIRECTORY", "~/.cache")
 
 			clitest.SetupConfig(t, rootClient, cfg)
 
