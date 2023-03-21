@@ -291,7 +291,7 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		_, updated, err := refreshGitToken(ctx, api.Database, apiKey.UserID, config, authLink)
+		_, updated, err := config.RefreshToken(ctx, api.Database, authLink)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to refresh git auth token.",

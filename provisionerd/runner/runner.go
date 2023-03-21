@@ -1010,6 +1010,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				ParameterValues:     r.job.GetWorkspaceBuild().ParameterValues,
 				RichParameterValues: r.job.GetWorkspaceBuild().RichParameterValues,
 				VariableValues:      r.job.GetWorkspaceBuild().VariableValues,
+				GitAuthProviders:    r.job.GetWorkspaceBuild().GitAuthProviders,
 			},
 		},
 	})
