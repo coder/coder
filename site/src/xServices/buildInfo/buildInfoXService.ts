@@ -53,7 +53,7 @@ export const buildInfoMachine = createMachine(
   },
   {
     services: {
-      getBuildInfo: () => {
+      getBuildInfo: async () => {
         // Build info is injected by the Coder server into the HTML document.
         const buildInfo = document.querySelector("meta[property=build-info]")
         if (buildInfo) {
