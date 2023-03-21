@@ -577,6 +577,11 @@ export interface PatchGroupRequest {
   readonly quota_allowance?: number
 }
 
+// From codersdk/templateversions.go
+export interface PatchTemplateVersionRequest {
+  readonly name: string
+}
+
 // From codersdk/deployment.go
 export interface PprofConfig {
   readonly enable: boolean

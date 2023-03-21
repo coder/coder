@@ -84,14 +84,15 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
 
--- name: UpdateTemplateVersionByID :exec
+-- name: UpdateTemplateVersionByID :one
 UPDATE
 	template_versions
 SET
 	template_id = $2,
-	updated_at = $3
+	updated_at = $3,
+	name = $4
 WHERE
-	id = $1;
+	id = $1 RETURNING *;
 
 -- name: UpdateTemplateVersionDescriptionByJobID :exec
 UPDATE

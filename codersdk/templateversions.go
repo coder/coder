@@ -76,6 +76,10 @@ type TemplateVersionVariable struct {
 	Sensitive    bool   `json:"sensitive"`
 }
 
+type PatchTemplateVersionRequest struct {
+	Name string `json:"name"`
+}
+
 // TemplateVersion returns a template version by ID.
 func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVersion, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s", id), nil)
@@ -290,4 +294,16 @@ func (c *Client) PreviousTemplateVersion(ctx context.Context, organization uuid.
 	}
 	var version TemplateVersion
 	return version, json.NewDecoder(res.Body).Decode(&version)
+}
+
+func (c *Client) UpdateTemplateVersion(ctx context.Context, version, req PatchTemplateVersionRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templateversions/%s", version), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }

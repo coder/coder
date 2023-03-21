@@ -63,6 +63,35 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
 }
 
+// @Summary Patch template version by ID
+// @ID patch-template-version-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Success 200 {object} codersdk.TemplateVersion
+// @Router /templateversions/{templateversion} [patch]
+func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	templateVersion := httpmw.TemplateVersionParam(r)
+	var params codersdk.PatchTemplateVersionRequest
+	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+	templateVersion, err := api.Database.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
+		ID:   templateVersion.ID,
+		Name: params.Name,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error on patching template version.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusNoContent, templateVersion)
+}
+
 // @Summary Cancel template version by ID
 // @ID cancel-template-version-by-id
 // @Security CoderSessionToken
