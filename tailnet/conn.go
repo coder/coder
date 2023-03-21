@@ -161,7 +161,6 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	if !ok {
 		return nil, xerrors.New("get wireguard internals")
 	}
-
 	if options.DERPHeader != nil {
 		magicConn.SetDERPHeader(options.DERPHeader.Clone())
 	}

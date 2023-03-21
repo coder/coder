@@ -334,22 +334,16 @@ func createUnauthenticatedClient(cmd *cobra.Command, serverURL *url.URL) (*coder
 	}
 	transport := &headerTransport{
 		transport: http.DefaultTransport,
-		headers:   map[string]string{},
+		header:    http.Header{},
 	}
 	for _, header := range headers {
 		parts := strings.SplitN(header, "=", 2)
 		if len(parts) < 2 {
 			return nil, xerrors.Errorf("split header %q had less than two parts", header)
 		}
-		transport.headers[parts[0]] = parts[1]
+		transport.header.Add(parts[0], parts[1])
 	}
-
 	client.HTTPClient.Transport = transport
-	client.DERPHeader = &http.Header{}
-	for header, value := range transport.headers {
-		client.DERPHeader.Set(header, value)
-	}
-
 	return client, nil
 }
 
@@ -661,12 +655,18 @@ func checkWarnings(cmd *cobra.Command, client *codersdk.Client) error {
 
 type headerTransport struct {
 	transport http.RoundTripper
-	headers   map[string]string
+	header    http.Header
+}
+
+func (h *headerTransport) Header() http.Header {
+	return h.header.Clone()
 }
 
 func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	for k, v := range h.headers {
-		req.Header.Add(k, v)
+	for k, v := range h.header {
+		for _, vv := range v {
+			req.Header.Add(k, vv)
+		}
 	}
 	return h.transport.RoundTrip(req)
 }

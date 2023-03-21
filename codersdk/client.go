@@ -79,8 +79,6 @@ type Client struct {
 	HTTPClient *http.Client
 	URL        *url.URL
 
-	DERPHeader *http.Header
-
 	// Logger is optionally provided to log requests.
 	// Method, URL, and response code will be logged by default.
 	Logger slog.Logger
