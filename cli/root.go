@@ -394,7 +394,7 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				}
 			}
 
-			err = r.initClient(client, r.clientURL)
+			err = r.setClient(client, r.clientURL)
 			if err != nil {
 				return err
 			}
@@ -436,7 +436,7 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 	}
 }
 
-func (r *RootCmd) initClient(client *codersdk.Client, serverURL *url.URL) error {
+func (r *RootCmd) setClient(client *codersdk.Client, serverURL *url.URL) error {
 	transport := &headerTransport{
 		transport: http.DefaultTransport,
 		headers:   map[string]string{},
@@ -457,7 +457,7 @@ func (r *RootCmd) initClient(client *codersdk.Client, serverURL *url.URL) error 
 
 func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Client, error) {
 	var client codersdk.Client
-	err := r.initClient(&client, serverURL)
+	err := r.setClient(&client, serverURL)
 	return &client, err
 }
 
