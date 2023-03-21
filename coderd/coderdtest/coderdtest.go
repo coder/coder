@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -126,6 +125,8 @@ type Options struct {
 	Database database.Store
 	Pubsub   database.Pubsub
 
+	ConfigSSH codersdk.SSHConfigResponse
+
 	SwaggerEndpoint bool
 }
 
@@ -181,18 +182,18 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			close(options.AutobuildStats)
 		})
 	}
+
+	if options.Authorizer == nil {
+		options.Authorizer = &RecordingAuthorizer{
+			Wrapped: rbac.NewCachingAuthorizer(prometheus.NewRegistry()),
+		}
+	}
+
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
-	}
-	// TODO: remove this once we're ready to enable authz querier by default.
-	if strings.Contains(os.Getenv("CODER_EXPERIMENTS_TEST"), string(codersdk.ExperimentAuthzQuerier)) {
-		if options.Authorizer == nil {
-			options.Authorizer = &RecordingAuthorizer{
-				Wrapped: rbac.NewCachingAuthorizer(prometheus.NewRegistry()),
-			}
-		}
 		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	}
+
 	if options.DeploymentValues == nil {
 		options.DeploymentValues = DeploymentValues(t)
 	}
@@ -333,6 +334,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			UpdateCheckOptions:          options.UpdateCheckOptions,
 			SwaggerEndpoint:             options.SwaggerEndpoint,
 			AppSigningKey:               AppSigningKey,
+			SSHConfig:                   options.ConfigSSH,
 		}
 }
 

@@ -39,7 +39,6 @@ func templates() *cobra.Command {
 		templateEdit(),
 		templateInit(),
 		templateList(),
-		templatePlan(),
 		templatePush(),
 		templateVersions(),
 		templateDelete(),

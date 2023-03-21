@@ -25,6 +25,7 @@ import {
   WorkspaceEvent,
   workspaceMachine,
 } from "../../xServices/workspace/workspaceXService"
+import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog"
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
@@ -45,13 +46,13 @@ export const WorkspaceReadyPage = ({
   const {
     workspace,
     template,
-    templateParameters,
     builds,
     getBuildsError,
     buildError,
     cancellationError,
     applicationsHost,
     permissions,
+    missingParameters,
   } = workspaceState.context
   if (workspace === undefined) {
     throw Error("Workspace is undefined")
@@ -103,15 +104,14 @@ export const WorkspaceReadyPage = ({
             deadline,
           ),
         }}
-        isUpdating={workspaceState.hasTag("updating")}
+        isUpdating={workspaceState.matches("ready.build.requestingUpdate")}
         workspace={workspace}
         handleStart={() => workspaceSend({ type: "START" })}
         handleStop={() => workspaceSend({ type: "STOP" })}
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
         handleUpdate={() => workspaceSend({ type: "UPDATE" })}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
-        handleChangeVersion={() => navigate("change-version")}
-        handleBuildParameters={() => navigate("build-parameters")}
+        handleSettings={() => navigate("settings")}
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
@@ -125,7 +125,6 @@ export const WorkspaceReadyPage = ({
         buildInfo={buildInfo}
         applicationsHost={applicationsHost}
         template={template}
-        templateParameters={templateParameters}
         quota_budget={quotaState.context.quota?.budget}
       />
       <DeleteDialog
@@ -138,6 +137,18 @@ export const WorkspaceReadyPage = ({
         onCancel={() => workspaceSend({ type: "CANCEL_DELETE" })}
         onConfirm={() => {
           workspaceSend({ type: "DELETE" })
+        }}
+      />
+      <UpdateBuildParametersDialog
+        parameters={missingParameters}
+        open={workspaceState.matches(
+          "ready.build.askingForMissedBuildParameters",
+        )}
+        onClose={() => {
+          workspaceSend({ type: "CANCEL" })
+        }}
+        onUpdate={(buildParameters) => {
+          workspaceSend({ type: "UPDATE", buildParameters })
         }}
       />
     </>

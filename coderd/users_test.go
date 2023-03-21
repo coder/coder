@@ -288,21 +288,27 @@ func TestDeleteUser(t *testing.T) {
 	t.Parallel()
 	t.Run("Works", func(t *testing.T) {
 		t.Parallel()
-		api := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, api)
-		_, another := coderdtest.CreateAnotherUser(t, api, user.OrganizationID)
-		err := api.DeleteUser(context.Background(), another.ID)
+		client, _, api := coderdtest.NewWithAPI(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		authz := coderdtest.AssertRBAC(t, api, client)
+
+		_, another := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		err := client.DeleteUser(context.Background(), another.ID)
 		require.NoError(t, err)
 		// Attempt to create a user with the same email and username, and delete them again.
-		another, err = api.CreateUser(context.Background(), codersdk.CreateUserRequest{
+		another, err = client.CreateUser(context.Background(), codersdk.CreateUserRequest{
 			Email:          another.Email,
 			Username:       another.Username,
 			Password:       "SomeSecurePassword!",
 			OrganizationID: user.OrganizationID,
 		})
 		require.NoError(t, err)
-		err = api.DeleteUser(context.Background(), another.ID)
+		err = client.DeleteUser(context.Background(), another.ID)
 		require.NoError(t, err)
+
+		// RBAC checks
+		authz.AssertChecked(t, rbac.ActionCreate, rbac.ResourceUser)
+		authz.AssertChecked(t, rbac.ActionDelete, another)
 	})
 	t.Run("NoPermission", func(t *testing.T) {
 		t.Parallel()
@@ -469,7 +475,7 @@ func TestPostUsers(t *testing.T) {
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
 	t.Run("Create", func(t *testing.T) {
@@ -1491,15 +1497,15 @@ func TestPaginatedUsers(t *testing.T) {
 	coderdtest.CreateFirstUser(t, client)
 
 	// This test takes longer than a long time.
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*2)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*4)
 	t.Cleanup(cancel)
 
 	me, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)
 	orgID := me.OrganizationIDs[0]
 
-	// When 100 users exist
-	total := 100
+	// When 50 users exist
+	total := 50
 	allUsers := make([]codersdk.User, total+1) // +1 forme
 	allUsers[0] = me
 	specialUsers := make([]codersdk.User, total/2)

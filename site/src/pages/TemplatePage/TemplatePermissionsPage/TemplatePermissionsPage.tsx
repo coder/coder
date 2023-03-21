@@ -18,11 +18,10 @@ export const TemplatePermissionsPage: FC<
   React.PropsWithChildren<unknown>
 > = () => {
   const organizationId = useOrganizationId()
-  const { context } = useTemplateLayoutContext()
-  const { template, permissions } = context
+  const { template, permissions } = useTemplateLayoutContext()
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility()
   const [state, send] = useMachine(templateACLMachine, {
-    context: { templateId: template?.id },
+    context: { templateId: template.id },
   })
   const { templateACL, userToBeUpdated, groupToBeUpdated } = state.context
 

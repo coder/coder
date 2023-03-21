@@ -14,7 +14,7 @@ import {
   FormSection,
   HorizontalForm,
   FormFooter,
-} from "components/HorizontalForm/HorizontalForm"
+} from "components/Form/Form"
 import {
   SensitiveVariableHelperText,
   TemplateVariableField,

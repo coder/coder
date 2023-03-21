@@ -174,9 +174,13 @@ const useStyles = makeStyles<Theme, StyleProps>((theme) => ({
   },
   buttonRoot: {
     border: `1px solid ${theme.palette.divider}`,
-    borderRight: "0px",
     borderRadius: `${theme.shape.borderRadius}px 0px 0px ${theme.shape.borderRadius}px`,
     flexShrink: 0,
+    marginRight: -1,
+
+    "&:hover": {
+      zIndex: 1,
+    },
   },
   errorRoot: {
     color: theme.palette.error.main,
