@@ -796,6 +796,7 @@ flags, and YAML configuration. The precedence is as follows:
 					AllowSignups:        cfg.OIDC.AllowSignups.Value(),
 					UsernameField:       cfg.OIDC.UsernameField.String(),
 					GroupField:          cfg.OIDC.GroupField.String(),
+					GroupMapping:        cfg.OIDC.GroupMapping.Value,
 					SignInText:          cfg.OIDC.SignInText.String(),
 					IconURL:             cfg.OIDC.IconURL.String(),
 					IgnoreEmailVerified: cfg.OIDC.IgnoreEmailVerified.Value(),

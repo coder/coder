@@ -7138,6 +7138,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "group_mapping": {
+                    "type": "object"
+                },
                 "groups_field": {
                     "type": "string"
                 },

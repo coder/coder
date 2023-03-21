@@ -234,6 +234,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "client_id": "string",
       "client_secret": "string",
       "email_domain": ["string"],
+      "group_mapping": {},
       "groups_field": "string",
       "icon_url": {
         "forceQuery": true,

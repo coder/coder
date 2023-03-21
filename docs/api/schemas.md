@@ -1766,6 +1766,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "client_id": "string",
       "client_secret": "string",
       "email_domain": ["string"],
+      "group_mapping": {},
       "groups_field": "string",
       "icon_url": {
         "forceQuery": true,
@@ -2110,6 +2111,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "client_id": "string",
     "client_secret": "string",
     "email_domain": ["string"],
+    "group_mapping": {},
     "groups_field": "string",
     "icon_url": {
       "forceQuery": true,
@@ -2771,6 +2773,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "client_id": "string",
   "client_secret": "string",
   "email_domain": ["string"],
+  "group_mapping": {},
   "groups_field": "string",
   "icon_url": {
     "forceQuery": true,
@@ -2801,6 +2804,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `client_id`             | string                     | false    |              |             |
 | `client_secret`         | string                     | false    |              |             |
 | `email_domain`          | array of string            | false    |              |             |
+| `group_mapping`         | object                     | false    |              |             |
 | `groups_field`          | string                     | false    |              |             |
 | `icon_url`              | [clibase.URL](#clibaseurl) | false    |              |             |
 | `ignore_email_verified` | boolean                    | false    |              |             |

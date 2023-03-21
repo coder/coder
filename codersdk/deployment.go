@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"math"
 	"net/http"
 	"os"
@@ -199,7 +198,7 @@ func ParseSSHConfigOption(opt string) (key string, value string, err error) {
 		return r == ' ' || r == '='
 	})
 	if idx == -1 {
-		return "", "", fmt.Errorf("invalid config-ssh option %q", opt)
+		return "", "", xerrors.Errorf("invalid config-ssh option %q", opt)
 	}
 	return opt[:idx], opt[idx+1:], nil
 }
@@ -248,17 +247,18 @@ type OAuth2GithubConfig struct {
 }
 
 type OIDCConfig struct {
-	AllowSignups        clibase.Bool    `json:"allow_signups" typescript:",notnull"`
-	ClientID            clibase.String  `json:"client_id" typescript:",notnull"`
-	ClientSecret        clibase.String  `json:"client_secret" typescript:",notnull"`
-	EmailDomain         clibase.Strings `json:"email_domain" typescript:",notnull"`
-	IssuerURL           clibase.String  `json:"issuer_url" typescript:",notnull"`
-	Scopes              clibase.Strings `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified clibase.Bool    `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField       clibase.String  `json:"username_field" typescript:",notnull"`
-	GroupField          clibase.String  `json:"groups_field" typescript:",notnull"`
-	SignInText          clibase.String  `json:"sign_in_text" typescript:",notnull"`
-	IconURL             clibase.URL     `json:"icon_url" typescript:",notnull"`
+	AllowSignups        clibase.Bool                      `json:"allow_signups" typescript:",notnull"`
+	ClientID            clibase.String                    `json:"client_id" typescript:",notnull"`
+	ClientSecret        clibase.String                    `json:"client_secret" typescript:",notnull"`
+	EmailDomain         clibase.Strings                   `json:"email_domain" typescript:",notnull"`
+	IssuerURL           clibase.String                    `json:"issuer_url" typescript:",notnull"`
+	Scopes              clibase.Strings                   `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified clibase.Bool                      `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       clibase.String                    `json:"username_field" typescript:",notnull"`
+	GroupField          clibase.String                    `json:"groups_field" typescript:",notnull"`
+	GroupMapping        clibase.Struct[map[string]string] `json:"group_mapping" typescript:",notnull"`
+	SignInText          clibase.String                    `json:"sign_in_text" typescript:",notnull"`
+	IconURL             clibase.URL                       `json:"icon_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -874,6 +874,16 @@ when required by your organization's security policy.`,
 			Value:   &c.OIDC.GroupField,
 			Group:   &deploymentGroupOIDC,
 			YAML:    "groupField",
+		},
+		{
+			Name:        "OIDC Group Mapping",
+			Description: "A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.",
+			Flag:        "oidc-group-mapping",
+			Env:         "OIDC_GROUP_MAPPING",
+			Default:     "{}",
+			Value:       &c.OIDC.GroupMapping,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "groupMapping",
 		},
 		{
 			Name:        "OpenID Connect sign in text",

@@ -507,6 +507,9 @@ export interface OIDCConfig {
   readonly ignore_email_verified: boolean
   readonly username_field: string
   readonly groups_field: string
+  // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly group_mapping: any
   readonly sign_in_text: string
   readonly icon_url: string
 }
