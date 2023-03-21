@@ -326,7 +326,8 @@ func cspHeaders(next http.Handler) http.Handler {
 			CSPDirectiveScriptSrc: {"'self' https://cdn.jsdelivr.net"},
 			CSPDirectiveStyleSrc:  {"'self' 'unsafe-inline' https://cdn.jsdelivr.net"},
 			// data: is used by monaco editor on FE for Syntax Highlight
-			CSPDirectiveFontSrc: {"'self' data:"},
+			CSPDirectiveFontSrc:   {"'self' https://cdn.jsdelivr.net data:"},
+			CSPDirectiveWorkerSrc: {"'self' blob:"},
 			// object-src is needed to support code-server
 			CSPDirectiveObjectSrc: {"'self'"},
 			// blob: for loading the pwa manifest for code-server
