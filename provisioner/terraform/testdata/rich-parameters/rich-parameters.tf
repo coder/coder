@@ -20,6 +20,11 @@ data "coder_parameter" "example" {
   }
 }
 
+data "coder_parameter" "example2" {
+  type = "string"
+  description = "blah blah"
+}
+
 resource "coder_agent" "dev" {
   os   = "windows"
   arch = "arm64"
