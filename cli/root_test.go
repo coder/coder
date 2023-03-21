@@ -34,8 +34,8 @@ var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
 var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?Z`)
 
-//nolint:tparallel,paralleltest // These test sets env vars.
 func TestCommandHelp(t *testing.T) {
+	t.Parallel()
 	rootClient, replacements := prepareTestData(t)
 
 	type testCase struct {
@@ -71,6 +71,7 @@ func TestCommandHelp(t *testing.T) {
 
 	rootCmd := new(cli.RootCmd)
 	root := rootCmd.Command(rootCmd.AGPL())
+
 ExtractCommandPathsLoop:
 	for _, cp := range extractVisibleCommandPaths(nil, root.Children) {
 		name := fmt.Sprintf("coder %s --help", strings.Join(cp, " "))
@@ -92,41 +93,30 @@ ExtractCommandPathsLoop:
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			env := make(map[string]string)
-			for k, v := range tt.env {
-				env[k] = v
-			}
-
-			// Unset all CODER_ environment variables for a clean slate.
-			for _, kv := range os.Environ() {
-				name := strings.Split(kv, "=")[0]
-				if _, ok := env[name]; !ok && strings.HasPrefix(name, "CODER_") {
-					t.Setenv(name, "")
-				}
-			}
-			// Override environment variables for a reproducible test.
-			for k, v := range env {
-				t.Setenv(k, v)
-			}
-
+			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			tmpwd := "/"
-			if runtime.GOOS == "windows" {
-				tmpwd = "C:\\"
-			}
-			err := os.Chdir(tmpwd)
-			var buf bytes.Buffer
+			var outBuf bytes.Buffer
 			inv, cfg := clitest.New(t, tt.cmd...)
+			inv.Stderr = &outBuf
+			inv.Stdout = &outBuf
+			inv.Environ.Set("CODER_URL", rootClient.URL.String())
+			inv.Environ.Set("CODER_SESSION_TOKEN", rootClient.SessionToken())
+			for k, v := range tt.env {
+				inv.Environ.Set(k, v)
+			}
+
 			clitest.SetupConfig(t, rootClient, cfg)
-			inv.Stderr = &buf
-			assert.NoError(t, err)
+
 			err = inv.WithContext(ctx).Run()
 			err2 := os.Chdir(wd)
 			require.NoError(t, err)
 			require.NoError(t, err2)
 
-			actual := buf.Bytes()
+			actual := outBuf.Bytes()
+			if len(actual) == 0 {
+				t.Fatal("no output")
+			}
 
 			for k, v := range replacements {
 				actual = bytes.ReplaceAll(actual, []byte(k), []byte(v))
@@ -144,14 +134,14 @@ ExtractCommandPathsLoop:
 			// The home directory changes depending on the test environment.
 			actual = bytes.ReplaceAll(actual, []byte(homeDir), []byte("~"))
 
-			gf := filepath.Join("testdata", strings.Replace(tt.name, " ", "_", -1)+".golden")
+			goldenPath := filepath.Join("testdata", strings.Replace(tt.name, " ", "_", -1)+".golden")
 			if *updateGoldenFiles {
-				t.Logf("update golden file for: %q: %s", tt.name, gf)
-				err = os.WriteFile(gf, actual, 0o600)
+				t.Logf("update golden file for: %q: %s", tt.name, goldenPath)
+				err = os.WriteFile(goldenPath, actual, 0o600)
 				require.NoError(t, err, "update golden file")
 			}
 
-			expected, err := os.ReadFile(gf)
+			expected, err := os.ReadFile(goldenPath)
 			require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
 
 			// Normalize files to tolerate different operating systems.
@@ -170,7 +160,7 @@ ExtractCommandPathsLoop:
 			require.Equal(
 				t, string(expected), string(actual),
 				"golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes",
-				gf,
+				goldenPath,
 			)
 		})
 	}
