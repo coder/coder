@@ -49,7 +49,7 @@ against the (most likely single) IP.
           Do not clean up workspaces after the load test has finished. Useful
           for debugging.
 
-  -n, --no-plan, $CODER_SCALETEST_NO_PLAN
+      --no-plan, $CODER_SCALETEST_NO_PLAN
           Skip the dry-run step to plan the workspace
           creation. This step ensures that the given
           parameters are valid for the given template.

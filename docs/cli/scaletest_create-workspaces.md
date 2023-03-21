@@ -124,7 +124,7 @@ Timeout per job. Jobs may take longer to complete under higher concurrency limit
 
 Do not clean up workspaces after the load test has finished. Useful for debugging.
 
-### -n, --no-plan
+### --no-plan
 
 |             |                                       |
 | ----------- | ------------------------------------- |

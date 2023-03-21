@@ -136,6 +136,7 @@ func (r *RootCmd) ping() *clibase.Cmd {
 		{
 			Flag:        "wait",
 			Description: "Specifies how long to wait between pings.",
+			Default:     "1s",
 			Value:       clibase.DurationOf(&pingWait),
 		},
 		{

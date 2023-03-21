@@ -193,10 +193,9 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Value:       clibase.StringsOf(&variables),
 		},
 		{
-			Flag:          "provisioner-tag",
-			FlagShorthand: "t",
-			Description:   "Specify a set of tags to target provisioner daemons.",
-			Value:         clibase.StringsOf(&provisionerTags),
+			Flag:        "provisioner-tag",
+			Description: "Specify a set of tags to target provisioner daemons.",
+			Value:       clibase.StringsOf(&provisionerTags),
 		},
 		{
 			Flag:        "name",

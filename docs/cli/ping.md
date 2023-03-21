@@ -30,4 +30,8 @@ Specifies how long to wait for a ping to complete.
 
 ### --wait
 
+|         |                 |
+| ------- | --------------- |
+| Default | <code>1s</code> |
+
 Specifies how long to wait between pings.

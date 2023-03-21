@@ -17,7 +17,7 @@ Push a new template version from the current directory or as specified by flag
       --parameter-file
           Specify a file path with parameter values.
 
-  -t, --provisioner-tag
+      --provisioner-tag
           Specify a set of tags to target provisioner daemons.
 
       --variable

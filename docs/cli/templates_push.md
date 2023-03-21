@@ -32,7 +32,7 @@ Specify a name for the new template version. It will be automatically generated 
 
 Specify a file path with parameter values.
 
-### -t, --provisioner-tag
+### --provisioner-tag
 
 Specify a set of tags to target provisioner daemons.
 

@@ -847,9 +847,8 @@ It is recommended that all rate limits are disabled on the server before running
 			Value:       clibase.StringsOf(&parameters),
 		},
 		{
-			Flag:          "no-plan",
-			FlagShorthand: "n",
-			Env:           "CODER_SCALETEST_NO_PLAN",
+			Flag: "no-plan",
+			Env:  "CODER_SCALETEST_NO_PLAN",
 			Description: `Skip the dry-run step to plan the workspace
 creation. This step ensures that the given
 parameters are valid for the given template.`,

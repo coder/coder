@@ -9,7 +9,7 @@ Ping a workspace
   -t, --timeout (default: 5s)
           Specifies how long to wait for a ping to complete.
 
-      --wait
+      --wait (default: 1s)
           Specifies how long to wait between pings.
 
 ---

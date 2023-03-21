@@ -12,7 +12,7 @@ coder speedtest <workspace>
 
 ## Options
 
-### --d
+### -d, --direct
 
 |         |                    |
 | ------- | ------------------ |
