@@ -66,6 +66,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 // @Summary Patch template version by ID
 // @ID patch-template-version-by-id
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)

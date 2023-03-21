@@ -296,8 +296,8 @@ func (c *Client) PreviousTemplateVersion(ctx context.Context, organization uuid.
 	return version, json.NewDecoder(res.Body).Decode(&version)
 }
 
-func (c *Client) UpdateTemplateVersion(ctx context.Context, versionId uuid.UUID, req PatchTemplateVersionRequest) (TemplateVersion, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templateversions/%s", versionId), req)
+func (c *Client) UpdateTemplateVersion(ctx context.Context, versionID uuid.UUID, req PatchTemplateVersionRequest) (TemplateVersion, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templateversions/%s", versionID), req)
 	if err != nil {
 		return TemplateVersion{}, err
 	}
