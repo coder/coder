@@ -79,7 +79,7 @@ Time to hold the WireGuard connection open for.
 | Environment | <code>$CODER_SCALETEST_CONNECT_MODE</code> |
 | Default     | <code>derp</code>                          |
 
-WireGuard connection mode. Must be one of: derp, udp, tcp.
+WireGuard connection mode.
 
 ### --connect-timeout
 
@@ -88,7 +88,7 @@ WireGuard connection mode. Must be one of: derp, udp, tcp.
 | Environment | <code>$CODER_SCALETEST_CONNECT_TIMEOUT</code> |
 | Default     | <code>5s</code>                               |
 
-Timeout for the WireGuard connection to complete.
+Timeout for each request to the connect-url.
 
 ### --connect-url
 
@@ -130,7 +130,7 @@ Do not clean up workspaces after the load test has finished. Useful for debuggin
 | ----------- | ------------------------------------- |
 | Environment | <code>$CODER_SCALETEST_NO_PLAN</code> |
 
-Do not print a plan of the load test before running it.
+Skip the dry-run step to plan the workspace<br/>creation. This step ensures that the given<br/>parameters are valid for the given template.
 
 ### --no-wait-for-agents
 
@@ -138,7 +138,7 @@ Do not print a plan of the load test before running it.
 | ----------- | ------------------------------------------------ |
 | Environment | <code>$CODER_SCALETEST_NO_WAIT_FOR_AGENTS</code> |
 
-Do not wait for agents to be ready before starting the load test. Useful for debugging.
+Do not wait for agents to start before marking<br/>the test as succeeded. This can be useful if you<br/>are running the test against a template that does<br/>not start the agent quickly.
 
 ### --output
 

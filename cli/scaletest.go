@@ -850,8 +850,10 @@ It is recommended that all rate limits are disabled on the server before running
 			Flag:          "no-plan",
 			FlagShorthand: "n",
 			Env:           "CODER_SCALETEST_NO_PLAN",
-			Description:   "Do not print a plan of the load test before running it.",
-			Value:         clibase.BoolOf(&noPlan),
+			Description: `Skip the dry-run step to plan the workspace
+creation. This step ensures that the given
+parameters are valid for the given template.`,
+			Value: clibase.BoolOf(&noPlan),
 		},
 		{
 			Flag: "no-cleanup",
@@ -863,8 +865,10 @@ It is recommended that all rate limits are disabled on the server before running
 		{
 			Flag: "no-wait-for-agents",
 			Env:  "CODER_SCALETEST_NO_WAIT_FOR_AGENTS",
-			Description: "Do not wait for agents to be ready before starting the load test. " +
-				"Useful for debugging.",
+			Description: `Do not wait for agents to start before marking
+the test as succeeded. This can be useful if you
+are running the test against a template that does
+not start the agent quickly.`,
 			Value: clibase.BoolOf(&noWaitForAgents),
 		},
 		{
@@ -910,8 +914,8 @@ It is recommended that all rate limits are disabled on the server before running
 			Flag:        "connect-mode",
 			Env:         "CODER_SCALETEST_CONNECT_MODE",
 			Default:     "derp",
-			Description: "WireGuard connection mode. Must be one of: derp, udp, tcp.",
-			Value:       clibase.StringOf(&connectMode),
+			Description: "WireGuard connection mode.",
+			Value:       clibase.EnumOf(&connectMode, "derp", "direct"),
 		},
 		{
 			Flag:        "connect-hold",
@@ -930,7 +934,7 @@ It is recommended that all rate limits are disabled on the server before running
 			Flag:        "connect-timeout",
 			Env:         "CODER_SCALETEST_CONNECT_TIMEOUT",
 			Default:     "5s",
-			Description: "Timeout for the WireGuard connection to complete.",
+			Description: "Timeout for each request to the connect-url.",
 			Value:       clibase.DurationOf(&connectTimeout),
 		},
 	}
