@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/spf13/pflag"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 )
 
@@ -64,6 +65,10 @@ func (c *Cmd) PrepareAll() error {
 		return xerrors.New("command must have a Use field so that it has a name")
 	}
 	var merr error
+
+	slices.SortFunc(c.Options, func(a, b Option) bool {
+		return a.Flag < b.Flag
+	})
 	for _, opt := range c.Options {
 		if opt.Name == "" {
 			switch {
