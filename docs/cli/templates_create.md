@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# create
+# templates create
 
 Create a template from the current directory or as specified by flag
 

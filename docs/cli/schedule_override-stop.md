@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# override-stop
+# schedule override-stop
 
 Edit stop time of active workspace
 

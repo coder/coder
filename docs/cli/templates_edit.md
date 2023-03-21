@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# edit
+# templates edit
 
 Edit the metadata of a template by name.
 

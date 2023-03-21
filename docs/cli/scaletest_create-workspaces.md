@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# create-workspaces
+# scaletest create-workspaces
 
 Creates many workspaces and waits for them to be ready
 

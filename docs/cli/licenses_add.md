@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# add
+# licenses add
 
 Add license to Coder deployment
 

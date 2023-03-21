@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# create-admin-user
+# server create-admin-user
 
 Create a new admin user with the given username, email and password and adds it to every organization.
 

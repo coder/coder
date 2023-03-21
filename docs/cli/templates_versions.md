@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# versions
+# templates versions
 
 Manage different versions of the specified template
 

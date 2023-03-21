@@ -60,6 +60,7 @@ func init() {
 					".md",
 				)
 			},
+			"fullName": fullName,
 		},
 		).Parse(strings.TrimSpace(commandTemplateRaw)),
 	)

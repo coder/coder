@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# push
+# state push
 
 Push a Terraform state file to a workspace.
 

@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# plan
+# templates plan
 
 Plan a template push from the current directory
 

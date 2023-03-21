@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# list
+# templates list
 
 List all the templates available for the organization
 

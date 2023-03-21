@@ -21,9 +21,12 @@ func (r *RootCmd) userList() *clibase.Cmd {
 	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
-		Use:        "list",
-		Aliases:    []string{"ls"},
-		Middleware: clibase.Chain(r.InitClient(client)),
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(0),
+			r.InitClient(client),
+		),
 		Handler: func(inv *clibase.Invocation) error {
 			res, err := client.Users(inv.Context(), codersdk.UsersRequest{})
 			if err != nil {

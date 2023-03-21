@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# delete
+# templates delete
 
 Delete templates
 

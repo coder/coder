@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# show
+# users show
 
 Show a single user. Use 'me' to indicate the currently authenticated user.
 

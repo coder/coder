@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# list
+# licenses list
 
 List licenses (including expired)
 

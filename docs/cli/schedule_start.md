@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# start
+# schedule start
 
 Edit workspace start schedule
 

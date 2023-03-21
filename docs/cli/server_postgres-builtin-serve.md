@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# postgres-builtin-serve
+# server postgres-builtin-serve
 
 Run the built-in PostgreSQL deployment.
 

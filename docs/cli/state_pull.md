@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# pull
+# state pull
 
 Pull a Terraform state file from a workspace.
 

@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# cleanup
+# scaletest cleanup
 
 Cleanup any orphaned scaletest resources
 

@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# delete
+# groups delete
 
 Delete a user group
 

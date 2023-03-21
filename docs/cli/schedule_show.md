@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# show
+# schedule show
 
 Show workspace schedule
 

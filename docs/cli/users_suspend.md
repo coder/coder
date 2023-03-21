@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# suspend
+# users suspend
 
 Update a user's status to 'suspended'. A suspended user cannot log into the platform
 

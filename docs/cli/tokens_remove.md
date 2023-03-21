@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# remove
+# tokens remove
 
 Delete a token
 

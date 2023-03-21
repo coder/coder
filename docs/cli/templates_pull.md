@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# pull
+# templates pull
 
 Download the latest version of a template to a path.
 

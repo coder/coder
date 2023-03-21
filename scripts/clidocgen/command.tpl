@@ -1,5 +1,5 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# {{ .Name }}
+# {{ fullName . }}
 
 {{ with .Short }} 
 {{ . }}

@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# delete
+# licenses delete
 
 Delete license by ID
 
