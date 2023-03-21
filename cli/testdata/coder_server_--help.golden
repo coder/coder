@@ -10,7 +10,7 @@ Start a Coder server
     postgres-builtin-url      Output the connection URL for the built-in
                               PostgreSQL deployment.
 [1mOptions[0m
-      --cache-dir, $CODER_CACHE_DIRECTORY (default: ~/.cache/coder)
+      --cache-dir, $CODER_CACHE_DIRECTORY (default: [cache dir])
           The directory to cache temporary files. If unspecified and
           $CACHE_DIRECTORY is set, it will be used for compatibility with
           systemd.

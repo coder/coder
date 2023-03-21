@@ -116,6 +116,8 @@ ExtractCommandPathsLoop:
 			configDir := config.DefaultDir()
 			actual = bytes.ReplaceAll(actual, []byte(configDir), []byte("~/.config/coderv2"))
 
+			actual = bytes.ReplaceAll(actual, []byte(codersdk.DefaultCacheDir()), []byte("[cache dir]"))
+
 			// The home directory changes depending on the test environment.
 			actual = bytes.ReplaceAll(actual, []byte(homeDir), []byte("~"))
 
