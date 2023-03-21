@@ -1149,7 +1149,6 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
-	agentID := uuid.New()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:         echo.ParseComplete,
 		ProvisionPlan: echo.ProvisionComplete,
@@ -1160,7 +1159,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 						Name: "example",
 						Type: "aws_instance",
 						Agents: []*proto.Agent{{
-							Id: agentID.String(),
+							Id: uuid.NewString(),
 							Auth: &proto.Agent_Token{
 								Token: authToken,
 							},
@@ -1187,23 +1186,61 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	ctx, cancel := testutil.Context(t)
 	defer cancel()
 
-	wantMetadata := codersdk.WorkspaceAgentMetadataResult{
+	post := func(mr codersdk.WorkspaceAgentMetadataResult) {
+		err := agentClient.PostMetadata(ctx, mr)
+		require.NoError(t, err, "post metadata", t)
+	}
+
+	workspace, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err, "get workspace")
+
+	agentID := workspace.LatestBuild.Resources[0].Agents[0].ID
+
+	var update []codersdk.WorkspaceAgentMetadataResult
+
+	check := func(want codersdk.WorkspaceAgentMetadataResult, got codersdk.WorkspaceAgentMetadataResult) {
+		require.WithinDuration(t, want.CollectedAt, got.CollectedAt, time.Second)
+		require.Equal(t, want.Key, got.Key)
+		require.Equal(t, want.Value, got.Value)
+		require.Equal(t, want.Error, got.Error)
+	}
+
+	wantMetadata1 := codersdk.WorkspaceAgentMetadataResult{
 		CollectedAt: time.Now(),
 		Key:         "foo",
 		Value:       "bar",
 	}
-	err := agentClient.PostMetadata(ctx, wantMetadata)
-	require.NoError(t, err, "post metadata", t)
 
-	workspace, err = client.Workspace(ctx, workspace.ID)
-	require.NoError(t, err, "get workspace")
+	// Initial post must come before the Watch is established.
+	post(wantMetadata1)
 
-	t.Logf("%+v", workspace.LatestBuild.Resources[0])
+	updates, errors := client.WatchWorkspaceAgentMetadata(ctx, agentID)
 
-	updates, err := client.WatchWorkspaceAgentMetadata(ctx, agentID)
-	require.NoError(t, err)
+	recvUpdate := func() []codersdk.WorkspaceAgentMetadataResult {
+		select {
+		case err := <-errors:
+			t.Fatalf("error watching metadata: %v", err)
+			return nil
+		case update := <-updates:
+			return update
+		}
+	}
 
-	update := <-updates
+	update = recvUpdate()
 	require.Len(t, update, 1)
-	require.Equal(t, wantMetadata, update[0])
+	check(wantMetadata1, update[0])
+
+	wantMetadata2 := wantMetadata1
+	wantMetadata2.Key = wantMetadata1.Key + "2"
+	post(wantMetadata2)
+	update = recvUpdate()
+	require.Len(t, update, 2)
+	check(wantMetadata1, update[0])
+	check(wantMetadata2, update[1])
+
+	wantMetadata1.Error = "error"
+	post(wantMetadata1)
+	update = recvUpdate()
+	require.Len(t, update, 2)
+	check(wantMetadata1, update[0])
 }

@@ -262,51 +262,71 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	return agentConn, nil
 }
 
-func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) (<-chan []WorkspaceAgentMetadataResult, error) {
+// WatchWorkspaceAgentMetadata watches the metadata of a workspace agent.
+// The returned channel will be closed when the context is canceled. Exactly
+// one error will be sent on the error channel. The metadata channel is never closed.
+func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) (<-chan []WorkspaceAgentMetadataResult, <-chan error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	//nolint:bodyclose
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/watch-metadata", id), nil)
-	if err != nil {
-		return nil, err
-	}
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	nextEvent := ServerSentEventReader(ctx, res.Body)
 
-	ch := make(chan []WorkspaceAgentMetadataResult, 256)
-	go func() {
-		defer close(ch)
+	metadataChan := make(chan []WorkspaceAgentMetadataResult, 256)
+
+	watch := func() error {
+		res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/watch-metadata", id), nil)
+		if err != nil {
+			return err
+		}
+		if res.StatusCode != http.StatusOK {
+			return ReadBodyAsError(res)
+		}
+
+		nextEvent := ServerSentEventReader(ctx, res.Body)
 		defer res.Body.Close()
 
 		for {
 			select {
 			case <-ctx.Done():
-				return
+				return ctx.Err()
 			default:
 				sse, err := nextEvent()
 				if err != nil {
-					return
+					return err
 				}
-				if sse.Type != ServerSentEventTypeData {
-					continue
-				}
-				var met []WorkspaceAgentMetadataResult
+
 				b, ok := sse.Data.([]byte)
 				if !ok {
-					return
+					return xerrors.Errorf("unexpected data type: %T", sse.Data)
 				}
-				err = json.Unmarshal(b, &met)
-				if err != nil {
-					return
+
+				switch sse.Type {
+				case ServerSentEventTypeData:
+					var met []WorkspaceAgentMetadataResult
+					err = json.Unmarshal(b, &met)
+					if err != nil {
+						return xerrors.Errorf("unmarshal metadata: %w", err)
+					}
+					metadataChan <- met
+				case ServerSentEventTypeError:
+					var r Response
+					err = json.Unmarshal(b, &r)
+					if err != nil {
+						return xerrors.Errorf("unmarshal error: %w", err)
+					}
+					return xerrors.Errorf("%+v", r)
+				default:
+					return xerrors.Errorf("unexpected event type: %s", sse.Type)
 				}
-				ch <- met
 			}
 		}
+	}
+
+	errorChan := make(chan error, 1)
+	go func() {
+		defer close(errorChan)
+		errorChan <- watch()
 	}()
 
-	return ch, nil
+	return metadataChan, errorChan
 }
 
 // WorkspaceAgent returns an agent by ID.

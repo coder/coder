@@ -20,6 +20,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
@@ -1069,7 +1070,7 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 		// We don't want a misconfigured agent to fill the database.
 		Key:         ellipse(req.Key, 128),
 		Value:       ellipse(req.Value, 10<<10),
-		Error:       ellipse(req.Value, 10<<10),
+		Error:       ellipse(req.Error, 10<<10),
 		CollectedAt: req.CollectedAt,
 	}
 
@@ -1084,6 +1085,7 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 		slog.F("agent", workspaceAgent.ID),
 		slog.F("workspace", workspace.ID),
 		slog.F("key", datum.Key),
+		slog.F("value", ellipse(datum.Value, 5)),
 	)
 
 	err = api.Pubsub.Publish(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), []byte(datum.Key))
@@ -1127,18 +1129,23 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	// reports.
 	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
 
-	sendMetadata := func(ctx context.Context) {
+	sendMetadata := func() {
+		// We always use the original Request context because it contains
+		// the RBAC actor.
 		data, err := api.Database.GetWorkspaceAgentMetadata(ctx, workspaceAgent.ID)
 		if err != nil {
 			_ = sendEvent(ctx, codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeError,
 				Data: codersdk.Response{
-					Message: "Internal getting metadata.",
+					Message: "Internal error getting metadata.",
 					Detail:  err.Error(),
 				},
 			})
 			return
 		}
+		slices.SortFunc(data, func(i, j database.WorkspaceAgentMetadatum) bool {
+			return i.Key < j.Key
+		})
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
 			Data: convertWorkspaceAgentMetadata(data),
@@ -1146,11 +1153,11 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	}
 
 	// Send initial metadata.
-	sendMetadata(ctx)
+	sendMetadata()
 
 	// Send metadata on updates.
-	cancelSub, err := api.Pubsub.Subscribe(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(ctx context.Context, _ []byte) {
-		sendMetadata(ctx)
+	cancelSub, err := api.Pubsub.Subscribe(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
+		sendMetadata()
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

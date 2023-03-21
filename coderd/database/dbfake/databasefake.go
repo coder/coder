@@ -2674,7 +2674,15 @@ func (q *fakeQuerier) InsertOrUpdateWorkspaceAgentMetadata(_ context.Context, ar
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	updated := database.WorkspaceAgentMetadatum(arg)
+	//nolint:gosimple
+	updated := database.WorkspaceAgentMetadatum{
+		WorkspaceID:      arg.WorkspaceID,
+		WorkspaceAgentID: arg.WorkspaceAgentID,
+		Key:              arg.Key,
+		Value:            arg.Value,
+		Error:            arg.Error,
+		CollectedAt:      arg.CollectedAt,
+	}
 
 	for i, m := range q.workspaceAgentMetadata {
 		if m.WorkspaceAgentID == arg.WorkspaceAgentID && m.Key == arg.Key {
