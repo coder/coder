@@ -46,8 +46,8 @@ func (r *RootCmd) licenseAdd() *clibase.Cmd {
 		Use:   "add [-f file | -l license]",
 		Short: "Add license to Coder deployment",
 		Middleware: clibase.Chain(
-			r.InitClient(client),
 			clibase.RequireNArgs(0),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			var err error

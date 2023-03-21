@@ -122,10 +122,6 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		}
 	}()
 
-	t.Cleanup(func() {
-		_ = tpty.Close()
-	})
-
 	return tpty
 }
 

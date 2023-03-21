@@ -52,8 +52,8 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		Use:         "ssh <workspace>",
 		Short:       "Start a shell into a workspace",
 		Middleware: clibase.Chain(
-			r.InitClient(client),
 			clibase.RequireNArgs(1),
+			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())

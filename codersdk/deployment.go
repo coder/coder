@@ -1301,9 +1301,11 @@ when required by your organization's security policy.`,
 			Flag:          "config",
 			Env:           "CODER_CONFIG_PATH",
 			FlagShorthand: "c",
-			Hidden:        true,
-			Group:         &deploymentGroupConfig,
-			Value:         &c.Config,
+			// The config parameters are hidden until they are tested and
+			// documented.
+			Hidden: true,
+			Group:  &deploymentGroupConfig,
+			Value:  &c.Config,
 		},
 		{
 			Name:        "SSH Host Prefix",
