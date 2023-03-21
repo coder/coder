@@ -27,7 +27,6 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-isatty"
-	"github.com/mitchellh/go-wordwrap"
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
@@ -757,7 +756,7 @@ func (prettyErrorFormatter) prefixLines(spaces int, s string) string {
 		twidth = 80
 	}
 
-	s = wordwrap.WrapString(s, uint(twidth-spaces))
+	s = lipgloss.NewStyle().Width(twidth - spaces).Render(s)
 
 	var b strings.Builder
 	scanner := bufio.NewScanner(strings.NewReader(s))
@@ -776,20 +775,13 @@ func (p *prettyErrorFormatter) format(err error) {
 	underErr := errors.Unwrap(err)
 
 	var (
-		introErrorStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#D16644")).Background(lipgloss.Color("#000000")).Underline(true)
 		finalErrorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644")).Background(lipgloss.Color("#000000")).Bold(false)
 		arrowStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#515151"))
 	)
 
 	//nolint:errorlint
-	if rcErr, ok := err.(*clibase.RunCommandError); ok && p.level == 0 {
+	if _, ok := err.(*clibase.RunCommandError); ok && p.level == 0 && underErr != nil {
 		// We can do a better job now.
-		_, _ = fmt.Fprintf(
-			p.w, "%s\n\n",
-			introErrorStyle.Render(
-				fmt.Sprintf("%v FAILED", strings.ToUpper(rcErr.Cmd.Name())),
-			),
-		)
 		p.format(underErr)
 		return
 	}
@@ -813,19 +805,27 @@ func (p *prettyErrorFormatter) format(err error) {
 		return
 	}
 
-	if p.level > 0 {
-		_, _ = fmt.Fprintf(
-			p.w, "%s\n",
-			finalErrorStyle.Render(
-				p.prefixLines(
-					len(padding)+arrowWidth, err.Error(),
-				),
+	// This is the last error in a tree.
+	p.wrappedPrintf(
+		"%s",
+		p.prefixLines(
+			len(padding)+arrowWidth,
+			fmt.Sprintf(
+				"%s %s %s",
+				lipgloss.NewStyle().Inherit(finalErrorStyle).Underline(true).Render("ERROR"),
+				arrowStyle.Render("►"),
+				finalErrorStyle.Render(err.Error()),
 			),
-		)
-		return
-	}
-	_, _ = fmt.Fprintf(
-		p.w, "%s\n",
-		finalErrorStyle.Render(wrapTTY(err.Error())),
+		),
+	)
+}
+
+func (p *prettyErrorFormatter) wrappedPrintf(format string, a ...interface{}) {
+	_, _ = p.w.Write(
+		[]byte(
+			lipgloss.NewStyle().Width(ttyWidth()).Render(
+				fmt.Sprintf(format, a...),
+			),
+		),
 	)
 }

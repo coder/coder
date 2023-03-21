@@ -29,7 +29,7 @@ type optionGroup struct {
 	Options     clibase.OptionSet
 }
 
-func ttyGetSize() int {
+func ttyWidth() int {
 	width, _, err := terminal.GetSize(0)
 	if err != nil {
 		return 80
@@ -40,7 +40,7 @@ func ttyGetSize() int {
 // wrapTTY wraps a string to the width of the terminal, or 80 no terminal
 // is detected.
 func wrapTTY(s string) string {
-	return wordwrap.WrapString(s, uint(ttyGetSize()))
+	return wordwrap.WrapString(s, uint(ttyWidth()))
 }
 
 var usageTemplate = template.Must(
@@ -61,7 +61,7 @@ var usageTemplate = template.Must(
 				}
 			},
 			"indent": func(body string, tabs int) string {
-				twidth := ttyGetSize()
+				twidth := ttyWidth()
 
 				spacing := strings.Repeat(" ", tabs*4)
 
@@ -99,7 +99,7 @@ var usageTemplate = template.Must(
 				// next line.
 				descStart := sb.Len()
 
-				twidth := ttyGetSize()
+				twidth := ttyWidth()
 
 				for i, line := range strings.Split(
 					wordwrap.WrapString(cmd.Short, uint(twidth-descStart)), "\n",

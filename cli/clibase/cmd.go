@@ -450,6 +450,9 @@ func RequireRangeArgs(start, end int) MiddlewareFunc {
 			case start == end && got != start:
 				switch start {
 				case 0:
+					if len(i.Command.Children) > 0 {
+						return xerrors.Errorf("unrecognized subcommand %q", i.Args[0])
+					}
 					return xerrors.Errorf("wanted no args but got %v %v", got, i.Args)
 				default:
 					return xerrors.Errorf(
