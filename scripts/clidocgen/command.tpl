@@ -35,12 +35,13 @@
 {{- end }}
 ### --{{ $opt.Flag }}{{ with $opt.FlagShorthand}}, -{{ . }}{{end}}
 {{" "}}
-| | |
-| --- | --- |
+{{ $printedHeader := false }} 
 {{- with $opt.Env }}
+{{- if not $printedHeader }} {{ tableHeader }} {{ $printedHeader = true}} {{ end }}
 | Environment | {{ (print "$" .) | wrapCode }} |
 {{- end }}
 {{- with $opt.Default }}
+{{- if not $printedHeader }} {{ tableHeader }} {{ $printedHeader = true}} {{ end }}
 | Default | {{"    "}} {{- . | wrapCode }} |
 {{ "" }}
 {{ end }}

@@ -61,6 +61,10 @@ func init() {
 				)
 			},
 			"fullName": fullName,
+			"tableHeader": func() string {
+				return `| | |
+| --- | --- |`
+			},
 		},
 		).Parse(strings.TrimSpace(commandTemplateRaw)),
 	)
