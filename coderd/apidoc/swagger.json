@@ -6063,8 +6063,8 @@
     },
     "codersdk.Experiment": {
       "type": "string",
-      "enum": ["authz_querier", "template_editor"],
-      "x-enum-varnames": ["ExperimentAuthzQuerier", "ExperimentTemplateEditor"]
+      "enum": ["template_editor"],
+      "x-enum-varnames": ["ExperimentTemplateEditor"]
     },
     "codersdk.Feature": {
       "type": "object",
@@ -7651,6 +7651,10 @@
         },
         "name": {
           "type": "string"
+        },
+        "organization_id": {
+          "type": "string",
+          "format": "uuid"
         },
         "outdated": {
           "type": "boolean"

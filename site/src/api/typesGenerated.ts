@@ -1002,6 +1002,7 @@ export interface Workspace {
   readonly updated_at: string
   readonly owner_id: string
   readonly owner_name: string
+  readonly organization_id: string
   readonly template_id: string
   readonly template_name: string
   readonly template_display_name: string
@@ -1215,8 +1216,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "authz_querier" | "template_editor"
-export const Experiments: Experiment[] = ["authz_querier", "template_editor"]
+export type Experiment = "template_editor"
+export const Experiments: Experiment[] = ["template_editor"]
 
 // From codersdk/deployment.go
 export type FeatureName =

@@ -1516,10 +1516,6 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 type Experiment string
 
 const (
-	// ExperimentAuthzQuerier is an internal experiment that enables the ExperimentAuthzQuerier
-	// interface for all RBAC operations. NOT READY FOR PRODUCTION USE.
-	ExperimentAuthzQuerier Experiment = "authz_querier"
-
 	// ExperimentTemplateEditor is an internal experiment that enables the template editor
 	// for all users.
 	ExperimentTemplateEditor Experiment = "template_editor"

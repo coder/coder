@@ -2342,7 +2342,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ## codersdk.Experiment
 
 ```json
-"authz_querier"
+"template_editor"
 ```
 
 ### Properties
@@ -2351,7 +2351,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 | Value             |
 | ----------------- |
-| `authz_querier`   |
 | `template_editor` |
 
 ## codersdk.Feature
@@ -4338,6 +4337,7 @@ Parameter represents a set value for the scope.
     "workspace_owner_name": "string"
   },
   "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -4361,6 +4361,7 @@ Parameter represents a set value for the scope.
 | `last_used_at`                              | string                                             | false    |              |             |
 | `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |             |
 | `name`                                      | string                                             | false    |              |             |
+| `organization_id`                           | string                                             | false    |              |             |
 | `outdated`                                  | boolean                                            | false    |              |             |
 | `owner_id`                                  | string                                             | false    |              |             |
 | `owner_name`                                | string                                             | false    |              |             |
@@ -5222,6 +5223,7 @@ Parameter represents a set value for the scope.
         "workspace_owner_name": "string"
       },
       "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "outdated": true,
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",

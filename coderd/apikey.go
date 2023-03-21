@@ -55,11 +55,6 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = database.APIKey{}
 	defer commitAudit()
 
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	var createToken codersdk.CreateTokenRequest
 	if !httpapi.Read(ctx, rw, r, &createToken) {
 		return
@@ -134,11 +129,6 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAPIKey.WithOwner(user.ID.String())) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	lifeTime := time.Hour * 24 * 7
 	cookie, _, err := api.createAPIKey(ctx, createAPIKeyParams{
 		UserID:     user.ID,
@@ -190,11 +180,6 @@ func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !api.Authorize(r, rbac.ActionRead, key) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(key))
 }
 
@@ -227,11 +212,6 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 			Message: "Internal error fetching API key.",
 			Detail:  err.Error(),
 		})
-		return
-	}
-
-	if !api.Authorize(r, rbac.ActionRead, token) {
-		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -327,7 +307,6 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		user              = httpmw.UserParam(r)
 		keyID             = chi.URLParam(r, "keyid")
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
@@ -343,11 +322,6 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.Old = key
 	defer commitAudit()
-
-	if !api.Authorize(r, rbac.ActionDelete, rbac.ResourceAPIKey.WithIDString(keyID).WithOwner(user.ID.String())) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	err = api.Database.DeleteAPIKeyByID(ctx, keyID)
 	if errors.Is(err, sql.ErrNoRows) {
