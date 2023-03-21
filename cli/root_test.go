@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -84,12 +83,6 @@ ExtractCommandPathsLoop:
 		tests = append(tests, testCase{name: name, cmd: cmd})
 	}
 
-	wd, err := os.Getwd()
-	require.NoError(t, err)
-	if runtime.GOOS == "windows" {
-		wd = strings.ReplaceAll(wd, "\\", "\\\\")
-	}
-
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -108,10 +101,8 @@ ExtractCommandPathsLoop:
 
 			clitest.SetupConfig(t, rootClient, cfg)
 
-			err = inv.WithContext(ctx).Run()
-			err2 := os.Chdir(wd)
+			err := inv.WithContext(ctx).Run()
 			require.NoError(t, err)
-			require.NoError(t, err2)
 
 			actual := outBuf.Bytes()
 			if len(actual) == 0 {
