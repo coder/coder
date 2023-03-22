@@ -545,8 +545,8 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 
 	cmd := &clibase.Cmd{
 		Use:   "create-workspaces",
-		Short: "Creates many users and workspaces and waits for them to be ready",
-		Long: `After creation, waits for the workspaces finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
+		Short: "Creates many users and workspace for each one and waits for them to be ready",
+		Long: `After creation, waits for the workspaces to finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
 
 It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
 		Middleware: r.InitClient(client),

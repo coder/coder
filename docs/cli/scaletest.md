@@ -12,7 +12,7 @@ coder scaletest
 
 ## Subcommands
 
-| Name                                                            | Purpose                                                          |
-| --------------------------------------------------------------- | ---------------------------------------------------------------- |
-| [<code>cleanup</code>](./scaletest_cleanup)                     | Cleanup any orphaned scaletest resources                         |
-| [<code>create-workspaces</code>](./scaletest_create-workspaces) | Creates many users and workspaces and waits for them to be ready |
+| Name                                                            | Purpose                                                                      |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [<code>cleanup</code>](./scaletest_cleanup)                     | Cleanup any orphaned scaletest resources                                     |
+| [<code>create-workspaces</code>](./scaletest_create-workspaces) | Creates many users and workspace for each one and waits for them to be ready |

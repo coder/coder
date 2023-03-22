@@ -2,7 +2,7 @@
 
 # scaletest create-workspaces
 
-Creates many users and workspaces and waits for them to be ready
+Creates many users and workspace for each one and waits for them to be ready
 
 ## Usage
 
@@ -13,7 +13,7 @@ coder scaletest create-workspaces
 ## Description
 
 ```console
-After creation, waits for the workspaces finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
+After creation, waits for the workspaces to finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
 
 It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.
 ```

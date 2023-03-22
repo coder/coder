@@ -4,8 +4,8 @@ Run a scale test against the Coder API
 
 [1mSubcommands[0m
     cleanup              Cleanup any orphaned scaletest resources
-    create-workspaces    Creates many users and workspaces and waits for them to
-                         be ready
+    create-workspaces    Creates many users and workspace for each one and waits
+                         for them to be ready
 
 ---
 Run `coder --help` for a list of global options.
