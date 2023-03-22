@@ -1025,8 +1025,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Bold.Render(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
-			case exitErr = <-tunnelErr:
-				exitErr = xerrors.Errorf("dev tunnel closed unexpectedly: %w", exitErr)
 			case <-tunnelDone:
 				exitErr = xerrors.New("dev tunnel closed unexpectedly")
 			case exitErr = <-errCh:
@@ -1096,10 +1094,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			// Close tunnel after we no longer have in-flight connections.
 			if tunnel != nil {
-				cmd.Println("Waiting for tunnel to close...")
+				cliui.Infof(inv.Stdout, "Waiting for tunnel to close...")
 				_ = tunnel.Close()
 				<-tunnel.Wait()
-				cmd.Println("Done waiting for tunnel")
+				cliui.Infof(inv.Stdout, "Done waiting for tunnel")
 			}
 
 			// Ensures a last report can be sent before exit!

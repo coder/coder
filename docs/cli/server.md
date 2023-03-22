@@ -354,6 +354,16 @@ Email domains that clients logging in with OIDC must match.
 
 Change the OIDC default 'groups' claim field. By default, will be 'groups' if present in the oidc scopes argument.
 
+### --oidc-group-mapping
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>struct[map[string]string]</code> |
+| Environment | <code>$OIDC_GROUP_MAPPING</code>       |
+| Default     | <code>{}</code>                        |
+
+A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.
+
 ### --oidc-icon-url
 
 |             |                                   |

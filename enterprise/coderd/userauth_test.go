@@ -70,7 +70,7 @@ func TestUserOIDC(t *testing.T) {
 		t.Run("AssignsMapped", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitMedium)
 			conf := coderdtest.NewOIDCConfig(t, "")
 
 			oidcGroupName := "pingpong"

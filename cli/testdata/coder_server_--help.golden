@@ -277,6 +277,10 @@ can safely ignore these settings.
           Change the OIDC default 'groups' claim field. By default, will be
           'groups' if present in the oidc scopes argument.
 
+      --oidc-group-mapping, $OIDC_GROUP_MAPPING (default: {})
+          A map of OIDC group IDs and the group in Coder it should map to. This
+          is useful for when OIDC providers only return group IDs.
+
       --oidc-ignore-email-verified, $CODER_OIDC_IGNORE_EMAIL_VERIFIED bool
           Ignore the email_verified claim from the upstream provider.
 
