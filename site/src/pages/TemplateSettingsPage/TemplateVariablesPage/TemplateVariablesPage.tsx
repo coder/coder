@@ -4,13 +4,15 @@ import {
   TemplateVersionVariable,
   VariableValue,
 } from "api/typesGenerated"
+import { displaySuccess } from "components/GlobalSnackbar/utils"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { templateVariablesMachine } from "xServices/template/templateVariablesXService"
-import { pageTitle } from "../../util/page"
+import { pageTitle } from "../../../util/page"
+import { useTemplateSettingsContext } from "../TemplateSettingsLayout"
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView"
 
 export const TemplateVariablesPage: FC = () => {
@@ -19,15 +21,16 @@ export const TemplateVariablesPage: FC = () => {
     template: string
   }
   const organizationId = useOrganizationId()
+  const { template } = useTemplateSettingsContext()
   const navigate = useNavigate()
   const [state, send] = useMachine(templateVariablesMachine, {
     context: {
       organizationId,
-      templateName,
+      template,
     },
     actions: {
       onUpdateTemplate: () => {
-        navigate(`/templates/${templateName}`)
+        displaySuccess("Template updated successfully")
       },
     },
   })

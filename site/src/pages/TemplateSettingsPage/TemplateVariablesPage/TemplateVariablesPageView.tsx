@@ -10,8 +10,8 @@ import { TemplateVariablesForm } from "./TemplateVariablesForm"
 import { Stack } from "components/Stack/Stack"
 import { makeStyles } from "@material-ui/core/styles"
 import { useTranslation } from "react-i18next"
-import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
 import { GoBackButton } from "components/GoBackButton/GoBackButton"
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 
 export interface TemplateVariablesPageViewProps {
   templateVersion?: TemplateVersion
@@ -48,45 +48,44 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
 
   return (
     <>
-      <FullPageHorizontalForm title={t("title")} onCancel={onCancel}>
-        {Boolean(errors.getTemplateDataError) && (
-          <Stack className={classes.errorContainer}>
-            <AlertBanner severity="error" error={errors.getTemplateDataError} />
-          </Stack>
-        )}
-        {Boolean(errors.updateTemplateError) && (
-          <Stack className={classes.errorContainer}>
-            <AlertBanner severity="error" error={errors.updateTemplateError} />
-          </Stack>
-        )}
-        {Boolean(errors.jobError) && (
-          <Stack className={classes.errorContainer}>
-            <AlertBanner severity="error" text={errors.jobError} />
-          </Stack>
-        )}
-        {isLoading && <Loader />}
-        {templateVersion &&
-          templateVariables &&
-          templateVariables.length > 0 && (
-            <TemplateVariablesForm
-              initialTouched={initialTouched}
-              isSubmitting={isSubmitting}
-              templateVersion={templateVersion}
-              templateVariables={templateVariables}
-              onSubmit={onSubmit}
-              onCancel={onCancel}
-              error={errors.updateTemplateError}
-            />
-          )}
-        {templateVariables && templateVariables.length === 0 && (
-          <div>
-            <AlertBanner severity="info" text={t("unusedVariablesNotice")} />
-            <div className={classes.goBackSection}>
-              <GoBackButton onClick={onCancel} />
-            </div>
+      <PageHeader className={classes.pageHeader}>
+        <PageHeaderTitle>{t("title")}</PageHeaderTitle>
+      </PageHeader>
+      {Boolean(errors.getTemplateDataError) && (
+        <Stack className={classes.errorContainer}>
+          <AlertBanner severity="error" error={errors.getTemplateDataError} />
+        </Stack>
+      )}
+      {Boolean(errors.updateTemplateError) && (
+        <Stack className={classes.errorContainer}>
+          <AlertBanner severity="error" error={errors.updateTemplateError} />
+        </Stack>
+      )}
+      {Boolean(errors.jobError) && (
+        <Stack className={classes.errorContainer}>
+          <AlertBanner severity="error" text={errors.jobError} />
+        </Stack>
+      )}
+      {isLoading && <Loader />}
+      {templateVersion && templateVariables && templateVariables.length > 0 && (
+        <TemplateVariablesForm
+          initialTouched={initialTouched}
+          isSubmitting={isSubmitting}
+          templateVersion={templateVersion}
+          templateVariables={templateVariables}
+          onSubmit={onSubmit}
+          onCancel={onCancel}
+          error={errors.updateTemplateError}
+        />
+      )}
+      {templateVariables && templateVariables.length === 0 && (
+        <div>
+          <AlertBanner severity="info" text={t("unusedVariablesNotice")} />
+          <div className={classes.goBackSection}>
+            <GoBackButton onClick={onCancel} />
           </div>
-        )}
-      </FullPageHorizontalForm>
+        </div>
+      )}
     </>
   )
 }
@@ -99,5 +98,8 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     width: "100%",
     marginTop: 32,
+  },
+  pageHeader: {
+    paddingTop: 0,
   },
 }))

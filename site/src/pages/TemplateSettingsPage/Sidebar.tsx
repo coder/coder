@@ -71,7 +71,7 @@ export const Sidebar: React.FC<{ template: Template }> = ({ template }) => {
         Permissions
       </SidebarNavItem>
       <SidebarNavItem
-        href="ssh-keys"
+        href="variables"
         icon={<SidebarNavItemIcon icon={VariablesIcon} />}
       >
         Variables

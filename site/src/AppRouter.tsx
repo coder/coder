@@ -121,7 +121,10 @@ const CreateTemplatePage = lazy(
   () => import("./pages/CreateTemplatePage/CreateTemplatePage"),
 )
 const TemplateVariablesPage = lazy(
-  () => import("./pages/TemplateVariablesPage/TemplateVariablesPage"),
+  () =>
+    import(
+      "./pages/TemplateSettingsPage/TemplateVariablesPage/TemplateVariablesPage"
+    ),
 )
 const WorkspaceSettingsPage = lazy(
   () => import("./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"),
@@ -173,9 +176,12 @@ export const AppRouter: FC = () => {
                       path="permissions"
                       element={<TemplatePermissionsPage />}
                     />
+                    <Route
+                      path="variables"
+                      element={<TemplateVariablesPage />}
+                    />
                   </Route>
 
-                  <Route path="variables" element={<TemplateVariablesPage />} />
                   <Route path="versions">
                     <Route path=":version">
                       <Route index element={<TemplateVersionPage />} />
