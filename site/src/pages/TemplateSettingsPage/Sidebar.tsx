@@ -4,7 +4,7 @@ import VariablesIcon from "@material-ui/icons/CodeOutlined"
 import { Template } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { FC, ElementType, PropsWithChildren, ReactNode } from "react"
-import { NavLink } from "react-router-dom"
+import { Link, NavLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
 import GeneralIcon from "@material-ui/icons/SettingsOutlined"
 import SecurityIcon from "@material-ui/icons/LockOutlined"
@@ -52,11 +52,11 @@ export const Sidebar: React.FC<{ template: Template }> = ({ template }) => {
       >
         <Avatar src={template.icon} variant="square" fitImage />
         <Stack spacing={0} className={styles.templateData}>
-          <span className={styles.name}>
+          <Link className={styles.name} to={`/templates/${template.name}`}>
             {template.display_name !== ""
               ? template.display_name
               : template.name}
-          </span>
+          </Link>
           <span className={styles.secondary}>{template.name}</span>
         </Stack>
       </Stack>
@@ -137,6 +137,8 @@ const useStyles = makeStyles((theme) => ({
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+    color: theme.palette.text.primary,
+    textDecoration: "none",
   },
   secondary: {
     color: theme.palette.text.secondary,
