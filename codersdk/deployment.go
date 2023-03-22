@@ -1357,6 +1357,9 @@ Write out the current server configuration to the path specified by --config.`,
 			Description: "Support links to display in the top right drop down menu.",
 			YAML:        "supportLinks",
 			Value:       &c.Support.Links,
+			// The support links are hidden until they are defined in the
+			// YAML.
+			Hidden: true,
 		},
 		{
 			// Env handling is done in cli.ReadGitAuthFromEnvironment

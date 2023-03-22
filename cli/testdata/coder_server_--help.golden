@@ -40,9 +40,6 @@ Start a Coder server
           The algorithm to use for generating ssh keys. Accepted values are
           "ed25519", "ecdsa", or "rsa4096".
 
-       struct[[]codersdk.LinkConfig]
-          Support links to display in the top right drop down menu.
-
       --update-check, $CODER_UPDATE_CHECK (default: false)
           Periodically check for new releases of Coder and inform the owner. The
           check is performed once per day.

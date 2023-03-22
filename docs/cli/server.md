@@ -20,14 +20,6 @@ coder server [flags]
 
 ## Options
 
-### --
-
-|      |                                            |
-| ---- | ------------------------------------------ |
-| Type | <code>struct[[]codersdk.LinkConfig]</code> |
-
-Support links to display in the top right drop down menu.
-
 ### --access-url
 
 |             |                                |
