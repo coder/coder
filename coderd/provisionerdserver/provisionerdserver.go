@@ -1226,6 +1226,18 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		}
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
 
+		for _, md := range prAgent.Metadata {
+			err := db.InsertWorkspaceAgentMetadata(ctx, database.InsertWorkspaceAgentMetadataParams{
+				WorkspaceAgentID: agentID,
+				Key:              md.Key,
+				Timeout:          md.Timeout,
+				Interval:         md.Interval,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert agent metadata: %w", err)
+			}
+		}
+
 		for _, app := range prAgent.Apps {
 			slug := app.Slug
 			if slug == "" {

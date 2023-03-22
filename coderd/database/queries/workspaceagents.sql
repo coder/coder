@@ -94,25 +94,27 @@ SET
 WHERE
 	id = $1;
 
--- name: UpsertWorkspaceAgentMetadata :exec
+-- name: InsertWorkspaceAgentMetadata :exec
 INSERT INTO
 	workspace_agent_metadata (
-		workspace_id,
 		workspace_agent_id,
 		key,
-		value,
-		error,
-		collected_at,
 		timeout,
 		interval
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8)
-ON CONFLICT (workspace_agent_id, key) DO UPDATE SET
-	value = $4,
-	error = $5,
-	collected_at = $6,
-	-- interval and timeout are set once 
+	($1, $2, $3, $4);
+
+-- name: UpdateWorkspaceAgentMetadata :exec
+UPDATE
+	workspace_agent_metadata
+SET
+	value = $3,
+	error = $4,
+	collected_at = $5
+WHERE
+	workspace_agent_id = $1
+	AND key = $2;
 
 -- name: GetWorkspaceAgentMetadata :many
 SELECT

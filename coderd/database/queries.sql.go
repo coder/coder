@@ -3036,33 +3036,33 @@ func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error
 	return err
 }
 
-const UpsertLastUpdateCheck = `-- name: UpsertLastUpdateCheck :exec
+const upsertLastUpdateCheck = `-- name: UpsertLastUpdateCheck :exec
 INSERT INTO site_configs (key, value) VALUES ('last_update_check', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'last_update_check'
 `
 
 func (q *sqlQuerier) UpsertLastUpdateCheck(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, UpsertLastUpdateCheck, value)
+	_, err := q.db.ExecContext(ctx, upsertLastUpdateCheck, value)
 	return err
 }
 
-const UpsertLogoURL = `-- name: UpsertLogoURL :exec
+const upsertLogoURL = `-- name: UpsertLogoURL :exec
 INSERT INTO site_configs (key, value) VALUES ('logo_url', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'logo_url'
 `
 
 func (q *sqlQuerier) UpsertLogoURL(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, UpsertLogoURL, value)
+	_, err := q.db.ExecContext(ctx, upsertLogoURL, value)
 	return err
 }
 
-const UpsertServiceBanner = `-- name: UpsertServiceBanner :exec
+const upsertServiceBanner = `-- name: UpsertServiceBanner :exec
 INSERT INTO site_configs (key, value) VALUES ('service_banner', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'service_banner'
 `
 
 func (q *sqlQuerier) UpsertServiceBanner(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, UpsertServiceBanner, value)
+	_, err := q.db.ExecContext(ctx, upsertServiceBanner, value)
 	return err
 }
 
@@ -5193,7 +5193,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 
 const getWorkspaceAgentMetadata = `-- name: GetWorkspaceAgentMetadata :many
 SELECT
-	workspace_id, workspace_agent_id, key, value, error, timeout, interval, collected_at
+	workspace_agent_id, key, value, error, timeout, interval, collected_at
 FROM
 	workspace_agent_metadata
 WHERE
@@ -5210,7 +5210,6 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAge
 	for rows.Next() {
 		var i WorkspaceAgentMetadatum
 		if err := rows.Scan(
-			&i.WorkspaceID,
 			&i.WorkspaceAgentID,
 			&i.Key,
 			&i.Value,
@@ -5349,53 +5348,6 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 	return items, nil
 }
 
-const UpsertWorkspaceAgentMetadata = `-- name: UpsertWorkspaceAgentMetadata :exec
-INSERT INTO
-	workspace_agent_metadata (
-		workspace_id,
-		workspace_agent_id,
-		key,
-		value,
-		error,
-		collected_at,
-		timeout,
-		interval
-	)
-VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8)
-ON CONFLICT (workspace_agent_id, key) DO UPDATE SET
-	value = $4,
-	error = $5,
-	collected_at = $6,
-	timeout = $7,
-	interval = $8
-`
-
-type UpsertWorkspaceAgentMetadataParams struct {
-	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	Key              string    `db:"key" json:"key"`
-	Value            string    `db:"value" json:"value"`
-	Error            string    `db:"error" json:"error"`
-	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
-	Timeout          int64     `db:"timeout" json:"timeout"`
-	Interval         int64     `db:"interval" json:"interval"`
-}
-
-func (q *sqlQuerier) UpsertWorkspaceAgentMetadata(ctx context.Context, arg UpsertWorkspaceAgentMetadataParams) error {
-	_, err := q.db.ExecContext(ctx, UpsertWorkspaceAgentMetadata,
-		arg.WorkspaceID,
-		arg.WorkspaceAgentID,
-		arg.Key,
-		arg.Value,
-		arg.Error,
-		arg.CollectedAt,
-		arg.Timeout,
-		arg.Interval,
-	)
-	return err
-}
-
 const insertWorkspaceAgent = `-- name: InsertWorkspaceAgent :one
 INSERT INTO
 	workspace_agents (
@@ -5507,6 +5459,35 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 	return i, err
 }
 
+const insertWorkspaceAgentMetadata = `-- name: InsertWorkspaceAgentMetadata :exec
+INSERT INTO
+	workspace_agent_metadata (
+		workspace_agent_id,
+		key,
+		timeout,
+		interval
+	)
+VALUES
+	($1, $2, $3, $4)
+`
+
+type InsertWorkspaceAgentMetadataParams struct {
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	Key              string    `db:"key" json:"key"`
+	Timeout          int64     `db:"timeout" json:"timeout"`
+	Interval         int64     `db:"interval" json:"interval"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentMetadata(ctx context.Context, arg InsertWorkspaceAgentMetadataParams) error {
+	_, err := q.db.ExecContext(ctx, insertWorkspaceAgentMetadata,
+		arg.WorkspaceAgentID,
+		arg.Key,
+		arg.Timeout,
+		arg.Interval,
+	)
+	return err
+}
+
 const updateWorkspaceAgentConnectionByID = `-- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
 	workspace_agents
@@ -5557,6 +5538,37 @@ type UpdateWorkspaceAgentLifecycleStateByIDParams struct {
 
 func (q *sqlQuerier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentLifecycleStateByID, arg.ID, arg.LifecycleState)
+	return err
+}
+
+const updateWorkspaceAgentMetadata = `-- name: UpdateWorkspaceAgentMetadata :exec
+UPDATE
+	workspace_agent_metadata
+SET
+	value = $3,
+	error = $4,
+	collected_at = $5
+WHERE
+	workspace_agent_id = $1
+	AND key = $2
+`
+
+type UpdateWorkspaceAgentMetadataParams struct {
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	Key              string    `db:"key" json:"key"`
+	Value            string    `db:"value" json:"value"`
+	Error            string    `db:"error" json:"error"`
+	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg UpdateWorkspaceAgentMetadataParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentMetadata,
+		arg.WorkspaceAgentID,
+		arg.Key,
+		arg.Value,
+		arg.Error,
+		arg.CollectedAt,
+	)
 	return err
 }
 

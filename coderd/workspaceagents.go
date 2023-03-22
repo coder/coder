@@ -1064,8 +1064,7 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	datum := database.UpsertWorkspaceAgentMetadataParams{
-		WorkspaceID:      workspace.ID,
+	datum := database.UpdateWorkspaceAgentMetadataParams{
 		WorkspaceAgentID: workspaceAgent.ID,
 		// We don't want a misconfigured agent to fill the database.
 		Key:         ellipse(req.Key, 128),
@@ -1074,7 +1073,7 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 		CollectedAt: req.CollectedAt,
 	}
 
-	err = api.Database.UpsertWorkspaceAgentMetadata(ctx, datum)
+	err = api.Database.UpdateWorkspaceAgentMetadata(ctx, datum)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

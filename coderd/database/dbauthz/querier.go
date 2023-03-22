@@ -1472,18 +1472,26 @@ func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.Ins
 	return q.db.InsertWorkspaceAgentStat(ctx, arg)
 }
 
-func (q *querier) UpsertWorkspaceAgentMetadata(ctx context.Context, arg database.UpsertWorkspaceAgentMetadataParams) error {
-	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
-	if err != nil {
-		return err
-	}
+func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.WorkspaceAgentID)
 
 	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
 	if err != nil {
 		return err
 	}
 
-	return q.db.UpsertWorkspaceAgentMetadata(ctx, arg)
+	return q.db.InsertWorkspaceAgentMetadata(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.WorkspaceAgentID)
+
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
+	if err != nil {
+		return err
+	}
+
+	return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {

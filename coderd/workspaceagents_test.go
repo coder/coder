@@ -1162,7 +1162,14 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 							Metadata: []*proto.Agent_Metadata{
 								{
 									DisplayName: "First Meta",
-									Key:         "m1",
+									Key:         "foo1",
+									Cmd:         []string{"echo", "hi"},
+									Interval:    10,
+									Timeout:     3,
+								},
+								{
+									DisplayName: "Second Meta",
+									Key:         "foo2",
 									Cmd:         []string{"echo", "hi"},
 									Interval:    10,
 									Timeout:     3,
@@ -1216,7 +1223,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	wantMetadata1 := codersdk.WorkspaceAgentMetadataResult{
 		CollectedAt: time.Now(),
-		Key:         "foo",
+		Key:         "foo1",
 		Value:       "bar",
 	}
 
@@ -1236,11 +1243,13 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	}
 
 	update = recvUpdate()
-	require.Len(t, update, 1)
+	require.Len(t, update, 2)
 	check(wantMetadata1, update[0])
+	// The second metadata result is not yet posted.
+	require.Zero(t, update[1].CollectedAt)
 
 	wantMetadata2 := wantMetadata1
-	wantMetadata2.Key = wantMetadata1.Key + "2"
+	wantMetadata2.Key = "foo2"
 	post(wantMetadata2)
 	update = recvUpdate()
 	require.Len(t, update, 2)
@@ -1252,4 +1261,9 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	update = recvUpdate()
 	require.Len(t, update, 2)
 	check(wantMetadata1, update[0])
+
+	badMetadata := wantMetadata1
+	badMetadata.Key = "unknown"
+	err = agentClient.PostMetadata(ctx, badMetadata)
+	require.Error(t, err)
 }

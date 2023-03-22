@@ -476,7 +476,6 @@ CREATE TABLE users (
 );
 
 CREATE TABLE workspace_agent_metadata (
-    workspace_id uuid NOT NULL,
     workspace_agent_id uuid NOT NULL,
     key character varying(128) NOT NULL,
     value text NOT NULL,
@@ -880,9 +879,6 @@ ALTER TABLE ONLY user_links
 
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY workspace_agent_metadata
-    ADD CONSTRAINT workspace_agent_metadata_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;

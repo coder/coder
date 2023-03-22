@@ -2670,20 +2670,17 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 	return key, nil
 }
 
-func (q *fakeQuerier) UpsertWorkspaceAgentMetadata(_ context.Context, arg database.UpsertWorkspaceAgentMetadataParams) error {
+func (q *fakeQuerier) UpdateWorkspaceAgentMetadata(_ context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
 	updated := database.WorkspaceAgentMetadatum{
-		WorkspaceID:      arg.WorkspaceID,
 		WorkspaceAgentID: arg.WorkspaceAgentID,
 		Key:              arg.Key,
 		Value:            arg.Value,
 		Error:            arg.Error,
 		CollectedAt:      arg.CollectedAt,
-		Timeout:          arg.Timeout,
-		Interval:         arg.Interval,
 	}
 
 	for i, m := range q.workspaceAgentMetadata {
@@ -2693,7 +2690,22 @@ func (q *fakeQuerier) UpsertWorkspaceAgentMetadata(_ context.Context, arg databa
 		}
 	}
 
-	q.workspaceAgentMetadata = append(q.workspaceAgentMetadata, updated)
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	//nolint:gosimple
+	metadatum := database.WorkspaceAgentMetadatum{
+		WorkspaceAgentID: arg.WorkspaceAgentID,
+		Key:              arg.Key,
+		Timeout:          arg.Timeout,
+		Interval:         arg.Interval,
+	}
+
+	q.workspaceAgentMetadata = append(q.workspaceAgentMetadata, metadatum)
 	return nil
 }
 
