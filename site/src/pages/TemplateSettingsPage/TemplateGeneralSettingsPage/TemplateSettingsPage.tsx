@@ -26,7 +26,7 @@ export const TemplateSettingsPage: FC = () => {
   } = useMutation(
     (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
     {
-      onSuccess: () => {
+      onSuccess: async () => {
         displaySuccess("Template updated successfully")
       },
     },
@@ -46,7 +46,10 @@ export const TemplateSettingsPage: FC = () => {
           navigate(`/templates/${templateName}`)
         }}
         onSubmit={(templateSettings) => {
-          updateTemplate(templateSettings)
+          updateTemplate({
+            ...template,
+            ...templateSettings,
+          })
         }}
       />
     </>

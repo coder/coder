@@ -45,8 +45,11 @@ const TemplateSchedulePage: FC = () => {
         onCancel={() => {
           navigate(`/templates/${templateName}`)
         }}
-        onSubmit={(templateSettings) => {
-          updateTemplate(templateSettings)
+        onSubmit={(templateScheduleSettings) => {
+          updateTemplate({
+            ...template,
+            ...templateScheduleSettings,
+          })
         }}
       />
     </>
