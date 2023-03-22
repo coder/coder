@@ -234,6 +234,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "client_id": "string",
       "client_secret": "string",
       "email_domain": ["string"],
+      "group_mapping": {},
       "groups_field": "string",
       "icon_url": {
         "forceQuery": true,
@@ -340,6 +341,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "update_check": true,
     "verbose": true,
+    "wgtunnel_host": "string",
     "wildcard_access_url": {
       "forceQuery": true,
       "fragment": "string",
@@ -507,7 +509,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 > 200 Response
 
 ```json
-["authz_querier"]
+["template_editor"]
 ```
 
 ### Responses

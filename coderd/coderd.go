@@ -166,6 +166,15 @@ func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}
 	}
+
+	if options.Authorizer == nil {
+		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+	}
+	options.Database = dbauthz.New(
+		options.Database,
+		options.Authorizer,
+		options.Logger.Named("authz_querier"),
+	)
 	experiments := initExperiments(
 		options.Logger, options.DeploymentValues.Experiments.Value(),
 	)
@@ -201,9 +210,6 @@ func New(options *Options) *API {
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
-	if options.Authorizer == nil {
-		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
-	}
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator()
 	}
@@ -216,16 +222,13 @@ func New(options *Options) *API {
 	if options.SSHConfig.HostnamePrefix == "" {
 		options.SSHConfig.HostnamePrefix = "coder."
 	}
-	// TODO: remove this once we promote authz_querier out of experiments.
-	if experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
-		options.Database = dbauthz.New(
-			options.Database,
-			options.Authorizer,
-			options.Logger.Named("authz_querier"),
-		)
-	}
 	if options.SetUserGroups == nil {
-		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
+		options.SetUserGroups = func(ctx context.Context, _ database.Store, id uuid.UUID, groups []string) error {
+			options.Logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
+				slog.F("id", id), slog.F("groups", groups),
+			)
+			return nil
+		}
 	}
 	if options.TemplateScheduleStore == nil {
 		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
@@ -830,10 +833,6 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 
 	mux := drpcmux.New()
 
-	gitAuthProviders := make([]string, 0, len(api.GitAuthConfigs))
-	for _, cfg := range api.GitAuthConfigs {
-		gitAuthProviders = append(gitAuthProviders, cfg.ID)
-	}
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
 		AccessURL:             api.AccessURL,
 		ID:                    daemon.ID,
@@ -841,7 +840,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		Database:              api.Database,
 		Pubsub:                api.Pubsub,
 		Provisioners:          daemon.Provisioners,
-		GitAuthProviders:      gitAuthProviders,
+		GitAuthConfigs:        api.GitAuthConfigs,
 		Telemetry:             api.Telemetry,
 		Tags:                  tags,
 		QuotaCommitter:        &api.QuotaCommitter,

@@ -196,7 +196,7 @@ data "coder_parameter" "region" {
   }
   option {
     name  = "Dallas, Texas (US)"
-    value = "dal"
+    value = "dfw"
     icon  = "/emojis/1f1fa-1f1f8.png"
   }
   option {

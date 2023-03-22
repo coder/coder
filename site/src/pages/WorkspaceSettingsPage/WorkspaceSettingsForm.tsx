@@ -37,7 +37,10 @@ export const WorkspaceSettingsForm: FC<{
           (p) => p.name === parameter.name,
         )
         if (!buildParameter) {
-          throw new Error("Missing build parameter for " + parameter.name)
+          return {
+            name: parameter.name,
+            value: parameter.default_value,
+          }
         }
         return buildParameter
       }),
@@ -79,7 +82,7 @@ export const WorkspaceSettingsForm: FC<{
           description={t("parametersDescription")}
         >
           <FormFields>
-            {settings.templateVersionRichParameters.map((parameter, index) => (
+            {mutableParameters.map((parameter, index) => (
               <RichParameterInput
                 {...getFieldHelpers(
                   "rich_parameter_values[" + index + "].value",

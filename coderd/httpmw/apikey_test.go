@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/testutil"
 )
 
 func randomAPIKeyParts() (id string, secret string) {
@@ -462,10 +463,8 @@ func TestAPIKey(t *testing.T) {
 		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB: db,
 			OAuth2Configs: &httpmw.OAuth2Configs{
-				Github: &oauth2Config{
-					tokenSource: oauth2TokenSource(func() (*oauth2.Token, error) {
-						return oauthToken, nil
-					}),
+				Github: &testutil.OAuth2Config{
+					Token: oauthToken,
 				},
 			},
 			RedirectToLogin: false,
@@ -596,26 +595,4 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 		require.Equal(t, sentAPIKey.LoginType, gotAPIKey.LoginType)
 	})
-}
-
-type oauth2Config struct {
-	tokenSource oauth2TokenSource
-}
-
-func (o *oauth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
-	return o.tokenSource
-}
-
-func (*oauth2Config) AuthCodeURL(string, ...oauth2.AuthCodeOption) string {
-	return ""
-}
-
-func (*oauth2Config) Exchange(context.Context, string, ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
-	return &oauth2.Token{}, nil
-}
-
-type oauth2TokenSource func() (*oauth2.Token, error)
-
-func (o oauth2TokenSource) Token() (*oauth2.Token, error) {
-	return o()
 }

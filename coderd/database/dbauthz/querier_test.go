@@ -1174,9 +1174,10 @@ func (s *MethodTestSuite) TestWorkspace() {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		check.Args(database.UpdateWorkspaceBuildByIDParams{
-			ID:        build.ID,
-			UpdatedAt: build.UpdatedAt,
-			Deadline:  build.Deadline,
+			ID:               build.ID,
+			UpdatedAt:        build.UpdatedAt,
+			Deadline:         build.Deadline,
+			ProvisionerState: []byte{},
 		}).Asserts(ws, rbac.ActionUpdate).Returns(build)
 	}))
 	s.Run("SoftDeleteWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {

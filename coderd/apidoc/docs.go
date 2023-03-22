@@ -6840,6 +6840,9 @@ const docTemplate = `{
                 "verbose": {
                     "type": "boolean"
                 },
+                "wgtunnel_host": {
+                    "type": "string"
+                },
                 "wildcard_access_url": {
                     "$ref": "#/definitions/clibase.URL"
                 },
@@ -6896,11 +6899,9 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "authz_querier",
                 "template_editor"
             ],
             "x-enum-varnames": [
-                "ExperimentAuthzQuerier",
                 "ExperimentTemplateEditor"
             ]
         },
@@ -7259,6 +7260,9 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "group_mapping": {
+                    "type": "object"
                 },
                 "groups_field": {
                     "type": "string"
@@ -8623,6 +8627,10 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "outdated": {
                     "type": "boolean"

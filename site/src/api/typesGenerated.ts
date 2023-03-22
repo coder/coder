@@ -362,6 +362,7 @@ export interface DeploymentValues {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly git_auth?: any
   readonly config_ssh?: SSHConfig
+  readonly wgtunnel_host?: string
   readonly config?: string
   readonly write_config?: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
@@ -507,6 +508,9 @@ export interface OIDCConfig {
   readonly ignore_email_verified: boolean
   readonly username_field: string
   readonly groups_field: string
+  // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly group_mapping: any
   readonly sign_in_text: string
   readonly icon_url: string
 }
@@ -1002,6 +1006,7 @@ export interface Workspace {
   readonly updated_at: string
   readonly owner_id: string
   readonly owner_name: string
+  readonly organization_id: string
   readonly template_id: string
   readonly template_name: string
   readonly template_display_name: string
@@ -1223,8 +1228,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "authz_querier" | "template_editor"
-export const Experiments: Experiment[] = ["authz_querier", "template_editor"]
+export type Experiment = "template_editor"
+export const Experiments: Experiment[] = ["template_editor"]
 
 // From codersdk/deployment.go
 export type FeatureName =
