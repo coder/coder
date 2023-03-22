@@ -10,7 +10,6 @@ import { TemplateVariablesForm } from "./TemplateVariablesForm"
 import { Stack } from "components/Stack/Stack"
 import { makeStyles } from "@material-ui/core/styles"
 import { useTranslation } from "react-i18next"
-import { GoBackButton } from "components/GoBackButton/GoBackButton"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 
 export interface TemplateVariablesPageViewProps {
@@ -79,12 +78,7 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
         />
       )}
       {templateVariables && templateVariables.length === 0 && (
-        <div>
-          <AlertBanner severity="info" text={t("unusedVariablesNotice")} />
-          <div className={classes.goBackSection}>
-            <GoBackButton onClick={onCancel} />
-          </div>
-        </div>
+        <AlertBanner severity="info" text={t("unusedVariablesNotice")} />
       )}
     </>
   )
