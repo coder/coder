@@ -139,7 +139,7 @@ require (
 	github.com/swaggo/http-swagger v1.3.3
 	github.com/swaggo/swag v1.8.6
 	github.com/tabbed/pqtype v0.1.1
-	github.com/u-root/u-root v0.10.0
+	github.com/u-root/u-root v0.11.0
 	github.com/unrolled/secure v1.13.0
 	github.com/valyala/fasthttp v1.44.0
 	github.com/wagslane/go-password-validator v0.3.0
