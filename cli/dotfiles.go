@@ -19,7 +19,7 @@ import (
 func (r *RootCmd) dotfiles() *clibase.Cmd {
 	var symlinkDir string
 	cmd := &clibase.Cmd{
-		Use:        "dotfiles <git_repo_url>",
+		Use:        "dotfiles [flags] <git_repo_url>",
 		Middleware: clibase.RequireNArgs(1),
 		Short:      "Personalize your workspace by applying a canonical dotfiles repository",
 		Long: formatExamples(

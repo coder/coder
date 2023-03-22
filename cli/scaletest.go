@@ -360,7 +360,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
-		Use:   "cleanup",
+		Use:   "cleanup [flags]",
 		Short: "Cleanup any orphaned scaletest resources",
 		Long:  "The strategy flags will apply to each stage of the cleanup process.",
 		Middleware: clibase.Chain(
@@ -846,12 +846,10 @@ It is recommended that all rate limits are disabled on the server before running
 			Value:       clibase.StringsOf(&parameters),
 		},
 		{
-			Flag: "no-plan",
-			Env:  "CODER_SCALETEST_NO_PLAN",
-			Description: `Skip the dry-run step to plan the workspace
-creation. This step ensures that the given
-parameters are valid for the given template.`,
-			Value: clibase.BoolOf(&noPlan),
+			Flag:        "no-plan",
+			Env:         "CODER_SCALETEST_NO_PLAN",
+			Description: `Skip the dry-run step to plan the workspace creation. This step ensures that the given parameters are valid for the given template.`,
+			Value:       clibase.BoolOf(&noPlan),
 		},
 		{
 			Flag: "no-cleanup",
@@ -861,20 +859,16 @@ parameters are valid for the given template.`,
 			Value: clibase.BoolOf(&noCleanup),
 		},
 		{
-			Flag: "no-wait-for-agents",
-			Env:  "CODER_SCALETEST_NO_WAIT_FOR_AGENTS",
-			Description: `Do not wait for agents to start before marking
-the test as succeeded. This can be useful if you
-are running the test against a template that does
-not start the agent quickly.`,
-			Value: clibase.BoolOf(&noWaitForAgents),
+			Flag:        "no-wait-for-agents",
+			Env:         "CODER_SCALETEST_NO_WAIT_FOR_AGENTS",
+			Description: `Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly.`,
+			Value:       clibase.BoolOf(&noWaitForAgents),
 		},
 		{
-			Flag: "run-command",
-			Env:  "CODER_SCALETEST_RUN_COMMAND",
-			Description: "Command to run inside each workspace using reconnecting-pty (i.e. web terminal protocol). " +
-				"If not specified, no command will be run.",
-			Value: clibase.StringOf(&runCommand),
+			Flag:        "run-command",
+			Env:         "CODER_SCALETEST_RUN_COMMAND",
+			Description: "Command to run inside each workspace using reconnecting-pty (i.e. web terminal protocol). " + "If not specified, no command will be run.",
+			Value:       clibase.StringOf(&runCommand),
 		},
 		{
 			Flag:        "run-timeout",
@@ -912,14 +906,14 @@ not start the agent quickly.`,
 			Flag:        "connect-mode",
 			Env:         "CODER_SCALETEST_CONNECT_MODE",
 			Default:     "derp",
-			Description: "Connection mode.",
+			Description: "Mode to use for connecting to the workspace.",
 			Value:       clibase.EnumOf(&connectMode, "derp", "direct"),
 		},
 		{
 			Flag:        "connect-hold",
 			Env:         "CODER_SCALETEST_CONNECT_HOLD",
 			Default:     "30s",
-			Description: "Time to hold the WireGuard connection open for.",
+			Description: "How long to hold the WireGuard connection open for.",
 			Value:       clibase.DurationOf(&connectHold),
 		},
 		{

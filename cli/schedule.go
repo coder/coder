@@ -47,7 +47,7 @@ When enabling scheduled stop, enter a duration in one of the following formats:
   * 2    (2 minutes)
 `
 	scheduleOverrideDescriptionLong = `
-* The new stop time is calculated from *now*.
+  * The new stop time is calculated from *now*.
   * The new stop time must be at least 30 minutes in the future.
   * The workspace template may restrict the maximum workspace runtime.
 `
@@ -56,7 +56,7 @@ When enabling scheduled stop, enter a duration in one of the following formats:
 func (r *RootCmd) schedules() *clibase.Cmd {
 	scheduleCmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
-		Use:         "schedule { show | start | stop | override } <workspace>",
+		Use:         "schedule [flags] { show | start | stop | override } <workspace>",
 		Short:       "Schedule automated start and stop times for workspaces",
 		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)

@@ -13,7 +13,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
-		Use:         "restart <workspace>",
+		Use:         "restart [flags] <workspace>",
 		Short:       "Restart a workspace",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
