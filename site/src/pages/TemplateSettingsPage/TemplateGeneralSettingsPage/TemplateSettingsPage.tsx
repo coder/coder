@@ -1,38 +1,36 @@
-import { useMachine } from "@xstate/react"
+import { useMutation } from "@tanstack/react-query"
+import { updateTemplateMeta } from "api/api"
+import { UpdateTemplateMeta } from "api/typesGenerated"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
-import { useOrganizationId } from "hooks/useOrganizationId"
+import { displaySuccess } from "components/GlobalSnackbar/utils"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "util/page"
-import { templateSettingsMachine } from "xServices/templateSettings/templateSettingsXService"
+import { useTemplateSettingsContext } from "../TemplateSettingsLayout"
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView"
 
 export const TemplateSettingsPage: FC = () => {
   const { template: templateName } = useParams() as { template: string }
   const { t } = useTranslation("templateSettingsPage")
   const navigate = useNavigate()
-  const organizationId = useOrganizationId()
-  const [state, send] = useMachine(templateSettingsMachine, {
-    context: { templateName, organizationId },
-    actions: {
-      onSave: (_, { data }) => {
-        // Use the data.name because the template name can be changed. Since the
-        // API can return 304 if the template name is not changed, we use the
-        // templateName from the URL as default.
-        navigate(`/templates/${data.name ?? templateName}`)
-      },
-    },
-  })
-  const {
-    templateSettings: template,
-    saveTemplateSettingsError,
-    getTemplateError,
-  } = state.context
+  const template = useTemplateSettingsContext()
   const { entitlements } = useDashboard()
   const canSetMaxTTL =
     entitlements.features["advanced_template_scheduling"].enabled
+  const {
+    mutate: updateTemplate,
+    isLoading: isSubmitting,
+    error: submitError,
+  } = useMutation(
+    (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
+    {
+      onSuccess: () => {
+        displaySuccess("Template updated successfully")
+      },
+    },
+  )
 
   return (
     <>
@@ -41,17 +39,14 @@ export const TemplateSettingsPage: FC = () => {
       </Helmet>
       <TemplateSettingsPageView
         canSetMaxTTL={canSetMaxTTL}
-        isSubmitting={state.hasTag("submitting")}
+        isSubmitting={isSubmitting}
         template={template}
-        errors={{
-          getTemplateError,
-          saveTemplateSettingsError,
-        }}
+        submitError={submitError}
         onCancel={() => {
           navigate(`/templates/${templateName}`)
         }}
         onSubmit={(templateSettings) => {
-          send({ type: "SAVE", templateSettings })
+          updateTemplate(templateSettings)
         }}
       />
     </>

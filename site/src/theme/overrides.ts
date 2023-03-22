@@ -242,5 +242,15 @@ export const getOverrides = ({
         minWidth: 120,
       },
     },
+    MuiSnackbar: {
+      anchorOriginBottomRight: {
+        bottom: `${24 + 36}px !important`, // 36 is the bottom bar height
+      },
+    },
+    MuiSnackbarContent: {
+      root: {
+        borderRadius: "4px !important",
+      },
+    },
   }
 }
