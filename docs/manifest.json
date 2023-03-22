@@ -596,7 +596,7 @@
         },
         {
           "title": "scaletest create-workspaces",
-          "description": "Creates many users and workspace for each one and waits for them to be ready",
+          "description": "Creates many users and a workspace for each one, then waits for them to be ready",
           "path": "cli/scaletest_create-workspaces.md"
         },
         {

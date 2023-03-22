@@ -2,7 +2,7 @@
 
 # scaletest create-workspaces
 
-Creates many users and workspace for each one and waits for them to be ready
+Creates many users and a workspace for each one, then waits for them to be ready
 
 ## Usage
 

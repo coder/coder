@@ -1,6 +1,6 @@
 Usage: coder scaletest create-workspaces
 
-Creates many users and workspace for each one and waits for them to be ready
+Creates many users and a workspace for each one, then waits for them to be ready
 
 After creation, waits for the workspaces to finish building and fully come
 online. Optionally runs a command inside each workspace, and connects to the
