@@ -76,6 +76,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	templateVersion := httpmw.TemplateVersionParam(r)
+
 	var params codersdk.PatchTemplateVersionRequest
 	if !httpapi.Read(ctx, rw, r, &params) {
 		return
