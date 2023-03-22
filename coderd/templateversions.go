@@ -80,13 +80,19 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
-	if params.Name == "" {
-		params.Name = templateVersion.Name
+
+	updateParams := database.UpdateTemplateVersionByIDParams{
+		ID:         templateVersion.ID,
+		TemplateID: templateVersion.TemplateID,
+		UpdatedAt:  database.Now(),
+		Name:       templateVersion.Name,
 	}
-	templateVersion, err := api.Database.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
-		ID:   templateVersion.ID,
-		Name: params.Name,
-	})
+
+	if params.Name != "" {
+		updateParams.Name = params.Name
+	}
+	// It is not allowed to "patch" the template ID, and reassign it.
+	updatedTemplateVersion, err := api.Database.UpdateTemplateVersionByID(ctx, updateParams)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error on patching template version.",
@@ -94,7 +100,26 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusNoContent, templateVersion)
+
+	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	user, err := api.Database.GetUserByID(ctx, templateVersion.CreatedBy)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error on fetching user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(job), user))
 }
 
 // @Summary Cancel template version by ID

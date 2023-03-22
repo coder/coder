@@ -302,7 +302,7 @@ func (c *Client) UpdateTemplateVersion(ctx context.Context, versionID uuid.UUID,
 		return TemplateVersion{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
+	if res.StatusCode != http.StatusOK {
 		return TemplateVersion{}, ReadBodyAsError(res)
 	}
 	var version TemplateVersion

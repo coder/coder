@@ -1342,16 +1342,19 @@ func TestTemplateVersionPatch(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		const newName = "new_name"
 		updatedVersion, err := client.UpdateTemplateVersion(ctx, version.ID, codersdk.PatchTemplateVersionRequest{
-			Name: "new name",
+			Name: newName,
 		})
 
 		require.NoError(t, err)
-		require.Equal(t, updatedVersion.Name, "new name")
+		assert.Equal(t, newName, updatedVersion.Name)
+		assert.NotEqual(t, updatedVersion.Name, version.Name)
 	})
 
 	t.Run("Use the same name if a new name is not passed", func(t *testing.T) {
@@ -1359,13 +1362,13 @@ func TestTemplateVersionPatch(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		updatedVersion, err := client.UpdateTemplateVersion(ctx, version.ID, codersdk.PatchTemplateVersionRequest{})
-
 		require.NoError(t, err)
-		require.Equal(t, updatedVersion.Name, version.Name)
+		assert.Equal(t, version.Name, updatedVersion.Name)
 	})
 }
