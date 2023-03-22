@@ -269,7 +269,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 		templateAudit.New = dbTemplate
 
-		newTemplateVersion, err := tx.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
+		_, err = tx.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
 			ID: templateVersion.ID,
 			TemplateID: uuid.NullUUID{
 				UUID:  dbTemplate.ID,
@@ -280,6 +280,11 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template version: %s", err)
+		}
+		newTemplateVersion := templateVersion
+		newTemplateVersion.TemplateID = uuid.NullUUID{
+			UUID:  dbTemplate.ID,
+			Valid: true,
 		}
 		templateVersionAudit.New = newTemplateVersion
 
