@@ -302,6 +302,7 @@ jobs:
           helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/coder_helm_${version}.tgz gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp helm/artifacthub-repo.yml gs://helm.coder.com/v2
 
       - name: Upload artifacts to actions (if dry-run)
         if: ${{ inputs.dry_run }}
