@@ -16,6 +16,7 @@ coder groups create [flags] <name>
 
 |             |                                |
 | ----------- | ------------------------------ |
+| Type        | <code>string</code>            |
 | Environment | <code>$CODER_AVATAR_URL</code> |
 
 Set an avatar for a group.

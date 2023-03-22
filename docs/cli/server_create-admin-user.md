@@ -16,6 +16,7 @@ coder server create-admin-user [flags]
 
 |             |                           |
 | ----------- | ------------------------- |
+| Type        | <code>string</code>       |
 | Environment | <code>$CODER_EMAIL</code> |
 
 The email of the new user. If not specified, you will be prompted via stdin.
@@ -24,6 +25,7 @@ The email of the new user. If not specified, you will be prompted via stdin.
 
 |             |                              |
 | ----------- | ---------------------------- |
+| Type        | <code>string</code>          |
 | Environment | <code>$CODER_PASSWORD</code> |
 
 The password of the new user. If not specified, you will be prompted via stdin.
@@ -32,11 +34,16 @@ The password of the new user. If not specified, you will be prompted via stdin.
 
 |             |                                  |
 | ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
 | Environment | <code>$CODER_POSTGRES_URL</code> |
 
 URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case).
 
 ### --raw-url
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
 
 Output the raw connection URL instead of a psql command.
 
@@ -44,6 +51,7 @@ Output the raw connection URL instead of a psql command.
 
 |             |                                          |
 | ----------- | ---------------------------------------- |
+| Type        | <code>string</code>                      |
 | Environment | <code>$CODER_SSH_KEYGEN_ALGORITHM</code> |
 | Default     | <code>ed25519</code>                     |
 
@@ -53,6 +61,7 @@ The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ec
 
 |             |                              |
 | ----------- | ---------------------------- |
+| Type        | <code>string</code>          |
 | Environment | <code>$CODER_USERNAME</code> |
 
 The username of the new user. If not specified, you will be prompted via stdin.

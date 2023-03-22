@@ -57,7 +57,13 @@ var usageTemplate = template.Must(
 				case *clibase.Enum:
 					return fmt.Sprintf("one of %s", strings.Join(v.Choices, "|"))
 				default:
-					return ""
+					// Usually, enough type information is found in the
+					// default. It's easy to print too much information
+					// and either overwhelm or, worse, cause wrapping.
+					if opt.Default != "" {
+						return ""
+					}
+					return v.Type()
 				}
 			},
 			"joinStrings": func(s []string) string {

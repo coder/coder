@@ -5,7 +5,7 @@ List workspaces
 Aliases: ls
 
 [1mOptions[0m
-  -a, --all
+  -a, --all bool
           Specifies whether all workspaces will be listed or not.
 
   -c, --column (default: workspace,template,status,last built,outdated,starts at,stops after)

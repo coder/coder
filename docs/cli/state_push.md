@@ -14,8 +14,8 @@ coder state push [flags] <workspace> <file>
 
 ### -b, --build
 
-|         |                |
-| ------- | -------------- |
-| Default | <code>0</code> |
+|      |                  |
+| ---- | ---------------- |
+| Type | <code>int</code> |
 
-Specify a workspace build to target by name.
+Specify a workspace build to target by name. Defaults to latest.

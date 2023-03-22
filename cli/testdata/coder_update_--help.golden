@@ -5,14 +5,14 @@ Will update and start a given workspace if it is out of date.
 Use --always-prompt to change the parameter values of the workspace.
 
 [1mOptions[0m
-      --always-prompt
+      --always-prompt bool
           Always prompt all parameters. Does not pull parameter values from
           existing workspace.
 
-      --parameter-file, $CODER_PARAMETER_FILE
+      --parameter-file, $CODER_PARAMETER_FILE string
           Specify a file path with parameter values.
 
-      --rich-parameter-file, $CODER_RICH_PARAMETER_FILE
+      --rich-parameter-file, $CODER_RICH_PARAMETER_FILE string
           Specify a file path with values for rich parameters defined in the
           template.
 

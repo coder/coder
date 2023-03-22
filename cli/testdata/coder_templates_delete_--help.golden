@@ -3,7 +3,7 @@ Usage: coder templates delete [flags] [name...]
 Delete templates
 
 [1mOptions[0m
-  -y, --yes
+  -y, --yes bool
           Bypass prompts.
 
 ---

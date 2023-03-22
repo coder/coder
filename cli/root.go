@@ -147,11 +147,11 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 		Use: "coder [global-flags] <subcommand>",
 		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + formatExamples(
 			example{
-				Description: "Start a Coder server.",
+				Description: "Start a Coder server",
 				Command:     "coder server",
 			},
 			example{
-				Description: "Get started by creating a template from an example.",
+				Description: "Get started by creating a template from an example",
 				Command:     "coder templates init",
 			},
 		),

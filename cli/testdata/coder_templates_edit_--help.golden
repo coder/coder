@@ -6,28 +6,28 @@ Edit the metadata of a template by name.
       --allow-user-cancel-workspace-jobs (default: true)
           Allow users to cancel in-progress workspace jobs.
 
-      --default-ttl
+      --default-ttl duration
           Edit the template default time before shutdown - workspaces created
           from this template default to this value.
 
-      --description
+      --description string
           Edit the template description.
 
-      --display-name
+      --display-name string
           Edit the template display name.
 
-      --icon
+      --icon string
           Edit the template icon path.
 
-      --max-ttl
+      --max-ttl duration
           Edit the template maximum time before shutdown - workspaces created
           from this template must shutdown within the given duration after
           starting. This is an enterprise-only feature.
 
-      --name
+      --name string
           Edit the template name.
 
-  -y, --yes
+  -y, --yes bool
           Bypass prompts.
 
 ---

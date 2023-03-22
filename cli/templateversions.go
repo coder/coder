@@ -20,7 +20,7 @@ func (r *RootCmd) templateVersions() *clibase.Cmd {
 		Aliases: []string{"version"},
 		Long: formatExamples(
 			example{
-				Description: "List versions of a specific template.",
+				Description: "List versions of a specific template",
 				Command:     "coder templates versions list my-template",
 			},
 		),

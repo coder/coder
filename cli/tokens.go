@@ -20,15 +20,15 @@ func (r *RootCmd) tokens() *clibase.Cmd {
 		Short: "Manage personal access tokens",
 		Long: "Tokens are used to authenticate automated clients to Coder.\n" + formatExamples(
 			example{
-				Description: "Create a token for automation.",
+				Description: "Create a token for automation",
 				Command:     "coder tokens create",
 			},
 			example{
-				Description: "List your tokens.",
+				Description: "List your tokens",
 				Command:     "coder tokens ls",
 			},
 			example{
-				Description: "Remove a token by ID.",
+				Description: "Remove a token by ID",
 				Command:     "coder tokens rm WuoWs4ZsMX",
 			},
 		),

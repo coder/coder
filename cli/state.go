@@ -75,8 +75,7 @@ func buildNumberOption(n *int64) clibase.Option {
 	return clibase.Option{
 		Flag:          "build",
 		FlagShorthand: "b",
-		Description:   "Specify a workspace build to target by name.",
-		Default:       "0",
+		Description:   "Specify a workspace build to target by name. Defaults to latest.",
 		Value:         clibase.Int64Of(n),
 	}
 }

@@ -38,7 +38,7 @@ func TestOptionSet_ParseFlags(t *testing.T) {
 	t.Run("Strings", func(t *testing.T) {
 		t.Parallel()
 
-		var names clibase.Strings
+		var names clibase.StringArray
 
 		os := clibase.OptionSet{
 			clibase.Option{

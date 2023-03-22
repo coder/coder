@@ -42,14 +42,13 @@ Aliases:
 {{- end }}
 ### {{ with $opt.FlagShorthand}}-{{ . }}, {{end}}--{{ $opt.Flag }}
 {{" "}}
-{{ $printedHeader := false }}
+{{ tableHeader }}
+| Type | {{ $opt.Value.Type | wrapCode }} |
 {{- with $opt.Env }}
-{{- if not $printedHeader }} {{ tableHeader }} {{ $printedHeader = true}} {{ end }}
 | Environment | {{ (print "$" .) | wrapCode }} |
 {{- end }}
 {{- with $opt.Default }}
-{{- if not $printedHeader }} {{ tableHeader }} {{ $printedHeader = true}} {{ end }}
-| Default | {{"    "}} {{- . | wrapCode }} |
+| Default | {{- . | wrapCode }} |
 {{ "" }}
 {{ end }}
 {{ "" }}

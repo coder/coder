@@ -26,6 +26,7 @@ coder users activate [flags] <username|user_id>
 
 |         |                                               |
 | ------- | --------------------------------------------- |
+| Type    | <code>string-array</code>                     |
 | Default | <code>username,email,created_at,status</code> |
 
 Specify a column to filter in the table.

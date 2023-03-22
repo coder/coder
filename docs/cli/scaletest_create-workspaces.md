@@ -24,6 +24,7 @@ It is recommended that all rate limits are disabled on the server before running
 
 |             |                                                   |
 | ----------- | ------------------------------------------------- |
+| Type        | <code>int</code>                                  |
 | Environment | <code>$CODER_SCALETEST_CLEANUP_CONCURRENCY</code> |
 | Default     | <code>1</code>                                    |
 
@@ -33,6 +34,7 @@ Number of concurrent cleanup jobs to run. 0 means unlimited.
 
 |             |                                                   |
 | ----------- | ------------------------------------------------- |
+| Type        | <code>duration</code>                             |
 | Environment | <code>$CODER_SCALETEST_CLEANUP_JOB_TIMEOUT</code> |
 | Default     | <code>5m</code>                                   |
 
@@ -42,6 +44,7 @@ Timeout per job. Jobs may take longer to complete under higher concurrency limit
 
 |             |                                               |
 | ----------- | --------------------------------------------- |
+| Type        | <code>duration</code>                         |
 | Environment | <code>$CODER_SCALETEST_CLEANUP_TIMEOUT</code> |
 | Default     | <code>30m</code>                              |
 
@@ -51,6 +54,7 @@ Timeout for the entire cleanup run. 0 means unlimited.
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
+| Type        | <code>int</code>                          |
 | Environment | <code>$CODER_SCALETEST_CONCURRENCY</code> |
 | Default     | <code>1</code>                            |
 
@@ -60,6 +64,7 @@ Number of concurrent jobs to run. 0 means unlimited.
 
 |             |                                            |
 | ----------- | ------------------------------------------ |
+| Type        | <code>duration</code>                      |
 | Environment | <code>$CODER_SCALETEST_CONNECT_HOLD</code> |
 | Default     | <code>30s</code>                           |
 
@@ -69,6 +74,7 @@ How long to hold the WireGuard connection open for.
 
 |             |                                                |
 | ----------- | ---------------------------------------------- |
+| Type        | <code>duration</code>                          |
 | Environment | <code>$CODER_SCALETEST_CONNECT_INTERVAL</code> |
 | Default     | <code>1s</code>                                |
 
@@ -77,7 +83,8 @@ How long to wait between making requests to the --connect-url once the connectio
 ### --connect-mode
 
 |             |                                            |
-| ----------- | ------------------------------------------ |
+| ----------- | ------------------------------------------ | -------------- |
+| Type        | <code>enum[derp                            | direct]</code> |
 | Environment | <code>$CODER_SCALETEST_CONNECT_MODE</code> |
 | Default     | <code>derp</code>                          |
 
@@ -87,6 +94,7 @@ Mode to use for connecting to the workspace.
 
 |             |                                               |
 | ----------- | --------------------------------------------- |
+| Type        | <code>duration</code>                         |
 | Environment | <code>$CODER_SCALETEST_CONNECT_TIMEOUT</code> |
 | Default     | <code>5s</code>                               |
 
@@ -96,6 +104,7 @@ Timeout for each request to the --connect-url.
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
+| Type        | <code>string</code>                       |
 | Environment | <code>$CODER_SCALETEST_CONNECT_URL</code> |
 
 URL to connect to inside the the workspace over WireGuard. If not specified, no connections will be made over WireGuard.
@@ -104,6 +113,7 @@ URL to connect to inside the the workspace over WireGuard. If not specified, no 
 
 |             |                                     |
 | ----------- | ----------------------------------- |
+| Type        | <code>int</code>                    |
 | Environment | <code>$CODER_SCALETEST_COUNT</code> |
 | Default     | <code>1</code>                      |
 
@@ -113,6 +123,7 @@ Required: Number of workspaces to create.
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
+| Type        | <code>duration</code>                     |
 | Environment | <code>$CODER_SCALETEST_JOB_TIMEOUT</code> |
 | Default     | <code>5m</code>                           |
 
@@ -122,6 +133,7 @@ Timeout per job. Jobs may take longer to complete under higher concurrency limit
 
 |             |                                          |
 | ----------- | ---------------------------------------- |
+| Type        | <code>bool</code>                        |
 | Environment | <code>$CODER_SCALETEST_NO_CLEANUP</code> |
 
 Do not clean up resources after the load test has finished. Useful for debugging.
@@ -130,6 +142,7 @@ Do not clean up resources after the load test has finished. Useful for debugging
 
 |             |                                       |
 | ----------- | ------------------------------------- |
+| Type        | <code>bool</code>                     |
 | Environment | <code>$CODER_SCALETEST_NO_PLAN</code> |
 
 Skip the dry-run step to plan the workspace creation. This step ensures that the given parameters are valid for the given template.
@@ -138,6 +151,7 @@ Skip the dry-run step to plan the workspace creation. This step ensures that the
 
 |             |                                                  |
 | ----------- | ------------------------------------------------ |
+| Type        | <code>bool</code>                                |
 | Environment | <code>$CODER_SCALETEST_NO_WAIT_FOR_AGENTS</code> |
 
 Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly.
@@ -146,6 +160,7 @@ Do not wait for agents to start before marking the test as succeeded. This can b
 
 |             |                                       |
 | ----------- | ------------------------------------- |
+| Type        | <code>string-array</code>             |
 | Environment | <code>$CODER_SCALETEST_OUTPUTS</code> |
 | Default     | <code>text</code>                     |
 
@@ -155,6 +170,7 @@ Output format specs in the format "<format>[:<path>]". Not specifying a path wil
 
 |             |                                          |
 | ----------- | ---------------------------------------- |
+| Type        | <code>string-array</code>                |
 | Environment | <code>$CODER_SCALETEST_PARAMETERS</code> |
 
 Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value.
@@ -163,6 +179,7 @@ Parameters to use for each workspace. Can be specified multiple times. Overrides
 
 |             |                                               |
 | ----------- | --------------------------------------------- |
+| Type        | <code>string</code>                           |
 | Environment | <code>$CODER_SCALETEST_PARAMETERS_FILE</code> |
 
 Path to a YAML file containing the parameters to use for each workspace.
@@ -171,6 +188,7 @@ Path to a YAML file containing the parameters to use for each workspace.
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
+| Type        | <code>string</code>                       |
 | Environment | <code>$CODER_SCALETEST_RUN_COMMAND</code> |
 
 Command to run inside each workspace using reconnecting-pty (i.e. web terminal protocol). If not specified, no command will be run.
@@ -179,6 +197,7 @@ Command to run inside each workspace using reconnecting-pty (i.e. web terminal p
 
 |             |                                                 |
 | ----------- | ----------------------------------------------- |
+| Type        | <code>string</code>                             |
 | Environment | <code>$CODER_SCALETEST_RUN_EXPECT_OUTPUT</code> |
 
 Expect the command to output the given string (on a single line). If the command does not output the given string, it will be marked as failed.
@@ -187,6 +206,7 @@ Expect the command to output the given string (on a single line). If the command
 
 |             |                                                  |
 | ----------- | ------------------------------------------------ |
+| Type        | <code>bool</code>                                |
 | Environment | <code>$CODER_SCALETEST_RUN_EXPECT_TIMEOUT</code> |
 
 Expect the command to timeout. If the command does not finish within the given --run-timeout, it will be marked as succeeded. If the command finishes before the timeout, it will be marked as failed.
@@ -195,6 +215,7 @@ Expect the command to timeout. If the command does not finish within the given -
 
 |             |                                              |
 | ----------- | -------------------------------------------- |
+| Type        | <code>bool</code>                            |
 | Environment | <code>$CODER_SCALETEST_RUN_LOG_OUTPUT</code> |
 
 Log the output of the command to the test logs. This should be left off unless you expect small amounts of output. Large amounts of output will cause high memory usage.
@@ -203,6 +224,7 @@ Log the output of the command to the test logs. This should be left off unless y
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
+| Type        | <code>duration</code>                     |
 | Environment | <code>$CODER_SCALETEST_RUN_TIMEOUT</code> |
 | Default     | <code>5s</code>                           |
 
@@ -212,6 +234,7 @@ Timeout for the command to complete.
 
 |             |                                        |
 | ----------- | -------------------------------------- |
+| Type        | <code>string</code>                    |
 | Environment | <code>$CODER_SCALETEST_TEMPLATE</code> |
 
 Required: Name or ID of the template to use for workspaces.
@@ -220,6 +243,7 @@ Required: Name or ID of the template to use for workspaces.
 
 |             |                                       |
 | ----------- | ------------------------------------- |
+| Type        | <code>duration</code>                 |
 | Environment | <code>$CODER_SCALETEST_TIMEOUT</code> |
 | Default     | <code>30m</code>                      |
 
@@ -229,6 +253,7 @@ Timeout for the entire test run. 0 means unlimited.
 
 |             |                                     |
 | ----------- | ----------------------------------- |
+| Type        | <code>bool</code>                   |
 | Environment | <code>$CODER_SCALETEST_TRACE</code> |
 
 Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
@@ -237,6 +262,7 @@ Whether application tracing data is collected. It exports to a backend configure
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
+| Type        | <code>bool</code>                         |
 | Environment | <code>$CODER_SCALETEST_TRACE_CODER</code> |
 
 Whether opentelemetry traces are sent to Coder. We recommend keeping this disabled unless we advise you to enable it.
@@ -245,6 +271,7 @@ Whether opentelemetry traces are sent to Coder. We recommend keeping this disabl
 
 |             |                                                       |
 | ----------- | ----------------------------------------------------- |
+| Type        | <code>string</code>                                   |
 | Environment | <code>$CODER_SCALETEST_TRACE_HONEYCOMB_API_KEY</code> |
 
 Enables trace exporting to Honeycomb.io using the provided API key.
@@ -253,6 +280,7 @@ Enables trace exporting to Honeycomb.io using the provided API key.
 
 |             |                                               |
 | ----------- | --------------------------------------------- |
+| Type        | <code>bool</code>                             |
 | Environment | <code>$CODER_SCALETEST_TRACE_PROPAGATE</code> |
 
 Enables trace propagation to the Coder backend, which will be used to correlate server-side spans with client-side spans. Only enable this if the server is configured with the exact same tracing configuration as the client.

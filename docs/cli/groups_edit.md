@@ -14,16 +14,32 @@ coder groups edit [flags] <name>
 
 ### -a, --add-users
 
+|      |                           |
+| ---- | ------------------------- |
+| Type | <code>string-array</code> |
+
 Add users to the group. Accepts emails or IDs.
 
 ### -u, --avatar-url
+
+|      |                     |
+| ---- | ------------------- |
+| Type | <code>string</code> |
 
 Update the group avatar.
 
 ### -n, --name
 
+|      |                     |
+| ---- | ------------------- |
+| Type | <code>string</code> |
+
 Update the group name.
 
 ### -r, --rm-users
+
+|      |                           |
+| ---- | ------------------------- |
+| Type | <code>string-array</code> |
 
 Remove users to the group. Accepts emails or IDs.

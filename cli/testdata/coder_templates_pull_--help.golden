@@ -3,10 +3,10 @@ Usage: coder templates pull [flags] <name> [destination]
 Download the latest version of a template to a path.
 
 [1mOptions[0m
-      --tar
+      --tar bool
           Output the template as a tar archive to stdout.
 
-  -y, --yes
+  -y, --yes bool
           Bypass prompts.
 
 ---

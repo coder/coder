@@ -4,7 +4,7 @@ Manage different versions of the specified template
 
 Aliases: version
 
-- List versions of a specific template.:                                      
+- List versions of a specific template:                                       
 
       [;m$ coder templates versions list my-template[0m
 

@@ -109,26 +109,26 @@ func (String) Type() string {
 	return "string"
 }
 
-var _ pflag.SliceValue = &Strings{}
+var _ pflag.SliceValue = &StringArray{}
 
-// Strings is a slice of strings that implements pflag.Value and pflag.SliceValue.
-type Strings []string
+// StringArray is a slice of strings that implements pflag.Value and pflag.SliceValue.
+type StringArray []string
 
-func StringsOf(ss *[]string) *Strings {
-	return (*Strings)(ss)
+func StringsOf(ss *[]string) *StringArray {
+	return (*StringArray)(ss)
 }
 
-func (s *Strings) Append(v string) error {
+func (s *StringArray) Append(v string) error {
 	*s = append(*s, v)
 	return nil
 }
 
-func (s *Strings) Replace(vals []string) error {
+func (s *StringArray) Replace(vals []string) error {
 	*s = vals
 	return nil
 }
 
-func (s *Strings) GetSlice() []string {
+func (s *StringArray) GetSlice() []string {
 	return *s
 }
 
@@ -145,7 +145,7 @@ func writeAsCSV(vals []string) string {
 	return sb.String()
 }
 
-func (s *Strings) Set(v string) error {
+func (s *StringArray) Set(v string) error {
 	ss, err := readAsCSV(v)
 	if err != nil {
 		return err
@@ -154,16 +154,16 @@ func (s *Strings) Set(v string) error {
 	return nil
 }
 
-func (s Strings) String() string {
+func (s StringArray) String() string {
 	return writeAsCSV([]string(s))
 }
 
-func (s Strings) Value() []string {
+func (s StringArray) Value() []string {
 	return []string(s)
 }
 
-func (Strings) Type() string {
-	return "strings"
+func (StringArray) Type() string {
+	return "string-array"
 }
 
 type Duration time.Duration
@@ -287,7 +287,7 @@ func (hp *HostPort) UnmarshalJSON(b []byte) error {
 }
 
 func (*HostPort) Type() string {
-	return "bind-address"
+	return "host:port"
 }
 
 var (

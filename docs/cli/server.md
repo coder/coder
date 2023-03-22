@@ -22,12 +22,17 @@ coder server [flags]
 
 ### --
 
+|      |                                            |
+| ---- | ------------------------------------------ |
+| Type | <code>struct[[]codersdk.LinkConfig]</code> |
+
 Support links to display in the top right drop down menu.
 
 ### --access-url
 
 |             |                                |
 | ----------- | ------------------------------ |
+| Type        | <code>url</code>               |
 | Environment | <code>$CODER_ACCESS_URL</code> |
 
 The URL that users will use to access the Coder deployment.
@@ -36,6 +41,7 @@ The URL that users will use to access the Coder deployment.
 
 |             |                                   |
 | ----------- | --------------------------------- |
+| Type        | <code>bool</code>                 |
 | Environment | <code>$CODER_AUDIT_LOGGING</code> |
 | Default     | <code>true</code>                 |
 
@@ -45,6 +51,7 @@ Specifies whether audit logging is enabled.
 
 |             |                                  |
 | ----------- | -------------------------------- |
+| Type        | <code>bool</code>                |
 | Environment | <code>$CODER_BROWSER_ONLY</code> |
 
 Whether Coder only allows connections to workspaces via the browser.
@@ -53,6 +60,7 @@ Whether Coder only allows connections to workspaces via the browser.
 
 |             |                                     |
 | ----------- | ----------------------------------- |
+| Type        | <code>string</code>                 |
 | Environment | <code>$CODER_CACHE_DIRECTORY</code> |
 | Default     | <code>~/.cache/coder</code>         |
 
@@ -62,6 +70,7 @@ The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is s
 
 |             |                                                      |
 | ----------- | ---------------------------------------------------- |
+| Type        | <code>bool</code>                                    |
 | Environment | <code>$CODER_DANGEROUS_ALLOW_PATH_APP_SHARING</code> |
 
 Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
@@ -70,6 +79,7 @@ Allow workspace apps that are not served from subdomains to be shared. Path-base
 
 |             |                                                                |
 | ----------- | -------------------------------------------------------------- |
+| Type        | <code>bool</code>                                              |
 | Environment | <code>$CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS</code> |
 
 Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
@@ -78,6 +88,7 @@ Allow site-owners to access workspace apps from workspaces they do not own. Owne
 
 |             |                                      |
 | ----------- | ------------------------------------ |
+| Type        | <code>string</code>                  |
 | Environment | <code>$CODER_DERP_CONFIG_PATH</code> |
 
 Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.
@@ -86,6 +97,7 @@ Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp
 
 |             |                                     |
 | ----------- | ----------------------------------- |
+| Type        | <code>string</code>                 |
 | Environment | <code>$CODER_DERP_CONFIG_URL</code> |
 
 URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.
@@ -94,6 +106,7 @@ URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custo
 
 |             |                                        |
 | ----------- | -------------------------------------- |
+| Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_DERP_SERVER_ENABLE</code> |
 | Default     | <code>true</code>                      |
 
@@ -103,6 +116,7 @@ Whether to enable or disable the embedded DERP relay server.
 
 |             |                                             |
 | ----------- | ------------------------------------------- |
+| Type        | <code>string</code>                         |
 | Environment | <code>$CODER_DERP_SERVER_REGION_CODE</code> |
 | Default     | <code>coder</code>                          |
 
@@ -112,6 +126,7 @@ Region code to use for the embedded DERP server.
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
+| Type        | <code>int</code>                          |
 | Environment | <code>$CODER_DERP_SERVER_REGION_ID</code> |
 | Default     | <code>999</code>                          |
 
@@ -121,6 +136,7 @@ Region ID to use for the embedded DERP server.
 
 |             |                                             |
 | ----------- | ------------------------------------------- |
+| Type        | <code>string</code>                         |
 | Environment | <code>$CODER_DERP_SERVER_REGION_NAME</code> |
 | Default     | <code>Coder Embedded Relay</code>           |
 
@@ -130,6 +146,7 @@ Region name that for the embedded DERP server.
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
+| Type        | <code>url</code>                          |
 | Environment | <code>$CODER_DERP_SERVER_RELAY_URL</code> |
 
 An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.
@@ -138,6 +155,7 @@ An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
 
 |             |                                                |
 | ----------- | ---------------------------------------------- |
+| Type        | <code>string-array</code>                      |
 | Environment | <code>$CODER_DERP_SERVER_STUN_ADDRESSES</code> |
 | Default     | <code>stun.l.google.com:19302</code>           |
 
@@ -147,6 +165,7 @@ Addresses for STUN servers to establish P2P connections. Set empty to disable P2
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
+| Type        | <code>bool</code>                         |
 | Environment | <code>$CODER_DISABLE_PASSWORD_AUTH</code> |
 
 Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.
@@ -155,6 +174,7 @@ Disable password authentication. This is recommended for security purposes in pr
 
 |             |                                       |
 | ----------- | ------------------------------------- |
+| Type        | <code>bool</code>                     |
 | Environment | <code>$CODER_DISABLE_PATH_APPS</code> |
 
 Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.
@@ -163,6 +183,7 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 
 |             |                                                    |
 | ----------- | -------------------------------------------------- |
+| Type        | <code>bool</code>                                  |
 | Environment | <code>$CODER_DISABLE_SESSION_EXPIRY_REFRESH</code> |
 
 Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.
@@ -171,6 +192,7 @@ Disable automatic session expiry bumping due to activity. This forces all sessio
 
 |             |                                 |
 | ----------- | ------------------------------- |
+| Type        | <code>string-array</code>       |
 | Environment | <code>$CODER_EXPERIMENTS</code> |
 
 Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '\*' to opt-in to all available experiments.
@@ -179,6 +201,7 @@ Enable one or more experiments. These are not ready for production. Separate mul
 
 |             |                                  |
 | ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
 | Environment | <code>$CODER_HTTP_ADDRESS</code> |
 | Default     | <code>127.0.0.1:3000</code>      |
 
@@ -188,6 +211,7 @@ HTTP bind address of the server. Unset to disable the HTTP endpoint.
 
 |             |                                   |
 | ----------- | --------------------------------- |
+| Type        | <code>string</code>               |
 | Environment | <code>$CODER_LOGGING_HUMAN</code> |
 | Default     | <code>/dev/stderr</code>          |
 
@@ -197,6 +221,7 @@ Output human-readable logs to a given file.
 
 |             |                                  |
 | ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
 | Environment | <code>$CODER_LOGGING_JSON</code> |
 
 Output JSON logs to a given file.
@@ -205,6 +230,7 @@ Output JSON logs to a given file.
 
 |             |                                         |
 | ----------- | --------------------------------------- |
+| Type        | <code>string</code>                     |
 | Environment | <code>$CODER_LOGGING_STACKDRIVER</code> |
 
 Output Stackdriver compatible logs to a given file.
@@ -213,6 +239,7 @@ Output Stackdriver compatible logs to a given file.
 
 |             |                                        |
 | ----------- | -------------------------------------- |
+| Type        | <code>duration</code>                  |
 | Environment | <code>$CODER_MAX_TOKEN_LIFETIME</code> |
 | Default     | <code>2562047h47m16.854775807s</code>  |
 
@@ -222,6 +249,7 @@ The maximum lifetime duration users can specify when creating an API token.
 
 |             |                                                  |
 | ----------- | ------------------------------------------------ |
+| Type        | <code>bool</code>                                |
 | Environment | <code>$CODER_OAUTH2_GITHUB_ALLOW_EVERYONE</code> |
 
 Allow all logins, setting this option means allowed orgs and teams must be empty.
@@ -230,6 +258,7 @@ Allow all logins, setting this option means allowed orgs and teams must be empty
 
 |             |                                                 |
 | ----------- | ----------------------------------------------- |
+| Type        | <code>bool</code>                               |
 | Environment | <code>$CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS</code> |
 
 Whether new users can sign up with GitHub.
@@ -238,6 +267,7 @@ Whether new users can sign up with GitHub.
 
 |             |                                                |
 | ----------- | ---------------------------------------------- |
+| Type        | <code>string-array</code>                      |
 | Environment | <code>$CODER_OAUTH2_GITHUB_ALLOWED_ORGS</code> |
 
 Organizations the user must be a member of to Login with GitHub.
@@ -246,6 +276,7 @@ Organizations the user must be a member of to Login with GitHub.
 
 |             |                                                 |
 | ----------- | ----------------------------------------------- |
+| Type        | <code>string-array</code>                       |
 | Environment | <code>$CODER_OAUTH2_GITHUB_ALLOWED_TEAMS</code> |
 
 Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.
@@ -254,6 +285,7 @@ Teams inside organizations the user must be a member of to Login with GitHub. St
 
 |             |                                             |
 | ----------- | ------------------------------------------- |
+| Type        | <code>string</code>                         |
 | Environment | <code>$CODER_OAUTH2_GITHUB_CLIENT_ID</code> |
 
 Client ID for Login with GitHub.
@@ -262,6 +294,7 @@ Client ID for Login with GitHub.
 
 |             |                                                 |
 | ----------- | ----------------------------------------------- |
+| Type        | <code>string</code>                             |
 | Environment | <code>$CODER_OAUTH2_GITHUB_CLIENT_SECRET</code> |
 
 Client secret for Login with GitHub.
@@ -270,6 +303,7 @@ Client secret for Login with GitHub.
 
 |             |                                                       |
 | ----------- | ----------------------------------------------------- |
+| Type        | <code>string</code>                                   |
 | Environment | <code>$CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL</code> |
 
 Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
@@ -278,6 +312,7 @@ Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 
 |             |                                        |
 | ----------- | -------------------------------------- |
+| Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_OIDC_ALLOW_SIGNUPS</code> |
 | Default     | <code>true</code>                      |
 
@@ -287,6 +322,7 @@ Whether new users can sign up with OIDC.
 
 |             |                                    |
 | ----------- | ---------------------------------- |
+| Type        | <code>string</code>                |
 | Environment | <code>$CODER_OIDC_CLIENT_ID</code> |
 
 Client ID to use for Login with OIDC.
@@ -295,6 +331,7 @@ Client ID to use for Login with OIDC.
 
 |             |                                        |
 | ----------- | -------------------------------------- |
+| Type        | <code>string</code>                    |
 | Environment | <code>$CODER_OIDC_CLIENT_SECRET</code> |
 
 Client secret to use for Login with OIDC.
@@ -303,6 +340,7 @@ Client secret to use for Login with OIDC.
 
 |             |                                       |
 | ----------- | ------------------------------------- |
+| Type        | <code>string-array</code>             |
 | Environment | <code>$CODER_OIDC_EMAIL_DOMAIN</code> |
 
 Email domains that clients logging in with OIDC must match.
@@ -311,6 +349,7 @@ Email domains that clients logging in with OIDC must match.
 
 |             |                                      |
 | ----------- | ------------------------------------ |
+| Type        | <code>string</code>                  |
 | Environment | <code>$CODER_OIDC_GROUP_FIELD</code> |
 
 Change the OIDC default 'groups' claim field. By default, will be 'groups' if present in the oidc scopes argument.
@@ -319,6 +358,7 @@ Change the OIDC default 'groups' claim field. By default, will be 'groups' if pr
 
 |             |                                   |
 | ----------- | --------------------------------- |
+| Type        | <code>url</code>                  |
 | Environment | <code>$CODER_OIDC_ICON_URL</code> |
 
 URL pointing to the icon to use on the OepnID Connect login button.
@@ -327,6 +367,7 @@ URL pointing to the icon to use on the OepnID Connect login button.
 
 |             |                                                |
 | ----------- | ---------------------------------------------- |
+| Type        | <code>bool</code>                              |
 | Environment | <code>$CODER_OIDC_IGNORE_EMAIL_VERIFIED</code> |
 
 Ignore the email_verified claim from the upstream provider.
@@ -335,6 +376,7 @@ Ignore the email_verified claim from the upstream provider.
 
 |             |                                     |
 | ----------- | ----------------------------------- |
+| Type        | <code>string</code>                 |
 | Environment | <code>$CODER_OIDC_ISSUER_URL</code> |
 
 Issuer URL to use for Login with OIDC.
@@ -343,6 +385,7 @@ Issuer URL to use for Login with OIDC.
 
 |             |                                   |
 | ----------- | --------------------------------- |
+| Type        | <code>string-array</code>         |
 | Environment | <code>$CODER_OIDC_SCOPES</code>   |
 | Default     | <code>openid,profile,email</code> |
 
@@ -352,6 +395,7 @@ Scopes to grant when authenticating with OIDC.
 
 |             |                                       |
 | ----------- | ------------------------------------- |
+| Type        | <code>string</code>                   |
 | Environment | <code>$CODER_OIDC_SIGN_IN_TEXT</code> |
 | Default     | <code>OpenID Connect</code>           |
 
@@ -361,6 +405,7 @@ The text to show on the OpenID Connect sign in button.
 
 |             |                                         |
 | ----------- | --------------------------------------- |
+| Type        | <code>string</code>                     |
 | Environment | <code>$CODER_OIDC_USERNAME_FIELD</code> |
 | Default     | <code>preferred_username</code>         |
 
@@ -370,6 +415,7 @@ OIDC claim field to use as the username.
 
 |             |                                       |
 | ----------- | ------------------------------------- |
+| Type        | <code>string</code>                   |
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
 URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url".
@@ -378,6 +424,7 @@ URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded f
 
 |             |                                   |
 | ----------- | --------------------------------- |
+| Type        | <code>host:port</code>            |
 | Environment | <code>$CODER_PPROF_ADDRESS</code> |
 | Default     | <code>127.0.0.1:6060</code>       |
 
@@ -387,6 +434,7 @@ The bind address to serve pprof.
 
 |             |                                  |
 | ----------- | -------------------------------- |
+| Type        | <code>bool</code>                |
 | Environment | <code>$CODER_PPROF_ENABLE</code> |
 
 Serve pprof metrics on the address defined by pprof address.
@@ -395,6 +443,7 @@ Serve pprof metrics on the address defined by pprof address.
 
 |             |                                        |
 | ----------- | -------------------------------------- |
+| Type        | <code>host:port</code>                 |
 | Environment | <code>$CODER_PROMETHEUS_ADDRESS</code> |
 | Default     | <code>127.0.0.1:2112</code>            |
 
@@ -404,6 +453,7 @@ The bind address to serve prometheus metrics.
 
 |             |                                       |
 | ----------- | ------------------------------------- |
+| Type        | <code>bool</code>                     |
 | Environment | <code>$CODER_PROMETHEUS_ENABLE</code> |
 
 Serve prometheus metrics on the address defined by prometheus address.
@@ -412,6 +462,7 @@ Serve prometheus metrics on the address defined by prometheus address.
 
 |             |                                                      |
 | ----------- | ---------------------------------------------------- |
+| Type        | <code>duration</code>                                |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_POLL_INTERVAL</code> |
 | Default     | <code>1s</code>                                      |
 
@@ -421,6 +472,7 @@ Time to wait before polling for a new job.
 
 |             |                                                    |
 | ----------- | -------------------------------------------------- |
+| Type        | <code>duration</code>                              |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_POLL_JITTER</code> |
 | Default     | <code>100ms</code>                                 |
 
@@ -430,6 +482,7 @@ Random jitter added to the poll interval.
 
 |             |                                         |
 | ----------- | --------------------------------------- |
+| Type        | <code>int</code>                        |
 | Environment | <code>$CODER_PROVISIONER_DAEMONS</code> |
 | Default     | <code>3</code>                          |
 
@@ -439,6 +492,7 @@ Number of provisioner daemons to create on start. If builds are stuck in queued 
 
 |             |                                                       |
 | ----------- | ----------------------------------------------------- |
+| Type        | <code>duration</code>                                 |
 | Environment | <code>$CODER_PROVISIONER_FORCE_CANCEL_INTERVAL</code> |
 | Default     | <code>10m0s</code>                                    |
 
@@ -448,6 +502,7 @@ Time to force cancel provisioning tasks that are stuck.
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
+| Type        | <code>string-array</code>                 |
 | Environment | <code>$CODER_PROXY_TRUSTED_HEADERS</code> |
 
 Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For.
@@ -456,6 +511,7 @@ Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client
 
 |             |                                           |
 | ----------- | ----------------------------------------- |
+| Type        | <code>string-array</code>                 |
 | Environment | <code>$CODER_PROXY_TRUSTED_ORIGINS</code> |
 
 Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
@@ -464,6 +520,7 @@ Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
 
 |             |                                            |
 | ----------- | ------------------------------------------ |
+| Type        | <code>bool</code>                          |
 | Environment | <code>$CODER_REDIRECT_TO_ACCESS_URL</code> |
 
 Specifies whether to redirect requests that do not match the access URL host.
@@ -472,6 +529,7 @@ Specifies whether to redirect requests that do not match the access URL host.
 
 |             |                                      |
 | ----------- | ------------------------------------ |
+| Type        | <code>string</code>                  |
 | Environment | <code>$CODER_SCIM_AUTH_HEADER</code> |
 
 Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.
@@ -480,6 +538,7 @@ Enables SCIM and sets the authentication header for the built-in SCIM server. Ne
 
 |             |                                        |
 | ----------- | -------------------------------------- |
+| Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_SECURE_AUTH_COOKIE</code> |
 
 Controls if the 'Secure' property is set on browser session cookies.
@@ -488,6 +547,7 @@ Controls if the 'Secure' property is set on browser session cookies.
 
 |             |                                      |
 | ----------- | ------------------------------------ |
+| Type        | <code>duration</code>                |
 | Environment | <code>$CODER_SESSION_DURATION</code> |
 | Default     | <code>24h0m0s</code>                 |
 
@@ -497,6 +557,7 @@ The token expiry duration for browser sessions. Sessions may last longer if they
 
 |             |                                        |
 | ----------- | -------------------------------------- |
+| Type        | <code>string-array</code>              |
 | Environment | <code>$CODER_SSH_CONFIG_OPTIONS</code> |
 
 These SSH config options will override the default SSH config options. Provide options in "key=value" or "key value" format separated by commas.Using this incorrectly can break SSH to your deployment, use cautiously.
@@ -505,6 +566,7 @@ These SSH config options will override the default SSH config options. Provide o
 
 |             |                                         |
 | ----------- | --------------------------------------- |
+| Type        | <code>string</code>                     |
 | Environment | <code>$CODER_SSH_HOSTNAME_PREFIX</code> |
 | Default     | <code>coder.</code>                     |
 
@@ -514,6 +576,7 @@ The SSH deployment prefix is used in the Host of the ssh config.
 
 |             |                                          |
 | ----------- | ---------------------------------------- |
+| Type        | <code>string</code>                      |
 | Environment | <code>$CODER_SSH_KEYGEN_ALGORITHM</code> |
 | Default     | <code>ed25519</code>                     |
 
@@ -523,6 +586,7 @@ The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ec
 
 |             |                                               |
 | ----------- | --------------------------------------------- |
+| Type        | <code>int</code>                              |
 | Environment | <code>$CODER_STRICT_TRANSPORT_SECURITY</code> |
 | Default     | <code>0</code>                                |
 
@@ -532,6 +596,7 @@ Controls if the 'Strict-Transport-Security' header is set on all static file res
 
 |             |                                                       |
 | ----------- | ----------------------------------------------------- |
+| Type        | <code>string-array</code>                             |
 | Environment | <code>$CODER_STRICT_TRANSPORT_SECURITY_OPTIONS</code> |
 
 Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.
@@ -540,6 +605,7 @@ Two optional fields can be set in the Strict-Transport-Security header; 'include
 
 |             |                                    |
 | ----------- | ---------------------------------- |
+| Type        | <code>bool</code>                  |
 | Environment | <code>$CODER_SWAGGER_ENABLE</code> |
 
 Expose the swagger endpoint via /swagger.
@@ -548,6 +614,7 @@ Expose the swagger endpoint via /swagger.
 
 |             |                                      |
 | ----------- | ------------------------------------ |
+| Type        | <code>bool</code>                    |
 | Environment | <code>$CODER_TELEMETRY_ENABLE</code> |
 | Default     | <code>true</code>                    |
 
@@ -557,6 +624,7 @@ Whether telemetry is enabled or not. Coder collects anonymized usage data to hel
 
 |             |                                     |
 | ----------- | ----------------------------------- |
+| Type        | <code>bool</code>                   |
 | Environment | <code>$CODER_TELEMETRY_TRACE</code> |
 | Default     | <code>true</code>                   |
 
@@ -566,6 +634,7 @@ Whether Opentelemetry traces are sent to Coder. Coder collects anonymized applic
 
 |             |                                 |
 | ----------- | ------------------------------- |
+| Type        | <code>host:port</code>          |
 | Environment | <code>$CODER_TLS_ADDRESS</code> |
 | Default     | <code>127.0.0.1:3443</code>     |
 
@@ -575,6 +644,7 @@ HTTPS bind address of the server.
 
 |             |                                   |
 | ----------- | --------------------------------- |
+| Type        | <code>string-array</code>         |
 | Environment | <code>$CODER_TLS_CERT_FILE</code> |
 
 Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.
@@ -583,6 +653,7 @@ Path to each certificate for TLS. It requires a PEM-encoded file. To configure t
 
 |             |                                     |
 | ----------- | ----------------------------------- |
+| Type        | <code>string</code>                 |
 | Environment | <code>$CODER_TLS_CLIENT_AUTH</code> |
 | Default     | <code>none</code>                   |
 
@@ -592,6 +663,7 @@ Policy the server will follow for TLS Client Authentication. Accepted values are
 
 |             |                                        |
 | ----------- | -------------------------------------- |
+| Type        | <code>string</code>                    |
 | Environment | <code>$CODER_TLS_CLIENT_CA_FILE</code> |
 
 PEM-encoded Certificate Authority file used for checking the authenticity of client.
@@ -600,6 +672,7 @@ PEM-encoded Certificate Authority file used for checking the authenticity of cli
 
 |             |                                          |
 | ----------- | ---------------------------------------- |
+| Type        | <code>string</code>                      |
 | Environment | <code>$CODER_TLS_CLIENT_CERT_FILE</code> |
 
 Path to certificate for client TLS authentication. It requires a PEM-encoded file.
@@ -608,6 +681,7 @@ Path to certificate for client TLS authentication. It requires a PEM-encoded fil
 
 |             |                                         |
 | ----------- | --------------------------------------- |
+| Type        | <code>string</code>                     |
 | Environment | <code>$CODER_TLS_CLIENT_KEY_FILE</code> |
 
 Path to key for client TLS authentication. It requires a PEM-encoded file.
@@ -616,6 +690,7 @@ Path to key for client TLS authentication. It requires a PEM-encoded file.
 
 |             |                                |
 | ----------- | ------------------------------ |
+| Type        | <code>bool</code>              |
 | Environment | <code>$CODER_TLS_ENABLE</code> |
 
 Whether TLS will be enabled.
@@ -624,6 +699,7 @@ Whether TLS will be enabled.
 
 |             |                                  |
 | ----------- | -------------------------------- |
+| Type        | <code>string-array</code>        |
 | Environment | <code>$CODER_TLS_KEY_FILE</code> |
 
 Paths to the private keys for each of the certificates. It requires a PEM-encoded file.
@@ -632,6 +708,7 @@ Paths to the private keys for each of the certificates. It requires a PEM-encode
 
 |             |                                     |
 | ----------- | ----------------------------------- |
+| Type        | <code>string</code>                 |
 | Environment | <code>$CODER_TLS_MIN_VERSION</code> |
 | Default     | <code>tls12</code>                  |
 
@@ -641,6 +718,7 @@ Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" 
 
 |             |                                  |
 | ----------- | -------------------------------- |
+| Type        | <code>bool</code>                |
 | Environment | <code>$CODER_TRACE_ENABLE</code> |
 
 Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
@@ -649,6 +727,7 @@ Whether application tracing data is collected. It exports to a backend configure
 
 |             |                                             |
 | ----------- | ------------------------------------------- |
+| Type        | <code>string</code>                         |
 | Environment | <code>$CODER_TRACE_HONEYCOMB_API_KEY</code> |
 
 Enables trace exporting to Honeycomb.io using the provided API Key.
@@ -657,6 +736,7 @@ Enables trace exporting to Honeycomb.io using the provided API Key.
 
 |             |                                |
 | ----------- | ------------------------------ |
+| Type        | <code>bool</code>              |
 | Environment | <code>$CODER_TRACE_LOGS</code> |
 
 Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.
@@ -665,6 +745,7 @@ Enables capturing of logs as events in traces. This is useful for debugging, but
 
 |             |                                  |
 | ----------- | -------------------------------- |
+| Type        | <code>bool</code>                |
 | Environment | <code>$CODER_UPDATE_CHECK</code> |
 | Default     | <code>false</code>               |
 
@@ -674,6 +755,7 @@ Periodically check for new releases of Coder and inform the owner. The check is 
 
 |             |                             |
 | ----------- | --------------------------- |
+| Type        | <code>bool</code>           |
 | Environment | <code>$CODER_VERBOSE</code> |
 
 Output debug-level logs.
@@ -682,6 +764,7 @@ Output debug-level logs.
 
 |             |                                         |
 | ----------- | --------------------------------------- |
+| Type        | <code>url</code>                        |
 | Environment | <code>$CODER_WILDCARD_ACCESS_URL</code> |
 
 Specifies the wildcard hostname to use for workspace applications in the form "\*.example.com".

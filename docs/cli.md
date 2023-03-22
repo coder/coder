@@ -5,18 +5,18 @@
 ## Usage
 
 ```console
-coder <subcommand>
+coder [global-flags] <subcommand>
 ```
 
 ## Description
 
 ```console
 Coder — A tool for provisioning self-hosted development environments with Terraform.
-  - Start a Coder server.:
+  - Start a Coder server:
 
       $ coder server
 
-  - Get started by creating a template from an example.:
+  - Get started by creating a template from an example:
 
       $ coder templates init
 ```
@@ -63,6 +63,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 
 |             |                                |
 | ----------- | ------------------------------ |
+| Type        | <code>string</code>            |
 | Environment | <code>$CODER_CONFIG_DIR</code> |
 | Default     | <code>~/.config/coderv2</code> |
 
@@ -72,6 +73,7 @@ Path to the global `coder` config directory.
 
 |             |                            |
 | ----------- | -------------------------- |
+| Type        | <code>string-array</code>  |
 | Environment | <code>$CODER_HEADER</code> |
 
 Additional HTTP headers added to all requests. Provide as key=value. Can be specified multiple times.
@@ -80,6 +82,7 @@ Additional HTTP headers added to all requests. Provide as key=value. Can be spec
 
 |             |                                        |
 | ----------- | -------------------------------------- |
+| Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_NO_FEATURE_WARNING</code> |
 
 Suppress warnings about unlicensed features.
@@ -88,6 +91,7 @@ Suppress warnings about unlicensed features.
 
 |             |                                        |
 | ----------- | -------------------------------------- |
+| Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_NO_VERSION_WARNING</code> |
 
 Suppress warning when client and server versions do not match.
@@ -96,6 +100,7 @@ Suppress warning when client and server versions do not match.
 
 |             |                                   |
 | ----------- | --------------------------------- |
+| Type        | <code>string</code>               |
 | Environment | <code>$CODER_SESSION_TOKEN</code> |
 
 Specify an authentication token. For security reasons setting CODER_SESSION_TOKEN is preferred.
@@ -104,6 +109,7 @@ Specify an authentication token. For security reasons setting CODER_SESSION_TOKE
 
 |             |                         |
 | ----------- | ----------------------- |
+| Type        | <code>url</code>        |
 | Environment | <code>$CODER_URL</code> |
 
 URL to a deployment.
@@ -112,6 +118,7 @@ URL to a deployment.
 
 |             |                             |
 | ----------- | --------------------------- |
+| Type        | <code>bool</code>           |
 | Environment | <code>$CODER_VERBOSE</code> |
 
 Enable verbose output.

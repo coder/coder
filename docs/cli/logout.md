@@ -14,4 +14,8 @@ coder logout [flags]
 
 ### -y, --yes
 
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
 Bypass prompts.

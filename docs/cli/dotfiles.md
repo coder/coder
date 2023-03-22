@@ -24,10 +24,15 @@ coder dotfiles [flags] <git_repo_url>
 
 |             |                                 |
 | ----------- | ------------------------------- |
+| Type        | <code>string</code>             |
 | Environment | <code>$CODER_SYMLINK_DIR</code> |
 
 Specifies the directory for the dotfiles symlink destinations. If empty, will use $HOME.
 
 ### -y, --yes
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
 
 Bypass prompts.

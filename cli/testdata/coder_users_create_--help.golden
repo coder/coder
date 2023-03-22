@@ -1,13 +1,13 @@
 Usage: coder users create [flags]
 
 [1mOptions[0m
-  -e, --email
+  -e, --email string
           Specifies an email address for the new user.
 
-  -p, --password
+  -p, --password string
           Specifies a password for the new user.
 
-  -u, --username
+  -u, --username string
           Specifies a username for the new user.
 
 ---

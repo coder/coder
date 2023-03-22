@@ -22,6 +22,7 @@ The strategy flags will apply to each stage of the cleanup process.
 
 |             |                                                   |
 | ----------- | ------------------------------------------------- |
+| Type        | <code>int</code>                                  |
 | Environment | <code>$CODER_SCALETEST_CLEANUP_CONCURRENCY</code> |
 | Default     | <code>1</code>                                    |
 
@@ -31,6 +32,7 @@ Number of concurrent cleanup jobs to run. 0 means unlimited.
 
 |             |                                                   |
 | ----------- | ------------------------------------------------- |
+| Type        | <code>duration</code>                             |
 | Environment | <code>$CODER_SCALETEST_CLEANUP_JOB_TIMEOUT</code> |
 | Default     | <code>5m</code>                                   |
 
@@ -40,6 +42,7 @@ Timeout per job. Jobs may take longer to complete under higher concurrency limit
 
 |             |                                               |
 | ----------- | --------------------------------------------- |
+| Type        | <code>duration</code>                         |
 | Environment | <code>$CODER_SCALETEST_CLEANUP_TIMEOUT</code> |
 | Default     | <code>30m</code>                              |
 

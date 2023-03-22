@@ -14,24 +14,27 @@ coder ping [flags] <workspace>
 
 ### -n, --num
 
-|         |                 |
-| ------- | --------------- |
-| Default | <code>10</code> |
+|         |                  |
+| ------- | ---------------- |
+| Type    | <code>int</code> |
+| Default | <code>10</code>  |
 
 Specifies the number of pings to perform.
 
 ### -t, --timeout
 
-|         |                 |
-| ------- | --------------- |
-| Default | <code>5s</code> |
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>duration</code> |
+| Default | <code>5s</code>       |
 
 Specifies how long to wait for a ping to complete.
 
 ### --wait
 
-|         |                 |
-| ------- | --------------- |
-| Default | <code>1s</code> |
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>duration</code> |
+| Default | <code>1s</code>       |
 
 Specifies how long to wait between pings.

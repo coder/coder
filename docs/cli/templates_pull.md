@@ -14,8 +14,16 @@ coder templates pull [flags] <name> [destination]
 
 ### --tar
 
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
 Output the template as a tar archive to stdout.
 
 ### -y, --yes
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
 
 Bypass prompts.

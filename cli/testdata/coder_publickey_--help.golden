@@ -5,11 +5,11 @@ Output your Coder public key used for Git operations
 Aliases: pubkey
 
 [1mOptions[0m
-      --reset
+      --reset bool
           Regenerate your public key. This will require updating the key on any
           services it's registered with.
 
-  -y, --yes
+  -y, --yes bool
           Bypass prompts.
 
 ---

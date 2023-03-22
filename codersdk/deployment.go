@@ -126,8 +126,8 @@ type DeploymentValues struct {
 	DERP                            DERP                            `json:"derp,omitempty" typescript:",notnull"`
 	Prometheus                      PrometheusConfig                `json:"prometheus,omitempty" typescript:",notnull"`
 	Pprof                           PprofConfig                     `json:"pprof,omitempty" typescript:",notnull"`
-	ProxyTrustedHeaders             clibase.Strings                 `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
-	ProxyTrustedOrigins             clibase.Strings                 `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
+	ProxyTrustedHeaders             clibase.StringArray             `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
+	ProxyTrustedOrigins             clibase.StringArray             `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
 	CacheDir                        clibase.String                  `json:"cache_directory,omitempty" typescript:",notnull"`
 	InMemoryDatabase                clibase.Bool                    `json:"in_memory_database,omitempty" typescript:",notnull"`
 	PostgresURL                     clibase.String                  `json:"pg_connection_url,omitempty" typescript:",notnull"`
@@ -138,7 +138,7 @@ type DeploymentValues struct {
 	Trace                           TraceConfig                     `json:"trace,omitempty" typescript:",notnull"`
 	SecureAuthCookie                clibase.Bool                    `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
 	StrictTransportSecurity         clibase.Int64                   `json:"strict_transport_security,omitempty" typescript:",notnull"`
-	StrictTransportSecurityOptions  clibase.Strings                 `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
+	StrictTransportSecurityOptions  clibase.StringArray             `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
 	SSHKeygenAlgorithm              clibase.String                  `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
 	MetricsCacheRefreshInterval     clibase.Duration                `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
 	AgentStatRefreshInterval        clibase.Duration                `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
@@ -148,7 +148,7 @@ type DeploymentValues struct {
 	SCIMAPIKey                      clibase.String                  `json:"scim_api_key,omitempty" typescript:",notnull"`
 	Provisioner                     ProvisionerConfig               `json:"provisioner,omitempty" typescript:",notnull"`
 	RateLimit                       RateLimitConfig                 `json:"rate_limit,omitempty" typescript:",notnull"`
-	Experiments                     clibase.Strings                 `json:"experiments,omitempty" typescript:",notnull"`
+	Experiments                     clibase.StringArray             `json:"experiments,omitempty" typescript:",notnull"`
 	UpdateCheck                     clibase.Bool                    `json:"update_check,omitempty" typescript:",notnull"`
 	MaxTokenLifetime                clibase.Duration                `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 	Swagger                         SwaggerConfig                   `json:"swagger,omitempty" typescript:",notnull"`
@@ -176,7 +176,7 @@ type SSHConfig struct {
 	DeploymentName clibase.String
 	// SSHConfigOptions are additional options to add to the ssh config file.
 	// This will override defaults.
-	SSHConfigOptions clibase.Strings
+	SSHConfigOptions clibase.StringArray
 }
 
 func (c SSHConfig) ParseOptions() (map[string]string, error) {
@@ -209,12 +209,12 @@ type DERP struct {
 }
 
 type DERPServerConfig struct {
-	Enable        clibase.Bool    `json:"enable" typescript:",notnull"`
-	RegionID      clibase.Int64   `json:"region_id" typescript:",notnull"`
-	RegionCode    clibase.String  `json:"region_code" typescript:",notnull"`
-	RegionName    clibase.String  `json:"region_name" typescript:",notnull"`
-	STUNAddresses clibase.Strings `json:"stun_addresses" typescript:",notnull"`
-	RelayURL      clibase.URL     `json:"relay_url" typescript:",notnull"`
+	Enable        clibase.Bool        `json:"enable" typescript:",notnull"`
+	RegionID      clibase.Int64       `json:"region_id" typescript:",notnull"`
+	RegionCode    clibase.String      `json:"region_code" typescript:",notnull"`
+	RegionName    clibase.String      `json:"region_name" typescript:",notnull"`
+	STUNAddresses clibase.StringArray `json:"stun_addresses" typescript:",notnull"`
+	RelayURL      clibase.URL         `json:"relay_url" typescript:",notnull"`
 }
 
 type DERPConfig struct {
@@ -237,27 +237,27 @@ type OAuth2Config struct {
 }
 
 type OAuth2GithubConfig struct {
-	ClientID          clibase.String  `json:"client_id" typescript:",notnull"`
-	ClientSecret      clibase.String  `json:"client_secret" typescript:",notnull"`
-	AllowedOrgs       clibase.Strings `json:"allowed_orgs" typescript:",notnull"`
-	AllowedTeams      clibase.Strings `json:"allowed_teams" typescript:",notnull"`
-	AllowSignups      clibase.Bool    `json:"allow_signups" typescript:",notnull"`
-	AllowEveryone     clibase.Bool    `json:"allow_everyone" typescript:",notnull"`
-	EnterpriseBaseURL clibase.String  `json:"enterprise_base_url" typescript:",notnull"`
+	ClientID          clibase.String      `json:"client_id" typescript:",notnull"`
+	ClientSecret      clibase.String      `json:"client_secret" typescript:",notnull"`
+	AllowedOrgs       clibase.StringArray `json:"allowed_orgs" typescript:",notnull"`
+	AllowedTeams      clibase.StringArray `json:"allowed_teams" typescript:",notnull"`
+	AllowSignups      clibase.Bool        `json:"allow_signups" typescript:",notnull"`
+	AllowEveryone     clibase.Bool        `json:"allow_everyone" typescript:",notnull"`
+	EnterpriseBaseURL clibase.String      `json:"enterprise_base_url" typescript:",notnull"`
 }
 
 type OIDCConfig struct {
-	AllowSignups        clibase.Bool    `json:"allow_signups" typescript:",notnull"`
-	ClientID            clibase.String  `json:"client_id" typescript:",notnull"`
-	ClientSecret        clibase.String  `json:"client_secret" typescript:",notnull"`
-	EmailDomain         clibase.Strings `json:"email_domain" typescript:",notnull"`
-	IssuerURL           clibase.String  `json:"issuer_url" typescript:",notnull"`
-	Scopes              clibase.Strings `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified clibase.Bool    `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField       clibase.String  `json:"username_field" typescript:",notnull"`
-	GroupField          clibase.String  `json:"groups_field" typescript:",notnull"`
-	SignInText          clibase.String  `json:"sign_in_text" typescript:",notnull"`
-	IconURL             clibase.URL     `json:"icon_url" typescript:",notnull"`
+	AllowSignups        clibase.Bool        `json:"allow_signups" typescript:",notnull"`
+	ClientID            clibase.String      `json:"client_id" typescript:",notnull"`
+	ClientSecret        clibase.String      `json:"client_secret" typescript:",notnull"`
+	EmailDomain         clibase.StringArray `json:"email_domain" typescript:",notnull"`
+	IssuerURL           clibase.String      `json:"issuer_url" typescript:",notnull"`
+	Scopes              clibase.StringArray `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified clibase.Bool        `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       clibase.String      `json:"username_field" typescript:",notnull"`
+	GroupField          clibase.String      `json:"groups_field" typescript:",notnull"`
+	SignInText          clibase.String      `json:"sign_in_text" typescript:",notnull"`
+	IconURL             clibase.URL         `json:"icon_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -267,16 +267,16 @@ type TelemetryConfig struct {
 }
 
 type TLSConfig struct {
-	Enable         clibase.Bool     `json:"enable" typescript:",notnull"`
-	Address        clibase.HostPort `json:"address" typescript:",notnull"`
-	RedirectHTTP   clibase.Bool     `json:"redirect_http" typescript:",notnull"`
-	CertFiles      clibase.Strings  `json:"cert_file" typescript:",notnull"`
-	ClientAuth     clibase.String   `json:"client_auth" typescript:",notnull"`
-	ClientCAFile   clibase.String   `json:"client_ca_file" typescript:",notnull"`
-	KeyFiles       clibase.Strings  `json:"key_file" typescript:",notnull"`
-	MinVersion     clibase.String   `json:"min_version" typescript:",notnull"`
-	ClientCertFile clibase.String   `json:"client_cert_file" typescript:",notnull"`
-	ClientKeyFile  clibase.String   `json:"client_key_file" typescript:",notnull"`
+	Enable         clibase.Bool        `json:"enable" typescript:",notnull"`
+	Address        clibase.HostPort    `json:"address" typescript:",notnull"`
+	RedirectHTTP   clibase.Bool        `json:"redirect_http" typescript:",notnull"`
+	CertFiles      clibase.StringArray `json:"cert_file" typescript:",notnull"`
+	ClientAuth     clibase.String      `json:"client_auth" typescript:",notnull"`
+	ClientCAFile   clibase.String      `json:"client_ca_file" typescript:",notnull"`
+	KeyFiles       clibase.StringArray `json:"key_file" typescript:",notnull"`
+	MinVersion     clibase.String      `json:"min_version" typescript:",notnull"`
+	ClientCertFile clibase.String      `json:"client_cert_file" typescript:",notnull"`
+	ClientKeyFile  clibase.String      `json:"client_key_file" typescript:",notnull"`
 }
 
 type TraceConfig struct {

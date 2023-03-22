@@ -20,12 +20,17 @@ Use --always-prompt to change the parameter values of the workspace.
 
 ### --always-prompt
 
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
 Always prompt all parameters. Does not pull parameter values from existing workspace.
 
 ### --parameter-file
 
 |             |                                    |
 | ----------- | ---------------------------------- |
+| Type        | <code>string</code>                |
 | Environment | <code>$CODER_PARAMETER_FILE</code> |
 
 Specify a file path with parameter values.
@@ -34,6 +39,7 @@ Specify a file path with parameter values.
 
 |             |                                         |
 | ----------- | --------------------------------------- |
+| Type        | <code>string</code>                     |
 | Environment | <code>$CODER_RICH_PARAMETER_FILE</code> |
 
 Specify a file path with values for rich parameters defined in the template.

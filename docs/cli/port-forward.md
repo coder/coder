@@ -42,6 +42,7 @@ coder port-forward [flags] <workspace>
 
 |             |                                      |
 | ----------- | ------------------------------------ |
+| Type        | <code>string-array</code>            |
 | Environment | <code>$CODER_PORT_FORWARD_TCP</code> |
 
 Forward TCP port(s) from the workspace to the local machine.
@@ -50,6 +51,7 @@ Forward TCP port(s) from the workspace to the local machine.
 
 |             |                                      |
 | ----------- | ------------------------------------ |
+| Type        | <code>string-array</code>            |
 | Environment | <code>$CODER_PORT_FORWARD_UDP</code> |
 
 Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.

@@ -37,7 +37,7 @@ against the (most likely single) IP.
       --connect-timeout, $CODER_SCALETEST_CONNECT_TIMEOUT (default: 5s)
           Timeout for each request to the --connect-url.
 
-      --connect-url, $CODER_SCALETEST_CONNECT_URL
+      --connect-url, $CODER_SCALETEST_CONNECT_URL string
           URL to connect to inside the the workspace over WireGuard. If not
           specified, no connections will be made over WireGuard.
 
@@ -48,15 +48,15 @@ against the (most likely single) IP.
           Timeout per job. Jobs may take longer to complete under higher
           concurrency limits.
 
-      --no-cleanup, $CODER_SCALETEST_NO_CLEANUP
+      --no-cleanup, $CODER_SCALETEST_NO_CLEANUP bool
           Do not clean up resources after the load test has finished. Useful for
           debugging.
 
-      --no-plan, $CODER_SCALETEST_NO_PLAN
+      --no-plan, $CODER_SCALETEST_NO_PLAN bool
           Skip the dry-run step to plan the workspace creation. This step
           ensures that the given parameters are valid for the given template.
 
-      --no-wait-for-agents, $CODER_SCALETEST_NO_WAIT_FOR_AGENTS
+      --no-wait-for-agents, $CODER_SCALETEST_NO_WAIT_FOR_AGENTS bool
           Do not wait for agents to start before marking the test as succeeded.
           This can be useful if you are running the test against a template that
           does not start the agent quickly.
@@ -65,30 +65,30 @@ against the (most likely single) IP.
           Output format specs in the format "<format>[:<path>]". Not specifying
           a path will default to stdout. Available formats: text, json.
 
-      --parameter, $CODER_SCALETEST_PARAMETERS
+      --parameter, $CODER_SCALETEST_PARAMETERS string-array
           Parameters to use for each workspace. Can be specified multiple times.
           Overrides any existing parameters with the same name from
           --parameters-file. Format: key=value.
 
-      --parameters-file, $CODER_SCALETEST_PARAMETERS_FILE
+      --parameters-file, $CODER_SCALETEST_PARAMETERS_FILE string
           Path to a YAML file containing the parameters to use for each
           workspace.
 
-      --run-command, $CODER_SCALETEST_RUN_COMMAND
+      --run-command, $CODER_SCALETEST_RUN_COMMAND string
           Command to run inside each workspace using reconnecting-pty (i.e. web
           terminal protocol). If not specified, no command will be run.
 
-      --run-expect-output, $CODER_SCALETEST_RUN_EXPECT_OUTPUT
+      --run-expect-output, $CODER_SCALETEST_RUN_EXPECT_OUTPUT string
           Expect the command to output the given string (on a single line). If
           the command does not output the given string, it will be marked as
           failed.
 
-      --run-expect-timeout, $CODER_SCALETEST_RUN_EXPECT_TIMEOUT
+      --run-expect-timeout, $CODER_SCALETEST_RUN_EXPECT_TIMEOUT bool
           Expect the command to timeout. If the command does not finish within
           the given --run-timeout, it will be marked as succeeded. If the
           command finishes before the timeout, it will be marked as failed.
 
-      --run-log-output, $CODER_SCALETEST_RUN_LOG_OUTPUT
+      --run-log-output, $CODER_SCALETEST_RUN_LOG_OUTPUT bool
           Log the output of the command to the test logs. This should be left
           off unless you expect small amounts of output. Large amounts of output
           will cause high memory usage.
@@ -96,25 +96,25 @@ against the (most likely single) IP.
       --run-timeout, $CODER_SCALETEST_RUN_TIMEOUT (default: 5s)
           Timeout for the command to complete.
 
-  -t, --template, $CODER_SCALETEST_TEMPLATE
+  -t, --template, $CODER_SCALETEST_TEMPLATE string
           Required: Name or ID of the template to use for workspaces.
 
       --timeout, $CODER_SCALETEST_TIMEOUT (default: 30m)
           Timeout for the entire test run. 0 means unlimited.
 
-      --trace, $CODER_SCALETEST_TRACE
+      --trace, $CODER_SCALETEST_TRACE bool
           Whether application tracing data is collected. It exports to a backend
           configured by environment variables. See:
           https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
 
-      --trace-coder, $CODER_SCALETEST_TRACE_CODER
+      --trace-coder, $CODER_SCALETEST_TRACE_CODER bool
           Whether opentelemetry traces are sent to Coder. We recommend keeping
           this disabled unless we advise you to enable it.
 
-      --trace-honeycomb-api-key, $CODER_SCALETEST_TRACE_HONEYCOMB_API_KEY
+      --trace-honeycomb-api-key, $CODER_SCALETEST_TRACE_HONEYCOMB_API_KEY string
           Enables trace exporting to Honeycomb.io using the provided API key.
 
-      --trace-propagate, $CODER_SCALETEST_TRACE_PROPAGATE
+      --trace-propagate, $CODER_SCALETEST_TRACE_PROPAGATE bool
           Enables trace propagation to the Coder backend, which will be used to
           correlate server-side spans with client-side spans. Only enable this
           if the server is configured with the exact same tracing configuration

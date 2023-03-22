@@ -29,6 +29,7 @@ coder config-ssh [flags]
 
 |             |                                 |
 | ----------- | ------------------------------- |
+| Type        | <code>bool</code>               |
 | Environment | <code>$CODER_SSH_DRY_RUN</code> |
 
 Perform a trial run with no changes made, showing a diff at the end.
@@ -37,6 +38,7 @@ Perform a trial run with no changes made, showing a diff at the end.
 
 |             |                                     |
 | ----------- | ----------------------------------- |
+| Type        | <code>string</code>                 |
 | Environment | <code>$CODER_SSH_CONFIG_FILE</code> |
 | Default     | <code>~/.ssh/config</code>          |
 
@@ -44,12 +46,17 @@ Specifies the path to an SSH config.
 
 ### --ssh-host-prefix
 
+|      |                     |
+| ---- | ------------------- |
+| Type | <code>string</code> |
+
 Override the default host prefix.
 
 ### -o, --ssh-option
 
 |             |                                     |
 | ----------- | ----------------------------------- |
+| Type        | <code>string-array</code>           |
 | Environment | <code>$CODER_SSH_CONFIG_OPTS</code> |
 
 Specifies additional SSH options to embed in each host stanza.
@@ -58,10 +65,15 @@ Specifies additional SSH options to embed in each host stanza.
 
 |             |                                              |
 | ----------- | -------------------------------------------- |
+| Type        | <code>bool</code>                            |
 | Environment | <code>$CODER_SSH_USE_PREVIOUS_OPTIONS</code> |
 
 Specifies whether or not to keep options from previous run of config-ssh.
 
 ### -y, --yes
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
 
 Bypass prompts.

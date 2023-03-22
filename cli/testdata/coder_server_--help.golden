@@ -16,21 +16,21 @@ Start a Coder server
           $CACHE_DIRECTORY is set, it will be used for compatibility with
           systemd.
 
-      --disable-path-apps, $CODER_DISABLE_PATH_APPS
+      --disable-path-apps, $CODER_DISABLE_PATH_APPS bool
           Disable workspace apps that are not served from subdomains. Path-based
           apps can make requests to the Coder API and pose a security risk when
           the workspace serves malicious JavaScript. This is recommended for
           security purposes if a --wildcard-access-url is configured.
 
-      --swagger-enable, $CODER_SWAGGER_ENABLE
+      --swagger-enable, $CODER_SWAGGER_ENABLE bool
           Expose the swagger endpoint via /swagger.
 
-      --experiments, $CODER_EXPERIMENTS
+      --experiments, $CODER_EXPERIMENTS string-array
           Enable one or more experiments. These are not ready for production.
           Separate multiple experiments with commas, or enter '*' to opt-in to
           all available experiments.
 
-      --postgres-url, $CODER_PG_CONNECTION_URL
+      --postgres-url, $CODER_PG_CONNECTION_URL string
           URL of a PostgreSQL database. If empty, PostgreSQL binaries will be
           downloaded from Maven (https://repo1.maven.org/maven2) and store all
           data in the config root. Access the built-in database with "coder
@@ -40,7 +40,8 @@ Start a Coder server
           The algorithm to use for generating ssh keys. Accepted values are
           "ed25519", "ecdsa", or "rsa4096".
 
-                Support links to display in the top right drop down menu.
+       struct[[]codersdk.LinkConfig]
+          Support links to display in the top right drop down menu.
 
       --update-check, $CODER_UPDATE_CHECK (default: false)
           Periodically check for new releases of Coder and inform the owner. The
@@ -50,7 +51,7 @@ Start a Coder server
 These options change the behavior of how clients interact with the Coder.
 Clients include the coder cli, vs code extension, and the web UI.
 
-      --ssh-config-options, $CODER_SSH_CONFIG_OPTIONS
+      --ssh-config-options, $CODER_SSH_CONFIG_OPTIONS string-array
           These SSH config options will override the default SSH config options.
           Provide options in "key=value" or "key value" format separated by
           commas.Using this incorrectly can break SSH to your deployment, use
@@ -63,64 +64,64 @@ Clients include the coder cli, vs code extension, and the web UI.
       --log-human, $CODER_LOGGING_HUMAN (default: /dev/stderr)
           Output human-readable logs to a given file.
 
-      --log-json, $CODER_LOGGING_JSON
+      --log-json, $CODER_LOGGING_JSON string
           Output JSON logs to a given file.
 
-      --log-stackdriver, $CODER_LOGGING_STACKDRIVER
+      --log-stackdriver, $CODER_LOGGING_STACKDRIVER string
           Output Stackdriver compatible logs to a given file.
 
-  -v, --verbose, $CODER_VERBOSE
+  -v, --verbose, $CODER_VERBOSE bool
           Output debug-level logs.
 
 [1mIntrospection / Prometheus Options[0m 
       --prometheus-address, $CODER_PROMETHEUS_ADDRESS (default: 127.0.0.1:2112)
           The bind address to serve prometheus metrics.
 
-      --prometheus-enable, $CODER_PROMETHEUS_ENABLE
+      --prometheus-enable, $CODER_PROMETHEUS_ENABLE bool
           Serve prometheus metrics on the address defined by prometheus address.
 
 [1mIntrospection / Tracing Options[0m 
-      --trace-logs, $CODER_TRACE_LOGS
+      --trace-logs, $CODER_TRACE_LOGS bool
           Enables capturing of logs as events in traces. This is useful for
           debugging, but may result in a very large amount of events being sent
           to the tracing backend which may incur significant costs. If the
           verbose flag was supplied, debug-level logs will be included.
 
-      --trace, $CODER_TRACE_ENABLE
+      --trace, $CODER_TRACE_ENABLE bool
           Whether application tracing data is collected. It exports to a backend
           configured by environment variables. See:
           https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
 
-      --trace-honeycomb-api-key, $CODER_TRACE_HONEYCOMB_API_KEY
+      --trace-honeycomb-api-key, $CODER_TRACE_HONEYCOMB_API_KEY string
           Enables trace exporting to Honeycomb.io using the provided API Key.
 
 [1mIntrospection / pprof Options[0m 
       --pprof-address, $CODER_PPROF_ADDRESS (default: 127.0.0.1:6060)
           The bind address to serve pprof.
 
-      --pprof-enable, $CODER_PPROF_ENABLE
+      --pprof-enable, $CODER_PPROF_ENABLE bool
           Serve pprof metrics on the address defined by pprof address.
 
 [1mNetworking Options[0m 
-      --access-url, $CODER_ACCESS_URL
+      --access-url, $CODER_ACCESS_URL url
           The URL that users will use to access the Coder deployment.
 
-      --proxy-trusted-headers, $CODER_PROXY_TRUSTED_HEADERS
+      --proxy-trusted-headers, $CODER_PROXY_TRUSTED_HEADERS string-array
           Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip,
           True-Client-Ip, X-Forwarded-For.
 
-      --proxy-trusted-origins, $CODER_PROXY_TRUSTED_ORIGINS
+      --proxy-trusted-origins, $CODER_PROXY_TRUSTED_ORIGINS string-array
           Origin addresses to respect "proxy-trusted-headers". e.g.
           192.168.1.0/24.
 
-      --redirect-to-access-url, $CODER_REDIRECT_TO_ACCESS_URL
+      --redirect-to-access-url, $CODER_REDIRECT_TO_ACCESS_URL bool
           Specifies whether to redirect requests that do not match the access
           URL host.
 
-      --secure-auth-cookie, $CODER_SECURE_AUTH_COOKIE
+      --secure-auth-cookie, $CODER_SECURE_AUTH_COOKIE bool
           Controls if the 'Secure' property is set on browser session cookies.
 
-      --wildcard-access-url, $CODER_WILDCARD_ACCESS_URL
+      --wildcard-access-url, $CODER_WILDCARD_ACCESS_URL url
           Specifies the wildcard hostname to use for workspace applications in
           the form "*.example.com".
 
@@ -130,11 +131,11 @@ between workspaces and users are peer-to-peer. However, when Coder cannot
 establish a peer to peer connection, Coder uses a distributed relay network
 backed by Tailscale and WireGuard.
 
-      --derp-config-path, $CODER_DERP_CONFIG_PATH
+      --derp-config-path, $CODER_DERP_CONFIG_PATH string
           Path to read a DERP mapping from. See:
           https://tailscale.com/kb/1118/custom-derp-servers/.
 
-      --derp-config-url, $CODER_DERP_CONFIG_URL
+      --derp-config-url, $CODER_DERP_CONFIG_URL string
           URL to fetch a DERP mapping on startup. See:
           https://tailscale.com/kb/1118/custom-derp-servers/.
 
@@ -155,7 +156,7 @@ backed by Tailscale and WireGuard.
           disable P2P connections.
 
 [1mNetworking / HTTP Options[0m 
-      --disable-password-auth, $CODER_DISABLE_PASSWORD_AUTH
+      --disable-password-auth, $CODER_DISABLE_PASSWORD_AUTH bool
           Disable password authentication. This is recommended for security
           purposes in production deployments that rely on an identity provider.
           Any user with the owner role will be able to sign in with their
@@ -164,7 +165,7 @@ backed by Tailscale and WireGuard.
           create-admin` command to create a new admin user directly in the
           database.
 
-      --disable-session-expiry-refresh, $CODER_DISABLE_SESSION_EXPIRY_REFRESH
+      --disable-session-expiry-refresh, $CODER_DISABLE_SESSION_EXPIRY_REFRESH bool
           Disable automatic session expiry bumping due to activity. This forces
           all sessions to become invalid after the session expiry duration has
           been reached.
@@ -191,7 +192,7 @@ can safely ignore these settings.
           static file responses. This header should only be set if the server is
           accessed via HTTPS. This value is the MaxAge in seconds of the header.
 
-      --strict-transport-security-options, $CODER_STRICT_TRANSPORT_SECURITY_OPTIONS
+      --strict-transport-security-options, $CODER_STRICT_TRANSPORT_SECURITY_OPTIONS string-array
           Two optional fields can be set in the Strict-Transport-Security
           header; 'includeSubDomains' and 'preload'. The
           'strict-transport-security' flag must be set to a non-zero value for
@@ -200,7 +201,7 @@ can safely ignore these settings.
       --tls-address, $CODER_TLS_ADDRESS (default: 127.0.0.1:3443)
           HTTPS bind address of the server.
 
-      --tls-cert-file, $CODER_TLS_CERT_FILE
+      --tls-cert-file, $CODER_TLS_CERT_FILE string-array
           Path to each certificate for TLS. It requires a PEM-encoded file. To
           configure the listener to use a CA certificate, concatenate the
           primary certificate and the CA certificate together. The primary
@@ -211,22 +212,22 @@ can safely ignore these settings.
           values are "none", "request", "require-any", "verify-if-given", or
           "require-and-verify".
 
-      --tls-client-ca-file, $CODER_TLS_CLIENT_CA_FILE
+      --tls-client-ca-file, $CODER_TLS_CLIENT_CA_FILE string
           PEM-encoded Certificate Authority file used for checking the
           authenticity of client.
 
-      --tls-client-cert-file, $CODER_TLS_CLIENT_CERT_FILE
+      --tls-client-cert-file, $CODER_TLS_CLIENT_CERT_FILE string
           Path to certificate for client TLS authentication. It requires a
           PEM-encoded file.
 
-      --tls-client-key-file, $CODER_TLS_CLIENT_KEY_FILE
+      --tls-client-key-file, $CODER_TLS_CLIENT_KEY_FILE string
           Path to key for client TLS authentication. It requires a PEM-encoded
           file.
 
-      --tls-enable, $CODER_TLS_ENABLE
+      --tls-enable, $CODER_TLS_ENABLE bool
           Whether TLS will be enabled.
 
-      --tls-key-file, $CODER_TLS_KEY_FILE
+      --tls-key-file, $CODER_TLS_KEY_FILE string-array
           Paths to the private keys for each of the certificates. It requires a
           PEM-encoded file.
 
@@ -235,27 +236,27 @@ can safely ignore these settings.
           "tls11", "tls12" or "tls13".
 
 [1mOAuth2 / GitHub Options[0m 
-      --oauth2-github-allow-everyone, $CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
+      --oauth2-github-allow-everyone, $CODER_OAUTH2_GITHUB_ALLOW_EVERYONE bool
           Allow all logins, setting this option means allowed orgs and teams
           must be empty.
 
-      --oauth2-github-allow-signups, $CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS
+      --oauth2-github-allow-signups, $CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS bool
           Whether new users can sign up with GitHub.
 
-      --oauth2-github-allowed-orgs, $CODER_OAUTH2_GITHUB_ALLOWED_ORGS
+      --oauth2-github-allowed-orgs, $CODER_OAUTH2_GITHUB_ALLOWED_ORGS string-array
           Organizations the user must be a member of to Login with GitHub.
 
-      --oauth2-github-allowed-teams, $CODER_OAUTH2_GITHUB_ALLOWED_TEAMS
+      --oauth2-github-allowed-teams, $CODER_OAUTH2_GITHUB_ALLOWED_TEAMS string-array
           Teams inside organizations the user must be a member of to Login with
           GitHub. Structured as: <organization-name>/<team-slug>.
 
-      --oauth2-github-client-id, $CODER_OAUTH2_GITHUB_CLIENT_ID
+      --oauth2-github-client-id, $CODER_OAUTH2_GITHUB_CLIENT_ID string
           Client ID for Login with GitHub.
 
-      --oauth2-github-client-secret, $CODER_OAUTH2_GITHUB_CLIENT_SECRET
+      --oauth2-github-client-secret, $CODER_OAUTH2_GITHUB_CLIENT_SECRET string
           Client secret for Login with GitHub.
 
-      --oauth2-github-enterprise-base-url, $CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL
+      --oauth2-github-enterprise-base-url, $CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL string
           Base URL of a GitHub Enterprise deployment to use for Login with
           GitHub.
 
@@ -263,23 +264,23 @@ can safely ignore these settings.
       --oidc-allow-signups, $CODER_OIDC_ALLOW_SIGNUPS (default: true)
           Whether new users can sign up with OIDC.
 
-      --oidc-client-id, $CODER_OIDC_CLIENT_ID
+      --oidc-client-id, $CODER_OIDC_CLIENT_ID string
           Client ID to use for Login with OIDC.
 
-      --oidc-client-secret, $CODER_OIDC_CLIENT_SECRET
+      --oidc-client-secret, $CODER_OIDC_CLIENT_SECRET string
           Client secret to use for Login with OIDC.
 
-      --oidc-email-domain, $CODER_OIDC_EMAIL_DOMAIN
+      --oidc-email-domain, $CODER_OIDC_EMAIL_DOMAIN string-array
           Email domains that clients logging in with OIDC must match.
 
-      --oidc-group-field, $CODER_OIDC_GROUP_FIELD
+      --oidc-group-field, $CODER_OIDC_GROUP_FIELD string
           Change the OIDC default 'groups' claim field. By default, will be
           'groups' if present in the oidc scopes argument.
 
-      --oidc-ignore-email-verified, $CODER_OIDC_IGNORE_EMAIL_VERIFIED
+      --oidc-ignore-email-verified, $CODER_OIDC_IGNORE_EMAIL_VERIFIED bool
           Ignore the email_verified claim from the upstream provider.
 
-      --oidc-issuer-url, $CODER_OIDC_ISSUER_URL
+      --oidc-issuer-url, $CODER_OIDC_ISSUER_URL string
           Issuer URL to use for Login with OIDC.
 
       --oidc-scopes, $CODER_OIDC_SCOPES (default: openid,profile,email)
@@ -291,7 +292,7 @@ can safely ignore these settings.
       --oidc-sign-in-text, $CODER_OIDC_SIGN_IN_TEXT (default: OpenID Connect)
           The text to show on the OpenID Connect sign in button.
 
-      --oidc-icon-url, $CODER_OIDC_ICON_URL
+      --oidc-icon-url, $CODER_OIDC_ICON_URL url
           URL pointing to the icon to use on the OepnID Connect login button.
 
 [1mProvisioning Options[0m 
@@ -326,7 +327,7 @@ telemetrywhen required by your organization's security policy.
           telemetry also disables this option.
 
 [1m⚠️ Dangerous Options[0m 
-      --dangerous-allow-path-app-sharing, $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING
+      --dangerous-allow-path-app-sharing, $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING bool
           Allow workspace apps that are not served from subdomains to be shared.
           Path-based app sharing is DISABLED by default for security purposes.
           Path-based apps can make requests to the Coder API and pose a security
@@ -334,7 +335,7 @@ telemetrywhen required by your organization's security policy.
           can be disabled entirely with --disable-path-apps for further
           security.
 
-      --dangerous-allow-path-app-site-owner-access, $CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS
+      --dangerous-allow-path-app-site-owner-access, $CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS bool
           Allow site-owners to access workspace apps from workspaces they do not
           own. Owners cannot access path-based apps they do not own by default.
           Path-based apps can make requests to the Coder API and pose a security
@@ -348,14 +349,14 @@ These options are only available in the Enterprise Edition.
       --audit-logging, $CODER_AUDIT_LOGGING (default: true)
           Specifies whether audit logging is enabled.
 
-      --browser-only, $CODER_BROWSER_ONLY
+      --browser-only, $CODER_BROWSER_ONLY bool
           Whether Coder only allows connections to workspaces via the browser.
 
-      --derp-server-relay-url, $CODER_DERP_SERVER_RELAY_URL
+      --derp-server-relay-url, $CODER_DERP_SERVER_RELAY_URL url
           An HTTP URL that is accessible by other replicas to relay DERP
           traffic. Required for high availability.
 
-      --scim-auth-header, $CODER_SCIM_AUTH_HEADER
+      --scim-auth-header, $CODER_SCIM_AUTH_HEADER string
           Enables SCIM and sets the authentication header for the built-in SCIM
           server. New users are automatically created with OIDC authentication.
 
