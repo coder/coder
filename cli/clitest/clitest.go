@@ -31,7 +31,10 @@ import (
 func New(t *testing.T, args ...string) (*clibase.Invocation, config.Root) {
 	var root cli.RootCmd
 
-	return NewWithCommand(t, root.Command(root.AGPL()), args...)
+	cmd, err := root.Command(root.AGPL())
+	require.NoError(t, err)
+
+	return NewWithCommand(t, cmd, args...)
 }
 
 type logWriter struct {

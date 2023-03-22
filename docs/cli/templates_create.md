@@ -7,7 +7,7 @@ Create a template from the current directory or as specified by flag
 ## Usage
 
 ```console
-coder templates create [name]
+coder templates create [flags] [name]
 ```
 
 ## Options

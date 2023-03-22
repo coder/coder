@@ -7,7 +7,7 @@ Authenticate with Coder deployment
 ## Usage
 
 ```console
-coder login <url>
+coder login [flags] <url>
 ```
 
 ## Options

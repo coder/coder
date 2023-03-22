@@ -12,7 +12,7 @@ Aliases:
 ## Usage
 
 ```console
-coder users suspend <username|user_id>
+coder users suspend [flags] <username|user_id>
 ```
 
 ## Description

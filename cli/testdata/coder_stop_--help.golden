@@ -1,4 +1,4 @@
-Usage: coder stop <workspace>
+Usage: coder stop [flags] <workspace>
 
 Stop a workspace
 

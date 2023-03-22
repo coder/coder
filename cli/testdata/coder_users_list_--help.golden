@@ -1,4 +1,4 @@
-Usage: coder users list
+Usage: coder users list [flags]
 
 Aliases: ls
 

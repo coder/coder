@@ -17,7 +17,7 @@ func (*RootCmd) resetPassword() *clibase.Cmd {
 	var postgresURL string
 
 	root := &clibase.Cmd{
-		Use:        "reset-password [flags] <username>",
+		Use:        "reset-password <username>",
 		Short:      "Directly connect to the database to reset a user's password",
 		Middleware: clibase.RequireNArgs(1),
 		Handler: func(inv *clibase.Invocation) error {

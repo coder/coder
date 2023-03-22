@@ -1,4 +1,4 @@
-Usage: coder templates list
+Usage: coder templates list [flags]
 
 List all the templates available for the organization
 

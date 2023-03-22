@@ -11,7 +11,7 @@ Aliases:
 ## Usage
 
 ```console
-coder port-forward <workspace>
+coder port-forward [flags] <workspace>
 ```
 
 ## Description

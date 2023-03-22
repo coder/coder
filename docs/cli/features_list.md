@@ -9,7 +9,7 @@ Aliases:
 ## Usage
 
 ```console
-coder features list
+coder features list [flags]
 ```
 
 ## Options

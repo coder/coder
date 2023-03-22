@@ -7,7 +7,7 @@ Unauthenticate your local session
 ## Usage
 
 ```console
-coder logout
+coder logout [flags]
 ```
 
 ## Options

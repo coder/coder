@@ -7,7 +7,7 @@ Stop a workspace
 ## Usage
 
 ```console
-coder stop <workspace>
+coder stop [flags] <workspace>
 ```
 
 ## Options

@@ -7,7 +7,7 @@ Create a token
 ## Usage
 
 ```console
-coder tokens create
+coder tokens create [flags]
 ```
 
 ## Options

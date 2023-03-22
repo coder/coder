@@ -1,4 +1,4 @@
-Usage: coder logout
+Usage: coder logout [flags]
 
 Unauthenticate your local session
 

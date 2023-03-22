@@ -7,7 +7,7 @@ Push a new template version from the current directory or as specified by flag
 ## Usage
 
 ```console
-coder templates push [template]
+coder templates push [flags] [template]
 ```
 
 ## Options

@@ -7,7 +7,7 @@ Cleanup any orphaned scaletest resources
 ## Usage
 
 ```console
-coder scaletest cleanup
+coder scaletest cleanup [flags]
 ```
 
 ## Description

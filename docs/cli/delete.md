@@ -11,7 +11,7 @@ Aliases:
 ## Usage
 
 ```console
-coder delete <workspace>
+coder delete [flags] <workspace>
 ```
 
 ## Options

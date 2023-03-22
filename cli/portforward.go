@@ -27,7 +27,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:     "port-forward [flags] <workspace>",
+		Use:     "port-forward <workspace>",
 		Short:   "Forward ports between your local system and the workspace",
 		Aliases: []string{"tunnel"},
 		Long: formatExamples(

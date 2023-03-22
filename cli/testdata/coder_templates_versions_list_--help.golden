@@ -1,4 +1,4 @@
-Usage: coder templates versions list <template>
+Usage: coder templates versions list [flags] <template>
 
 List all the versions of the specified template
 

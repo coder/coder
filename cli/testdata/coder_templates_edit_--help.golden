@@ -1,4 +1,4 @@
-Usage: coder templates edit <template> [flags]
+Usage: coder templates edit [flags] <template>
 
 Edit the metadata of a template by name.
 

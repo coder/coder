@@ -1,4 +1,4 @@
-Usage: coder users show <username|user_id|'me'>
+Usage: coder users show [flags] <username|user_id|'me'>
 
 Show a single user. Use 'me' to indicate the currently authenticated user.
 

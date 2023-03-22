@@ -11,7 +11,7 @@ Aliases:
 ## Usage
 
 ```console
-coder publickey
+coder publickey [flags]
 ```
 
 ## Options

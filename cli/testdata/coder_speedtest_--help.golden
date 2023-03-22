@@ -1,4 +1,4 @@
-Usage: coder speedtest <workspace>
+Usage: coder speedtest [flags] <workspace>
 
 Run upload and download tests from your machine to a workspace
 

@@ -30,7 +30,7 @@ func (r *RootCmd) statePull() *clibase.Cmd {
 	var buildNumber int64
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "pull [flags] <workspace> [file]",
+		Use:   "pull <workspace> [file]",
 		Short: "Pull a Terraform state file from a workspace.",
 		Middleware: clibase.Chain(
 			clibase.RequireRangeArgs(1, 2),
@@ -85,7 +85,7 @@ func (r *RootCmd) statePush() *clibase.Cmd {
 	var buildNumber int64
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "push [flags] <workspace> <file>",
+		Use:   "push <workspace> <file>",
 		Short: "Push a Terraform state file to a workspace.",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(2),

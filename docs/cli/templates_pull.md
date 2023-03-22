@@ -7,7 +7,7 @@ Download the latest version of a template to a path.
 ## Usage
 
 ```console
-coder templates pull <name> [destination]
+coder templates pull [flags] <name> [destination]
 ```
 
 ## Options

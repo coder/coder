@@ -78,9 +78,14 @@ func main() {
 		docsDir        = filepath.Join(workdir, "docs")
 		cliMarkdownDir = filepath.Join(docsDir, "cli")
 	)
+
+	cmd, err := root.Command(root.EnterpriseSubcommands())
+	if err != nil {
+		flog.Fatalf("creating command: %v", err)
+	}
 	err = genTree(
 		cliMarkdownDir,
-		root.Command(root.EnterpriseSubcommands()),
+		cmd,
 		wroteMap,
 	)
 	if err != nil {

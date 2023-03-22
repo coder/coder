@@ -1,4 +1,4 @@
-Usage: coder server postgres-builtin-url
+Usage: coder server postgres-builtin-url [flags]
 
 Output the connection URL for the built-in PostgreSQL deployment.
 

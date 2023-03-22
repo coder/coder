@@ -1,4 +1,4 @@
-Usage: coder tokens create
+Usage: coder tokens create [flags]
 
 Create a token
 

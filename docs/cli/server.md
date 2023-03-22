@@ -7,7 +7,7 @@ Start a Coder server
 ## Usage
 
 ```console
-coder server
+coder server [flags]
 ```
 
 ## Subcommands

@@ -7,7 +7,7 @@ Show a single user. Use 'me' to indicate the currently authenticated user.
 ## Usage
 
 ```console
-coder users show <username|user_id|'me'>
+coder users show [flags] <username|user_id|'me'>
 ```
 
 ## Description

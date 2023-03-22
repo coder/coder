@@ -11,7 +11,7 @@ Aliases:
 ## Usage
 
 ```console
-coder users activate <username|user_id>
+coder users activate [flags] <username|user_id>
 ```
 
 ## Description

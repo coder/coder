@@ -7,7 +7,7 @@ Run the built-in PostgreSQL deployment.
 ## Usage
 
 ```console
-coder server postgres-builtin-serve
+coder server postgres-builtin-serve [flags]
 ```
 
 ## Options

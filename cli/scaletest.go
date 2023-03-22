@@ -360,7 +360,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
-		Use:   "cleanup [flags]",
+		Use:   "cleanup",
 		Short: "Cleanup any orphaned scaletest resources",
 		Long:  "The strategy flags will apply to each stage of the cleanup process.",
 		Middleware: clibase.Chain(

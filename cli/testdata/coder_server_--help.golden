@@ -1,4 +1,4 @@
-Usage: coder server
+Usage: coder server [flags]
 
 Start a Coder server
 

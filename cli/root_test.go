@@ -65,7 +65,8 @@ func TestCommandHelp(t *testing.T) {
 	}
 
 	rootCmd := new(cli.RootCmd)
-	root := rootCmd.Command(rootCmd.AGPL())
+	root, err := rootCmd.Command(rootCmd.AGPL())
+	require.NoError(t, err)
 
 ExtractCommandPathsLoop:
 	for _, cp := range extractVisibleCommandPaths(nil, root.Children) {

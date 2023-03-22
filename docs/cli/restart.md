@@ -7,7 +7,7 @@ Restart a workspace
 ## Usage
 
 ```console
-coder restart <workspace>
+coder restart [flags] <workspace>
 ```
 
 ## Options

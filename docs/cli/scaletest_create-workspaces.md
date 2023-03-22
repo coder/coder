@@ -7,7 +7,7 @@ Creates many users and a workspace for each one, then waits for them to be ready
 ## Usage
 
 ```console
-coder scaletest create-workspaces
+coder scaletest create-workspaces [flags]
 ```
 
 ## Description
@@ -63,7 +63,7 @@ Number of concurrent jobs to run. 0 means unlimited.
 | Environment | <code>$CODER_SCALETEST_CONNECT_HOLD</code> |
 | Default     | <code>30s</code>                           |
 
-Time to hold the WireGuard connection open for.
+How long to hold the WireGuard connection open for.
 
 ### --connect-interval
 
@@ -81,7 +81,7 @@ How long to wait between making requests to the --connect-url once the connectio
 | Environment | <code>$CODER_SCALETEST_CONNECT_MODE</code> |
 | Default     | <code>derp</code>                          |
 
-Connection mode.
+Mode to use for connecting to the workspace.
 
 ### --connect-timeout
 
@@ -132,7 +132,7 @@ Do not clean up resources after the load test has finished. Useful for debugging
 | ----------- | ------------------------------------- |
 | Environment | <code>$CODER_SCALETEST_NO_PLAN</code> |
 
-Skip the dry-run step to plan the workspace<br/>creation. This step ensures that the given<br/>parameters are valid for the given template.
+Skip the dry-run step to plan the workspace creation. This step ensures that the given parameters are valid for the given template.
 
 ### --no-wait-for-agents
 
@@ -140,7 +140,7 @@ Skip the dry-run step to plan the workspace<br/>creation. This step ensures that
 | ----------- | ------------------------------------------------ |
 | Environment | <code>$CODER_SCALETEST_NO_WAIT_FOR_AGENTS</code> |
 
-Do not wait for agents to start before marking<br/>the test as succeeded. This can be useful if you<br/>are running the test against a template that does<br/>not start the agent quickly.
+Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly.
 
 ### --output
 

@@ -25,7 +25,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
-		Use: "edit <template> [flags]",
+		Use: "edit <template>",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
 			r.InitClient(client),

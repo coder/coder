@@ -7,7 +7,7 @@ Rename a workspace
 ## Usage
 
 ```console
-coder rename <workspace> <new name>
+coder rename [flags] <workspace> <new name>
 ```
 
 ## Options

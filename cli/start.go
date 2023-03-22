@@ -13,7 +13,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
-		Use:         "start [flags] <workspace>",
+		Use:         "start <workspace>",
 		Short:       "Start a workspace",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),

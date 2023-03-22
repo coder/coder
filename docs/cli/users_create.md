@@ -5,7 +5,7 @@
 ## Usage
 
 ```console
-coder users create
+coder users create [flags]
 ```
 
 ## Options

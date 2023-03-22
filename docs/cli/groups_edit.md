@@ -7,7 +7,7 @@ Edit a user group
 ## Usage
 
 ```console
-coder groups edit <name>
+coder groups edit [flags] <name>
 ```
 
 ## Options

@@ -7,7 +7,7 @@ Run a provisioner daemon
 ## Usage
 
 ```console
-coder provisionerd start
+coder provisionerd start [flags]
 ```
 
 ## Options

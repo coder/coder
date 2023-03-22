@@ -1,4 +1,4 @@
-Usage: coder users create
+Usage: coder users create [flags]
 
 [1mOptions[0m
   -e, --email

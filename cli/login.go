@@ -47,7 +47,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 		trial    bool
 	)
 	cmd := &clibase.Cmd{
-		Use:        "login [flags] <url>",
+		Use:        "login <url>",
 		Short:      "Authenticate with Coder deployment",
 		Middleware: clibase.RequireRangeArgs(0, 1),
 		Handler: func(inv *clibase.Invocation) error {

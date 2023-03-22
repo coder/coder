@@ -7,7 +7,7 @@ Create a user group
 ## Usage
 
 ```console
-coder groups create <name>
+coder groups create [flags] <name>
 ```
 
 ## Options

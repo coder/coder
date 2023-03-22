@@ -56,7 +56,7 @@ When enabling scheduled stop, enter a duration in one of the following formats:
 func (r *RootCmd) schedules() *clibase.Cmd {
 	scheduleCmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
-		Use:         "schedule [flags] { show | start | stop | override } <workspace>",
+		Use:         "schedule { show | start | stop | override } <workspace>",
 		Short:       "Schedule automated start and stop times for workspaces",
 		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
@@ -75,7 +75,7 @@ func (r *RootCmd) schedules() *clibase.Cmd {
 func (r *RootCmd) scheduleShow() *clibase.Cmd {
 	client := new(codersdk.Client)
 	showCmd := &clibase.Cmd{
-		Use:   "show [flags] <workspace-name>",
+		Use:   "show <workspace-name>",
 		Short: "Show workspace schedule",
 		Long:  scheduleShowDescriptionLong,
 		Middleware: clibase.Chain(

@@ -1,4 +1,4 @@
-Usage: coder templates pull <name> [destination]
+Usage: coder templates pull [flags] <name> [destination]
 
 Download the latest version of a template to a path.
 

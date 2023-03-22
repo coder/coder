@@ -1,4 +1,4 @@
-Usage: coder list
+Usage: coder list [flags]
 
 List workspaces
 

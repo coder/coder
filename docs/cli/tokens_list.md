@@ -11,7 +11,7 @@ Aliases:
 ## Usage
 
 ```console
-coder tokens list
+coder tokens list [flags]
 ```
 
 ## Options

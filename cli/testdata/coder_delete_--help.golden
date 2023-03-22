@@ -1,4 +1,4 @@
-Usage: coder delete <workspace>
+Usage: coder delete [flags] <workspace>
 
 Delete a workspace
 

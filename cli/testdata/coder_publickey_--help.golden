@@ -1,4 +1,4 @@
-Usage: coder publickey
+Usage: coder publickey [flags]
 
 Output your Coder public key used for Git operations
 

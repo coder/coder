@@ -1,4 +1,4 @@
-Usage: coder port-forward <workspace>
+Usage: coder port-forward [flags] <workspace>
 
 Forward ports between your local system and the workspace
 

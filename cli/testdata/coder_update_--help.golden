@@ -1,4 +1,4 @@
-Usage: coder update <workspace>
+Usage: coder update [flags] <workspace>
 
 Will update and start a given workspace if it is out of date.
 

@@ -14,7 +14,7 @@ func (r *RootCmd) publickey() *clibase.Cmd {
 	var reset bool
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:        "publickey [flags]",
+		Use:        "publickey",
 		Aliases:    []string{"pubkey"},
 		Short:      "Output your Coder public key used for Git operations",
 		Middleware: r.InitClient(client),

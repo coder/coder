@@ -9,7 +9,7 @@ Aliases:
 ## Usage
 
 ```console
-coder users list
+coder users list [flags]
 ```
 
 ## Options

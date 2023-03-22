@@ -7,7 +7,7 @@ Add license to Coder deployment
 ## Usage
 
 ```console
-coder licenses add [-f file | -l license]
+coder licenses add [flags] [-f file | -l license]
 ```
 
 ## Options

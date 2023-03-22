@@ -7,7 +7,7 @@ List user groups
 ## Usage
 
 ```console
-coder groups list
+coder groups list [flags]
 ```
 
 ## Options

@@ -1,4 +1,4 @@
-Usage: coder tokens list
+Usage: coder tokens list [flags]
 
 List tokens
 

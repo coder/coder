@@ -5,7 +5,7 @@
 ## Usage
 
 ```console
-coder [flags] <subcommand>
+coder <subcommand>
 ```
 
 ## Description

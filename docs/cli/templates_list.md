@@ -11,7 +11,7 @@ Aliases:
 ## Usage
 
 ```console
-coder templates list
+coder templates list [flags]
 ```
 
 ## Options

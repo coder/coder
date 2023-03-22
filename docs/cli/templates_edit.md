@@ -7,7 +7,7 @@ Edit the metadata of a template by name.
 ## Usage
 
 ```console
-coder templates edit <template> [flags]
+coder templates edit [flags] <template>
 ```
 
 ## Options

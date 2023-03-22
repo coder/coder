@@ -14,7 +14,7 @@ func (r *RootCmd) rename() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
-		Use:         "rename [flags] <workspace> <new name>",
+		Use:         "rename <workspace> <new name>",
 		Short:       "Rename a workspace",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(2),

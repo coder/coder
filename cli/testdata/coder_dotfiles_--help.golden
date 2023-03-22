@@ -1,4 +1,4 @@
-Usage: coder dotfiles <git_repo_url>
+Usage: coder dotfiles [flags] <git_repo_url>
 
 Personalize your workspace by applying a canonical dotfiles repository
 

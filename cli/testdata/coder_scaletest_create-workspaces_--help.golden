@@ -1,4 +1,4 @@
-Usage: coder scaletest create-workspaces
+Usage: coder scaletest create-workspaces [flags]
 
 Creates many users and a workspace for each one, then waits for them to be ready
 
@@ -25,14 +25,14 @@ against the (most likely single) IP.
           Number of concurrent jobs to run. 0 means unlimited.
 
       --connect-hold, $CODER_SCALETEST_CONNECT_HOLD (default: 30s)
-          Time to hold the WireGuard connection open for.
+          How long to hold the WireGuard connection open for.
 
       --connect-interval, $CODER_SCALETEST_CONNECT_INTERVAL (default: 1s)
           How long to wait between making requests to the --connect-url once the
           connection is established.
 
       --connect-mode, $CODER_SCALETEST_CONNECT_MODE (default: derp) one of derp|direct
-          Connection mode.
+          Mode to use for connecting to the workspace.
 
       --connect-timeout, $CODER_SCALETEST_CONNECT_TIMEOUT (default: 5s)
           Timeout for each request to the --connect-url.
@@ -53,15 +53,13 @@ against the (most likely single) IP.
           debugging.
 
       --no-plan, $CODER_SCALETEST_NO_PLAN
-          Skip the dry-run step to plan the workspace
-          creation. This step ensures that the given
-          parameters are valid for the given template.
+          Skip the dry-run step to plan the workspace creation. This step
+          ensures that the given parameters are valid for the given template.
 
       --no-wait-for-agents, $CODER_SCALETEST_NO_WAIT_FOR_AGENTS
-          Do not wait for agents to start before marking
-          the test as succeeded. This can be useful if you
-          are running the test against a template that does
-          not start the agent quickly.
+          Do not wait for agents to start before marking the test as succeeded.
+          This can be useful if you are running the test against a template that
+          does not start the agent quickly.
 
       --output, $CODER_SCALETEST_OUTPUTS (default: text)
           Output format specs in the format "<format>[:<path>]". Not specifying

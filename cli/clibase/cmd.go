@@ -51,10 +51,20 @@ type Cmd struct {
 	HelpHandler HandlerFunc
 }
 
+// AddSubcommands adds the given subcommands, setting their
+// Parent field automatically.
+func (c *Cmd) AddSubcommands(cmds ...*Cmd) {
+	for _, cmd := range cmds {
+		cmd.Parent = c
+		c.Children = append(c.Children, cmd)
+	}
+}
+
 // Walk calls fn for the command and all its children.
 func (c *Cmd) Walk(fn func(*Cmd)) {
 	fn(c)
 	for _, child := range c.Children {
+		child.Parent = c
 		child.Walk(fn)
 	}
 }

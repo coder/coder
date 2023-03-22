@@ -1,4 +1,4 @@
-Usage: coder users suspend <username|user_id>
+Usage: coder users suspend [flags] <username|user_id>
 
 Update a user's status to 'suspended'. A suspended user cannot log into the
 platform

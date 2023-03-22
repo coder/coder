@@ -122,7 +122,12 @@ func (r *RootCmd) AGPL() []*clibase.Cmd {
 func (r *RootCmd) RunMain(subcommands []*clibase.Cmd) {
 	rand.Seed(time.Now().UnixMicro())
 
-	err := r.Command(subcommands).Invoke().WithOS().Run()
+	cmd, err := r.Command(subcommands)
+	if err != nil {
+		panic(err)
+	}
+
+	err = cmd.Invoke().WithOS().Run()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {
 			//nolint:revive
@@ -135,11 +140,11 @@ func (r *RootCmd) RunMain(subcommands []*clibase.Cmd) {
 	}
 }
 
-func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
+func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
 	cmd := &clibase.Cmd{
-		Use: "coder [flags] <subcommand>",
+		Use: "coder [global-flags] <subcommand>",
 		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + formatExamples(
 			example{
 				Description: "Start a Coder server.",
@@ -162,8 +167,9 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			}
 			return i.Command.HelpHandler(i)
 		},
-		Children: subcommands,
 	}
+
+	cmd.AddSubcommands(subcommands...)
 
 	// Set default help handler for all commands.
 	cmd.Walk(func(c *clibase.Cmd) {
@@ -172,19 +178,63 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 		}
 	})
 
-	// Sanity-check command options.
-	cmd.Walk(func(c *clibase.Cmd) {
-		if c.Name() == "server" {
-			// The server command is funky and has YAML-only options, e.g.
-			// support links.
+	var merr error
+	// Add [flags] to usage when appropriate.
+	cmd.Walk(func(cmd *clibase.Cmd) {
+		const flags = "[flags]"
+		if strings.Contains(cmd.Use, flags) {
+			merr = errors.Join(
+				merr,
+				xerrors.Errorf(
+					"command %q shouldn't have %q in usage since it's automatically populated",
+					cmd.FullUsage(),
+					flags,
+				),
+			)
 			return
 		}
-		for _, opt := range c.Options {
+
+		var hasFlag bool
+		for _, opt := range cmd.Options {
+			if opt.Flag != "" {
+				hasFlag = true
+				break
+			}
+		}
+
+		if !hasFlag {
+			return
+		}
+
+		// We insert [flags] between the command's name and its arguments.
+		tokens := strings.SplitN(cmd.Use, " ", 2)
+		if len(tokens) == 1 {
+			cmd.Use = fmt.Sprintf("%s %s", tokens[0], flags)
+			return
+		}
+		cmd.Use = fmt.Sprintf("%s %s %s", tokens[0], flags, tokens[1])
+	})
+
+	// Sanity-check command options.
+	cmd.Walk(func(cmd *clibase.Cmd) {
+		for _, opt := range cmd.Options {
+			// Verify that every option is configurable.
 			if opt.Flag == "" && opt.Env == "" {
-				panic(fmt.Sprintf("option %q in %q should have a flag or env", opt.Name, c.FullName()))
+				if cmd.Name() == "server" {
+					// The server command is funky and has YAML-only options, e.g.
+					// support links.
+					return
+				}
+				merr = errors.Join(
+					merr,
+					xerrors.Errorf("option %q in %q should have a flag or env", opt.Name, cmd.FullName()),
+				)
 			}
 		}
 	})
+	if merr != nil {
+		return nil, merr
+	}
 
 	if r.agentURL == nil {
 		r.agentURL = new(url.URL)
@@ -284,10 +334,10 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 
 	err := cmd.PrepareAll()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return cmd
+	return cmd, nil
 }
 
 type contextKey int

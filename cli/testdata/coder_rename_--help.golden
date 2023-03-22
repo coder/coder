@@ -1,4 +1,4 @@
-Usage: coder rename <workspace> <new name>
+Usage: coder rename [flags] <workspace> <new name>
 
 Rename a workspace
 

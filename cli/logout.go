@@ -15,7 +15,7 @@ import (
 func (r *RootCmd) logout() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "logout [flags]",
+		Use:   "logout",
 		Short: "Unauthenticate your local session",
 		Middleware: clibase.Chain(
 			r.InitClient(client),

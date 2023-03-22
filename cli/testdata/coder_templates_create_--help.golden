@@ -1,4 +1,4 @@
-Usage: coder templates create [name]
+Usage: coder templates create [flags] [name]
 
 Create a template from the current directory or as specified by flag
 

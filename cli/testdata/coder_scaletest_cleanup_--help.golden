@@ -1,4 +1,4 @@
-Usage: coder scaletest cleanup
+Usage: coder scaletest cleanup [flags]
 
 Cleanup any orphaned scaletest resources
 

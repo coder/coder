@@ -7,7 +7,7 @@ Will update and start a given workspace if it is out of date.
 ## Usage
 
 ```console
-coder update <workspace>
+coder update [flags] <workspace>
 ```
 
 ## Description

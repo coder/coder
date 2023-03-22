@@ -1,4 +1,4 @@
-Usage: coder restart <workspace>
+Usage: coder restart [flags] <workspace>
 
 Restart a workspace
 

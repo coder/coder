@@ -1,4 +1,4 @@
-Usage: coder config-ssh
+Usage: coder config-ssh [flags]
 
 Add an SSH Host entry for your workspaces "ssh coder.workspace"
 
