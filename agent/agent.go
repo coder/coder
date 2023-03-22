@@ -778,7 +778,9 @@ func (a *agent) trackScriptLogs(ctx context.Context, reader io.Reader) (chan str
 	// coming in.
 	logsFinished := make(chan struct{})
 	err := a.trackConnGoroutine(func() {
+		buffer := make([]byte, 0, 1<<20)
 		scanner := bufio.NewScanner(reader)
+		scanner.Buffer(buffer, 1<<20)
 		for scanner.Scan() {
 			queueLog(agentsdk.StartupLog{
 				CreatedAt: database.Now(),

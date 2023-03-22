@@ -423,7 +423,6 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	}
 
 	var (
-		// It's not impossible that
 		bufferedLogs  = make(chan []database.WorkspaceAgentStartupLog, 128)
 		endOfLogs     atomic.Bool
 		lastSentLogID atomic.Int64
