@@ -15,8 +15,8 @@ environments with Terraform.
                       coder.workspace"
     create            Create a workspace
     delete            Delete a workspace
-    dotfiles          Personalize your repo by applying a canonical dotfiles
-                      repository
+    dotfiles          Personalize your workspace by applying a canonical
+                      dotfiles repository
     list              List workspaces
     login             Authenticate with Coder deployment
     logout            Unauthenticate your local session

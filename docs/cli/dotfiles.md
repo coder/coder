@@ -2,7 +2,7 @@
 
 # dotfiles
 
-Personalize your repo by applying a canonical dotfiles repository
+Personalize your workspace by applying a canonical dotfiles repository
 
 ## Usage
 

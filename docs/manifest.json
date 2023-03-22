@@ -472,7 +472,7 @@
         },
         {
           "title": "dotfiles",
-          "description": "Personalize your repo by applying a canonical dotfiles repository",
+          "description": "Personalize your workspace by applying a canonical dotfiles repository",
           "path": "cli/dotfiles.md"
         },
         {
