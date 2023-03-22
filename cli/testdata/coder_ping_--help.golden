@@ -1,4 +1,4 @@
-Usage: coder ping <workspace>
+Usage: coder ping [flags] <workspace>
 
 Ping a workspace
 
