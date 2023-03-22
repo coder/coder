@@ -217,13 +217,9 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	mux := drpcmux.New()
-	gitAuthProviders := make([]string, 0, len(api.GitAuthConfigs))
-	for _, cfg := range api.GitAuthConfigs {
-		gitAuthProviders = append(gitAuthProviders, cfg.ID)
-	}
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
 		AccessURL:             api.AccessURL,
-		GitAuthProviders:      gitAuthProviders,
+		GitAuthConfigs:        api.GitAuthConfigs,
 		OIDCConfig:            api.OIDCConfig,
 		ID:                    daemon.ID,
 		Database:              api.Database,

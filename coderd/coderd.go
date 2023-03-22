@@ -831,10 +831,6 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 
 	mux := drpcmux.New()
 
-	gitAuthProviders := make([]string, 0, len(api.GitAuthConfigs))
-	for _, cfg := range api.GitAuthConfigs {
-		gitAuthProviders = append(gitAuthProviders, cfg.ID)
-	}
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
 		AccessURL:             api.AccessURL,
 		ID:                    daemon.ID,
@@ -842,7 +838,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		Database:              api.Database,
 		Pubsub:                api.Pubsub,
 		Provisioners:          daemon.Provisioners,
-		GitAuthProviders:      gitAuthProviders,
+		GitAuthConfigs:        api.GitAuthConfigs,
 		Telemetry:             api.Telemetry,
 		Tags:                  tags,
 		QuotaCommitter:        &api.QuotaCommitter,

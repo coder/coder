@@ -1,14 +1,121 @@
 package gitauth_test
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/testutil"
 )
+
+func TestRefreshToken(t *testing.T) {
+	t.Parallel()
+	t.Run("FalseIfNoRefresh", func(t *testing.T) {
+		t.Parallel()
+		config := &gitauth.Config{
+			NoRefresh: true,
+		}
+		_, refreshed, err := config.RefreshToken(context.Background(), nil, database.GitAuthLink{
+			OAuthExpiry: time.Time{},
+		})
+		require.NoError(t, err)
+		require.False(t, refreshed)
+	})
+	t.Run("FalseIfTokenSourceFails", func(t *testing.T) {
+		t.Parallel()
+		config := &gitauth.Config{
+			OAuth2Config: &testutil.OAuth2Config{
+				TokenSourceFunc: func() (*oauth2.Token, error) {
+					return nil, xerrors.New("failure")
+				},
+			},
+		}
+		_, refreshed, err := config.RefreshToken(context.Background(), nil, database.GitAuthLink{})
+		require.NoError(t, err)
+		require.False(t, refreshed)
+	})
+	t.Run("ValidateServerError", func(t *testing.T) {
+		t.Parallel()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Failure"))
+		}))
+		config := &gitauth.Config{
+			OAuth2Config: &testutil.OAuth2Config{},
+			ValidateURL:  srv.URL,
+		}
+		_, _, err := config.RefreshToken(context.Background(), nil, database.GitAuthLink{})
+		require.ErrorContains(t, err, "Failure")
+	})
+	t.Run("ValidateFailure", func(t *testing.T) {
+		t.Parallel()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("Not permitted"))
+		}))
+		config := &gitauth.Config{
+			OAuth2Config: &testutil.OAuth2Config{},
+			ValidateURL:  srv.URL,
+		}
+		_, refreshed, err := config.RefreshToken(context.Background(), nil, database.GitAuthLink{})
+		require.NoError(t, err)
+		require.False(t, refreshed)
+	})
+	t.Run("ValidateNoUpdate", func(t *testing.T) {
+		t.Parallel()
+		validated := make(chan struct{})
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			close(validated)
+		}))
+		accessToken := "testing"
+		config := &gitauth.Config{
+			OAuth2Config: &testutil.OAuth2Config{
+				Token: &oauth2.Token{
+					AccessToken: accessToken,
+				},
+			},
+			ValidateURL: srv.URL,
+		}
+		_, valid, err := config.RefreshToken(context.Background(), nil, database.GitAuthLink{
+			OAuthAccessToken: accessToken,
+		})
+		require.NoError(t, err)
+		require.True(t, valid)
+		<-validated
+	})
+	t.Run("Updates", func(t *testing.T) {
+		t.Parallel()
+		config := &gitauth.Config{
+			ID: "test",
+			OAuth2Config: &testutil.OAuth2Config{
+				Token: &oauth2.Token{
+					AccessToken: "updated",
+				},
+			},
+		}
+		db := dbfake.New()
+		link := dbgen.GitAuthLink(t, db, database.GitAuthLink{
+			ProviderID:       config.ID,
+			OAuthAccessToken: "initial",
+		})
+		_, valid, err := config.RefreshToken(context.Background(), db, link)
+		require.NoError(t, err)
+		require.True(t, valid)
+	})
+}
 
 func TestConvertYAML(t *testing.T) {
 	t.Parallel()
