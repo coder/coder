@@ -2682,6 +2682,8 @@ func (q *fakeQuerier) InsertOrUpdateWorkspaceAgentMetadata(_ context.Context, ar
 		Value:            arg.Value,
 		Error:            arg.Error,
 		CollectedAt:      arg.CollectedAt,
+		Timeout:          arg.Timeout,
+		Interval:         arg.Interval,
 	}
 
 	for i, m := range q.workspaceAgentMetadata {

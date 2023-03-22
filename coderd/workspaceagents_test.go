@@ -1159,6 +1159,15 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 						Name: "example",
 						Type: "aws_instance",
 						Agents: []*proto.Agent{{
+							Metadata: []*proto.Agent_Metadata{
+								{
+									DisplayName: "First Meta",
+									Key:         "m1",
+									Cmd:         []string{"echo", "hi"},
+									Interval:    10,
+									Timeout:     3,
+								},
+							},
 							Id: uuid.NewString(),
 							Auth: &proto.Agent_Token{
 								Token: authToken,

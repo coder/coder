@@ -108,7 +108,7 @@ type Manifest struct {
 	MOTDFile              string                  `json:"motd_file"`
 	ShutdownScript        string                  `json:"shutdown_script"`
 	ShutdownScriptTimeout time.Duration           `json:"shutdown_script_timeout"`
-	Metadata              []MetadataDescription   `json:"dynamic_metadata"`
+	Metadata              []MetadataDescription   `json:"metadata"`
 }
 
 // Manifest fetches manifest for the currently authenticated workspace agent.

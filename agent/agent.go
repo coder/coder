@@ -408,7 +408,7 @@ func (a *agent) run(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
-	a.logger.Info(ctx, "fetched metadata", slog.F("metadata", manifest))
+	a.logger.Info(ctx, "fetched manifest", slog.F("manifest", manifest))
 
 	// Expand the directory and send it back to coderd so external
 	// applications that rely on the directory can use it.

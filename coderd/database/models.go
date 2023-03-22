@@ -1577,6 +1577,8 @@ type WorkspaceAgentMetadatum struct {
 	Key              string    `db:"key" json:"key"`
 	Value            string    `db:"value" json:"value"`
 	Error            string    `db:"error" json:"error"`
+	Timeout          int64     `db:"timeout" json:"timeout"`
+	Interval         int64     `db:"interval" json:"interval"`
 	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
 }
 

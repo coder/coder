@@ -1098,9 +1098,8 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 }
 
 // @Summary Watch for workspace agent metadata updates
-// @ID watch-workspace-agent-metadata
+// @ID watch-for-workspace-agent-metadata-updates
 // @Security CoderSessionToken
-// @Accept json
 // @Tags Agents
 // @Success 200 "Success"
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)

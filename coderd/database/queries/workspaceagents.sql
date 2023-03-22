@@ -102,14 +102,17 @@ INSERT INTO
 		key,
 		value,
 		error,
-		collected_at
+		collected_at,
+		timeout,
+		interval
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6)
+	($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (workspace_agent_id, key) DO UPDATE SET
 	value = $4,
 	error = $5,
-	collected_at = $6;
+	collected_at = $6,
+	-- interval and timeout are set once 
 
 -- name: GetWorkspaceAgentMetadata :many
 SELECT

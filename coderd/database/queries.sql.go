@@ -5193,7 +5193,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 
 const getWorkspaceAgentMetadata = `-- name: GetWorkspaceAgentMetadata :many
 SELECT
-	workspace_id, workspace_agent_id, key, value, error, collected_at
+	workspace_id, workspace_agent_id, key, value, error, timeout, interval, collected_at
 FROM
 	workspace_agent_metadata
 WHERE
@@ -5215,6 +5215,8 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAge
 			&i.Key,
 			&i.Value,
 			&i.Error,
+			&i.Timeout,
+			&i.Interval,
 			&i.CollectedAt,
 		); err != nil {
 			return nil, err
@@ -5355,14 +5357,18 @@ INSERT INTO
 		key,
 		value,
 		error,
-		collected_at
+		collected_at,
+		timeout,
+		interval
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6)
+	($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (workspace_agent_id, key) DO UPDATE SET
 	value = $4,
 	error = $5,
-	collected_at = $6
+	collected_at = $6,
+	timeout = $7,
+	interval = $8
 `
 
 type InsertOrUpdateWorkspaceAgentMetadataParams struct {
@@ -5372,6 +5378,8 @@ type InsertOrUpdateWorkspaceAgentMetadataParams struct {
 	Value            string    `db:"value" json:"value"`
 	Error            string    `db:"error" json:"error"`
 	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
+	Timeout          int64     `db:"timeout" json:"timeout"`
+	Interval         int64     `db:"interval" json:"interval"`
 }
 
 func (q *sqlQuerier) InsertOrUpdateWorkspaceAgentMetadata(ctx context.Context, arg InsertOrUpdateWorkspaceAgentMetadataParams) error {
@@ -5382,6 +5390,8 @@ func (q *sqlQuerier) InsertOrUpdateWorkspaceAgentMetadata(ctx context.Context, a
 		arg.Value,
 		arg.Error,
 		arg.CollectedAt,
+		arg.Timeout,
+		arg.Interval,
 	)
 	return err
 }
