@@ -161,6 +161,7 @@ type DeploymentValues struct {
 	Support                         SupportConfig                   `json:"support,omitempty" typescript:",notnull"`
 	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                       `json:"config_ssh,omitempty" typescript:",notnull"`
+	WgtunnelHost                    clibase.String                  `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 
 	Config      clibase.String `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool   `json:"write_config,omitempty" typescript:",notnull"`
@@ -247,17 +248,18 @@ type OAuth2GithubConfig struct {
 }
 
 type OIDCConfig struct {
-	AllowSignups        clibase.Bool    `json:"allow_signups" typescript:",notnull"`
-	ClientID            clibase.String  `json:"client_id" typescript:",notnull"`
-	ClientSecret        clibase.String  `json:"client_secret" typescript:",notnull"`
-	EmailDomain         clibase.Strings `json:"email_domain" typescript:",notnull"`
-	IssuerURL           clibase.String  `json:"issuer_url" typescript:",notnull"`
-	Scopes              clibase.Strings `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified clibase.Bool    `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField       clibase.String  `json:"username_field" typescript:",notnull"`
-	GroupField          clibase.String  `json:"groups_field" typescript:",notnull"`
-	SignInText          clibase.String  `json:"sign_in_text" typescript:",notnull"`
-	IconURL             clibase.URL     `json:"icon_url" typescript:",notnull"`
+	AllowSignups        clibase.Bool                      `json:"allow_signups" typescript:",notnull"`
+	ClientID            clibase.String                    `json:"client_id" typescript:",notnull"`
+	ClientSecret        clibase.String                    `json:"client_secret" typescript:",notnull"`
+	EmailDomain         clibase.Strings                   `json:"email_domain" typescript:",notnull"`
+	IssuerURL           clibase.String                    `json:"issuer_url" typescript:",notnull"`
+	Scopes              clibase.Strings                   `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified clibase.Bool                      `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       clibase.String                    `json:"username_field" typescript:",notnull"`
+	GroupField          clibase.String                    `json:"groups_field" typescript:",notnull"`
+	GroupMapping        clibase.Struct[map[string]string] `json:"group_mapping" typescript:",notnull"`
+	SignInText          clibase.String                    `json:"sign_in_text" typescript:",notnull"`
+	IconURL             clibase.URL                       `json:"icon_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -875,6 +877,16 @@ when required by your organization's security policy.`,
 			YAML:    "groupField",
 		},
 		{
+			Name:        "OIDC Group Mapping",
+			Description: "A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.",
+			Flag:        "oidc-group-mapping",
+			Env:         "OIDC_GROUP_MAPPING",
+			Default:     "{}",
+			Value:       &c.OIDC.GroupMapping,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "groupMapping",
+		},
+		{
 			Name:        "OpenID Connect sign in text",
 			Description: "The text to show on the OpenID Connect sign in button",
 			Flag:        "oidc-sign-in-text",
@@ -1350,6 +1362,16 @@ Write out the current server configuration to the path specified by --config.`,
 			Description: "Git Authentication providers",
 			YAML:        "gitAuthProviders",
 			Value:       &c.GitAuthProviders,
+			Hidden:      true,
+		},
+		{
+			Name:        "Custom wgtunnel Host",
+			Description: `Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By default, this will pick the best available wgtunnel server hosted by Coder. e.g. "tunnel.example.com".`,
+			Flag:        "wg-tunnel-host",
+			Env:         "WGTUNNEL_HOST",
+			YAML:        "wgtunnelHost",
+			Value:       &c.WgtunnelHost,
+			Default:     "", // empty string means pick best server
 			Hidden:      true,
 		},
 	}

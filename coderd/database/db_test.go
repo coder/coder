@@ -8,12 +8,43 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/database/postgres"
 )
+
+func TestSerializedRetry(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	db := database.New(sqlDB)
+
+	called := 0
+	txOpts := &sql.TxOptions{Isolation: sql.LevelSerializable}
+	err := db.InTx(func(tx database.Store) error {
+		// Test nested error
+		return tx.InTx(func(tx database.Store) error {
+			// The easiest way to mock a serialization failure is to
+			// return a serialization failure error.
+			called++
+			return &pq.Error{
+				Code:    "40001",
+				Message: "serialization_failure",
+			}
+		}, txOpts)
+	}, txOpts)
+	require.Error(t, err, "should fail")
+	// The double "execute transaction: execute transaction" is from the nested transactions.
+	// Just want to make sure we don't try 9 times.
+	require.Equal(t, err.Error(), "transaction failed after 3 attempts: execute transaction: execute transaction: pq: serialization_failure", "error message")
+	require.Equal(t, called, 3, "should retry 3 times")
+}
 
 func TestNestedInTx(t *testing.T) {
 	t.Parallel()

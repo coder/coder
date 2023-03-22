@@ -223,7 +223,12 @@ func New(options *Options) *API {
 		options.SSHConfig.HostnamePrefix = "coder."
 	}
 	if options.SetUserGroups == nil {
-		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
+		options.SetUserGroups = func(ctx context.Context, _ database.Store, id uuid.UUID, groups []string) error {
+			options.Logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
+				slog.F("id", id), slog.F("groups", groups),
+			)
+			return nil
+		}
 	}
 	if options.TemplateScheduleStore == nil {
 		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
