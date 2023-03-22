@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"testing"
@@ -12,11 +11,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -724,7 +721,7 @@ func TestCreateWithGitAuth(t *testing.T) {
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		GitAuthConfigs: []*gitauth.Config{{
-			OAuth2Config: &oauth2Config{},
+			OAuth2Config: &testutil.OAuth2Config{},
 			ID:           "github",
 			Regex:        regexp.MustCompile(`github\.com`),
 			Type:         codersdk.GitProviderGitHub,
@@ -783,32 +780,4 @@ func createTestParseResponseWithDefault(defaultValue string) []*proto.Parse_Resp
 			},
 		},
 	}}
-}
-
-type oauth2Config struct{}
-
-func (*oauth2Config) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
-	return "/?state=" + url.QueryEscape(state)
-}
-
-func (*oauth2Config) Exchange(context.Context, string, ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
-	return &oauth2.Token{
-		AccessToken:  "token",
-		RefreshToken: "refresh",
-		Expiry:       database.Now().Add(time.Hour),
-	}, nil
-}
-
-func (*oauth2Config) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
-	return &oauth2TokenSource{}
-}
-
-type oauth2TokenSource struct{}
-
-func (*oauth2TokenSource) Token() (*oauth2.Token, error) {
-	return &oauth2.Token{
-		AccessToken:  "token",
-		RefreshToken: "refresh",
-		Expiry:       database.Now().Add(time.Hour),
-	}, nil
 }

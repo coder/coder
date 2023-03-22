@@ -1,13 +1,17 @@
 package gitauth
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"regexp"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
@@ -32,6 +36,77 @@ type Config struct {
 	// returning it to the user. If omitted, tokens will
 	// not be validated before being returned.
 	ValidateURL string
+}
+
+// RefreshToken automatically refreshes the token if expired and permitted.
+// It returns the token and a bool indicating if the token was refreshed.
+func (c *Config) RefreshToken(ctx context.Context, db database.Store, gitAuthLink database.GitAuthLink) (database.GitAuthLink, bool, error) {
+	// If the token is expired and refresh is disabled, we prompt
+	// the user to authenticate again.
+	if c.NoRefresh && gitAuthLink.OAuthExpiry.Before(database.Now()) {
+		return gitAuthLink, false, nil
+	}
+
+	token, err := c.TokenSource(ctx, &oauth2.Token{
+		AccessToken:  gitAuthLink.OAuthAccessToken,
+		RefreshToken: gitAuthLink.OAuthRefreshToken,
+		Expiry:       gitAuthLink.OAuthExpiry,
+	}).Token()
+	if err != nil {
+		// Even if the token fails to be obtained, we still return false because
+		// we aren't trying to surface an error, we're just trying to obtain a valid token.
+		return gitAuthLink, false, nil
+	}
+
+	if c.ValidateURL != "" {
+		valid, err := c.ValidateToken(ctx, token.AccessToken)
+		if err != nil {
+			return gitAuthLink, false, xerrors.Errorf("validate git auth token: %w", err)
+		}
+		if !valid {
+			// The token is no longer valid!
+			return gitAuthLink, false, nil
+		}
+	}
+
+	if token.AccessToken != gitAuthLink.OAuthAccessToken {
+		// Update it
+		gitAuthLink, err = db.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
+			ProviderID:        c.ID,
+			UserID:            gitAuthLink.UserID,
+			UpdatedAt:         database.Now(),
+			OAuthAccessToken:  token.AccessToken,
+			OAuthRefreshToken: token.RefreshToken,
+			OAuthExpiry:       token.Expiry,
+		})
+		if err != nil {
+			return gitAuthLink, false, xerrors.Errorf("update git auth link: %w", err)
+		}
+	}
+	return gitAuthLink, true, nil
+}
+
+// ValidateToken ensures the Git token provided is valid!
+func (c *Config) ValidateToken(ctx context.Context, token string) (bool, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.ValidateURL, nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusUnauthorized {
+		// The token is no longer valid!
+		return false, nil
+	}
+	if res.StatusCode != http.StatusOK {
+		data, _ := io.ReadAll(res.Body)
+		return false, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
+	}
+	return true, nil
 }
 
 // ConvertConfig converts the SDK configuration entry format

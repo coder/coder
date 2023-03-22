@@ -9,6 +9,7 @@ import { AvatarData } from "components/AvatarData/AvatarData"
 import debounce from "just-debounce-it"
 import { ChangeEvent, FC, useEffect, useState } from "react"
 import { searchUserMachine } from "xServices/users/searchUserXService"
+import { useTranslation } from "react-i18next"
 
 export type UserAutocompleteProps = {
   value: User | null
@@ -24,6 +25,8 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   className,
 }) => {
   const styles = useStyles()
+  const { t } = useTranslation("common")
+
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
   const [searchState, sendSearch] = useMachine(searchUserMachine)
   const { searchResults } = searchState.context
@@ -46,6 +49,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
 
   return (
     <Autocomplete
+      noOptionsText={t("forms.typeToSearch")}
       className={className}
       options={searchResults}
       loading={searchState.matches("searching")}

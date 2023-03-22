@@ -462,7 +462,7 @@ func TestTemplateVersionsGitAuth(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config: &oauth2Config{},
+				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
 				Type:         codersdk.GitProviderGitHub,

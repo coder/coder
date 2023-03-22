@@ -377,8 +377,8 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 			client.HTTPClient = &http.Client{
 				Transport: &headerTransport{
 					transport: http.DefaultTransport,
-					headers: map[string]string{
-						codersdk.BypassRatelimitHeader: "true",
+					header: map[string][]string{
+						codersdk.BypassRatelimitHeader: {"true"},
 					},
 				},
 			}
@@ -561,8 +561,8 @@ It is recommended that all rate limits are disabled on the server before running
 			client.HTTPClient = &http.Client{
 				Transport: &headerTransport{
 					transport: http.DefaultTransport,
-					headers: map[string]string{
-						codersdk.BypassRatelimitHeader: "true",
+					header: map[string][]string{
+						codersdk.BypassRatelimitHeader: {"true"},
 					},
 				},
 			}

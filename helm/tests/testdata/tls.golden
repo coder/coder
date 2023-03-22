@@ -100,6 +100,8 @@ spec:
         app.kubernetes.io/part-of: coder
         app.kubernetes.io/version: "0.1.0"
         app.kubernetes.io/managed-by: Helm
+      annotations:
+        {}
     spec:
       serviceAccountName: "coder"
       restartPolicy: Always

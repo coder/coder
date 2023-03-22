@@ -490,14 +490,14 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 func (r *RootCmd) setClient(client *codersdk.Client, serverURL *url.URL) error {
 	transport := &headerTransport{
 		transport: http.DefaultTransport,
-		headers:   map[string]string{},
+		header:    http.Header{},
 	}
 	for _, header := range r.header {
 		parts := strings.SplitN(header, "=", 2)
 		if len(parts) < 2 {
 			return xerrors.Errorf("split header %q had less than two parts", header)
 		}
-		transport.headers[parts[0]] = parts[1]
+		transport.header.Add(parts[0], parts[1])
 	}
 	client.URL = serverURL
 	client.HTTPClient = &http.Client{
@@ -683,12 +683,18 @@ func (r *RootCmd) checkWarnings(i *clibase.Invocation, client *codersdk.Client) 
 
 type headerTransport struct {
 	transport http.RoundTripper
-	headers   map[string]string
+	header    http.Header
+}
+
+func (h *headerTransport) Header() http.Header {
+	return h.header.Clone()
 }
 
 func (h *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	for k, v := range h.headers {
-		req.Header.Add(k, v)
+	for k, v := range h.header {
+		for _, vv := range v {
+			req.Header.Add(k, vv)
+		}
 	}
 	return h.transport.RoundTrip(req)
 }

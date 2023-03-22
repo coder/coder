@@ -367,6 +367,7 @@ export interface DeploymentValues {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly git_auth?: any
   readonly config_ssh?: SSHConfig
+  readonly wgtunnel_host?: string
   readonly config?: string
   readonly write_config?: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
@@ -516,6 +517,9 @@ export interface OIDCConfig {
   readonly ignore_email_verified: boolean
   readonly username_field: string
   readonly groups_field: string
+  // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly group_mapping: any
   readonly sign_in_text: string
   readonly icon_url: string
 }
