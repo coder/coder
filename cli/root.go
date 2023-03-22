@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -768,7 +769,7 @@ func (prettyErrorFormatter) prefixLines(spaces int, s string) string {
 		}
 		_, _ = fmt.Fprintf(&b, "%s%s\n", strings.Repeat(" ", spaces), scanner.Text())
 	}
-	return strings.TrimSuffix(b.String(), "\n")
+	return strings.TrimSuffix(strings.TrimSuffix(b.String(), "\n"), " ")
 }
 
 func (p *prettyErrorFormatter) format(err error) {
@@ -806,7 +807,7 @@ func (p *prettyErrorFormatter) format(err error) {
 		style := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644")).Background(lipgloss.Color("#000000")).Bold(false)
 		// This is the last error in a tree.
 		p.wrappedPrintf(
-			"%s",
+			"%s\n",
 			p.prefixLines(
 				len(padding)+arrowWidth,
 				fmt.Sprintf(
@@ -821,11 +822,17 @@ func (p *prettyErrorFormatter) format(err error) {
 }
 
 func (p *prettyErrorFormatter) wrappedPrintf(format string, a ...interface{}) {
+	s := lipgloss.NewStyle().Width(ttyWidth()).Render(
+		fmt.Sprintf(format, a...),
+	)
+
+	// Not sure why, but lipgloss is adding extra spaces we need to remove.
+	excessSpaceRe := regexp.MustCompile(`[[:blank:]]*\n[[:blank:]]*$`)
+	s = excessSpaceRe.ReplaceAllString(s, "\n")
+
 	_, _ = p.w.Write(
 		[]byte(
-			lipgloss.NewStyle().Width(ttyWidth()).Render(
-				fmt.Sprintf(format, a...),
-			),
+			s,
 		),
 	)
 }

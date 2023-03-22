@@ -95,8 +95,7 @@ ExtractCommandPathsLoop:
 
 			clitest.SetupConfig(t, rootClient, cfg)
 
-			err := inv.WithContext(ctx).Run()
-			require.NoError(t, err)
+			clitest.StartWithWaiter(t, inv.WithContext(ctx)).RequireSuccess()
 
 			actual := outBuf.Bytes()
 			if len(actual) == 0 {
