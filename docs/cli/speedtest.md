@@ -14,10 +14,6 @@ coder speedtest <workspace>
 
 ### -d, --direct
 
-|         |                    |
-| ------- | ------------------ |
-| Default | <code>false</code> |
-
 Specifies whether to wait for a direct connection before testing speed.
 
 ### --direction

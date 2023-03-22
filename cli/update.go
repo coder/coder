@@ -94,8 +94,8 @@ func (r *RootCmd) update() *clibase.Cmd {
 		{
 			Flag:        "always-prompt",
 			Description: "Always prompt all parameters. Does not pull parameter values from existing workspace.",
-			Default:     "false",
-			Value:       clibase.BoolOf(&alwaysPrompt),
+
+			Value: clibase.BoolOf(&alwaysPrompt),
 		},
 		{
 			Flag:        "parameter-file",

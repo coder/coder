@@ -17,7 +17,7 @@ to every organization.
           deployment will be used (Coder must not be already running in this
           case).
 
-      --raw-url (default: false)
+      --raw-url
           Output the raw connection URL instead of a psql command.
 
       --ssh-keygen-algorithm, $CODER_SSH_KEYGEN_ALGORITHM (default: ed25519)

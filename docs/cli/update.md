@@ -20,10 +20,6 @@ Use --always-prompt to change the parameter values of the workspace.
 
 ### --always-prompt
 
-|         |                    |
-| ------- | ------------------ |
-| Default | <code>false</code> |
-
 Always prompt all parameters. Does not pull parameter values from existing workspace.
 
 ### --parameter-file

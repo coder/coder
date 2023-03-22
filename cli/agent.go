@@ -225,16 +225,16 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Value:       clibase.StringOf(&logDir),
 		},
 		{
-			Flag:    "pprof-address",
-			Default: "127.0.0.1:6060",
-			Env:     "CODER_AGENT_PPROF_ADDRESS",
-			Value:   clibase.StringOf(&pprofAddress),
+			Flag:        "pprof-address",
+			Default:     "127.0.0.1:6060",
+			Env:         "CODER_AGENT_PPROF_ADDRESS",
+			Value:       clibase.StringOf(&pprofAddress),
+			Description: "The address to serve pprof.",
 		},
 		{
-			Flag:        "no-reap",
-			Default:     "false",
+			Flag: "no-reap",
+
 			Env:         "",
-			Hidden:      true,
 			Description: "Do not start a process reaper.",
 			Value:       clibase.BoolOf(&noReap),
 		},

@@ -188,7 +188,6 @@ Expect the command to output the given string (on a single line). If the command
 |             |                                                  |
 | ----------- | ------------------------------------------------ |
 | Environment | <code>$CODER_SCALETEST_RUN_EXPECT_TIMEOUT</code> |
-| Default     | <code>false</code>                               |
 
 Expect the command to timeout. If the command does not finish within the given --run-timeout, it will be marked as succeeded. If the command finishes before the timeout, it will be marked as failed.
 

@@ -85,7 +85,7 @@ against the (most likely single) IP.
           the command does not output the given string, it will be marked as
           failed.
 
-      --run-expect-timeout, $CODER_SCALETEST_RUN_EXPECT_TIMEOUT (default: false)
+      --run-expect-timeout, $CODER_SCALETEST_RUN_EXPECT_TIMEOUT
           Expect the command to timeout. If the command does not finish within
           the given --run-timeout, it will be marked as succeeded. If the
           command finishes before the timeout, it will be marked as failed.

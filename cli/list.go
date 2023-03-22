@@ -135,8 +135,8 @@ func (r *RootCmd) list() *clibase.Cmd {
 			Flag:          "all",
 			FlagShorthand: "a",
 			Description:   "Specifies whether all workspaces will be listed or not.",
-			Default:       "false",
-			Value:         clibase.BoolOf(&all),
+
+			Value: clibase.BoolOf(&all),
 		},
 		{
 			Flag:        "search",

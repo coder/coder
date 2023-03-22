@@ -1,4 +1,4 @@
-Usage: coder create [name]
+Usage: coder create [flags] [name]
 
 Create a workspace
 

@@ -130,8 +130,8 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 			Description:   "Specifies whether to wait for a direct connection before testing speed.",
 			Flag:          "direct",
 			FlagShorthand: "d",
-			Default:       "false",
-			Value:         clibase.BoolOf(&direct),
+
+			Value: clibase.BoolOf(&direct),
 		},
 		{
 			Description: "Specifies whether to run in reverse mode where the client receives and the server sends.",

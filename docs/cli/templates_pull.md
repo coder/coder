@@ -14,10 +14,6 @@ coder templates pull <name> [destination]
 
 ### --tar
 
-|         |                    |
-| ------- | ------------------ |
-| Default | <code>false</code> |
-
 Output the template as a tar archive to stdout.
 
 ### -y, --yes

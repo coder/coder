@@ -16,13 +16,13 @@ Start a Coder server
           $CACHE_DIRECTORY is set, it will be used for compatibility with
           systemd.
 
-      --disable-path-apps, $CODER_DISABLE_PATH_APPS (default: false)
+      --disable-path-apps, $CODER_DISABLE_PATH_APPS
           Disable workspace apps that are not served from subdomains. Path-based
           apps can make requests to the Coder API and pose a security risk when
           the workspace serves malicious JavaScript. This is recommended for
           security purposes if a --wildcard-access-url is configured.
 
-      --swagger-enable, $CODER_SWAGGER_ENABLE (default: false)
+      --swagger-enable, $CODER_SWAGGER_ENABLE
           Expose the swagger endpoint via /swagger.
 
       --experiments, $CODER_EXPERIMENTS
@@ -69,7 +69,7 @@ Clients include the coder cli, vs code extension, and the web UI.
       --log-stackdriver, $CODER_LOGGING_STACKDRIVER
           Output Stackdriver compatible logs to a given file.
 
-  -v, --verbose, $CODER_VERBOSE (default: false)
+  -v, --verbose, $CODER_VERBOSE
           Output debug-level logs.
 
 [1mIntrospection / Prometheus Options[0m 
@@ -155,7 +155,7 @@ backed by Tailscale and WireGuard.
           disable P2P connections.
 
 [1mNetworking / HTTP Options[0m 
-      --disable-password-auth, $CODER_DISABLE_PASSWORD_AUTH (default: false)
+      --disable-password-auth, $CODER_DISABLE_PASSWORD_AUTH
           Disable password authentication. This is recommended for security
           purposes in production deployments that rely on an identity provider.
           Any user with the owner role will be able to sign in with their
@@ -164,7 +164,7 @@ backed by Tailscale and WireGuard.
           create-admin` command to create a new admin user directly in the
           database.
 
-      --disable-session-expiry-refresh, $CODER_DISABLE_SESSION_EXPIRY_REFRESH (default: false)
+      --disable-session-expiry-refresh, $CODER_DISABLE_SESSION_EXPIRY_REFRESH
           Disable automatic session expiry bumping due to activity. This forces
           all sessions to become invalid after the session expiry duration has
           been reached.
@@ -276,7 +276,7 @@ can safely ignore these settings.
           Change the OIDC default 'groups' claim field. By default, will be
           'groups' if present in the oidc scopes argument.
 
-      --oidc-ignore-email-verified, $CODER_OIDC_IGNORE_EMAIL_VERIFIED (default: false)
+      --oidc-ignore-email-verified, $CODER_OIDC_IGNORE_EMAIL_VERIFIED
           Ignore the email_verified claim from the upstream provider.
 
       --oidc-issuer-url, $CODER_OIDC_ISSUER_URL
@@ -326,7 +326,7 @@ telemetrywhen required by your organization's security policy.
           telemetry also disables this option.
 
 [1m⚠️ Dangerous Options[0m 
-      --dangerous-allow-path-app-sharing, $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING (default: false)
+      --dangerous-allow-path-app-sharing, $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING
           Allow workspace apps that are not served from subdomains to be shared.
           Path-based app sharing is DISABLED by default for security purposes.
           Path-based apps can make requests to the Coder API and pose a security
@@ -334,7 +334,7 @@ telemetrywhen required by your organization's security policy.
           can be disabled entirely with --disable-path-apps for further
           security.
 
-      --dangerous-allow-path-app-site-owner-access, $CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS (default: false)
+      --dangerous-allow-path-app-site-owner-access, $CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS
           Allow site-owners to access workspace apps from workspaces they do not
           own. Owners cannot access path-based apps they do not own by default.
           Path-based apps can make requests to the Coder API and pose a security

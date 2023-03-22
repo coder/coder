@@ -63,7 +63,6 @@ The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is s
 |             |                                                      |
 | ----------- | ---------------------------------------------------- |
 | Environment | <code>$CODER_DANGEROUS_ALLOW_PATH_APP_SHARING</code> |
-| Default     | <code>false</code>                                   |
 
 Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
 
@@ -72,7 +71,6 @@ Allow workspace apps that are not served from subdomains to be shared. Path-base
 |             |                                                                |
 | ----------- | -------------------------------------------------------------- |
 | Environment | <code>$CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS</code> |
-| Default     | <code>false</code>                                             |
 
 Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
 
@@ -150,7 +148,6 @@ Addresses for STUN servers to establish P2P connections. Set empty to disable P2
 |             |                                           |
 | ----------- | ----------------------------------------- |
 | Environment | <code>$CODER_DISABLE_PASSWORD_AUTH</code> |
-| Default     | <code>false</code>                        |
 
 Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.
 
@@ -159,7 +156,6 @@ Disable password authentication. This is recommended for security purposes in pr
 |             |                                       |
 | ----------- | ------------------------------------- |
 | Environment | <code>$CODER_DISABLE_PATH_APPS</code> |
-| Default     | <code>false</code>                    |
 
 Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.
 
@@ -168,7 +164,6 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 |             |                                                    |
 | ----------- | -------------------------------------------------- |
 | Environment | <code>$CODER_DISABLE_SESSION_EXPIRY_REFRESH</code> |
-| Default     | <code>false</code>                                 |
 
 Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.
 
@@ -333,7 +328,6 @@ URL pointing to the icon to use on the OepnID Connect login button.
 |             |                                                |
 | ----------- | ---------------------------------------------- |
 | Environment | <code>$CODER_OIDC_IGNORE_EMAIL_VERIFIED</code> |
-| Default     | <code>false</code>                             |
 
 Ignore the email_verified claim from the upstream provider.
 
@@ -547,7 +541,6 @@ Two optional fields can be set in the Strict-Transport-Security header; 'include
 |             |                                    |
 | ----------- | ---------------------------------- |
 | Environment | <code>$CODER_SWAGGER_ENABLE</code> |
-| Default     | <code>false</code>                 |
 
 Expose the swagger endpoint via /swagger.
 
@@ -682,7 +675,6 @@ Periodically check for new releases of Coder and inform the owner. The check is 
 |             |                             |
 | ----------- | --------------------------- |
 | Environment | <code>$CODER_VERBOSE</code> |
-| Default     | <code>false</code>          |
 
 Output debug-level logs.
 

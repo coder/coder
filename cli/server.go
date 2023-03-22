@@ -1182,8 +1182,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	createAdminUserCmd := r.newCreateAdminUserCommand()
 
 	rawURLOpt := clibase.Option{
-		Flag:        "raw-url",
-		Default:     "false",
+		Flag: "raw-url",
+
 		Value:       clibase.BoolOf(&pgRawURL),
 		Description: "Output the raw connection URL instead of a psql command.",
 	}

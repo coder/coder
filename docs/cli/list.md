@@ -18,10 +18,6 @@ coder list
 
 ### -a, --all
 
-|         |                    |
-| ------- | ------------------ |
-| Default | <code>false</code> |
-
 Specifies whether all workspaces will be listed or not.
 
 ### -c, --column

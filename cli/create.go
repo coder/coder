@@ -27,7 +27,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
-		Use:         "create [name]",
+		Use:         "create [flags] [name]",
 		Short:       "Create a workspace",
 		Middleware:  clibase.Chain(r.InitClient(client)),
 		Handler: func(inv *clibase.Invocation) error {

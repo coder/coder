@@ -38,10 +38,6 @@ URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will 
 
 ### --raw-url
 
-|         |                    |
-| ------- | ------------------ |
-| Default | <code>false</code> |
-
 Output the raw connection URL instead of a psql command.
 
 ### --ssh-keygen-algorithm

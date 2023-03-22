@@ -884,9 +884,9 @@ not start the agent quickly.`,
 			Value:       clibase.DurationOf(&runTimeout),
 		},
 		{
-			Flag:        "run-expect-timeout",
-			Env:         "CODER_SCALETEST_RUN_EXPECT_TIMEOUT",
-			Default:     "false",
+			Flag: "run-expect-timeout",
+			Env:  "CODER_SCALETEST_RUN_EXPECT_TIMEOUT",
+
 			Description: "Expect the command to timeout." + " If the command does not finish within the given --run-timeout, it will be marked as succeeded." + " If the command finishes before the timeout, it will be marked as failed.",
 			Value:       clibase.BoolOf(&runExpectTimeout),
 		},

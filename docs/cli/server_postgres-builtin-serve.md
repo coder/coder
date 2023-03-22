@@ -14,8 +14,4 @@ coder server postgres-builtin-serve
 
 ### --raw-url
 
-|         |                    |
-| ------- | ------------------ |
-| Default | <code>false</code> |
-
 Output the raw connection URL instead of a psql command.
