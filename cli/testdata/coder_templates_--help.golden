@@ -2,7 +2,7 @@ Usage: coder templates
 
 Manage templates
 
-Aliases: template, t
+Aliases: template
 
 Templates are written in standard Terraform and describe the infrastructure for
 workspaces
