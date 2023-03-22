@@ -4,6 +4,10 @@
 
 List Enterprise features
 
+Aliases:
+
+- feature
+
 ## Usage
 
 ```console

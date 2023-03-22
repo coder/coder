@@ -4,6 +4,11 @@
 
 Update a user's status to 'suspended'. A suspended user cannot log into the platform
 
+Aliases:
+
+- rm
+- delete
+
 ## Usage
 
 ```console

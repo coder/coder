@@ -4,6 +4,10 @@
 
 List all the templates available for the organization
 
+Aliases:
+
+- ls
+
 ## Usage
 
 ```console

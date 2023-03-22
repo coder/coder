@@ -4,6 +4,10 @@
 
 List workspaces
 
+Aliases:
+
+- ls
+
 ## Usage
 
 ```console

@@ -6,6 +6,13 @@
 
 {{ end }}
 
+{{ with .Aliases }}
+Aliases:
+{{- range $index, $alias := . }}
+* {{ $alias }}
+{{- end }}
+{{ end }}
+
 {{- if .Use }}
 ## Usage
 ```console

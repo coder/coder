@@ -4,6 +4,10 @@
 
 Delete a workspace
 
+Aliases:
+
+- rm
+
 ## Usage
 
 ```console

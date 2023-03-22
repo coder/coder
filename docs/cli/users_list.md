@@ -2,6 +2,10 @@
 
 # users list
 
+Aliases:
+
+- ls
+
 ## Usage
 
 ```console

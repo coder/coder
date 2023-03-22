@@ -4,6 +4,10 @@
 
 Manage personal access tokens
 
+Aliases:
+
+- token
+
 ## Usage
 
 ```console

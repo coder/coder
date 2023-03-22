@@ -4,8 +4,13 @@
 
 Delete a token
 
+Aliases:
+
+- rm
+- delete
+
 ## Usage
 
 ```console
-coder tokens remove [name]
+coder tokens remove <name>
 ```

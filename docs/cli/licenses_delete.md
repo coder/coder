@@ -4,6 +4,11 @@
 
 Delete license by ID
 
+Aliases:
+
+- del
+- rm
+
 ## Usage
 
 ```console

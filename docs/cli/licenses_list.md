@@ -4,6 +4,10 @@
 
 List licenses (including expired)
 
+Aliases:
+
+- ls
+
 ## Usage
 
 ```console

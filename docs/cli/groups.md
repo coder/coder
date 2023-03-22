@@ -4,6 +4,10 @@
 
 Manage groups
 
+Aliases:
+
+- group
+
 ## Usage
 
 ```console

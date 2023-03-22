@@ -4,6 +4,10 @@
 
 Manage templates
 
+Aliases:
+
+- template
+
 ## Usage
 
 ```console

@@ -2,6 +2,10 @@
 
 # features list
 
+Aliases:
+
+- ls
+
 ## Usage
 
 ```console

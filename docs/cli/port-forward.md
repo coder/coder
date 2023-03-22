@@ -4,6 +4,10 @@
 
 Forward ports between your local system and the workspace
 
+Aliases:
+
+- tunnel
+
 ## Usage
 
 ```console

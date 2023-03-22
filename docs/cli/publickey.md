@@ -4,6 +4,10 @@
 
 Output your Coder public key used for Git operations
 
+Aliases:
+
+- pubkey
+
 ## Usage
 
 ```console

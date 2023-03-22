@@ -4,6 +4,10 @@
 
 Manage different versions of the specified template
 
+Aliases:
+
+- version
+
 ## Usage
 
 ```console

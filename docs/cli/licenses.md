@@ -4,6 +4,10 @@
 
 Add, delete, and list licenses
 
+Aliases:
+
+- license
+
 ## Usage
 
 ```console

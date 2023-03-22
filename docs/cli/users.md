@@ -4,6 +4,10 @@
 
 Manage users
 
+Aliases:
+
+- user
+
 ## Usage
 
 ```console

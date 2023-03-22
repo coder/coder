@@ -1,8 +1,8 @@
-Usage: coder tokens remove [name]
+Usage: coder tokens remove <name>
 
 Delete a token
 
-Aliases: rm
+Aliases: rm, delete
 
 ---
 Run `coder --help` for a list of global options.

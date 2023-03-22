@@ -4,6 +4,10 @@
 
 List tokens
 
+Aliases:
+
+- ls
+
 ## Usage
 
 ```console
