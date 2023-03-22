@@ -3,11 +3,12 @@ package cli_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/enterprise/cli"
-	"github.com/stretchr/testify/require"
 )
 
 func newCLI(t *testing.T, args ...string) (*clibase.Invocation, config.Root) {
