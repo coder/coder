@@ -37,7 +37,10 @@ export const WorkspaceSettingsForm: FC<{
           (p) => p.name === parameter.name,
         )
         if (!buildParameter) {
-          throw new Error("Missing build parameter for " + parameter.name)
+          return {
+            name: parameter.name,
+            value: parameter.default_value,
+          }
         }
         return buildParameter
       }),

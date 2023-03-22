@@ -175,11 +175,9 @@ func setupProxyTest(t *testing.T, opts *setupProxyTestOpts) (*codersdk.Client, c
 	deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = clibase.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:            deploymentValues,
-		AppHostname:                 opts.AppHost,
-		IncludeProvisionerDaemon:    true,
-		AgentStatsRefreshInterval:   time.Millisecond * 100,
-		MetricsCacheRefreshInterval: time.Millisecond * 100,
+		DeploymentValues:         deploymentValues,
+		AppHostname:              opts.AppHost,
+		IncludeProvisionerDaemon: true,
 		RealIPConfig: &httpmw.RealIPConfig{
 			TrustedOrigins: []*net.IPNet{{
 				IP:   net.ParseIP("127.0.0.1"),
