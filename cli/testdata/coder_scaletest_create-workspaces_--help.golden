@@ -1,10 +1,10 @@
 Usage: coder scaletest create-workspaces
 
-Creates many workspaces and waits for them to be ready
+Creates many users and workspaces and waits for them to be ready
 
-Creates many users, then creates a workspace for each user and waits for them
-finish building and fully come online. Optionally runs a command inside each
-workspace, and connects to the workspace over WireGuard.
+After creation, waits for the workspaces finish building and fully come online.
+Optionally runs a command inside each workspace, and connects to the workspace
+over WireGuard.
 
 It is recommended that all rate limits are disabled on the server before running
 this scaletest. This test generates many login events which will be rate limited
@@ -32,7 +32,7 @@ against the (most likely single) IP.
           connection is established.
 
       --connect-mode, $CODER_SCALETEST_CONNECT_MODE (default: derp) one of derp|direct
-          WireGuard connection mode.
+          Connection mode.
 
       --connect-timeout, $CODER_SCALETEST_CONNECT_TIMEOUT (default: 5s)
           Timeout for each request to the --connect-url.
@@ -49,8 +49,8 @@ against the (most likely single) IP.
           concurrency limits.
 
       --no-cleanup, $CODER_SCALETEST_NO_CLEANUP
-          Do not clean up workspaces after the load test has finished. Useful
-          for debugging.
+          Do not clean up resources after the load test has finished. Useful for
+          debugging.
 
       --no-plan, $CODER_SCALETEST_NO_PLAN
           Skip the dry-run step to plan the workspace

@@ -1,6 +1,6 @@
 Usage: coder port-forward <workspace>
 
-Forward ports from machine to a workspace
+Forward ports between your local system and the workspace
 
 Aliases: tunnel
 

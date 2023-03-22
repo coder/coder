@@ -36,7 +36,6 @@ func (r *RootCmd) scaletest() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "scaletest",
 		Short: "Run a scale test against the Coder API",
-		Long:  "Perform scale tests against the Coder server.",
 		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
@@ -363,7 +362,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "cleanup",
 		Short: "Cleanup any orphaned scaletest resources",
-		Long:  "Cleanup scaletest workspaces, then cleanup scaletest users. The strategy flags will apply to each stage of the cleanup process.",
+		Long:  "The strategy flags will apply to each stage of the cleanup process.",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 		),
@@ -546,8 +545,8 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 
 	cmd := &clibase.Cmd{
 		Use:   "create-workspaces",
-		Short: "Creates many workspaces and waits for them to be ready",
-		Long: `Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
+		Short: "Creates many users and workspaces and waits for them to be ready",
+		Long: `After creation, waits for the workspaces finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
 
 It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
 		Middleware: r.InitClient(client),
@@ -857,7 +856,7 @@ parameters are valid for the given template.`,
 		{
 			Flag: "no-cleanup",
 			Env:  "CODER_SCALETEST_NO_CLEANUP",
-			Description: "Do not clean up workspaces after the load test has finished. " +
+			Description: "Do not clean up resources after the load test has finished. " +
 				"Useful for debugging.",
 			Value: clibase.BoolOf(&noCleanup),
 		},
@@ -913,7 +912,7 @@ not start the agent quickly.`,
 			Flag:        "connect-mode",
 			Env:         "CODER_SCALETEST_CONNECT_MODE",
 			Default:     "derp",
-			Description: "WireGuard connection mode.",
+			Description: "Connection mode.",
 			Value:       clibase.EnumOf(&connectMode, "derp", "direct"),
 		},
 		{

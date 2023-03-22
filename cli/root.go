@@ -267,7 +267,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) *clibase.Cmd {
 			Flag:          varVerbose,
 			FlagShorthand: "v",
 			Env:           "CODER_VERBOSE",
-			Description:   "Enable verbose logging.",
+			Description:   "Enable verbose output.",
 			Value:         clibase.BoolOf(&r.verbose),
 			Group:         globalGroup,
 		},

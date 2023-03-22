@@ -2,8 +2,7 @@ Usage: coder scaletest cleanup
 
 Cleanup any orphaned scaletest resources
 
-Cleanup scaletest workspaces, then cleanup scaletest users. The strategy flags
-will apply to each stage of the cleanup process.
+The strategy flags will apply to each stage of the cleanup process.
 
 [1mOptions[0m
       --cleanup-concurrency, $CODER_SCALETEST_CLEANUP_CONCURRENCY (default: 1)

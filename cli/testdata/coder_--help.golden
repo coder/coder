@@ -15,12 +15,13 @@ environments with Terraform.
                       coder.workspace"
     create            Create a workspace
     delete            Delete a workspace
-    dotfiles          Checkout and install a dotfiles repository from a Git URL
+    dotfiles          Personalize your repo by applying a canonical dotfiles
+                      repository
     list              List workspaces
     login             Authenticate with Coder deployment
     logout            Unauthenticate your local session
     ping              Ping a workspace
-    port-forward      Forward ports from machine to a workspace
+    port-forward      Forward ports between your local system and the workspace
     publickey         Output your Coder public key used for Git operations
     rename            Rename a workspace
     reset-password    Directly connect to the database to reset a user's
@@ -68,7 +69,7 @@ variables or flags.
           URL to a deployment.
 
   -v, --verbose, $CODER_VERBOSE
-          Enable verbose logging.
+          Enable verbose output.
 
 ---
 Report bugs and request features at https://github.com/coder/coder/issues/new

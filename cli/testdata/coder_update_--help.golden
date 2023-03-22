@@ -2,8 +2,7 @@ Usage: coder update <workspace>
 
 Will update and start a given workspace if it is out of date.
 
-Will update and start a given workspace if it is out of date. Use
---always-prompt to change the parameter values of the workspace.
+Use --always-prompt to change the parameter values of the workspace.
 
 [1mOptions[0m
       --always-prompt (default: false)
