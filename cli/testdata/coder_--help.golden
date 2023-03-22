@@ -42,6 +42,7 @@ environments with Terraform.
                       date.
     users             Manage users
     version           Show coder version
+
 [1mGlobal Options[0m 
 Global options are applied to all commands. They can be set using environment
 variables or flags.

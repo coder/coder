@@ -2,6 +2,8 @@ Usage: coder port-forward <workspace>
 
 Forward ports from machine to a workspace
 
+Aliases: tunnel
+
 - Port forward a single TCP port from 1234 in the workspace to port 5678 on   
     your local machine:                                                         
 

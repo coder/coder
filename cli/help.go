@@ -60,6 +60,9 @@ var usageTemplate = template.Must(
 					return ""
 				}
 			},
+			"joinStrings": func(s []string) string {
+				return strings.Join(s, ", ")
+			},
 			"indent": func(body string, spaces int) string {
 				twidth := ttyWidth()
 

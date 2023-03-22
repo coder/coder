@@ -28,7 +28,7 @@ func (r *RootCmd) templates() *clibase.Cmd {
 				Command:     "coder templates push my-template",
 			},
 		),
-		Aliases: []string{"template"},
+		Aliases: []string{"template", "t"},
 		Handler: func(inv *clibase.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},

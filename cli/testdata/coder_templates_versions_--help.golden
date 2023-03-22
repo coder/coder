@@ -2,11 +2,14 @@ Usage: coder templates versions
 
 Manage different versions of the specified template
 
+Aliases: version
+
 - List versions of a specific template.:                                      
 
       [;m$ coder templates versions list my-template[0m
 
 [1mSubcommands[0m
     list    List all the versions of the specified template
+
 ---
 Run `coder --help` for a list of global options.

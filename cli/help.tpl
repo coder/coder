@@ -1,20 +1,31 @@
 {{- /* Heavily inspired by the Go toolchain formatting. */ -}}
 Usage: {{.FullUsage}}
 
+
 {{ with .Short }}
 {{- wrapTTY . }}
 {{"\n"}}
 {{- end}}
+
+{{ with .Aliases }}
+{{ "\n" }}
+{{ "Aliases:"}} {{ joinStrings .}}
+{{ "\n" }}
+{{- end }}
+
 {{- with .Long}}
 {{- formatLong . }}
 {{ "\n" }}
 {{- end }}
-{{- range $index, $child := visibleChildren . }}
+{{ with visibleChildren . }}
+{{- range $index, $child := . }}
 {{- if eq $index 0 }}
 {{ prettyHeader "Subcommands"}}
 {{- end }}
     {{- "\n" }}
     {{- formatSubcommand . | trimNewline }}
+{{- end }}
+{{- "\n" }}
 {{- end }}
 {{- range $index, $group := optionGroups . }}
 {{ with $group.Name }} {{- print $group.Name " Options" | prettyHeader }} {{ else -}} {{ prettyHeader "Options"}}{{- end -}}

@@ -2,6 +2,8 @@ Usage: coder delete <workspace>
 
 Delete a workspace
 
+Aliases: rm
+
 [1mOptions[0m
       --orphan (default: false)
           Delete a workspace without deleting its resources. This can delete a

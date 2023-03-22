@@ -7,5 +7,6 @@ Perform scale tests against the Coder server.
 [1mSubcommands[0m
     cleanup              Cleanup any orphaned scaletest resources
     create-workspaces    Creates many workspaces and waits for them to be ready
+
 ---
 Run `coder --help` for a list of global options.

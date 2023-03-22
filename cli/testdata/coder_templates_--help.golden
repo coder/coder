@@ -2,6 +2,8 @@ Usage: coder templates
 
 Manage templates
 
+Aliases: template, t
+
 Templates are written in standard Terraform and describe the infrastructure for
 workspaces
   - Create a template for developers to create workspaces.:                     
@@ -29,5 +31,6 @@ workspaces
     push        Push a new template version from the current directory or as
                 specified by flag
     versions    Manage different versions of the specified template
+
 ---
 Run `coder --help` for a list of global options.

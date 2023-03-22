@@ -2,6 +2,8 @@ Usage: coder tokens
 
 Manage personal access tokens
 
+Aliases: token
+
 Tokens are used to authenticate automated clients to Coder.
   - Create a token for automation.:                                             
 
@@ -19,5 +21,6 @@ Tokens are used to authenticate automated clients to Coder.
     create    Create a token
     list      List tokens
     remove    Delete a token
+
 ---
 Run `coder --help` for a list of global options.

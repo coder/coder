@@ -2,6 +2,8 @@ Usage: coder tokens list
 
 List tokens
 
+Aliases: ls
+
 [1mOptions[0m
   -a, --all
           Specifies whether all users' tokens will be listed or not (must have
