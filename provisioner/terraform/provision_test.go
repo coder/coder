@@ -333,6 +333,12 @@ func TestProvision(t *testing.T) {
 					}
 				  }
 
+				  data "coder_parameter" "sample" {
+					name = "Sample"
+					type = "string"
+					default = "foobaz"
+				  }
+
 				  data "coder_parameter" "example" {
 					name = "Example"
 					type = "string"
@@ -347,6 +353,10 @@ func TestProvision(t *testing.T) {
 			},
 			Request: &proto.Provision_Plan{
 				RichParameterValues: []*proto.RichParameterValue{
+					{
+						Name:  "Sample",
+						Value: "foofoo",
+					},
 					{
 						Name:  "Example",
 						Value: "foobaz",
