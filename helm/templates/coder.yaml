@@ -26,9 +26,7 @@ spec:
       labels:
         {{- include "coder.labels" . | nindent 8 }}
       annotations:
-        {{- with .Values.coder.podAnnotations}}
-        {{- toYaml . | nindent 8  }}
-        {{- end}}
+        {{- toYaml .Values.coder.podAnnotations | nindent 8  }}
     spec:
       serviceAccountName: {{ .Values.coder.serviceAccount.name | quote }}
       restartPolicy: Always
