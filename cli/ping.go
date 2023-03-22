@@ -25,7 +25,7 @@ func (r *RootCmd) ping() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
-		Use:         "ping <workspace>",
+		Use:         "ping [flags] <workspace>",
 		Short:       "Ping a workspace",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
