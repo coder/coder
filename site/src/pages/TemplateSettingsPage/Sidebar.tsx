@@ -77,7 +77,7 @@ export const Sidebar: React.FC<{ template: Template }> = ({ template }) => {
         Variables
       </SidebarNavItem>
       <SidebarNavItem
-        href="tokens"
+        href="schedule"
         icon={<SidebarNavItemIcon icon={ScheduleIcon} />}
       >
         Schedule

@@ -135,6 +135,12 @@ const CreateTokenPage = lazy(
 const TemplateFilesPage = lazy(
   () => import("./pages/TemplatePage/TemplateFilesPage/TemplateFilesPage"),
 )
+const TemplateSchedulePage = lazy(
+  () =>
+    import(
+      "./pages/TemplateSettingsPage/TemplateSchedulePage/TemplateSchedulePage"
+    ),
+)
 
 export const AppRouter: FC = () => {
   return (
@@ -180,6 +186,7 @@ export const AppRouter: FC = () => {
                       path="variables"
                       element={<TemplateVariablesPage />}
                     />
+                    <Route path="schedule" element={<TemplateSchedulePage />} />
                   </Route>
 
                   <Route path="versions">
