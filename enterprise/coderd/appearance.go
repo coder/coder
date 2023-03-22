@@ -148,7 +148,7 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = api.Database.InsertOrUpdateServiceBanner(ctx, string(serviceBannerJSON))
+	err = api.Database.UpsertServiceBanner(ctx, string(serviceBannerJSON))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("database error: %+v", err),
@@ -156,7 +156,7 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = api.Database.InsertOrUpdateLogoURL(ctx, appearance.LogoURL)
+	err = api.Database.UpsertLogoURL(ctx, appearance.LogoURL)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("database error: %+v", err),

@@ -161,10 +161,10 @@ type sqlcQuerier interface {
 	InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error)
 	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error
 	InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error)
-	InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error
-	InsertOrUpdateLogoURL(ctx context.Context, value string) error
-	InsertOrUpdateServiceBanner(ctx context.Context, value string) error
-	InsertOrUpdateWorkspaceAgentMetadata(ctx context.Context, arg InsertOrUpdateWorkspaceAgentMetadataParams) error
+	UpsertLastUpdateCheck(ctx context.Context, value string) error
+	UpsertLogoURL(ctx context.Context, value string) error
+	UpsertServiceBanner(ctx context.Context, value string) error
+	UpsertWorkspaceAgentMetadata(ctx context.Context, arg UpsertWorkspaceAgentMetadataParams) error
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
 	InsertParameterSchema(ctx context.Context, arg InsertParameterSchemaParams) (ParameterSchema, error)

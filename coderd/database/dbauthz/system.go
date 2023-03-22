@@ -221,11 +221,11 @@ func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database
 	return q.db.UpdateWorkspaceBuildCostByID(ctx, arg)
 }
 
-func (q *querier) InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error {
+func (q *querier) UpsertLastUpdateCheck(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.InsertOrUpdateLastUpdateCheck(ctx, value)
+	return q.db.UpsertLastUpdateCheck(ctx, value)
 }
 
 func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {

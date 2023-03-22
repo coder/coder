@@ -94,7 +94,7 @@ SET
 WHERE
 	id = $1;
 
--- name: InsertOrUpdateWorkspaceAgentMetadata :exec
+-- name: UpsertWorkspaceAgentMetadata :exec
 INSERT INTO
 	workspace_agent_metadata (
 		workspace_id,

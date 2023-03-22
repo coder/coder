@@ -286,18 +286,18 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 	return q.db.InsertLicense(ctx, arg)
 }
 
-func (q *querier) InsertOrUpdateLogoURL(ctx context.Context, value string) error {
+func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
 		return err
 	}
-	return q.db.InsertOrUpdateLogoURL(ctx, value)
+	return q.db.UpsertLogoURL(ctx, value)
 }
 
-func (q *querier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
+func (q *querier) UpsertServiceBanner(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
 		return err
 	}
-	return q.db.InsertOrUpdateServiceBanner(ctx, value)
+	return q.db.UpsertServiceBanner(ctx, value)
 }
 
 func (q *querier) GetLicenseByID(ctx context.Context, id int32) (database.License, error) {
@@ -1472,7 +1472,7 @@ func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.Ins
 	return q.db.InsertWorkspaceAgentStat(ctx, arg)
 }
 
-func (q *querier) InsertOrUpdateWorkspaceAgentMetadata(ctx context.Context, arg database.InsertOrUpdateWorkspaceAgentMetadataParams) error {
+func (q *querier) UpsertWorkspaceAgentMetadata(ctx context.Context, arg database.UpsertWorkspaceAgentMetadataParams) error {
 	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
 		return err
@@ -1483,7 +1483,7 @@ func (q *querier) InsertOrUpdateWorkspaceAgentMetadata(ctx context.Context, arg 
 		return err
 	}
 
-	return q.db.InsertOrUpdateWorkspaceAgentMetadata(ctx, arg)
+	return q.db.UpsertWorkspaceAgentMetadata(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
