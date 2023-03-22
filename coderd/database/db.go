@@ -67,8 +67,42 @@ func (q *sqlQuerier) Ping(ctx context.Context) (time.Duration, error) {
 	return time.Since(start), err
 }
 
-// InTx performs database operations inside a transaction.
 func (q *sqlQuerier) InTx(function func(Store) error, txOpts *sql.TxOptions) error {
+	_, inTx := q.db.(*sqlx.Tx)
+	isolation := sql.LevelDefault
+	if txOpts != nil {
+		isolation = txOpts.Isolation
+	}
+
+	// If we are not already in a transaction, and we are running in serializable
+	// mode, we need to run the transaction in a retry loop. The caller should be
+	// prepared to allow retries if using serializable mode.
+	// If we are in a transaction already, the parent InTx call will handle the retry.
+	// We do not want to duplicate those retries.
+	if !inTx && isolation == sql.LevelSerializable {
+		// This is an arbitrarily chosen number.
+		const retryAmount = 3
+		var err error
+		attempts := 0
+		for attempts = 0; attempts < retryAmount; attempts++ {
+			err = q.runTx(function, txOpts)
+			if err == nil {
+				// Transaction succeeded.
+				return nil
+			}
+			if err != nil && !IsSerializedError(err) {
+				// We should only retry if the error is a serialization error.
+				return err
+			}
+		}
+		// Transaction kept failing in serializable mode.
+		return xerrors.Errorf("transaction failed after %d attempts: %w", attempts, err)
+	}
+	return q.runTx(function, txOpts)
+}
+
+// InTx performs database operations inside a transaction.
+func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) error {
 	if _, ok := q.db.(*sqlx.Tx); ok {
 		// If the current inner "db" is already a transaction, we just reuse it.
 		// We do not need to handle commit/rollback as the outer tx will handle

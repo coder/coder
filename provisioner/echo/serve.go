@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
+	"github.com/google/uuid"
 	"github.com/spf13/afero"
 
 	"github.com/coder/coder/provisionersdk"
@@ -30,6 +31,28 @@ func ParameterError(s string) string {
 
 func ParameterSucceed() string {
 	return formatExecValue(successKey, "")
+}
+
+// ProvisionApplyWithAgent returns provision responses that will mock a fake
+// "aws_instance" resource with an agent that has the given auth token.
+func ProvisionApplyWithAgent(authToken string) []*proto.Provision_Response {
+	return []*proto.Provision_Response{{
+		Type: &proto.Provision_Response_Complete{
+			Complete: &proto.Provision_Complete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "aws_instance",
+					Agents: []*proto.Agent{{
+						Id:   uuid.NewString(),
+						Name: "example",
+						Auth: &proto.Agent_Token{
+							Token: authToken,
+						},
+					}},
+				}},
+			},
+		},
+	}}
 }
 
 func formatExecValue(key, value string) string {

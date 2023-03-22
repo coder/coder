@@ -17,7 +17,6 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
@@ -293,23 +292,9 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) codersdk.
 	// Setup template
 	agentToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
-		Parse:         echo.ParseComplete,
-		ProvisionPlan: echo.ProvisionComplete,
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "somename",
-						Type: "someinstance",
-						Agents: []*proto.Agent{{
-							Auth: &proto.Agent_Token{
-								Token: agentToken,
-							},
-						}},
-					}},
-				},
-			},
-		}},
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(agentToken),
 	})
 
 	// Create template and workspace
