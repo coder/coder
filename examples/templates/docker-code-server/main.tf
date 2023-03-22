@@ -2,11 +2,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.12"
+      version = "~> 0.6.17"
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 2.20.2"
+      version = "~> 3.0.1"
     }
   }
 }
@@ -21,9 +21,8 @@ data "coder_workspace" "me" {
 }
 
 resource "coder_agent" "main" {
-  arch = data.coder_provisioner.me.arch
-  os   = "linux"
-
+  arch                   = data.coder_provisioner.me.arch
+  os                     = "linux"
   login_before_ready     = false
   startup_script_timeout = 180
   startup_script         = <<-EOT

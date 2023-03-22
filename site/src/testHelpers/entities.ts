@@ -37,19 +37,22 @@ export const MockAPIKey: TypesGen.GenerateAPIKeyResponse = {
   key: "my-api-key",
 }
 
-export const MockTokens: TypesGen.APIKey[] = [
-  {
-    id: "tBoVE3dqLl",
-    user_id: "f9ee61d8-1d84-4410-ab6e-c1ec1a641e0b",
-    last_used: "0001-01-01T00:00:00Z",
-    expires_at: "2023-01-15T20:10:45.637438Z",
-    created_at: "2022-12-16T20:10:45.637452Z",
-    updated_at: "2022-12-16T20:10:45.637452Z",
-    login_type: "token",
-    scope: "all",
-    lifetime_seconds: 2592000,
-    token_name: "token-one",
-  },
+export const MockToken: TypesGen.APIKeyWithOwner = {
+  id: "tBoVE3dqLl",
+  user_id: "f9ee61d8-1d84-4410-ab6e-c1ec1a641e0b",
+  last_used: "0001-01-01T00:00:00Z",
+  expires_at: "2023-01-15T20:10:45.637438Z",
+  created_at: "2022-12-16T20:10:45.637452Z",
+  updated_at: "2022-12-16T20:10:45.637452Z",
+  login_type: "token",
+  scope: "all",
+  lifetime_seconds: 2592000,
+  token_name: "token-one",
+  username: "admin",
+}
+
+export const MockTokens: TypesGen.APIKeyWithOwner[] = [
+  MockToken,
   {
     id: "tBoVE3dqLl",
     user_id: "f9ee61d8-1d84-4410-ab6e-c1ec1a641e0b",
@@ -61,6 +64,7 @@ export const MockTokens: TypesGen.APIKey[] = [
     scope: "all",
     lifetime_seconds: 2592000,
     token_name: "token-two",
+    username: "admin",
   },
 ]
 
@@ -1378,12 +1382,6 @@ export const MockAuditLogSuccessfulLogin: TypesGen.AuditLog = {
 export const MockAuditLogUnsuccessfulLoginKnownUser: TypesGen.AuditLog = {
   ...MockAuditLogSuccessfulLogin,
   status_code: 401,
-}
-
-export const MockAuditLogUnsuccessfulLoginUnknownUser: TypesGen.AuditLog = {
-  ...MockAuditLogSuccessfulLogin,
-  status_code: 401,
-  user: undefined,
 }
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {

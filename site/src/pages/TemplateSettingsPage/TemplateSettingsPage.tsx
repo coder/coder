@@ -18,8 +18,10 @@ export const TemplateSettingsPage: FC = () => {
     context: { templateName, organizationId },
     actions: {
       onSave: (_, { data }) => {
-        // Use the data.name because the template name can be changed
-        navigate(`/templates/${data.name}`)
+        // Use the data.name because the template name can be changed. Since the
+        // API can return 304 if the template name is not changed, we use the
+        // templateName from the URL as default.
+        navigate(`/templates/${data.name ?? templateName}`)
       },
     },
   })

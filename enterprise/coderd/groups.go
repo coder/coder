@@ -41,11 +41,6 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 	)
 	defer commitAudit()
 
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceGroup.InOrg(org.ID)) {
-		http.NotFound(rw, r)
-		return
-	}
-
 	var req codersdk.CreateGroupRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -111,11 +106,6 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.Old = group.Auditable(currentMembers)
-
-	if !api.Authorize(r, rbac.ActionUpdate, group) {
-		http.NotFound(rw, r)
-		return
-	}
 
 	var req codersdk.PatchGroupRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -294,11 +284,6 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.Old = group.Auditable(groupMembers)
 
-	if !api.Authorize(r, rbac.ActionDelete, group) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	if group.Name == database.AllUsersGroup {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("%q is a reserved group and cannot be deleted!", database.AllUsersGroup),
@@ -343,11 +328,6 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		ctx   = r.Context()
 		group = httpmw.GroupParam(r)
 	)
-
-	if !api.Authorize(r, rbac.ActionRead, group) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	users, err := api.Database.GetGroupMembers(ctx, group.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {

@@ -100,6 +100,8 @@ spec:
         app.kubernetes.io/part-of: coder
         app.kubernetes.io/version: "0.1.0"
         app.kubernetes.io/managed-by: Helm
+      annotations:
+        {}
     spec:
       serviceAccountName: "coder"
       restartPolicy: Always
@@ -121,6 +123,8 @@ spec:
           image: "ghcr.io/coder/coder:latest"
           imagePullPolicy: IfNotPresent
           resources:
+            {}
+          lifecycle:
             {}
           env:
             - name: CODER_HTTP_ADDRESS

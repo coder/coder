@@ -85,6 +85,7 @@ import (
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/tailnet"
+	"github.com/coder/wgtunnel/tunnelsdk"
 )
 
 // ReadGitAuthProvidersFromEnv is provided for compatibility purposes with the
@@ -538,34 +539,25 @@ flags, and YAML configuration. The precedence is as follows:
 				return xerrors.Errorf("configure http client: %w", err)
 			}
 
-			var (
-				ctxTunnel, closeTunnel = context.WithCancel(ctx)
-				tunnel                 *devtunnel.Tunnel
-				tunnelErr              <-chan error
-			)
-			defer closeTunnel()
-
 			// If the access URL is empty, we attempt to run a reverse-proxy
 			// tunnel to make the initial setup really simple.
+			var (
+				tunnel     *tunnelsdk.Tunnel
+				tunnelDone <-chan struct{} = make(chan struct{}, 1)
+			)
 			if cfg.AccessURL.String() == "" {
 				cmd.Printf("Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
-				tunnel, tunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
+				tunnel, err = devtunnel.New(ctx, logger.Named("devtunnel"), cfg.WgtunnelHost.String())
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
 				}
-				err = cfg.AccessURL.Set(tunnel.URL)
-				if err != nil {
-					return xerrors.Errorf("set access url: %w", err)
-				}
+				defer tunnel.Close()
+				tunnelDone = tunnel.Wait()
+				cfg.AccessURL = clibase.URL(*tunnel.URL)
 
 				if cfg.WildcardAccessURL.String() == "" {
-					u, err := parseURL(tunnel.URL)
-					if err != nil {
-						return xerrors.Errorf("parse tunnel url: %w", err)
-					}
-
 					// Suffixed wildcard access URL.
-					u, err = url.Parse(fmt.Sprintf("*--%s", u.Hostname()))
+					u, err := url.Parse(fmt.Sprintf("*--%s", tunnel.URL.Hostname()))
 					if err != nil {
 						return xerrors.Errorf("parse wildcard url: %w", err)
 					}
@@ -672,6 +664,11 @@ flags, and YAML configuration. The precedence is as follows:
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
+			configSSHOptions, err := cfg.SSHConfig.ParseOptions()
+			if err != nil {
+				return xerrors.Errorf("parse ssh config options %q: %w", cfg.SSHConfig.SSHConfigOptions.String(), err)
+			}
+
 			options := &coderd.Options{
 				AccessURL:                   cfg.AccessURL.Value(),
 				AppHostname:                 appHostname,
@@ -696,6 +693,10 @@ flags, and YAML configuration. The precedence is as follows:
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
+				SSHConfig: codersdk.SSHConfigResponse{
+					HostnamePrefix:   cfg.SSHConfig.DeploymentName.String(),
+					SSHConfigOptions: configSSHOptions,
+				},
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates
@@ -787,6 +788,7 @@ flags, and YAML configuration. The precedence is as follows:
 					AllowSignups:        cfg.OIDC.AllowSignups.Value(),
 					UsernameField:       cfg.OIDC.UsernameField.String(),
 					GroupField:          cfg.OIDC.GroupField.String(),
+					GroupMapping:        cfg.OIDC.GroupMapping.Value,
 					SignInText:          cfg.OIDC.SignInText.String(),
 					IconURL:             cfg.OIDC.IconURL.String(),
 					IgnoreEmailVerified: cfg.OIDC.IgnoreEmailVerified.Value(),
@@ -1080,10 +1082,8 @@ flags, and YAML configuration. The precedence is as follows:
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Bold.Render(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
-			case exitErr = <-tunnelErr:
-				if exitErr == nil {
-					exitErr = xerrors.New("dev tunnel closed unexpectedly")
-				}
+			case <-tunnelDone:
+				exitErr = xerrors.New("dev tunnel closed unexpectedly")
 			case exitErr = <-errCh:
 			}
 			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
@@ -1152,8 +1152,8 @@ flags, and YAML configuration. The precedence is as follows:
 			// Close tunnel after we no longer have in-flight connections.
 			if tunnel != nil {
 				cmd.Println("Waiting for tunnel to close...")
-				closeTunnel()
-				<-tunnelErr
+				_ = tunnel.Close()
+				<-tunnel.Wait()
 				cmd.Println("Done waiting for tunnel")
 			}
 
@@ -1229,22 +1229,6 @@ flags, and YAML configuration. The precedence is as follows:
 	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd, createAdminUserCommand)
 
 	return root
-}
-
-// parseURL parses a string into a URL.
-func parseURL(u string) (*url.URL, error) {
-	hasScheme := strings.HasPrefix(u, "http:") || strings.HasPrefix(u, "https:")
-
-	if !hasScheme {
-		return nil, xerrors.Errorf("URL %q must have a scheme of either http or https", u)
-	}
-
-	parsed, err := url.Parse(u)
-	if err != nil {
-		return nil, err
-	}
-
-	return parsed, nil
 }
 
 // isLocalURL returns true if the hostname of the provided URL appears to

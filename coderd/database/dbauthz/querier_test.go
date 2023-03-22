@@ -599,6 +599,16 @@ func (s *MethodTestSuite) TestTemplate() {
 		})
 		check.Args(tv.ID).Asserts(t1, rbac.ActionRead).Returns([]database.TemplateVersionParameter{})
 	}))
+	s.Run("GetTemplateVersionVariables", s.Subtest(func(db database.Store, check *expects) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
+		})
+		tvv1 := dbgen.TemplateVersionVariable(s.T(), db, database.TemplateVersionVariable{
+			TemplateVersionID: tv.ID,
+		})
+		check.Args(tv.ID).Asserts(t1, rbac.ActionRead).Returns([]database.TemplateVersionVariable{tvv1})
+	}))
 	s.Run("GetTemplateGroupRoles", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(t1.ID).Asserts(t1, rbac.ActionRead)
@@ -1140,9 +1150,10 @@ func (s *MethodTestSuite) TestWorkspace() {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		check.Args(database.UpdateWorkspaceBuildByIDParams{
-			ID:        build.ID,
-			UpdatedAt: build.UpdatedAt,
-			Deadline:  build.Deadline,
+			ID:               build.ID,
+			UpdatedAt:        build.UpdatedAt,
+			Deadline:         build.Deadline,
+			ProvisionerState: []byte{},
 		}).Asserts(ws, rbac.ActionUpdate).Returns(build)
 	}))
 	s.Run("SoftDeleteWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {

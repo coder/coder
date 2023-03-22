@@ -25,6 +25,8 @@ spec:
     metadata:
       labels:
         {{- include "coder.labels" . | nindent 8 }}
+      annotations:
+        {{- toYaml .Values.coder.podAnnotations | nindent 8  }}
     spec:
       serviceAccountName: {{ .Values.coder.serviceAccount.name | quote }}
       restartPolicy: Always
@@ -55,6 +57,8 @@ spec:
           imagePullPolicy: {{ .Values.coder.image.pullPolicy }}
           resources:
             {{- toYaml .Values.coder.resources | nindent 12 }}
+          lifecycle:
+            {{- toYaml .Values.coder.lifecycle | nindent 12 }}
           env:
             - name: CODER_HTTP_ADDRESS
               value: "0.0.0.0:8080"

@@ -42,10 +42,33 @@ provider "docker" {
 }
 ```
 
-The following parameter types are supported: `string`, `bool`, and `number`.
-
 > For a complete list of supported parameter properties, see the
 > [coder_parameter Terraform reference](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter)
+
+## Types
+
+The following parameter types are supported: `string`, `list(string)`, `bool`, and `number`.
+
+### List of strings
+
+List of strings is a specific parameter type, that can't be easily mapped to the default value, which is string type.
+Parameters with the `list(string)` type must be converted to JSON arrays using [jsonencode](https://developer.hashicorp.com/terraform/language/functions/jsonencode)
+function.
+
+```hcl
+data "coder_parameter" "security_groups" {
+  name        = "Security groups"
+  icon        = "/icon/aws.png"
+  type        = "list(string)"
+  description = "Select appropriate security groups."
+  mutable     = true
+  default = jsonencode([
+    "Web Server Security Group",
+    "Database Security Group",
+    "Backend Security Group"
+  ])
+}
+```
 
 ## Options
 

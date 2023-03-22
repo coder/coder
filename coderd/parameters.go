@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/parameter"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -33,14 +32,6 @@ func (api *API) postParameter(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	scope, scopeID, valid := readScopeAndID(ctx, rw, r)
 	if !valid {
-		return
-	}
-	obj, ok := api.parameterRBACResource(rw, r, scope, scopeID)
-	if !ok {
-		return
-	}
-	if !api.Authorize(r, rbac.ActionUpdate, obj) {
-		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -104,15 +95,6 @@ func (api *API) parameters(rw http.ResponseWriter, r *http.Request) {
 	if !valid {
 		return
 	}
-	obj, ok := api.parameterRBACResource(rw, r, scope, scopeID)
-	if !ok {
-		return
-	}
-
-	if !api.Authorize(r, rbac.ActionRead, obj) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	parameterValues, err := api.Database.ParameterValues(ctx, database.ParameterValuesParams{
 		Scopes:   []database.ParameterScope{scope},
@@ -150,15 +132,6 @@ func (api *API) deleteParameter(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	scope, scopeID, valid := readScopeAndID(ctx, rw, r)
 	if !valid {
-		return
-	}
-	obj, ok := api.parameterRBACResource(rw, r, scope, scopeID)
-	if !ok {
-		return
-	}
-	// A deleted param is still updating the underlying resource for the scope.
-	if !api.Authorize(r, rbac.ActionUpdate, obj) {
-		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -234,54 +207,6 @@ func convertParameterValue(parameterValue database.ParameterValue) codersdk.Para
 		SourceScheme:      codersdk.ParameterSourceScheme(parameterValue.SourceScheme),
 		DestinationScheme: codersdk.ParameterDestinationScheme(parameterValue.DestinationScheme),
 	}
-}
-
-// parameterRBACResource returns the RBAC resource a parameter scope and scope
-// ID is trying to update. For RBAC purposes, adding a param to a resource
-// is equivalent to updating/reading the associated resource.
-// This means "parameters" are not a new resource, but an extension of existing
-// ones.
-func (api *API) parameterRBACResource(rw http.ResponseWriter, r *http.Request, scope database.ParameterScope, scopeID uuid.UUID) (rbac.Objecter, bool) {
-	ctx := r.Context()
-	var resource rbac.Objecter
-	var err error
-	switch scope {
-	case database.ParameterScopeWorkspace:
-		resource, err = api.Database.GetWorkspaceByID(ctx, scopeID)
-	case database.ParameterScopeImportJob:
-		// I hate myself.
-		var version database.TemplateVersion
-		version, err = api.Database.GetTemplateVersionByJobID(ctx, scopeID)
-		if err != nil {
-			break
-		}
-		var template database.Template
-		template, err = api.Database.GetTemplateByID(ctx, version.TemplateID.UUID)
-		if err != nil {
-			break
-		}
-		resource = version.RBACObject(template)
-
-	case database.ParameterScopeTemplate:
-		resource, err = api.Database.GetTemplateByID(ctx, scopeID)
-	default:
-		err = xerrors.Errorf("Parameter scope %q unsupported", scope)
-	}
-
-	// Write error payload to rw if we cannot find the resource for the scope
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-				Message: fmt.Sprintf("Scope %q resource %q not found.", scope, scopeID),
-			})
-		} else {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: err.Error(),
-			})
-		}
-		return nil, false
-	}
-	return resource, true
 }
 
 func readScopeAndID(ctx context.Context, rw http.ResponseWriter, r *http.Request) (database.ParameterScope, uuid.UUID, bool) {

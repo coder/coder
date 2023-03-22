@@ -37,6 +37,11 @@
           "path": "./install/kubernetes.md"
         },
         {
+          "title": "OpenShift",
+          "description": "Install Coder on OpenShift",
+          "path": "./install/openshift.md"
+        },
+        {
           "title": "Docker",
           "description": "Install Coder with Docker / docker-compose",
           "path": "./install/docker.md"
@@ -601,10 +606,6 @@
         {
           "title": "templates list",
           "path": "./cli/coder_templates_list.md"
-        },
-        {
-          "title": "templates plan",
-          "path": "./cli/coder_templates_plan.md"
         },
         {
           "title": "templates pull",

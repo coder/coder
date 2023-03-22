@@ -793,12 +793,16 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 
 		boolParameterName  = "bool_parameter"
 		boolParameterValue = "true"
+
+		listOfStringsParameterName  = "list_of_strings_parameter"
+		listOfStringsParameterValue = `["a","b","c"]`
 	)
 
 	initialBuildParameters := []codersdk.WorkspaceBuildParameter{
 		{Name: stringParameterName, Value: stringParameterValue},
 		{Name: numberParameterName, Value: numberParameterValue},
 		{Name: boolParameterName, Value: boolParameterValue},
+		{Name: listOfStringsParameterName, Value: listOfStringsParameterValue},
 	}
 
 	prepareEchoResponses := func(richParameters []*proto.RichParameter) *echo.Responses {
@@ -902,6 +906,10 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
+		listOfStringsRichParameters := []*proto.RichParameter{
+			{Name: listOfStringsParameterName, Type: "list(string)", Mutable: true},
+		}
+
 		tests := []struct {
 			parameterName  string
 			value          string
@@ -930,6 +938,11 @@ func TestWorkspaceBuildValidateRichParameters(t *testing.T) {
 			{boolParameterName, "true", true, boolRichParameters},
 			{boolParameterName, "false", true, boolRichParameters},
 			{boolParameterName, "cat", false, boolRichParameters},
+
+			{listOfStringsParameterName, `[]`, true, listOfStringsRichParameters},
+			{listOfStringsParameterName, `["aa"]`, true, listOfStringsRichParameters},
+			{listOfStringsParameterName, `["aa]`, false, listOfStringsRichParameters},
+			{listOfStringsParameterName, ``, false, listOfStringsRichParameters},
 		}
 
 		for _, tc := range tests {

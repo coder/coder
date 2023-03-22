@@ -19,6 +19,7 @@ import (
 	"github.com/tabbed/pqtype"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
@@ -27,10 +28,11 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/gitauth"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionerd/proto"
@@ -48,7 +50,7 @@ type Server struct {
 	ID                    uuid.UUID
 	Logger                slog.Logger
 	Provisioners          []database.ProvisionerType
-	GitAuthProviders      []string
+	GitAuthConfigs        []*gitauth.Config
 	Tags                  json.RawMessage
 	Database              database.Store
 	Pubsub                database.Pubsub
@@ -58,6 +60,7 @@ type Server struct {
 	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 
 	AcquireJobDebounce time.Duration
+	OIDCConfig         httpmw.OAuth2Config
 }
 
 // AcquireJob queries the database to lock a job.
@@ -168,6 +171,14 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			return nil, failJob(fmt.Sprintf("publish workspace update: %s", err))
 		}
 
+		var workspaceOwnerOIDCAccessToken string
+		if server.OIDCConfig != nil {
+			workspaceOwnerOIDCAccessToken, err = obtainOIDCAccessToken(ctx, server.Database, server.OIDCConfig, owner.ID)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("obtain OIDC access token: %s", err))
+			}
+		}
+
 		// Compute parameters for the workspace to consume.
 		parameters, err := parameter.Compute(ctx, server.Database, parameter.ComputeScope{
 			TemplateImportJobID: templateVersion.JobID,
@@ -199,6 +210,48 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
 		}
 
+		gitAuthProviders := []*sdkproto.GitAuthProvider{}
+		for _, p := range templateVersion.GitAuthProviders {
+			link, err := server.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+				ProviderID: p,
+				UserID:     owner.ID,
+			})
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("acquire git auth link: %s", err))
+			}
+			var config *gitauth.Config
+			for _, c := range server.GitAuthConfigs {
+				if c.ID != p {
+					continue
+				}
+				config = c
+				break
+			}
+			// We weren't able to find a matching config for the ID!
+			if config == nil {
+				server.Logger.Warn(ctx, "workspace build job is missing git provider",
+					slog.F("git_provider_id", p),
+					slog.F("template_version_id", templateVersion.ID),
+					slog.F("workspace_id", workspaceBuild.WorkspaceID))
+				continue
+			}
+
+			link, valid, err := config.RefreshToken(ctx, server.Database, link)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("refresh git auth link %q: %s", p, err))
+			}
+			if !valid {
+				continue
+			}
+			gitAuthProviders = append(gitAuthProviders, &sdkproto.GitAuthProvider{
+				Id:          p,
+				AccessToken: link.OAuthAccessToken,
+			})
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:    workspaceBuild.ID.String(),
@@ -207,16 +260,18 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 				ParameterValues:     protoParameters,
 				RichParameterValues: convertRichParameterValues(workspaceBuildParameters),
 				VariableValues:      asVariableValues(templateVariables),
+				GitAuthProviders:    gitAuthProviders,
 				Metadata: &sdkproto.Provision_Metadata{
-					CoderUrl:            server.AccessURL.String(),
-					WorkspaceTransition: transition,
-					WorkspaceName:       workspace.Name,
-					WorkspaceOwner:      owner.Username,
-					WorkspaceOwnerEmail: owner.Email,
-					WorkspaceId:         workspace.ID.String(),
-					WorkspaceOwnerId:    owner.ID.String(),
-					TemplateName:        template.Name,
-					TemplateVersion:     templateVersion.Name,
+					CoderUrl:                      server.AccessURL.String(),
+					WorkspaceTransition:           transition,
+					WorkspaceName:                 workspace.Name,
+					WorkspaceOwner:                owner.Username,
+					WorkspaceOwnerEmail:           owner.Email,
+					WorkspaceOwnerOidcAccessToken: workspaceOwnerOIDCAccessToken,
+					WorkspaceId:                   workspace.ID.String(),
+					WorkspaceOwnerId:              owner.ID.String(),
+					TemplateName:                  template.Name,
+					TemplateVersion:               templateVersion.Name,
 				},
 			},
 		}
@@ -845,7 +900,14 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		var completedError sql.NullString
 
 		for _, gitAuthProvider := range jobType.TemplateImport.GitAuthProviders {
-			if !slice.Contains(server.GitAuthProviders, gitAuthProvider) {
+			contains := false
+			for _, configuredProvider := range server.GitAuthConfigs {
+				if configuredProvider.ID == gitAuthProvider {
+					contains = true
+					break
+				}
+			}
+			if !contains {
 				completedError = sql.NullString{
 					String: fmt.Sprintf("git auth provider %q is not configured", gitAuthProvider),
 					Valid:  true,
@@ -1293,6 +1355,51 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 	}
 
 	return nil
+}
+
+// obtainOIDCAccessToken returns a valid OpenID Connect access token
+// for the user if it's able to obtain one, otherwise it returns an empty string.
+func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig httpmw.OAuth2Config, userID uuid.UUID) (string, error) {
+	link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+		UserID:    userID,
+		LoginType: database.LoginTypeOIDC,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		return "", xerrors.Errorf("get owner oidc link: %w", err)
+	}
+
+	if link.OAuthExpiry.Before(database.Now()) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
+		token, err := oidcConfig.TokenSource(ctx, &oauth2.Token{
+			AccessToken:  link.OAuthAccessToken,
+			RefreshToken: link.OAuthRefreshToken,
+			Expiry:       link.OAuthExpiry,
+		}).Token()
+		if err != nil {
+			// If OIDC fails to refresh, we return an empty string and don't fail.
+			// There isn't a way to hard-opt in to OIDC from a template, so we don't
+			// want to fail builds if users haven't authenticated for a while or something.
+			return "", nil
+		}
+		link.OAuthAccessToken = token.AccessToken
+		link.OAuthRefreshToken = token.RefreshToken
+		link.OAuthExpiry = token.Expiry
+
+		link, err = db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+			UserID:            userID,
+			LoginType:         database.LoginTypeOIDC,
+			OAuthAccessToken:  link.OAuthAccessToken,
+			OAuthRefreshToken: link.OAuthRefreshToken,
+			OAuthExpiry:       link.OAuthExpiry,
+		})
+		if err != nil {
+			return "", xerrors.Errorf("update user link: %w", err)
+		}
+	}
+
+	return link.OAuthAccessToken, nil
 }
 
 func convertValidationTypeSystem(typeSystem sdkproto.ParameterSchema_TypeSystem) (database.ParameterTypeSystem, error) {

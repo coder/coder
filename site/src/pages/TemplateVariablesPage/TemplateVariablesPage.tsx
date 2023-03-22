@@ -36,6 +36,7 @@ export const TemplateVariablesPage: FC = () => {
     templateVariables,
     getTemplateDataError,
     updateTemplateError,
+    jobError,
   } = state.context
 
   const { t } = useTranslation("templateVariablesPage")
@@ -52,6 +53,7 @@ export const TemplateVariablesPage: FC = () => {
         errors={{
           getTemplateDataError,
           updateTemplateError,
+          jobError,
         }}
         onCancel={() => {
           navigate(`/templates/${templateName}`)

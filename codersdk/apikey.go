@@ -97,6 +97,10 @@ type APIKeyWithOwner struct {
 	Username string `json:"username"`
 }
 
+type TokenConfig struct {
+	MaxTokenLifetime time.Duration `json:"max_token_lifetime"`
+}
+
 // asRequestOption returns a function that can be used in (*Client).Request.
 // It modifies the request query parameters.
 func (f TokensFilter) asRequestOption() RequestOption {
@@ -160,4 +164,18 @@ func (c *Client) DeleteAPIKey(ctx context.Context, userID string, id string) err
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// GetTokenConfig returns deployment options related to token management
+func (c *Client) GetTokenConfig(ctx context.Context, userID string) (TokenConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens/tokenconfig", userID), nil)
+	if err != nil {
+		return TokenConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode > http.StatusOK {
+		return TokenConfig{}, ReadBodyAsError(res)
+	}
+	tokenConfig := TokenConfig{}
+	return tokenConfig, json.NewDecoder(res.Body).Decode(&tokenConfig)
 }

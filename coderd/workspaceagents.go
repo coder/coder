@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -21,7 +20,6 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
-	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
@@ -51,11 +49,7 @@ import (
 func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+
 	dbApps, err := api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -325,12 +319,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 // @Router /workspaceagents/{workspaceagent}/listening-ports [get]
 func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	workspace := httpmw.WorkspaceParam(r)
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	apiAgent, err := convertWorkspaceAgent(
 		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
@@ -492,11 +481,7 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 // @Router /workspaceagents/{workspaceagent}/connection [get]
 func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionRead, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
 		DERPMap: api.DERPMap,
 	})
@@ -928,7 +913,9 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 			// to start up.
 			workspaceAgent.Status = codersdk.WorkspaceAgentConnecting
 		}
-	case dbAgent.DisconnectedAt.Time.After(dbAgent.LastConnectedAt.Time):
+	// We check before instead of after because last connected at and
+	// disconnected at can be equal timestamps in tight-timed tests.
+	case !dbAgent.DisconnectedAt.Time.Before(dbAgent.LastConnectedAt.Time):
 		// If we've disconnected after our last connection, we know the
 		// agent is no longer connected.
 		workspaceAgent.Status = codersdk.WorkspaceAgentDisconnected
@@ -1338,7 +1325,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 				continue
 			}
 			if gitAuthConfig.ValidateURL != "" {
-				valid, err := validateGitToken(ctx, gitAuthConfig.ValidateURL, gitAuthLink.OAuthAccessToken)
+				valid, err := gitAuthConfig.ValidateToken(ctx, gitAuthLink.OAuthAccessToken)
 				if err != nil {
 					api.Logger.Warn(ctx, "failed to validate git auth token",
 						slog.F("workspace_owner_id", workspace.OwnerID.String()),
@@ -1384,7 +1371,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	gitAuthLink, updated, err := refreshGitToken(ctx, api.Database, workspace.OwnerID, gitAuthConfig, gitAuthLink)
+	gitAuthLink, updated, err := gitAuthConfig.RefreshToken(ctx, api.Database, gitAuthLink)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to refresh git auth token.",
@@ -1399,74 +1386,6 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, gitAuthLink.OAuthAccessToken))
-}
-
-func refreshGitToken(ctx context.Context, db database.Store, owner uuid.UUID, gitAuthConfig *gitauth.Config, gitAuthLink database.GitAuthLink) (database.GitAuthLink, bool, error) {
-	// If the token is expired and refresh is disabled, we prompt
-	// the user to authenticate again.
-	if gitAuthConfig.NoRefresh && gitAuthLink.OAuthExpiry.Before(database.Now()) {
-		return gitAuthLink, false, nil
-	}
-
-	token, err := gitAuthConfig.TokenSource(ctx, &oauth2.Token{
-		AccessToken:  gitAuthLink.OAuthAccessToken,
-		RefreshToken: gitAuthLink.OAuthRefreshToken,
-		Expiry:       gitAuthLink.OAuthExpiry,
-	}).Token()
-	if err != nil {
-		return gitAuthLink, false, nil
-	}
-
-	if gitAuthConfig.ValidateURL != "" {
-		valid, err := validateGitToken(ctx, gitAuthConfig.ValidateURL, token.AccessToken)
-		if err != nil {
-			return gitAuthLink, false, xerrors.Errorf("validate git auth token: %w", err)
-		}
-		if !valid {
-			// The token is no longer valid!
-			return gitAuthLink, false, nil
-		}
-	}
-
-	if token.AccessToken != gitAuthLink.OAuthAccessToken {
-		// Update it
-		gitAuthLink, err = db.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
-			ProviderID:        gitAuthConfig.ID,
-			UserID:            owner,
-			UpdatedAt:         database.Now(),
-			OAuthAccessToken:  token.AccessToken,
-			OAuthRefreshToken: token.RefreshToken,
-			OAuthExpiry:       token.Expiry,
-		})
-		if err != nil {
-			return gitAuthLink, false, xerrors.Errorf("update git auth link: %w", err)
-		}
-	}
-	return gitAuthLink, true, nil
-}
-
-// validateGitToken ensures the git token provided is valid
-// against the provided URL.
-func validateGitToken(ctx context.Context, validateURL, token string) (bool, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, validateURL, nil)
-	if err != nil {
-		return false, err
-	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return false, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode == http.StatusUnauthorized {
-		// The token is no longer valid!
-		return false, nil
-	}
-	if res.StatusCode != http.StatusOK {
-		data, _ := io.ReadAll(res.Body)
-		return false, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
-	}
-	return true, nil
 }
 
 // Provider types have different username/password formats.
