@@ -1384,12 +1384,6 @@ export const MockAuditLogUnsuccessfulLoginKnownUser: TypesGen.AuditLog = {
   status_code: 401,
 }
 
-export const MockAuditLogUnsuccessfulLoginUnknownUser: TypesGen.AuditLog = {
-  ...MockAuditLogSuccessfulLogin,
-  status_code: 401,
-  user: undefined,
-}
-
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
   credits_consumed: 0,
   budget: 100,
