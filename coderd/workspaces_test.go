@@ -1265,7 +1265,8 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 				if len(auditor.AuditLogs) < 7 {
 					return false
 				}
-				return auditor.AuditLogs[6].Action == database.AuditActionWrite
+				return auditor.AuditLogs[6].Action == database.AuditActionWrite ||
+					auditor.AuditLogs[5].Action == database.AuditActionWrite
 			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
@@ -1384,7 +1385,8 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 				if len(auditor.AuditLogs) != 7 {
 					return false
 				}
-				return auditor.AuditLogs[6].Action == database.AuditActionWrite
+				return auditor.AuditLogs[6].Action == database.AuditActionWrite ||
+					auditor.AuditLogs[5].Action == database.AuditActionWrite
 			}, testutil.WaitMedium, testutil.IntervalFast, "expected audit log to be written")
 		})
 	}

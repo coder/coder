@@ -976,7 +976,9 @@ const getMissingParameters = (
   templateParameters: TypesGen.TemplateVersionParameter[],
 ) => {
   const missingParameters: TypesGen.TemplateVersionParameter[] = []
-  const requiredParameters = templateParameters.filter((p) => p.required)
+  const requiredParameters = templateParameters.filter(
+    (p) => p.required && p.mutable,
+  )
 
   for (const parameter of requiredParameters) {
     // Check if there is a new value
