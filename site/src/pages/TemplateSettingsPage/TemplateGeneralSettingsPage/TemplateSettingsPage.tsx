@@ -35,7 +35,7 @@ export const TemplateSettingsPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(t("title"))}</title>
+        <title>{pageTitle([template.name, t("title")])}</title>
       </Helmet>
       <TemplateSettingsPageView
         canSetMaxTTL={canSetMaxTTL}

@@ -28,7 +28,7 @@ export const TemplatePermissionsPage: FC<
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`${template?.name} · Permissions`)}</title>
+        <title>{pageTitle([template.name, "Permissions"])}</title>
       </Helmet>
       <ChooseOne>
         <Cond condition={!isTemplateRBACEnabled}>

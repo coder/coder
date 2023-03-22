@@ -5,7 +5,6 @@ import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { displaySuccess } from "components/GlobalSnackbar/utils"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { useTranslation } from "react-i18next"
 import { useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { useTemplateSettingsContext } from "../TemplateSettingsLayout"
@@ -13,7 +12,6 @@ import { TemplateSchedulePageView } from "./TemplateSchedulePageView"
 
 const TemplateSchedulePage: FC = () => {
   const { template: templateName } = useParams() as { template: string }
-  const { t } = useTranslation("templateSettingsPage")
   const navigate = useNavigate()
   const { template } = useTemplateSettingsContext()
   const { entitlements } = useDashboard()
@@ -35,7 +33,7 @@ const TemplateSchedulePage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(t("title"))}</title>
+        <title>{pageTitle([template.name, "Schedule"])}</title>
       </Helmet>
       <TemplateSchedulePageView
         canSetMaxTTL={canSetMaxTTL}

@@ -65,7 +65,7 @@ export const TemplateSettingsLayout: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle("Settings")}</title>
+        <title>{pageTitle([templateName, "Settings"])}</title>
       </Helmet>
 
       {settings ? (
