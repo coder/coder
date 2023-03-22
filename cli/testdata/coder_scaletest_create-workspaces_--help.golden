@@ -28,11 +28,14 @@ against the (most likely single) IP.
           Time to hold the WireGuard connection open for.
 
       --connect-interval, $CODER_SCALETEST_CONNECT_INTERVAL (default: 1s)
+          How long to wait between making requests to the --connect-url once the
+          connection is established.
+
       --connect-mode, $CODER_SCALETEST_CONNECT_MODE (default: derp) one of derp|direct
           WireGuard connection mode.
 
       --connect-timeout, $CODER_SCALETEST_CONNECT_TIMEOUT (default: 5s)
-          Timeout for each request to the connect-url.
+          Timeout for each request to the --connect-url.
 
       --connect-url, $CODER_SCALETEST_CONNECT_URL
           URL to connect to inside the the workspace over WireGuard. If not

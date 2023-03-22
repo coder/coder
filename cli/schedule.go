@@ -75,7 +75,7 @@ func (r *RootCmd) schedules() *clibase.Cmd {
 func (r *RootCmd) scheduleShow() *clibase.Cmd {
 	client := new(codersdk.Client)
 	showCmd := &clibase.Cmd{
-		Use:   "show <workspace-name>",
+		Use:   "show [flags] <workspace-name>",
 		Short: "Show workspace schedule",
 		Long:  scheduleShowDescriptionLong,
 		Middleware: clibase.Chain(

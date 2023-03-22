@@ -15,7 +15,7 @@ import (
 func (r *RootCmd) templateDelete() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "delete [name...]",
+		Use:   "delete [flags] [name...]",
 		Short: "Delete templates",
 		Middleware: clibase.Chain(
 			r.InitClient(client),

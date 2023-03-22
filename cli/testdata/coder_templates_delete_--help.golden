@@ -1,4 +1,4 @@
-Usage: coder templates delete [name...]
+Usage: coder templates delete [flags] [name...]
 
 Delete templates
 

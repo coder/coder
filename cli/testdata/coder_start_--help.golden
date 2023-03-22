@@ -1,4 +1,4 @@
-Usage: coder start <workspace>
+Usage: coder start [flags] <workspace>
 
 Start a workspace
 

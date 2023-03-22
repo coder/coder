@@ -1,4 +1,4 @@
-Usage: coder ssh <workspace>
+Usage: coder ssh [flags] <workspace>
 
 Start a shell into a workspace
 

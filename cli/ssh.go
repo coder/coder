@@ -49,7 +49,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
-		Use:         "ssh <workspace>",
+		Use:         "ssh [flags] <workspace>",
 		Short:       "Start a shell into a workspace",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),

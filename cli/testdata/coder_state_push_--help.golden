@@ -1,4 +1,4 @@
-Usage: coder state push <workspace> <file>
+Usage: coder state push [flags] <workspace> <file>
 
 Push a Terraform state file to a workspace.
 

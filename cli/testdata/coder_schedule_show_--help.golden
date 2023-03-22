@@ -1,4 +1,4 @@
-Usage: coder schedule show <workspace-name>
+Usage: coder schedule show [flags] <workspace-name>
 
 Show workspace schedule
 
