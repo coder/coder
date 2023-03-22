@@ -7,23 +7,41 @@ import { pageTitle } from "../../util/page"
 import { Loader } from "components/Loader/Loader"
 import { Outlet, useParams } from "react-router-dom"
 import { Margins } from "components/Margins/Margins"
-import { getTemplateByName } from "api/api"
+import { checkAuthorization, getTemplateByName } from "api/api"
 import { useQuery } from "@tanstack/react-query"
 import { useOrganizationId } from "hooks/useOrganizationId"
 
-const fetchTemplate = (orgId: string, name: string) => {
-  return getTemplateByName(orgId, name)
+const templatePermissions = (templateId: string) => ({
+  canUpdateTemplate: {
+    object: {
+      resource_type: "template",
+      resource_id: templateId,
+    },
+    action: "update",
+  },
+})
+
+const fetchTemplateSettings = async (orgId: string, name: string) => {
+  const template = await getTemplateByName(orgId, name)
+  const permissions = await checkAuthorization({
+    checks: templatePermissions(template.id),
+  })
+
+  return {
+    template,
+    permissions,
+  }
 }
 
 const useTemplate = (orgId: string, name: string) => {
   return useQuery({
-    queryKey: ["template", orgId, name],
-    queryFn: () => fetchTemplate(orgId, name),
+    queryKey: ["template", name, "settings"],
+    queryFn: () => fetchTemplateSettings(orgId, name),
   })
 }
 
 const TemplateSettingsContext = createContext<
-  Awaited<ReturnType<typeof fetchTemplate>> | undefined
+  Awaited<ReturnType<typeof fetchTemplateSettings>> | undefined
 >(undefined)
 
 export const useTemplateSettingsContext = () => {
@@ -42,7 +60,7 @@ export const TemplateSettingsLayout: FC = () => {
   const styles = useStyles()
   const orgId = useOrganizationId()
   const { template: templateName } = useParams() as { template: string }
-  const { data: template } = useTemplate(orgId, templateName)
+  const { data: settings } = useTemplate(orgId, templateName)
 
   return (
     <>
@@ -50,11 +68,11 @@ export const TemplateSettingsLayout: FC = () => {
         <title>{pageTitle("Settings")}</title>
       </Helmet>
 
-      {template ? (
-        <TemplateSettingsContext.Provider value={template}>
+      {settings ? (
+        <TemplateSettingsContext.Provider value={settings}>
           <Margins>
             <Stack className={styles.wrapper} direction="row" spacing={10}>
-              <Sidebar template={template} />
+              <Sidebar template={settings.template} />
               <Suspense fallback={<Loader />}>
                 <main className={styles.content}>
                   <Outlet />

@@ -15,7 +15,7 @@ export const TemplateSettingsPage: FC = () => {
   const { template: templateName } = useParams() as { template: string }
   const { t } = useTranslation("templateSettingsPage")
   const navigate = useNavigate()
-  const template = useTemplateSettingsContext()
+  const { template } = useTemplateSettingsContext()
   const { entitlements } = useDashboard()
   const canSetMaxTTL =
     entitlements.features["advanced_template_scheduling"].enabled

@@ -5,20 +5,20 @@ import { useMachine } from "@xstate/react"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Paywall } from "components/Paywall/Paywall"
 import { Stack } from "components/Stack/Stack"
-import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
 import { templateACLMachine } from "xServices/template/templateACLXService"
+import { useTemplateSettingsContext } from "../TemplateSettingsLayout"
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView"
 
 export const TemplatePermissionsPage: FC<
   React.PropsWithChildren<unknown>
 > = () => {
   const organizationId = useOrganizationId()
-  const { template, permissions } = useTemplateLayoutContext()
+  const { template, permissions } = useTemplateSettingsContext()
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility()
   const [state, send] = useMachine(templateACLMachine, {
     context: { templateId: template.id },
