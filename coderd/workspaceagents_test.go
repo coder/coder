@@ -1170,7 +1170,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 								{
 									DisplayName: "Second Meta",
 									Key:         "foo2",
-									Cmd:         []string{"echo", "hi"},
+									Cmd:         []string{"echo", "howdy"},
 									Interval:    10,
 									Timeout:     3,
 								},
@@ -1199,6 +1199,18 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 
+	ctx, _ := testutil.Context(t)
+
+	manifest, err := agentClient.Manifest(ctx)
+	require.NoError(t, err)
+
+	// Verify manifest API response.
+	require.Equal(t, "First Meta", manifest.Metadata[0].DisplayName)
+	require.Equal(t, "foo1", manifest.Metadata[0].Key)
+	require.Equal(t, []string{"echo", "hi"}, manifest.Metadata[0].Cmd)
+	require.Equal(t, time.Second*(10), manifest.Metadata[0].Interval)
+	require.Equal(t, time.Second*3, manifest.Metadata[0].Timeout)
+
 	ctx, cancel := testutil.Context(t)
 	defer cancel()
 
@@ -1207,7 +1219,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 		require.NoError(t, err, "post metadata", t)
 	}
 
-	workspace, err := client.Workspace(ctx, workspace.ID)
+	workspace, err = client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err, "get workspace")
 
 	agentID := workspace.LatestBuild.Resources[0].Agents[0].ID

@@ -69,10 +69,11 @@ func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 // back to coderd. It is provided via the `metadata` list in the `coder_agent`
 // block.
 type MetadataDescription struct {
-	Key      string
-	Cmd      []string
-	Interval time.Duration
-	Timeout  time.Duration
+	DisplayName string        `json:"display_name,omitempty"`
+	Key         string        `json:"key,omitempty"`
+	Cmd         []string      `json:"cmd,omitempty"`
+	Interval    time.Duration `json:"interval,omitempty"`
+	Timeout     time.Duration `json:"timeout,omitempty"`
 }
 
 // In the future, we may want to support sending back multiple values for

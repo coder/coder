@@ -2700,6 +2700,8 @@ func (q *fakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 	//nolint:gosimple
 	metadatum := database.WorkspaceAgentMetadatum{
 		WorkspaceAgentID: arg.WorkspaceAgentID,
+		Cmd:              arg.Cmd,
+		DisplayName:      arg.DisplayName,
 		Key:              arg.Key,
 		Timeout:          arg.Timeout,
 		Interval:         arg.Interval,

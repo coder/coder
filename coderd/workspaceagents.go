@@ -105,6 +105,16 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
+
+	metadata, err := api.Database.GetWorkspaceAgentMetadata(ctx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent metadata.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -161,6 +171,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		StartupScriptTimeout:  time.Duration(apiAgent.StartupScriptTimeoutSeconds) * time.Second,
 		ShutdownScript:        apiAgent.ShutdownScript,
 		ShutdownScriptTimeout: time.Duration(apiAgent.ShutdownScriptTimeoutSeconds) * time.Second,
+		Metadata:              convertWorkspaceAgentMetadataDesc(metadata),
 	})
 }
 
@@ -832,6 +843,20 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 	return apps
 }
 
+func convertWorkspaceAgentMetadataDesc(mds []database.WorkspaceAgentMetadatum) []agentsdk.MetadataDescription {
+	metadata := make([]agentsdk.MetadataDescription, 0)
+	for _, datum := range mds {
+		metadata = append(metadata, agentsdk.MetadataDescription{
+			DisplayName: datum.DisplayName,
+			Key:         datum.Key,
+			Cmd:         datum.Cmd,
+			Interval:    time.Duration(datum.Interval) * time.Second,
+			Timeout:     time.Duration(datum.Timeout) * time.Second,
+		})
+	}
+	return metadata
+}
+
 func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator, dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
 	if dbAgent.EnvironmentVariables.Valid {
@@ -1146,7 +1171,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 		})
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
-			Data: convertWorkspaceAgentMetadata(data),
+			Data: convertWorkspaceAgentMetadataResult(data),
 		})
 	}
 
@@ -1166,7 +1191,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	<-senderClosed
 }
 
-func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadataResult {
+func convertWorkspaceAgentMetadataResult(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadataResult {
 	var result []codersdk.WorkspaceAgentMetadataResult
 	for _, datum := range db {
 		result = append(result, codersdk.WorkspaceAgentMetadataResult{

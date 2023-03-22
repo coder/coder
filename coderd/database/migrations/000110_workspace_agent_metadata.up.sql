@@ -2,7 +2,9 @@
 -- key enough?
 CREATE TABLE workspace_agent_metadata (
     workspace_agent_id uuid NOT NULL,
+    display_name text NOT NULL,
     key character varying(128) NOT NULL,
+    cmd text[] NOT NULL,
     value text NOT NULL,
     error text NOT NULL,
     timeout bigint NOT NULL,

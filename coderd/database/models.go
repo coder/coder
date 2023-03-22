@@ -1573,7 +1573,9 @@ type WorkspaceAgent struct {
 
 type WorkspaceAgentMetadatum struct {
 	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	DisplayName      string    `db:"display_name" json:"display_name"`
 	Key              string    `db:"key" json:"key"`
+	Cmd              []string  `db:"cmd" json:"cmd"`
 	Value            string    `db:"value" json:"value"`
 	Error            string    `db:"error" json:"error"`
 	Timeout          int64     `db:"timeout" json:"timeout"`

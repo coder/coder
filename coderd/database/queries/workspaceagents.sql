@@ -98,12 +98,14 @@ WHERE
 INSERT INTO
 	workspace_agent_metadata (
 		workspace_agent_id,
+		display_name,
 		key,
+		cmd,
 		timeout,
 		interval
 	)
 VALUES
-	($1, $2, $3, $4);
+	($1, $2, $3, $4, $5, $6);
 
 -- name: UpdateWorkspaceAgentMetadata :exec
 UPDATE
