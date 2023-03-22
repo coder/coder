@@ -14,6 +14,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/go-github/v43/github"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -332,6 +333,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "/hello-world", user.AvatarURL)
 
 		require.Len(t, auditor.AuditLogs, numLogs)
+		require.NotEqual(t, auditor.AuditLogs[numLogs-1].UserID, uuid.Nil)
 		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
 	})
 	t.Run("SignupAllowedTeam", func(t *testing.T) {
@@ -753,6 +755,7 @@ func TestUserOIDC(t *testing.T) {
 				require.Equal(t, tc.Username, user.Username)
 
 				require.Len(t, auditor.AuditLogs, numLogs)
+				require.NotEqual(t, auditor.AuditLogs[numLogs-1].UserID, uuid.Nil)
 				require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
 			}
 

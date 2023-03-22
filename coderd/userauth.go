@@ -424,7 +424,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	aReq.UserID = user.ID
 
 	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
 		User:         user,
@@ -453,6 +452,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = key
+	aReq.UserID = key.UserID
 
 	http.SetCookie(rw, cookie)
 
@@ -705,7 +705,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	aReq.UserID = user.ID
 
 	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
 		User:         user,
@@ -736,6 +735,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = key
+	aReq.UserID = key.UserID
 
 	http.SetCookie(rw, cookie)
 
