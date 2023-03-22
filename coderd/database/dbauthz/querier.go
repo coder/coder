@@ -851,14 +851,11 @@ func (q *querier) UpdateTemplateScheduleByID(ctx context.Context, arg database.U
 }
 
 func (q *querier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
-	// Must do an authorized fetch to prevent leaking template ids this way.
-	tpl, err := q.GetTemplateByID(ctx, arg.TemplateID.UUID)
+	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID.UUID)
 	if err != nil {
 		return database.TemplateVersion{}, err
 	}
-	// Check the create permission on the template.
-	err = q.authorizeContext(ctx, rbac.ActionUpdate, tpl)
-	if err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
 		return database.TemplateVersion{}, err
 	}
 	return q.db.UpdateTemplateVersionByID(ctx, arg)
