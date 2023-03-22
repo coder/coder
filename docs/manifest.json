@@ -472,7 +472,7 @@
         },
         {
           "title": "dotfiles",
-          "description": "Checkout and install a dotfiles repository from a Git URL",
+          "description": "Personalize your repo by applying a canonical dotfiles repository",
           "path": "cli/dotfiles.md"
         },
         {
@@ -551,7 +551,7 @@
         },
         {
           "title": "port-forward",
-          "description": "Forward ports from machine to a workspace",
+          "description": "Forward ports between your local system and the workspace",
           "path": "cli/port-forward.md"
         },
         {
@@ -596,7 +596,7 @@
         },
         {
           "title": "scaletest create-workspaces",
-          "description": "Creates many workspaces and waits for them to be ready",
+          "description": "Creates many users and workspaces and waits for them to be ready",
           "path": "cli/scaletest_create-workspaces.md"
         },
         {

@@ -13,7 +13,7 @@ coder scaletest cleanup
 ## Description
 
 ```console
-Cleanup scaletest workspaces, then cleanup scaletest users. The strategy flags will apply to each stage of the cleanup process.
+The strategy flags will apply to each stage of the cleanup process.
 ```
 
 ## Options

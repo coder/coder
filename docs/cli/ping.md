@@ -7,7 +7,7 @@ Ping a workspace
 ## Usage
 
 ```console
-coder ping <workspace>
+coder ping [flags] <workspace>
 ```
 
 ## Options

@@ -7,7 +7,7 @@ Push a Terraform state file to a workspace.
 ## Usage
 
 ```console
-coder state push <workspace> <file>
+coder state push [flags] <workspace> <file>
 ```
 
 ## Options

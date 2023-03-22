@@ -13,7 +13,7 @@ coder update <workspace>
 ## Description
 
 ```console
-Will update and start a given workspace if it is out of date. Use --always-prompt to change the parameter values of the workspace.
+Use --always-prompt to change the parameter values of the workspace.
 ```
 
 ## Options

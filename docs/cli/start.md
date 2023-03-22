@@ -7,7 +7,7 @@ Start a workspace
 ## Usage
 
 ```console
-coder start <workspace>
+coder start [flags] <workspace>
 ```
 
 ## Options

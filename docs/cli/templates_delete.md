@@ -7,7 +7,7 @@ Delete templates
 ## Usage
 
 ```console
-coder templates delete [name...]
+coder templates delete [flags] [name...]
 ```
 
 ## Options

@@ -2,7 +2,7 @@
 
 # port-forward
 
-Forward ports from machine to a workspace
+Forward ports between your local system and the workspace
 
 ## Usage
 

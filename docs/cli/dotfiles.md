@@ -2,7 +2,7 @@
 
 # dotfiles
 
-Checkout and install a dotfiles repository from a Git URL
+Personalize your repo by applying a canonical dotfiles repository
 
 ## Usage
 

@@ -2,7 +2,7 @@
 
 # scaletest create-workspaces
 
-Creates many workspaces and waits for them to be ready
+Creates many users and workspaces and waits for them to be ready
 
 ## Usage
 
@@ -13,7 +13,7 @@ coder scaletest create-workspaces
 ## Description
 
 ```console
-Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
+After creation, waits for the workspaces finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
 
 It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.
 ```
@@ -72,6 +72,8 @@ Time to hold the WireGuard connection open for.
 | Environment | <code>$CODER_SCALETEST_CONNECT_INTERVAL</code> |
 | Default     | <code>1s</code>                                |
 
+How long to wait between making requests to the --connect-url once the connection is established.
+
 ### --connect-mode
 
 |             |                                            |
@@ -79,7 +81,7 @@ Time to hold the WireGuard connection open for.
 | Environment | <code>$CODER_SCALETEST_CONNECT_MODE</code> |
 | Default     | <code>derp</code>                          |
 
-WireGuard connection mode.
+Connection mode.
 
 ### --connect-timeout
 
@@ -88,7 +90,7 @@ WireGuard connection mode.
 | Environment | <code>$CODER_SCALETEST_CONNECT_TIMEOUT</code> |
 | Default     | <code>5s</code>                               |
 
-Timeout for each request to the connect-url.
+Timeout for each request to the --connect-url.
 
 ### --connect-url
 
@@ -122,7 +124,7 @@ Timeout per job. Jobs may take longer to complete under higher concurrency limit
 | ----------- | ---------------------------------------- |
 | Environment | <code>$CODER_SCALETEST_NO_CLEANUP</code> |
 
-Do not clean up workspaces after the load test has finished. Useful for debugging.
+Do not clean up resources after the load test has finished. Useful for debugging.
 
 ### --no-plan
 

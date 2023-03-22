@@ -7,7 +7,7 @@ Show workspace schedule
 ## Usage
 
 ```console
-coder schedule show <workspace-name>
+coder schedule show [flags] <workspace-name>
 ```
 
 ## Description

@@ -46,7 +46,8 @@ When enabling scheduled stop, enter a duration in one of the following formats:
   * 2m   (2 minutes)
   * 2    (2 minutes)
 `
-	scheduleOverrideDescriptionLong = `* The new stop time is calculated from *now*.
+	scheduleOverrideDescriptionLong = `
+* The new stop time is calculated from *now*.
   * The new stop time must be at least 30 minutes in the future.
   * The workspace template may restrict the maximum workspace runtime.
 `
