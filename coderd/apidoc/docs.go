@@ -5308,7 +5308,7 @@ const docTemplate = `{
                 "dynamic_metadata": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/agentsdk.MetadataDescription"
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentMetadataDescription"
                     }
                 },
                 "environment_variables": {
@@ -5341,7 +5341,7 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.MetadataDescription": {
+        "codersdk.WorkspaceAgentMetadataDescription": {
             "type": "object",
             "properties": {
                 "cmd": {

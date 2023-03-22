@@ -843,15 +843,15 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 	return apps
 }
 
-func convertWorkspaceAgentMetadataDesc(mds []database.WorkspaceAgentMetadatum) []agentsdk.MetadataDescription {
-	metadata := make([]agentsdk.MetadataDescription, 0)
+func convertWorkspaceAgentMetadataDesc(mds []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadataDescription {
+	metadata := make([]codersdk.WorkspaceAgentMetadataDescription, 0)
 	for _, datum := range mds {
-		metadata = append(metadata, agentsdk.MetadataDescription{
+		metadata = append(metadata, codersdk.WorkspaceAgentMetadataDescription{
 			DisplayName: datum.DisplayName,
 			Key:         datum.Key,
 			Cmd:         datum.Cmd,
-			Interval:    time.Duration(datum.Interval) * time.Second,
-			Timeout:     time.Duration(datum.Timeout) * time.Second,
+			Interval:    datum.Interval,
+			Timeout:     datum.Timeout,
 		})
 	}
 	return metadata
@@ -1108,6 +1108,7 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 		ctx, "accepted metadata report",
 		slog.F("agent", workspaceAgent.ID),
 		slog.F("workspace", workspace.ID),
+		slog.F("collected_at", datum.CollectedAt),
 		slog.F("key", datum.Key),
 		slog.F("value", ellipse(datum.Value, 5)),
 	)
@@ -1171,7 +1172,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 		})
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
-			Data: convertWorkspaceAgentMetadataResult(data),
+			Data: convertWorkspaceAgentMetadata(data),
 		})
 	}
 
@@ -1191,14 +1192,23 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	<-senderClosed
 }
 
-func convertWorkspaceAgentMetadataResult(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadataResult {
-	var result []codersdk.WorkspaceAgentMetadataResult
+func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadata {
+	var result []codersdk.WorkspaceAgentMetadata
 	for _, datum := range db {
-		result = append(result, codersdk.WorkspaceAgentMetadataResult{
-			Key:         datum.Key,
-			Value:       datum.Value,
-			Error:       datum.Error,
-			CollectedAt: datum.CollectedAt,
+		result = append(result, codersdk.WorkspaceAgentMetadata{
+			Result: codersdk.WorkspaceAgentMetadataResult{
+				Key:         datum.Key,
+				Value:       datum.Value,
+				Error:       datum.Error,
+				CollectedAt: datum.CollectedAt,
+			},
+			Description: codersdk.WorkspaceAgentMetadataDescription{
+				DisplayName: datum.DisplayName,
+				Key:         datum.Key,
+				Cmd:         datum.Cmd,
+				Interval:    datum.Interval,
+				Timeout:     datum.Timeout,
+			},
 		})
 	}
 	return result

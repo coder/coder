@@ -75,10 +75,26 @@ var WorkspaceAgentLifecycleOrder = []WorkspaceAgentLifecycle{
 }
 
 type WorkspaceAgentMetadataResult struct {
-	CollectedAt time.Time
-	Key         string
-	Value       string
-	Error       string
+	CollectedAt time.Time `json:"collected_at,omitempty"`
+	Key         string    `json:"key,omitempty"`
+	Value       string    `json:"value,omitempty"`
+	Error       string    `json:"error,omitempty"`
+}
+
+// WorkspaceAgentMetadataDescription is a description of dynamic metadata the agent should report
+// back to coderd. It is provided via the `metadata` list in the `coder_agent`
+// block.
+type WorkspaceAgentMetadataDescription struct {
+	DisplayName string   `json:"display_name,omitempty"`
+	Key         string   `json:"key,omitempty"`
+	Cmd         []string `json:"cmd,omitempty"`
+	Interval    int64    `json:"interval,omitempty"`
+	Timeout     int64    `json:"timeout,omitempty"`
+}
+
+type WorkspaceAgentMetadata struct {
+	Result      WorkspaceAgentMetadataResult      `json:"result,omitempty"`
+	Description WorkspaceAgentMetadataDescription `json:"description,omitempty"`
 }
 
 type WorkspaceAgent struct {
@@ -265,11 +281,11 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 // WatchWorkspaceAgentMetadata watches the metadata of a workspace agent.
 // The returned channel will be closed when the context is canceled. Exactly
 // one error will be sent on the error channel. The metadata channel is never closed.
-func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) (<-chan []WorkspaceAgentMetadataResult, <-chan error) {
+func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) (<-chan []WorkspaceAgentMetadata, <-chan error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	metadataChan := make(chan []WorkspaceAgentMetadataResult, 256)
+	metadataChan := make(chan []WorkspaceAgentMetadata, 256)
 
 	watch := func() error {
 		res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/watch-metadata", id), nil)
@@ -300,7 +316,7 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 
 				switch sse.Type {
 				case ServerSentEventTypeData:
-					var met []WorkspaceAgentMetadataResult
+					var met []WorkspaceAgentMetadata
 					err = json.Unmarshal(b, &met)
 					if err != nil {
 						return xerrors.Errorf("unmarshal metadata: %w", err)

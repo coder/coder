@@ -65,17 +65,6 @@ func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 	return gitSSHKey, json.NewDecoder(res.Body).Decode(&gitSSHKey)
 }
 
-// MetadataDescription is a description of dynamic metadata the agent should report
-// back to coderd. It is provided via the `metadata` list in the `coder_agent`
-// block.
-type MetadataDescription struct {
-	DisplayName string        `json:"display_name,omitempty"`
-	Key         string        `json:"key,omitempty"`
-	Cmd         []string      `json:"cmd,omitempty"`
-	Interval    time.Duration `json:"interval,omitempty"`
-	Timeout     time.Duration `json:"timeout,omitempty"`
-}
-
 // In the future, we may want to support sending back multiple values for
 // performance.
 type PostMetadataRequest = codersdk.WorkspaceAgentMetadataResult
@@ -98,18 +87,18 @@ type Manifest struct {
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.
-	GitAuthConfigs        int                     `json:"git_auth_configs"`
-	VSCodePortProxyURI    string                  `json:"vscode_port_proxy_uri"`
-	Apps                  []codersdk.WorkspaceApp `json:"apps"`
-	DERPMap               *tailcfg.DERPMap        `json:"derpmap"`
-	EnvironmentVariables  map[string]string       `json:"environment_variables"`
-	StartupScript         string                  `json:"startup_script"`
-	StartupScriptTimeout  time.Duration           `json:"startup_script_timeout"`
-	Directory             string                  `json:"directory"`
-	MOTDFile              string                  `json:"motd_file"`
-	ShutdownScript        string                  `json:"shutdown_script"`
-	ShutdownScriptTimeout time.Duration           `json:"shutdown_script_timeout"`
-	Metadata              []MetadataDescription   `json:"metadata"`
+	GitAuthConfigs        int                                          `json:"git_auth_configs"`
+	VSCodePortProxyURI    string                                       `json:"vscode_port_proxy_uri"`
+	Apps                  []codersdk.WorkspaceApp                      `json:"apps"`
+	DERPMap               *tailcfg.DERPMap                             `json:"derpmap"`
+	EnvironmentVariables  map[string]string                            `json:"environment_variables"`
+	StartupScript         string                                       `json:"startup_script"`
+	StartupScriptTimeout  time.Duration                                `json:"startup_script_timeout"`
+	Directory             string                                       `json:"directory"`
+	MOTDFile              string                                       `json:"motd_file"`
+	ShutdownScript        string                                       `json:"shutdown_script"`
+	ShutdownScriptTimeout time.Duration                                `json:"shutdown_script_timeout"`
+	Metadata              []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 }
 
 // Manifest fetches manifest for the currently authenticated workspace agent.

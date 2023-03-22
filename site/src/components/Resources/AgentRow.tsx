@@ -14,6 +14,7 @@ import { AgentStatus } from "./AgentStatus"
 import { AppLinkSkeleton } from "components/AppLink/AppLinkSkeleton"
 import { useTranslation } from "react-i18next"
 import { VSCodeDesktopButton } from "components/VSCodeDesktopButton/VSCodeDesktopButton"
+import { AgentMetadata } from "./AgentMetadata"
 
 export interface AgentRowProps {
   agent: WorkspaceAgent
@@ -81,6 +82,7 @@ export const AgentRow: FC<AgentRowProps> = ({
               {t("unableToConnect")}
             </Maybe>
           </Stack>
+          <AgentMetadata agent={agent} />
         </div>
       </Stack>
 

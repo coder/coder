@@ -1208,8 +1208,8 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.Equal(t, "First Meta", manifest.Metadata[0].DisplayName)
 	require.Equal(t, "foo1", manifest.Metadata[0].Key)
 	require.Equal(t, []string{"echo", "hi"}, manifest.Metadata[0].Cmd)
-	require.Equal(t, time.Second*(10), manifest.Metadata[0].Interval)
-	require.Equal(t, time.Second*3, manifest.Metadata[0].Timeout)
+	require.EqualValues(t, 10, manifest.Metadata[0].Interval)
+	require.EqualValues(t, 3, manifest.Metadata[0].Timeout)
 
 	ctx, cancel := testutil.Context(t)
 	defer cancel()
@@ -1224,13 +1224,13 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	agentID := workspace.LatestBuild.Resources[0].Agents[0].ID
 
-	var update []codersdk.WorkspaceAgentMetadataResult
+	var update []codersdk.WorkspaceAgentMetadata
 
-	check := func(want codersdk.WorkspaceAgentMetadataResult, got codersdk.WorkspaceAgentMetadataResult) {
-		require.WithinDuration(t, want.CollectedAt, got.CollectedAt, time.Second)
-		require.Equal(t, want.Key, got.Key)
-		require.Equal(t, want.Value, got.Value)
-		require.Equal(t, want.Error, got.Error)
+	check := func(want codersdk.WorkspaceAgentMetadataResult, got codersdk.WorkspaceAgentMetadata) {
+		require.WithinDuration(t, want.CollectedAt, got.Result.CollectedAt, time.Second)
+		require.Equal(t, want.Key, got.Result.Key)
+		require.Equal(t, want.Value, got.Result.Value)
+		require.Equal(t, want.Error, got.Result.Error)
 	}
 
 	wantMetadata1 := codersdk.WorkspaceAgentMetadataResult{
@@ -1244,7 +1244,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	updates, errors := client.WatchWorkspaceAgentMetadata(ctx, agentID)
 
-	recvUpdate := func() []codersdk.WorkspaceAgentMetadataResult {
+	recvUpdate := func() []codersdk.WorkspaceAgentMetadata {
 		select {
 		case err := <-errors:
 			t.Fatalf("error watching metadata: %v", err)
@@ -1258,7 +1258,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.Len(t, update, 2)
 	check(wantMetadata1, update[0])
 	// The second metadata result is not yet posted.
-	require.Zero(t, update[1].CollectedAt)
+	require.Zero(t, update[1].Result.CollectedAt)
 
 	wantMetadata2 := wantMetadata1
 	wantMetadata2.Key = "foo2"

@@ -207,12 +207,15 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
-func collectMetadata(ctx context.Context, md agentsdk.MetadataDescription) codersdk.WorkspaceAgentMetadataResult {
+func collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription) codersdk.WorkspaceAgentMetadataResult {
 	timeout := md.Timeout
 	if timeout == 0 {
 		timeout = md.Interval
 	}
-	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(timeout))
+	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(
+		time.Duration(timeout)*time.Second,
+	),
+	)
 	defer cancel()
 
 	collectedAt := time.Now()
@@ -245,6 +248,16 @@ func collectMetadata(ctx context.Context, md agentsdk.MetadataDescription) coder
 		result.Error = err.Error()
 	}
 	return result
+}
+
+func convertInterval(i int64) time.Duration {
+	// In tests we want to set shorter intervals because engineers are
+	// impatient.
+	base := time.Second
+	if flag.Lookup("test.v") != nil {
+		base = time.Millisecond
+	}
+	return time.Duration(i) * base
 }
 
 func (a *agent) reportMetadataLoop(ctx context.Context) {
@@ -296,7 +309,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			// purge old cache values to prevent lastCollectedAt from growing
 			// boundlessly.
 			for key := range lastCollectedAts {
-				if slices.IndexFunc(manifest.Metadata, func(md agentsdk.MetadataDescription) bool {
+				if slices.IndexFunc(manifest.Metadata, func(md codersdk.WorkspaceAgentMetadataDescription) bool {
 					return md.Key == key
 				}) < 0 {
 					delete(lastCollectedAts, key)
@@ -313,12 +326,14 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 					if md.Interval == 0 {
 						continue
 					}
-					if collectedAt.Add(md.Interval).After(time.Now()) {
+					if collectedAt.Add(
+						convertInterval(md.Interval),
+					).After(time.Now()) {
 						continue
 					}
 				}
 
-				go func(md agentsdk.MetadataDescription) {
+				go func(md codersdk.WorkspaceAgentMetadataDescription) {
 					select {
 					case <-ctx.Done():
 						return
