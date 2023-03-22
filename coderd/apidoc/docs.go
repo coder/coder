@@ -6720,6 +6720,9 @@ const docTemplate = `{
                 "verbose": {
                     "type": "boolean"
                 },
+                "wgtunnel_host": {
+                    "type": "string"
+                },
                 "wildcard_access_url": {
                     "$ref": "#/definitions/clibase.URL"
                 },

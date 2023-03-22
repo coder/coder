@@ -362,6 +362,7 @@ export interface DeploymentValues {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly git_auth?: any
   readonly config_ssh?: SSHConfig
+  readonly wgtunnel_host?: string
   readonly config?: string
   readonly write_config?: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
