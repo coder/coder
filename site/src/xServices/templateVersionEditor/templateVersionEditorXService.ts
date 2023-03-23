@@ -332,28 +332,23 @@ export const templateVersionEditorMachine = createMachine(
         }
       },
       publishingVersion: async (
-        { orgId, templateId, uploadResponse },
+        { version, templateId },
         { name, isActiveVersion },
       ) => {
+        if (!version) {
+          throw new Error("Version is not set")
+        }
         if (!templateId) {
-          throw new Error("template must be set")
+          throw new Error("Template is not set")
         }
-        if (!uploadResponse) {
-          throw new Error("upload response must be set")
-        }
-        const newestVersion = await API.createTemplateVersion(orgId, {
-          name,
-          provisioner: "terraform",
-          storage_method: "file",
-          tags: {},
-          template_id: templateId,
-          file_id: uploadResponse.hash,
-        })
-        if (isActiveVersion) {
-          await API.updateActiveTemplateVersion(templateId, {
-            id: newestVersion.id,
-          })
-        }
+        await Promise.all([
+          API.patchTemplateVersion(version.id, { name: name ?? version.name }),
+          isActiveVersion
+            ? API.updateActiveTemplateVersion(templateId, {
+                id: version.id,
+              })
+            : Promise.resolve(),
+        ])
       },
     },
   },

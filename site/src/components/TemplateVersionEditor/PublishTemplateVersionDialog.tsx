@@ -26,7 +26,7 @@ export const PublishTemplateVersionDialog: FC<
       isActiveVersion: false,
     },
     validationSchema: Yup.object({
-      name: nameValidator("name"),
+      name: nameValidator("name").optional(),
       isActiveVersion: Yup.boolean(),
     }),
     onSubmit: onConfirm,
@@ -62,6 +62,7 @@ export const PublishTemplateVersionDialog: FC<
               InputLabelProps={{
                 shrink: true,
               }}
+              helperText="If you leave this blank, the version name will be automatically generated."
             />
 
             <FormControlLabel

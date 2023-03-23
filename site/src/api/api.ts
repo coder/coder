@@ -373,6 +373,17 @@ export const updateActiveTemplateVersion = async (
   return response.data
 }
 
+export const patchTemplateVersion = async (
+  templateVersionId: string,
+  data: TypesGen.PatchTemplateVersionRequest,
+) => {
+  const response = await axios.patch<Types.Message>(
+    `/api/v2/templateversions/${templateVersionId}`,
+    data,
+  )
+  return response.data
+}
+
 export const updateTemplateMeta = async (
   templateId: string,
   data: TypesGen.UpdateTemplateMeta,
