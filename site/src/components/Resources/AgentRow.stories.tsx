@@ -100,6 +100,18 @@ Starting.args = {
   workspace: MockWorkspace,
   applicationsHost: "",
   showApps: true,
+
+  storybookStartupLogs: [
+    "Cloning Git repository...",
+    "Starting Docker Daemon...",
+    "Adding some 🧙magic🧙...",
+    "Starting VS Code...",
+  ].map((line, index) => ({
+    id: index,
+    level: "info",
+    output: line,
+    time: "",
+  })),
 }
 
 export const StartTimeout = Template.bind({})

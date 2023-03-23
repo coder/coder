@@ -25,7 +25,10 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism"
 import AutoSizer from "react-virtualized-auto-sizer"
 import { FixedSizeList as List, ListOnScrollProps } from "react-window"
-import { workspaceAgentLogsMachine } from "xServices/workspaceAgentLogs/workspaceAgentLogsXService"
+import {
+  LineWithID,
+  workspaceAgentLogsMachine,
+} from "xServices/workspaceAgentLogs/workspaceAgentLogsXService"
 import { Workspace, WorkspaceAgent } from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
@@ -44,6 +47,8 @@ export interface AgentRowProps {
   hideVSCodeDesktopButton?: boolean
   serverVersion: string
   onUpdateAgent: () => void
+
+  storybookStartupLogs?: LineWithID[]
 }
 
 export const AgentRow: FC<AgentRowProps> = ({
@@ -55,15 +60,28 @@ export const AgentRow: FC<AgentRowProps> = ({
   hideVSCodeDesktopButton,
   serverVersion,
   onUpdateAgent,
+  storybookStartupLogs,
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("agent")
+
   const [logsMachine, sendLogsEvent] = useMachine(workspaceAgentLogsMachine, {
     context: { agentID: agent.id },
+    services: process.env.STORYBOOK
+      ? {
+          getStartupLogs: async () => {
+            return storybookStartupLogs || []
+          },
+          streamStartupLogs: () => async () => {
+            // noop
+          },
+        }
+      : undefined,
   })
   const theme = useTheme()
   const startupScriptAnchorRef = useRef<HTMLLinkElement>(null)
   const [startupScriptOpen, setStartupScriptOpen] = useState(false)
+
   const hasStartupFeatures =
     Boolean(agent.startup_script) ||
     Boolean(logsMachine.context.startupLogs?.length)
@@ -73,6 +91,14 @@ export const AgentRow: FC<AgentRowProps> = ({
   useEffect(() => {
     setShowStartupLogs(agent.lifecycle_state !== "ready" && hasStartupFeatures)
   }, [agent.lifecycle_state, hasStartupFeatures])
+  // External applications can provide startup logs for an agent during it's spawn.
+  // These could be Kubernetes logs, or other logs that are useful to the user.
+  // For this reason, we want to fetch these logs when the agent is starting.
+  useEffect(() => {
+    if (agent.lifecycle_state === "starting") {
+      sendLogsEvent("FETCH_STARTUP_LOGS")
+    }
+  }, [sendLogsEvent, agent.lifecycle_state])
   useEffect(() => {
     // We only want to fetch logs when they are actually shown,
     // otherwise we can make a lot of requests that aren't necessary.

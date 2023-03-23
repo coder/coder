@@ -6,7 +6,7 @@ import { Line } from "components/Logs/Logs"
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're
 // able to just pass the array of logs to the component.
-interface LineWithID extends Line {
+export interface LineWithID extends Line {
   id: number
 }
 
