@@ -27,7 +27,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
 
   // Stale data is as good as no data. Plus, we want to build confidence in our
   // users that what's shown is real. If times aren't correctly synced this
-  // could lead to issues.
+  // could be buggy. But, how common is that anyways?
   const value =
     secondsSinceLastCollected < staleThreshold ? (
       <div className={styles.metadataValue}>{item.result.value}</div>

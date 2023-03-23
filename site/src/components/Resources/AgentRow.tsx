@@ -52,8 +52,21 @@ export const AgentRow: FC<AgentRowProps> = ({
         <AgentStatus agent={agent} />
       </div>
 
-      <Stack alignItems="flex-start" direction="column">
-        <Stack direction="row" alignItems="end">
+      <Stack
+        alignItems="flex-start"
+        direction="column"
+        style={{
+          flex: 1,
+        }}
+      >
+        <Stack
+          direction="row"
+          alignItems="end"
+          style={{
+            width: "100%",
+            justifyContent: "space-between",
+          }}
+        >
           <Stack direction="row" alignItems="baseline">
             <div>
               <div className={styles.agentName}>{agent.name}</div>
