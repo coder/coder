@@ -977,7 +977,10 @@ const getMissingParameters = (
 ) => {
   const missingParameters: TypesGen.TemplateVersionParameter[] = []
   const requiredParameters = templateParameters.filter(
-    (p) => p.required && p.mutable,
+    // It is required
+    // and it can be changed
+    // and it is not from a legacy variable
+    (p) => p.required && p.mutable && p.legacy_variable_name === undefined,
   )
 
   for (const parameter of requiredParameters) {
