@@ -179,8 +179,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 	t.Parallel()
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancelFunc := testutil.Context(t)
-		defer cancelFunc()
+		ctx := testutil.Context(t, testutil.IntervalMedium)
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		})
@@ -234,12 +233,10 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		require.NoError(t, ctx.Err())
 		require.Len(t, logChunk, 1)
 		require.Equal(t, "testing", logChunk[0].Output)
-		cancelFunc()
 	})
 	t.Run("PublishesOnOverflow", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancelFunc := testutil.Context(t)
-		defer cancelFunc()
+		ctx := testutil.Context(t, testutil.IntervalMedium)
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		})
@@ -293,7 +290,6 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		}
 		// Ensure that the UI gets an update when the logs overflow!
 		require.True(t, update.LatestBuild.Resources[0].Agents[0].StartupLogsOverflowed)
-		cancelFunc()
 	})
 }
 
