@@ -17,19 +17,15 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "71ee89b6-069f-4f51-9e12-936cb7ae7c1c",
+            "id": "2090d6c6-c4c1-4219-b8f8-9df6db6d5864",
             "init_script": "",
             "login_before_ready": true,
             "metadata": [
               {
-                "cmd": [
-                  "sh",
-                  "-c",
-                  "ps -ef | wc -l"
-                ],
                 "display_name": "Process Count",
                 "interval": 5,
                 "key": "process_count",
+                "script": "ps -ef | wc -l",
                 "timeout": 1
               }
             ],
@@ -39,18 +35,12 @@
             "shutdown_script_timeout": 300,
             "startup_script": null,
             "startup_script_timeout": 300,
-            "token": "f3e3058e-e8c3-444c-836c-106eed6d9753",
+            "token": "a984d85d-eff6-4366-9658-9719fb3dd82e",
             "troubleshooting_url": null
           },
           "sensitive_values": {
             "metadata": [
-              {
-                "cmd": [
-                  false,
-                  false,
-                  false
-                ]
-              }
+              {}
             ]
           }
         },
@@ -65,7 +55,7 @@
             "daily_cost": 29,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "3544e58f-528f-465e-98c7-11e9bbe15d79",
+            "id": "9e239cb2-e381-423a-bf16-74ece8254eff",
             "item": [
               {
                 "is_null": false,
@@ -92,7 +82,7 @@
                 "value": "squirrel"
               }
             ],
-            "resource_id": "3985010026463165779"
+            "resource_id": "3104684855633455084"
           },
           "sensitive_values": {
             "item": [
@@ -115,7 +105,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "3985010026463165779",
+            "id": "3104684855633455084",
             "triggers": null
           },
           "sensitive_values": {},

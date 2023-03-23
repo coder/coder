@@ -4,7 +4,7 @@ CREATE TABLE workspace_agent_metadata (
     workspace_agent_id uuid NOT NULL,
     display_name text NOT NULL,
     key character varying(128) NOT NULL,
-    cmd text[] NOT NULL,
+    script text NOT NULL,
     value text NOT NULL DEFAULT '',
     error text NOT NULL DEFAULT '',
     timeout bigint NOT NULL,

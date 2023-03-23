@@ -849,7 +849,7 @@ func convertWorkspaceAgentMetadataDesc(mds []database.WorkspaceAgentMetadatum) [
 		metadata = append(metadata, codersdk.WorkspaceAgentMetadataDescription{
 			DisplayName: datum.DisplayName,
 			Key:         datum.Key,
-			Cmd:         datum.Cmd,
+			Script:      datum.Script,
 			Interval:    datum.Interval,
 			Timeout:     datum.Timeout,
 		})
@@ -1205,7 +1205,7 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 			Description: codersdk.WorkspaceAgentMetadataDescription{
 				DisplayName: datum.DisplayName,
 				Key:         datum.Key,
-				Cmd:         datum.Cmd,
+				Script:      datum.Script,
 				Interval:    datum.Interval,
 				Timeout:     datum.Timeout,
 			},

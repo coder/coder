@@ -85,11 +85,11 @@ type WorkspaceAgentMetadataResult struct {
 // back to coderd. It is provided via the `metadata` list in the `coder_agent`
 // block.
 type WorkspaceAgentMetadataDescription struct {
-	DisplayName string   `json:"display_name"`
-	Key         string   `json:"key"`
-	Cmd         []string `json:"cmd"`
-	Interval    int64    `json:"interval"`
-	Timeout     int64    `json:"timeout"`
+	DisplayName string `json:"display_name"`
+	Key         string `json:"key"`
+	Script      string `json:"script"`
+	Interval    int64  `json:"interval"`
+	Timeout     int64  `json:"timeout"`
 }
 
 type WorkspaceAgentMetadata struct {

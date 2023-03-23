@@ -100,7 +100,7 @@ INSERT INTO
 		workspace_agent_id,
 		display_name,
 		key,
-		cmd,
+		script,
 		timeout,
 		interval
 	)

@@ -130,7 +130,7 @@ message Agent {
     message Metadata {
         string key = 1;
         string display_name = 2;
-        repeated string cmd = 3;
+        string script = 3;
         int64 interval = 4;
         int64 timeout = 5;
     }

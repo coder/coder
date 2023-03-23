@@ -1163,14 +1163,14 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 								{
 									DisplayName: "First Meta",
 									Key:         "foo1",
-									Cmd:         []string{"echo", "hi"},
+									Script:      "echo hi",
 									Interval:    10,
 									Timeout:     3,
 								},
 								{
 									DisplayName: "Second Meta",
 									Key:         "foo2",
-									Cmd:         []string{"echo", "howdy"},
+									Script:      "echo howdy",
 									Interval:    10,
 									Timeout:     3,
 								},
@@ -1207,7 +1207,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	// Verify manifest API response.
 	require.Equal(t, "First Meta", manifest.Metadata[0].DisplayName)
 	require.Equal(t, "foo1", manifest.Metadata[0].Key)
-	require.Equal(t, []string{"echo", "hi"}, manifest.Metadata[0].Cmd)
+	require.Equal(t, "echo hi", manifest.Metadata[0].Script)
 	require.EqualValues(t, 10, manifest.Metadata[0].Interval)
 	require.EqualValues(t, 3, manifest.Metadata[0].Timeout)
 

@@ -1230,7 +1230,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			err := db.InsertWorkspaceAgentMetadata(ctx, database.InsertWorkspaceAgentMetadataParams{
 				WorkspaceAgentID: agentID,
 				DisplayName:      md.DisplayName,
-				Cmd:              md.Cmd,
+				Script:           md.Script,
 				Key:              md.Key,
 				Timeout:          md.Timeout,
 				Interval:         md.Interval,

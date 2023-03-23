@@ -20,14 +20,10 @@
             "login_before_ready": true,
             "metadata": [
               {
-                "cmd": [
-                  "sh",
-                  "-c",
-                  "ps -ef | wc -l"
-                ],
                 "display_name": "Process Count",
                 "interval": 5,
                 "key": "process_count",
+                "script": "ps -ef | wc -l",
                 "timeout": 1
               }
             ],
@@ -41,13 +37,7 @@
           },
           "sensitive_values": {
             "metadata": [
-              {
-                "cmd": [
-                  false,
-                  false,
-                  false
-                ]
-              }
+              {}
             ]
           }
         },
@@ -130,14 +120,10 @@
           "login_before_ready": true,
           "metadata": [
             {
-              "cmd": [
-                "sh",
-                "-c",
-                "ps -ef | wc -l"
-              ],
               "display_name": "Process Count",
               "interval": 5,
               "key": "process_count",
+              "script": "ps -ef | wc -l",
               "timeout": 1
             }
           ],
@@ -153,26 +139,14 @@
           "id": true,
           "init_script": true,
           "metadata": [
-            {
-              "cmd": [
-                false,
-                false,
-                false
-              ]
-            }
+            {}
           ],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "metadata": [
-            {
-              "cmd": [
-                false,
-                false,
-                false
-              ]
-            }
+            {}
           ],
           "token": true
         }
@@ -272,7 +246,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.6.18-rc3"
+        "version_constraint": "0.7.0-rc0"
       },
       "null": {
         "name": "null",
@@ -293,13 +267,6 @@
             },
             "metadata": [
               {
-                "cmd": {
-                  "constant_value": [
-                    "sh",
-                    "-c",
-                    "ps -ef | wc -l"
-                  ]
-                },
                 "display_name": {
                   "constant_value": "Process Count"
                 },
@@ -308,6 +275,9 @@
                 },
                 "key": {
                   "constant_value": "process_count"
+                },
+                "script": {
+                  "constant_value": "ps -ef | wc -l"
                 },
                 "timeout": {
                   "constant_value": 1

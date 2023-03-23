@@ -786,12 +786,12 @@ func TestAgent_Metadata(t *testing.T) {
 				{
 					Key:      "greeting",
 					Interval: reportInterval,
-					Cmd:      []string{"sh", "-c", "echo hello | tee -a " + greetingPath},
+					Script:   "echo hello | tee -a " + greetingPath,
 				},
 				{
 					Key:      "bad",
 					Interval: reportInterval,
-					Cmd:      []string{"sh", "-c", "exit 1"},
+					Script:   "exit 1",
 				},
 			},
 		}, 0)
@@ -843,7 +843,7 @@ func TestAgent_Metadata(t *testing.T) {
 				{
 					Key:      "greeting",
 					Interval: 0,
-					Cmd:      []string{"echo", "-n", "hello"},
+					Script:   "echo -n hello",
 				},
 			},
 		}, 0)

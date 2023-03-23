@@ -207,7 +207,7 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
-func collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription) codersdk.WorkspaceAgentMetadataResult {
+func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription) *codersdk.WorkspaceAgentMetadataResult {
 	timeout := md.Timeout
 	if timeout == 0 {
 		timeout = md.Interval
@@ -222,13 +222,21 @@ func collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDesc
 
 	var out bytes.Buffer
 
-	//nolint:gosec
-	cmd := exec.CommandContext(ctx, md.Cmd[0], md.Cmd[1:]...)
+	result := &codersdk.WorkspaceAgentMetadataResult{
+		CollectedAt: collectedAt,
+		Key:         md.Key,
+	}
+	cmd, err := a.createCommand(ctx, md.Script, nil)
+	if err != nil {
+		result.Error = err.Error()
+		return result
+	}
+
 	cmd.Stdout = &out
 	cmd.Stderr = &out
 
 	// The error isn't mutually exclusive with useful output.
-	err := cmd.Run()
+	err = cmd.Run()
 
 	const bufLimit = 10 << 14
 	if out.Len() > bufLimit {
@@ -239,14 +247,10 @@ func collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDesc
 		out.Truncate(bufLimit)
 	}
 
-	result := codersdk.WorkspaceAgentMetadataResult{
-		CollectedAt: collectedAt,
-		Key:         md.Key,
-		Value:       out.String(),
-	}
 	if err != nil {
 		result.Error = err.Error()
 	}
+	result.Value = out.String()
 	return result
 }
 
@@ -273,7 +277,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	var (
 		baseTicker       = time.NewTicker(baseInterval)
 		lastCollectedAts = make(map[string]time.Time)
-		metadataResults  = make(chan codersdk.WorkspaceAgentMetadataResult, 16)
+		metadataResults  = make(chan *codersdk.WorkspaceAgentMetadataResult, 16)
 	)
 	defer baseTicker.Stop()
 
@@ -283,7 +287,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			return
 		case mr := <-metadataResults:
 			lastCollectedAts[mr.Key] = mr.CollectedAt
-			err := a.client.PostMetadata(ctx, mr)
+			err := a.client.PostMetadata(ctx, *mr)
 			if err != nil {
 				a.logger.Error(ctx, "report metadata", slog.Error(err))
 			}
@@ -337,7 +341,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 					select {
 					case <-ctx.Done():
 						return
-					case metadataResults <- collectMetadata(ctx, md):
+					case metadataResults <- a.collectMetadata(ctx, md):
 					}
 				}(md)
 			}
@@ -932,9 +936,9 @@ func (a *agent) init(ctx context.Context) {
 }
 
 // createCommand processes raw command input with OpenSSH-like behavior.
-// If the rawCommand provided is empty, it will default to the users shell.
+// If the rawScript provided is empty, it will default to the users shell.
 // This injects environment variables specified by the user at launch too.
-func (a *agent) createCommand(ctx context.Context, rawCommand string, env []string) (*exec.Cmd, error) {
+func (a *agent) createCommand(ctx context.Context, script string, env []string) (*exec.Cmd, error) {
 	currentUser, err := user.Current()
 	if err != nil {
 		return nil, xerrors.Errorf("get current user: %w", err)
@@ -957,11 +961,11 @@ func (a *agent) createCommand(ctx context.Context, rawCommand string, env []stri
 	if runtime.GOOS == "windows" {
 		caller = "/c"
 	}
-	args := []string{caller, rawCommand}
+	args := []string{caller, script}
 
 	// gliderlabs/ssh returns a command slice of zero
 	// when a shell is requested.
-	if len(rawCommand) == 0 {
+	if len(script) == 0 {
 		args = []string{}
 		if runtime.GOOS != "windows" {
 			// On Linux and macOS, we should start a login

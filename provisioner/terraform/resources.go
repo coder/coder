@@ -15,11 +15,11 @@ import (
 )
 
 type agentMetadata struct {
-	Key         string   `mapstructure:"key"`
-	DisplayName string   `mapstructure:"display_name"`
-	Cmd         []string `mapstructure:"cmd"`
-	Interval    int64    `mapstructure:"interval"`
-	Timeout     int64    `mapstructure:"timeout"`
+	Key         string `mapstructure:"key"`
+	DisplayName string `mapstructure:"display_name"`
+	Script      string `mapstructure:"script"`
+	Interval    int64  `mapstructure:"interval"`
+	Timeout     int64  `mapstructure:"timeout"`
 }
 
 // A mapping of attributes on the "coder_agent" resource.
@@ -162,7 +162,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				metadata = append(metadata, &proto.Agent_Metadata{
 					Key:         item.Key,
 					DisplayName: item.DisplayName,
-					Cmd:         item.Cmd,
+					Script:      item.Script,
 					Interval:    item.Interval,
 					Timeout:     item.Timeout,
 				})

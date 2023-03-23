@@ -5193,7 +5193,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 
 const getWorkspaceAgentMetadata = `-- name: GetWorkspaceAgentMetadata :many
 SELECT
-	workspace_agent_id, display_name, key, cmd, value, error, timeout, interval, collected_at
+	workspace_agent_id, display_name, key, script, value, error, timeout, interval, collected_at
 FROM
 	workspace_agent_metadata
 WHERE
@@ -5213,7 +5213,7 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAge
 			&i.WorkspaceAgentID,
 			&i.DisplayName,
 			&i.Key,
-			pq.Array(&i.Cmd),
+			&i.Script,
 			&i.Value,
 			&i.Error,
 			&i.Timeout,
@@ -5467,7 +5467,7 @@ INSERT INTO
 		workspace_agent_id,
 		display_name,
 		key,
-		cmd,
+		script,
 		timeout,
 		interval
 	)
@@ -5479,7 +5479,7 @@ type InsertWorkspaceAgentMetadataParams struct {
 	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
 	DisplayName      string    `db:"display_name" json:"display_name"`
 	Key              string    `db:"key" json:"key"`
-	Cmd              []string  `db:"cmd" json:"cmd"`
+	Script           string    `db:"script" json:"script"`
 	Timeout          int64     `db:"timeout" json:"timeout"`
 	Interval         int64     `db:"interval" json:"interval"`
 }
@@ -5489,7 +5489,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentMetadata(ctx context.Context, arg Inser
 		arg.WorkspaceAgentID,
 		arg.DisplayName,
 		arg.Key,
-		pq.Array(arg.Cmd),
+		arg.Script,
 		arg.Timeout,
 		arg.Interval,
 	)

@@ -1063,8 +1063,8 @@ export interface WorkspaceAgentListeningPortsResponse {
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentMetadata {
-  readonly result?: WorkspaceAgentMetadataResult
-  readonly description?: WorkspaceAgentMetadataDescription
+  readonly result: WorkspaceAgentMetadataResult
+  readonly description: WorkspaceAgentMetadataDescription
 }
 
 // From codersdk/workspaceagents.go
@@ -1078,10 +1078,10 @@ export interface WorkspaceAgentMetadataDescription {
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentMetadataResult {
-  readonly collected_at?: string
-  readonly key?: string
-  readonly value?: string
-  readonly error?: string
+  readonly collected_at: string
+  readonly key: string
+  readonly value: string
+  readonly error: string
 }
 
 // From codersdk/workspaceapps.go
