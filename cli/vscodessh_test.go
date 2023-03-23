@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
 
@@ -23,8 +24,7 @@ import (
 // and that network information is properly written to the FS.
 func TestVSCodeSSH(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := testutil.Context(t)
-	defer cancel()
+	ctx := testutil.Context(t, testutil.WaitLong)
 	client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 	user, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)
@@ -46,29 +46,30 @@ func TestVSCodeSSH(t *testing.T) {
 	err = afero.WriteFile(fs, "/token", []byte(client.SessionToken()), 0o600)
 	require.NoError(t, err)
 
-	cmd, _ := clitest.New(t,
+	//nolint:revive,staticcheck
+	ctx = context.WithValue(ctx, "fs", fs)
+
+	inv, _ := clitest.New(t,
 		"vscodessh",
 		"--url-file", "/url",
 		"--session-token-file", "/token",
 		"--network-info-dir", "/net",
 		"--network-info-interval", "25ms",
-		fmt.Sprintf("coder-vscode--%s--%s", user.Username, workspace.Name))
-	done := make(chan struct{})
-	go func() {
-		//nolint // The above seems reasonable for a one-off test.
-		err := cmd.ExecuteContext(context.WithValue(ctx, "fs", fs))
-		if err != nil {
-			assert.ErrorIs(t, err, context.Canceled)
-		}
-		close(done)
-	}()
-	require.Eventually(t, func() bool {
+		fmt.Sprintf("coder-vscode--%s--%s", user.Username, workspace.Name),
+	)
+	ptytest.New(t).Attach(inv)
+
+	waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
+
+	assert.Eventually(t, func() bool {
 		entries, err := afero.ReadDir(fs, "/net")
 		if err != nil {
 			return false
 		}
 		return len(entries) > 0
 	}, testutil.WaitLong, testutil.IntervalFast)
-	cancel()
-	<-done
+
+	if err := waiter.Wait(); err != nil {
+		waiter.RequireIs(context.Canceled)
+	}
 }

@@ -55,3 +55,14 @@ func TestGitSSHKeys(t *testing.T) {
 		require.Error(t, err, "empty string should fail")
 	})
 }
+
+func BenchmarkGenerate(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		// Note that this is using dumbRand under the hood, so it will be
+		// a lot slower in production.
+		_, _, err := gitsshkey.Generate(gitsshkey.AlgorithmRSA4096)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}

@@ -25,18 +25,16 @@ func TestRestart(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
-		cmd, root := clitest.New(t, "restart", workspace.Name, "--yes")
+		inv, root := clitest.New(t, "restart", workspace.Name, "--yes")
 		clitest.SetupConfig(t, client, root)
 
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
 		done := make(chan error, 1)
 		go func() {
-			done <- cmd.ExecuteContext(ctx)
+			done <- inv.WithContext(ctx).Run()
 		}()
 		pty.ExpectMatch("Stopping workspace")
 		pty.ExpectMatch("Starting workspace")

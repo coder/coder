@@ -1,13 +1,12 @@
 package cliui_test
 
 import (
-	"context"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
@@ -32,16 +31,16 @@ func TestSelect(t *testing.T) {
 
 func newSelect(ptty *ptytest.PTY, opts cliui.SelectOptions) (string, error) {
 	value := ""
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, args []string) error {
+	cmd := &clibase.Cmd{
+		Handler: func(inv *clibase.Invocation) error {
 			var err error
-			value, err = cliui.Select(cmd, opts)
+			value, err = cliui.Select(inv, opts)
 			return err
 		},
 	}
-	cmd.SetOutput(ptty.Output())
-	cmd.SetIn(ptty.Input())
-	return value, cmd.ExecuteContext(context.Background())
+	inv := cmd.Invoke()
+	ptty.Attach(inv)
+	return value, inv.Run()
 }
 
 func TestRichSelect(t *testing.T) {
@@ -56,11 +55,11 @@ func TestRichSelect(t *testing.T) {
 					{
 						Name:        "A-Name",
 						Value:       "A-Value",
-						Description: "A-Description",
+						Description: "A-Description.",
 					}, {
 						Name:        "B-Name",
 						Value:       "B-Value",
-						Description: "B-Description",
+						Description: "B-Description.",
 					},
 				},
 			})
@@ -73,18 +72,18 @@ func TestRichSelect(t *testing.T) {
 
 func newRichSelect(ptty *ptytest.PTY, opts cliui.RichSelectOptions) (string, error) {
 	value := ""
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, args []string) error {
-			richOption, err := cliui.RichSelect(cmd, opts)
+	cmd := &clibase.Cmd{
+		Handler: func(inv *clibase.Invocation) error {
+			richOption, err := cliui.RichSelect(inv, opts)
 			if err == nil {
 				value = richOption.Value
 			}
 			return err
 		},
 	}
-	cmd.SetOutput(ptty.Output())
-	cmd.SetIn(ptty.Input())
-	return value, cmd.ExecuteContext(context.Background())
+	inv := cmd.Invoke()
+	ptty.Attach(inv)
+	return value, inv.Run()
 }
 
 func TestMultiSelect(t *testing.T) {
@@ -106,16 +105,16 @@ func TestMultiSelect(t *testing.T) {
 
 func newMultiSelect(ptty *ptytest.PTY, items []string) ([]string, error) {
 	var values []string
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, args []string) error {
-			selectedItems, err := cliui.MultiSelect(cmd, items)
+	cmd := &clibase.Cmd{
+		Handler: func(inv *clibase.Invocation) error {
+			selectedItems, err := cliui.MultiSelect(inv, items)
 			if err == nil {
 				values = selectedItems
 			}
 			return err
 		},
 	}
-	cmd.SetOutput(ptty.Output())
-	cmd.SetIn(ptty.Input())
-	return values, cmd.ExecuteContext(context.Background())
+	inv := cmd.Invoke()
+	ptty.Attach(inv)
+	return values, inv.Run()
 }

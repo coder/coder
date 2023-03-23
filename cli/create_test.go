@@ -42,15 +42,13 @@ func TestCreate(t *testing.T) {
 			"--start-at", "9:30AM Mon-Fri US/Central",
 			"--stop-after", "8h",
 		}
-		cmd, root := clitest.New(t, args...)
+		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 		matches := []struct {
@@ -100,17 +98,10 @@ func TestCreate(t *testing.T) {
 			"my-workspace",
 			"--template", template.Name,
 		}
-		cmd, root := clitest.New(t, args...)
+		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-		go func() {
-			defer close(doneChan)
-			err := cmd.Execute()
-			assert.NoError(t, err)
-		}()
+		pty := ptytest.New(t).Attach(inv)
+		waiter := clitest.StartWithWaiter(t, inv)
 		matches := []struct {
 			match string
 			write string
@@ -125,7 +116,7 @@ func TestCreate(t *testing.T) {
 				pty.WriteLine(m.write)
 			}
 		}
-		<-doneChan
+		waiter.RequireSuccess()
 
 		ws, err := client.WorkspaceByOwnerAndName(context.Background(), "testuser", "my-workspace", codersdk.WorkspaceOptions{})
 		require.NoError(t, err, "expected workspace to be created")
@@ -140,14 +131,14 @@ func TestCreate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "create", "my-workspace", "-y")
+		inv, root := clitest.New(t, "create", "my-workspace", "-y")
 
 		member, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		clitest.SetupConfig(t, member, root)
 		cmdCtx, done := context.WithTimeout(context.Background(), testutil.WaitLong)
 		go func() {
 			defer done()
-			err := cmd.ExecuteContext(cmdCtx)
+			err := inv.WithContext(cmdCtx).Run()
 			assert.NoError(t, err)
 		}()
 		// No pty interaction needed since we use the -y skip prompt flag
@@ -162,15 +153,13 @@ func TestCreate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "create", "")
+		inv, root := clitest.New(t, "create", "")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 		matches := []string{
@@ -185,7 +174,7 @@ func TestCreate(t *testing.T) {
 		}
 		<-doneChan
 
-		ws, err := client.WorkspaceByOwnerAndName(cmd.Context(), "testuser", "my-workspace", codersdk.WorkspaceOptions{})
+		ws, err := client.WorkspaceByOwnerAndName(inv.Context(), "testuser", "my-workspace", codersdk.WorkspaceOptions{})
 		if assert.NoError(t, err, "expected workspace to be created") {
 			assert.Equal(t, ws.TemplateName, template.Name)
 			assert.Nil(t, ws.AutostartSchedule, "expected workspace autostart schedule to be nil")
@@ -206,15 +195,13 @@ func TestCreate(t *testing.T) {
 
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "create", "")
+		inv, root := clitest.New(t, "create", "")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -251,15 +238,13 @@ func TestCreate(t *testing.T) {
 		removeTmpDirUntilSuccessAfterTest(t, tempDir)
 		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 		_, _ = parameterFile.WriteString("region: \"bingo\"\nusername: \"boingo\"")
-		cmd, root := clitest.New(t, "create", "", "--parameter-file", parameterFile.Name())
+		inv, root := clitest.New(t, "create", "", "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -296,15 +281,13 @@ func TestCreate(t *testing.T) {
 		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 		_, _ = parameterFile.WriteString("username: \"boingo\"")
 
-		cmd, root := clitest.New(t, "create", "", "--parameter-file", parameterFile.Name())
+		inv, root := clitest.New(t, "create", "", "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 		matches := []struct {
@@ -364,13 +347,11 @@ func TestCreate(t *testing.T) {
 		require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status, "job is not failed")
 
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		cmd, root := clitest.New(t, "create", "test", "--parameter-file", parameterFile.Name())
+		inv, root := clitest.New(t, "create", "test", "--parameter-file", parameterFile.Name(), "-y")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		ptytest.New(t).Attach(inv)
 
-		err = cmd.Execute()
+		err = inv.Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "dry-run workspace")
 	})
@@ -425,15 +406,13 @@ func TestCreateWithRichParameters(t *testing.T) {
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -469,16 +448,14 @@ func TestCreateWithRichParameters(t *testing.T) {
 			firstParameterName + ": " + firstParameterValue + "\n" +
 				secondParameterName + ": " + secondParameterValue + "\n" +
 				immutableParameterName + ": " + immutableParameterValue)
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name())
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
 
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -559,15 +536,13 @@ func TestCreateValidateRichParameters(t *testing.T) {
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -596,15 +571,13 @@ func TestCreateValidateRichParameters(t *testing.T) {
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -636,15 +609,13 @@ func TestCreateValidateRichParameters(t *testing.T) {
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -672,17 +643,10 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-		go func() {
-			defer close(doneChan)
-			err := cmd.Execute()
-			assert.NoError(t, err)
-		}()
+		pty := ptytest.New(t).Attach(inv)
+		clitest.Start(t, inv)
 
 		matches := []string{
 			listOfStringsParameterName, "",
@@ -697,7 +661,6 @@ func TestCreateValidateRichParameters(t *testing.T) {
 				pty.WriteLine(value)
 			}
 		}
-		<-doneChan
 	})
 
 	t.Run("ValidateListOfStrings_YAMLFile", func(t *testing.T) {
@@ -716,17 +679,11 @@ func TestCreateValidateRichParameters(t *testing.T) {
   - ddd
   - eee
   - fff`)
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name())
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-		go func() {
-			defer close(doneChan)
-			err := cmd.Execute()
-			assert.NoError(t, err)
-		}()
+		pty := ptytest.New(t).Attach(inv)
+
+		clitest.Start(t, inv)
 
 		matches := []string{
 			"Confirm create?", "yes",
@@ -739,7 +696,6 @@ func TestCreateValidateRichParameters(t *testing.T) {
 				pty.WriteLine(value)
 			}
 		}
-		<-doneChan
 	})
 }
 
@@ -777,17 +733,10 @@ func TestCreateWithGitAuth(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-	cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
+	inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
 	clitest.SetupConfig(t, client, root)
-	doneChan := make(chan struct{})
-	pty := ptytest.New(t)
-	cmd.SetIn(pty.Input())
-	cmd.SetOut(pty.Output())
-	go func() {
-		defer close(doneChan)
-		err := cmd.Execute()
-		assert.NoError(t, err)
-	}()
+	pty := ptytest.New(t).Attach(inv)
+	clitest.Start(t, inv)
 
 	pty.ExpectMatch("You must authenticate with GitHub to create a workspace")
 	resp := coderdtest.RequestGitAuthCallback(t, "github", client)
@@ -795,7 +744,6 @@ func TestCreateWithGitAuth(t *testing.T) {
 	require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 	pty.ExpectMatch("Confirm create?")
 	pty.WriteLine("yes")
-	<-doneChan
 }
 
 func createTestParseResponseWithDefault(defaultValue string) []*proto.Parse_Response {

@@ -8,45 +8,44 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
-	agpl "github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func features() *cobra.Command {
-	cmd := &cobra.Command{
+func (r *RootCmd) features() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Short:   "List Enterprise features",
 		Use:     "features",
 		Aliases: []string{"feature"},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
+		Handler: func(inv *clibase.Invocation) error {
+			return inv.Command.HelpHandler(inv)
+		},
+		Children: []*clibase.Cmd{
+			r.featuresList(),
 		},
 	}
-	cmd.AddCommand(
-		featuresList(),
-	)
 	return cmd
 }
 
-func featuresList() *cobra.Command {
+func (r *RootCmd) featuresList() *clibase.Cmd {
 	var (
 		featureColumns = []string{"Name", "Entitlement", "Enabled", "Limit", "Actual"}
 		columns        []string
 		outputFormat   string
 	)
+	client := new(codersdk.Client)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Cmd{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := agpl.CreateClient(cmd)
-			if err != nil {
-				return err
-			}
-			entitlements, err := client.Entitlements(cmd.Context())
+		Middleware: clibase.Chain(
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			entitlements, err := client.Entitlements(inv.Context())
 			var apiError *codersdk.Error
 			if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
 				return xerrors.New("You are on the AGPL licensed version of Coder that does not have Enterprise functionality!")
@@ -77,15 +76,30 @@ func featuresList() *cobra.Command {
 				return xerrors.Errorf(`unknown output format %q, only "table" and "json" are supported`, outputFormat)
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}
 
-	cmd.Flags().StringArrayVarP(&columns, "column", "c", featureColumns,
-		fmt.Sprintf("Specify a column to filter in the table. Available columns are: %s",
-			strings.Join(featureColumns, ", ")))
-	cmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "Output format. Available formats are: table, json.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:          "column",
+			FlagShorthand: "c",
+			Description: fmt.Sprintf("Specify a column to filter in the table. Available columns are: %s.",
+				strings.Join(featureColumns, ", "),
+			),
+			Default: strings.Join(featureColumns, ","),
+			Value:   clibase.StringArrayOf(&columns),
+		},
+		{
+			Flag:          "output",
+			FlagShorthand: "o",
+			Description:   "Output format. Available formats are: table, json.",
+			Default:       "table",
+			Value:         clibase.StringOf(&outputFormat),
+		},
+	}
+
 	return cmd
 }
 
