@@ -259,7 +259,15 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 		modules = append(modules, plan.PriorState.Values.RootModule)
 	}
 	modules = append(modules, plan.PlannedValues.RootModule)
-	return ConvertState(modules, rawGraph)
+	state, err := ConvertState(modules, rawGraph)
+	if err != nil {
+		return nil, err
+	}
+	state, err = orderResources(e.workdir, *state)
+	if err != nil {
+		return nil, xerrors.Errorf("order resources: %w", err)
+	}
+	return state, nil
 }
 
 // showPlan must only be called while the lock is held.
