@@ -721,7 +721,9 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(database.UpdateTemplateVersionByIDParams{
 			ID:         tv.ID,
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		}).Asserts(t1, rbac.ActionUpdate).Returns()
+			Name:       tv.Name,
+			UpdatedAt:  tv.UpdatedAt,
+		}).Asserts(t1, rbac.ActionUpdate).Returns(tv)
 	}))
 	s.Run("UpdateTemplateVersionDescriptionByJobID", s.Subtest(func(db database.Store, check *expects) {
 		jobID := uuid.New()
