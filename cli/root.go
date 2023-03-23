@@ -66,7 +66,9 @@ const (
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
 	envSessionToken     = "CODER_SESSION_TOKEN"
-	envURL              = "CODER_URL"
+	//nolint:gosec
+	envAgentToken = "CODER_AGENT_TOKEN"
+	envURL        = "CODER_URL"
 )
 
 var errUnauthenticated = xerrors.New(notLoggedInMessage)
@@ -280,6 +282,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 		},
 		{
 			Flag:        varAgentToken,
+			Env:         envAgentToken,
 			Description: "An agent authentication token.",
 			Value:       clibase.StringOf(&r.agentToken),
 			Hidden:      true,
