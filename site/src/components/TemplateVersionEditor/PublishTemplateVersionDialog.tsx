@@ -1,6 +1,6 @@
 import { DialogProps } from "components/Dialogs/Dialog"
 import { FC } from "react"
-import { getFormHelpers, nameValidator } from "util/formUtils"
+import { getFormHelpers } from "util/formUtils"
 import { FormFields } from "components/Form/Form"
 import { useFormik } from "formik"
 import * as Yup from "yup"
@@ -12,6 +12,7 @@ import FormControlLabel from "@material-ui/core/FormControlLabel"
 import { Stack } from "components/Stack/Stack"
 
 export type PublishTemplateVersionDialogProps = DialogProps & {
+  defaultName: string
   isPublishing: boolean
   onClose: () => void
   onConfirm: (data: PublishVersionData) => void
@@ -19,14 +20,14 @@ export type PublishTemplateVersionDialogProps = DialogProps & {
 
 export const PublishTemplateVersionDialog: FC<
   PublishTemplateVersionDialogProps
-> = ({ onConfirm, isPublishing, onClose, ...dialogProps }) => {
+> = ({ onConfirm, isPublishing, onClose, defaultName, ...dialogProps }) => {
   const form = useFormik({
     initialValues: {
-      name: "",
+      name: defaultName,
       isActiveVersion: false,
     },
     validationSchema: Yup.object({
-      name: nameValidator("name").optional(),
+      name: Yup.string().required(),
       isActiveVersion: Yup.boolean(),
     }),
     onSubmit: onConfirm,
@@ -62,7 +63,6 @@ export const PublishTemplateVersionDialog: FC<
               InputLabelProps={{
                 shrink: true,
               }}
-              helperText="If you leave this blank, the version name will be automatically generated."
             />
 
             <FormControlLabel

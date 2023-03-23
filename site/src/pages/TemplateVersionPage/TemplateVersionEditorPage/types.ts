@@ -1,4 +1,4 @@
 export type PublishVersionData = {
-  name?: string
+  name: string
   isActiveVersion: boolean
 }

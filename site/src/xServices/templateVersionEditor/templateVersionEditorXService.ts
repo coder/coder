@@ -295,28 +295,17 @@ export const templateVersionEditorMachine = createMachine(
         }
         return API.getTemplateVersion(ctx.version.id)
       },
-      watchBuildLogs: (ctx) => async (callback) => {
-        return new Promise<void>((resolve, reject) => {
-          if (!ctx.version) {
-            return reject("version must be set")
+      watchBuildLogs:
+        ({ version }) =>
+        async (callback) => {
+          if (!version) {
+            throw new Error("version must be set")
           }
-          const proto = location.protocol === "https:" ? "wss:" : "ws:"
-          const socket = new WebSocket(
-            `${proto}//${location.host}/api/v2/templateversions/${ctx.version?.id}/logs?follow=true`,
-          )
-          socket.binaryType = "blob"
-          socket.addEventListener("message", (event) => {
-            callback({ type: "ADD_BUILD_LOG", log: JSON.parse(event.data) })
+
+          return API.watchBuildLogs(version.id, (log) => {
+            callback({ type: "ADD_BUILD_LOG", log })
           })
-          socket.addEventListener("error", () => {
-            reject(new Error("socket errored"))
-          })
-          socket.addEventListener("close", () => {
-            // When the socket closes, logs have finished streaming!
-            resolve()
-          })
-        })
-      },
+        },
       getResources: (ctx) => {
         if (!ctx.version) {
           throw new Error("template version must be set")
@@ -342,7 +331,7 @@ export const templateVersionEditorMachine = createMachine(
           throw new Error("Template is not set")
         }
         await Promise.all([
-          API.patchTemplateVersion(version.id, { name: name ?? version.name }),
+          API.patchTemplateVersion(version.id, { name }),
           isActiveVersion
             ? API.updateActiveTemplateVersion(templateId, {
                 id: version.id,

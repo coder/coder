@@ -168,7 +168,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   return (
     <>
       <div className={styles.root}>
-        <div className={styles.topbar}>
+        <div className={styles.topbar} data-testid="topbar">
           <div className={styles.topbarSides}>
             <AvatarData
               title={template.display_name || template.name}
@@ -404,6 +404,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         onClose={onCancelPublish}
         onConfirm={onConfirmPublish}
         isPublishing={isPublishing}
+        defaultName={templateVersion.name}
       />
     </>
   )
