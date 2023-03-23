@@ -32,8 +32,8 @@ func orderResources(workdir string, state State) (*State, error) {
 		if !strings.HasSuffix(entry.Name(), ".tf") {
 			continue
 		}
-		hclFilepath := path.Join(workdir, entry.Name())
 
+		hclFilepath := path.Join(workdir, entry.Name())
 		parser := hclparse.NewParser()
 		parsedHCL, diags := parser.ParseHCLFile(hclFilepath)
 		if diags.HasErrors() {
