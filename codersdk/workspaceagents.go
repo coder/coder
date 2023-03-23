@@ -79,7 +79,6 @@ type WorkspaceAgentMetadataResult struct {
 	// Age is the number of seconds since the metadata was collected.
 	// It is provided in addition to CollectedAt to protect against clock skew.
 	Age   int64  `json:"age"`
-	Key   string `json:"key"`
 	Value string `json:"value"`
 	Error string `json:"error"`
 }

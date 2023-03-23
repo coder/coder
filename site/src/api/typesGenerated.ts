@@ -1086,7 +1086,6 @@ export interface WorkspaceAgentMetadataDescription {
 export interface WorkspaceAgentMetadataResult {
   readonly collected_at: string
   readonly age: number
-  readonly key: string
   readonly value: string
   readonly error: string
 }

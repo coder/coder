@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/slices"
@@ -1065,8 +1066,9 @@ func ellipse(s string, maxLength int) string {
 // @Accept json
 // @Tags Agents
 // @Param request body agentsdk.PostMetadataRequest true "Workspace agent metadata request"
+// @Param key path string true "metadata key" format(string)
 // @Success 204 "Success"
-// @Router /workspaceagents/me/metadata [post]
+// @Router /workspaceagents/me/metadata/{key} [post]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1087,10 +1089,12 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	key := chi.URLParam(r, "key")
+
 	datum := database.UpdateWorkspaceAgentMetadataParams{
 		WorkspaceAgentID: workspaceAgent.ID,
 		// We don't want a misconfigured agent to fill the database.
-		Key:   ellipse(req.Key, 128),
+		Key:   ellipse(key, 128),
 		Value: ellipse(req.Value, 10<<10),
 		Error: ellipse(req.Error, 10<<10),
 		// We ignore the CollectedAt from the agent to avoid bugs caused by
@@ -1230,7 +1234,6 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 	for _, datum := range db {
 		result = append(result, codersdk.WorkspaceAgentMetadata{
 			Result: codersdk.WorkspaceAgentMetadataResult{
-				Key:         datum.Key,
 				Value:       datum.Value,
 				Error:       datum.Error,
 				CollectedAt: datum.CollectedAt,

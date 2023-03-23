@@ -52,6 +52,29 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
   )
 }
 
+export interface AgentMetadataViewProps {
+  metadata: WorkspaceAgentMetadata[]
+}
+
+export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
+  const styles = useStyles()
+  if (metadata.length === 0) {
+    return <></>
+  }
+  return (
+    <Stack alignItems="flex-start" direction="row" spacing={5}>
+      <div className={styles.metadataHeader}>
+        {metadata.map((m) => {
+          if (m.description === undefined) {
+            throw new Error("Metadata item description is undefined")
+          }
+          return <MetadataItem key={m.description.key} item={m} />
+        })}
+      </div>
+    </Stack>
+  )
+}
+
 export const AgentMetadata: FC<{
   agent: WorkspaceAgent
 }> = ({ agent }) => {
@@ -76,25 +99,11 @@ export const AgentMetadata: FC<{
     }
   }, [agent.id, watchAgentMetadata])
 
-  const styles = useStyles()
   if (metadata === undefined) {
     return <CircularProgress size={16} />
   }
-  if (metadata.length === 0) {
-    return <></>
-  }
-  return (
-    <Stack alignItems="flex-start" direction="row" spacing={5}>
-      <div className={styles.metadataHeader}>
-        {metadata.map((m) => {
-          if (m.description === undefined) {
-            throw new Error("Metadata item description is undefined")
-          }
-          return <MetadataItem key={m.description.key} item={m} />
-        })}
-      </div>
-    </Stack>
-  )
+
+  return AgentMetadataView({ metadata })
 }
 
 // These are more or less copied from

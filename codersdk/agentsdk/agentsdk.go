@@ -69,8 +69,8 @@ func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 // performance.
 type PostMetadataRequest = codersdk.WorkspaceAgentMetadataResult
 
-func (c *Client) PostMetadata(ctx context.Context, req PostMetadataRequest) error {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata", req)
+func (c *Client) PostMetadata(ctx context.Context, key string, req PostMetadataRequest) error {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata/"+key, req)
 	if err != nil {
 		return xerrors.Errorf("execute request: %w", err)
 	}

@@ -1677,13 +1677,13 @@ func (c *client) getMetadata() map[string]agentsdk.PostMetadataRequest {
 	return maps.Clone(c.metadata)
 }
 
-func (c *client) PostMetadata(_ context.Context, req agentsdk.PostMetadataRequest) error {
+func (c *client) PostMetadata(_ context.Context, key string, req agentsdk.PostMetadataRequest) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.metadata == nil {
 		c.metadata = make(map[string]agentsdk.PostMetadataRequest)
 	}
-	c.metadata[req.Key] = req
+	c.metadata[key] = req
 	return nil
 }
 

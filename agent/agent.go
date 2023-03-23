@@ -90,7 +90,7 @@ type Client interface {
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
-	PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error
+	PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequest) error
 }
 
 func New(options Options) io.Closer {
@@ -222,7 +222,6 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 
 	result := &codersdk.WorkspaceAgentMetadataResult{
 		CollectedAt: time.Now(),
-		Key:         md.Key,
 	}
 	cmd, err := a.createCommand(ctx, md.Script, nil)
 	if err != nil {
@@ -262,6 +261,11 @@ func convertInterval(i int64) time.Duration {
 	return time.Duration(i) * base
 }
 
+type metadataResultAndKey struct {
+	result *codersdk.WorkspaceAgentMetadataResult
+	key    string
+}
+
 func (a *agent) reportMetadataLoop(ctx context.Context) {
 	// In production, the minimum report interval is one second because
 	// `coder_agent.metadata` accepts `interval` in integer seconds.
@@ -275,7 +279,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	var (
 		baseTicker       = time.NewTicker(baseInterval)
 		lastCollectedAts = make(map[string]time.Time)
-		metadataResults  = make(chan *codersdk.WorkspaceAgentMetadataResult, 16)
+		metadataResults  = make(chan metadataResultAndKey, 16)
 	)
 	defer baseTicker.Stop()
 
@@ -284,8 +288,8 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case mr := <-metadataResults:
-			lastCollectedAts[mr.Key] = mr.CollectedAt
-			err := a.client.PostMetadata(ctx, *mr)
+			lastCollectedAts[mr.key] = mr.result.CollectedAt
+			err := a.client.PostMetadata(ctx, mr.key, *mr.result)
 			if err != nil {
 				a.logger.Error(ctx, "report metadata", slog.Error(err))
 			}
@@ -339,7 +343,10 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 					select {
 					case <-ctx.Done():
 						return
-					case metadataResults <- a.collectMetadata(ctx, md):
+					case metadataResults <- metadataResultAndKey{
+						key:    md.Key,
+						result: a.collectMetadata(ctx, md),
+					}:
 					}
 				}(md)
 			}

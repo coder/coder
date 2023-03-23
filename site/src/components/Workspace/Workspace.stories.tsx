@@ -4,6 +4,7 @@ import { WatchAgentMetadataContext } from "components/Resources/AgentMetadata"
 import * as Mocks from "../../testHelpers/entities"
 import { Workspace, WorkspaceErrors, WorkspaceProps } from "./Workspace"
 import { withReactContext } from "storybook-react-context"
+import EventSource from "eventsourcemock"
 
 export default {
   title: "components/Workspace",
@@ -13,8 +14,8 @@ export default {
     withReactContext({
       Context: WatchAgentMetadataContext,
       initialState: (_: string): EventSource => {
-        const s = new EventSource()
-        return s
+        // Need Bruno's help here.
+        return new EventSource()
       },
     }),
   ],

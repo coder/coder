@@ -246,7 +246,7 @@ func (*client) PostAppHealth(_ context.Context, _ agentsdk.PostAppHealthsRequest
 	return nil
 }
 
-func (*client) PostMetadata(_ context.Context, _ agentsdk.PostMetadataRequest) error {
+func (*client) PostMetadata(_ context.Context, _ string, _ agentsdk.PostMetadataRequest) error {
 	return nil
 }
 

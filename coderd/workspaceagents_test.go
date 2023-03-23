@@ -1214,8 +1214,8 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	ctx, cancel := testutil.Context(t)
 	defer cancel()
 
-	post := func(mr codersdk.WorkspaceAgentMetadataResult) {
-		err := agentClient.PostMetadata(ctx, mr)
+	post := func(key string, mr codersdk.WorkspaceAgentMetadataResult) {
+		err := agentClient.PostMetadata(ctx, key, mr)
 		require.NoError(t, err, "post metadata", t)
 	}
 
@@ -1231,19 +1231,17 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 		require.WithinDuration(
 			t, time.Now(), got.Result.CollectedAt.Add(time.Duration(got.Result.Age)*time.Second), time.Millisecond*100,
 		)
-		require.Equal(t, want.Key, got.Result.Key)
 		require.Equal(t, want.Value, got.Result.Value)
 		require.Equal(t, want.Error, got.Result.Error)
 	}
 
 	wantMetadata1 := codersdk.WorkspaceAgentMetadataResult{
 		CollectedAt: time.Now(),
-		Key:         "foo1",
 		Value:       "bar",
 	}
 
 	// Initial post must come before the Watch is established.
-	post(wantMetadata1)
+	post("foo1", wantMetadata1)
 
 	updates, errors := client.WatchWorkspaceAgentMetadata(ctx, agentID)
 
@@ -1264,21 +1262,19 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.Zero(t, update[1].Result.CollectedAt)
 
 	wantMetadata2 := wantMetadata1
-	wantMetadata2.Key = "foo2"
-	post(wantMetadata2)
+	post("foo2", wantMetadata2)
 	update = recvUpdate()
 	require.Len(t, update, 2)
 	check(wantMetadata1, update[0])
 	check(wantMetadata2, update[1])
 
 	wantMetadata1.Error = "error"
-	post(wantMetadata1)
+	post("foo1", wantMetadata1)
 	update = recvUpdate()
 	require.Len(t, update, 2)
 	check(wantMetadata1, update[0])
 
 	badMetadata := wantMetadata1
-	badMetadata.Key = "unknown"
-	err = agentClient.PostMetadata(ctx, badMetadata)
+	err = agentClient.PostMetadata(ctx, "unknown", badMetadata)
 	require.Error(t, err)
 }
