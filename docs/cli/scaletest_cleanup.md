@@ -2,7 +2,7 @@
 
 # scaletest cleanup
 
-Cleanup any orphaned scaletest resources
+Cleanup scaletest workspaces, then cleanup scaletest users.
 
 ## Usage
 

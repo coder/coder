@@ -3,9 +3,13 @@ Usage: coder scaletest
 Run a scale test against the Coder API
 
 [1mSubcommands[0m
-    cleanup              Cleanup any orphaned scaletest resources
-    create-workspaces    Creates many users and a workspace for each one, then
-                         waits for them to be ready
+    cleanup              Cleanup scaletest workspaces, then cleanup scaletest
+                         users.
+    create-workspaces    Creates many users, then creates a workspace for each
+                         user and waits for them finish building and fully come
+                         online. Optionally runs a command inside each
+                         workspace, and connects to the workspace over
+                         WireGuard.
 
 ---
 Run `coder --help` for a list of global options.

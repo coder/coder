@@ -189,7 +189,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 		clibase.Option{
 			Flag:        "start-at",
 			Env:         "CODER_WORKSPACE_START_AT",
-			Description: "Specify the workspace autostart schedule. Check `coder schedule start --help` for the syntax.",
+			Description: "Specify the workspace autostart schedule. Check coder schedule start --help for the syntax.",
 			Value:       clibase.StringOf(&startAt),
 		},
 		clibase.Option{

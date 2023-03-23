@@ -36,7 +36,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>login</code>](./cli/login)                   | Authenticate with Coder deployment                                     |
 | [<code>logout</code>](./cli/logout)                 | Unauthenticate your local session                                      |
 | [<code>ping</code>](./cli/ping)                     | Ping a workspace                                                       |
-| [<code>port-forward</code>](./cli/port-forward)     | Forward ports between your local system and the workspace              |
+| [<code>port-forward</code>](./cli/port-forward)     | Forward ports from machine to a workspace                              |
 | [<code>provisionerd</code>](./cli/provisionerd)     | Manage provisioner daemons                                             |
 | [<code>publickey</code>](./cli/publickey)           | Output your Coder public key used for Git operations                   |
 | [<code>rename</code>](./cli/rename)                 | Rename a workspace                                                     |

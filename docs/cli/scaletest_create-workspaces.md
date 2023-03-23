@@ -2,7 +2,7 @@
 
 # scaletest create-workspaces
 
-Creates many users and a workspace for each one, then waits for them to be ready
+Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
 
 ## Usage
 
@@ -13,8 +13,6 @@ coder scaletest create-workspaces [flags]
 ## Description
 
 ```console
-After creation, waits for the workspaces to finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
-
 It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.
 ```
 
@@ -136,7 +134,7 @@ Timeout per job. Jobs may take longer to complete under higher concurrency limit
 | Type        | <code>bool</code>                        |
 | Environment | <code>$CODER_SCALETEST_NO_CLEANUP</code> |
 
-Do not clean up resources after the load test has finished. Useful for debugging.
+Do not clean up resources after the test completes. You can cleanup manually using coder scaletest cleanup.
 
 ### --no-plan
 

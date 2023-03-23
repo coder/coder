@@ -20,7 +20,7 @@ Coder v0.0.0-devel — A tool for provisioning self-hosted development environme
     login             Authenticate with Coder deployment
     logout            Unauthenticate your local session
     ping              Ping a workspace
-    port-forward      Forward ports between your local system and the workspace
+    port-forward      Forward ports from machine to a workspace
     publickey         Output your Coder public key used for Git operations
     rename            Rename a workspace
     reset-password    Directly connect to the database to reset a user's

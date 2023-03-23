@@ -37,7 +37,7 @@ Specify a file path with values for rich parameters defined in the template.
 | Type        | <code>string</code>                    |
 | Environment | <code>$CODER_WORKSPACE_START_AT</code> |
 
-Specify the workspace autostart schedule. Check `coder schedule start --help` for the syntax.
+Specify the workspace autostart schedule. Check coder schedule start --help for the syntax.
 
 ### --stop-after
 

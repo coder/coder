@@ -551,7 +551,7 @@
         },
         {
           "title": "port-forward",
-          "description": "Forward ports between your local system and the workspace",
+          "description": "Forward ports from machine to a workspace",
           "path": "cli/port-forward.md"
         },
         {
@@ -591,12 +591,12 @@
         },
         {
           "title": "scaletest cleanup",
-          "description": "Cleanup any orphaned scaletest resources",
+          "description": "Cleanup scaletest workspaces, then cleanup scaletest users.",
           "path": "cli/scaletest_cleanup.md"
         },
         {
           "title": "scaletest create-workspaces",
-          "description": "Creates many users and a workspace for each one, then waits for them to be ready",
+          "description": "Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.",
           "path": "cli/scaletest_create-workspaces.md"
         },
         {

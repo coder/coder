@@ -246,7 +246,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			Flag:          "forward-gpg",
 			FlagShorthand: "G",
 			Env:           "CODER_SSH_FORWARD_GPG",
-			Description:   "Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, but supports all clients. Requires gnupg (gpg, gpgconf) on both the client and workspace. The GPG agent must already be running locally and will not be started by for you. If a GPG agent is already running in the workspace, coder will attempt to kill it.",
+			Description:   "Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, but supports all clients. Requires gnupg (gpg, gpgconf) on both the client and workspace. The GPG agent must already be running locally and will not be started for you. If a GPG agent is already running in the workspace, it will be attempted to be killed.",
 			Value:         clibase.BoolOf(&forwardGPG),
 		},
 		{
@@ -265,7 +265,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		{
 			Flag:        "no-wait",
 			Env:         "CODER_SSH_NO_WAIT",
-			Description: "Specifies whether to wait for the workspace to be ready before connecting (only applicable when the login before ready option has not been enabled). Note that the workspace agent may still be in the process of executing the startup script and the workspace may be in an incomplete state.",
+			Description: "Specifies whether to wait for a workspace to become ready before logging in (only applicable when the login before ready option has not been enabled). Note that the workspace agent may still be in the process of executing the startup script and the workspace may be in an incomplete state.",
 			Value:       clibase.BoolOf(&noWait),
 		},
 	}

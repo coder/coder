@@ -361,7 +361,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 
 	cmd := &clibase.Cmd{
 		Use:   "cleanup",
-		Short: "Cleanup any orphaned scaletest resources",
+		Short: "Cleanup scaletest workspaces, then cleanup scaletest users.",
 		Long:  "The strategy flags will apply to each stage of the cleanup process.",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
@@ -544,11 +544,9 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
-		Use:   "create-workspaces",
-		Short: "Creates many users and a workspace for each one, then waits for them to be ready",
-		Long: `After creation, waits for the workspaces to finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
-
-It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
+		Use:        "create-workspaces",
+		Short:      "Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.",
+		Long:       `It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
 		Middleware: r.InitClient(client),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
@@ -852,11 +850,10 @@ It is recommended that all rate limits are disabled on the server before running
 			Value:       clibase.BoolOf(&noPlan),
 		},
 		{
-			Flag: "no-cleanup",
-			Env:  "CODER_SCALETEST_NO_CLEANUP",
-			Description: "Do not clean up resources after the load test has finished. " +
-				"Useful for debugging.",
-			Value: clibase.BoolOf(&noCleanup),
+			Flag:        "no-cleanup",
+			Env:         "CODER_SCALETEST_NO_CLEANUP",
+			Description: "Do not clean up resources after the test completes. You can cleanup manually using coder scaletest cleanup.",
+			Value:       clibase.BoolOf(&noCleanup),
 		},
 		{
 			Flag:        "no-wait-for-agents",

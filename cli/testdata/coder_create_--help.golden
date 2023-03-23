@@ -11,8 +11,8 @@ Create a workspace
           template.
 
       --start-at string, $CODER_WORKSPACE_START_AT
-          Specify the workspace autostart schedule. Check `coder schedule start
-          --help` for the syntax.
+          Specify the workspace autostart schedule. Check coder schedule start
+          --help for the syntax.
 
       --stop-after duration, $CODER_WORKSPACE_STOP_AFTER
           Specify a duration after which the workspace should shut down (e.g.
