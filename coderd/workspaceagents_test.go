@@ -179,7 +179,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 	t.Parallel()
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.IntervalMedium)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		})
@@ -236,7 +236,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 	})
 	t.Run("PublishesOnOverflow", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.IntervalMedium)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		})
