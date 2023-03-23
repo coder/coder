@@ -1,5 +1,8 @@
 import { Story } from "@storybook/react"
-import { WorkspaceAgentMetadataResult } from "api/typesGenerated"
+import {
+  WorkspaceAgentMetadataDescription,
+  WorkspaceAgentMetadataResult,
+} from "api/typesGenerated"
 import { AgentMetadataView, AgentMetadataViewProps } from "./AgentMetadata"
 
 export default {
@@ -19,6 +22,8 @@ const resultDefaults: WorkspaceAgentMetadataResult = {
 }
 
 const descriptionDefaults: WorkspaceAgentMetadataDescription = {
+  display_name: "DisPlay",
+  key: "defkey",
   interval: 10,
   timeout: 10,
   script: "some command",
@@ -29,34 +34,35 @@ Example.args = {
   metadata: [
     {
       result: {
-        value: "110%",
         ...resultDefaults,
+        value: "110%",
       },
       description: {
+        ...descriptionDefaults,
         display_name: "CPU",
         key: "CPU",
-        ...descriptionDefaults,
       },
     },
     {
       result: {
-        value: "50GB",
         ...resultDefaults,
+        value: "50GB",
       },
       description: {
+        ...descriptionDefaults,
         display_name: "Memory",
         key: "Memory",
-        ...descriptionDefaults,
       },
     },
     {
       result: {
-        value: "cant see it",
         ...resultDefaults,
-        age: 50,
+        value: "cant see it",
+        age: 300,
       },
       description: {
         ...descriptionDefaults,
+        interval: 5,
         display_name: "Stale",
         key: "stale",
       },
@@ -68,9 +74,8 @@ Example.args = {
         error: "fatal error",
       },
       description: {
-        display_name: "Error",
-        key: "stale",
         ...descriptionDefaults,
+        display_name: "Error",
       },
     },
     {
@@ -80,9 +85,9 @@ Example.args = {
         error: "fatal error",
       },
       description: {
+        ...descriptionDefaults,
         display_name: "Error",
         key: "stale",
-        ...descriptionDefaults,
       },
     },
   ],

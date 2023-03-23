@@ -2,9 +2,11 @@ import CircularProgress from "@material-ui/core/CircularProgress"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import { watchAgentMetadata } from "api/api"
 import { WorkspaceAgent, WorkspaceAgentMetadata } from "api/typesGenerated"
+import { CodeExample } from "components/CodeExample/CodeExample"
 import { Stack } from "components/Stack/Stack"
 import {
   HelpPopover,
+  HelpTooltip,
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/Tooltips/HelpTooltip"
@@ -39,25 +41,28 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
     5,
   )
 
+  const isStale = item.result.age > staleThreshold
+
   // Stale data is as good as no data. Plus, we want to build confidence in our
   // users that what's shown is real. If times aren't correctly synced this
   // could be buggy. But, how common is that anyways?
-  const value =
-    item.result.age < staleThreshold ? (
-      <div
-        className={
-          styles.metadataValue +
-          " " +
-          (item.result.error.length === 0
-            ? styles.metadataValueSuccess
-            : styles.metadataValueError)
-        }
-      >
-        {item.result.value}
-      </div>
-    ) : (
-      <CircularProgress size={12} />
-    )
+  const value = isStale ? (
+    <CircularProgress size={12} />
+  ) : (
+    <div
+      className={
+        styles.metadataValue +
+        " " +
+        (item.result.error.length === 0
+          ? styles.metadataValueSuccess
+          : styles.metadataValueError)
+      }
+    >
+      {item.result.value}
+    </div>
+  )
+
+  const updatesInSeconds = -(item.description.interval - item.result.age)
 
   return (
     <div
@@ -78,16 +83,20 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
           This item was collected{" "}
           {dayjs.duration(item.result.age, "s").humanize()} ago and will be
           updated in{" "}
-          {dayjs
-            .duration(
-              Math.min(-item.description.interval - item.result.age, 0),
-              "s",
-            )
-            .humanize()}
-          .
+          {dayjs.duration(Math.min(updatesInSeconds, 0), "s").humanize()}.
         </HelpTooltipText>
-
-        <HelpTooltipText>wee woo</HelpTooltipText>
+        {isStale ? (
+          <HelpTooltipText>
+            This item is now stale because the agent hasn{"'"}t reported a new
+            value in {dayjs.duration(item.result.age, "s").humanize()}.
+          </HelpTooltipText>
+        ) : (
+          <></>
+        )}
+        <HelpTooltipText>
+          This item is collected by running the following command:
+          <CodeExample code={item.description.script}></CodeExample>
+        </HelpTooltipText>
       </HelpPopover>
       <div className={styles.metadataLabel}>
         {item.description.display_name}
