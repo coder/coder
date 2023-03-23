@@ -1,4 +1,5 @@
 import { Story } from "@storybook/react"
+import { WorkspaceAgentMetadataResult } from "api/typesGenerated"
 import { AgentMetadataView, AgentMetadataViewProps } from "./AgentMetadata"
 
 export default {
@@ -10,13 +11,14 @@ const Template: Story<AgentMetadataViewProps> = (args) => (
   <AgentMetadataView {...args} />
 )
 
-const resultDefaults = {
+const resultDefaults: WorkspaceAgentMetadataResult = {
   collected_at: "2021-05-05T00:00:00Z",
   error: "",
+  value: "defvalue",
   age: 5,
 }
 
-const descriptionDefaults = {
+const descriptionDefaults: WorkspaceAgentMetadataDescription = {
   interval: 10,
   timeout: 10,
   script: "some command",
@@ -57,6 +59,18 @@ Example.args = {
         ...descriptionDefaults,
         display_name: "Stale",
         key: "stale",
+      },
+    },
+    {
+      result: {
+        ...resultDefaults,
+        value: "oops",
+        error: "fatal error",
+      },
+      description: {
+        display_name: "Error",
+        key: "stale",
+        ...descriptionDefaults,
       },
     },
     {

@@ -3,12 +3,29 @@ import makeStyles from "@material-ui/core/styles/makeStyles"
 import { watchAgentMetadata } from "api/api"
 import { WorkspaceAgent, WorkspaceAgentMetadata } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
-import { createContext, FC, useContext, useEffect, useState } from "react"
+import {
+  HelpPopover,
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "components/Tooltips/HelpTooltip"
+import dayjs from "dayjs"
+import {
+  createContext,
+  FC,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
 
 export const WatchAgentMetadataContext = createContext(watchAgentMetadata)
 
 const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
   const styles = useStyles()
+
+  const [isOpen, setIsOpen] = useState(false)
+
+  const anchorRef = useRef<HTMLDivElement>(null)
 
   if (item.result === undefined) {
     throw new Error("Metadata item result is undefined")
@@ -43,7 +60,35 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
     )
 
   return (
-    <div className={styles.metadata}>
+    <div
+      className={styles.metadata}
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+      role="presentation"
+      ref={anchorRef}
+    >
+      <HelpPopover
+        open={isOpen}
+        anchorEl={anchorRef.current}
+        onOpen={() => setIsOpen(true)}
+        onClose={() => setIsOpen(false)}
+      >
+        <HelpTooltipTitle>{item.description.display_name}</HelpTooltipTitle>
+        <HelpTooltipText>
+          This item was collected{" "}
+          {dayjs.duration(item.result.age, "s").humanize()} ago and will be
+          updated in{" "}
+          {dayjs
+            .duration(
+              Math.min(-item.description.interval - item.result.age, 0),
+              "s",
+            )
+            .humanize()}
+          .
+        </HelpTooltipText>
+
+        <HelpTooltipText>wee woo</HelpTooltipText>
+      </HelpPopover>
       <div className={styles.metadataLabel}>
         {item.description.display_name}
       </div>
