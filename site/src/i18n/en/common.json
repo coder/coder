@@ -41,5 +41,8 @@
     "error": "Coder update check failed."
   },
   "licenseFieldTextHelper": "You need an enterprise license to use it.",
-  "learnMore": "Learn more"
+  "learnMore": "Learn more",
+  "forms": {
+    "typeToSearch": "Start typing to search..."
+  }
 }

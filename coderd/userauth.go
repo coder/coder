@@ -424,7 +424,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	aReq.UserID = user.ID
 
 	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
 		User:         user,
@@ -453,6 +452,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = key
+	aReq.UserID = key.UserID
 
 	http.SetCookie(rw, cookie)
 
@@ -481,6 +481,10 @@ type OIDCConfig struct {
 	// groups. If the group field is the empty string, then no group updates
 	// will ever come from the OIDC provider.
 	GroupField string
+	// GroupMapping controls how groups returned by the OIDC provider get mapped
+	// to groups within Coder.
+	// map[oidcGroupName]coderGroupName
+	GroupMapping map[string]string
 	// SignInText is the text to display on the OIDC login button
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
@@ -651,6 +655,11 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 						})
 						return
 					}
+
+					if mappedGroup, ok := api.OIDCConfig.GroupMapping[group]; ok {
+						group = mappedGroup
+					}
+
 					groups = append(groups, group)
 				}
 			} else {
@@ -705,7 +714,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	aReq.UserID = user.ID
 
 	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
 		User:         user,
@@ -736,6 +744,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = key
+	aReq.UserID = key.UserID
 
 	http.SetCookie(rw, cookie)
 

@@ -1,35 +1,55 @@
 import { makeStyles } from "@material-ui/core/styles"
-import { useMachine } from "@xstate/react"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { createContext, FC, Suspense, useContext } from "react"
 import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
-import {
-  TemplateContext,
-  templateMachine,
-} from "xServices/template/templateXService"
 import { Margins } from "components/Margins/Margins"
 import { Stack } from "components/Stack/Stack"
-import { Permissions } from "xServices/auth/authXService"
 import { Loader } from "components/Loader/Loader"
-import { usePermissions } from "hooks/usePermissions"
 import { TemplatePageHeader } from "./TemplatePageHeader"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
+import {
+  checkAuthorization,
+  getTemplateByName,
+  getTemplateVersion,
+} from "api/api"
+import { useQuery } from "@tanstack/react-query"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 
-const useTemplateName = () => {
-  const { template } = useParams()
+const templatePermissions = (templateId: string) => ({
+  canUpdateTemplate: {
+    object: {
+      resource_type: "template",
+      resource_id: templateId,
+    },
+    action: "update",
+  },
+})
 
-  if (!template) {
-    throw new Error("No template found in the URL")
+const fetchTemplate = async (orgId: string, templateName: string) => {
+  const template = await getTemplateByName(orgId, templateName)
+  const [activeVersion, permissions] = await Promise.all([
+    getTemplateVersion(template.active_version_id),
+    checkAuthorization({
+      checks: templatePermissions(template.id),
+    }),
+  ])
+
+  return {
+    template,
+    activeVersion,
+    permissions,
   }
-
-  return template
 }
 
-type TemplateLayoutContextValue = {
-  context: TemplateContext
-  permissions?: Permissions
+const useTemplateData = (orgId: string, templateName: string) => {
+  return useQuery({
+    queryKey: ["template", templateName],
+    queryFn: () => fetchTemplate(orgId, templateName),
+  })
 }
+
+type TemplateLayoutContextValue = Awaited<ReturnType<typeof fetchTemplate>>
 
 const TemplateLayoutContext = createContext<
   TemplateLayoutContextValue | undefined
@@ -50,38 +70,30 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
 }) => {
   const navigate = useNavigate()
   const styles = useStyles()
-  const organizationId = useOrganizationId()
-  const templateName = useTemplateName()
-  const [templateState, _] = useMachine(templateMachine, {
-    context: {
-      templateName,
-      organizationId,
-    },
-  })
-  const {
-    template,
-    permissions: templatePermissions,
-    getTemplateError,
-  } = templateState.context
-  const permissions = usePermissions()
+  const orgId = useOrganizationId()
+  const { template } = useParams() as { template: string }
+  const templateData = useTemplateData(orgId, template)
+  const dashboard = useDashboard()
 
-  if (getTemplateError) {
+  if (templateData.error) {
     return (
       <div className={styles.error}>
-        <AlertBanner severity="error" error={getTemplateError} />
+        <AlertBanner severity="error" error={templateData.error} />
       </div>
     )
   }
 
-  if (!template || !templatePermissions) {
+  if (templateData.isLoading || !templateData.data) {
     return <Loader />
   }
 
   return (
     <>
       <TemplatePageHeader
-        template={template}
-        permissions={templatePermissions}
+        template={templateData.data.template}
+        activeVersion={templateData.data.activeVersion}
+        permissions={templateData.data.permissions}
+        canEditFiles={dashboard.experiments.includes("template_editor")}
         onDeleteTemplate={() => {
           navigate("/templates")
         }}
@@ -92,7 +104,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
           <Stack direction="row" spacing={0.25}>
             <NavLink
               end
-              to={`/templates/${template.name}`}
+              to={`/templates/${template}`}
               className={({ isActive }) =>
                 combineClasses([
                   styles.tabItem,
@@ -103,7 +115,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
               Summary
             </NavLink>
             <NavLink
-              to={`/templates/${template.name}/permissions`}
+              to={`/templates/${template}/permissions`}
               className={({ isActive }) =>
                 combineClasses([
                   styles.tabItem,
@@ -113,14 +125,23 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
             >
               Permissions
             </NavLink>
+            <NavLink
+              to={`/templates/${template}/files`}
+              className={({ isActive }) =>
+                combineClasses([
+                  styles.tabItem,
+                  isActive ? styles.tabItemActive : undefined,
+                ])
+              }
+            >
+              Source Code
+            </NavLink>
           </Stack>
         </Margins>
       </div>
 
       <Margins>
-        <TemplateLayoutContext.Provider
-          value={{ permissions, context: templateState.context }}
-        >
+        <TemplateLayoutContext.Provider value={templateData.data}>
           <Suspense fallback={<Loader />}>{children}</Suspense>
         </TemplateLayoutContext.Provider>
       </Margins>

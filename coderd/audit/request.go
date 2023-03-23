@@ -154,9 +154,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		if ResourceID(req.Old) == uuid.Nil && ResourceID(req.New) == uuid.Nil {
 			// If the request action is a login or logout, we always want to audit it even if
 			// there is no diff. This is so we can capture events where an API Key is never created
-			// because an unknown user fails to login.
-			// TODO: introduce the concept of an anonymous user so we always have a userID even
-			// when dealing with a mystery user. https://github.com/coder/coder/issues/6054
+			// because a known user fails to login.
 			if req.params.Action != database.AuditActionLogin && req.params.Action != database.AuditActionLogout {
 				return
 			}
@@ -185,8 +183,13 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		key, ok := httpmw.APIKeyOptional(p.Request)
 		if ok {
 			userID = key.UserID
-		} else {
+		} else if req.UserID != uuid.Nil {
 			userID = req.UserID
+		} else {
+			// if we do not have a user associated with the audit action
+			// we do not want to audit
+			// (this pertains to logins; we don't want to capture non-user login attempts)
+			return
 		}
 
 		ip := parseIP(p.Request.RemoteAddr)

@@ -37,10 +37,6 @@ import (
 // @Router /audit [get]
 func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceAuditLog) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	page, ok := parsePagination(rw, r)
 	if !ok {
@@ -90,10 +86,6 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 // @Router /audit/testgenerate [post]
 func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceAuditLog) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	key := httpmw.APIKey(r)
 	user, err := api.Database.GetUserByID(ctx, key.UserID)

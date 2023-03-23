@@ -99,6 +99,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   const [createFileOpen, setCreateFileOpen] = useState(false)
   const [deleteFileOpen, setDeleteFileOpen] = useState<string>()
   const [renameFileOpen, setRenameFileOpen] = useState<string>()
+  const [dirty, setDirty] = useState(false)
   const [activePath, setActivePath] = useState<string | undefined>(() =>
     findInitialFile(fileTree),
   )
@@ -149,11 +150,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     previousVersion.current = templateVersion
   }, [templateVersion])
 
-  const [dirty, setDirty] = useState(false)
   const hasIcon = template.icon && template.icon !== ""
   const templateVersionSucceeded = templateVersion.job.status === "succeeded"
   const showBuildLogs = Boolean(buildLogs)
   const editorValue = getFileContent(activePath ?? "", fileTree) as string
+  const firstTemplateVersionOnEditor = useRef(templateVersion)
 
   useEffect(() => {
     window.dispatchEvent(new Event("resize"))
@@ -181,9 +182,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
           </div>
 
           <div className={styles.topbarSides}>
-            <div className={styles.buildStatus}>
-              <TemplateVersionStatusBadge version={templateVersion} />
-            </div>
+            {/* Only start to show the build when a new template version is building */}
+            {templateVersion.id !== firstTemplateVersionOnEditor.current.id && (
+              <div className={styles.buildStatus}>
+                <TemplateVersionStatusBadge version={templateVersion} />
+              </div>
+            )}
 
             <Button
               title="Build template (Ctrl + Enter)"
