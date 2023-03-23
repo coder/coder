@@ -294,7 +294,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	go httpapi.Heartbeat(ctx, conn)
 
-	agentConn, release, err := api.workspaceAgentCache.Acquire(r, workspaceAgent.ID)
+	agentConn, release, err := api.workspaceAgentCache.Acquire(workspaceAgent.ID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
@@ -339,7 +339,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	agentConn, release, err := api.workspaceAgentCache.Acquire(r, workspaceAgent.ID)
+	agentConn, release, err := api.workspaceAgentCache.Acquire(workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",
@@ -414,10 +414,8 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	httpapi.Write(ctx, rw, http.StatusOK, portsResponse)
 }
 
-func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-	ctx := r.Context()
+func (api *API) dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 	clientConn, serverConn := net.Pipe()
-
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:   api.DERPMap,
@@ -428,6 +426,7 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 		_ = serverConn.Close()
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
+	ctx, cancel := context.WithCancel(api.ctx)
 	conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
 		if !region.EmbeddedRelay {
 			return nil
@@ -437,7 +436,7 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 			defer left.Close()
 			defer right.Close()
 			brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
-			api.DERPServer.Accept(ctx, right, brw, r.RemoteAddr)
+			api.DERPServer.Accept(ctx, right, brw, "internal")
 		}()
 		return left
 	})
@@ -453,6 +452,7 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	agentConn := &codersdk.WorkspaceAgentConn{
 		Conn: conn,
 		CloseFunc: func() {
+			cancel()
 			_ = clientConn.Close()
 			_ = serverConn.Close()
 		},
@@ -460,7 +460,7 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	go func() {
 		err := (*api.TailnetCoordinator.Load()).ServeClient(serverConn, uuid.New(), agentID)
 		if err != nil {
-			api.Logger.Warn(r.Context(), "tailnet coordinator client error", slog.Error(err))
+			api.Logger.Warn(ctx, "tailnet coordinator client error", slog.Error(err))
 			_ = agentConn.Close()
 		}
 	}()

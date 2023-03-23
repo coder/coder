@@ -501,6 +501,7 @@ func New(options *Options) *API {
 				httpmw.ExtractTemplateVersionParam(options.Database),
 			)
 			r.Get("/", api.templateVersion)
+			r.Patch("/", api.patchTemplateVersion)
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
 			r.Get("/schema", api.templateVersionSchema)
 			r.Get("/parameters", api.templateVersionParameters)

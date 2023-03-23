@@ -25,21 +25,22 @@ import { useTranslation } from "react-i18next"
 export type UpdateBuildParametersDialogProps = DialogProps & {
   onClose: () => void
   onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void
-  parameters?: TemplateVersionParameter[]
+  missedParameters?: TemplateVersionParameter[]
 }
 
 export const UpdateBuildParametersDialog: FC<
   UpdateBuildParametersDialogProps
-> = ({ parameters, onUpdate, ...dialogProps }) => {
+> = ({ missedParameters, onUpdate, ...dialogProps }) => {
   const styles = useStyles()
   const form = useFormik({
     initialValues: {
-      rich_parameter_values: selectInitialRichParametersValues(parameters),
+      rich_parameter_values:
+        selectInitialRichParametersValues(missedParameters),
     },
     validationSchema: Yup.object({
       rich_parameter_values: useValidationSchemaForRichParameters(
         "createWorkspacePage",
-        parameters,
+        missedParameters,
       ),
     }),
     onSubmit: (values) => {
@@ -72,13 +73,9 @@ export const UpdateBuildParametersDialog: FC<
           onSubmit={form.handleSubmit}
           id="updateParameters"
         >
-          {parameters && parameters.filter((p) => p.mutable).length > 0 && (
+          {missedParameters && (
             <FormFields>
-              {parameters.map((parameter, index) => {
-                if (!parameter.mutable) {
-                  return <></>
-                }
-
+              {missedParameters.map((parameter, index) => {
                 return (
                   <RichParameterInput
                     {...getFieldHelpers(

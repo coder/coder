@@ -640,7 +640,7 @@ func (api *API) proxyWorkspaceApplication(rw http.ResponseWriter, r *http.Reques
 		})
 	}
 
-	conn, release, err := api.workspaceAgentCache.Acquire(r, ticket.AgentID)
+	conn, release, err := api.workspaceAgentCache.Acquire(ticket.AgentID)
 	if err != nil {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusBadGateway,
