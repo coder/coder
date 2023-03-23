@@ -8747,6 +8747,9 @@ const docTemplate = `{
                 "shutdown_script_timeout_seconds": {
                     "type": "integer"
                 },
+                "startup_logs_length": {
+                    "type": "integer"
+                },
                 "startup_logs_overflowed": {
                     "type": "boolean"
                 },

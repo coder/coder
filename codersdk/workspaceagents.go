@@ -90,6 +90,7 @@ type WorkspaceAgent struct {
 	EnvironmentVariables  map[string]string       `json:"environment_variables"`
 	OperatingSystem       string                  `json:"operating_system"`
 	StartupScript         string                  `json:"startup_script,omitempty"`
+	StartupLogsLength     int32                   `json:"startup_logs_length"`
 	StartupLogsOverflowed bool                    `json:"startup_logs_overflowed"`
 	Directory             string                  `json:"directory,omitempty"`
 	ExpandedDirectory     string                  `json:"expanded_directory,omitempty"`

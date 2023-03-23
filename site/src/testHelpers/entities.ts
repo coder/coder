@@ -405,6 +405,8 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   troubleshooting_url: "https://coder.com/troubleshoot",
   lifecycle_state: "starting",
   login_before_ready: false,
+  startup_logs_length: 0,
+  startup_logs_overflowed: false,
   startup_script_timeout_seconds: 120,
   shutdown_script_timeout_seconds: 120,
 }
@@ -655,6 +657,7 @@ export const MockWorkspace: TypesGen.Workspace = {
     MockTemplate.allow_user_cancel_workspace_jobs,
   outdated: false,
   owner_id: MockUser.id,
+  organization_id: MockOrganization.id,
   owner_name: MockUser.username,
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
   ttl_ms: 2 * 60 * 60 * 1000, // 2 hours as milliseconds

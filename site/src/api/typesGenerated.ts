@@ -1037,6 +1037,7 @@ export interface WorkspaceAgent {
   readonly environment_variables: Record<string, string>
   readonly operating_system: string
   readonly startup_script?: string
+  readonly startup_logs_length: number
   readonly startup_logs_overflowed: boolean
   readonly directory?: string
   readonly expanded_directory?: string

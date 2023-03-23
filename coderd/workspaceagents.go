@@ -302,6 +302,30 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 		})
 		return
 	}
+	if workspaceAgent.StartupLogsLength == 0 {
+		// If these are the first logs being appended, we publish a UI update
+		// to notify the UI that logs are now available.
+		resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to get workspace resource.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Internal error fetching workspace build job.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
+	}
+
 	lowestID := logs[0].ID
 	// Publish by the lowest log ID inserted so the
 	// log stream will fetch everything from that point.
@@ -1140,6 +1164,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		Architecture:                 dbAgent.Architecture,
 		OperatingSystem:              dbAgent.OperatingSystem,
 		StartupScript:                dbAgent.StartupScript.String,
+		StartupLogsLength:            dbAgent.StartupLogsLength,
 		StartupLogsOverflowed:        dbAgent.StartupLogsOverflowed,
 		Version:                      dbAgent.Version,
 		EnvironmentVariables:         envs,

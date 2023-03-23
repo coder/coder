@@ -84,6 +84,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 
   const hasStartupFeatures =
     Boolean(agent.startup_script) ||
+    Boolean(agent.startup_logs_length) ||
     Boolean(logsMachine.context.startupLogs?.length)
   const [showStartupLogs, setShowStartupLogs] = useState(
     agent.lifecycle_state !== "ready" && hasStartupFeatures,
