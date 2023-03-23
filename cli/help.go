@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"regexp"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -260,6 +261,8 @@ func (lm *newlineLimiter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+var usageWantsArgRe = regexp.MustCompile(`<.*>`)
+
 // helpFn returns a function that generates usage (help)
 // output for a given command.
 func helpFn() clibase.HandlerFunc {
@@ -281,7 +284,7 @@ func helpFn() clibase.HandlerFunc {
 		if err != nil {
 			return err
 		}
-		if len(inv.Args) > 0 {
+		if len(inv.Args) > 0 && !usageWantsArgRe.MatchString(inv.Command.Use) {
 			_, _ = fmt.Fprintf(inv.Stderr, "---\nerror: unknown subcommand %q\n", inv.Args[0])
 		}
 		return nil
