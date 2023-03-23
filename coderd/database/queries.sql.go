@@ -5050,6 +5050,19 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 	return i, err
 }
 
+const deleteOldWorkspaceAgentStartupLogs = `-- name: DeleteOldWorkspaceAgentStartupLogs :exec
+DELETE FROM workspace_agent_startup_logs WHERE agent_id IN
+	(SELECT id FROM workspace_agents WHERE last_connected_at IS NOT NULL
+		AND last_connected_at < NOW() - INTERVAL '7 day')
+`
+
+// If an agent hasn't connected in the last 7 days, we purge it's logs.
+// Logs can take up a lot of space, so it's important we clean up frequently.
+func (q *sqlQuerier) DeleteOldWorkspaceAgentStartupLogs(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteOldWorkspaceAgentStartupLogs)
+	return err
+}
+
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
 	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, login_before_ready, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed

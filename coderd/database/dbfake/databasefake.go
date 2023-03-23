@@ -4387,6 +4387,11 @@ func (q *fakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) 
 	return 0, sql.ErrNoRows
 }
 
+func (*fakeQuerier) DeleteOldWorkspaceAgentStartupLogs(_ context.Context) error {
+	// noop
+	return nil
+}
+
 func (q *fakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (database.UserLink, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
