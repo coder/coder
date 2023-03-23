@@ -832,6 +832,13 @@ export const getAgentListeningPorts = async (
   return response.data
 }
 
+// getDeploymentSSHConfig is used by the VSCode-Extension.
+export const getDeploymentSSHConfig =
+  async (): Promise<TypesGen.SSHConfigResponse> => {
+    const response = await axios.get(`/api/v2/deployment/ssh`)
+    return response.data
+  }
+
 export const getDeploymentValues = async (): Promise<DeploymentConfig> => {
   const response = await axios.get(`/api/v2/deployment/config`)
   return response.data
