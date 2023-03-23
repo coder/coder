@@ -1,4 +1,5 @@
 import Chip from "@material-ui/core/Chip"
+import FormHelperText from "@material-ui/core/FormHelperText"
 import { makeStyles } from "@material-ui/core/styles"
 import { FC } from "react"
 
@@ -16,46 +17,54 @@ export const MultiTextField: FC<MultiTextFieldProps> = ({
   const styles = useStyles()
 
   return (
-    <label className={styles.root}>
-      {values.map((value, index) => (
-        <Chip
-          key={index}
-          label={value}
-          size="small"
-          onDelete={() => {
-            onChange(values.filter((oldValue) => oldValue !== value))
+    <div>
+      <label className={styles.root}>
+        {values.map((value, index) => (
+          <Chip
+            key={index}
+            label={value}
+            size="small"
+            onDelete={() => {
+              onChange(values.filter((oldValue) => oldValue !== value))
+            }}
+          />
+        ))}
+        <input
+          aria-label={label}
+          className={styles.input}
+          onKeyDown={(event) => {
+            if (event.key === ",") {
+              event.preventDefault()
+              const newValue = event.currentTarget.value
+              onChange([...values, newValue])
+              event.currentTarget.value = ""
+              return
+            }
+
+            if (event.key === "Backspace" && event.currentTarget.value === "") {
+              event.preventDefault()
+
+              if (values.length === 0) {
+                return
+              }
+
+              const lastValue = values[values.length - 1]
+              onChange(values.slice(0, -1))
+              event.currentTarget.value = lastValue
+            }
+          }}
+          onBlur={(event) => {
+            if (event.currentTarget.value !== "") {
+              const newValue = event.currentTarget.value
+              onChange([...values, newValue])
+              event.currentTarget.value = ""
+            }
           }}
         />
-      ))}
-      <input
-        aria-label={label}
-        className={styles.input}
-        onKeyDown={(event) => {
-          if (event.key === ",") {
-            event.preventDefault()
-            const newValue = event.currentTarget.value
-            onChange([...values, newValue])
-            event.currentTarget.value = ""
-            return
-          }
+      </label>
 
-          if (event.key === "Backspace" && event.currentTarget.value === "") {
-            event.preventDefault()
-            const lastValue = values[values.length - 1]
-            onChange(values.slice(0, -1))
-            event.currentTarget.value = lastValue
-            return
-          }
-        }}
-        onBlur={(event) => {
-          if (event.currentTarget.value !== "") {
-            const newValue = event.currentTarget.value
-            onChange([...values, newValue])
-            event.currentTarget.value = ""
-          }
-        }}
-      />
-    </label>
+      <FormHelperText>{'Type "," to separate the values'}</FormHelperText>
+    </div>
   )
 }
 
@@ -63,7 +72,7 @@ const useStyles = makeStyles((theme) => ({
   root: {
     border: `1px solid ${theme.palette.divider}`,
     borderRadius: theme.shape.borderRadius,
-    minHeight: theme.spacing(5),
+    minHeight: theme.spacing(6), // Chip height + paddings
     padding: theme.spacing(1.25, 1.75),
     fontSize: theme.spacing(2),
     display: "flex",
