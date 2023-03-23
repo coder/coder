@@ -52,7 +52,7 @@ export const WorkspaceReadyPage = ({
     cancellationError,
     applicationsHost,
     permissions,
-    missingParameters,
+    missedParameters,
   } = workspaceState.context
   if (workspace === undefined) {
     throw Error("Workspace is undefined")
@@ -140,7 +140,7 @@ export const WorkspaceReadyPage = ({
         }}
       />
       <UpdateBuildParametersDialog
-        parameters={missingParameters}
+        missedParameters={missedParameters}
         open={workspaceState.matches(
           "ready.build.askingForMissedBuildParameters",
         )}

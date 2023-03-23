@@ -31,6 +31,16 @@ CODER_GITAUTH_0_CLIENT_ID=xxxxxx
 CODER_GITAUTH_0_CLIENT_SECRET=xxxxxxx
 ```
 
+### GitHub Enterprise
+
+GitHub Enterprise requires the following authentication and token URLs:
+
+```console
+CODER_GITAUTH_0_VALIDATE_URL="https://github.example.com/login/oauth/access_token/info"
+CODER_GITAUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize"
+CODER_GITAUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
+```
+
 ### Self-managed git providers
 
 Custom authentication and token URLs should be
@@ -70,8 +80,9 @@ CODER_GITAUTH_1_TYPE=github
 CODER_GITAUTH_1_CLIENT_ID=xxxxxx
 CODER_GITAUTH_1_CLIENT_SECRET=xxxxxxx
 CODER_GITAUTH_1_REGEX=github.example.com
-CODER_GITAUTH_1_AUTH_URL="https://github.example.com/oauth/authorize"
-CODER_GITAUTH_1_TOKEN_URL="https://github.example.com/oauth/token"
+CODER_GITAUTH_1_AUTH_URL="https://github.example.com/login/oauth/authorize"
+CODER_GITAUTH_1_TOKEN_URL="https://github.example.com/login/oauth/access_token"
+CODER_GITAUTH_1_VALIDATE_URL="https://github.example.com/login/oauth/access_token/info"
 ```
 
 To support regex matching for paths (e.g. github.com/orgname), you'll need to add this to the [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
