@@ -141,7 +141,10 @@ var usageTemplate = template.Must(
 				return len(opt.UseInstead) > 0
 			},
 			"formatLong": func(long string) string {
-				return wrapTTY(strings.TrimSpace(long))
+				// We intentionally don't wrap here because it would misformat
+				// examples, where the new line would start without the prior
+				// line's indentation.
+				return strings.TrimSpace(long)
 			},
 			"formatGroupDescription": func(s string) string {
 				s = strings.ReplaceAll(s, "\n", "")

@@ -1,7 +1,6 @@
 Usage: coder [global-flags] <subcommand>
 
-Coder v0.0.0-devel — A tool for provisioning self-hosted development
-environments with Terraform.
+Coder v0.0.0-devel — A tool for provisioning self-hosted development environments with Terraform.
   - Start a Coder server:                                                       
 
       [;m$ coder server[0m 

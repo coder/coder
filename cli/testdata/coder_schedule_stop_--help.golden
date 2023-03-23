@@ -3,12 +3,10 @@ Usage: coder schedule stop <workspace-name> { <duration> | manual }
 Edit workspace stop schedule
 
 Schedules a workspace to stop after a given duration has elapsed.
-  * Workspace runtime is measured from the time that the workspace build
-completed.
+  * Workspace runtime is measured from the time that the workspace build completed.
   * The minimum scheduled stop time is 1 minute.
   * The workspace template may place restrictions on the maximum shutdown time.
-  * Changes to workspace schedules only take effect upon the next build of the
-workspace,
+  * Changes to workspace schedules only take effect upon the next build of the workspace,
     and do not affect a running instance of a workspace.
 
 When enabling scheduled stop, enter a duration in one of the following formats:
