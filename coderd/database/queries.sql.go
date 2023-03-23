@@ -4093,25 +4093,45 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 	return i, err
 }
 
-const updateTemplateVersionByID = `-- name: UpdateTemplateVersionByID :exec
+const updateTemplateVersionByID = `-- name: UpdateTemplateVersionByID :one
 UPDATE
 	template_versions
 SET
 	template_id = $2,
-	updated_at = $3
+	updated_at = $3,
+	name = $4
 WHERE
-	id = $1
+	id = $1 RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
 `
 
 type UpdateTemplateVersionByIDParams struct {
 	ID         uuid.UUID     `db:"id" json:"id"`
 	TemplateID uuid.NullUUID `db:"template_id" json:"template_id"`
 	UpdatedAt  time.Time     `db:"updated_at" json:"updated_at"`
+	Name       string        `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateVersionByID, arg.ID, arg.TemplateID, arg.UpdatedAt)
-	return err
+func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) (TemplateVersion, error) {
+	row := q.db.QueryRowContext(ctx, updateTemplateVersionByID,
+		arg.ID,
+		arg.TemplateID,
+		arg.UpdatedAt,
+		arg.Name,
+	)
+	var i TemplateVersion
+	err := row.Scan(
+		&i.ID,
+		&i.TemplateID,
+		&i.OrganizationID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Readme,
+		&i.JobID,
+		&i.CreatedBy,
+		pq.Array(&i.GitAuthProviders),
+	)
+	return i, err
 }
 
 const updateTemplateVersionDescriptionByJobID = `-- name: UpdateTemplateVersionDescriptionByJobID :exec

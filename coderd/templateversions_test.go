@@ -1334,3 +1334,68 @@ func TestTemplateVersionVariables(t *testing.T) {
 		require.Equal(t, "*redacted*", actualVariables[0].Value)
 	})
 }
+
+func TestTemplateVersionPatch(t *testing.T) {
+	t.Parallel()
+	t.Run("Update the name", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		const newName = "new_name"
+		updatedVersion, err := client.UpdateTemplateVersion(ctx, version.ID, codersdk.PatchTemplateVersionRequest{
+			Name: newName,
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, newName, updatedVersion.Name)
+		assert.NotEqual(t, updatedVersion.Name, version.Name)
+	})
+
+	t.Run("Use the same name if a new name is not passed", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		updatedVersion, err := client.UpdateTemplateVersion(ctx, version.ID, codersdk.PatchTemplateVersionRequest{})
+		require.NoError(t, err)
+		assert.Equal(t, version.Name, updatedVersion.Name)
+	})
+
+	t.Run("Use the same name for two different templates", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		const commonTemplateVersionName = "common-template-version-name"
+		updatedVersion1, err := client.UpdateTemplateVersion(ctx, version1.ID, codersdk.PatchTemplateVersionRequest{
+			Name: commonTemplateVersionName,
+		})
+		require.NoError(t, err)
+
+		updatedVersion2, err := client.UpdateTemplateVersion(ctx, version2.ID, codersdk.PatchTemplateVersionRequest{
+			Name: commonTemplateVersionName,
+		})
+		require.NoError(t, err)
+
+		assert.NotEqual(t, updatedVersion1.ID, updatedVersion2.ID)
+		assert.Equal(t, updatedVersion1.Name, updatedVersion2.Name)
+	})
+}

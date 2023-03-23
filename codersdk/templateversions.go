@@ -76,6 +76,10 @@ type TemplateVersionVariable struct {
 	Sensitive    bool   `json:"sensitive"`
 }
 
+type PatchTemplateVersionRequest struct {
+	Name string `json:"name"`
+}
+
 // TemplateVersion returns a template version by ID.
 func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVersion, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s", id), nil)
@@ -270,6 +274,19 @@ func (c *Client) CancelTemplateVersionDryRun(ctx context.Context, version, job u
 
 func (c *Client) PreviousTemplateVersion(ctx context.Context, organization uuid.UUID, templateName, versionName string) (TemplateVersion, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/templates/%s/versions/%s/previous", organization, templateName, versionName), nil)
+	if err != nil {
+		return TemplateVersion{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return TemplateVersion{}, ReadBodyAsError(res)
+	}
+	var version TemplateVersion
+	return version, json.NewDecoder(res.Body).Decode(&version)
+}
+
+func (c *Client) UpdateTemplateVersion(ctx context.Context, versionID uuid.UUID, req PatchTemplateVersionRequest) (TemplateVersion, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templateversions/%s", versionID), req)
 	if err != nil {
 		return TemplateVersion{}, err
 	}
