@@ -1193,7 +1193,8 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 }
 
 func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadata {
-	var result []codersdk.WorkspaceAgentMetadata
+	// An empty array is easier for clients to handle than a null.
+	result := []codersdk.WorkspaceAgentMetadata{}
 	for _, datum := range db {
 		result = append(result, codersdk.WorkspaceAgentMetadata{
 			Result: codersdk.WorkspaceAgentMetadataResult{

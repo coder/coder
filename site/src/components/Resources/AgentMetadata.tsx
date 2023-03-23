@@ -22,7 +22,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
   )
   const staleThreshold = Math.max(
     item.description.interval + item.description.timeout * 2,
-    5,
+    10,
   )
 
   // Stale data is as good as no data. Plus, we want to build confidence in our
@@ -30,7 +30,17 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
   // could be buggy. But, how common is that anyways?
   const value =
     secondsSinceLastCollected < staleThreshold ? (
-      <div className={styles.metadataValue}>{item.result.value}</div>
+      <div
+        className={
+          styles.metadataValue +
+          " " +
+          (item.result.error.length === 0
+            ? styles.metadataValueSuccess
+            : styles.metadataValueError)
+        }
+      >
+        {item.result.value}
+      </div>
     ) : (
       <CircularProgress size={12} />
     )
@@ -117,7 +127,13 @@ const useStyles = makeStyles((theme) => ({
   metadataValue: {
     textOverflow: "ellipsis",
     overflow: "hidden",
-    color: theme.palette.success.light,
     whiteSpace: "nowrap",
+  },
+
+  metadataValueSuccess: {
+    color: theme.palette.success.light,
+  },
+  metadataValueError: {
+    color: theme.palette.error.main,
   },
 }))
