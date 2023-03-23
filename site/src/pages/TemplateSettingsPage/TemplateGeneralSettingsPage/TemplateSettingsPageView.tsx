@@ -12,7 +12,6 @@ export interface TemplateSettingsPageViewProps {
   isSubmitting: boolean
   submitError?: unknown
   initialTouched?: ComponentProps<typeof TemplateSettingsForm>["initialTouched"]
-  canSetMaxTTL: boolean
 }
 
 export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
@@ -20,7 +19,6 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   onCancel,
   onSubmit,
   isSubmitting,
-  canSetMaxTTL,
   submitError,
   initialTouched,
 }) => {
@@ -34,7 +32,6 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
       </PageHeader>
 
       <TemplateSettingsForm
-        canSetMaxTTL={canSetMaxTTL}
         initialTouched={initialTouched}
         isSubmitting={isSubmitting}
         template={template}
