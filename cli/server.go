@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbpurge"
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitauth"
@@ -935,6 +936,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()
+
+			// Ensures that old database entries are cleaned up over time!
+			purger := dbpurge.New(ctx, logger, options.Database)
+			defer purger.Close()
 
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.

@@ -67,13 +67,6 @@ const TemplateMenu: FC<{
         >
           {Language.settingsButton}
         </MenuItem>
-        <MenuItem
-          component={RouterLink}
-          to={`/templates/${templateName}/variables`}
-          onClick={handleClose}
-        >
-          {Language.variablesButton}
-        </MenuItem>
         {canEditFiles && (
           <MenuItem
             component={RouterLink}
