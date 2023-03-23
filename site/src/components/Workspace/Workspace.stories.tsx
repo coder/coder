@@ -1,12 +1,23 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
+import { WatchAgentMetadataContext } from "components/Resources/AgentMetadata"
 import * as Mocks from "../../testHelpers/entities"
 import { Workspace, WorkspaceErrors, WorkspaceProps } from "./Workspace"
+import { withReactContext } from "storybook-react-context"
 
 export default {
   title: "components/Workspace",
   component: Workspace,
   argTypes: {},
+  decorators: [
+    withReactContext({
+      Context: WatchAgentMetadataContext,
+      initialState: (_: string): EventSource => {
+        const s = new EventSource()
+        return s
+      },
+    }),
+  ],
 }
 
 const Template: Story<WorkspaceProps> = (args) => <Workspace {...args} />

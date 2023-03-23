@@ -3,7 +3,9 @@ import makeStyles from "@material-ui/core/styles/makeStyles"
 import { watchAgentMetadata } from "api/api"
 import { WorkspaceAgent, WorkspaceAgentMetadata } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
-import { FC, useEffect, useState } from "react"
+import { createContext, FC, useContext, useEffect, useState } from "react"
+
+export const WatchAgentMetadataContext = createContext(watchAgentMetadata)
 
 const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
   const styles = useStyles()
@@ -50,10 +52,14 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
   )
 }
 
-export const AgentMetadata: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
+export const AgentMetadata: FC<{
+  agent: WorkspaceAgent
+}> = ({ agent }) => {
   const [metadata, setMetadata] = useState<
     WorkspaceAgentMetadata[] | undefined
   >(undefined)
+
+  const watchAgentMetadata = useContext(WatchAgentMetadataContext)
 
   useEffect(() => {
     const source = watchAgentMetadata(agent.id)
@@ -68,7 +74,7 @@ export const AgentMetadata: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
     return () => {
       source.close()
     }
-  }, [agent.id])
+  }, [agent.id, watchAgentMetadata])
 
   const styles = useStyles()
   if (metadata === undefined) {

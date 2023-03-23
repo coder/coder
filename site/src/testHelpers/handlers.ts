@@ -318,4 +318,16 @@ export const handlers = [
       return res(ctx.status(200), ctx.json([M.MockWorkspaceBuildParameter1]))
     },
   ),
+
+  rest.get(
+    "/api/v2/workspaceagents/:workspaceAgentId/watch-metadata",
+    (_, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.set("Connection", "keep-alive"),
+        ctx.set("Content-Type", "text/event-stream"),
+        ctx.body(`data: []\n\n`),
+      )
+    },
+  ),
 ]
