@@ -510,6 +510,14 @@ func TestUserOIDC(t *testing.T) {
 		StatusCode:   http.StatusTemporaryRedirect,
 		Username:     "kyle",
 	}, {
+		Name: "MailOnly",
+		IDTokenClaims: jwt.MapClaims{
+			"mail": "kyle@kwc.io",
+		},
+		AllowSignups: true,
+		StatusCode:   http.StatusTemporaryRedirect,
+		Username:     "kyle",
+	}, {
 		Name: "EmailNotVerified",
 		IDTokenClaims: jwt.MapClaims{
 			"email":          "kyle@kwc.io",

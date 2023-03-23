@@ -593,7 +593,17 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		username, _ = usernameRaw.(string)
 	}
 
-	emailRaw, ok := claims["email"]
+	claimOr := func(keys ...string) (interface{}, bool) {
+		for _, key := range keys {
+			v, ok := claims[key]
+			if ok {
+				return v, true
+			}
+		}
+		return nil, false
+	}
+
+	emailRaw, ok := claimOr("email", "mail")
 	if !ok {
 		// Email is an optional claim in OIDC and
 		// instead the email is frequently sent in
