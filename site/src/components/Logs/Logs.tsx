@@ -99,9 +99,9 @@ const useStyles = makeStyles<
     wordBreak: "break-all",
     color: theme.palette.text.primary,
     fontFamily: MONOSPACE_FONT_FAMILY,
-    height: logLineHeight,
+    height: ({ lineNumbers }) => (lineNumbers ? logLineHeight : "auto"),
     // Whitespace is significant in terminal output for alignment
-    whiteSpace: "pre-line",
+    whiteSpace: "pre",
     padding: theme.spacing(0, 3),
 
     "&.error": {
