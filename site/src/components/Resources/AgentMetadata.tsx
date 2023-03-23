@@ -53,14 +53,11 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
 }
 
 export interface AgentMetadataViewProps {
-  metadata?: WorkspaceAgentMetadata[]
+  metadata: WorkspaceAgentMetadata[]
 }
 
 export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
   const styles = useStyles()
-  if (metadata === undefined) {
-    return <CircularProgress size={16} />
-  }
   if (metadata.length === 0) {
     return <></>
   }
@@ -102,7 +99,11 @@ export const AgentMetadata: FC<{
     }
   }, [agent.id, watchAgentMetadata])
 
-  return AgentMetadataView({ metadata })
+  if (metadata === undefined) {
+    return <CircularProgress size={16} />
+  }
+
+  return <AgentMetadataView metadata={metadata} />
 }
 
 // These are more or less copied from
