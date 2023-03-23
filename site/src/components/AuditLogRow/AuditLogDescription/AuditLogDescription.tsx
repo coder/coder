@@ -11,7 +11,7 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
   const { t } = useTranslation("auditLog")
 
   let target = auditLog.resource_target.trim()
-  const user = auditLog.user ? auditLog.user.username.trim() : "an unknown user"
+  const user = auditLog.user?.username.trim()
 
   if (auditLog.resource_type === "workspace_build") {
     return <BuildAuditDescription auditLog={auditLog} />
@@ -30,7 +30,7 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
   const onBehalfOf =
     auditLog.additional_fields.workspace_owner &&
     auditLog.additional_fields.workspace_owner !== "unknown" &&
-    auditLog.additional_fields.workspace_owner !== auditLog.user?.username
+    auditLog.additional_fields.workspace_owner.trim() !== user
       ? `on behalf of ${auditLog.additional_fields.workspace_owner}`
       : ""
 

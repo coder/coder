@@ -374,6 +374,54 @@ func TestProvision(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name: "git-auth",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = "0.6.20"
+					  }
+					}
+				}
+
+				data "coder_git_auth" "github" {
+					id = "github"
+				}
+
+				resource "null_resource" "example" {}
+
+				resource "coder_metadata" "example" {
+					resource_id = null_resource.example.id
+					item {
+						key = "token"
+						value = data.coder_git_auth.github.access_token
+					}
+				}
+				`,
+			},
+			Request: &proto.Provision_Plan{
+				GitAuthProviders: []*proto.GitAuthProvider{{
+					Id:          "github",
+					AccessToken: "some-value",
+				}},
+			},
+			Response: &proto.Provision_Response{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "null_resource",
+							Metadata: []*proto.Resource_Metadata{{
+								Key:   "token",
+								Value: "some-value",
+							}},
+						}},
+					},
+				},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -403,6 +451,7 @@ func TestProvision(t *testing.T) {
 					planRequest.GetPlan().Config = &proto.Provision_Config{}
 				}
 				planRequest.GetPlan().ParameterValues = testCase.Request.ParameterValues
+				planRequest.GetPlan().GitAuthProviders = testCase.Request.GitAuthProviders
 				if testCase.Request.Config != nil {
 					planRequest.GetPlan().Config.State = testCase.Request.Config.State
 					planRequest.GetPlan().Config.Metadata = testCase.Request.Config.Metadata

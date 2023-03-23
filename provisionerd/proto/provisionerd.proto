@@ -16,9 +16,10 @@ message AcquiredJob {
         string workspace_name = 2;
         repeated provisioner.ParameterValue parameter_values = 3;
         repeated provisioner.RichParameterValue rich_parameter_values = 4;
-		repeated provisioner.VariableValue variable_values = 5;
-        provisioner.Provision.Metadata metadata = 6;
-        bytes state = 7;
+        repeated provisioner.VariableValue variable_values = 5;
+        repeated provisioner.GitAuthProvider git_auth_providers = 6;
+        provisioner.Provision.Metadata metadata = 7;
+        bytes state = 8;
     }
     message TemplateImport {
         provisioner.Provision.Metadata metadata = 1;

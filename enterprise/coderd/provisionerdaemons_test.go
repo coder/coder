@@ -123,23 +123,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 					},
 				},
 			}},
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id:   uuid.NewString(),
-								Name: "example",
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		require.NoError(t, err)
 		file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))

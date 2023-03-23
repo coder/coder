@@ -223,7 +223,12 @@ func New(options *Options) *API {
 		options.SSHConfig.HostnamePrefix = "coder."
 	}
 	if options.SetUserGroups == nil {
-		options.SetUserGroups = func(context.Context, database.Store, uuid.UUID, []string) error { return nil }
+		options.SetUserGroups = func(ctx context.Context, _ database.Store, id uuid.UUID, groups []string) error {
+			options.Logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
+				slog.F("id", id), slog.F("groups", groups),
+			)
+			return nil
+		}
 	}
 	if options.TemplateScheduleStore == nil {
 		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
@@ -826,10 +831,6 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 
 	mux := drpcmux.New()
 
-	gitAuthProviders := make([]string, 0, len(api.GitAuthConfigs))
-	for _, cfg := range api.GitAuthConfigs {
-		gitAuthProviders = append(gitAuthProviders, cfg.ID)
-	}
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
 		AccessURL:             api.AccessURL,
 		ID:                    daemon.ID,
@@ -837,7 +838,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		Database:              api.Database,
 		Pubsub:                api.Pubsub,
 		Provisioners:          daemon.Provisioners,
-		GitAuthProviders:      gitAuthProviders,
+		GitAuthConfigs:        api.GitAuthConfigs,
 		Telemetry:             api.Telemetry,
 		Tags:                  tags,
 		QuotaCommitter:        &api.QuotaCommitter,
