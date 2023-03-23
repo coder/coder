@@ -5,5 +5,5 @@ test.use({ storageState: getStatePath("authState") })
 
 test("list templates", async ({ page, baseURL }) => {
   await page.goto(`${baseURL}/templates`, { waitUntil: "networkidle" })
-  await expect(page).toHaveTitle("Templates – Coder")
+  await expect(page).toHaveTitle("Templates - Coder")
 })

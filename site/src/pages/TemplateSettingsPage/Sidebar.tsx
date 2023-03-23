@@ -1,14 +1,14 @@
 import { makeStyles } from "@material-ui/core/styles"
-import VpnKeyOutlined from "@material-ui/icons/VpnKeyOutlined"
-import FingerprintOutlinedIcon from "@material-ui/icons/FingerprintOutlined"
-import { User } from "api/typesGenerated"
+import ScheduleIcon from "@material-ui/icons/TimerOutlined"
+import VariablesIcon from "@material-ui/icons/CodeOutlined"
+import { Template } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
-import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { FC, ElementType, PropsWithChildren, ReactNode } from "react"
-import { NavLink } from "react-router-dom"
+import { Link, NavLink } from "react-router-dom"
 import { combineClasses } from "util/combineClasses"
-import AccountIcon from "@material-ui/icons/Person"
+import GeneralIcon from "@material-ui/icons/SettingsOutlined"
 import SecurityIcon from "@material-ui/icons/LockOutlined"
+import { Avatar } from "components/Avatar/Avatar"
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
@@ -16,6 +16,7 @@ const SidebarNavItem: FC<
   const styles = useStyles()
   return (
     <NavLink
+      end
       to={href}
       className={({ isActive }) =>
         combineClasses([
@@ -39,42 +40,47 @@ const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
   return <Icon className={styles.sidebarNavItemIcon} />
 }
 
-export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
+export const Sidebar: React.FC<{ template: Template }> = ({ template }) => {
   const styles = useStyles()
 
   return (
     <nav className={styles.sidebar}>
-      <Stack direction="row" alignItems="center" className={styles.userInfo}>
-        <UserAvatar username={user.username} avatarURL={user.avatar_url} />
-        <Stack spacing={0} className={styles.userData}>
-          <span className={styles.username}>{user.username}</span>
-          <span className={styles.email}>{user.email}</span>
+      <Stack
+        direction="row"
+        alignItems="center"
+        className={styles.templateInfo}
+      >
+        <Avatar src={template.icon} variant="square" fitImage />
+        <Stack spacing={0} className={styles.templateData}>
+          <Link className={styles.name} to={`/templates/${template.name}`}>
+            {template.display_name !== ""
+              ? template.display_name
+              : template.name}
+          </Link>
+          <span className={styles.secondary}>{template.name}</span>
         </Stack>
       </Stack>
 
-      <SidebarNavItem
-        href="account"
-        icon={<SidebarNavItemIcon icon={AccountIcon} />}
-      >
-        Account
+      <SidebarNavItem href="" icon={<SidebarNavItemIcon icon={GeneralIcon} />}>
+        General
       </SidebarNavItem>
       <SidebarNavItem
-        href="security"
+        href="permissions"
         icon={<SidebarNavItemIcon icon={SecurityIcon} />}
       >
-        Security
+        Permissions
       </SidebarNavItem>
       <SidebarNavItem
-        href="ssh-keys"
-        icon={<SidebarNavItemIcon icon={FingerprintOutlinedIcon} />}
+        href="variables"
+        icon={<SidebarNavItemIcon icon={VariablesIcon} />}
       >
-        SSH Keys
+        Variables
       </SidebarNavItem>
       <SidebarNavItem
-        href="tokens"
-        icon={<SidebarNavItemIcon icon={VpnKeyOutlined} />}
+        href="schedule"
+        icon={<SidebarNavItemIcon icon={ScheduleIcon} />}
       >
-        Tokens
+        Schedule
       </SidebarNavItem>
     </nav>
   )
@@ -120,19 +126,21 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(2),
     height: theme.spacing(2),
   },
-  userInfo: {
+  templateInfo: {
     marginBottom: theme.spacing(2),
   },
-  userData: {
+  templateData: {
     overflow: "hidden",
   },
-  username: {
+  name: {
     fontWeight: 600,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+    color: theme.palette.text.primary,
+    textDecoration: "none",
   },
-  email: {
+  secondary: {
     color: theme.palette.text.secondary,
     fontSize: 12,
     overflow: "hidden",

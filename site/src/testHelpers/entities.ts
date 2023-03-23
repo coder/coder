@@ -667,9 +667,10 @@ export const MockWorkspace: TypesGen.Workspace = {
   organization_id: MockOrganization.id,
   owner_name: MockUser.username,
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
-  ttl_ms: 2 * 60 * 60 * 1000, // 2 hours as milliseconds
+  ttl_ms: 2 * 60 * 60 * 1000,
   latest_build: MockWorkspaceBuild,
   last_used_at: "",
+  organization_id: MockOrganization.id,
 }
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -1274,6 +1275,20 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   trial: false,
   features: withDefaultFeatures({
     audit_log: {
+      enabled: true,
+      entitlement: "entitled",
+    },
+  }),
+}
+
+export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
+  errors: [],
+  warnings: [],
+  has_license: true,
+  require_telemetry: false,
+  trial: false,
+  features: withDefaultFeatures({
+    advanced_template_scheduling: {
       enabled: true,
       entitlement: "entitled",
     },

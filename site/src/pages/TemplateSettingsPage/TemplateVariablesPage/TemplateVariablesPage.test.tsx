@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react"
+import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import {
   MockTemplate,
@@ -6,16 +6,14 @@ import {
   MockTemplateVersion,
   MockTemplateVersionVariable1,
   MockTemplateVersionVariable2,
-  renderWithAuth,
   MockTemplateVersionVariable5,
+  renderWithTemplateSettingsLayout,
+  waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers"
 import * as API from "api/api"
 import i18next from "i18next"
 import TemplateVariablesPage from "./TemplateVariablesPage"
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter"
-import * as router from "react-router"
-
-const navigate = jest.fn()
 
 const { t } = i18next
 
@@ -30,12 +28,13 @@ const validationRequiredField = t("validationRequiredVariable", {
   ns: "templateVariablesPage",
 })
 
-const renderTemplateVariablesPage = () => {
-  return renderWithAuth(<TemplateVariablesPage />, {
+const renderTemplateVariablesPage = async () => {
+  renderWithTemplateSettingsLayout(<TemplateVariablesPage />, {
     route: `/templates/${MockTemplate.name}/variables`,
     path: `/templates/:template/variables`,
     extraRoutes: [{ path: `/templates/${MockTemplate.name}`, element: <></> }],
   })
+  await waitForLoaderToBeRemoved()
 }
 
 describe("TemplateVariablesPage", () => {
@@ -51,7 +50,7 @@ describe("TemplateVariablesPage", () => {
         MockTemplateVersionVariable2,
       ])
 
-    renderTemplateVariablesPage()
+    await renderTemplateVariablesPage()
 
     const element = await screen.findByText(pageTitleText)
     expect(element).toBeDefined()
@@ -84,9 +83,8 @@ describe("TemplateVariablesPage", () => {
     jest.spyOn(API, "updateActiveTemplateVersion").mockResolvedValueOnce({
       message: "done",
     })
-    jest.spyOn(router, "useNavigate").mockImplementation(() => navigate)
 
-    renderTemplateVariablesPage()
+    await renderTemplateVariablesPage()
 
     const element = await screen.findByText(pageTitleText)
     expect(element).toBeDefined()
@@ -120,10 +118,8 @@ describe("TemplateVariablesPage", () => {
     )
     await userEvent.click(submitButton)
 
-    // Wait for redirect
-    await waitFor(() =>
-      expect(navigate).toHaveBeenCalledWith(`/templates/${MockTemplate.name}`),
-    )
+    // Wait for the success message
+    await screen.findByText("Template updated successfully")
   })
 
   it("user forgets to fill the required field", async () => {
@@ -143,9 +139,8 @@ describe("TemplateVariablesPage", () => {
     jest.spyOn(API, "updateActiveTemplateVersion").mockResolvedValueOnce({
       message: "done",
     })
-    jest.spyOn(router, "useNavigate").mockImplementation(() => navigate)
 
-    renderTemplateVariablesPage()
+    await renderTemplateVariablesPage()
 
     const element = await screen.findByText(pageTitleText)
     expect(element).toBeDefined()
@@ -169,21 +164,5 @@ describe("TemplateVariablesPage", () => {
     // Check validation error
     const validationError = await screen.findByText(validationRequiredField)
     expect(validationError).toBeDefined()
-  })
-
-  it("no managed variables", async () => {
-    jest.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate)
-    jest
-      .spyOn(API, "getTemplateVersion")
-      .mockResolvedValueOnce(MockTemplateVersion)
-    jest.spyOn(API, "getTemplateVersionVariables").mockResolvedValueOnce([])
-
-    renderTemplateVariablesPage()
-
-    const element = await screen.findByText(pageTitleText)
-    expect(element).toBeDefined()
-
-    const goBackButton = await screen.findByText("Go back")
-    expect(goBackButton).toBeDefined()
   })
 })
