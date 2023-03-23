@@ -475,6 +475,22 @@ CREATE TABLE users (
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
 );
 
+CREATE TABLE workspace_agent_startup_logs (
+    agent_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    output character varying(1024) NOT NULL,
+    id bigint NOT NULL
+);
+
+CREATE SEQUENCE workspace_agent_startup_logs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE workspace_agent_startup_logs_id_seq OWNED BY workspace_agent_startup_logs.id;
+
 CREATE TABLE workspace_agent_stats (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -523,7 +539,10 @@ CREATE TABLE workspace_agents (
     startup_script_timeout_seconds integer DEFAULT 0 NOT NULL,
     expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL,
     shutdown_script character varying(65534),
-    shutdown_script_timeout_seconds integer DEFAULT 0 NOT NULL
+    shutdown_script_timeout_seconds integer DEFAULT 0 NOT NULL,
+    startup_logs_length integer DEFAULT 0 NOT NULL,
+    startup_logs_overflowed boolean DEFAULT false NOT NULL,
+    CONSTRAINT max_startup_logs_length CHECK ((startup_logs_length <= 1048576))
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
@@ -545,6 +564,10 @@ COMMENT ON COLUMN workspace_agents.expanded_directory IS 'The resolved path of a
 COMMENT ON COLUMN workspace_agents.shutdown_script IS 'Script that is executed before the agent is stopped.';
 
 COMMENT ON COLUMN workspace_agents.shutdown_script_timeout_seconds IS 'The number of seconds to wait for the shutdown script to complete. If the script does not complete within this time, the agent lifecycle will be marked as shutdown_timeout.';
+
+COMMENT ON COLUMN workspace_agents.startup_logs_length IS 'Total length of startup logs';
+
+COMMENT ON COLUMN workspace_agents.startup_logs_overflowed IS 'Whether the startup logs overflowed in length';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
@@ -639,6 +662,8 @@ ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq':
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
 
+ALTER TABLE ONLY workspace_agent_startup_logs ALTER COLUMN id SET DEFAULT nextval('workspace_agent_startup_logs_id_seq'::regclass);
+
 ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval('workspace_resource_metadata_id_seq'::regclass);
 
 ALTER TABLE ONLY workspace_agent_stats
@@ -731,6 +756,9 @@ ALTER TABLE ONLY user_links
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_agent_startup_logs
+    ADD CONSTRAINT workspace_agent_startup_logs_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
@@ -802,6 +830,8 @@ CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WH
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 
+CREATE INDEX workspace_agent_startup_logs_id_agent_id_idx ON workspace_agent_startup_logs USING btree (agent_id, id);
+
 CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
@@ -863,6 +893,9 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_startup_logs
+    ADD CONSTRAINT workspace_agent_startup_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;

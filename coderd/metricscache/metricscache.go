@@ -9,7 +9,6 @@ import (
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	"golang.org/x/xerrors"
 
 	"github.com/google/uuid"
 
@@ -168,10 +167,6 @@ func countUniqueUsers(rows []database.GetTemplateDAUsRow) int {
 func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 	//nolint:gocritic // This is a system service.
 	ctx = dbauthz.AsSystemRestricted(ctx)
-	err := c.database.DeleteOldWorkspaceAgentStats(ctx)
-	if err != nil {
-		return xerrors.Errorf("delete old stats: %w", err)
-	}
 
 	templates, err := c.database.GetTemplates(ctx)
 	if err != nil {

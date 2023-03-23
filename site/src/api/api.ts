@@ -694,6 +694,15 @@ export const getWorkspaceBuildLogs = async (
   return response.data
 }
 
+export const getWorkspaceAgentStartupLogs = async (
+  agentID: string,
+): Promise<TypesGen.WorkspaceAgentStartupLog[]> => {
+  const response = await axios.get<TypesGen.WorkspaceAgentStartupLog[]>(
+    `/api/v2/workspaceagents/${agentID}/startup-logs`,
+  )
+  return response.data
+}
+
 export const putWorkspaceExtension = async (
   workspaceId: string,
   newDeadline: dayjs.Dayjs,

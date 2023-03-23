@@ -200,6 +200,25 @@
 | `startup_script_timeout`  | integer                                                 | false    |              |                                                                                                                                                            |
 | `vscode_port_proxy_uri`   | string                                                  | false    |              |                                                                                                                                                            |
 
+## agentsdk.PatchStartupLogs
+
+```json
+{
+  "logs": [
+    {
+      "created_at": "string",
+      "output": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name   | Type                                                | Required | Restrictions | Description |
+| ------ | --------------------------------------------------- | -------- | ------------ | ----------- |
+| `logs` | array of [agentsdk.StartupLog](#agentsdkstartuplog) | false    |              |             |
+
 ## agentsdk.PostAppHealthsRequest
 
 ```json
@@ -247,6 +266,22 @@
 | -------------------- | ------ | -------- | ------------ | ----------- |
 | `expanded_directory` | string | false    |              |             |
 | `version`            | string | false    |              |             |
+
+## agentsdk.StartupLog
+
+```json
+{
+  "created_at": "string",
+  "output": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `created_at` | string | false    |              |             |
+| `output`     | string | false    |              |             |
 
 ## agentsdk.Stats
 
@@ -4321,6 +4356,8 @@ Parameter represents a set value for the scope.
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "shutdown_script": "string",
             "shutdown_script_timeout_seconds": 0,
+            "startup_logs_length": 0,
+            "startup_logs_overflowed": true,
             "startup_script": "string",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
@@ -4448,6 +4485,8 @@ Parameter represents a set value for the scope.
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "shutdown_script": "string",
   "shutdown_script_timeout_seconds": 0,
+  "startup_logs_length": 0,
+  "startup_logs_overflowed": true,
   "startup_script": "string",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",
@@ -4483,6 +4522,8 @@ Parameter represents a set value for the scope.
 | `resource_id`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `shutdown_script`                 | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `shutdown_script_timeout_seconds` | integer                                                              | false    |              |                                                                                                                                                                                                            |
+| `startup_logs_length`             | integer                                                              | false    |              |                                                                                                                                                                                                            |
+| `startup_logs_overflowed`         | boolean                                                              | false    |              |                                                                                                                                                                                                            |
 | `startup_script`                  | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `startup_script_timeout_seconds`  | integer                                                              | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
 | `status`                          | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)       | false    |              |                                                                                                                                                                                                            |
@@ -4613,6 +4654,24 @@ Parameter represents a set value for the scope.
 | Name    | Type                                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                                            |
 | ------- | ------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `ports` | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | If there are no ports in the list, nothing should be displayed in the UI. There must not be a "no ports available" message or anything similar, as there will always be no ports displayed on platforms where our port detection logic is unsupported. |
+
+## codersdk.WorkspaceAgentStartupLog
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": 0,
+  "output": "string"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `created_at` | string  | false    |              |             |
+| `id`         | integer | false    |              |             |
+| `output`     | string  | false    |              |             |
 
 ## codersdk.WorkspaceAgentStatus
 
@@ -4793,6 +4852,8 @@ Parameter represents a set value for the scope.
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
+          "startup_logs_length": 0,
+          "startup_logs_overflowed": true,
           "startup_script": "string",
           "startup_script_timeout_seconds": 0,
           "status": "connecting",
@@ -5012,6 +5073,8 @@ Parameter represents a set value for the scope.
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "shutdown_script": "string",
       "shutdown_script_timeout_seconds": 0,
+      "startup_logs_length": 0,
+      "startup_logs_overflowed": true,
       "startup_script": "string",
       "startup_script_timeout_seconds": 0,
       "status": "connecting",
@@ -5207,6 +5270,8 @@ Parameter represents a set value for the scope.
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "shutdown_script": "string",
                 "shutdown_script_timeout_seconds": 0,
+                "startup_logs_length": 0,
+                "startup_logs_overflowed": true,
                 "startup_script": "string",
                 "startup_script_timeout_seconds": 0,
                 "status": "connecting",

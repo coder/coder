@@ -60,6 +60,7 @@ func New() database.Store {
 			templateVersions:          make([]database.TemplateVersion, 0),
 			templates:                 make([]database.Template, 0),
 			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
+			workspaceAgentLogs:        make([]database.WorkspaceAgentStartupLog, 0),
 			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
@@ -123,6 +124,7 @@ type data struct {
 	templateVersionVariables  []database.TemplateVersionVariable
 	templates                 []database.Template
 	workspaceAgents           []database.WorkspaceAgent
+	workspaceAgentLogs        []database.WorkspaceAgentStartupLog
 	workspaceApps             []database.WorkspaceApp
 	workspaceBuilds           []database.WorkspaceBuild
 	workspaceBuildParameters  []database.WorkspaceBuildParameter
@@ -2614,7 +2616,7 @@ func (q *fakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after ti
 	return jobs, nil
 }
 
-func (q *fakeQuerier) GetProvisionerLogsByIDBetween(_ context.Context, arg database.GetProvisionerLogsByIDBetweenParams) ([]database.ProvisionerJobLog, error) {
+func (q *fakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.GetProvisionerLogsAfterIDParams) ([]database.ProvisionerJobLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -2625,9 +2627,6 @@ func (q *fakeQuerier) GetProvisionerLogsByIDBetween(_ context.Context, arg datab
 	logs := make([]database.ProvisionerJobLog, 0)
 	for _, jobLog := range q.provisionerJobLogs {
 		if jobLog.JobID != arg.JobID {
-			continue
-		}
-		if arg.CreatedBefore != 0 && jobLog.ID > arg.CreatedBefore {
 			continue
 		}
 		if arg.CreatedAfter != 0 && jobLog.ID < arg.CreatedAfter {
@@ -3517,6 +3516,70 @@ func (q *fakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetWorkspaceAgentStartupLogsAfter(_ context.Context, arg database.GetWorkspaceAgentStartupLogsAfterParams) ([]database.WorkspaceAgentStartupLog, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	logs := []database.WorkspaceAgentStartupLog{}
+	for _, log := range q.workspaceAgentLogs {
+		if log.AgentID != arg.AgentID {
+			continue
+		}
+		if arg.CreatedAfter != 0 && log.ID < arg.CreatedAfter {
+			continue
+		}
+		logs = append(logs, log)
+	}
+	return logs, nil
+}
+
+func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(_ context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]database.WorkspaceAgentStartupLog, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	logs := []database.WorkspaceAgentStartupLog{}
+	id := int64(1)
+	if len(q.workspaceAgentLogs) > 0 {
+		id = q.workspaceAgentLogs[len(q.workspaceAgentLogs)-1].ID
+	}
+	outputLength := int32(0)
+	for index, output := range arg.Output {
+		id++
+		logs = append(logs, database.WorkspaceAgentStartupLog{
+			ID:        id,
+			AgentID:   arg.AgentID,
+			CreatedAt: arg.CreatedAt[index],
+			Output:    output,
+		})
+		outputLength += int32(len(output))
+	}
+	for index, agent := range q.workspaceAgents {
+		if agent.ID != arg.AgentID {
+			continue
+		}
+		// Greater than 1MB, same as the PostgreSQL constraint!
+		if agent.StartupLogsLength+outputLength > (1 << 20) {
+			return nil, &pq.Error{
+				Constraint: "max_startup_logs_length",
+				Table:      "workspace_agents",
+			}
+		}
+		agent.StartupLogsLength += outputLength
+		q.workspaceAgents[index] = agent
+		break
+	}
+	q.workspaceAgentLogs = append(q.workspaceAgentLogs, logs...)
+	return logs, nil
+}
+
 func (q *fakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.UpdateProvisionerJobByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -4325,6 +4388,11 @@ func (q *fakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) 
 	return 0, sql.ErrNoRows
 }
 
+func (*fakeQuerier) DeleteOldWorkspaceAgentStartupLogs(_ context.Context) error {
+	// noop
+	return nil
+}
+
 func (q *fakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (database.UserLink, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4729,6 +4797,23 @@ func (q *fakeQuerier) UpdateWorkspaceAgentLifecycleStateByID(_ context.Context, 
 	for i, agent := range q.workspaceAgents {
 		if agent.ID == arg.ID {
 			agent.LifecycleState = arg.LifecycleState
+			q.workspaceAgents[i] = agent
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateWorkspaceAgentStartupLogOverflowByID(_ context.Context, arg database.UpdateWorkspaceAgentStartupLogOverflowByIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for i, agent := range q.workspaceAgents {
+		if agent.ID == arg.ID {
+			agent.StartupLogsOverflowed = arg.StartupLogsOverflowed
 			q.workspaceAgents[i] = agent
 			return nil
 		}

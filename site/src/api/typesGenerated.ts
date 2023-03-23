@@ -1042,6 +1042,8 @@ export interface WorkspaceAgent {
   readonly environment_variables: Record<string, string>
   readonly operating_system: string
   readonly startup_script?: string
+  readonly startup_logs_length: number
+  readonly startup_logs_overflowed: boolean
   readonly directory?: string
   readonly expanded_directory?: string
   readonly version: string
@@ -1065,6 +1067,13 @@ export interface WorkspaceAgentListeningPort {
 // From codersdk/workspaceagentconn.go
 export interface WorkspaceAgentListeningPortsResponse {
   readonly ports: WorkspaceAgentListeningPort[]
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentStartupLog {
+  readonly id: number
+  readonly created_at: string
+  readonly output: string
 }
 
 // From codersdk/workspaceapps.go
