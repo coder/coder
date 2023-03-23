@@ -259,13 +259,15 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 		modules = append(modules, plan.PriorState.Values.RootModule)
 	}
 	modules = append(modules, plan.PlannedValues.RootModule)
-	state, err := ConvertState(modules, rawGraph)
+
+	rawParameterNames, err := rawRichParameterNames(e.workdir)
+	if err != nil {
+		return nil, xerrors.Errorf("raw rich parameter names: %w", err)
+	}
+
+	state, err := ConvertState(modules, rawGraph, rawParameterNames)
 	if err != nil {
 		return nil, err
-	}
-	state, err = orderResources(e.workdir, *state)
-	if err != nil {
-		return nil, xerrors.Errorf("order resources: %w", err)
 	}
 	return state, nil
 }
@@ -374,9 +376,14 @@ func (e *executor) stateResources(ctx, killCtx context.Context) (*State, error) 
 	}
 	converted := &State{}
 	if state.Values != nil {
+		rawParameterNames, err := rawRichParameterNames(e.workdir)
+		if err != nil {
+			return nil, xerrors.Errorf("raw rich parameter names: %w", err)
+		}
+
 		converted, err = ConvertState([]*tfjson.StateModule{
 			state.Values.RootModule,
-		}, rawGraph)
+		}, rawGraph, rawParameterNames)
 		if err != nil {
 			return nil, err
 		}

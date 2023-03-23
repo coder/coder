@@ -8,8 +8,6 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
-
-	"github.com/coder/coder/provisionersdk/proto"
 )
 
 var terraformWithCoderParametersSchema = &hcl.BodySchema{
@@ -21,7 +19,7 @@ var terraformWithCoderParametersSchema = &hcl.BodySchema{
 	},
 }
 
-func orderResources(workdir string, state State) (*State, error) {
+func rawRichParameterNames(workdir string) ([]string, error) {
 	entries, err := os.ReadDir(workdir)
 	if err != nil {
 		return nil, err
@@ -53,25 +51,5 @@ func orderResources(workdir string, state State) (*State, error) {
 			}
 		}
 	}
-
-	if len(coderParameterNames) != len(state.Parameters) {
-		return &state, nil // Return the original state, parameters will be order alphabetically.
-	}
-
-	var orderedParameters []*proto.RichParameter
-	for _, coderParameterName := range coderParameterNames {
-		for _, p := range orderedParameters {
-			if p.Name != coderParameterName {
-				continue
-			}
-			orderedParameters = append(orderedParameters, p)
-		}
-	}
-
-	if len(orderedParameters) != len(state.Parameters) {
-		return &state, nil // Return the original state, most likely a parameter was placed twice.
-	}
-
-	state.Parameters = orderedParameters
-	return &state, nil
+	return coderParameterNames, nil
 }
