@@ -75,7 +75,7 @@ var WorkspaceAgentLifecycleOrder = []WorkspaceAgentLifecycle{
 }
 
 type WorkspaceAgentMetadataResult struct {
-	CollectedAt time.Time `json:"collected_at"`
+	CollectedAt time.Time `json:"collected_at" format:"date-time"`
 	Key         string    `json:"key"`
 	Value       string    `json:"value"`
 	Error       string    `json:"error"`
