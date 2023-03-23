@@ -5,6 +5,7 @@ import {
   MockWorkspaceAgentConnecting,
   MockWorkspaceAgentOff,
   MockWorkspaceAgentOutdated,
+  MockWorkspaceAgentReady,
   MockWorkspaceAgentShutdownError,
   MockWorkspaceAgentShutdownTimeout,
   MockWorkspaceAgentShuttingDown,
@@ -97,6 +98,29 @@ Timeout.args = {
 export const Starting = Template.bind({})
 Starting.args = {
   agent: MockWorkspaceAgentStarting,
+  workspace: MockWorkspace,
+  applicationsHost: "",
+  showApps: true,
+
+  storybookStartupLogs: [
+    "Cloning Git repository...",
+    "Starting Docker Daemon...",
+    "Adding some 🧙magic🧙...",
+    "Starting VS Code...",
+  ].map((line, index) => ({
+    id: index,
+    level: "info",
+    output: line,
+    time: "",
+  })),
+}
+
+export const Started = Template.bind({})
+Started.args = {
+  agent: {
+    ...MockWorkspaceAgentReady,
+    startup_logs_length: 1,
+  },
   workspace: MockWorkspace,
   applicationsHost: "",
   showApps: true,

@@ -83,9 +83,9 @@ export const AgentRow: FC<AgentRowProps> = ({
   const [startupScriptOpen, setStartupScriptOpen] = useState(false)
 
   const hasStartupFeatures =
-    Boolean(agent.startup_script) ||
     Boolean(agent.startup_logs_length) ||
     Boolean(logsMachine.context.startupLogs?.length)
+
   const [showStartupLogs, setShowStartupLogs] = useState(
     agent.lifecycle_state !== "ready" && hasStartupFeatures,
   )
@@ -205,13 +205,13 @@ export const AgentRow: FC<AgentRowProps> = ({
               </Maybe>
             </Stack>
 
-            <Stack
-              direction="row"
-              alignItems="baseline"
-              spacing={1}
-              className={styles.startupLinks}
-            >
-              {hasStartupFeatures && (
+            {hasStartupFeatures && (
+              <Stack
+                direction="row"
+                alignItems="baseline"
+                spacing={1}
+                className={styles.startupLinks}
+              >
                 <Link
                   className={styles.startupLink}
                   variant="body2"
@@ -226,57 +226,57 @@ export const AgentRow: FC<AgentRowProps> = ({
                   )}
                   {showStartupLogs ? "Hide" : "Show"} Startup Logs
                 </Link>
-              )}
 
-              {agent.startup_script && (
-                <Link
-                  className={styles.startupLink}
-                  variant="body2"
-                  ref={startupScriptAnchorRef}
-                  onClick={() => {
-                    setStartupScriptOpen(!startupScriptOpen)
-                  }}
-                >
-                  <PlayCircleOutlined />
-                  View Startup Script
-                </Link>
-              )}
-
-              <Popover
-                classes={{
-                  paper: styles.startupScriptPopover,
-                }}
-                open={startupScriptOpen}
-                onClose={() => setStartupScriptOpen(false)}
-                anchorEl={startupScriptAnchorRef.current}
-                anchorOrigin={{
-                  vertical: "bottom",
-                  horizontal: "left",
-                }}
-                transformOrigin={{
-                  vertical: "top",
-                  horizontal: "left",
-                }}
-              >
-                <div>
-                  <SyntaxHighlighter
-                    style={darcula}
-                    language="shell"
-                    showLineNumbers
-                    // Use inline styles does not work correctly
-                    // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/329
-                    codeTagProps={{ style: {} }}
-                    customStyle={{
-                      background: theme.palette.background.default,
-                      maxWidth: 600,
-                      margin: 0,
+                {agent.startup_script && (
+                  <Link
+                    className={styles.startupLink}
+                    variant="body2"
+                    ref={startupScriptAnchorRef}
+                    onClick={() => {
+                      setStartupScriptOpen(!startupScriptOpen)
                     }}
                   >
-                    {agent.startup_script || ""}
-                  </SyntaxHighlighter>
-                </div>
-              </Popover>
-            </Stack>
+                    <PlayCircleOutlined />
+                    View Startup Script
+                  </Link>
+                )}
+
+                <Popover
+                  classes={{
+                    paper: styles.startupScriptPopover,
+                  }}
+                  open={startupScriptOpen}
+                  onClose={() => setStartupScriptOpen(false)}
+                  anchorEl={startupScriptAnchorRef.current}
+                  anchorOrigin={{
+                    vertical: "bottom",
+                    horizontal: "left",
+                  }}
+                  transformOrigin={{
+                    vertical: "top",
+                    horizontal: "left",
+                  }}
+                >
+                  <div>
+                    <SyntaxHighlighter
+                      style={darcula}
+                      language="shell"
+                      showLineNumbers
+                      // Use inline styles does not work correctly
+                      // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/329
+                      codeTagProps={{ style: {} }}
+                      customStyle={{
+                        background: theme.palette.background.default,
+                        maxWidth: 600,
+                        margin: 0,
+                      }}
+                    >
+                      {agent.startup_script || ""}
+                    </SyntaxHighlighter>
+                  </div>
+                </Popover>
+              </Stack>
+            )}
           </div>
         </Stack>
 

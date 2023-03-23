@@ -472,6 +472,13 @@ export const MockWorkspaceAgentStarting: TypesGen.WorkspaceAgent = {
   lifecycle_state: "starting",
 }
 
+export const MockWorkspaceAgentReady: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-ready",
+  name: "a-ready-workspace-agent",
+  lifecycle_state: "ready",
+}
+
 export const MockWorkspaceAgentStartTimeout: TypesGen.WorkspaceAgent = {
   ...MockWorkspaceAgent,
   id: "test-workspace-agent-start-timeout",
