@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -418,9 +417,44 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 	ctx := r.Context()
 	clientConn, serverConn := net.Pipe()
 
+	derpMap := api.DERPMap.Clone()
+	for _, region := range derpMap.Regions {
+		if !region.EmbeddedRelay {
+			continue
+		}
+		var node *tailcfg.DERPNode
+		for _, n := range region.Nodes {
+			if n.STUNOnly {
+				continue
+			}
+			node = n
+			break
+		}
+		if node == nil {
+			continue
+		}
+		// TODO: This should dial directly to execute the
+		// DERP server instead of contacting localhost.
+		//
+		// This requires modification of Tailscale internals
+		// to pipe through a proxy function per-region, so
+		// this is an easy and mostly reliable hack for now.
+		cloned := node.Clone()
+		// Add p for proxy.
+		// This first node supports TLS.
+		cloned.Name += "p"
+		cloned.IPv4 = "127.0.0.1"
+		cloned.InsecureForTests = true
+		region.Nodes = append(region.Nodes, cloned.Clone())
+		// This second node forces HTTP.
+		cloned.Name += "-http"
+		cloned.ForceHTTP = true
+		region.Nodes = append(region.Nodes, cloned)
+	}
+
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:   api.DERPMap,
+		DERPMap:   derpMap,
 		Logger:    api.Logger.Named("tailnet"),
 	})
 	if err != nil {
@@ -428,19 +462,6 @@ func (api *API) dialWorkspaceAgentTailnet(r *http.Request, agentID uuid.UUID) (*
 		_ = serverConn.Close()
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
-	conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
-		if !region.EmbeddedRelay {
-			return nil
-		}
-		left, right := net.Pipe()
-		go func() {
-			defer left.Close()
-			defer right.Close()
-			brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
-			api.DERPServer.Accept(ctx, right, brw, r.RemoteAddr)
-		}()
-		return left
-	})
 
 	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
 		err = conn.UpdateNodes(node, true)
