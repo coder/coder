@@ -1,3 +1,4 @@
+import { Popover } from "@material-ui/core"
 import CircularProgress from "@material-ui/core/CircularProgress"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import { watchAgentMetadata } from "api/api"
@@ -72,11 +73,25 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
       role="presentation"
       ref={anchorRef}
     >
-      <HelpPopover
+      <Popover
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "left",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "left",
+        }}
         open={isOpen}
         anchorEl={anchorRef.current}
-        onOpen={() => setIsOpen(true)}
         onClose={() => setIsOpen(false)}
+        PaperProps={{
+          onMouseEnter: () => setIsOpen(true),
+          // onMouseLeave: () => setIsOpen(false),
+        }}
+        style={{
+          width: "auto",
+        }}
       >
         <HelpTooltipTitle>{item.description.display_name}</HelpTooltipTitle>
         <HelpTooltipText>
@@ -97,7 +112,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
           This item is collected by running the following command:
           <CodeExample code={item.description.script}></CodeExample>
         </HelpTooltipText>
-      </HelpPopover>
+      </Popover>
       <div className={styles.metadataLabel}>
         {item.description.display_name}
       </div>
