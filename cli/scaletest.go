@@ -255,7 +255,7 @@ func (s *scaletestOutputFlags) attach(opts *clibase.OptionSet) {
 		Env:         "CODER_SCALETEST_OUTPUTS",
 		Description: `Output format specs in the format "<format>[:<path>]". Not specifying a path will default to stdout. Available formats: text, json.`,
 		Default:     "text",
-		Value:       clibase.StringsOf(&s.outputSpecs),
+		Value:       clibase.StringArrayOf(&s.outputSpecs),
 	})
 }
 
@@ -841,7 +841,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			Flag:        "parameter",
 			Env:         "CODER_SCALETEST_PARAMETERS",
 			Description: "Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value.",
-			Value:       clibase.StringsOf(&parameters),
+			Value:       clibase.StringArrayOf(&parameters),
 		},
 		{
 			Flag:        "no-plan",

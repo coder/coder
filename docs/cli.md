@@ -53,7 +53,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>stop</code>](./cli/stop)                     | Stop a workspace                                                       |
 | [<code>templates</code>](./cli/templates)           | Manage templates                                                       |
 | [<code>tokens</code>](./cli/tokens)                 | Manage personal access tokens                                          |
-| [<code>update</code>](./cli/update)                 | Will update and start a given workspace if it is out of date.          |
+| [<code>update</code>](./cli/update)                 | Will update and start a given workspace if it is out of date           |
 | [<code>users</code>](./cli/users)                   | Manage users                                                           |
 | [<code>version</code>](./cli/version)               | Show coder version                                                     |
 

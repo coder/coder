@@ -35,7 +35,7 @@ func TestOptionSet_ParseFlags(t *testing.T) {
 		require.EqualValues(t, "f", workspaceName)
 	})
 
-	t.Run("Strings", func(t *testing.T) {
+	t.Run("StringArray", func(t *testing.T) {
 		t.Parallel()
 
 		var names clibase.StringArray
@@ -49,7 +49,10 @@ func TestOptionSet_ParseFlags(t *testing.T) {
 			},
 		}
 
-		err := os.FlagSet().Parse([]string{"--name", "foo", "--name", "bar"})
+		err := os.SetDefaults()
+		require.NoError(t, err)
+
+		err = os.FlagSet().Parse([]string{"--name", "foo", "--name", "bar"})
 		require.NoError(t, err)
 		require.EqualValues(t, []string{"foo", "bar"}, names)
 	})

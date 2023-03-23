@@ -39,7 +39,7 @@ Coder v0.0.0-devel — A tool for provisioning self-hosted development environme
     templates         Manage templates
     tokens            Manage personal access tokens
     update            Will update and start a given workspace if it is out of
-                      date.
+                      date
     users             Manage users
     version           Show coder version
 

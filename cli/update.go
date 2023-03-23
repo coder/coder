@@ -18,7 +18,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "update <workspace>",
-		Short:       "Will update and start a given workspace if it is out of date.",
+		Short:       "Will update and start a given workspace if it is out of date",
 		Long:        "Use --always-prompt to change the parameter values of the workspace.",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),

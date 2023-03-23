@@ -114,7 +114,7 @@ var _ pflag.SliceValue = &StringArray{}
 // StringArray is a slice of strings that implements pflag.Value and pflag.SliceValue.
 type StringArray []string
 
-func StringsOf(ss *[]string) *StringArray {
+func StringArrayOf(ss *[]string) *StringArray {
 	return (*StringArray)(ss)
 }
 

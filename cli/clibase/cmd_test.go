@@ -474,3 +474,32 @@ func TestCommand_Help(t *testing.T) {
 		require.Contains(t, stdio.Stdout.String(), "abdracadabra")
 	})
 }
+
+func TestCommand_SliceFlags(t *testing.T) {
+	t.Parallel()
+
+	cmd := func(want ...string) *clibase.Cmd {
+		var got []string
+		return &clibase.Cmd{
+			Use: "root",
+			Options: clibase.OptionSet{
+				{
+					Name:    "arr",
+					Flag:    "arr",
+					Default: "bad,bad,bad",
+					Value:   clibase.StringArrayOf(&got),
+				},
+			},
+			Handler: (func(i *clibase.Invocation) error {
+				require.Equal(t, want, got)
+				return nil
+			}),
+		}
+	}
+
+	err := cmd("good", "good", "good").Invoke("--arr", "good", "--arr", "good", "--arr", "good").Run()
+	require.NoError(t, err)
+
+	err = cmd("bad", "bad", "bad").Invoke().Run()
+	require.NoError(t, err)
+}

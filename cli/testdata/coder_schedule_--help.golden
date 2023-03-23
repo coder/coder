@@ -3,7 +3,8 @@ Usage: coder schedule { show | start | stop | override } <workspace>
 Schedule automated start and stop times for workspaces
 
 [1mSubcommands[0m
-    override-stop    Edit stop time of active workspace
+    override-stop    Override the stop time of a currently running workspace
+                     instance.
     show             Show workspace schedule
     start            Edit workspace start schedule
     stop             Edit workspace stop schedule

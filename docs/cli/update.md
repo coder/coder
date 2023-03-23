@@ -2,7 +2,7 @@
 
 # update
 
-Will update and start a given workspace if it is out of date.
+Will update and start a given workspace if it is out of date
 
 ## Usage
 

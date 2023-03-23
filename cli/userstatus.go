@@ -99,7 +99,7 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 			FlagShorthand: "c",
 			Description:   "Specify a column to filter in the table.",
 			Default:       strings.Join([]string{"username", "email", "created_at", "status"}, ","),
-			Value:         clibase.StringsOf(&columns),
+			Value:         clibase.StringArrayOf(&columns),
 		},
 	}
 	return cmd

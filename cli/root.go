@@ -311,7 +311,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Flag:        varHeader,
 			Env:         "CODER_HEADER",
 			Description: "Additional HTTP headers added to all requests. Provide as " + `key=value` + ". Can be specified multiple times.",
-			Value:       clibase.StringsOf(&r.header),
+			Value:       clibase.StringArrayOf(&r.header),
 			Group:       globalGroup,
 		},
 		{

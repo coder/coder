@@ -163,7 +163,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			FlagShorthand: "t",
 			Env:           "CODER_PROVISIONERD_TAGS",
 			Description:   "Tags to filter provisioner jobs by.",
-			Value:         clibase.StringsOf(&rawTags),
+			Value:         clibase.StringArrayOf(&rawTags),
 		},
 		{
 			Flag:        "poll-interval",

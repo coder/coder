@@ -155,13 +155,13 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 			FlagShorthand: "p",
 			Env:           "CODER_PORT_FORWARD_TCP",
 			Description:   "Forward TCP port(s) from the workspace to the local machine.",
-			Value:         clibase.StringsOf(&tcpForwards),
+			Value:         clibase.StringArrayOf(&tcpForwards),
 		},
 		{
 			Flag:        "udp",
 			Env:         "CODER_PORT_FORWARD_UDP",
 			Description: "Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.",
-			Value:       clibase.StringsOf(&udpForwards),
+			Value:       clibase.StringArrayOf(&udpForwards),
 		},
 	}
 

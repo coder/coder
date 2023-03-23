@@ -224,6 +224,23 @@ func (i *Invocation) run(state *runState) error {
 		return xerrors.Errorf("setting defaults: %w", err)
 	}
 
+	// If we set the Default of an array but later see a flag for it, we
+	// don't want to append, we want to replace. So, we need to keep the state
+	// of defaulted array options.
+	defaultedArrays := make(map[string]int)
+	for _, opt := range i.Command.Options {
+		sv, ok := opt.Value.(pflag.SliceValue)
+		if !ok {
+			continue
+		}
+
+		if opt.Flag == "" {
+			continue
+		}
+
+		defaultedArrays[opt.Flag] = len(sv.GetSlice())
+	}
+
 	err = i.Command.Options.ParseEnv(i.Environ)
 	if err != nil {
 		return xerrors.Errorf("parsing env: %w", err)
@@ -265,6 +282,26 @@ func (i *Invocation) run(state *runState) error {
 		// so we check the error after looking for a child command.
 		state.flagParseErr = i.parsedFlags.Parse(state.allArgs)
 		parsedArgs = i.parsedFlags.Args()
+
+		i.parsedFlags.VisitAll(func(f *pflag.Flag) {
+			i, ok := defaultedArrays[f.Name]
+			if !ok {
+				return
+			}
+
+			if !f.Changed {
+				return
+			}
+
+			sv, ok := f.Value.(pflag.SliceValue)
+			if !ok {
+				panic("defaulted array option is not a slice value")
+			}
+			err := sv.Replace(sv.GetSlice()[i:])
+			if err != nil {
+				panic(err)
+			}
+		})
 	}
 
 	// Run child command if found (next child only)

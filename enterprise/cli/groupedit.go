@@ -94,13 +94,13 @@ func (r *RootCmd) groupEdit() *clibase.Cmd {
 			Flag:          "add-users",
 			FlagShorthand: "a",
 			Description:   "Add users to the group. Accepts emails or IDs.",
-			Value:         clibase.StringsOf(&addUsers),
+			Value:         clibase.StringArrayOf(&addUsers),
 		},
 		{
 			Flag:          "rm-users",
 			FlagShorthand: "r",
 			Description:   "Remove users to the group. Accepts emails or IDs.",
-			Value:         clibase.StringsOf(&rmUsers),
+			Value:         clibase.StringArrayOf(&rmUsers),
 		},
 	}
 

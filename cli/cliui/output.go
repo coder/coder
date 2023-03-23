@@ -134,7 +134,7 @@ func (f *tableFormat) AttachOptions(opts *clibase.OptionSet) {
 			Flag:          "column",
 			FlagShorthand: "c",
 			Default:       strings.Join(f.defaultColumns, ","),
-			Value:         clibase.StringsOf(&f.defaultColumns),
+			Value:         clibase.StringArrayOf(&f.columns),
 			Description:   "Columns to display in table output. Available columns: " + strings.Join(f.allColumns, ", ") + ".",
 		},
 	)

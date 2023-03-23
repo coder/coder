@@ -190,12 +190,12 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		{
 			Flag:        "variable",
 			Description: "Specify a set of values for Terraform-managed variables.",
-			Value:       clibase.StringsOf(&variables),
+			Value:       clibase.StringArrayOf(&variables),
 		},
 		{
 			Flag:        "provisioner-tag",
 			Description: "Specify a set of tags to target provisioner daemons.",
-			Value:       clibase.StringsOf(&provisionerTags),
+			Value:       clibase.StringArrayOf(&provisionerTags),
 		},
 		{
 			Flag:        "name",

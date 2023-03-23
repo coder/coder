@@ -2,7 +2,7 @@
 
 # schedule override-stop
 
-Edit stop time of active workspace
+Override the stop time of a currently running workspace instance.
 
 ## Usage
 

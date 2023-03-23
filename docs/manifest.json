@@ -606,7 +606,7 @@
         },
         {
           "title": "schedule override-stop",
-          "description": "Edit stop time of active workspace",
+          "description": "Override the stop time of a currently running workspace instance.",
           "path": "cli/schedule_override-stop.md"
         },
         {
@@ -761,7 +761,7 @@
         },
         {
           "title": "update",
-          "description": "Will update and start a given workspace if it is out of date.",
+          "description": "Will update and start a given workspace if it is out of date",
           "path": "cli/update.md"
         },
         {

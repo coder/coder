@@ -89,7 +89,7 @@ func (r *RootCmd) featuresList() *clibase.Cmd {
 				strings.Join(featureColumns, ", "),
 			),
 			Default: strings.Join(featureColumns, ","),
-			Value:   clibase.StringsOf(&columns),
+			Value:   clibase.StringArrayOf(&columns),
 		},
 		{
 			Flag:          "output",

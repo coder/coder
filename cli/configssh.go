@@ -472,7 +472,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			FlagShorthand: "o",
 			Env:           "CODER_SSH_CONFIG_OPTS",
 			Description:   "Specifies additional SSH options to embed in each host stanza.",
-			Value:         clibase.StringsOf(&sshConfigOpts.sshOptions),
+			Value:         clibase.StringArrayOf(&sshConfigOpts.sshOptions),
 		},
 		{
 			Flag:          "dry-run",

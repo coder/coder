@@ -191,7 +191,7 @@ func (r *RootCmd) scheduleOverride() *clibase.Cmd {
 	client := new(codersdk.Client)
 	overrideCmd := &clibase.Cmd{
 		Use:   "override-stop <workspace-name> <duration from now>",
-		Short: "Edit stop time of active workspace",
+		Short: "Override the stop time of a currently running workspace instance.",
 		Long: scheduleOverrideDescriptionLong + "\n" + formatExamples(
 			example{
 				Command: "coder schedule override-stop my-workspace 90m",
