@@ -218,12 +218,10 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	)
 	defer cancel()
 
-	collectedAt := time.Now()
-
 	var out bytes.Buffer
 
 	result := &codersdk.WorkspaceAgentMetadataResult{
-		CollectedAt: collectedAt,
+		CollectedAt: time.Now(),
 		Key:         md.Key,
 	}
 	cmd, err := a.createCommand(ctx, md.Script, nil)

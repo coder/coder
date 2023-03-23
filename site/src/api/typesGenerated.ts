@@ -1071,7 +1071,7 @@ export interface WorkspaceAgentMetadata {
 export interface WorkspaceAgentMetadataDescription {
   readonly display_name: string
   readonly key: string
-  readonly cmd: string[]
+  readonly script: string
   readonly interval: number
   readonly timeout: number
 }
@@ -1079,6 +1079,7 @@ export interface WorkspaceAgentMetadataDescription {
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentMetadataResult {
   readonly collected_at: string
+  readonly age: number
   readonly key: string
   readonly value: string
   readonly error: string

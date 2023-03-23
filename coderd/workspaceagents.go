@@ -1092,10 +1092,12 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 	datum := database.UpdateWorkspaceAgentMetadataParams{
 		WorkspaceAgentID: workspaceAgent.ID,
 		// We don't want a misconfigured agent to fill the database.
-		Key:         ellipse(req.Key, 128),
-		Value:       ellipse(req.Value, 10<<10),
-		Error:       ellipse(req.Error, 10<<10),
-		CollectedAt: req.CollectedAt,
+		Key:   ellipse(req.Key, 128),
+		Value: ellipse(req.Value, 10<<10),
+		Error: ellipse(req.Error, 10<<10),
+		// We ignore the CollectedAt from the agent to avoid bugs caused by
+		// misaligned clocks.
+		CollectedAt: time.Now(),
 	}
 
 	err = api.Database.UpdateWorkspaceAgentMetadata(ctx, datum)
@@ -1153,35 +1155,56 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	// reports.
 	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
 
-	sendMetadata := func() {
-		// We always use the original Request context because it contains
-		// the RBAC actor.
-		data, err := api.Database.GetWorkspaceAgentMetadata(ctx, workspaceAgent.ID)
-		if err != nil {
-			_ = sendEvent(ctx, codersdk.ServerSentEvent{
-				Type: codersdk.ServerSentEventTypeError,
-				Data: codersdk.Response{
-					Message: "Internal error getting metadata.",
-					Detail:  err.Error(),
-				},
+	const refreshInterval = time.Second * 5
+	refreshTicker := time.NewTicker(refreshInterval)
+	defer refreshTicker.Stop()
+
+	var (
+		// In practice, two concurrent sends is extremely unlikely because the
+		// refreshTicker would have to fire right as we receive a new DB update.
+		lastDBMetaMu sync.Mutex
+		lastDBMeta   []database.WorkspaceAgentMetadatum
+	)
+
+	sendMetadata := func(pull bool) {
+		lastDBMetaMu.Lock()
+		defer lastDBMetaMu.Unlock()
+
+		// Avoid sending refreshes if the natural pace of updates is fast.
+		refreshTicker.Reset(refreshInterval)
+
+		var err error
+		if pull {
+			// We always use the original Request context because it contains
+			// the RBAC actor.
+			lastDBMeta, err = api.Database.GetWorkspaceAgentMetadata(ctx, workspaceAgent.ID)
+			if err != nil {
+				_ = sendEvent(ctx, codersdk.ServerSentEvent{
+					Type: codersdk.ServerSentEventTypeError,
+					Data: codersdk.Response{
+						Message: "Internal error getting metadata.",
+						Detail:  err.Error(),
+					},
+				})
+				return
+			}
+			slices.SortFunc(lastDBMeta, func(i, j database.WorkspaceAgentMetadatum) bool {
+				return i.Key < j.Key
 			})
-			return
 		}
-		slices.SortFunc(data, func(i, j database.WorkspaceAgentMetadatum) bool {
-			return i.Key < j.Key
-		})
+
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
-			Data: convertWorkspaceAgentMetadata(data),
+			Data: convertWorkspaceAgentMetadata(lastDBMeta),
 		})
 	}
 
 	// Send initial metadata.
-	sendMetadata()
+	sendMetadata(true)
 
 	// Send metadata on updates.
 	cancelSub, err := api.Pubsub.Subscribe(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
-		sendMetadata()
+		sendMetadata(true)
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -1189,7 +1212,18 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	}
 	defer cancelSub()
 
-	<-senderClosed
+	for {
+		select {
+		case <-refreshTicker.C:
+			// Avoid spamming the DB when we know there are no updates. We want
+			// to continue sending updates so that "Result.Age" is always accurate on
+			// the frontend. This way, the frontend doesn't need complex clock
+			// skew logic to understand if metadata is stale.
+			sendMetadata(false)
+		case <-senderClosed:
+			return
+		}
+	}
 }
 
 func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadata {
@@ -1202,6 +1236,7 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 				Value:       datum.Value,
 				Error:       datum.Error,
 				CollectedAt: datum.CollectedAt,
+				Age:         int64(time.Since(datum.CollectedAt).Seconds()),
 			},
 			Description: codersdk.WorkspaceAgentMetadataDescription{
 				DisplayName: datum.DisplayName,

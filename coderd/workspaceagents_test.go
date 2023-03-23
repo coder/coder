@@ -1228,6 +1228,9 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	check := func(want codersdk.WorkspaceAgentMetadataResult, got codersdk.WorkspaceAgentMetadata) {
 		require.WithinDuration(t, want.CollectedAt, got.Result.CollectedAt, time.Second)
+		require.WithinDuration(
+			t, time.Now(), got.Result.CollectedAt.Add(time.Duration(got.Result.Age)*time.Second), time.Millisecond*100,
+		)
 		require.Equal(t, want.Key, got.Result.Key)
 		require.Equal(t, want.Value, got.Result.Value)
 		require.Equal(t, want.Error, got.Result.Error)

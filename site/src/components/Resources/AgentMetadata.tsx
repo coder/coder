@@ -3,7 +3,6 @@ import makeStyles from "@material-ui/core/styles/makeStyles"
 import { watchAgentMetadata } from "api/api"
 import { WorkspaceAgent, WorkspaceAgentMetadata } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
-import dayjs from "dayjs"
 import { FC, useEffect, useState } from "react"
 
 const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
@@ -16,20 +15,16 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
     throw new Error("Metadata item description is undefined")
   }
 
-  const secondsSinceLastCollected = dayjs().diff(
-    dayjs(item.result.collected_at),
-    "seconds",
-  )
   const staleThreshold = Math.max(
     item.description.interval + item.description.timeout * 2,
-    10,
+    5,
   )
 
   // Stale data is as good as no data. Plus, we want to build confidence in our
   // users that what's shown is real. If times aren't correctly synced this
   // could be buggy. But, how common is that anyways?
   const value =
-    secondsSinceLastCollected < staleThreshold ? (
+    item.result.age < staleThreshold ? (
       <div
         className={
           styles.metadataValue +
@@ -62,8 +57,9 @@ export const AgentMetadata: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
 
   useEffect(() => {
     const source = watchAgentMetadata(agent.id)
+
     source.onerror = (e) => {
-      console.error(e)
+      console.error("received error in watch stream", e)
     }
     source.addEventListener("data", (e) => {
       const data = JSON.parse(e.data)
@@ -103,12 +99,6 @@ const useStyles = makeStyles((theme) => ({
     gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
     gap: theme.spacing(5),
     rowGap: theme.spacing(3),
-    // background: theme.palette.background.paper,
-    // padding: 10,
-    // marginTop: 10,
-
-    // border: `1px solid ${colors.gray[11]}`,
-    // borderRadius: theme.shape.borderRadius,
   },
 
   metadata: {
