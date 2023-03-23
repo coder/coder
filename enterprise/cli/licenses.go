@@ -167,7 +167,7 @@ func (r *RootCmd) licenseDelete() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:     "delete <id>",
 		Short:   "Delete license by ID",
-		Aliases: []string{"del", "rm"},
+		Aliases: []string{"del"},
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
 			r.InitClient(client),

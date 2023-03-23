@@ -4,6 +4,10 @@
 
 Delete a user group
 
+Aliases:
+
+- rm
+
 ## Usage
 
 ```console

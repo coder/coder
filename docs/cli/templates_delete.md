@@ -4,6 +4,10 @@
 
 Delete templates
 
+Aliases:
+
+- rm
+
 ## Usage
 
 ```console

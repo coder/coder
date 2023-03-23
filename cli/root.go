@@ -22,6 +22,7 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -213,6 +214,21 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			return
 		}
 		cmd.Use = fmt.Sprintf("%s %s %s", tokens[0], flags, tokens[1])
+	})
+
+	// Add alises when appropriate.
+	cmd.Walk(func(cmd *clibase.Cmd) {
+		// TODO: we should really be consistent about naming.
+		if cmd.Name() == "delete" || cmd.Name() == "remove" {
+			if slices.Contains(cmd.Aliases, "rm") {
+				merr = errors.Join(
+					merr,
+					xerrors.Errorf("command %q shouldn't have alias %q since it's added automatically", cmd.FullName(), "rm"),
+				)
+				return
+			}
+			cmd.Aliases = append(cmd.Aliases, "rm")
+		}
 	})
 
 	// Sanity-check command options.

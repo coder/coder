@@ -17,7 +17,6 @@ func (r *RootCmd) deleteWorkspace() *clibase.Cmd {
 		Annotations: workspaceCommand,
 		Use:         "delete <workspace>",
 		Short:       "Delete a workspace",
-		Aliases:     []string{"rm"},
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
 			r.InitClient(client),

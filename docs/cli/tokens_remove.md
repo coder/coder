@@ -6,8 +6,8 @@ Delete a token
 
 Aliases:
 
-- rm
 - delete
+- rm
 
 ## Usage
 

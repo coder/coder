@@ -2,7 +2,7 @@ Usage: coder tokens remove <name>
 
 Delete a token
 
-Aliases: rm, delete
+Aliases: delete, rm
 
 ---
 Run `coder --help` for a list of global options.

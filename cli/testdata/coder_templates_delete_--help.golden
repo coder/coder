@@ -2,6 +2,8 @@ Usage: coder templates delete [flags] [name...]
 
 Delete templates
 
+Aliases: rm
+
 [1mOptions[0m
   -y, --yes bool
           Bypass prompts.

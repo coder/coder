@@ -199,7 +199,7 @@ func (r *RootCmd) removeToken() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:     "remove <name>",
-		Aliases: []string{"rm", "delete"},
+		Aliases: []string{"delete"},
 		Short:   "Delete a token",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
