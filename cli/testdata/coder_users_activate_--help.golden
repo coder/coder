@@ -8,7 +8,7 @@ Aliases: active
 [;m$ coder users activate example_user[0m
 
 [1mOptions[0m
-  -c, --column (default: username,email,created_at,status)
+  -c, --column string-array (default: username,email,created_at,status)
           Specify a column to filter in the table.
 
 ---

@@ -7,7 +7,7 @@ Push a new template version from the current directory or as specified by flag
           Always prompt all parameters. Does not pull parameter values from
           active template version.
 
-  -d, --directory (default: .)
+  -d, --directory string (default: .)
           Specify the directory to create from, use '-' to read tar from stdin.
 
       --name string

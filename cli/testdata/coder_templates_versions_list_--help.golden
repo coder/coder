@@ -3,11 +3,11 @@ Usage: coder templates versions list [flags] <template>
 List all the versions of the specified template
 
 [1mOptions[0m
-  -c, --column (default: name,created at,created by,status,active)
+  -c, --column string-array (default: name,created at,created by,status,active)
           Columns to display in table output. Available columns: name, created
           at, created by, status, active.
 
-  -o, --output (default: table)
+  -o, --output string (default: table)
           Output format. Available formats: table, json.
 
 ---

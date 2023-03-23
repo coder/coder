@@ -3,7 +3,7 @@ Usage: coder templates edit [flags] <template>
 Edit the metadata of a template by name.
 
 [1mOptions[0m
-      --allow-user-cancel-workspace-jobs (default: true)
+      --allow-user-cancel-workspace-jobs bool (default: true)
           Allow users to cancel in-progress workspace jobs.
 
       --default-ttl duration

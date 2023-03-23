@@ -7,11 +7,11 @@ Run upload and download tests from your machine to a workspace
           Specifies whether to wait for a direct connection before testing
           speed.
 
-      --direction (default: down) one of up|down
+      --direction up|down (default: down)
           Specifies whether to run in reverse mode where the client receives and
           the server sends.
 
-  -t, --time (default: 5s)
+  -t, --time duration (default: 5s)
           Specifies the duration to monitor traffic.
 
 ---

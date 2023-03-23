@@ -5,7 +5,7 @@ Show a single user. Use 'me' to indicate the currently authenticated user.
 [;m$ coder users show me[0m
 
 [1mOptions[0m
-  -o, --output (default: table)
+  -o, --output string (default: table)
           Output format. Available formats: table, json.
 
 ---

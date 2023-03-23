@@ -7,7 +7,7 @@ Personalize your workspace by applying a canonical dotfiles repository
       [;m$ coder dotfiles --yes git@github.com:example/dotfiles.git[0m
 
 [1mOptions[0m
-      --symlink-dir, $CODER_SYMLINK_DIR string
+      --symlink-dir string, $CODER_SYMLINK_DIR
           Specifies the directory for the dotfiles symlink destinations. If
           empty, will use $HOME.
 

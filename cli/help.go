@@ -55,14 +55,8 @@ var usageTemplate = template.Must(
 			"typeHelper": func(opt *clibase.Option) string {
 				switch v := opt.Value.(type) {
 				case *clibase.Enum:
-					return fmt.Sprintf("one of %s", strings.Join(v.Choices, "|"))
+					return strings.Join(v.Choices, "|")
 				default:
-					// Usually, enough type information is found in the
-					// default. It's easy to print too much information
-					// and either overwhelm or, worse, cause wrapping.
-					if opt.Default != "" {
-						return ""
-					}
 					return v.Type()
 				}
 			},

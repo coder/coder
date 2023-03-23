@@ -23,10 +23,10 @@ Aliases: tunnel
       [;m$ coder port-forward <workspace> --tcp 8080,9000:3000,9090-9092,10000-10002:10010-10012[0m
 
 [1mOptions[0m
-  -p, --tcp, $CODER_PORT_FORWARD_TCP string-array
+  -p, --tcp string-array, $CODER_PORT_FORWARD_TCP
           Forward TCP port(s) from the workspace to the local machine.
 
-      --udp, $CODER_PORT_FORWARD_UDP string-array
+      --udp string-array, $CODER_PORT_FORWARD_UDP
           Forward UDP port(s) from the workspace to the local machine. The UDP
           connection has TCP-like semantics to support stateful UDP protocols.
 

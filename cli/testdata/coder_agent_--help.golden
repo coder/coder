@@ -3,19 +3,19 @@ Usage: coder agent [flags]
 Starts the Coder workspace agent.
 
 [1mOptions[0m
-      --auth, $CODER_AGENT_AUTH (default: token)
+      --auth string, $CODER_AGENT_AUTH (default: token)
           Specify the authentication type to use for the agent.
 
-      --log-dir, $CODER_AGENT_LOG_DIR (default: /tmp)
+      --log-dir string, $CODER_AGENT_LOG_DIR (default: /tmp)
           Specify the location for the agent log files.
 
       --no-reap bool
           Do not start a process reaper.
 
-      --pprof-address, $CODER_AGENT_PPROF_ADDRESS (default: 127.0.0.1:6060)
+      --pprof-address string, $CODER_AGENT_PPROF_ADDRESS (default: 127.0.0.1:6060)
           The address to serve pprof.
 
-      --ssh-max-timeout, $CODER_AGENT_SSH_MAX_TIMEOUT (default: 0)
+      --ssh-max-timeout duration, $CODER_AGENT_SSH_MAX_TIMEOUT (default: 0)
           Specify the max timeout for a SSH connection.
 
 ---

@@ -3,11 +3,11 @@ Usage: coder users list [flags]
 Aliases: ls
 
 [1mOptions[0m
-  -c, --column (default: username,email,created_at,status)
+  -c, --column string-array (default: username,email,created_at,status)
           Columns to display in table output. Available columns: id, username,
           email, created at, status.
 
-  -o, --output (default: table)
+  -o, --output string (default: table)
           Output format. Available formats: table, json.
 
 ---

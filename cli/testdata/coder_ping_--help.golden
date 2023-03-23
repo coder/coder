@@ -3,13 +3,13 @@ Usage: coder ping [flags] <workspace>
 Ping a workspace
 
 [1mOptions[0m
-  -n, --num (default: 10)
+  -n, --num int (default: 10)
           Specifies the number of pings to perform.
 
-  -t, --timeout (default: 5s)
+  -t, --timeout duration (default: 5s)
           Specifies how long to wait for a ping to complete.
 
-      --wait (default: 1s)
+      --wait duration (default: 1s)
           Specifies how long to wait between pings.
 
 ---
