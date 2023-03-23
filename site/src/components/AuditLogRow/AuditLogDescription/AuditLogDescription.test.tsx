@@ -4,7 +4,6 @@ import {
   MockWorkspaceCreateAuditLogForDifferentOwner,
   MockAuditLogSuccessfulLogin,
   MockAuditLogUnsuccessfulLoginKnownUser,
-  MockAuditLogUnsuccessfulLoginUnknownUser,
 } from "testHelpers/entities"
 import { AuditLogDescription } from "./AuditLogDescription"
 import { AuditLogRow } from "../AuditLogRow"
@@ -92,25 +91,6 @@ describe("AuditLogDescription", () => {
       screen.getByText(
         t("auditLog:table.logRow.description.unlinkedAuditDescription", {
           truncatedDescription: `${MockAuditLogUnsuccessfulLoginKnownUser.user?.username} logged in`,
-          target: "",
-          onBehalfOf: undefined,
-        })
-          .replace(/<[^>]*>/g, " ")
-          .replace(/\s{2,}/g, " ")
-          .trim(),
-      ),
-    ).toBeInTheDocument()
-
-    const statusPill = screen.getByRole("status")
-    expect(statusPill).toHaveTextContent("401")
-  })
-  it("renders the correct string for unsuccessful login for an unknown user", async () => {
-    render(<AuditLogRow auditLog={MockAuditLogUnsuccessfulLoginUnknownUser} />)
-
-    expect(
-      screen.getByText(
-        t("auditLog:table.logRow.description.unlinkedAuditDescription", {
-          truncatedDescription: "an unknown user logged in",
           target: "",
           onBehalfOf: undefined,
         })

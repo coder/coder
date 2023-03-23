@@ -1922,6 +1922,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     },
     "update_check": true,
     "verbose": true,
+    "wgtunnel_host": "string",
     "wildcard_access_url": {
       "forceQuery": true,
       "fragment": "string",
@@ -2267,6 +2268,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   },
   "update_check": true,
   "verbose": true,
+  "wgtunnel_host": "string",
   "wildcard_access_url": {
     "forceQuery": true,
     "fragment": "string",
@@ -2333,6 +2335,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                               | false    |              |                                                                    |
 | `update_check`                       | boolean                                                                                    | false    |              |                                                                    |
 | `verbose`                            | boolean                                                                                    | false    |              |                                                                    |
+| `wgtunnel_host`                      | string                                                                                     | false    |              |                                                                    |
 | `wildcard_access_url`                | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                    | false    |              |                                                                    |
 
@@ -3054,6 +3057,20 @@ Parameter represents a set value for the scope.
 | ------ |
 | `none` |
 | `data` |
+
+## codersdk.PatchTemplateVersionRequest
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| `name` | string | false    |              |             |
 
 ## codersdk.PprofConfig
 

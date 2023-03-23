@@ -3468,9 +3468,9 @@ func (q *fakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.Upda
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) error {
+func (q *fakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return err
+		return database.TemplateVersion{}, err
 	}
 
 	q.mutex.Lock()
@@ -3482,10 +3482,11 @@ func (q *fakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.
 		}
 		templateVersion.TemplateID = arg.TemplateID
 		templateVersion.UpdatedAt = arg.UpdatedAt
+		templateVersion.Name = arg.Name
 		q.templateVersions[index] = templateVersion
-		return nil
+		return templateVersion, nil
 	}
-	return sql.ErrNoRows
+	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context, arg database.UpdateTemplateVersionDescriptionByJobIDParams) error {

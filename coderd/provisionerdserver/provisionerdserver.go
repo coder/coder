@@ -28,11 +28,11 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner"
 	"github.com/coder/coder/provisionerd/proto"
@@ -50,7 +50,7 @@ type Server struct {
 	ID                    uuid.UUID
 	Logger                slog.Logger
 	Provisioners          []database.ProvisionerType
-	GitAuthProviders      []string
+	GitAuthConfigs        []*gitauth.Config
 	Tags                  json.RawMessage
 	Database              database.Store
 	Pubsub                database.Pubsub
@@ -210,6 +210,48 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
 		}
 
+		gitAuthProviders := []*sdkproto.GitAuthProvider{}
+		for _, p := range templateVersion.GitAuthProviders {
+			link, err := server.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+				ProviderID: p,
+				UserID:     owner.ID,
+			})
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("acquire git auth link: %s", err))
+			}
+			var config *gitauth.Config
+			for _, c := range server.GitAuthConfigs {
+				if c.ID != p {
+					continue
+				}
+				config = c
+				break
+			}
+			// We weren't able to find a matching config for the ID!
+			if config == nil {
+				server.Logger.Warn(ctx, "workspace build job is missing git provider",
+					slog.F("git_provider_id", p),
+					slog.F("template_version_id", templateVersion.ID),
+					slog.F("workspace_id", workspaceBuild.WorkspaceID))
+				continue
+			}
+
+			link, valid, err := config.RefreshToken(ctx, server.Database, link)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("refresh git auth link %q: %s", p, err))
+			}
+			if !valid {
+				continue
+			}
+			gitAuthProviders = append(gitAuthProviders, &sdkproto.GitAuthProvider{
+				Id:          p,
+				AccessToken: link.OAuthAccessToken,
+			})
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:    workspaceBuild.ID.String(),
@@ -218,6 +260,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 				ParameterValues:     protoParameters,
 				RichParameterValues: convertRichParameterValues(workspaceBuildParameters),
 				VariableValues:      asVariableValues(templateVariables),
+				GitAuthProviders:    gitAuthProviders,
 				Metadata: &sdkproto.Provision_Metadata{
 					CoderUrl:                      server.AccessURL.String(),
 					WorkspaceTransition:           transition,
@@ -857,7 +900,14 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		var completedError sql.NullString
 
 		for _, gitAuthProvider := range jobType.TemplateImport.GitAuthProviders {
-			if !slice.Contains(server.GitAuthProviders, gitAuthProvider) {
+			contains := false
+			for _, configuredProvider := range server.GitAuthConfigs {
+				if configuredProvider.ID == gitAuthProvider {
+					contains = true
+					break
+				}
+			}
+			if !contains {
 				completedError = sql.NullString{
 					String: fmt.Sprintf("git auth provider %q is not configured", gitAuthProvider),
 					Valid:  true,

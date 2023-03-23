@@ -832,6 +832,13 @@ export const getAgentListeningPorts = async (
   return response.data
 }
 
+// getDeploymentSSHConfig is used by the VSCode-Extension.
+export const getDeploymentSSHConfig =
+  async (): Promise<TypesGen.SSHConfigResponse> => {
+    const response = await axios.get(`/api/v2/deployment/ssh`)
+    return response.data
+  }
+
 export const getDeploymentValues = async (): Promise<DeploymentConfig> => {
   const response = await axios.get(`/api/v2/deployment/config`)
   return response.data
@@ -977,7 +984,10 @@ const getMissingParameters = (
 ) => {
   const missingParameters: TypesGen.TemplateVersionParameter[] = []
   const requiredParameters = templateParameters.filter(
-    (p) => p.required && p.mutable,
+    // It is required
+    // and it can be changed
+    // and it is not from a legacy variable
+    (p) => p.required && p.mutable && p.legacy_variable_name === undefined,
   )
 
   for (const parameter of requiredParameters) {

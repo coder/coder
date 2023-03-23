@@ -786,7 +786,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config: &oauth2Config{},
+				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
 				Type:         codersdk.GitProviderGitHub,
@@ -830,7 +830,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config: &oauth2Config{},
+				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
 				Type:         codersdk.GitProviderGitHub,
@@ -844,7 +844,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config: &oauth2Config{},
+				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
 				Type:         codersdk.GitProviderGitHub,
@@ -872,7 +872,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 			IncludeProvisionerDaemon: true,
 			GitAuthConfigs: []*gitauth.Config{{
 				ValidateURL:  srv.URL,
-				OAuth2Config: &oauth2Config{},
+				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
 				Type:         codersdk.GitProviderGitHub,
@@ -923,8 +923,8 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config: &oauth2Config{
-					token: &oauth2.Token{
+				OAuth2Config: &testutil.OAuth2Config{
+					Token: &oauth2.Token{
 						AccessToken:  "token",
 						RefreshToken: "something",
 						Expiry:       database.Now().Add(-time.Hour),
@@ -973,7 +973,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config: &oauth2Config{},
+				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
 				Type:         codersdk.GitProviderGitHub,
@@ -1011,7 +1011,7 @@ func TestWorkspaceAgentsGitAuth(t *testing.T) {
 		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		token = <-tokenChan
-		require.Equal(t, "token", token.Username)
+		require.Equal(t, "access_token", token.Username)
 
 		token, err = agentClient.GitAuth(context.Background(), "github.com/asd/asd", false)
 		require.NoError(t, err)

@@ -209,7 +209,7 @@ type sqlcQuerier interface {
 	UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTemplateDeletedByIDParams) error
 	UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) (Template, error)
 	UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) (Template, error)
-	UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error
+	UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) (TemplateVersion, error)
 	UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error
 	UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionGitAuthProvidersByJobIDParams) error
 	UpdateUserDeletedByID(ctx context.Context, arg UpdateUserDeletedByIDParams) error

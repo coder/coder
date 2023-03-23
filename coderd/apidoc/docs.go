@@ -2255,6 +2255,51 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Patch template version by ID",
+                "operationId": "patch-template-version-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Patch template version request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchTemplateVersionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateVersion"
+                        }
+                    }
+                }
             }
         },
         "/templateversions/{templateversion}/cancel": {
@@ -6799,6 +6844,9 @@ const docTemplate = `{
                 "verbose": {
                     "type": "boolean"
                 },
+                "wgtunnel_host": {
+                    "type": "string"
+                },
                 "wildcard_access_url": {
                     "$ref": "#/definitions/clibase.URL"
                 },
@@ -7475,6 +7523,14 @@ const docTemplate = `{
                 "ParameterSourceSchemeNone",
                 "ParameterSourceSchemeData"
             ]
+        },
+        "codersdk.PatchTemplateVersionRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.PprofConfig": {
             "type": "object",

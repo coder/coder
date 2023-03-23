@@ -63,6 +63,66 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user))
 }
 
+// @Summary Patch template version by ID
+// @ID patch-template-version-by-id
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Param request body codersdk.PatchTemplateVersionRequest true "Patch template version request"
+// @Success 200 {object} codersdk.TemplateVersion
+// @Router /templateversions/{templateversion} [patch]
+func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	templateVersion := httpmw.TemplateVersionParam(r)
+
+	var params codersdk.PatchTemplateVersionRequest
+	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+
+	updateParams := database.UpdateTemplateVersionByIDParams{
+		ID:         templateVersion.ID,
+		TemplateID: templateVersion.TemplateID,
+		UpdatedAt:  database.Now(),
+		Name:       templateVersion.Name,
+	}
+
+	if params.Name != "" {
+		updateParams.Name = params.Name
+	}
+	// It is not allowed to "patch" the template ID, and reassign it.
+	updatedTemplateVersion, err := api.Database.UpdateTemplateVersionByID(ctx, updateParams)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error on patching template version.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	user, err := api.Database.GetUserByID(ctx, templateVersion.CreatedBy)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error on fetching user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(job), user))
+}
+
 // @Summary Cancel template version by ID
 // @ID cancel-template-version-by-id
 // @Security CoderSessionToken
@@ -291,7 +351,7 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		_, updated, err := refreshGitToken(ctx, api.Database, apiKey.UserID, config, authLink)
+		_, updated, err := config.RefreshToken(ctx, api.Database, authLink)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to refresh git auth token.",
