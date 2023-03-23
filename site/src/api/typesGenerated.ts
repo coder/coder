@@ -1069,11 +1069,11 @@ export interface WorkspaceAgentMetadata {
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentMetadataDescription {
-  readonly display_name?: string
-  readonly key?: string
-  readonly cmd?: string[]
-  readonly interval?: number
-  readonly timeout?: number
+  readonly display_name: string
+  readonly key: string
+  readonly cmd: string[]
+  readonly interval: number
+  readonly timeout: number
 }
 
 // From codersdk/workspaceagents.go

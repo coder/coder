@@ -42,105 +42,110 @@ export const AgentRow: FC<AgentRowProps> = ({
 
   return (
     <Stack
-      key={agent.id}
-      direction="row"
       alignItems="center"
-      justifyContent="space-between"
+      direction="row"
       className={styles.agentRow}
+      // justifyContent="space-between"
       spacing={4}
     >
-      <Stack direction="row" alignItems="baseline">
-        <div className={styles.agentStatusWrapper}>
-          <AgentStatus agent={agent} />
-        </div>
-        <div>
-          <div className={styles.agentName}>{agent.name}</div>
+      <div className={styles.agentStatusWrapper}>
+        <AgentStatus agent={agent} />
+      </div>
+
+      <Stack alignItems="flex-start" direction="column">
+        <Stack direction="row" alignItems="end">
+          <Stack direction="row" alignItems="baseline">
+            <div>
+              <div className={styles.agentName}>{agent.name}</div>
+              <Stack
+                direction="row"
+                alignItems="baseline"
+                className={styles.agentData}
+                spacing={1}
+              >
+                <span className={styles.agentOS}>{agent.operating_system}</span>
+
+                <Maybe condition={agent.status === "connected"}>
+                  <AgentVersion
+                    agent={agent}
+                    serverVersion={serverVersion}
+                    onUpdate={onUpdateAgent}
+                  />
+                </Maybe>
+
+                <AgentLatency agent={agent} />
+
+                <Maybe condition={agent.status === "connecting"}>
+                  <Skeleton width={160} variant="text" />
+                  <Skeleton width={36} variant="text" />
+                </Maybe>
+
+                <Maybe condition={agent.status === "timeout"}>
+                  {t("unableToConnect")}
+                </Maybe>
+              </Stack>
+            </div>
+          </Stack>
+
           <Stack
             direction="row"
-            alignItems="baseline"
-            className={styles.agentData}
-            spacing={1}
+            alignItems="center"
+            spacing={0.5}
+            wrap="wrap"
+            maxWidth="750px"
           >
-            <span className={styles.agentOS}>{agent.operating_system}</span>
+            {showApps && agent.status === "connected" && (
+              <>
+                {agent.apps.map((app) => (
+                  <AppLink
+                    key={app.slug}
+                    appsHost={applicationsHost}
+                    app={app}
+                    agent={agent}
+                    workspace={workspace}
+                  />
+                ))}
 
-            <Maybe condition={agent.status === "connected"}>
-              <AgentVersion
-                agent={agent}
-                serverVersion={serverVersion}
-                onUpdate={onUpdateAgent}
-              />
-            </Maybe>
-
-            <AgentLatency agent={agent} />
-
-            <Maybe condition={agent.status === "connecting"}>
-              <Skeleton width={160} variant="text" />
-              <Skeleton width={36} variant="text" />
-            </Maybe>
-
-            <Maybe condition={agent.status === "timeout"}>
-              {t("unableToConnect")}
-            </Maybe>
+                <TerminalLink
+                  workspaceName={workspace.name}
+                  agentName={agent.name}
+                  userName={workspace.owner_name}
+                />
+                {!hideSSHButton && (
+                  <SSHButton
+                    workspaceName={workspace.name}
+                    agentName={agent.name}
+                  />
+                )}
+                {!hideVSCodeDesktopButton && (
+                  <VSCodeDesktopButton
+                    userName={workspace.owner_name}
+                    workspaceName={workspace.name}
+                    agentName={agent.name}
+                    folderPath={agent.expanded_directory}
+                  />
+                )}
+                {applicationsHost !== undefined && applicationsHost !== "" && (
+                  <PortForwardButton
+                    host={applicationsHost}
+                    workspaceName={workspace.name}
+                    agentId={agent.id}
+                    agentName={agent.name}
+                    username={workspace.owner_name}
+                  />
+                )}
+              </>
+            )}
+            {showApps && agent.status === "connecting" && (
+              <>
+                <AppLinkSkeleton width={84} />
+                <AppLinkSkeleton width={112} />
+              </>
+            )}
           </Stack>
-          <AgentMetadata agent={agent} />
-        </div>
-      </Stack>
+        </Stack>
 
-      <Stack
-        direction="row"
-        alignItems="center"
-        spacing={0.5}
-        wrap="wrap"
-        maxWidth="750px"
-      >
-        {showApps && agent.status === "connected" && (
-          <>
-            {agent.apps.map((app) => (
-              <AppLink
-                key={app.slug}
-                appsHost={applicationsHost}
-                app={app}
-                agent={agent}
-                workspace={workspace}
-              />
-            ))}
-
-            <TerminalLink
-              workspaceName={workspace.name}
-              agentName={agent.name}
-              userName={workspace.owner_name}
-            />
-            {!hideSSHButton && (
-              <SSHButton
-                workspaceName={workspace.name}
-                agentName={agent.name}
-              />
-            )}
-            {!hideVSCodeDesktopButton && (
-              <VSCodeDesktopButton
-                userName={workspace.owner_name}
-                workspaceName={workspace.name}
-                agentName={agent.name}
-                folderPath={agent.expanded_directory}
-              />
-            )}
-            {applicationsHost !== undefined && applicationsHost !== "" && (
-              <PortForwardButton
-                host={applicationsHost}
-                workspaceName={workspace.name}
-                agentId={agent.id}
-                agentName={agent.name}
-                username={workspace.owner_name}
-              />
-            )}
-          </>
-        )}
-        {showApps && agent.status === "connecting" && (
-          <>
-            <AppLinkSkeleton width={84} />
-            <AppLinkSkeleton width={112} />
-          </>
-        )}
+        <AgentMetadata agent={agent} />
       </Stack>
     </Stack>
   )

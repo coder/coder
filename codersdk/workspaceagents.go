@@ -75,26 +75,26 @@ var WorkspaceAgentLifecycleOrder = []WorkspaceAgentLifecycle{
 }
 
 type WorkspaceAgentMetadataResult struct {
-	CollectedAt time.Time `json:"collected_at,omitempty"`
-	Key         string    `json:"key,omitempty"`
-	Value       string    `json:"value,omitempty"`
-	Error       string    `json:"error,omitempty"`
+	CollectedAt time.Time `json:"collected_at"`
+	Key         string    `json:"key"`
+	Value       string    `json:"value"`
+	Error       string    `json:"error"`
 }
 
 // WorkspaceAgentMetadataDescription is a description of dynamic metadata the agent should report
 // back to coderd. It is provided via the `metadata` list in the `coder_agent`
 // block.
 type WorkspaceAgentMetadataDescription struct {
-	DisplayName string   `json:"display_name,omitempty"`
-	Key         string   `json:"key,omitempty"`
-	Cmd         []string `json:"cmd,omitempty"`
-	Interval    int64    `json:"interval,omitempty"`
-	Timeout     int64    `json:"timeout,omitempty"`
+	DisplayName string   `json:"display_name"`
+	Key         string   `json:"key"`
+	Cmd         []string `json:"cmd"`
+	Interval    int64    `json:"interval"`
+	Timeout     int64    `json:"timeout"`
 }
 
 type WorkspaceAgentMetadata struct {
-	Result      WorkspaceAgentMetadataResult      `json:"result,omitempty"`
-	Description WorkspaceAgentMetadataDescription `json:"description,omitempty"`
+	Result      WorkspaceAgentMetadataResult      `json:"result"`
+	Description WorkspaceAgentMetadataDescription `json:"description"`
 }
 
 type WorkspaceAgent struct {
