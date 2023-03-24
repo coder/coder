@@ -629,7 +629,6 @@ func (api *API) proxyWorkspaceApplication(rw http.ResponseWriter, r *http.Reques
 	appURL.RawQuery = ""
 
 	proxy := httputil.NewSingleHostReverseProxy(appURL)
-	proxy.Director = api.tailnet.Director(ticket.AgentID, proxy.Director)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusBadGateway,
@@ -639,20 +638,8 @@ func (api *API) proxyWorkspaceApplication(rw http.ResponseWriter, r *http.Reques
 			DashboardURL: api.AccessURL.String(),
 		})
 	}
-
-	conn, release, err := api.workspaceAgentCache.Acquire(ticket.AgentID)
-	if err != nil {
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusBadGateway,
-			Title:        "Bad Gateway",
-			Description:  "Could not connect to workspace agent: " + err.Error(),
-			RetryEnabled: true,
-			DashboardURL: api.AccessURL.String(),
-		})
-		return
-	}
-	defer release()
-	proxy.Transport = conn.HTTPTransport()
+	proxy.Director = api.tailnet.Director(ticket.AgentID, proxy.Director)
+	proxy.Transport = api.tailnet.Transport()
 
 	// This strips the session token from a workspace app request.
 	cookieHeaders := r.Header.Values("Cookie")[:]

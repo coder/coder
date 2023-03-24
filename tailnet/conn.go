@@ -373,32 +373,6 @@ func (c *Conn) SetDERPRegionDialer(dialer func(ctx context.Context, region *tail
 	c.magicConn.SetDERPRegionDialer(dialer)
 }
 
-func (c *Conn) RemoveAllPeers() error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	c.netMap.Peers = []*tailcfg.Node{}
-	c.peerMap = map[tailcfg.NodeID]*tailcfg.Node{}
-	netMapCopy := *c.netMap
-	c.logger.Debug(context.Background(), "updating network map")
-	c.wireguardEngine.SetNetworkMap(&netMapCopy)
-	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
-	if err != nil {
-		return xerrors.Errorf("update wireguard config: %w", err)
-	}
-	err = c.wireguardEngine.Reconfig(cfg, c.wireguardRouter, &dns.Config{}, &tailcfg.Debug{})
-	if err != nil {
-		if c.isClosed() {
-			return nil
-		}
-		if errors.Is(err, wgengine.ErrNoChanges) {
-			return nil
-		}
-		return xerrors.Errorf("reconfig: %w", err)
-	}
-	return nil
-}
-
 // UpdateNodes connects with a set of peers. This can be constantly updated,
 // and peers will continually be reconnected as necessary. If replacePeers is
 // true, all peers will be removed before adding the new ones.

@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bufio"
 	"context"
 	"net"
 	"net/http"
@@ -12,11 +13,11 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"tailscale.com/derp"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-
-	"github.com/coder/coder/coderd/wsconncache"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/tailnet"
 )
 
@@ -31,10 +32,11 @@ func init() {
 }
 
 func newServerTailnet(
+	ctx context.Context,
 	logger slog.Logger,
+	derpServer *derp.Server,
 	derpMap *tailcfg.DERPMap,
 	coord *atomic.Pointer[tailnet.Coordinator],
-	cache *wsconncache.Cache,
 ) *serverTailnet {
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
@@ -49,7 +51,6 @@ func newServerTailnet(
 		logger:      logger,
 		conn:        conn,
 		coordinator: coord,
-		cache:       cache,
 		transport:   defaultTransport.Clone(),
 	}
 	tn.transport.DialContext = tn.dialContext
@@ -68,6 +69,24 @@ func newServerTailnet(
 		}
 	})
 
+	// This is set to allow local DERP traffic to be proxied through memory
+	// instead of needing to hit the external access URL.
+	// Don't use the ctx given in this callback, it's only valid while
+	// connecting.
+	conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
+		if !region.EmbeddedRelay {
+			return nil
+		}
+		left, right := net.Pipe()
+		go func() {
+			defer left.Close()
+			defer right.Close()
+			brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
+			derpServer.Accept(ctx, right, brw, "internal")
+		}()
+		return left
+	})
+
 	return tn
 }
 
@@ -81,7 +100,6 @@ type serverTailnet struct {
 	logger      slog.Logger
 	conn        *tailnet.Conn
 	coordinator *atomic.Pointer[tailnet.Coordinator]
-	cache       *wsconncache.Cache
 	nodesMu     sync.Mutex
 	// agentNodes is a map of agent tailnetNodes the server wants to keep a
 	// connection to.
@@ -132,6 +150,11 @@ func (s *serverTailnet) dialContext(ctx context.Context, network, addr string) (
 		return nil, xerrors.Errorf("no agent id attached")
 	}
 
+	_ = net.Dialer{}
+	return s.DialAgentNetConn(ctx, agentID, network, addr)
+}
+
+func (s *serverTailnet) getNode(agentID uuid.UUID) (*tailnet.Node, error) {
 	s.nodesMu.Lock()
 	node, ok := s.agentNodes[agentID]
 	// If we don't have the node, fetch it from the coordinator.
@@ -154,20 +177,40 @@ func (s *serverTailnet) dialContext(ctx context.Context, network, addr string) (
 	s.nodesMu.Unlock()
 
 	if !ok {
-		err := s.conn.UpdateNodes(s.gatherNodes(), true)
+		err := s.conn.UpdateNodes([]*tailnet.Node{node.node}, false)
 		if err != nil {
 			return nil, xerrors.Errorf("set nodes: %w", err)
 		}
 	}
 
+	if len(node.node.Addresses) == 0 {
+		return nil, xerrors.New("agent has no reachable addresses")
+	}
+
+	return node.node, nil
+}
+
+func (s *serverTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+	return codersdk.NewWorkspaceAgentConn(s.conn, codersdk.WorkspaceAgentConnOptions{
+		AgentID: agentID,
+		GetNode: s.getNode,
+	}), nil
+}
+
+func (s *serverTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID, network, addr string) (net.Conn, error) {
+	node, err := s.getNode(agentID)
+	if err != nil {
+		return nil, err
+	}
+
 	_, rawPort, _ := net.SplitHostPort(addr)
 	port, _ := strconv.ParseUint(rawPort, 10, 16)
-	ipp := netip.AddrPortFrom(node.node.Addresses[0].Addr(), uint16(port))
+	ipp := netip.AddrPortFrom(node.Addresses[0].Addr(), uint16(port))
 
 	if network == "tcp" {
 		return s.conn.DialContextTCP(ctx, ipp)
 	} else if network == "udp" {
-		return s.conn.DialContextTCP(ctx, ipp)
+		return s.conn.DialContextUDP(ctx, ipp)
 	} else {
 		return nil, xerrors.Errorf("unknown network %q", network)
 	}
@@ -175,4 +218,9 @@ func (s *serverTailnet) dialContext(ctx context.Context, network, addr string) (
 
 func (s *serverTailnet) Transport() *http.Transport {
 	return s.transport
+}
+
+func (s *serverTailnet) Close() error {
+	s.conn.Close()
+	return nil
 }

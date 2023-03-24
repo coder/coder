@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -9,7 +8,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/netip"
 	"net/url"
 	"runtime/pprof"
 	"strconv"
@@ -294,18 +292,19 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	go httpapi.Heartbeat(ctx, conn)
 
-	agentConn, release, err := api.workspaceAgentCache.Acquire(workspaceAgent.ID)
+	agentConn, err := api.tailnet.AgentConn(ctx, workspaceAgent.ID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
 	}
-	defer release()
+
 	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"))
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
 		return
 	}
 	defer ptNetConn.Close()
+
 	agent.Bicopy(ctx, wsNetConn, ptNetConn)
 }
 
@@ -339,7 +338,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	agentConn, release, err := api.workspaceAgentCache.Acquire(workspaceAgent.ID)
+	agentConn, err := api.tailnet.AgentConn(ctx, workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",
@@ -347,7 +346,6 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
-	defer release()
 
 	portsResponse, err := agentConn.ListeningPorts(ctx)
 	if err != nil {
@@ -412,63 +410,6 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 
 	portsResponse.Ports = filteredPorts
 	httpapi.Write(ctx, rw, http.StatusOK, portsResponse)
-}
-
-func (api *API) dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-	clientConn, serverConn := net.Pipe()
-	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:   api.DERPMap,
-		Logger:    api.Logger.Named("tailnet"),
-	})
-	if err != nil {
-		_ = clientConn.Close()
-		_ = serverConn.Close()
-		return nil, xerrors.Errorf("create tailnet conn: %w", err)
-	}
-	ctx, cancel := context.WithCancel(api.ctx)
-	conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
-		if !region.EmbeddedRelay {
-			return nil
-		}
-		left, right := net.Pipe()
-		go func() {
-			defer left.Close()
-			defer right.Close()
-			brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
-			api.DERPServer.Accept(ctx, right, brw, "internal")
-		}()
-		return left
-	})
-
-	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		err = conn.UpdateNodes(node, true)
-		if err != nil {
-			return xerrors.Errorf("update nodes: %w", err)
-		}
-		return nil
-	})
-	conn.SetNodeCallback(sendNodes)
-	agentConn := &codersdk.WorkspaceAgentConn{
-		Conn: conn,
-		CloseFunc: func() {
-			cancel()
-			_ = clientConn.Close()
-			_ = serverConn.Close()
-		},
-	}
-	go func() {
-		err := (*api.TailnetCoordinator.Load()).ServeClient(serverConn, uuid.New(), agentID)
-		if err != nil {
-			api.Logger.Warn(ctx, "tailnet coordinator client error", slog.Error(err))
-			_ = agentConn.Close()
-		}
-	}()
-	if !agentConn.AwaitReachable(ctx) {
-		_ = agentConn.Close()
-		return nil, xerrors.Errorf("agent not reachable")
-	}
-	return agentConn, nil
 }
 
 // @Summary Get connection info for workspace agent

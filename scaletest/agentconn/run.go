@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/netip"
 	"net/url"
 	"strconv"
 	"time"
@@ -377,7 +376,8 @@ func agentHTTPClient(conn *codersdk.WorkspaceAgentConn) *http.Client {
 				if err != nil {
 					return nil, xerrors.Errorf("parse port %q: %w", port, err)
 				}
-				return conn.DialContextTCP(ctx, netip.AddrPortFrom(codersdk.WorkspaceAgentIP, uint16(portUint)))
+
+				return conn.DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", portUint))
 			},
 		},
 	}

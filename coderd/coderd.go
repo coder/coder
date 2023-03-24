@@ -57,7 +57,6 @@ import (
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
@@ -303,9 +302,9 @@ func New(options *Options) *API {
 	}
 	api.Auditor.Store(&options.Auditor)
 	api.TemplateScheduleStore.Store(&options.TemplateScheduleStore)
-	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
+	// api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
-	api.tailnet = newServerTailnet(options.Logger, options.DERPMap, &api.TailnetCoordinator, api.workspaceAgentCache)
+	api.tailnet = newServerTailnet(api.ctx, options.Logger, options.DERPServer, options.DERPMap, &api.TailnetCoordinator)
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                          options.Database,
@@ -750,8 +749,8 @@ type API struct {
 	WebsocketWaitGroup sync.WaitGroup
 	derpCloseFunc      func()
 
-	metricsCache          *metricscache.Cache
-	workspaceAgentCache   *wsconncache.Cache
+	metricsCache *metricscache.Cache
+	// workspaceAgentCache   *wsconncache.Cache
 	updateChecker         *updatecheck.Checker
 	WorkspaceAppsProvider *workspaceapps.Provider
 	tailnet               *serverTailnet
@@ -778,7 +777,8 @@ func (api *API) Close() error {
 	if coordinator != nil {
 		_ = (*coordinator).Close()
 	}
-	return api.workspaceAgentCache.Close()
+	_ = api.tailnet
+	return nil
 }
 
 func compressHandler(h http.Handler) http.Handler {
