@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -19,9 +18,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"unicode/utf8"
 
-	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
@@ -826,28 +823,11 @@ type prettyErrorFormatter struct {
 	w     io.Writer
 }
 
-func (prettyErrorFormatter) prefixLines(spaces int, s string) string {
-	twidth, _, err := terminal.GetSize(0)
-	if err != nil {
-		twidth = 80
-	}
-
-	s = lipgloss.NewStyle().Width(twidth - spaces).Render(s)
-
-	var b strings.Builder
-	scanner := bufio.NewScanner(strings.NewReader(s))
-	for i := 0; scanner.Scan(); i++ {
-		// The first line is already padded.
-		if i == 0 {
-			_, _ = fmt.Fprintf(&b, "%s\n", scanner.Text())
-			continue
-		}
-		_, _ = fmt.Fprintf(&b, "%s%s\n", strings.Repeat(" ", spaces), scanner.Text())
-	}
-	return strings.TrimSuffix(strings.TrimSuffix(b.String(), "\n"), " ")
-}
-
 func (p *prettyErrorFormatter) format(err error) {
+	if err == nil {
+		return
+	}
+
 	underErr := errors.Unwrap(err)
 
 	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#515151"))
@@ -859,41 +839,33 @@ func (p *prettyErrorFormatter) format(err error) {
 		return
 	}
 
-	var (
-		padding    string
-		arrowWidth int
-	)
-	if p.level > 0 {
-		const arrow = "┗━ "
-		arrowWidth = utf8.RuneCount([]byte(arrow))
-		padding = strings.Repeat(" ", arrowWidth*p.level)
-		_, _ = fmt.Fprintf(p.w, "%v%v", padding, arrowStyle.Render(arrow))
+	errorWithoutChildren := err.Error()
+	if underErr != nil {
+		errorWithoutChildren = strings.TrimSuffix(err.Error(), ": "+underErr.Error())
 	}
 
-	if underErr != nil {
-		header := strings.TrimSuffix(err.Error(), ": "+underErr.Error())
-		_, _ = fmt.Fprintf(p.w, "%s\n", p.prefixLines(len(padding)+arrowWidth, header))
+	// Format the root error specially.
+	if p.level == 0 {
+		style := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644")).Background(lipgloss.Color("#000000")).Bold(false)
+		// This is the last error in a tree.
+		p.wrappedPrintf(
+			"%s\n",
+			fmt.Sprintf(
+				"%s%s%s",
+				lipgloss.NewStyle().Inherit(style).Underline(true).Render("ERROR"),
+				lipgloss.NewStyle().Inherit(style).Foreground(arrowStyle.GetForeground()).Render(" ► "),
+				style.Render(errorWithoutChildren),
+			),
+		)
 		p.level++
 		p.format(underErr)
 		return
 	}
 
-	{
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644")).Background(lipgloss.Color("#000000")).Bold(false)
-		// This is the last error in a tree.
-		p.wrappedPrintf(
-			"%s\n",
-			p.prefixLines(
-				len(padding)+arrowWidth,
-				fmt.Sprintf(
-					"%s%s%s",
-					lipgloss.NewStyle().Inherit(style).Underline(true).Render("ERROR"),
-					lipgloss.NewStyle().Inherit(style).Foreground(arrowStyle.GetForeground()).Render(" ► "),
-					style.Render(err.Error()),
-				),
-			),
-		)
-	}
+	_, _ = fmt.Fprintf(p.w, "%s\n", errorWithoutChildren)
+	p.level++
+	p.format(underErr)
+	return
 }
 
 func (p *prettyErrorFormatter) wrappedPrintf(format string, a ...interface{}) {
