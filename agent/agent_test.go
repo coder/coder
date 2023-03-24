@@ -821,7 +821,7 @@ func TestAgent_Metadata(t *testing.T) {
 	t.Run("Basic", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
-		const reportInterval = 200
+		const reportInterval = 2
 		greetingPath := filepath.Join(dir, "greeting")
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
@@ -856,7 +856,7 @@ func TestAgent_Metadata(t *testing.T) {
 
 			var (
 				numGreetings      = bytes.Count(greetingByt, []byte("hello"))
-				idealNumGreetings = time.Since(start) / (reportInterval * time.Millisecond)
+				idealNumGreetings = time.Since(start) / (reportInterval * 100 * time.Millisecond)
 				upperBound        = int(idealNumGreetings) + 1
 				lowerBound        = (int(idealNumGreetings) / 2)
 			)

@@ -258,7 +258,7 @@ func convertInterval(i int64) time.Duration {
 	// impatient.
 	base := time.Second
 	if flag.Lookup("test.v") != nil {
-		base = time.Millisecond
+		base = time.Millisecond * 100
 	}
 	return time.Duration(i) * base
 }
@@ -269,14 +269,7 @@ type metadataResultAndKey struct {
 }
 
 func (a *agent) reportMetadataLoop(ctx context.Context) {
-	// In production, the minimum report interval is one second because
-	// `coder_agent.metadata` accepts `interval` in integer seconds.
-	// In tests, it helps to set shorter intervals because engineers are
-	// expensive.
-	baseInterval := time.Second
-	if flag.Lookup("test.v") != nil {
-		baseInterval = time.Millisecond * 100
-	}
+	baseInterval := convertInterval(1)
 
 	var (
 		baseTicker       = time.NewTicker(baseInterval)
