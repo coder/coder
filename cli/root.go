@@ -854,25 +854,25 @@ func (p *prettyErrorFormatter) format(err error) {
 		msg = headErr
 	}
 
-	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644"))
-	if errTail != nil {
-		msg = msg + ": "
-	}
+	headStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644"))
 	p.printf(
+		headStyle,
 		"%s",
-		textStyle.Render(msg),
+		msg,
 	)
 
+	tailStyle := headStyle.Copy().Foreground(lipgloss.Color("#969696"))
+
 	if errTail != nil {
+		p.printf(headStyle, ": ")
 		// Grey out the less important, deep errors.
-		textStyle.Foreground(lipgloss.Color("#969696"))
-		p.printf("%s", textStyle.Render(errTail.Error()))
+		p.printf(tailStyle, "%s", errTail.Error())
 	}
-	p.printf("\n")
+	p.printf(tailStyle, "\n")
 }
 
-func (p *prettyErrorFormatter) printf(format string, a ...interface{}) {
-	s := fmt.Sprintf(format, a...)
+func (p *prettyErrorFormatter) printf(style lipgloss.Style, format string, a ...interface{}) {
+	s := style.Render(fmt.Sprintf(format, a...))
 	_, _ = p.w.Write(
 		[]byte(
 			s,
