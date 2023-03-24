@@ -40,33 +40,33 @@ func TestCache(t *testing.T) {
 	t.Parallel()
 	t.Run("Same", func(t *testing.T) {
 		t.Parallel()
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 			return setupAgent(t, agentsdk.Metadata{}, 0), nil
 		}, 0)
 		defer func() {
 			_ = cache.Close()
 		}()
-		conn1, _, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
+		conn1, _, err := cache.Acquire(uuid.Nil)
 		require.NoError(t, err)
-		conn2, _, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
+		conn2, _, err := cache.Acquire(uuid.Nil)
 		require.NoError(t, err)
 		require.True(t, conn1 == conn2)
 	})
 	t.Run("Expire", func(t *testing.T) {
 		t.Parallel()
 		called := atomic.NewInt32(0)
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 			called.Add(1)
 			return setupAgent(t, agentsdk.Metadata{}, 0), nil
 		}, time.Microsecond)
 		defer func() {
 			_ = cache.Close()
 		}()
-		conn, release, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
+		conn, release, err := cache.Acquire(uuid.Nil)
 		require.NoError(t, err)
 		release()
 		<-conn.Closed()
-		conn, release, err = cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
+		conn, release, err = cache.Acquire(uuid.Nil)
 		require.NoError(t, err)
 		release()
 		<-conn.Closed()
@@ -74,13 +74,13 @@ func TestCache(t *testing.T) {
 	})
 	t.Run("NoExpireWhenLocked", func(t *testing.T) {
 		t.Parallel()
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 			return setupAgent(t, agentsdk.Metadata{}, 0), nil
 		}, time.Microsecond)
 		defer func() {
 			_ = cache.Close()
 		}()
-		conn, release, err := cache.Acquire(httptest.NewRequest(http.MethodGet, "/", nil), uuid.Nil)
+		conn, release, err := cache.Acquire(uuid.Nil)
 		require.NoError(t, err)
 		time.Sleep(time.Millisecond)
 		release()
@@ -107,7 +107,7 @@ func TestCache(t *testing.T) {
 		}()
 		go server.Serve(random)
 
-		cache := wsconncache.New(func(r *http.Request, id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 			return setupAgent(t, agentsdk.Metadata{}, 0), nil
 		}, time.Microsecond)
 		defer func() {
@@ -130,7 +130,7 @@ func TestCache(t *testing.T) {
 				defer cancel()
 				req := httptest.NewRequest(http.MethodGet, "/", nil)
 				req = req.WithContext(ctx)
-				conn, release, err := cache.Acquire(req, uuid.Nil)
+				conn, release, err := cache.Acquire(uuid.Nil)
 				if !assert.NoError(t, err) {
 					return
 				}
@@ -247,5 +247,9 @@ func (*client) PostAppHealth(_ context.Context, _ agentsdk.PostAppHealthsRequest
 }
 
 func (*client) PostStartup(_ context.Context, _ agentsdk.PostStartupRequest) error {
+	return nil
+}
+
+func (*client) PatchStartupLogs(_ context.Context, _ agentsdk.PatchStartupLogs) error {
 	return nil
 }

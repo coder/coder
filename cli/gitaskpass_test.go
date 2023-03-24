@@ -18,10 +18,10 @@ import (
 	"github.com/coder/coder/pty/ptytest"
 )
 
-// nolint:paralleltest
 func TestGitAskpass(t *testing.T) {
-	t.Setenv("GIT_PREFIX", "/")
+	t.Parallel()
 	t.Run("UsernameAndPassword", func(t *testing.T) {
+		t.Parallel()
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.GitAuthResponse{
 				Username: "something",
@@ -30,22 +30,23 @@ func TestGitAskpass(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 		url := srv.URL
-		cmd, _ := clitest.New(t, "--agent-url", url, "Username for 'https://github.com':")
+		inv, _ := clitest.New(t, "--agent-url", url, "Username for 'https://github.com':")
+		inv.Environ.Set("GIT_PREFIX", "/")
 		pty := ptytest.New(t)
-		cmd.SetOutput(pty.Output())
-		err := cmd.Execute()
-		require.NoError(t, err)
+		inv.Stdout = pty.Output()
+		clitest.Start(t, inv)
 		pty.ExpectMatch("something")
 
-		cmd, _ = clitest.New(t, "--agent-url", url, "Password for 'https://potato@github.com':")
+		inv, _ = clitest.New(t, "--agent-url", url, "Password for 'https://potato@github.com':")
+		inv.Environ.Set("GIT_PREFIX", "/")
 		pty = ptytest.New(t)
-		cmd.SetOutput(pty.Output())
-		err = cmd.Execute()
-		require.NoError(t, err)
+		inv.Stdout = pty.Output()
+		clitest.Start(t, inv)
 		pty.ExpectMatch("bananas")
 	})
 
 	t.Run("NoHost", func(t *testing.T) {
+		t.Parallel()
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(context.Background(), w, http.StatusNotFound, codersdk.Response{
 				Message: "Nope!",
@@ -53,15 +54,17 @@ func TestGitAskpass(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 		url := srv.URL
-		cmd, _ := clitest.New(t, "--agent-url", url, "--no-open", "Username for 'https://github.com':")
+		inv, _ := clitest.New(t, "--agent-url", url, "--no-open", "Username for 'https://github.com':")
+		inv.Environ.Set("GIT_PREFIX", "/")
 		pty := ptytest.New(t)
-		cmd.SetOutput(pty.Output())
-		err := cmd.Execute()
+		inv.Stderr = pty.Output()
+		err := inv.Run()
 		require.ErrorIs(t, err, cliui.Canceled)
 		pty.ExpectMatch("Nope!")
 	})
 
 	t.Run("Poll", func(t *testing.T) {
+		t.Parallel()
 		resp := atomic.Pointer[agentsdk.GitAuthResponse]{}
 		resp.Store(&agentsdk.GitAuthResponse{
 			URL: "https://something.org",
@@ -81,11 +84,12 @@ func TestGitAskpass(t *testing.T) {
 		t.Cleanup(srv.Close)
 		url := srv.URL
 
-		cmd, _ := clitest.New(t, "--agent-url", url, "--no-open", "Username for 'https://github.com':")
+		inv, _ := clitest.New(t, "--agent-url", url, "--no-open", "Username for 'https://github.com':")
+		inv.Environ.Set("GIT_PREFIX", "/")
 		pty := ptytest.New(t)
-		cmd.SetOutput(pty.Output())
+		inv.Stdout = pty.Output()
 		go func() {
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 		<-poll

@@ -500,6 +500,7 @@ func New(options *Options) *API {
 				httpmw.ExtractTemplateVersionParam(options.Database),
 			)
 			r.Get("/", api.templateVersion)
+			r.Patch("/", api.patchTemplateVersion)
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
 			r.Get("/schema", api.templateVersionSchema)
 			r.Get("/parameters", api.templateVersionParameters)
@@ -603,6 +604,7 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/metadata", api.workspaceAgentMetadata)
 				r.Post("/startup", api.postWorkspaceAgentStartup)
+				r.Patch("/startup-logs", api.patchWorkspaceAgentStartupLogs)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
@@ -618,6 +620,7 @@ func New(options *Options) *API {
 				)
 				r.Get("/", api.workspaceAgent)
 				r.Get("/pty", api.workspaceAgentPTY)
+				r.Get("/startup-logs", api.workspaceAgentStartupLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
@@ -831,10 +834,6 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 
 	mux := drpcmux.New()
 
-	gitAuthProviders := make([]string, 0, len(api.GitAuthConfigs))
-	for _, cfg := range api.GitAuthConfigs {
-		gitAuthProviders = append(gitAuthProviders, cfg.ID)
-	}
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
 		AccessURL:             api.AccessURL,
 		ID:                    daemon.ID,
@@ -842,7 +841,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		Database:              api.Database,
 		Pubsub:                api.Pubsub,
 		Provisioners:          daemon.Provisioners,
-		GitAuthProviders:      gitAuthProviders,
+		GitAuthConfigs:        api.GitAuthConfigs,
 		Telemetry:             api.Telemetry,
 		Tags:                  tags,
 		QuotaCommitter:        &api.QuotaCommitter,

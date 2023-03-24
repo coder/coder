@@ -92,10 +92,7 @@ func TestPostLogin(t *testing.T) {
 	t.Parallel()
 	t.Run("InvalidUser", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		numLogs := len(auditor.AuditLogs)
-
+		client := coderdtest.New(t, nil)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -103,13 +100,9 @@ func TestPostLogin(t *testing.T) {
 			Email:    "my@email.org",
 			Password: "password",
 		})
-		numLogs++ // add an audit log for login
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
-
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
 	})
 
 	t.Run("BadPassword", func(t *testing.T) {
@@ -715,7 +708,7 @@ func TestUpdateUserPassword(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		apikey1, err := client.CreateToken(ctx, user.UserID.String(), codersdk.CreateTokenRequest{})
 		require.NoError(t, err)
@@ -761,7 +754,7 @@ func TestUpdateUserPassword(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
 			Password: coderdtest.FirstUserParams.Password,

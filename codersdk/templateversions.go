@@ -76,6 +76,10 @@ type TemplateVersionVariable struct {
 	Sensitive    bool   `json:"sensitive"`
 }
 
+type PatchTemplateVersionRequest struct {
+	Name string `json:"name"`
+}
+
 // TemplateVersion returns a template version by ID.
 func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVersion, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s", id), nil)
@@ -187,11 +191,6 @@ func (c *Client) TemplateVersionVariables(ctx context.Context, version uuid.UUID
 	return variables, json.NewDecoder(res.Body).Decode(&variables)
 }
 
-// TemplateVersionLogsBefore returns logs that occurred before a specific log ID.
-func (c *Client) TemplateVersionLogsBefore(ctx context.Context, version uuid.UUID, before int64) ([]ProvisionerJobLog, error) {
-	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/templateversions/%s/logs", version), before)
-}
-
 // TemplateVersionLogsAfter streams logs for a template version that occurred after a specific log ID.
 func (c *Client) TemplateVersionLogsAfter(ctx context.Context, version uuid.UUID, after int64) (<-chan ProvisionerJobLog, io.Closer, error) {
 	return c.provisionerJobLogsAfter(ctx, fmt.Sprintf("/api/v2/templateversions/%s/logs", version), after)
@@ -254,12 +253,6 @@ func (c *Client) TemplateVersionDryRunResources(ctx context.Context, version, jo
 	return resources, json.NewDecoder(res.Body).Decode(&resources)
 }
 
-// TemplateVersionDryRunLogsBefore returns logs for a template version dry-run
-// that occurred before a specific log ID.
-func (c *Client) TemplateVersionDryRunLogsBefore(ctx context.Context, version, job uuid.UUID, before int64) ([]ProvisionerJobLog, error) {
-	return c.provisionerJobLogsBefore(ctx, fmt.Sprintf("/api/v2/templateversions/%s/dry-run/%s/logs", version, job), before)
-}
-
 // TemplateVersionDryRunLogsAfter streams logs for a template version dry-run
 // that occurred after a specific log ID.
 func (c *Client) TemplateVersionDryRunLogsAfter(ctx context.Context, version, job uuid.UUID, after int64) (<-chan ProvisionerJobLog, io.Closer, error) {
@@ -281,6 +274,19 @@ func (c *Client) CancelTemplateVersionDryRun(ctx context.Context, version, job u
 
 func (c *Client) PreviousTemplateVersion(ctx context.Context, organization uuid.UUID, templateName, versionName string) (TemplateVersion, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/templates/%s/versions/%s/previous", organization, templateName, versionName), nil)
+	if err != nil {
+		return TemplateVersion{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return TemplateVersion{}, ReadBodyAsError(res)
+	}
+	var version TemplateVersion
+	return version, json.NewDecoder(res.Body).Decode(&version)
+}
+
+func (c *Client) UpdateTemplateVersion(ctx context.Context, versionID uuid.UUID, req PatchTemplateVersionRequest) (TemplateVersion, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templateversions/%s", versionID), req)
 	if err != nil {
 		return TemplateVersion{}, err
 	}

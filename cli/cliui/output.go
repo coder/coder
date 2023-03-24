@@ -6,13 +6,14 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cli/clibase"
 )
 
 type OutputFormat interface {
 	ID() string
-	AttachFlags(cmd *cobra.Command)
+	AttachOptions(opts *clibase.OptionSet)
 	Format(ctx context.Context, data any) (string, error)
 }
 
@@ -45,11 +46,11 @@ func NewOutputFormatter(formats ...OutputFormat) *OutputFormatter {
 	}
 }
 
-// AttachFlags attaches the --output flag to the given command, and any
+// AttachOptions attaches the --output flag to the given command, and any
 // additional flags required by the output formatters.
-func (f *OutputFormatter) AttachFlags(cmd *cobra.Command) {
+func (f *OutputFormatter) AttachOptions(opts *clibase.OptionSet) {
 	for _, format := range f.formats {
-		format.AttachFlags(cmd)
+		format.AttachOptions(opts)
 	}
 
 	formatNames := make([]string, 0, len(f.formats))
@@ -57,7 +58,15 @@ func (f *OutputFormatter) AttachFlags(cmd *cobra.Command) {
 		formatNames = append(formatNames, format.ID())
 	}
 
-	cmd.Flags().StringVarP(&f.formatID, "output", "o", f.formats[0].ID(), "Output format. Available formats: "+strings.Join(formatNames, ", "))
+	*opts = append(*opts,
+		clibase.Option{
+			Flag:          "output",
+			FlagShorthand: "o",
+			Default:       f.formats[0].ID(),
+			Value:         clibase.StringOf(&f.formatID),
+			Description:   "Output format. Available formats: " + strings.Join(formatNames, ", ") + ".",
+		},
+	)
 }
 
 // Format formats the given data using the format specified by the --output
@@ -118,9 +127,17 @@ func (*tableFormat) ID() string {
 	return "table"
 }
 
-// AttachFlags implements OutputFormat.
-func (f *tableFormat) AttachFlags(cmd *cobra.Command) {
-	cmd.Flags().StringSliceVarP(&f.columns, "column", "c", f.defaultColumns, "Columns to display in table output. Available columns: "+strings.Join(f.allColumns, ", "))
+// AttachOptions implements OutputFormat.
+func (f *tableFormat) AttachOptions(opts *clibase.OptionSet) {
+	*opts = append(*opts,
+		clibase.Option{
+			Flag:          "column",
+			FlagShorthand: "c",
+			Default:       strings.Join(f.defaultColumns, ","),
+			Value:         clibase.StringArrayOf(&f.columns),
+			Description:   "Columns to display in table output. Available columns: " + strings.Join(f.allColumns, ", ") + ".",
+		},
+	)
 }
 
 // Format implements OutputFormat.
@@ -142,8 +159,8 @@ func (jsonFormat) ID() string {
 	return "json"
 }
 
-// AttachFlags implements OutputFormat.
-func (jsonFormat) AttachFlags(_ *cobra.Command) {}
+// AttachOptions implements OutputFormat.
+func (jsonFormat) AttachOptions(_ *clibase.OptionSet) {}
 
 // Format implements OutputFormat.
 func (jsonFormat) Format(_ context.Context, data any) (string, error) {

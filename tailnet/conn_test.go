@@ -99,8 +99,7 @@ func TestTailnet(t *testing.T) {
 
 	t.Run("ForcesWebSockets", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancelFunc := testutil.Context(t)
-		defer cancelFunc()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		w1IP := tailnet.IP()
 		derpMap := tailnettest.RunDERPOnlyWebSockets(t)

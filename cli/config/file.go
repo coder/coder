@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/kirsle/configdir"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -15,36 +16,53 @@ const (
 // Root represents the configuration directory.
 type Root string
 
+// mustNotBeEmpty prevents us from accidentally writing configuration to the
+// current directory. This is primarily valuable in development, where we may
+// accidentally use an empty root.
+func (r Root) mustNotEmpty() {
+	if r == "" {
+		panic("config root must not be empty")
+	}
+}
+
 func (r Root) Session() File {
+	r.mustNotEmpty()
 	return File(filepath.Join(string(r), "session"))
 }
 
 // ReplicaID is a unique identifier for the Coder server.
 func (r Root) ReplicaID() File {
+	r.mustNotEmpty()
 	return File(filepath.Join(string(r), "replica_id"))
 }
 
 func (r Root) URL() File {
+	r.mustNotEmpty()
 	return File(filepath.Join(string(r), "url"))
 }
 
 func (r Root) Organization() File {
+	r.mustNotEmpty()
 	return File(filepath.Join(string(r), "organization"))
 }
 
 func (r Root) DotfilesURL() File {
+	r.mustNotEmpty()
 	return File(filepath.Join(string(r), "dotfilesurl"))
 }
 
 func (r Root) PostgresPath() string {
+	r.mustNotEmpty()
 	return filepath.Join(string(r), "postgres")
 }
 
 func (r Root) PostgresPassword() File {
+	r.mustNotEmpty()
 	return File(filepath.Join(r.PostgresPath(), "password"))
 }
 
 func (r Root) PostgresPort() File {
+	r.mustNotEmpty()
 	return File(filepath.Join(r.PostgresPath(), "port"))
 }
 
@@ -53,16 +71,25 @@ type File string
 
 // Delete deletes the file.
 func (f File) Delete() error {
+	if f == "" {
+		return xerrors.Errorf("empty file path")
+	}
 	return os.Remove(string(f))
 }
 
 // Write writes the string to the file.
 func (f File) Write(s string) error {
+	if f == "" {
+		return xerrors.Errorf("empty file path")
+	}
 	return write(string(f), 0o600, []byte(s))
 }
 
 // Read reads the file to a string.
 func (f File) Read() (string, error) {
+	if f == "" {
+		return "", xerrors.Errorf("empty file path")
+	}
 	byt, err := read(string(f))
 	return string(byt), err
 }

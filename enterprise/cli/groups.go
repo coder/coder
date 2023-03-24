@@ -1,23 +1,24 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/coder/coder/cli/clibase"
+)
 
-func groups() *cobra.Command {
-	cmd := &cobra.Command{
+func (r *RootCmd) groups() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:     "groups",
 		Short:   "Manage groups",
 		Aliases: []string{"group"},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
+		Handler: func(inv *clibase.Invocation) error {
+			return inv.Command.HelpHandler(inv)
+		},
+		Children: []*clibase.Cmd{
+			r.groupCreate(),
+			r.groupList(),
+			r.groupEdit(),
+			r.groupDelete(),
 		},
 	}
-
-	cmd.AddCommand(
-		groupCreate(),
-		groupList(),
-		groupEdit(),
-		groupDelete(),
-	)
 
 	return cmd
 }

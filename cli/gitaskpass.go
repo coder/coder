@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
@@ -18,23 +18,22 @@ import (
 
 // gitAskpass is used by the Coder agent to automatically authenticate
 // with Git providers based on a hostname.
-func gitAskpass() *cobra.Command {
-	return &cobra.Command{
+func (r *RootCmd) gitAskpass() *clibase.Cmd {
+	return &clibase.Cmd{
 		Use:    "gitaskpass",
 		Hidden: true,
-		Args:   cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
+		Handler: func(inv *clibase.Invocation) error {
+			ctx := inv.Context()
 
 			ctx, stop := signal.NotifyContext(ctx, InterruptSignals...)
 			defer stop()
 
-			user, host, err := gitauth.ParseAskpass(args[0])
+			user, host, err := gitauth.ParseAskpass(inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("parse host: %w", err)
 			}
 
-			client, err := createAgentClient(cmd)
+			client, err := r.createAgentClient()
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
@@ -45,16 +44,16 @@ func gitAskpass() *cobra.Command {
 				if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
 					// This prevents the "Run 'coder --help' for usage"
 					// message from occurring.
-					cmd.Printf("%s\n", apiError.Message)
+					cliui.Errorf(inv.Stderr, "%s\n", apiError.Message)
 					return cliui.Canceled
 				}
 				return xerrors.Errorf("get git token: %w", err)
 			}
 			if token.URL != "" {
-				if err := openURL(cmd, token.URL); err == nil {
-					cmd.Printf("Your browser has been opened to authenticate with Git:\n\n\t%s\n\n", token.URL)
+				if err := openURL(inv, token.URL); err == nil {
+					cliui.Infof(inv.Stdout, "Your browser has been opened to authenticate with Git:\n\n\t%s\n\n", token.URL)
 				} else {
-					cmd.Printf("Open the following URL to authenticate with Git:\n\n\t%s\n\n", token.URL)
+					cliui.Infof(inv.Stdout, "Open the following URL to authenticate with Git:\n\n\t%s\n\n", token.URL)
 				}
 
 				for r := retry.New(250*time.Millisecond, 10*time.Second); r.Wait(ctx); {
@@ -62,19 +61,19 @@ func gitAskpass() *cobra.Command {
 					if err != nil {
 						continue
 					}
-					cmd.Printf("You've been authenticated with Git!\n")
+					cliui.Infof(inv.Stdout, "You've been authenticated with Git!\n")
 					break
 				}
 			}
 
 			if token.Password != "" {
 				if user == "" {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), token.Username)
+					_, _ = fmt.Fprintln(inv.Stdout, token.Username)
 				} else {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), token.Password)
+					_, _ = fmt.Fprintln(inv.Stdout, token.Password)
 				}
 			} else {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), token.Username)
+				_, _ = fmt.Fprintln(inv.Stdout, token.Username)
 			}
 
 			return nil

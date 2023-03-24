@@ -130,6 +130,7 @@ const useStyles = makeStyles((theme) => ({
     fontWeight: 600,
     overflow: "hidden",
     textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   email: {
     color: theme.palette.text.secondary,

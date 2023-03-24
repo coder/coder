@@ -10,14 +10,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -26,8 +28,13 @@ import (
 
 // New creates a CLI instance with a configuration pointed to a
 // temporary testing directory.
-func New(t *testing.T, args ...string) (*cobra.Command, config.Root) {
-	return NewWithSubcommands(t, cli.AGPL(), args...)
+func New(t *testing.T, args ...string) (*clibase.Invocation, config.Root) {
+	var root cli.RootCmd
+
+	cmd, err := root.Command(root.AGPL())
+	require.NoError(t, err)
+
+	return NewWithCommand(t, cmd, args...)
 }
 
 type logWriter struct {
@@ -46,19 +53,21 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func NewWithSubcommands(
-	t *testing.T, subcommands []*cobra.Command, args ...string,
-) (*cobra.Command, config.Root) {
-	cmd := cli.Root(subcommands)
-	dir := t.TempDir()
-	root := config.Root(dir)
-	cmd.SetArgs(append([]string{"--global-config", dir}, args...))
+func NewWithCommand(
+	t *testing.T, cmd *clibase.Cmd, args ...string,
+) (*clibase.Invocation, config.Root) {
+	configDir := config.Root(t.TempDir())
+	i := &clibase.Invocation{
+		Command: cmd,
+		Args:    append([]string{"--global-config", string(configDir)}, args...),
+		Stdin:   io.LimitReader(nil, 0),
+		Stdout:  (&logWriter{prefix: "stdout", t: t}),
+		Stderr:  (&logWriter{prefix: "stderr", t: t}),
+	}
+	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
 
 	// These can be overridden by the test.
-	cmd.SetOut(&logWriter{prefix: "stdout", t: t})
-	cmd.SetErr(&logWriter{prefix: "stderr", t: t})
-
-	return cmd, root
+	return i, configDir
 }
 
 // SetupConfig applies the URL and SessionToken of the client to the config.
@@ -120,31 +129,111 @@ func extractTar(t *testing.T, data []byte, directory string) {
 
 // Start runs the command in a goroutine and cleans it up when
 // the test completed.
-func Start(ctx context.Context, t *testing.T, cmd *cobra.Command) {
+func Start(t *testing.T, inv *clibase.Invocation) {
 	t.Helper()
 
 	closeCh := make(chan struct{})
-
-	deadline, hasDeadline := ctx.Deadline()
-	if !hasDeadline {
-		// We don't want to wait the full 5 minutes for a test to time out.
-		deadline = time.Now().Add(testutil.WaitMedium)
-	}
-
-	ctx, cancel := context.WithDeadline(ctx, deadline)
-
 	go func() {
-		defer cancel()
 		defer close(closeCh)
-		err := cmd.ExecuteContext(ctx)
-		if ctx.Err() == nil {
+		err := StartWithWaiter(t, inv).Wait()
+		switch {
+		case errors.Is(err, context.Canceled):
+			return
+		default:
 			assert.NoError(t, err)
 		}
+	}()
+
+	t.Cleanup(func() {
+		<-closeCh
+	})
+}
+
+// Run runs the command and asserts that there is no error.
+func Run(t *testing.T, inv *clibase.Invocation) {
+	t.Helper()
+
+	err := inv.Run()
+	require.NoError(t, err)
+}
+
+type ErrorWaiter struct {
+	waitOnce    sync.Once
+	cachedError error
+
+	c <-chan error
+	t *testing.T
+}
+
+func (w *ErrorWaiter) Wait() error {
+	w.waitOnce.Do(func() {
+		var ok bool
+		w.cachedError, ok = <-w.c
+		if !ok {
+			panic("unexpoected channel close")
+		}
+	})
+	return w.cachedError
+}
+
+func (w *ErrorWaiter) RequireSuccess() {
+	require.NoError(w.t, w.Wait())
+}
+
+func (w *ErrorWaiter) RequireError() {
+	require.Error(w.t, w.Wait())
+}
+
+func (w *ErrorWaiter) RequireContains(s string) {
+	require.ErrorContains(w.t, w.Wait(), s)
+}
+
+func (w *ErrorWaiter) RequireIs(want error) {
+	require.ErrorIs(w.t, w.Wait(), want)
+}
+
+func (w *ErrorWaiter) RequireAs(want interface{}) {
+	require.ErrorAs(w.t, w.Wait(), want)
+}
+
+// StartWithWaiter runs the command in a goroutine but returns the error
+// instead of asserting it. This is useful for testing error cases.
+func StartWithWaiter(t *testing.T, inv *clibase.Invocation) *ErrorWaiter {
+	t.Helper()
+
+	errCh := make(chan error, 1)
+
+	var cleaningUp atomic.Bool
+
+	var (
+		ctx    = inv.Context()
+		cancel func()
+	)
+	if _, ok := ctx.Deadline(); !ok {
+		ctx, cancel = context.WithDeadline(ctx, time.Now().Add(testutil.WaitMedium))
+	} else {
+		ctx, cancel = context.WithCancel(inv.Context())
+	}
+
+	inv = inv.WithContext(ctx)
+
+	go func() {
+		defer close(errCh)
+		err := inv.Run()
+		if cleaningUp.Load() && errors.Is(err, context.DeadlineExceeded) {
+			// If we're cleaning up, this error is likely related to the
+			// CLI teardown process. E.g., the server could be slow to shut
+			// down Postgres.
+			t.Logf("command %q timed out during test cleanup", inv.Command.FullName())
+		}
+		errCh <- err
 	}()
 
 	// Don't exit test routine until server is done.
 	t.Cleanup(func() {
 		cancel()
-		<-closeCh
+		cleaningUp.Store(true)
+		<-errCh
 	})
+	return &ErrorWaiter{c: errCh, t: t}
 }

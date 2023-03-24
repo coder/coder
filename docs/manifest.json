@@ -452,224 +452,350 @@
       "icon_path": "./images/icons/terminal.svg",
       "children": [
         {
+          "title": "coder",
+          "path": "cli.md"
+        },
+        {
           "title": "config-ssh",
-          "path": "./cli/coder_config-ssh.md"
+          "description": "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
+          "path": "cli/config-ssh.md"
         },
         {
           "title": "create",
-          "path": "./cli/coder_create.md"
+          "description": "Create a workspace",
+          "path": "cli/create.md"
         },
         {
           "title": "delete",
-          "path": "./cli/coder_delete.md"
+          "description": "Delete a workspace",
+          "path": "cli/delete.md"
         },
         {
           "title": "dotfiles",
-          "path": "./cli/coder_dotfiles.md"
+          "description": "Personalize your workspace by applying a canonical dotfiles repository",
+          "path": "cli/dotfiles.md"
+        },
+        {
+          "title": "features",
+          "description": "List Enterprise features",
+          "path": "cli/features.md"
+        },
+        {
+          "title": "features list",
+          "path": "cli/features_list.md"
+        },
+        {
+          "title": "groups",
+          "description": "Manage groups",
+          "path": "cli/groups.md"
+        },
+        {
+          "title": "groups create",
+          "description": "Create a user group",
+          "path": "cli/groups_create.md"
+        },
+        {
+          "title": "groups delete",
+          "description": "Delete a user group",
+          "path": "cli/groups_delete.md"
+        },
+        {
+          "title": "groups edit",
+          "description": "Edit a user group",
+          "path": "cli/groups_edit.md"
+        },
+        {
+          "title": "groups list",
+          "description": "List user groups",
+          "path": "cli/groups_list.md"
+        },
+        {
+          "title": "licenses",
+          "description": "Add, delete, and list licenses",
+          "path": "cli/licenses.md"
+        },
+        {
+          "title": "licenses add",
+          "description": "Add license to Coder deployment",
+          "path": "cli/licenses_add.md"
+        },
+        {
+          "title": "licenses delete",
+          "description": "Delete license by ID",
+          "path": "cli/licenses_delete.md"
+        },
+        {
+          "title": "licenses list",
+          "description": "List licenses (including expired)",
+          "path": "cli/licenses_list.md"
         },
         {
           "title": "list",
-          "path": "./cli/coder_list.md"
+          "description": "List workspaces",
+          "path": "cli/list.md"
         },
         {
           "title": "login",
-          "path": "./cli/coder_login.md"
+          "description": "Authenticate with Coder deployment",
+          "path": "cli/login.md"
         },
         {
           "title": "logout",
-          "path": "./cli/coder_logout.md"
+          "description": "Unauthenticate your local session",
+          "path": "cli/logout.md"
         },
         {
           "title": "ping",
-          "path": "./cli/coder_ping.md"
+          "description": "Ping a workspace",
+          "path": "cli/ping.md"
         },
         {
           "title": "port-forward",
-          "path": "./cli/coder_port-forward.md"
+          "description": "Forward ports from machine to a workspace",
+          "path": "cli/port-forward.md"
+        },
+        {
+          "title": "provisionerd",
+          "description": "Manage provisioner daemons",
+          "path": "cli/provisionerd.md"
+        },
+        {
+          "title": "provisionerd start",
+          "description": "Run a provisioner daemon",
+          "path": "cli/provisionerd_start.md"
         },
         {
           "title": "publickey",
-          "path": "./cli/coder_publickey.md"
+          "description": "Output your Coder public key used for Git operations",
+          "path": "cli/publickey.md"
         },
         {
           "title": "rename",
-          "path": "./cli/coder_rename.md"
+          "description": "Rename a workspace",
+          "path": "cli/rename.md"
         },
         {
           "title": "reset-password",
-          "path": "./cli/coder_reset-password.md"
+          "description": "Directly connect to the database to reset a user's password",
+          "path": "cli/reset-password.md"
         },
         {
           "title": "restart",
-          "path": "./cli/coder_restart.md"
+          "description": "Restart a workspace",
+          "path": "cli/restart.md"
         },
         {
           "title": "scaletest",
-          "path": "./cli/coder_scaletest.md"
+          "description": "Run a scale test against the Coder API",
+          "path": "cli/scaletest.md"
         },
         {
           "title": "scaletest cleanup",
-          "path": "./cli/coder_scaletest_cleanup.md"
+          "description": "Cleanup scaletest workspaces, then cleanup scaletest users.",
+          "path": "cli/scaletest_cleanup.md"
         },
         {
           "title": "scaletest create-workspaces",
-          "path": "./cli/coder_scaletest_create-workspaces.md"
+          "description": "Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.",
+          "path": "cli/scaletest_create-workspaces.md"
         },
         {
           "title": "schedule",
-          "path": "./cli/coder_schedule.md"
+          "description": "Schedule automated start and stop times for workspaces",
+          "path": "cli/schedule.md"
         },
         {
           "title": "schedule override-stop",
-          "path": "./cli/coder_schedule_override-stop.md"
+          "description": "Override the stop time of a currently running workspace instance.",
+          "path": "cli/schedule_override-stop.md"
         },
         {
           "title": "schedule show",
-          "path": "./cli/coder_schedule_show.md"
+          "description": "Show workspace schedule",
+          "path": "cli/schedule_show.md"
         },
         {
           "title": "schedule start",
-          "path": "./cli/coder_schedule_start.md"
+          "description": "Edit workspace start schedule",
+          "path": "cli/schedule_start.md"
         },
         {
           "title": "schedule stop",
-          "path": "./cli/coder_schedule_stop.md"
+          "description": "Edit workspace stop schedule",
+          "path": "cli/schedule_stop.md"
         },
         {
           "title": "server",
-          "path": "./cli/coder_server.md"
+          "description": "Start a Coder server",
+          "path": "cli/server.md"
         },
         {
           "title": "server create-admin-user",
-          "path": "./cli/coder_server_create-admin-user.md"
+          "description": "Create a new admin user with the given username, email and password and adds it to every organization.",
+          "path": "cli/server_create-admin-user.md"
         },
         {
           "title": "server postgres-builtin-serve",
-          "path": "./cli/coder_server_postgres-builtin-serve.md"
+          "description": "Run the built-in PostgreSQL deployment.",
+          "path": "cli/server_postgres-builtin-serve.md"
         },
         {
           "title": "server postgres-builtin-url",
-          "path": "./cli/coder_server_postgres-builtin-url.md"
+          "description": "Output the connection URL for the built-in PostgreSQL deployment.",
+          "path": "cli/server_postgres-builtin-url.md"
         },
         {
           "title": "show",
-          "path": "./cli/coder_show.md"
+          "description": "Display details of a workspace's resources and agents",
+          "path": "cli/show.md"
         },
         {
           "title": "speedtest",
-          "path": "./cli/coder_speedtest.md"
+          "description": "Run upload and download tests from your machine to a workspace",
+          "path": "cli/speedtest.md"
         },
         {
           "title": "ssh",
-          "path": "./cli/coder_ssh.md"
+          "description": "Start a shell into a workspace",
+          "path": "cli/ssh.md"
         },
         {
           "title": "start",
-          "path": "./cli/coder_start.md"
+          "description": "Start a workspace",
+          "path": "cli/start.md"
         },
         {
           "title": "state",
-          "path": "./cli/coder_state.md"
+          "description": "Manually manage Terraform state to fix broken workspaces",
+          "path": "cli/state.md"
         },
         {
           "title": "state pull",
-          "path": "./cli/coder_state_pull.md"
+          "description": "Pull a Terraform state file from a workspace.",
+          "path": "cli/state_pull.md"
         },
         {
           "title": "state push",
-          "path": "./cli/coder_state_push.md"
+          "description": "Push a Terraform state file to a workspace.",
+          "path": "cli/state_push.md"
         },
         {
           "title": "stop",
-          "path": "./cli/coder_stop.md"
+          "description": "Stop a workspace",
+          "path": "cli/stop.md"
         },
         {
           "title": "templates",
-          "path": "./cli/coder_templates.md"
+          "description": "Manage templates",
+          "path": "cli/templates.md"
         },
         {
           "title": "templates create",
-          "path": "./cli/coder_templates_create.md"
+          "description": "Create a template from the current directory or as specified by flag",
+          "path": "cli/templates_create.md"
         },
         {
           "title": "templates delete",
-          "path": "./cli/coder_templates_delete.md"
+          "description": "Delete templates",
+          "path": "cli/templates_delete.md"
         },
         {
           "title": "templates edit",
-          "path": "./cli/coder_templates_edit.md"
+          "description": "Edit the metadata of a template by name.",
+          "path": "cli/templates_edit.md"
         },
         {
           "title": "templates init",
-          "path": "./cli/coder_templates_init.md"
+          "description": "Get started with a templated template.",
+          "path": "cli/templates_init.md"
         },
         {
           "title": "templates list",
-          "path": "./cli/coder_templates_list.md"
+          "description": "List all the templates available for the organization",
+          "path": "cli/templates_list.md"
+        },
+        {
+          "title": "templates plan",
+          "description": "Plan a template push from the current directory",
+          "path": "cli/templates_plan.md"
         },
         {
           "title": "templates pull",
-          "path": "./cli/coder_templates_pull.md"
+          "description": "Download the latest version of a template to a path.",
+          "path": "cli/templates_pull.md"
         },
         {
           "title": "templates push",
-          "path": "./cli/coder_templates_push.md"
+          "description": "Push a new template version from the current directory or as specified by flag",
+          "path": "cli/templates_push.md"
         },
         {
           "title": "templates versions",
-          "path": "./cli/coder_templates_versions.md"
+          "description": "Manage different versions of the specified template",
+          "path": "cli/templates_versions.md"
         },
         {
           "title": "templates versions list",
-          "path": "./cli/coder_templates_versions_list.md"
+          "description": "List all the versions of the specified template",
+          "path": "cli/templates_versions_list.md"
         },
         {
           "title": "tokens",
-          "path": "./cli/coder_tokens.md"
+          "description": "Manage personal access tokens",
+          "path": "cli/tokens.md"
         },
         {
           "title": "tokens create",
-          "path": "./cli/coder_tokens_create.md"
+          "description": "Create a token",
+          "path": "cli/tokens_create.md"
         },
         {
           "title": "tokens list",
-          "path": "./cli/coder_tokens_list.md"
+          "description": "List tokens",
+          "path": "cli/tokens_list.md"
         },
         {
           "title": "tokens remove",
-          "path": "./cli/coder_tokens_remove.md"
+          "description": "Delete a token",
+          "path": "cli/tokens_remove.md"
         },
         {
           "title": "update",
-          "path": "./cli/coder_update.md"
+          "description": "Will update and start a given workspace if it is out of date",
+          "path": "cli/update.md"
         },
         {
           "title": "users",
-          "path": "./cli/coder_users.md"
+          "description": "Manage users",
+          "path": "cli/users.md"
         },
         {
           "title": "users activate",
-          "path": "./cli/coder_users_activate.md"
+          "description": "Update a user's status to 'active'. Active users can fully interact with the platform",
+          "path": "cli/users_activate.md"
         },
         {
           "title": "users create",
-          "path": "./cli/coder_users_create.md"
+          "path": "cli/users_create.md"
         },
         {
           "title": "users list",
-          "path": "./cli/coder_users_list.md"
+          "path": "cli/users_list.md"
         },
         {
           "title": "users show",
-          "path": "./cli/coder_users_show.md"
+          "description": "Show a single user. Use 'me' to indicate the currently authenticated user.",
+          "path": "cli/users_show.md"
         },
         {
           "title": "users suspend",
-          "path": "./cli/coder_users_suspend.md"
+          "description": "Update a user's status to 'suspended'. A suspended user cannot log into the platform",
+          "path": "cli/users_suspend.md"
         },
         {
           "title": "version",
-          "path": "./cli/coder_version.md"
+          "description": "Show coder version",
+          "path": "cli/version.md"
         }
       ]
     }

@@ -6,7 +6,7 @@ import AuditPage from "pages/AuditPage/AuditPage"
 import GroupsPage from "pages/GroupsPage/GroupsPage"
 import LoginPage from "pages/LoginPage/LoginPage"
 import { SetupPage } from "pages/SetupPage/SetupPage"
-import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateSettingsPage"
+import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateGeneralSettingsPage/TemplateSettingsPage"
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage"
 import UsersPage from "pages/UsersPage/UsersPage"
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage"
@@ -16,6 +16,7 @@ import { DashboardLayout } from "./components/Dashboard/DashboardLayout"
 import { RequireAuth } from "./components/RequireAuth/RequireAuth"
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout"
 import { DeploySettingsLayout } from "components/DeploySettingsLayout/DeploySettingsLayout"
+import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout"
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -50,7 +51,7 @@ const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"))
 const TemplatePermissionsPage = lazy(
   () =>
     import(
-      "./pages/TemplatePage/TemplatePermissionsPage/TemplatePermissionsPage"
+      "./pages/TemplateSettingsPage/TemplatePermissionsPage/TemplatePermissionsPage"
     ),
 )
 const TemplateSummaryPage = lazy(
@@ -120,7 +121,10 @@ const CreateTemplatePage = lazy(
   () => import("./pages/CreateTemplatePage/CreateTemplatePage"),
 )
 const TemplateVariablesPage = lazy(
-  () => import("./pages/TemplateVariablesPage/TemplateVariablesPage"),
+  () =>
+    import(
+      "./pages/TemplateSettingsPage/TemplateVariablesPage/TemplateVariablesPage"
+    ),
 )
 const WorkspaceSettingsPage = lazy(
   () => import("./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"),
@@ -129,7 +133,13 @@ const CreateTokenPage = lazy(
   () => import("./pages/CreateTokenPage/CreateTokenPage"),
 )
 const TemplateFilesPage = lazy(
-  () => import("./pages/TemplateFilesPage/TemplateFilesPage"),
+  () => import("./pages/TemplatePage/TemplateFilesPage/TemplateFilesPage"),
+)
+const TemplateSchedulePage = lazy(
+  () =>
+    import(
+      "./pages/TemplateSettingsPage/TemplateSchedulePage/TemplateSchedulePage"
+    ),
 )
 
 export const AppRouter: FC = () => {
@@ -160,16 +170,25 @@ export const AppRouter: FC = () => {
                 <Route path=":template">
                   <Route element={<TemplateLayout />}>
                     <Route index element={<TemplateSummaryPage />} />
-                    <Route
-                      path="permissions"
-                      element={<TemplatePermissionsPage />}
-                    />
+
                     <Route path="files" element={<TemplateFilesPage />} />
                   </Route>
 
                   <Route path="workspace" element={<CreateWorkspacePage />} />
-                  <Route path="settings" element={<TemplateSettingsPage />} />
-                  <Route path="variables" element={<TemplateVariablesPage />} />
+
+                  <Route path="settings" element={<TemplateSettingsLayout />}>
+                    <Route index element={<TemplateSettingsPage />} />
+                    <Route
+                      path="permissions"
+                      element={<TemplatePermissionsPage />}
+                    />
+                    <Route
+                      path="variables"
+                      element={<TemplateVariablesPage />}
+                    />
+                    <Route path="schedule" element={<TemplateSchedulePage />} />
+                  </Route>
+
                   <Route path="versions">
                     <Route path=":version">
                       <Route index element={<TemplateVersionPage />} />

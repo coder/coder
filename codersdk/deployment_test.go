@@ -114,7 +114,7 @@ func TestSSHConfig_ParseOptions(t *testing.T) {
 
 	testCases := []struct {
 		Name          string
-		ConfigOptions clibase.Strings
+		ConfigOptions clibase.StringArray
 		ExpectError   bool
 		Expect        map[string]string
 	}{

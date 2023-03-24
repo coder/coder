@@ -24,11 +24,11 @@ func Test_formatExamples(t *testing.T) {
 			name: "Output examples",
 			examples: []example{
 				{
-					Description: "Hello world",
+					Description: "Hello world.",
 					Command:     "echo hello",
 				},
 				{
-					Description: "Bye bye",
+					Description: "Bye bye.",
 					Command:     "echo bye",
 				},
 			},
@@ -73,5 +73,7 @@ func TestMain(m *testing.M) {
 		// https://github.com/natefinch/lumberjack/pull/100
 		goleak.IgnoreTopFunction("gopkg.in/natefinch/lumberjack%2ev2.(*Logger).millRun"),
 		goleak.IgnoreTopFunction("gopkg.in/natefinch/lumberjack%2ev2.(*Logger).mill.func1"),
+		// The pq library appears to leave around a goroutine after Close().
+		goleak.IgnoreTopFunction("github.com/lib/pq.NewDialListener"),
 	)
 }
