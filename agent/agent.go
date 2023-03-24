@@ -1103,6 +1103,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		}
 		var wg sync.WaitGroup
 		defer func() {
+			defer wg.Wait()
 			closeErr := ptty.Close()
 			if closeErr != nil {
 				a.logger.Warn(ctx, "failed to close tty", slog.Error(closeErr))
@@ -1110,7 +1111,6 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 					retErr = closeErr
 				}
 			}
-			wg.Wait()
 		}()
 		go func() {
 			for win := range windowSize {
@@ -1127,6 +1127,8 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		}()
 		wg.Add(1)
 		go func() {
+			// Ensure data is flushed to session on command exit, if we
+			// close the session too soon, we might lose data.
 			defer wg.Done()
 			_, _ = io.Copy(session, ptty.Output())
 		}()
