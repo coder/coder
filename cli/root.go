@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -825,6 +824,8 @@ type prettyErrorFormatter struct {
 
 func (p *prettyErrorFormatter) format(err error) {
 	if err == nil {
+		// 🍒
+		p.printf("\n")
 		return
 	}
 
@@ -852,8 +853,8 @@ func (p *prettyErrorFormatter) format(err error) {
 		} else {
 			msg = errorWithoutChildren
 		}
-		p.wrappedPrintf(
-			"%s\n",
+		p.printf(
+			"%s",
 			textStyle.Render(msg),
 		)
 
@@ -864,23 +865,16 @@ func (p *prettyErrorFormatter) format(err error) {
 
 	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#969696")).Bold(false)
 
-	p.wrappedPrintf(
+	p.printf(
 		"%s",
-		textStyle.Render(errorWithoutChildren),
+		textStyle.Render(": "+errorWithoutChildren),
 	)
 	p.level++
 	p.format(underErr)
 }
 
-func (p *prettyErrorFormatter) wrappedPrintf(format string, a ...interface{}) {
-	s := lipgloss.NewStyle().Width(ttyWidth()).Render(
-		fmt.Sprintf(format, a...),
-	)
-
-	// Not sure why, but lipgloss is adding extra spaces we need to remove.
-	excessSpaceRe := regexp.MustCompile(`[[:blank:]]*\n[[:blank:]]*$`)
-	s = excessSpaceRe.ReplaceAllString(s, "\n")
-
+func (p *prettyErrorFormatter) printf(format string, a ...interface{}) {
+	s := fmt.Sprintf(format, a...)
 	_, _ = p.w.Write(
 		[]byte(
 			s,
