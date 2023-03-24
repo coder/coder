@@ -818,29 +818,22 @@ func isConnectionError(err error) bool {
 }
 
 type prettyErrorFormatter struct {
-	level int
-	w     io.Writer
+	w io.Writer
 }
 
 func (p *prettyErrorFormatter) format(err error) {
-	if err == nil {
-		// 🏁
-		p.printf("\n")
-		return
-	}
-
-	nextErr := errors.Unwrap(err)
+	errTail := errors.Unwrap(err)
 
 	//nolint:errorlint
-	if _, ok := err.(*clibase.RunCommandError); ok && p.level == 0 && nextErr != nil {
+	if _, ok := err.(*clibase.RunCommandError); ok && errTail != nil {
 		// Avoid extra nesting.
-		p.format(nextErr)
+		p.format(errTail)
 		return
 	}
 
 	var headErr string
-	if nextErr != nil {
-		headErr = strings.TrimSuffix(err.Error(), ": "+nextErr.Error())
+	if errTail != nil {
+		headErr = strings.TrimSuffix(err.Error(), ": "+errTail.Error())
 	} else {
 		headErr = err.Error()
 	}
@@ -848,27 +841,34 @@ func (p *prettyErrorFormatter) format(err error) {
 	var msg string
 	var sdkError *codersdk.Error
 	if errors.As(err, &sdkError) {
-		msg = sdkError.Message + sdkError.Helper
+		// We don't want to repeat the same error message twice, so we
+		// only show the SDK error on the top of the stack.
+		msg = sdkError.Message
+		if sdkError.Helper != "" {
+			msg = msg + "\n" + sdkError.Helper
+		}
+		// The SDK error is usually good enough, and we don't want to overwhelm
+		// the user with output.
+		errTail = nil
 	} else {
 		msg = headErr
 	}
 
 	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644"))
-	if p.level > 0 {
-		// Grey out the less important, deep errors.
-		textStyle.Foreground(lipgloss.Color("#969696"))
-	}
-
-	if nextErr != nil {
+	if errTail != nil {
 		msg = msg + ": "
 	}
-
 	p.printf(
 		"%s",
 		textStyle.Render(msg),
 	)
-	p.level++
-	p.format(nextErr)
+
+	if errTail != nil {
+		// Grey out the less important, deep errors.
+		textStyle.Foreground(lipgloss.Color("#969696"))
+		p.printf("%s", textStyle.Render(errTail.Error()))
+	}
+	p.printf("\n")
 }
 
 func (p *prettyErrorFormatter) printf(format string, a ...interface{}) {
