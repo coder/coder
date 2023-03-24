@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"testing"
 
 	protobuf "github.com/golang/protobuf/proto"
@@ -366,7 +367,7 @@ func TestConvertResources(t *testing.T) {
 					// and that no errors occur!
 					modules = append(modules, tfPlan.PlannedValues.RootModule)
 				}
-				state, err := terraform.ConvertState(modules, string(tfPlanGraph))
+				state, err := terraform.ConvertState(modules, string(tfPlanGraph), richParameterResourceNames(expected.parameters))
 				require.NoError(t, err)
 				sortResources(state.Resources)
 				sort.Strings(state.GitAuthProviders)
@@ -419,7 +420,7 @@ func TestConvertResources(t *testing.T) {
 				tfStateGraph, err := os.ReadFile(filepath.Join(dir, folderName+".tfstate.dot"))
 				require.NoError(t, err)
 
-				state, err := terraform.ConvertState([]*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph))
+				state, err := terraform.ConvertState([]*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph), richParameterResourceNames(expected.parameters))
 				require.NoError(t, err)
 				sortResources(state.Resources)
 				sort.Strings(state.GitAuthProviders)
@@ -478,7 +479,7 @@ func TestAppSlugValidation(t *testing.T) {
 		}
 	}
 
-	state, err := terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
+	state, err := terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), nil)
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "invalid app slug")
@@ -490,7 +491,7 @@ func TestAppSlugValidation(t *testing.T) {
 		}
 	}
 
-	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
+	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), nil)
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "duplicate app slug")
@@ -540,7 +541,7 @@ func TestInstanceTypeAssociation(t *testing.T) {
 	subgraph "root" {
 		"[root] `+tc.ResourceType+`.dev" [label = "`+tc.ResourceType+`.dev", shape = "box"]
 	}
-}`)
+}`, nil)
 			require.NoError(t, err)
 			require.Len(t, state.Resources, 1)
 			require.Equal(t, state.Resources[0].GetInstanceType(), instanceType)
@@ -611,7 +612,7 @@ func TestInstanceIDAssociation(t *testing.T) {
 		"[root] `+tc.ResourceType+`.dev" -> "[root] coder_agent.dev"
 	}
 }
-`)
+`, nil)
 			require.NoError(t, err)
 			require.Len(t, state.Resources, 1)
 			require.Len(t, state.Resources[0].Agents, 1)
@@ -639,4 +640,12 @@ func sortResources(resources []*proto.Resource) {
 			return resource.Agents[i].Name < resource.Agents[j].Name
 		})
 	}
+}
+
+func richParameterResourceNames(parameters []*proto.RichParameter) []string {
+	var names []string
+	for _, p := range parameters {
+		names = append(names, strings.ToLower(p.Name))
+	}
+	return names
 }

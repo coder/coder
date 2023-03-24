@@ -92,7 +92,7 @@ type State struct {
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
 // nolint:gocyclo
-func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error) {
+func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNames []string) (*State, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
 		return nil, xerrors.Errorf("parse graph: %w", err)
@@ -463,10 +463,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 	}
 
 	parameters := make([]*proto.RichParameter, 0)
-	for _, resource := range tfResourcesRichParameters {
-		if resource.Type != "coder_parameter" {
-			continue
-		}
+	for _, resource := range orderedRichParametersResources(tfResourcesRichParameters, rawParameterNames) {
 		var param provider.Parameter
 		err = mapstructure.Decode(resource.AttributeValues, &param)
 		if err != nil {
@@ -649,4 +646,20 @@ func findResourcesInGraph(graph *gographviz.Graph, tfResourcesByLabel map[string
 	}
 
 	return graphResources
+}
+
+func orderedRichParametersResources(tfResourcesRichParameters []*tfjson.StateResource, orderedNames []string) []*tfjson.StateResource {
+	if len(orderedNames) == 0 {
+		return tfResourcesRichParameters
+	}
+
+	ordered := make([]*tfjson.StateResource, len(orderedNames))
+	for i, name := range orderedNames {
+		for _, resource := range tfResourcesRichParameters {
+			if resource.Name == name {
+				ordered[i] = resource
+			}
+		}
+	}
+	return ordered
 }
