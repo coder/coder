@@ -7,7 +7,7 @@ Docker is required. See the [official installation documentation](https://docs.d
 ## Run Coder with the built-in database (quick)
 
 For proof-of-concept deployments, you can run a complete Coder instance with
-the following command:
+the following command. Note that if you are on Mac, you will need to run Coder via [Docker compose](#run-coder-with-docker-compose).
 
 ```console
 export CODER_DATA=$HOME/.config/coderv2-docker
