@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -31,8 +33,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/text/encoding/unicode"
-	"golang.org/x/text/transform"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -40,6 +40,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/pty/ptytest"
@@ -739,37 +740,78 @@ func TestAgent_SSHConnectionEnvVars(t *testing.T) {
 
 func TestAgent_StartupScript(t *testing.T) {
 	t.Parallel()
+	output := "something"
+	command := "sh -c 'echo " + output + "'"
 	if runtime.GOOS == "windows" {
-		t.Skip("This test doesn't work on Windows for some reason...")
+		command = "cmd.exe /c echo " + output
 	}
-	content := "output"
-	//nolint:dogsled
-	_, _, _, fs, _ := setupAgent(t, agentsdk.Metadata{
-		StartupScript: "echo " + content,
-	}, 0)
-	var gotContent string
-	require.Eventually(t, func() bool {
-		outputPath := filepath.Join(os.TempDir(), "coder-startup-script.log")
-		content, err := afero.ReadFile(fs, outputPath)
-		if err != nil {
-			t.Logf("read file %q: %s", outputPath, err)
-			return false
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		client := &client{
+			t:       t,
+			agentID: uuid.New(),
+			metadata: agentsdk.Metadata{
+				StartupScript: command,
+				DERPMap:       &tailcfg.DERPMap{},
+			},
+			statsChan:   make(chan *agentsdk.Stats),
+			coordinator: tailnet.NewCoordinator(),
 		}
-		if len(content) == 0 {
-			t.Logf("no content in %q", outputPath)
-			return false
+		closer := agent.New(agent.Options{
+			Client:                 client,
+			Filesystem:             afero.NewMemMapFs(),
+			Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			ReconnectingPTYTimeout: 0,
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+		assert.Eventually(t, func() bool {
+			got := client.getLifecycleStates()
+			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		require.Len(t, client.getStartupLogs(), 1)
+		require.Equal(t, output, client.getStartupLogs()[0].Output)
+	})
+	// This ensures that even when coderd sends back that the startup
+	// script has written too many lines it will still succeed!
+	t.Run("OverflowsAndSkips", func(t *testing.T) {
+		t.Parallel()
+		client := &client{
+			t:       t,
+			agentID: uuid.New(),
+			metadata: agentsdk.Metadata{
+				StartupScript: command,
+				DERPMap:       &tailcfg.DERPMap{},
+			},
+			patchWorkspaceLogs: func() error {
+				resp := httptest.NewRecorder()
+				httpapi.Write(context.Background(), resp, http.StatusRequestEntityTooLarge, codersdk.Response{
+					Message: "Too many lines!",
+				})
+				res := resp.Result()
+				defer res.Body.Close()
+				return codersdk.ReadBodyAsError(res)
+			},
+			statsChan:   make(chan *agentsdk.Stats),
+			coordinator: tailnet.NewCoordinator(),
 		}
-		if runtime.GOOS == "windows" {
-			// Windows uses UTF16! 🪟🪟🪟
-			content, _, err = transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), content)
-			if !assert.NoError(t, err) {
-				return false
-			}
-		}
-		gotContent = string(content)
-		return true
-	}, testutil.WaitShort, testutil.IntervalMedium)
-	require.Equal(t, content, strings.TrimSpace(gotContent))
+		closer := agent.New(agent.Options{
+			Client:                 client,
+			Filesystem:             afero.NewMemMapFs(),
+			Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			ReconnectingPTYTimeout: 0,
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+		assert.Eventually(t, func() bool {
+			got := client.getLifecycleStates()
+			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
+		}, testutil.WaitShort, testutil.IntervalMedium)
+		require.Len(t, client.getStartupLogs(), 0)
+	})
 }
 
 func TestAgent_Lifecycle(t *testing.T) {
@@ -1495,10 +1537,12 @@ type client struct {
 	statsChan          chan *agentsdk.Stats
 	coordinator        tailnet.Coordinator
 	lastWorkspaceAgent func()
+	patchWorkspaceLogs func() error
 
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 	startup         agentsdk.PostStartupRequest
+	logs            []agentsdk.StartupLog
 }
 
 func (c *client) Metadata(_ context.Context) (agentsdk.Metadata, error) {
@@ -1580,6 +1624,22 @@ func (c *client) PostStartup(_ context.Context, startup agentsdk.PostStartupRequ
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.startup = startup
+	return nil
+}
+
+func (c *client) getStartupLogs() []agentsdk.StartupLog {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.logs
+}
+
+func (c *client) PatchStartupLogs(_ context.Context, logs agentsdk.PatchStartupLogs) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.patchWorkspaceLogs != nil {
+		return c.patchWorkspaceLogs()
+	}
+	c.logs = append(c.logs, logs.Logs...)
 	return nil
 }
 

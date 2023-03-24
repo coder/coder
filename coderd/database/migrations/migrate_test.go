@@ -271,7 +271,7 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 
 			db := testSQLDB(t)
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 
 			// Prepare database for stepping up.
 			err := migrations.Down(db)

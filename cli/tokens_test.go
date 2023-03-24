@@ -24,20 +24,20 @@ func TestTokens(t *testing.T) {
 	defer cancelFunc()
 
 	// helpful empty response
-	cmd, root := clitest.New(t, "tokens", "ls")
+	inv, root := clitest.New(t, "tokens", "ls")
 	clitest.SetupConfig(t, client, root)
 	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	err := cmd.ExecuteContext(ctx)
+	inv.Stdout = buf
+	err := inv.WithContext(ctx).Run()
 	require.NoError(t, err)
 	res := buf.String()
 	require.Contains(t, res, "tokens found")
 
-	cmd, root = clitest.New(t, "tokens", "create", "--name", "token-one")
+	inv, root = clitest.New(t, "tokens", "create", "--name", "token-one")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
-	cmd.SetOut(buf)
-	err = cmd.ExecuteContext(ctx)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
 	require.NoError(t, err)
 	res = buf.String()
 	require.NotEmpty(t, res)
@@ -47,11 +47,11 @@ func TestTokens(t *testing.T) {
 	key := r.FindString(res)
 	id := key[:10]
 
-	cmd, root = clitest.New(t, "tokens", "ls")
+	inv, root = clitest.New(t, "tokens", "ls")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
-	cmd.SetOut(buf)
-	err = cmd.ExecuteContext(ctx)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
 	require.NoError(t, err)
 	res = buf.String()
 	require.NotEmpty(t, res)
@@ -61,11 +61,11 @@ func TestTokens(t *testing.T) {
 	require.Contains(t, res, "LAST USED")
 	require.Contains(t, res, id)
 
-	cmd, root = clitest.New(t, "tokens", "ls", "--output=json")
+	inv, root = clitest.New(t, "tokens", "ls", "--output=json")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
-	cmd.SetOut(buf)
-	err = cmd.ExecuteContext(ctx)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
 	require.NoError(t, err)
 
 	var tokens []codersdk.APIKey
@@ -73,11 +73,11 @@ func TestTokens(t *testing.T) {
 	require.Len(t, tokens, 1)
 	require.Equal(t, id, tokens[0].ID)
 
-	cmd, root = clitest.New(t, "tokens", "rm", "token-one")
+	inv, root = clitest.New(t, "tokens", "rm", "token-one")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
-	cmd.SetOut(buf)
-	err = cmd.ExecuteContext(ctx)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
 	require.NoError(t, err)
 	res = buf.String()
 	require.NotEmpty(t, res)

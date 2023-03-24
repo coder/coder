@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/spf13/afero"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -27,22 +27,22 @@ import (
 // This command needs to remain stable for compatibility with
 // various VS Code versions, so it's kept separate from our
 // standard SSH command.
-func vscodeSSH() *cobra.Command {
+func (*RootCmd) vscodeSSH() *clibase.Cmd {
 	var (
 		sessionTokenFile    string
 		urlFile             string
 		networkInfoDir      string
 		networkInfoInterval time.Duration
 	)
-	cmd := &cobra.Command{
+	cmd := &clibase.Cmd{
 		// A SSH config entry is added by the VS Code extension that
 		// passes %h to ProxyCommand. The prefix of `coder-vscode--`
 		// is a magical string represented in our VS Cod extension.
 		// It's not important here, only the delimiter `--` is.
-		Use:    "vscodessh <coder-vscode--<owner>-<workspace>-<agent?>>",
-		Hidden: true,
-		Args:   cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Use:        "vscodessh <coder-vscode--<owner>-<workspace>-<agent?>>",
+		Hidden:     true,
+		Middleware: clibase.RequireNArgs(1),
+		Handler: func(inv *clibase.Invocation) error {
 			if networkInfoDir == "" {
 				return xerrors.New("network-info-dir must be specified")
 			}
@@ -53,7 +53,7 @@ func vscodeSSH() *cobra.Command {
 				return xerrors.New("url-file must be specified")
 			}
 
-			fs, ok := cmd.Context().Value("fs").(afero.Fs)
+			fs, ok := inv.Context().Value("fs").(afero.Fs)
 			if !ok {
 				fs = afero.NewOsFs()
 			}
@@ -71,7 +71,7 @@ func vscodeSSH() *cobra.Command {
 				return xerrors.Errorf("parse url: %w", err)
 			}
 
-			ctx, cancel := context.WithCancel(cmd.Context())
+			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
 			err = fs.MkdirAll(networkInfoDir, 0o700)
@@ -82,7 +82,7 @@ func vscodeSSH() *cobra.Command {
 			client := codersdk.New(serverURL)
 			client.SetSessionToken(string(sessionToken))
 
-			parts := strings.Split(args[0], "--")
+			parts := strings.Split(inv.Args[0], "--")
 			if len(parts) < 3 {
 				return xerrors.Errorf("invalid argument format. must be: coder-vscode--<owner>-<name>-<agent?>")
 			}
@@ -135,10 +135,10 @@ func vscodeSSH() *cobra.Command {
 
 			// Copy SSH traffic over stdio.
 			go func() {
-				_, _ = io.Copy(cmd.OutOrStdout(), rawSSH)
+				_, _ = io.Copy(inv.Stdout, rawSSH)
 			}()
 			go func() {
-				_, _ = io.Copy(rawSSH, cmd.InOrStdin())
+				_, _ = io.Copy(rawSSH, inv.Stdin)
 			}()
 
 			// The VS Code extension obtains the PID of the SSH process to
@@ -187,10 +187,29 @@ func vscodeSSH() *cobra.Command {
 			}
 		},
 	}
-	cmd.Flags().StringVarP(&networkInfoDir, "network-info-dir", "", "", "Specifies a directory to write network information periodically.")
-	cmd.Flags().StringVarP(&sessionTokenFile, "session-token-file", "", "", "Specifies a file that contains a session token.")
-	cmd.Flags().StringVarP(&urlFile, "url-file", "", "", "Specifies a file that contains the Coder URL.")
-	cmd.Flags().DurationVarP(&networkInfoInterval, "network-info-interval", "", 5*time.Second, "Specifies the interval to update network information.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:        "network-info-dir",
+			Description: "Specifies a directory to write network information periodically.",
+			Value:       clibase.StringOf(&networkInfoDir),
+		},
+		{
+			Flag:        "session-token-file",
+			Description: "Specifies a file that contains a session token.",
+			Value:       clibase.StringOf(&sessionTokenFile),
+		},
+		{
+			Flag:        "url-file",
+			Description: "Specifies a file that contains the Coder URL.",
+			Value:       clibase.StringOf(&urlFile),
+		},
+		{
+			Flag:        "network-info-interval",
+			Description: "Specifies the interval to update network information.",
+			Default:     "5s",
+			Value:       clibase.DurationOf(&networkInfoInterval),
+		},
+	}
 	return cmd
 }
 

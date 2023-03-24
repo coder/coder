@@ -18,12 +18,11 @@ import (
 	"github.com/cli/safeexec"
 	"github.com/pkg/diff"
 	"github.com/pkg/diff/write"
-	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/cliflag"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
@@ -170,7 +169,7 @@ func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (r
 	}
 }
 
-func configSSH() *cobra.Command {
+func (r *RootCmd) configSSH() *clibase.Cmd {
 	var (
 		sshConfigFile    string
 		sshConfigOpts    sshConfigOptions
@@ -179,11 +178,12 @@ func configSSH() *cobra.Command {
 		skipProxyCommand bool
 		userHostPrefix   string
 	)
-	cmd := &cobra.Command{
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
 		Short:       "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Description: "You can use -o (or --ssh-option) so set SSH options to be used for all your workspaces",
 				Command:     "coder config-ssh -o ForwardAgent=yes",
@@ -193,21 +193,18 @@ func configSSH() *cobra.Command {
 				Command:     "coder config-ssh --dry-run",
 			},
 		),
-		Args: cobra.ExactArgs(0),
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			ctx := cmd.Context()
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return err
-			}
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(0),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			recvWorkspaceConfigs := sshPrepareWorkspaceConfigs(inv.Context(), client)
 
-			recvWorkspaceConfigs := sshPrepareWorkspaceConfigs(ctx, client)
-
-			out := cmd.OutOrStdout()
+			out := inv.Stdout
 			if dryRun {
 				// Print everything except diff to stderr so
 				// that it's possible to capture the diff.
-				out = cmd.OutOrStderr()
+				out = inv.Stderr
 			}
 			coderBinary, err := currentBinPath(out)
 			if err != nil {
@@ -218,7 +215,7 @@ func configSSH() *cobra.Command {
 				return xerrors.Errorf("escape coder binary for ssh failed: %w", err)
 			}
 
-			root := createConfig(cmd)
+			root := r.createConfig()
 			escapedGlobalConfig, err := sshConfigExecEscape(string(root))
 			if err != nil {
 				return xerrors.Errorf("escape global config for ssh failed: %w", err)
@@ -278,7 +275,7 @@ func configSSH() *cobra.Command {
 					oldOptsMsg = fmt.Sprintf("\n\n  Previous options:\n    * %s", strings.Join(oldOpts, "\n    * "))
 				}
 
-				line, err := cliui.Prompt(cmd, cliui.PromptOptions{
+				line, err := cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      fmt.Sprintf("New options differ from previous options:%s%s\n\n  Use new options?", newOptsMsg, oldOptsMsg),
 					IsConfirm: true,
 				})
@@ -292,7 +289,7 @@ func configSSH() *cobra.Command {
 					changes = append(changes, "Use new SSH options")
 				}
 				// Only print when prompts are shown.
-				if yes, _ := cmd.Flags().GetBool("yes"); !yes {
+				if yes, _ := inv.ParsedFlags().GetBool("yes"); !yes {
 					_, _ = fmt.Fprint(out, "\n")
 				}
 			}
@@ -317,7 +314,7 @@ func configSSH() *cobra.Command {
 				return xerrors.Errorf("fetch workspace configs failed: %w", err)
 			}
 
-			coderdConfig, err := client.SSHConfiguration(ctx)
+			coderdConfig, err := client.SSHConfiguration(inv.Context())
 			if err != nil {
 				// If the error is 404, this deployment does not support
 				// this endpoint yet. Do not error, just assume defaults.
@@ -417,21 +414,21 @@ func configSSH() *cobra.Command {
 			if dryRun {
 				_, _ = fmt.Fprintf(out, "Dry run, the following changes would be made to your SSH configuration:\n\n  * %s\n\n", strings.Join(changes, "\n  * "))
 
-				color := isTTYOut(cmd)
+				color := isTTYOut(inv)
 				diff, err := diffBytes(sshConfigFile, configRaw, configModified, color)
 				if err != nil {
 					return xerrors.Errorf("diff failed: %w", err)
 				}
 				if len(diff) > 0 {
 					// Write diff to stdout.
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s", diff)
+					_, _ = fmt.Fprintf(inv.Stdout, "%s", diff)
 				}
 
 				return nil
 			}
 
 			if len(changes) > 0 {
-				_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      fmt.Sprintf("The following changes will be made to your SSH configuration:\n\n    * %s\n\n  Continue?", strings.Join(changes, "\n    * ")),
 					IsConfirm: true,
 				})
@@ -439,7 +436,7 @@ func configSSH() *cobra.Command {
 					return nil
 				}
 				// Only print when prompts are shown.
-				if yes, _ := cmd.Flags().GetBool("yes"); !yes {
+				if yes, _ := inv.ParsedFlags().GetBool("yes"); !yes {
 					_, _ = fmt.Fprint(out, "\n")
 				}
 			}
@@ -449,6 +446,7 @@ func configSSH() *cobra.Command {
 				if err != nil {
 					return xerrors.Errorf("write ssh config failed: %w", err)
 				}
+				_, _ = fmt.Fprintf(out, "Updated %q\n", sshConfigFile)
 			}
 
 			if len(workspaceConfigs) > 0 {
@@ -460,14 +458,50 @@ func configSSH() *cobra.Command {
 			return nil
 		},
 	}
-	cliflag.StringVarP(cmd.Flags(), &sshConfigFile, "ssh-config-file", "", "CODER_SSH_CONFIG_FILE", sshDefaultConfigFileName, "Specifies the path to an SSH config.")
-	cmd.Flags().StringArrayVarP(&sshConfigOpts.sshOptions, "ssh-option", "o", []string{}, "Specifies additional SSH options to embed in each host stanza.")
-	cmd.Flags().BoolVarP(&dryRun, "dry-run", "n", false, "Perform a trial run with no changes made, showing a diff at the end.")
-	cmd.Flags().BoolVarP(&skipProxyCommand, "skip-proxy-command", "", false, "Specifies whether the ProxyCommand option should be skipped. Useful for testing.")
-	_ = cmd.Flags().MarkHidden("skip-proxy-command")
-	cliflag.BoolVarP(cmd.Flags(), &usePreviousOpts, "use-previous-options", "", "CODER_SSH_USE_PREVIOUS_OPTIONS", false, "Specifies whether or not to keep options from previous run of config-ssh.")
-	cmd.Flags().StringVarP(&userHostPrefix, "ssh-host-prefix", "", "", "Override the default host prefix.")
-	cliui.AllowSkipPrompt(cmd)
+
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:        "ssh-config-file",
+			Env:         "CODER_SSH_CONFIG_FILE",
+			Default:     sshDefaultConfigFileName,
+			Description: "Specifies the path to an SSH config.",
+			Value:       clibase.StringOf(&sshConfigFile),
+		},
+		{
+			Flag:          "ssh-option",
+			FlagShorthand: "o",
+			Env:           "CODER_SSH_CONFIG_OPTS",
+			Description:   "Specifies additional SSH options to embed in each host stanza.",
+			Value:         clibase.StringArrayOf(&sshConfigOpts.sshOptions),
+		},
+		{
+			Flag:          "dry-run",
+			FlagShorthand: "n",
+			Env:           "CODER_SSH_DRY_RUN",
+			Description:   "Perform a trial run with no changes made, showing a diff at the end.",
+			Value:         clibase.BoolOf(&dryRun),
+		},
+		{
+			Flag:        "skip-proxy-command",
+			Env:         "CODER_SSH_SKIP_PROXY_COMMAND",
+			Description: "Specifies whether the ProxyCommand option should be skipped. Useful for testing.",
+			Value:       clibase.BoolOf(&skipProxyCommand),
+			Hidden:      true,
+		},
+		{
+			Flag:        "use-previous-options",
+			Env:         "CODER_SSH_USE_PREVIOUS_OPTIONS",
+			Description: "Specifies whether or not to keep options from previous run of config-ssh.",
+			Value:       clibase.BoolOf(&usePreviousOpts),
+		},
+		{
+			Flag:        "ssh-host-prefix",
+			Env:         "",
+			Description: "Override the default host prefix.",
+			Value:       clibase.StringOf(&userHostPrefix),
+		},
+		cliui.SkipPromptOption(),
+	}
 
 	return cmd
 }

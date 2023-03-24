@@ -20,8 +20,6 @@ replace github.com/fergusstrange/embedded-postgres => github.com/kylecarbs/embed
 // opencensus-go leaks a goroutine by default.
 replace go.opencensus.io => github.com/kylecarbs/opencensus-go v0.23.1-0.20220307014935-4d0325a68f8b
 
-replace github.com/urfave/cli/v2 => github.com/ipostelnik/cli/v2 v2.3.1-0.20210324024421-b6ea8234fe3d
-
 replace github.com/rivo/tview => github.com/kylecarbs/tview v0.0.0-20220309202238-8464256e10a1
 
 // glog has a single goroutine leak on start that we removed in a fork: https://github.com/coder/glog/pull/1.
@@ -60,6 +58,7 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.3.5
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/adrg/xdg v0.4.0
+	github.com/ammario/prefixsuffix v0.0.0-20200405191514-5a0456bf2cfd
 	github.com/andybalholm/brotli v1.0.4
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
@@ -73,7 +72,7 @@ require (
 	github.com/charmbracelet/lipgloss v0.6.0
 	github.com/cli/safeexec v1.0.0
 	github.com/codeclysm/extract v2.2.0+incompatible
-	github.com/coder/flog v1.0.0
+	github.com/coder/flog v1.1.0
 	github.com/coder/retry v1.3.1-0.20230210155434-e90a2e1e091d
 	github.com/coder/terraform-provider-coder v0.6.21
 	github.com/coder/wgtunnel v0.1.5
@@ -133,7 +132,6 @@ require (
 	github.com/quasilyte/go-ruleguard/dsl v0.3.21
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/afero v1.9.3
-	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
 	github.com/swaggo/http-swagger v1.3.3
@@ -152,14 +150,14 @@ require (
 	go.opentelemetry.io/otel/sdk v1.11.1
 	go.opentelemetry.io/otel/trace v1.11.1
 	go.uber.org/atomic v1.10.0
-	go.uber.org/goleak v1.2.0
+	go.uber.org/goleak v1.2.1
 	go4.org/netipx v0.0.0-20220725152314-7e7bdc8411bf
 	golang.org/x/crypto v0.6.0
 	golang.org/x/exp v0.0.0-20221205204356-47842c84f3db
 	golang.org/x/mod v0.8.0
 	golang.org/x/oauth2 v0.5.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.5.0
+	golang.org/x/sys v0.6.0
 	golang.org/x/term v0.5.0
 	golang.org/x/text v0.7.0
 	golang.org/x/tools v0.6.0
@@ -269,7 +267,6 @@ require (
 	github.com/iancoleman/strcase v0.2.0
 	github.com/illarion/gonotify v1.0.1 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/insomniacslk/dhcp v0.0.0-20221215072855-de60144f33f8 // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 // indirect
 	github.com/josharian/intern v1.0.0 // indirect

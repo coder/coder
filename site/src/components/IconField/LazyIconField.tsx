@@ -5,7 +5,7 @@ const IconField = lazy(() => import("./IconField"))
 
 export const LazyIconField: FC<IconFieldProps> = (props) => {
   return (
-    <Suspense>
+    <Suspense fallback={<div role="progressbar" data-testid="loader" />}>
       <IconField {...props} />
     </Suspense>
   )

@@ -42,13 +42,6 @@ const fetchTemplate = async (orgId: string, templateName: string) => {
   }
 }
 
-const useTemplateData = (orgId: string, templateName: string) => {
-  return useQuery({
-    queryKey: ["template", templateName],
-    queryFn: () => fetchTemplate(orgId, templateName),
-  })
-}
-
 type TemplateLayoutContextValue = Awaited<ReturnType<typeof fetchTemplate>>
 
 const TemplateLayoutContext = createContext<
@@ -71,28 +64,31 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   const navigate = useNavigate()
   const styles = useStyles()
   const orgId = useOrganizationId()
-  const { template } = useParams() as { template: string }
-  const templateData = useTemplateData(orgId, template)
+  const { template: templateName } = useParams() as { template: string }
+  const { data, error, isLoading } = useQuery({
+    queryKey: ["template", templateName],
+    queryFn: () => fetchTemplate(orgId, templateName),
+  })
   const dashboard = useDashboard()
 
-  if (templateData.error) {
+  if (error) {
     return (
       <div className={styles.error}>
-        <AlertBanner severity="error" error={templateData.error} />
+        <AlertBanner severity="error" error={error} />
       </div>
     )
   }
 
-  if (templateData.isLoading || !templateData.data) {
+  if (isLoading || !data) {
     return <Loader />
   }
 
   return (
     <>
       <TemplatePageHeader
-        template={templateData.data.template}
-        activeVersion={templateData.data.activeVersion}
-        permissions={templateData.data.permissions}
+        template={data.template}
+        activeVersion={data.activeVersion}
+        permissions={data.permissions}
         canEditFiles={dashboard.experiments.includes("template_editor")}
         onDeleteTemplate={() => {
           navigate("/templates")
@@ -104,7 +100,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
           <Stack direction="row" spacing={0.25}>
             <NavLink
               end
-              to={`/templates/${template}`}
+              to={`/templates/${templateName}`}
               className={({ isActive }) =>
                 combineClasses([
                   styles.tabItem,
@@ -115,18 +111,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
               Summary
             </NavLink>
             <NavLink
-              to={`/templates/${template}/permissions`}
-              className={({ isActive }) =>
-                combineClasses([
-                  styles.tabItem,
-                  isActive ? styles.tabItemActive : undefined,
-                ])
-              }
-            >
-              Permissions
-            </NavLink>
-            <NavLink
-              to={`/templates/${template}/files`}
+              to={`/templates/${templateName}/files`}
               className={({ isActive }) =>
                 combineClasses([
                   styles.tabItem,
@@ -141,7 +126,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
       </div>
 
       <Margins>
-        <TemplateLayoutContext.Provider value={templateData.data}>
+        <TemplateLayoutContext.Provider value={data}>
           <Suspense fallback={<Loader />}>{children}</Suspense>
         </TemplateLayoutContext.Provider>
       </Margins>

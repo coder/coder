@@ -699,6 +699,7 @@ export const workspaceMachine = createMachine(
             checkRefresh: true,
             data: JSON.parse(event.data),
           })
+          // refresh
         })
 
         // handle any error events returned by our sse

@@ -31,7 +31,7 @@ func TestCreateGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name:      "hi",
 			AvatarURL: "https://example.com",
@@ -63,7 +63,7 @@ func TestCreateGroup(t *testing.T) {
 			},
 		})
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		numLogs := len(auditor.AuditLogs)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -87,7 +87,7 @@ func TestCreateGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -113,7 +113,7 @@ func TestCreateGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: database.AllUsersGroup,
 		})
@@ -138,7 +138,7 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name:           "hi",
 			AvatarURL:      "https://example.com",
@@ -172,7 +172,7 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -199,7 +199,7 @@ func TestPatchGroup(t *testing.T) {
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -228,7 +228,7 @@ func TestPatchGroup(t *testing.T) {
 		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user4 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -271,7 +271,7 @@ func TestPatchGroup(t *testing.T) {
 			},
 		})
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
@@ -300,7 +300,7 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name:      "hi",
 			AvatarURL: "https://example.com",
@@ -333,7 +333,7 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -359,7 +359,7 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -386,7 +386,7 @@ func TestPatchGroup(t *testing.T) {
 			},
 		})
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -413,7 +413,7 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -444,7 +444,7 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -466,7 +466,7 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -491,7 +491,7 @@ func TestGroup(t *testing.T) {
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -522,7 +522,7 @@ func TestGroup(t *testing.T) {
 		})
 		client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -547,7 +547,7 @@ func TestGroup(t *testing.T) {
 		_, user1 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -582,7 +582,7 @@ func TestGroup(t *testing.T) {
 		_, user1 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -617,7 +617,7 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		// The 'Everyone' group always has an ID that matches the organization ID.
 		group, err := client.Group(ctx, user.OrganizationID)
 		require.NoError(t, err)
@@ -646,7 +646,7 @@ func TestGroups(t *testing.T) {
 		_, user4 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user5 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -689,7 +689,7 @@ func TestDeleteGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
@@ -724,7 +724,7 @@ func TestDeleteGroup(t *testing.T) {
 				codersdk.FeatureAuditLog:     1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
@@ -752,7 +752,7 @@ func TestDeleteGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		})
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := client.DeleteGroup(ctx, user.OrganizationID)
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)

@@ -2644,13 +2644,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Before Unix timestamp",
+                        "description": "Before log id",
                         "name": "before",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "After Unix timestamp",
+                        "description": "After log id",
                         "name": "after",
                         "in": "query"
                     },
@@ -4402,6 +4402,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/startup-logs": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Patch workspace agent startup logs",
+                "operationId": "patch-workspace-agent-startup-logs",
+                "parameters": [
+                    {
+                        "description": "Startup logs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.PatchStartupLogs"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}": {
             "get": {
                 "security": [
@@ -4561,6 +4603,62 @@ const docTemplate = `{
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/startup-logs": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get startup logs by workspace agent",
+                "operationId": "get-startup-logs-by-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Before log id",
+                        "name": "before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "After log id",
+                        "name": "after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Follow log stream",
+                        "name": "follow",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceAgentStartupLog"
+                            }
+                        }
                     }
                 }
             }
@@ -5344,6 +5442,17 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.PatchStartupLogs": {
+            "type": "object",
+            "properties": {
+                "logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.StartupLog"
+                    }
+                }
+            }
+        },
         "agentsdk.PostAppHealthsRequest": {
             "type": "object",
             "properties": {
@@ -5371,6 +5480,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.StartupLog": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "output": {
                     "type": "string"
                 }
             }
@@ -8680,6 +8800,12 @@ const docTemplate = `{
                 "shutdown_script_timeout_seconds": {
                     "type": "integer"
                 },
+                "startup_logs_length": {
+                    "type": "integer"
+                },
+                "startup_logs_overflowed": {
+                    "type": "boolean"
+                },
                 "startup_script": {
                     "type": "string"
                 },
@@ -8760,6 +8886,21 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPort"
                     }
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentStartupLog": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "output": {
+                    "type": "string"
                 }
             }
         },

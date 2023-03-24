@@ -55,16 +55,11 @@ func TestTemplateCreate(t *testing.T) {
 			"--test.provisioner", string(database.ProvisionerTypeEcho),
 			"--default-ttl", "24h",
 		}
-		cmd, root := clitest.New(t, args...)
+		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- cmd.Execute()
-		}()
+		clitest.Start(t, inv)
 
 		matches := []struct {
 			match string
@@ -81,8 +76,6 @@ func TestTemplateCreate(t *testing.T) {
 				pty.WriteLine(m.write)
 			}
 		}
-
-		require.NoError(t, <-execDone)
 	})
 
 	t.Run("CreateStdin", func(t *testing.T) {
@@ -103,18 +96,13 @@ func TestTemplateCreate(t *testing.T) {
 			"--test.provisioner", string(database.ProvisionerTypeEcho),
 			"--default-ttl", "24h",
 		}
-		cmd, root := clitest.New(t, args...)
+		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.SetIn(bytes.NewReader(source))
-		cmd.SetOut(pty.Output())
+		inv.Stdin = bytes.NewReader(source)
+		inv.Stdout = pty.Output()
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- cmd.Execute()
-		}()
-
-		require.NoError(t, <-execDone)
+		require.NoError(t, inv.Run())
 	})
 
 	t.Run("WithParameter", func(t *testing.T) {
@@ -126,17 +114,11 @@ func TestTemplateCreate(t *testing.T) {
 			ProvisionApply: echo.ProvisionComplete,
 			ProvisionPlan:  echo.ProvisionComplete,
 		})
-		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- cmd.Execute()
-		}()
-
+		clitest.Start(t, inv)
 		matches := []struct {
 			match string
 			write string
@@ -149,8 +131,6 @@ func TestTemplateCreate(t *testing.T) {
 			pty.ExpectMatch(m.match)
 			pty.WriteLine(m.write)
 		}
-
-		require.NoError(t, <-execDone)
 	})
 
 	t.Run("WithParameterFileContainingTheValue", func(t *testing.T) {
@@ -166,16 +146,11 @@ func TestTemplateCreate(t *testing.T) {
 		removeTmpDirUntilSuccessAfterTest(t, tempDir)
 		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 		_, _ = parameterFile.WriteString("region: \"bananas\"")
-		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--parameter-file", parameterFile.Name())
+		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- cmd.Execute()
-		}()
+		clitest.Start(t, inv)
 
 		matches := []struct {
 			match string
@@ -188,8 +163,6 @@ func TestTemplateCreate(t *testing.T) {
 			pty.ExpectMatch(m.match)
 			pty.WriteLine(m.write)
 		}
-
-		require.NoError(t, <-execDone)
 	})
 
 	t.Run("WithParameterFileNotContainingTheValue", func(t *testing.T) {
@@ -205,16 +178,11 @@ func TestTemplateCreate(t *testing.T) {
 		removeTmpDirUntilSuccessAfterTest(t, tempDir)
 		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 		_, _ = parameterFile.WriteString("zone: \"bananas\"")
-		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--parameter-file", parameterFile.Name())
+		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- cmd.Execute()
-		}()
+		clitest.Start(t, inv)
 
 		matches := []struct {
 			match string
@@ -237,8 +205,6 @@ func TestTemplateCreate(t *testing.T) {
 			pty.ExpectMatch(m.match)
 			pty.WriteLine(m.write)
 		}
-
-		require.NoError(t, <-execDone)
 	})
 
 	t.Run("Recreate template with same name (create, delete, create)", func(t *testing.T) {
@@ -259,10 +225,10 @@ func TestTemplateCreate(t *testing.T) {
 				"--directory", source,
 				"--test.provisioner", string(database.ProvisionerTypeEcho),
 			}
-			cmd, root := clitest.New(t, args...)
+			inv, root := clitest.New(t, args...)
 			clitest.SetupConfig(t, client, root)
 
-			return cmd.Execute()
+			return inv.Run()
 		}
 		del := func() error {
 			args := []string{
@@ -271,10 +237,10 @@ func TestTemplateCreate(t *testing.T) {
 				"my-template",
 				"--yes",
 			}
-			cmd, root := clitest.New(t, args...)
+			inv, root := clitest.New(t, args...)
 			clitest.SetupConfig(t, client, root)
 
-			return cmd.Execute()
+			return inv.Run()
 		}
 
 		err := create()
@@ -289,15 +255,10 @@ func TestTemplateCreate(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
-		cmd, root := clitest.New(t, "templates", "create", "1234567890123456789012345678901234567891", "--test.provisioner", string(database.ProvisionerTypeEcho))
+		inv, root := clitest.New(t, "templates", "create", "1234567890123456789012345678901234567891", "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- cmd.Execute()
-		}()
-
-		require.EqualError(t, <-execDone, "Template name must be less than 32 characters")
+		clitest.StartWithWaiter(t, inv).RequireContains("Template name must be less than 32 characters")
 	})
 
 	t.Run("WithVariablesFileWithoutRequiredValue", func(t *testing.T) {
@@ -309,7 +270,7 @@ func TestTemplateCreate(t *testing.T) {
 		templateVariables := []*proto.TemplateVariable{
 			{
 				Name:        "first_variable",
-				Description: "This is the first variable",
+				Description: "This is the first variable.",
 				Type:        "string",
 				Required:    true,
 				Sensitive:   true,
@@ -329,17 +290,11 @@ func TestTemplateCreate(t *testing.T) {
 		removeTmpDirUntilSuccessAfterTest(t, tempDir)
 		variablesFile, _ := os.CreateTemp(tempDir, "variables*.yaml")
 		_, _ = variablesFile.WriteString(`second_variable: foobar`)
-		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variables-file", variablesFile.Name())
+		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variables-file", variablesFile.Name())
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- cmd.Execute()
-		}()
-
+		clitest.Start(t, inv)
 		matches := []struct {
 			match string
 			write string
@@ -352,8 +307,6 @@ func TestTemplateCreate(t *testing.T) {
 				pty.WriteLine(m.write)
 			}
 		}
-
-		require.Error(t, <-execDone)
 	})
 
 	t.Run("WithVariablesFileWithTheRequiredValue", func(t *testing.T) {
@@ -365,7 +318,7 @@ func TestTemplateCreate(t *testing.T) {
 		templateVariables := []*proto.TemplateVariable{
 			{
 				Name:        "first_variable",
-				Description: "This is the first variable",
+				Description: "This is the first variable.",
 				Type:        "string",
 				Required:    true,
 				Sensitive:   true,
@@ -385,16 +338,11 @@ func TestTemplateCreate(t *testing.T) {
 		removeTmpDirUntilSuccessAfterTest(t, tempDir)
 		variablesFile, _ := os.CreateTemp(tempDir, "variables*.yaml")
 		_, _ = variablesFile.WriteString(`first_variable: foobar`)
-		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variables-file", variablesFile.Name())
+		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variables-file", variablesFile.Name())
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- cmd.Execute()
-		}()
+		clitest.Start(t, inv)
 
 		matches := []struct {
 			match string
@@ -409,8 +357,6 @@ func TestTemplateCreate(t *testing.T) {
 				pty.WriteLine(m.write)
 			}
 		}
-
-		require.NoError(t, <-execDone)
 	})
 	t.Run("WithVariableOption", func(t *testing.T) {
 		t.Parallel()
@@ -421,7 +367,7 @@ func TestTemplateCreate(t *testing.T) {
 		templateVariables := []*proto.TemplateVariable{
 			{
 				Name:        "first_variable",
-				Description: "This is the first variable",
+				Description: "This is the first variable.",
 				Type:        "string",
 				Required:    true,
 				Sensitive:   true,
@@ -429,16 +375,11 @@ func TestTemplateCreate(t *testing.T) {
 		}
 		source := clitest.CreateTemplateVersionSource(t,
 			createEchoResponsesWithTemplateVariables(templateVariables))
-		cmd, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variable", "first_variable=foobar")
+		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variable", "first_variable=foobar")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- cmd.Execute()
-		}()
+		clitest.Start(t, inv)
 
 		matches := []struct {
 			match string
@@ -451,8 +392,6 @@ func TestTemplateCreate(t *testing.T) {
 			pty.ExpectMatch(m.match)
 			pty.WriteLine(m.write)
 		}
-
-		require.NoError(t, <-execDone)
 	})
 }
 
