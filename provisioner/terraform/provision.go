@@ -236,7 +236,7 @@ func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue
 	for _, gitAuth := range gitAuth {
 		env = append(env, provider.GitAuthAccessTokenEnvironmentVariable(gitAuth.Id)+"="+gitAuth.AccessToken)
 	}
-	env = append(env, "TF_LOG=JSON") // FIXME Remove before pushing PR
+	// FIXME env = append(env, "TF_LOG=JSON")
 	return env, nil
 }
 
