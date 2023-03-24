@@ -380,10 +380,11 @@ func TestConvertResources(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, expectedNoMetadataMap, resourcesMap)
 
-				if expected.parameters == nil {
-					expected.parameters = []*proto.RichParameter{}
+				expectedParameters := expected.parameters
+				if expectedParameters == nil {
+					expectedParameters = []*proto.RichParameter{}
 				}
-				parametersWant, err := json.Marshal(expected.parameters)
+				parametersWant, err := json.Marshal(expectedParameters)
 				require.NoError(t, err)
 				parametersGot, err := json.Marshal(state.Parameters)
 				require.NoError(t, err)
