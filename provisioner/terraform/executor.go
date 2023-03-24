@@ -259,7 +259,17 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 		modules = append(modules, plan.PriorState.Values.RootModule)
 	}
 	modules = append(modules, plan.PlannedValues.RootModule)
-	return ConvertState(modules, rawGraph)
+
+	rawParameterNames, err := rawRichParameterNames(e.workdir)
+	if err != nil {
+		return nil, xerrors.Errorf("raw rich parameter names: %w", err)
+	}
+
+	state, err := ConvertState(modules, rawGraph, rawParameterNames)
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
 }
 
 // showPlan must only be called while the lock is held.
@@ -366,9 +376,14 @@ func (e *executor) stateResources(ctx, killCtx context.Context) (*State, error) 
 	}
 	converted := &State{}
 	if state.Values != nil {
+		rawParameterNames, err := rawRichParameterNames(e.workdir)
+		if err != nil {
+			return nil, xerrors.Errorf("raw rich parameter names: %w", err)
+		}
+
 		converted, err = ConvertState([]*tfjson.StateModule{
 			state.Values.RootModule,
-		}, rawGraph)
+		}, rawGraph, rawParameterNames)
 		if err != nil {
 			return nil, err
 		}

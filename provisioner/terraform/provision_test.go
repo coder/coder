@@ -328,9 +328,15 @@ func TestProvision(t *testing.T) {
 					required_providers {
 					  coder = {
 						source  = "coder/coder"
-						version = "0.6.6"
+						version = "0.6.20"
 					  }
 					}
+				  }
+
+				  data "coder_parameter" "sample" {
+					name = "Sample"
+					type = "string"
+					default = "foobaz"
 				  }
 
 				  data "coder_parameter" "example" {
@@ -348,6 +354,10 @@ func TestProvision(t *testing.T) {
 			Request: &proto.Provision_Plan{
 				RichParameterValues: []*proto.RichParameterValue{
 					{
+						Name:  "Sample",
+						Value: "foofoo",
+					},
+					{
 						Name:  "Example",
 						Value: "foobaz",
 					},
@@ -356,6 +366,18 @@ func TestProvision(t *testing.T) {
 			Response: &proto.Provision_Response{
 				Type: &proto.Provision_Response_Complete{
 					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:         "Sample",
+								Type:         "string",
+								DefaultValue: "foobaz",
+							},
+							{
+								Name:         "Example",
+								Type:         "string",
+								DefaultValue: "foobar",
+							},
+						},
 						Resources: []*proto.Resource{{
 							Name: "example",
 							Type: "null_resource",
@@ -441,6 +463,7 @@ func TestProvision(t *testing.T) {
 					planRequest.GetPlan().Config = &proto.Provision_Config{}
 				}
 				planRequest.GetPlan().ParameterValues = testCase.Request.ParameterValues
+				planRequest.GetPlan().RichParameterValues = testCase.Request.RichParameterValues
 				planRequest.GetPlan().GitAuthProviders = testCase.Request.GitAuthProviders
 				if testCase.Request.Config != nil {
 					planRequest.GetPlan().Config.State = testCase.Request.Config.State
@@ -499,15 +522,20 @@ func TestProvision(t *testing.T) {
 					}
 
 					if testCase.Response != nil {
+						require.Equal(t, testCase.Response.GetComplete().Error, msg.GetComplete().Error)
+
 						resourcesGot, err := json.Marshal(msg.GetComplete().Resources)
 						require.NoError(t, err)
-
 						resourcesWant, err := json.Marshal(testCase.Response.GetComplete().Resources)
 						require.NoError(t, err)
 
-						require.Equal(t, testCase.Response.GetComplete().Error, msg.GetComplete().Error)
-
 						require.Equal(t, string(resourcesWant), string(resourcesGot))
+
+						parametersGot, err := json.Marshal(msg.GetComplete().Parameters)
+						require.NoError(t, err)
+						parametersWant, err := json.Marshal(testCase.Response.GetComplete().Parameters)
+						require.NoError(t, err)
+						require.Equal(t, string(parametersWant), string(parametersGot))
 					}
 					break
 				}
