@@ -824,53 +824,50 @@ type prettyErrorFormatter struct {
 
 func (p *prettyErrorFormatter) format(err error) {
 	if err == nil {
-		// 🍒
+		// 🏁
 		p.printf("\n")
 		return
 	}
 
-	underErr := errors.Unwrap(err)
+	nextErr := errors.Unwrap(err)
 
 	//nolint:errorlint
-	if _, ok := err.(*clibase.RunCommandError); ok && p.level == 0 && underErr != nil {
-		// We can do a better job now.
-		p.format(underErr)
+	if _, ok := err.(*clibase.RunCommandError); ok && p.level == 0 && nextErr != nil {
+		// Avoid extra nesting.
+		p.format(nextErr)
 		return
 	}
 
-	errorWithoutChildren := err.Error()
-	if underErr != nil {
-		errorWithoutChildren = strings.TrimSuffix(err.Error(), ": "+underErr.Error())
+	var headErr string
+	if nextErr != nil {
+		headErr = strings.TrimSuffix(err.Error(), ": "+nextErr.Error())
+	} else {
+		headErr = err.Error()
 	}
 
-	// Format the root error specially since it's the most relevant.
-	if p.level == 0 {
-		textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644")).Bold(false)
-		var msg string
-		var sdkError *codersdk.Error
-		if errors.As(err, &sdkError) {
-			msg = sdkError.Message + sdkError.Helper
-		} else {
-			msg = errorWithoutChildren
-		}
-		p.printf(
-			"%s",
-			textStyle.Render(msg),
-		)
-
-		p.level++
-		p.format(underErr)
-		return
+	var msg string
+	var sdkError *codersdk.Error
+	if errors.As(err, &sdkError) {
+		msg = sdkError.Message + sdkError.Helper
+	} else {
+		msg = headErr
 	}
 
-	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#969696")).Bold(false)
+	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644"))
+	if p.level > 0 {
+		textStyle.Foreground(lipgloss.Color("#969696"))
+	}
+
+	if nextErr != nil {
+		msg = msg + ": "
+	}
 
 	p.printf(
 		"%s",
-		textStyle.Render(": "+errorWithoutChildren),
+		textStyle.Render(msg),
 	)
 	p.level++
-	p.format(underErr)
+	p.format(nextErr)
 }
 
 func (p *prettyErrorFormatter) printf(format string, a ...interface{}) {
