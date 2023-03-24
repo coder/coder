@@ -64,13 +64,19 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
   const updatesInSeconds = -(item.description.interval - item.result.age)
 
   return (
-    <span
-      className={styles.metadata}
-      onMouseEnter={() => setIsOpen(true)}
-      onMouseLeave={() => setIsOpen(false)}
-      role="presentation"
-      ref={anchorRef}
-    >
+    <>
+      <div className={styles.metadata}>
+        <div
+          className={styles.metadataLabel}
+          onMouseEnter={() => setIsOpen(true)}
+          // onMouseLeave={() => setIsOpen(false)}
+          role="presentation"
+          ref={anchorRef}
+        >
+          {item.description.display_name}
+        </div>
+        {value}
+      </div>
       <Popover
         anchorOrigin={{
           vertical: "bottom",
@@ -87,11 +93,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
           onMouseEnter: () => setIsOpen(true),
           onMouseLeave: () => setIsOpen(false),
         }}
-        style={
-          {
-            // width: "auto",
-          }
-        }
+        classes={{ paper: styles.metadataPopover }}
       >
         <HelpTooltipTitle>{item.description.display_name}</HelpTooltipTitle>
         <HelpTooltipText>
@@ -110,14 +112,12 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
         )}
         <HelpTooltipText>
           This item is collected by running the following command:
+        </HelpTooltipText>
+        <HelpTooltipText>
           <CodeExample code={item.description.script}></CodeExample>
         </HelpTooltipText>
       </Popover>
-      <div className={styles.metadataLabel}>
-        {item.description.display_name}
-      </div>
-      {value}
-    </span>
+    </>
   )
 }
 
@@ -184,9 +184,12 @@ export const AgentMetadata: FC<{
 // site/src/components/Resources/ResourceCard.tsx
 const useStyles = makeStyles((theme) => ({
   metadataStack: {
-    // padding: "24px 32px",
+    border: `2px dashed ${theme.palette.divider}`,
+    borderRadius: theme.shape.borderRadius,
+    width: "100%",
   },
   metadataHeader: {
+    padding: "8px",
     display: "grid",
     gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
     gap: theme.spacing(5),
@@ -220,13 +223,15 @@ const useStyles = makeStyles((theme) => ({
   },
 
   metadataPopover: {
-    padding: 0,
-    width: theme.spacing(28),
+    marginTop: theme.spacing(0.5),
+    padding: theme.spacing(2.5),
+    color: theme.palette.text.secondary,
+    pointerEvents: "auto",
+    maxWidth: "480px",
 
     "& .MuiButton-root": {
       padding: theme.spacing(1, 2),
       borderRadius: 0,
-      width: "100%",
       border: 0,
 
       "&:hover": {
