@@ -8,7 +8,6 @@ import (
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/cli"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/pty/ptytest"
@@ -30,7 +29,7 @@ func TestGroupList(t *testing.T) {
 			},
 		})
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, user1 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		_, user2 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 
@@ -57,14 +56,14 @@ func TestGroupList(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "groups", "list")
+		inv, conf := newCLI(t, "groups", "list")
 
 		pty := ptytest.New(t)
 
-		cmd.SetOut(pty.Output())
-		clitest.SetupConfig(t, client, root)
+		inv.Stdout = pty.Output()
+		clitest.SetupConfig(t, client, conf)
 
-		err = cmd.Execute()
+		err = inv.Run()
 		require.NoError(t, err)
 
 		matches := []string{
@@ -90,14 +89,14 @@ func TestGroupList(t *testing.T) {
 			},
 		})
 
-		cmd, root := clitest.NewWithSubcommands(t, cli.EnterpriseSubcommands(), "groups", "list")
+		inv, conf := newCLI(t, "groups", "list")
 
 		pty := ptytest.New(t)
 
-		cmd.SetErr(pty.Output())
-		clitest.SetupConfig(t, client, root)
+		inv.Stderr = pty.Output()
+		clitest.SetupConfig(t, client, conf)
 
-		err := cmd.Execute()
+		err := inv.Run()
 		require.NoError(t, err)
 
 		pty.ExpectMatch("No groups found")

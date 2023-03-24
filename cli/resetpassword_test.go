@@ -37,7 +37,7 @@ func TestResetPassword(t *testing.T) {
 	defer closeFunc()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serverDone := make(chan struct{})
-	serverCmd, cfg := clitest.New(t,
+	serverinv, cfg := clitest.New(t,
 		"server",
 		"--http-address", ":0",
 		"--access-url", "http://example.com",
@@ -46,7 +46,7 @@ func TestResetPassword(t *testing.T) {
 	)
 	go func() {
 		defer close(serverDone)
-		err = serverCmd.ExecuteContext(ctx)
+		err = serverinv.WithContext(ctx).Run()
 		assert.NoError(t, err)
 	}()
 	var rawURL string
@@ -67,15 +67,15 @@ func TestResetPassword(t *testing.T) {
 
 	// reset the password
 
-	resetCmd, cmdCfg := clitest.New(t, "reset-password", "--postgres-url", connectionURL, username)
+	resetinv, cmdCfg := clitest.New(t, "reset-password", "--postgres-url", connectionURL, username)
 	clitest.SetupConfig(t, client, cmdCfg)
 	cmdDone := make(chan struct{})
 	pty := ptytest.New(t)
-	resetCmd.SetIn(pty.Input())
-	resetCmd.SetOut(pty.Output())
+	resetinv.Stdin = pty.Input()
+	resetinv.Stdout = pty.Output()
 	go func() {
 		defer close(cmdDone)
-		err = resetCmd.Execute()
+		err = resetinv.Run()
 		assert.NoError(t, err)
 	}()
 

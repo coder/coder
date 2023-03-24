@@ -11,24 +11,24 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
 func main() {
-	root := &cobra.Command{
+	root := &clibase.Cmd{
 		Use:   "cliui",
 		Short: "Used for visually testing UI components for the CLI.",
 	}
 
-	root.AddCommand(&cobra.Command{
+	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "prompt",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+		Handler: func(inv *clibase.Invocation) error {
+			_, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:    "What is our " + cliui.Styles.Field.Render("company name") + "?",
 				Default: "acme-corp",
 				Validate: func(s string) error {
@@ -44,7 +44,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      "Do you want to accept?",
 				Default:   cliui.ConfirmYes,
 				IsConfirm: true,
@@ -55,7 +55,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:   "Enter password",
 				Secret: true,
 			})
@@ -63,21 +63,21 @@ func main() {
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "select",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			value, err := cliui.Select(cmd, cliui.SelectOptions{
+		Handler: func(inv *clibase.Invocation) error {
+			value, err := cliui.Select(inv, cliui.SelectOptions{
 				Options: []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
 				Size:    3,
 			})
-			fmt.Printf("Selected: %q\n", value)
+			_, _ = fmt.Printf("Selected: %q\n", value)
 			return err
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "job",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invocation) error {
 			job := codersdk.ProvisionerJob{
 				Status:    codersdk.ProvisionerJobPending,
 				CreatedAt: database.Now(),
@@ -99,7 +99,7 @@ func main() {
 				job.Status = codersdk.ProvisionerJobSucceeded
 			}()
 
-			err := cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+			err := cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 				Fetch: func() (codersdk.ProvisionerJob, error) {
 					return job, nil
 				},
@@ -112,7 +112,7 @@ func main() {
 						count := 0
 						for {
 							select {
-							case <-cmd.Context().Done():
+							case <-inv.Context().Done():
 								return
 							case <-ticker.C:
 								if job.Status == codersdk.ProvisionerJobSucceeded || job.Status == codersdk.ProvisionerJobCanceled {
@@ -161,9 +161,9 @@ func main() {
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "agent",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invocation) error {
 			agent := codersdk.WorkspaceAgent{
 				Status:         codersdk.WorkspaceAgentDisconnected,
 				LifecycleState: codersdk.WorkspaceAgentLifecycleReady,
@@ -172,7 +172,7 @@ func main() {
 				time.Sleep(3 * time.Second)
 				agent.Status = codersdk.WorkspaceAgentConnected
 			}()
-			err := cliui.Agent(cmd.Context(), cmd.OutOrStdout(), cliui.AgentOptions{
+			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
 				WorkspaceName: "dev",
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return agent, nil
@@ -182,16 +182,16 @@ func main() {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Completed!\n")
+			_, _ = fmt.Printf("Completed!\n")
 			return nil
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "resources",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invocation) error {
 			disconnected := database.Now().Add(-4 * time.Second)
-			return cliui.WorkspaceResources(cmd.OutOrStdout(), []codersdk.WorkspaceResource{{
+			return cliui.WorkspaceResources(inv.Stdout, []codersdk.WorkspaceResource{{
 				Transition: codersdk.WorkspaceTransitionStart,
 				Type:       "google_compute_disk",
 				Name:       "root",
@@ -237,9 +237,9 @@ func main() {
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "git-auth",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		Handler: func(inv *clibase.Invocation) error {
 			var count atomic.Int32
 			var githubAuthed atomic.Bool
 			var gitlabAuthed atomic.Bool
@@ -253,7 +253,7 @@ func main() {
 				// Complete the auth!
 				gitlabAuthed.Store(true)
 			}()
-			return cliui.GitAuth(cmd.Context(), cmd.OutOrStdout(), cliui.GitAuthOptions{
+			return cliui.GitAuth(inv.Context(), inv.Stdout, cliui.GitAuthOptions{
 				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionGitAuth, error) {
 					count.Add(1)
 					return []codersdk.TemplateVersionGitAuth{{
@@ -272,7 +272,7 @@ func main() {
 		},
 	})
 
-	err := root.Execute()
+	err := root.Invoke(os.Args[1:]...).Run()
 	if err != nil {
 		_, _ = fmt.Println(err.Error())
 		os.Exit(1)

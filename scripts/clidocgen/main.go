@@ -2,14 +2,17 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"os"
-	"path"
+	"path/filepath"
+	"sort"
 	"strings"
 
-	"github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/enterprise/cli"
+	"github.com/coder/flog"
 )
 
+// route is an individual page object in the docs manifest.json.
 type route struct {
 	Title       string  `json:"title,omitempty"`
 	Description string  `json:"description,omitempty"`
@@ -19,90 +22,153 @@ type route struct {
 	Children    []route `json:"children,omitempty"`
 }
 
+// manifest describes the entire documentation index.
 type manifest struct {
 	Versions []string `json:"versions,omitempty"`
 	Routes   []route  `json:"routes,omitempty"`
 }
 
-func main() {
+func unsetCoderEnv() {
 	for _, env := range os.Environ() {
 		if strings.HasPrefix(env, "CODER_") {
 			split := strings.SplitN(env, "=", 2)
 			if err := os.Unsetenv(split[0]); err != nil {
-				log.Fatal("Unable to unset ", split[0], ": ", err)
+				panic(err)
 			}
 		}
 	}
-	for k, v := range map[string]string{
-		"CODER_CONFIG_DIR":      "~/.config/coderv2",
-		"CODER_CACHE_DIRECTORY": "~/.cache/coder",
-	} {
-		if err := os.Setenv(k, v); err != nil {
-			log.Fatal("Unable to set default value for ", k, ": ", err)
+}
+
+func deleteEmptyDirs(dir string) error {
+	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
 		}
-	}
+		if !info.IsDir() {
+			return nil
+		}
+		ents, err := os.ReadDir(path)
+		if err != nil {
+			return err
+		}
+		if len(ents) == 0 {
+			flog.Infof("deleting empty dir\t %v", path)
+			err = os.Remove(path)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
 
-	// Get the cmd CLI
-	cmd := cli.Root(cli.AGPL())
+func main() {
+	unsetCoderEnv()
 
-	// Get paths
-	basePath := os.Getenv("BASE_PATH")
-	if basePath == "" {
-		log.Fatal("BASE_PATH should be defined")
-	}
-	markdownDocsDir := path.Join(basePath, "docs/cli")
-	manifestFilepath := path.Join(basePath, "docs/manifest.json")
-
-	// Generate markdown
-	err := generateDocsTree(cmd, markdownDocsDir)
+	workdir, err := os.Getwd()
 	if err != nil {
-		log.Fatal("Error on generating CLI markdown docs: ", err)
+		flog.Fatalf("getwd: %v", err)
+	}
+	root := (&cli.RootCmd{})
+
+	// wroteMap indexes file paths to commands.
+	wroteMap := make(map[string]*clibase.Cmd)
+
+	var (
+		docsDir        = filepath.Join(workdir, "docs")
+		cliMarkdownDir = filepath.Join(docsDir, "cli")
+	)
+
+	cmd, err := root.Command(root.EnterpriseSubcommands())
+	if err != nil {
+		flog.Fatalf("creating command: %v", err)
+	}
+	err = genTree(
+		cliMarkdownDir,
+		cmd,
+		wroteMap,
+	)
+	if err != nil {
+		flog.Fatalf("generating markdowns: %v", err)
 	}
 
-	// Create CLI routes
-	var cliRoutes []route
-	files, err := os.ReadDir(markdownDocsDir)
+	// Delete old files
+	err = filepath.Walk(cliMarkdownDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		_, ok := wroteMap[path]
+		if !ok {
+			flog.Infof("deleting old doc\t %v", path)
+			if err := os.Remove(path); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
-		log.Fatal("Error on loading docs/cli files: ", err)
+		flog.Fatalf("deleting old docs: %v", err)
 	}
-	for _, file := range files {
-		// Remove file extension and prefix
-		title := strings.Replace(file.Name(), ".md", "", 1)
-		title = strings.Replace(title, "coder_", "", 1)
-		title = strings.Replace(title, "_", " ", -1)
 
-		cliRoutes = append(cliRoutes, route{
-			Title: title,
-			Path:  "./cli/" + file.Name(),
-		})
-	}
-
-	// Read manifest
-	jsonFile, err := os.ReadFile(manifestFilepath)
+	err = deleteEmptyDirs(cliMarkdownDir)
 	if err != nil {
-		log.Fatal("Error on open docs/manifest.json: ", err)
-	}
-	var manifest manifest
-	err = json.Unmarshal(jsonFile, &manifest)
-	if err != nil {
-		log.Fatal("Error on unmarshal manifest.json: ", err)
+		flog.Fatalf("deleting empty dirs: %v", err)
 	}
 
 	// Update manifest
-	for i, r := range manifest.Routes {
-		if r.Title != "Command Line" {
+	manifestPath := filepath.Join(docsDir, "manifest.json")
+
+	manifestByt, err := os.ReadFile(manifestPath)
+	if err != nil {
+		flog.Fatalf("reading manifest: %v", err)
+	}
+
+	var manifest manifest
+	err = json.Unmarshal(manifestByt, &manifest)
+	if err != nil {
+		flog.Fatalf("unmarshalling manifest: %v", err)
+	}
+
+	var found bool
+	for i := range manifest.Routes {
+		rt := &manifest.Routes[i]
+		if rt.Title != "Command Line" {
 			continue
 		}
+		rt.Children = nil
+		found = true
+		for path, cmd := range wroteMap {
+			relPath, err := filepath.Rel(docsDir, path)
+			if err != nil {
+				flog.Fatalf("getting relative path: %v", err)
+			}
+			rt.Children = append(rt.Children, route{
+				Title:       fullName(cmd),
+				Description: cmd.Short,
+				Path:        relPath,
+			})
+		}
+		// Sort children by title because wroteMap iteration is
+		// non-deterministic.
+		sort.Slice(rt.Children, func(i, j int) bool {
+			return rt.Children[i].Title < rt.Children[j].Title
+		})
+	}
 
-		manifest.Routes[i].Children = cliRoutes
-		break
+	if !found {
+		flog.Fatalf("could not find Command Line route in manifest")
 	}
-	manifestFile, err := json.MarshalIndent(manifest, "", "  ")
+
+	manifestByt, err = json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
-		log.Fatal("Error on marshal manifest.json: ", err)
+		flog.Fatalf("marshaling manifest: %v", err)
 	}
-	err = os.WriteFile(manifestFilepath, manifestFile, 0o644) // #nosec
+
+	err = os.WriteFile(manifestPath, manifestByt, 0o600)
 	if err != nil {
-		log.Fatal("Error on write update on manifest.json: ", err)
+		flog.Fatalf("writing manifest: %v", err)
 	}
 }

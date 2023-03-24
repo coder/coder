@@ -4,25 +4,24 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/cliflag"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/userpassword"
 )
 
-func resetPassword() *cobra.Command {
+func (*RootCmd) resetPassword() *clibase.Cmd {
 	var postgresURL string
 
-	root := &cobra.Command{
-		Use:   "reset-password <username>",
-		Short: "Directly connect to the database to reset a user's password",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			username := args[0]
+	root := &clibase.Cmd{
+		Use:        "reset-password <username>",
+		Short:      "Directly connect to the database to reset a user's password",
+		Middleware: clibase.RequireNArgs(1),
+		Handler: func(inv *clibase.Invocation) error {
+			username := inv.Args[0]
 
 			sqlDB, err := sql.Open("postgres", postgresURL)
 			if err != nil {
@@ -40,14 +39,14 @@ func resetPassword() *cobra.Command {
 			}
 			db := database.New(sqlDB)
 
-			user, err := db.GetUserByEmailOrUsername(cmd.Context(), database.GetUserByEmailOrUsernameParams{
+			user, err := db.GetUserByEmailOrUsername(inv.Context(), database.GetUserByEmailOrUsernameParams{
 				Username: username,
 			})
 			if err != nil {
 				return xerrors.Errorf("retrieving user: %w", err)
 			}
 
-			password, err := cliui.Prompt(cmd, cliui.PromptOptions{
+			password, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:   "Enter new " + cliui.Styles.Field.Render("password") + ":",
 				Secret: true,
 				Validate: func(s string) error {
@@ -57,7 +56,7 @@ func resetPassword() *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("password prompt: %w", err)
 			}
-			confirmedPassword, err := cliui.Prompt(cmd, cliui.PromptOptions{
+			confirmedPassword, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:     "Confirm " + cliui.Styles.Field.Render("password") + ":",
 				Secret:   true,
 				Validate: cliui.ValidateNotEmpty,
@@ -74,7 +73,7 @@ func resetPassword() *cobra.Command {
 				return xerrors.Errorf("hash password: %w", err)
 			}
 
-			err = db.UpdateUserHashedPassword(cmd.Context(), database.UpdateUserHashedPasswordParams{
+			err = db.UpdateUserHashedPassword(inv.Context(), database.UpdateUserHashedPasswordParams{
 				ID:             user.ID,
 				HashedPassword: []byte(hashedPassword),
 			})
@@ -82,12 +81,19 @@ func resetPassword() *cobra.Command {
 				return xerrors.Errorf("updating password: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nPassword has been reset for user %s!\n", cliui.Styles.Keyword.Render(user.Username))
+			_, _ = fmt.Fprintf(inv.Stdout, "\nPassword has been reset for user %s!\n", cliui.Styles.Keyword.Render(user.Username))
 			return nil
 		},
 	}
 
-	cliflag.StringVarP(root.Flags(), &postgresURL, "postgres-url", "", "CODER_PG_CONNECTION_URL", "", "URL of a PostgreSQL database to connect to")
+	root.Options = clibase.OptionSet{
+		{
+			Flag:        "postgres-url",
+			Description: "URL of a PostgreSQL database to connect to.",
+			Env:         "CODER_PG_CONNECTION_URL",
+			Value:       clibase.StringOf(&postgresURL),
+		},
+	}
 
 	return root
 }

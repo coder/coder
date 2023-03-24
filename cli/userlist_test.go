@@ -21,14 +21,12 @@ func TestUserList(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		cmd, root := clitest.New(t, "users", "list")
+		inv, root := clitest.New(t, "users", "list")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.Execute()
+			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
 		pty.ExpectMatch("coder.com")
@@ -38,15 +36,15 @@ func TestUserList(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		cmd, root := clitest.New(t, "users", "list", "-o", "json")
+		inv, root := clitest.New(t, "users", "list", "-o", "json")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 
 		buf := bytes.NewBuffer(nil)
-		cmd.SetOut(buf)
+		inv.Stdout = buf
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -61,20 +59,18 @@ func TestUserList(t *testing.T) {
 	t.Run("NoURLFileErrorHasHelperText", func(t *testing.T) {
 		t.Parallel()
 
-		cmd, _ := clitest.New(t, "users", "list")
-
-		_, err := cmd.ExecuteC()
-
+		inv, _ := clitest.New(t, "users", "list")
+		err := inv.Run()
 		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
 	})
 	t.Run("SessionAuthErrorHasHelperText", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
-		cmd, root := clitest.New(t, "users", "list")
+		inv, root := clitest.New(t, "users", "list")
 		clitest.SetupConfig(t, client, root)
 
-		_, err := cmd.ExecuteC()
+		err := inv.Run()
 
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -90,15 +86,13 @@ func TestUserShow(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		admin := coderdtest.CreateFirstUser(t, client)
 		_, otherUser := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-		cmd, root := clitest.New(t, "users", "show", otherUser.Username)
+		inv, root := clitest.New(t, "users", "show", otherUser.Username)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 		pty.ExpectMatch(otherUser.Email)
@@ -114,15 +108,15 @@ func TestUserShow(t *testing.T) {
 		other, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		otherUser, err := other.User(ctx, codersdk.Me)
 		require.NoError(t, err, "fetch other user")
-		cmd, root := clitest.New(t, "users", "show", otherUser.Username, "-o", "json")
+		inv, root := clitest.New(t, "users", "show", otherUser.Username, "-o", "json")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 
 		buf := bytes.NewBuffer(nil)
-		cmd.SetOut(buf)
+		inv.Stdout = buf
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 

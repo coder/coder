@@ -5,33 +5,32 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func groupList() *cobra.Command {
+func (r *RootCmd) groupList() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]groupTableRow{}, nil),
 		cliui.JSONFormat(),
 	)
 
-	cmd := &cobra.Command{
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Use:   "list",
 		Short: "List user groups",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(0),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			ctx := inv.Context()
 
-			client, err := agpl.CreateClient(cmd)
-			if err != nil {
-				return xerrors.Errorf("create client: %w", err)
-			}
-
-			org, err := agpl.CurrentOrganization(cmd, client)
+			org, err := agpl.CurrentOrganization(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}
@@ -42,23 +41,23 @@ func groupList() *cobra.Command {
 			}
 
 			if len(groups) == 0 {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s No groups found in %s! Create one:\n\n", agpl.Caret, color.HiWhiteString(org.Name))
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), color.HiMagentaString("  $ coder groups create <name>\n"))
+				_, _ = fmt.Fprintf(inv.Stderr, "%s No groups found in %s! Create one:\n\n", agpl.Caret, color.HiWhiteString(org.Name))
+				_, _ = fmt.Fprintln(inv.Stderr, color.HiMagentaString("  $ coder groups create <name>\n"))
 				return nil
 			}
 
 			rows := groupsToRows(groups...)
-			out, err := formatter.Format(cmd.Context(), rows)
+			out, err := formatter.Format(inv.Context(), rows)
 			if err != nil {
 				return xerrors.Errorf("display groups: %w", err)
 			}
 
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, _ = fmt.Fprintln(inv.Stdout, out)
 			return nil
 		},
 	}
 
-	formatter.AttachFlags(cmd)
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 

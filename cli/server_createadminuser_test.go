@@ -92,9 +92,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		defer sqlDB.Close()
 		db := database.New(sqlDB)
 
-		// Sometimes generating SSH keys takes a really long time if there isn't
-		// enough entropy. We don't want the tests to fail in these cases.
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
 
 		pingCtx, pingCancel := context.WithTimeout(ctx, testutil.WaitShort)
@@ -120,7 +118,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		root, _ := clitest.New(t,
+		inv, _ := clitest.New(t,
 			"server", "create-admin-user",
 			"--postgres-url", connectionURL,
 			"--ssh-keygen-algorithm", "ed25519",
@@ -129,14 +127,9 @@ func TestServerCreateAdminUser(t *testing.T) {
 			"--password", password,
 		)
 		pty := ptytest.New(t)
-		root.SetOutput(pty.Output())
-		root.SetErr(pty.Output())
-		errC := make(chan error, 1)
-		go func() {
-			err := root.ExecuteContext(ctx)
-			t.Log("root.ExecuteContext() returned:", err)
-			errC <- err
-		}()
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		clitest.Start(t, inv)
 
 		pty.ExpectMatchContext(ctx, "Creating user...")
 		pty.ExpectMatchContext(ctx, "Generating user SSH key...")
@@ -147,13 +140,11 @@ func TestServerCreateAdminUser(t *testing.T) {
 		pty.ExpectMatchContext(ctx, email)
 		pty.ExpectMatchContext(ctx, "****")
 
-		require.NoError(t, <-errC)
-
 		verifyUser(t, connectionURL, username, email, password)
 	})
 
-	//nolint:paralleltest
 	t.Run("Env", func(t *testing.T) {
+		t.Parallel()
 		if runtime.GOOS != "linux" || testing.Short() {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
@@ -162,34 +153,25 @@ func TestServerCreateAdminUser(t *testing.T) {
 		require.NoError(t, err)
 		defer closeFunc()
 
-		// Sometimes generating SSH keys takes a really long time if there isn't
-		// enough entropy. We don't want the tests to fail in these cases.
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
 
-		t.Setenv("CODER_POSTGRES_URL", connectionURL)
-		t.Setenv("CODER_SSH_KEYGEN_ALGORITHM", "ed25519")
-		t.Setenv("CODER_USERNAME", username)
-		t.Setenv("CODER_EMAIL", email)
-		t.Setenv("CODER_PASSWORD", password)
+		inv, _ := clitest.New(t, "server", "create-admin-user")
+		inv.Environ.Set("CODER_POSTGRES_URL", connectionURL)
+		inv.Environ.Set("CODER_SSH_KEYGEN_ALGORITHM", "ed25519")
+		inv.Environ.Set("CODER_USERNAME", username)
+		inv.Environ.Set("CODER_EMAIL", email)
+		inv.Environ.Set("CODER_PASSWORD", password)
 
-		root, _ := clitest.New(t, "server", "create-admin-user")
 		pty := ptytest.New(t)
-		root.SetOutput(pty.Output())
-		root.SetErr(pty.Output())
-		errC := make(chan error, 1)
-		go func() {
-			err := root.ExecuteContext(ctx)
-			t.Log("root.ExecuteContext() returned:", err)
-			errC <- err
-		}()
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		clitest.Start(t, inv)
 
 		pty.ExpectMatchContext(ctx, "User created successfully.")
 		pty.ExpectMatchContext(ctx, username)
 		pty.ExpectMatchContext(ctx, email)
 		pty.ExpectMatchContext(ctx, "****")
-
-		require.NoError(t, <-errC)
 
 		verifyUser(t, connectionURL, username, email, password)
 	})
@@ -205,42 +187,31 @@ func TestServerCreateAdminUser(t *testing.T) {
 		require.NoError(t, err)
 		defer closeFunc()
 
-		// Sometimes generating SSH keys takes a really long time if there isn't
-		// enough entropy. We don't want the tests to fail in these cases.
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
 
-		root, _ := clitest.New(t,
+		inv, _ := clitest.New(t,
 			"server", "create-admin-user",
 			"--postgres-url", connectionURL,
 			"--ssh-keygen-algorithm", "ed25519",
 		)
-		pty := ptytest.New(t)
-		root.SetIn(pty.Input())
-		root.SetOutput(pty.Output())
-		root.SetErr(pty.Output())
-		errC := make(chan error, 1)
-		go func() {
-			err := root.ExecuteContext(ctx)
-			t.Log("root.ExecuteContext() returned:", err)
-			errC <- err
-		}()
+		pty := ptytest.New(t).Attach(inv)
 
-		pty.ExpectMatchContext(ctx, "> Username")
+		clitest.Start(t, inv)
+
+		pty.ExpectMatchContext(ctx, "Username")
 		pty.WriteLine(username)
-		pty.ExpectMatchContext(ctx, "> Email")
+		pty.ExpectMatchContext(ctx, "Email")
 		pty.WriteLine(email)
-		pty.ExpectMatchContext(ctx, "> Password")
+		pty.ExpectMatchContext(ctx, "Password")
 		pty.WriteLine(password)
-		pty.ExpectMatchContext(ctx, "> Confirm password")
+		pty.ExpectMatchContext(ctx, "Confirm password")
 		pty.WriteLine(password)
 
 		pty.ExpectMatchContext(ctx, "User created successfully.")
 		pty.ExpectMatchContext(ctx, username)
 		pty.ExpectMatchContext(ctx, email)
 		pty.ExpectMatchContext(ctx, "****")
-
-		require.NoError(t, <-errC)
 
 		verifyUser(t, connectionURL, username, email, password)
 	})
@@ -267,10 +238,10 @@ func TestServerCreateAdminUser(t *testing.T) {
 			"--password", "x",
 		)
 		pty := ptytest.New(t)
-		root.SetOutput(pty.Output())
-		root.SetErr(pty.Output())
+		root.Stdout = pty.Output()
+		root.Stderr = pty.Output()
 
-		err = root.ExecuteContext(ctx)
+		err = root.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "'email' failed on the 'email' tag")
 		require.ErrorContains(t, err, "'username' failed on the 'username' tag")

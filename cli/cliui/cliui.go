@@ -53,6 +53,8 @@ var Styles = struct {
 	FocusedPrompt: defaultStyles.FocusedPrompt.Foreground(lipgloss.Color("#651fff")),
 	Fuchsia:       defaultStyles.SelectedMenuItem.Copy(),
 	Logo:          defaultStyles.Logo.SetString("Coder"),
-	Warn:          lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#04B575", Dark: "#ECFD65"}),
-	Wrap:          lipgloss.NewStyle().Width(80),
+	Warn: lipgloss.NewStyle().Foreground(
+		lipgloss.AdaptiveColor{Light: "#04B575", Dark: "#ECFD65"},
+	),
+	Wrap: lipgloss.NewStyle().Width(80),
 }

@@ -4,52 +4,53 @@ import (
 	"fmt"
 
 	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/codersdk"
 )
 
-func templateList() *cobra.Command {
+func (r *RootCmd) templateList() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]templateTableRow{}, []string{"name", "last updated", "used by"}),
 		cliui.JSONFormat(),
 	)
 
-	cmd := &cobra.Command{
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Use:     "list",
 		Short:   "List all the templates available for the organization",
 		Aliases: []string{"ls"},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
+		Middleware: clibase.Chain(
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
 			}
-			organization, err := CurrentOrganization(cmd, client)
-			if err != nil {
-				return err
-			}
-			templates, err := client.TemplatesByOrganization(cmd.Context(), organization.ID)
+			templates, err := client.TemplatesByOrganization(inv.Context(), organization.ID)
 			if err != nil {
 				return err
 			}
 
 			if len(templates) == 0 {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s No templates found in %s! Create one:\n\n", Caret, color.HiWhiteString(organization.Name))
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), color.HiMagentaString("  $ coder templates create <directory>\n"))
+				_, _ = fmt.Fprintf(inv.Stderr, "%s No templates found in %s! Create one:\n\n", Caret, color.HiWhiteString(organization.Name))
+				_, _ = fmt.Fprintln(inv.Stderr, color.HiMagentaString("  $ coder templates create <directory>\n"))
 				return nil
 			}
 
 			rows := templatesToRows(templates...)
-			out, err := formatter.Format(cmd.Context(), rows)
+			out, err := formatter.Format(inv.Context(), rows)
 			if err != nil {
 				return err
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}
 
-	formatter.AttachFlags(cmd)
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }

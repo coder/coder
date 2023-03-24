@@ -14,10 +14,12 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/acarl005/stripansi"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/pty"
 	"github.com/coder/coder/testutil"
 )
@@ -116,8 +118,7 @@ func create(t *testing.T, ptty pty.PTY, name string) *PTY {
 		defer close(logDone)
 		s := bufio.NewScanner(logr)
 		for s.Scan() {
-			// Quote output to avoid terminal escape codes, e.g. bell.
-			tpty.logf("stdout: %q", s.Text())
+			tpty.logf("%q", stripansi.Strip(s.Text()))
 		}
 	}()
 
@@ -138,6 +139,15 @@ func (p *PTY) Close() error {
 	p.t.Helper()
 
 	return p.close("close")
+}
+
+func (p *PTY) Attach(inv *clibase.Invocation) *PTY {
+	p.t.Helper()
+
+	inv.Stdout = p.Output()
+	inv.Stderr = p.Output()
+	inv.Stdin = p.Input()
+	return p
 }
 
 func (p *PTY) ExpectMatch(str string) string {
@@ -173,7 +183,7 @@ func (p *PTY) ExpectMatchContext(ctx context.Context, str string) string {
 		p.fatalf("read error", "%v (wanted %q; got %q)", err, str, buffer.String())
 		return ""
 	}
-	p.logf("matched %q = %q", str, buffer.String())
+	p.logf("matched %q = %q", str, stripansi.Strip(buffer.String()))
 	return buffer.String()
 }
 

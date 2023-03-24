@@ -708,7 +708,7 @@ func TestUpdateUserPassword(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		apikey1, err := client.CreateToken(ctx, user.UserID.String(), codersdk.CreateTokenRequest{})
 		require.NoError(t, err)
@@ -754,7 +754,7 @@ func TestUpdateUserPassword(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
 			Password: coderdtest.FirstUserParams.Password,

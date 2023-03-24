@@ -1,6 +1,7 @@
 package gitsshkey
 
 import (
+	"bufio"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -9,7 +10,12 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"flag"
+	"io"
 	"strings"
+	"time"
+
+	insecurerand "math/rand"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
@@ -26,6 +32,18 @@ const (
 	// and creates a key with a fixed size of 4096-bit.
 	AlgorithmRSA4096 Algorithm = "rsa4096"
 )
+
+func entropy() io.Reader {
+	if flag.Lookup("test.v") != nil {
+		// This helps speed along our tests, esp. in CI where entropy is
+		// sparse.
+		//nolint:gosec
+		return insecurerand.New(insecurerand.NewSource(time.Now().UnixNano()))
+	}
+	// Buffering to reduce the number of system calls
+	// doubles performance without any loss of security.
+	return bufio.NewReader(rand.Reader)
+}
 
 // ParseAlgorithm returns a valid Algorithm or error if input is not a valid.
 func ParseAlgorithm(t string) (Algorithm, error) {
@@ -61,7 +79,7 @@ func Generate(algo Algorithm) (privateKey string, publicKey string, err error) {
 
 // ed25519KeyGen returns an ED25519-based SSH private key.
 func ed25519KeyGen() (privateKey string, publicKey string, err error) {
-	_, privateKeyRaw, err := ed25519.GenerateKey(rand.Reader)
+	_, privateKeyRaw, err := ed25519.GenerateKey(entropy())
 	if err != nil {
 		return "", "", xerrors.Errorf("generate ed25519 private key: %w", err)
 	}
@@ -82,7 +100,7 @@ func ed25519KeyGen() (privateKey string, publicKey string, err error) {
 
 // ecdsaKeyGen returns an ECDSA-based SSH private key.
 func ecdsaKeyGen() (privateKey string, publicKey string, err error) {
-	privateKeyRaw, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	privateKeyRaw, err := ecdsa.GenerateKey(elliptic.P256(), entropy())
 	if err != nil {
 		return "", "", xerrors.Errorf("generate ecdsa private key: %w", err)
 	}
@@ -101,7 +119,7 @@ func ecdsaKeyGen() (privateKey string, publicKey string, err error) {
 //
 // Administrators may configure this for SSH key compatibility with Azure DevOps.
 func rsa4096KeyGen() (privateKey string, publicKey string, err error) {
-	privateKeyRaw, err := rsa.GenerateKey(rand.Reader, 4096)
+	privateKeyRaw, err := rsa.GenerateKey(entropy(), 4096)
 	if err != nil {
 		return "", "", xerrors.Errorf("generate RSA4096 private key: %w", err)
 	}

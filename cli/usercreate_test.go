@@ -16,15 +16,13 @@ func TestUserCreate(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		cmd, root := clitest.New(t, "users", "create")
+		inv, root := clitest.New(t, "users", "create")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 		matches := []string{
