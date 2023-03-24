@@ -830,8 +830,6 @@ func (p *prettyErrorFormatter) format(err error) {
 
 	underErr := errors.Unwrap(err)
 
-	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#515151"))
-
 	//nolint:errorlint
 	if _, ok := err.(*clibase.RunCommandError); ok && p.level == 0 && underErr != nil {
 		// We can do a better job now.
@@ -844,17 +842,16 @@ func (p *prettyErrorFormatter) format(err error) {
 		errorWithoutChildren = strings.TrimSuffix(err.Error(), ": "+underErr.Error())
 	}
 
-	// Format the root error specially.
+	const errorHeader = "ERROR"
+	// Format the root error specially since it's the most relevant.
 	if p.level == 0 {
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644")).Background(lipgloss.Color("#000000")).Bold(false)
-		// This is the last error in a tree.
+		textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644")).Bold(false)
 		p.wrappedPrintf(
 			"%s\n",
 			fmt.Sprintf(
-				"%s%s%s",
-				lipgloss.NewStyle().Inherit(style).Underline(true).Render("ERROR"),
-				lipgloss.NewStyle().Inherit(style).Foreground(arrowStyle.GetForeground()).Render(" ► "),
-				style.Render(errorWithoutChildren),
+				"%s\n%s",
+				lipgloss.NewStyle().Inherit(textStyle).Underline(true).Render(errorHeader),
+				textStyle.Render(errorWithoutChildren),
 			),
 		)
 		p.level++
@@ -862,10 +859,24 @@ func (p *prettyErrorFormatter) format(err error) {
 		return
 	}
 
-	_, _ = fmt.Fprintf(p.w, "%s\n", errorWithoutChildren)
+	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#969696")).Bold(false)
+
+	border := strings.Repeat("─", len(errorHeader))
+	p.wrappedPrintf(
+		"%s\n%s\n",
+		textStyle.Render(border),
+		textStyle.Render(errorWithoutChildren),
+	)
 	p.level++
+	if underErr == nil {
+		// Print closing border.
+		p.wrappedPrintf(
+			"%s\n",
+			textStyle.Render(border),
+		)
+		return
+	}
 	p.format(underErr)
-	return
 }
 
 func (p *prettyErrorFormatter) wrappedPrintf(format string, a ...interface{}) {
