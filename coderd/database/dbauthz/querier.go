@@ -88,11 +88,57 @@ func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditL
 }
 
 func (q *querier) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
-	return fetch(q.log, q.auth, q.db.GetFileByHashAndCreator)(ctx, arg)
+	file, err := q.db.GetFileByHashAndCreator(ctx, arg)
+	if err != nil {
+		return database.File{}, err
+	}
+	err = q.authorizeContext(ctx, rbac.ActionRead, file)
+	if err != nil {
+		// Check the user's access to the file's templates.
+		if q.authorizeReadFile(ctx, file) != nil {
+			return database.File{}, err
+		}
+	}
+
+	return file, nil
 }
 
 func (q *querier) GetFileByID(ctx context.Context, id uuid.UUID) (database.File, error) {
-	return fetch(q.log, q.auth, q.db.GetFileByID)(ctx, id)
+	file, err := q.db.GetFileByID(ctx, id)
+	if err != nil {
+		return database.File{}, err
+	}
+	err = q.authorizeContext(ctx, rbac.ActionRead, file)
+	if err != nil {
+		// Check the user's access to the file's templates.
+		if q.authorizeUpdateFileTemplate(ctx, file) != nil {
+			return database.File{}, err
+		}
+	}
+
+	return file, nil
+}
+
+// authorizeReadFile is a hotfix for the fact that file permissions are
+// independent of template permissions. This function checks if the user has
+// update access to any of the file's templates.
+func (q *querier) authorizeUpdateFileTemplate(ctx context.Context, file database.File) error {
+	tpls, err := q.GetFileTemplates(AsSystemRestricted(ctx), file.ID)
+	if err != nil {
+		return err
+	}
+	// There __should__ only be 1 template per file, but there can be more than
+	// 1, so check them all.
+	for _, tpl := range tpls {
+		// If the user has update access to any template, they have read access to the file.
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, tpl); err == nil {
+			return nil
+		}
+	}
+
+	return NotAuthorizedError{
+		Err: xerrors.Errorf("not authorized to read file %s", file.ID),
+	}
 }
 
 func (q *querier) InsertFile(ctx context.Context, arg database.InsertFileParams) (database.File, error) {

@@ -674,6 +674,75 @@ func (q *sqlQuerier) GetFileByID(ctx context.Context, id uuid.UUID) (File, error
 	return i, err
 }
 
+const getFileTemplates = `-- name: GetFileTemplates :many
+SELECT
+	files.id AS file_id,
+	files.created_by AS file_created_by,
+	templates.id AS template_id,
+	templates.organization_id AS template_organization_id,
+	templates.created_by AS template_created_by,
+	templates.user_acl,
+	templates.group_acl
+FROM
+	templates
+INNER JOIN
+	template_versions
+	ON templates.id = template_versions.template_id
+INNER JOIN
+	provisioner_jobs
+	ON job_id = provisioner_jobs.id
+INNER JOIN
+	files
+	ON files.id = provisioner_jobs.file_id
+WHERE
+    -- Only fetch template version associated files.
+	storage_method = 'file'
+	AND provisioner_jobs.type = 'template_version_import'
+	AND file_id = $1
+`
+
+type GetFileTemplatesRow struct {
+	FileID                 uuid.UUID   `db:"file_id" json:"file_id"`
+	FileCreatedBy          uuid.UUID   `db:"file_created_by" json:"file_created_by"`
+	TemplateID             uuid.UUID   `db:"template_id" json:"template_id"`
+	TemplateOrganizationID uuid.UUID   `db:"template_organization_id" json:"template_organization_id"`
+	TemplateCreatedBy      uuid.UUID   `db:"template_created_by" json:"template_created_by"`
+	UserACL                TemplateACL `db:"user_acl" json:"user_acl"`
+	GroupACL               TemplateACL `db:"group_acl" json:"group_acl"`
+}
+
+// Get all templates that use a file.
+func (q *sqlQuerier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]GetFileTemplatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getFileTemplates, fileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetFileTemplatesRow
+	for rows.Next() {
+		var i GetFileTemplatesRow
+		if err := rows.Scan(
+			&i.FileID,
+			&i.FileCreatedBy,
+			&i.TemplateID,
+			&i.TemplateOrganizationID,
+			&i.TemplateCreatedBy,
+			&i.UserACL,
+			&i.GroupACL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertFile = `-- name: InsertFile :one
 INSERT INTO
 	files (id, hash, created_at, created_by, mimetype, "data")
