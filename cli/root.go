@@ -855,6 +855,7 @@ func (p *prettyErrorFormatter) format(err error) {
 
 	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644"))
 	if p.level > 0 {
+		// Grey out the less important, deep errors.
 		textStyle.Foreground(lipgloss.Color("#969696"))
 	}
 
