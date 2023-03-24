@@ -69,7 +69,7 @@ func TestUpdateCheck_NewVersion(t *testing.T) {
 				},
 			})
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 
 			got, err := client.UpdateCheck(ctx)
 			require.NoError(t, err)

@@ -363,19 +363,20 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
     }
   },
   "directory": "string",
-  "dynamic_metadata": [
-    {
-      "cmd": ["string"],
-      "interval": 0,
-      "key": "string",
-      "timeout": 0
-    }
-  ],
   "environment_variables": {
     "property1": "string",
     "property2": "string"
   },
   "git_auth_configs": 0,
+  "metadata": [
+    {
+      "display_name": "string",
+      "interval": 0,
+      "key": "string",
+      "script": "string",
+      "timeout": 0
+    }
+  ],
   "motd_file": "string",
   "shutdown_script": "string",
   "shutdown_script_timeout": 0,
@@ -522,19 +523,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   },
   "lifecycle_state": "created",
   "login_before_ready": true,
-  "metadata": [
-    {
-      "collectedAt": "string",
-      "error": "string",
-      "key": "string",
-      "value": "string"
-    }
-  ],
   "name": "string",
   "operating_system": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "shutdown_script": "string",
   "shutdown_script_timeout_seconds": 0,
+  "startup_logs_length": 0,
+  "startup_logs_overflowed": true,
   "startup_script": "string",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",
@@ -731,5 +726,60 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/pty
 | Status | Meaning                                                                  | Description         | Schema |
 | ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
 | 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get startup logs by workspace agent
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/startup-logs \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/{workspaceagent}/startup-logs`
+
+### Parameters
+
+| Name             | In    | Type         | Required | Description        |
+| ---------------- | ----- | ------------ | -------- | ------------------ |
+| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID |
+| `before`         | query | integer      | false    | Before log id      |
+| `after`          | query | integer      | false    | After log id       |
+| `follow`         | query | boolean      | false    | Follow log stream  |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": 0,
+    "output": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                    |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceAgentStartupLog](schemas.md#codersdkworkspaceagentstartuplog) |
+
+<h3 id="get-startup-logs-by-workspace-agent-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type              | Required | Restrictions | Description |
+| -------------- | ----------------- | -------- | ------------ | ----------- |
+| `[array item]` | array             | false    |              |             |
+| `» created_at` | string(date-time) | false    |              |             |
+| `» id`         | integer           | false    |              |             |
+| `» output`     | string            | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

@@ -9,8 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
-	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -98,27 +96,6 @@ type ProvisionerJobLog struct {
 	Level     LogLevel  `json:"log_level" enums:"trace,debug,info,warn,error"`
 	Stage     string    `json:"stage"`
 	Output    string    `json:"output"`
-}
-
-// provisionerJobLogsBefore provides log output that occurred before a time.
-// This is abstracted from a specific job type to provide consistency between
-// APIs. Logs is the only shared route between jobs.
-func (c *Client) provisionerJobLogsBefore(ctx context.Context, path string, before int64) ([]ProvisionerJobLog, error) {
-	values := url.Values{}
-	if before != 0 {
-		values["before"] = []string{strconv.FormatInt(before, 10)}
-	}
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("%s?%s", path, values.Encode()), nil)
-	if err != nil {
-		return nil, err
-	}
-	if res.StatusCode != http.StatusOK {
-		defer res.Body.Close()
-		return nil, ReadBodyAsError(res)
-	}
-
-	var logs []ProvisionerJobLog
-	return logs, json.NewDecoder(res.Body).Decode(&logs)
 }
 
 // provisionerJobLogsAfter streams logs that occurred after a specific time.

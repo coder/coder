@@ -280,6 +280,13 @@ func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 	return q.db.DeleteOldWorkspaceAgentStats(ctx)
 }
 
+func (q *querier) DeleteOldWorkspaceAgentStartupLogs(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldWorkspaceAgentStartupLogs(ctx)
+}
+
 func (q *querier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAfter time.Time) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
 	return q.db.GetDeploymentWorkspaceAgentStats(ctx, createdAfter)
 }
@@ -368,6 +375,10 @@ func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.Ins
 	// return nil, err
 	// }
 	return q.db.InsertProvisionerJobLogs(ctx, arg)
+}
+
+func (q *querier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]database.WorkspaceAgentStartupLog, error) {
+	return q.db.InsertWorkspaceAgentStartupLogs(ctx, arg)
 }
 
 // TODO: We need to create a ProvisionerDaemon resource type

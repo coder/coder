@@ -25,57 +25,18 @@ import (
 
 // Returns provisioner logs based on query parameters.
 // The intended usage for a client to stream all logs (with JS API):
-// const timestamp = new Date().getTime();
-// 1. GET /logs?before=<id>
-// 2. GET /logs?after=<id>&follow
+// GET /logs
+// GET /logs?after=<id>&follow
 // The combination of these responses should provide all current logs
 // to the consumer, and future logs are streamed in the follow request.
 func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {
 	var (
-		ctx       = r.Context()
-		actor, _  = dbauthz.ActorFromContext(ctx)
-		logger    = api.Logger.With(slog.F("job_id", job.ID))
-		follow    = r.URL.Query().Has("follow")
-		afterRaw  = r.URL.Query().Get("after")
-		beforeRaw = r.URL.Query().Get("before")
+		ctx      = r.Context()
+		actor, _ = dbauthz.ActorFromContext(ctx)
+		logger   = api.Logger.With(slog.F("job_id", job.ID))
+		follow   = r.URL.Query().Has("follow")
+		afterRaw = r.URL.Query().Get("after")
 	)
-	if beforeRaw != "" && follow {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Query param \"before\" cannot be used with \"follow\".",
-		})
-		return
-	}
-
-	// if we are following logs, start the subscription before we query the database, so that we don't miss any logs
-	// between the end of our query and the start of the subscription.  We might get duplicates, so we'll keep track
-	// of processed IDs.
-	var bufferedLogs <-chan *database.ProvisionerJobLog
-	if follow {
-		bl, closeFollow, err := api.followLogs(actor, job.ID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error watching provisioner logs.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		defer closeFollow()
-		bufferedLogs = bl
-
-		// Next query the job itself to see if it is complete.  If so, the historical query to the database will return
-		// the full set of logs.  It's a little sad to have to query the job again, given that our caller definitely
-		// has, but we need to query it *after* we start following the pubsub to avoid a race condition where the job
-		// completes between the prior query and the start of following the pubsub.  A more substantial refactor could
-		// avoid this, but not worth it for one fewer query at this point.
-		job, err = api.Database.GetProvisionerJobByID(ctx, job.ID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error querying job.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
 
 	var after int64
 	// Only fetch logs created after the time provided.
@@ -92,26 +53,10 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			return
 		}
 	}
-	var before int64
-	// Only fetch logs created before the time provided.
-	if beforeRaw != "" {
-		var err error
-		before, err = strconv.ParseInt(beforeRaw, 10, 64)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Query param \"before\" must be an integer.",
-				Validations: []codersdk.ValidationError{
-					{Field: "before", Detail: "Must be an integer"},
-				},
-			})
-			return
-		}
-	}
 
-	logs, err := api.Database.GetProvisionerLogsByIDBetween(ctx, database.GetProvisionerLogsByIDBetweenParams{
-		JobID:         job.ID,
-		CreatedAfter:  after,
-		CreatedBefore: before,
+	logs, err := api.Database.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
+		JobID:        job.ID,
+		CreatedAfter: after,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -162,9 +107,25 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		}
 	}
 	if job.CompletedAt.Valid {
-		// job was complete before we queried the database for historical logs, meaning we got everything.  No need
-		// to stream anything from the bufferedLogs.
+		// job was complete before we queried the database for historical logs
 		return
+	}
+
+	// if we are following logs, start the subscription before we query the database, so that we don't miss any logs
+	// between the end of our query and the start of the subscription.  We might get duplicates, so we'll keep track
+	// of processed IDs.
+	var bufferedLogs <-chan *database.ProvisionerJobLog
+	if follow {
+		bl, closeFollow, err := api.followProvisionerJobLogs(actor, job.ID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error watching provisioner logs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		defer closeFollow()
+		bufferedLogs = bl
 	}
 
 	for {
@@ -382,7 +343,7 @@ type provisionerJobLogsMessage struct {
 	EndOfLogs    bool  `json:"end_of_logs,omitempty"`
 }
 
-func (api *API) followLogs(actor rbac.Subject, jobID uuid.UUID) (<-chan *database.ProvisionerJobLog, func(), error) {
+func (api *API) followProvisionerJobLogs(actor rbac.Subject, jobID uuid.UUID) (<-chan *database.ProvisionerJobLog, func(), error) {
 	logger := api.Logger.With(slog.F("job_id", jobID))
 
 	var (
@@ -419,7 +380,7 @@ func (api *API) followLogs(actor rbac.Subject, jobID uuid.UUID) (<-chan *databas
 
 			// CreatedAfter is sent when logs are streaming!
 			if jlMsg.CreatedAfter != 0 {
-				logs, err := api.Database.GetProvisionerLogsByIDBetween(dbauthz.As(ctx, actor), database.GetProvisionerLogsByIDBetweenParams{
+				logs, err := api.Database.GetProvisionerLogsAfterID(dbauthz.As(ctx, actor), database.GetProvisionerLogsAfterIDParams{
 					JobID:        jobID,
 					CreatedAfter: jlMsg.CreatedAfter,
 				})
@@ -443,7 +404,7 @@ func (api *API) followLogs(actor rbac.Subject, jobID uuid.UUID) (<-chan *databas
 			// so we fetch logs after the last ID we've seen and send them!
 			if jlMsg.EndOfLogs {
 				endOfLogs.Store(true)
-				logs, err := api.Database.GetProvisionerLogsByIDBetween(dbauthz.As(ctx, actor), database.GetProvisionerLogsByIDBetweenParams{
+				logs, err := api.Database.GetProvisionerLogsAfterID(dbauthz.As(ctx, actor), database.GetProvisionerLogsAfterIDParams{
 					JobID:        jobID,
 					CreatedAfter: lastSentLogID.Load(),
 				})
@@ -458,8 +419,6 @@ func (api *API) followLogs(actor rbac.Subject, jobID uuid.UUID) (<-chan *databas
 				logger.Debug(ctx, "got End of Logs")
 				bufferedLogs <- nil
 			}
-
-			lastSentLogID.Store(jlMsg.CreatedAfter)
 		},
 	)
 	if err != nil {

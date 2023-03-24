@@ -86,3 +86,42 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 		require.Equal(t, int64(1), stats.SessionCountVSCode)
 	})
 }
+
+func TestInsertWorkspaceAgentStartupLogs(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+	sqlDB := testSQLDB(t)
+	ctx := context.Background()
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	org := dbgen.Organization(t, db, database.Organization{})
+	job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		OrganizationID: org.ID,
+	})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: job.ID,
+	})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: resource.ID,
+	})
+	logs, err := db.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
+		AgentID:   agent.ID,
+		CreatedAt: []time.Time{database.Now()},
+		Output:    []string{"first"},
+		// 1 MB is the max
+		OutputLength: 1 << 20,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), logs[0].ID)
+
+	_, err = db.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
+		AgentID:      agent.ID,
+		CreatedAt:    []time.Time{database.Now()},
+		Output:       []string{"second"},
+		OutputLength: 1,
+	})
+	require.True(t, database.IsStartupLogsLimitError(err))
+}

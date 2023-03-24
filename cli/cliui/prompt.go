@@ -11,8 +11,9 @@ import (
 
 	"github.com/bgentry/speakeasy"
 	"github.com/mattn/go-isatty"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/cli/clibase"
 )
 
 // PromptOptions supply a set of options to the prompt.
@@ -26,8 +27,16 @@ type PromptOptions struct {
 
 const skipPromptFlag = "yes"
 
-func AllowSkipPrompt(cmd *cobra.Command) {
-	cmd.Flags().BoolP(skipPromptFlag, "y", false, "Bypass prompts")
+// SkipPromptOption adds a "--yes/-y" flag to the cmd that can be used to skip
+// prompts.
+func SkipPromptOption() clibase.Option {
+	return clibase.Option{
+		Flag:          skipPromptFlag,
+		FlagShorthand: "y",
+		Description:   "Bypass prompts.",
+		// Discard
+		Value: clibase.BoolOf(new(bool)),
+	}
 }
 
 const (
@@ -36,17 +45,17 @@ const (
 )
 
 // Prompt asks the user for input.
-func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
+func Prompt(inv *clibase.Invocation, opts PromptOptions) (string, error) {
 	// If the cmd has a "yes" flag for skipping confirm prompts, honor it.
 	// If it's not a "Confirm" prompt, then don't skip. As the default value of
 	// "yes" makes no sense.
-	if opts.IsConfirm && cmd.Flags().Lookup(skipPromptFlag) != nil {
-		if skip, _ := cmd.Flags().GetBool(skipPromptFlag); skip {
+	if opts.IsConfirm && inv.ParsedFlags().Lookup(skipPromptFlag) != nil {
+		if skip, _ := inv.ParsedFlags().GetBool(skipPromptFlag); skip {
 			return ConfirmYes, nil
 		}
 	}
 
-	_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.FocusedPrompt.String()+opts.Text+" ")
+	_, _ = fmt.Fprint(inv.Stdout, Styles.FocusedPrompt.String()+opts.Text+" ")
 	if opts.IsConfirm {
 		if len(opts.Default) == 0 {
 			opts.Default = ConfirmYes
@@ -58,19 +67,24 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 		} else {
 			renderedNo = Styles.Bold.Render(ConfirmNo)
 		}
-		_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.Placeholder.Render("("+renderedYes+Styles.Placeholder.Render("/"+renderedNo+Styles.Placeholder.Render(") "))))
+		_, _ = fmt.Fprint(inv.Stdout, Styles.Placeholder.Render("("+renderedYes+Styles.Placeholder.Render("/"+renderedNo+Styles.Placeholder.Render(") "))))
 	} else if opts.Default != "" {
-		_, _ = fmt.Fprint(cmd.OutOrStdout(), Styles.Placeholder.Render("("+opts.Default+") "))
+		_, _ = fmt.Fprint(inv.Stdout, Styles.Placeholder.Render("("+opts.Default+") "))
 	}
 	interrupt := make(chan os.Signal, 1)
 
+	if inv.Stdin == nil {
+		panic("inv.Stdin is nil")
+	}
+
 	errCh := make(chan error, 1)
 	lineCh := make(chan string)
+
 	go func() {
 		var line string
 		var err error
 
-		inFile, isInputFile := cmd.InOrStdin().(*os.File)
+		inFile, isInputFile := inv.Stdin.(*os.File)
 		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
 			// we don't install a signal handler here because speakeasy has its own
 			line, err = speakeasy.Ask("")
@@ -78,7 +92,7 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 			signal.Notify(interrupt, os.Interrupt)
 			defer signal.Stop(interrupt)
 
-			reader := bufio.NewReader(cmd.InOrStdin())
+			reader := bufio.NewReader(inv.Stdin)
 			line, err = reader.ReadString('\n')
 
 			// Check if the first line beings with JSON object or array chars.
@@ -96,7 +110,10 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 		if line == "" {
 			line = opts.Default
 		}
-		lineCh <- line
+		select {
+		case <-inv.Context().Done():
+		case lineCh <- line:
+		}
 	}()
 
 	select {
@@ -109,16 +126,16 @@ func Prompt(cmd *cobra.Command, opts PromptOptions) (string, error) {
 		if opts.Validate != nil {
 			err := opts.Validate(line)
 			if err != nil {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), defaultStyles.Error.Render(err.Error()))
-				return Prompt(cmd, opts)
+				_, _ = fmt.Fprintln(inv.Stdout, defaultStyles.Error.Render(err.Error()))
+				return Prompt(inv, opts)
 			}
 		}
 		return line, nil
-	case <-cmd.Context().Done():
-		return "", cmd.Context().Err()
+	case <-inv.Context().Done():
+		return "", inv.Context().Err()
 	case <-interrupt:
 		// Print a newline so that any further output starts properly on a new line.
-		_, _ = fmt.Fprintln(cmd.OutOrStdout())
+		_, _ = fmt.Fprintln(inv.Stdout)
 		return "", Canceled
 	}
 }

@@ -101,19 +101,13 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           },
           "lifecycle_state": "created",
           "login_before_ready": true,
-          "metadata": [
-            {
-              "collectedAt": "string",
-              "error": "string",
-              "key": "string",
-              "value": "string"
-            }
-          ],
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
+          "startup_logs_length": 0,
+          "startup_logs_overflowed": true,
           "startup_script": "string",
           "startup_script_timeout_seconds": 0,
           "status": "connecting",
@@ -259,19 +253,13 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           },
           "lifecycle_state": "created",
           "login_before_ready": true,
-          "metadata": [
-            {
-              "collectedAt": "string",
-              "error": "string",
-              "key": "string",
-              "value": "string"
-            }
-          ],
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
+          "startup_logs_length": 0,
+          "startup_logs_overflowed": true,
           "startup_script": "string",
           "startup_script_timeout_seconds": 0,
           "status": "connecting",
@@ -558,19 +546,13 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         },
         "lifecycle_state": "created",
         "login_before_ready": true,
-        "metadata": [
-          {
-            "collectedAt": "string",
-            "error": "string",
-            "key": "string",
-            "value": "string"
-          }
-        ],
         "name": "string",
         "operating_system": "string",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
         "shutdown_script": "string",
         "shutdown_script_timeout_seconds": 0,
+        "startup_logs_length": 0,
+        "startup_logs_overflowed": true,
         "startup_script": "string",
         "startup_script_timeout_seconds": 0,
         "status": "connecting",
@@ -646,16 +628,13 @@ Status Code **200**
 | `»»»» preferred`                     | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»» lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](schemas.md#codersdkworkspaceagentlifecycle)   | false    |              |                                                                                                                                                                                                                                                |
 | `»» login_before_ready`              | boolean                                                                          | false    |              | »login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                                                          |
-| `»» metadata`                        | array                                                                            | false    |              |                                                                                                                                                                                                                                                |
-| `»»» collectedAt`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
-| `»»» error`                          | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
-| `»»» key`                            | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
-| `»»» value`                          | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» name`                            | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» operating_system`                | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» resource_id`                     | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»» shutdown_script`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» shutdown_script_timeout_seconds` | integer                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `»» startup_logs_length`             | integer                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `»» startup_logs_overflowed`         | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script`                  | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script_timeout_seconds`  | integer                                                                          | false    |              | »startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.                                    |
 | `»» status`                          | [codersdk.WorkspaceAgentStatus](schemas.md#codersdkworkspaceagentstatus)         | false    |              |                                                                                                                                                                                                                                                |
@@ -805,19 +784,13 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           },
           "lifecycle_state": "created",
           "login_before_ready": true,
-          "metadata": [
-            {
-              "collectedAt": "string",
-              "error": "string",
-              "key": "string",
-              "value": "string"
-            }
-          ],
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
+          "startup_logs_length": 0,
+          "startup_logs_overflowed": true,
           "startup_script": "string",
           "startup_script_timeout_seconds": 0,
           "status": "connecting",
@@ -968,19 +941,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             },
             "lifecycle_state": "created",
             "login_before_ready": true,
-            "metadata": [
-              {
-                "collectedAt": "string",
-                "error": "string",
-                "key": "string",
-                "value": "string"
-              }
-            ],
             "name": "string",
             "operating_system": "string",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "shutdown_script": "string",
             "shutdown_script_timeout_seconds": 0,
+            "startup_logs_length": 0,
+            "startup_logs_overflowed": true,
             "startup_script": "string",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
@@ -1090,16 +1057,13 @@ Status Code **200**
 | `»»»»» preferred`                     | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»»» lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](schemas.md#codersdkworkspaceagentlifecycle)   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» login_before_ready`              | boolean                                                                          | false    |              | »»login before ready if true, the agent will delay logins until it is ready (e.g. executing startup script has ended).                                                                                                                         |
-| `»»» metadata`                        | array                                                                            | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» collectedAt`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» error`                          | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» key`                            | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» value`                          | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» name`                            | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» operating_system`                | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» resource_id`                     | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»»» shutdown_script`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» shutdown_script_timeout_seconds` | integer                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `»»» startup_logs_length`             | integer                                                                          | false    |              |                                                                                                                                                                                                                                                |
+| `»»» startup_logs_overflowed`         | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»»» startup_script`                  | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» startup_script_timeout_seconds`  | integer                                                                          | false    |              | »»startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.                                   |
 | `»»» status`                          | [codersdk.WorkspaceAgentStatus](schemas.md#codersdkworkspaceagentstatus)         | false    |              |                                                                                                                                                                                                                                                |
@@ -1311,19 +1275,13 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           },
           "lifecycle_state": "created",
           "login_before_ready": true,
-          "metadata": [
-            {
-              "collectedAt": "string",
-              "error": "string",
-              "key": "string",
-              "value": "string"
-            }
-          ],
           "name": "string",
           "operating_system": "string",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
+          "startup_logs_length": 0,
+          "startup_logs_overflowed": true,
           "startup_script": "string",
           "startup_script_timeout_seconds": 0,
           "status": "connecting",

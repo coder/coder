@@ -55,11 +55,11 @@ func TestTemplateEdit(t *testing.T) {
 			"--default-ttl", defaultTTL.String(),
 			"--allow-user-cancel-workspace-jobs=" + strconv.FormatBool(allowUserCancelWorkspaceJobs),
 		}
-		cmd, root := clitest.New(t, cmdArgs...)
+		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		ctx, _ := testutil.Context(t)
-		err := cmd.ExecuteContext(ctx)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := inv.WithContext(ctx).Run()
 
 		require.NoError(t, err)
 
@@ -92,11 +92,11 @@ func TestTemplateEdit(t *testing.T) {
 			"--default-ttl", (time.Duration(template.DefaultTTLMillis) * time.Millisecond).String(),
 			"--allow-user-cancel-workspace-jobs=" + strconv.FormatBool(template.AllowUserCancelWorkspaceJobs),
 		}
-		cmd, root := clitest.New(t, cmdArgs...)
+		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		ctx, _ := testutil.Context(t)
-		err := cmd.ExecuteContext(ctx)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := inv.WithContext(ctx).Run()
 
 		require.ErrorContains(t, err, "not modified")
 
@@ -125,11 +125,11 @@ func TestTemplateEdit(t *testing.T) {
 			"--name", template.Name,
 			"--display-name", " a-b-c",
 		}
-		cmd, root := clitest.New(t, cmdArgs...)
+		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		ctx, _ := testutil.Context(t)
-		err := cmd.ExecuteContext(ctx)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := inv.WithContext(ctx).Run()
 
 		require.Error(t, err, "client call must fail")
 		_, isSdkError := codersdk.AsError(err)
@@ -175,11 +175,11 @@ func TestTemplateEdit(t *testing.T) {
 			"--display-name", displayName,
 			"--icon", icon,
 		}
-		cmd, root := clitest.New(t, cmdArgs...)
+		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		ctx, _ := testutil.Context(t)
-		err = cmd.ExecuteContext(ctx)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err = inv.WithContext(ctx).Run()
 
 		require.NoError(t, err)
 
@@ -221,11 +221,11 @@ func TestTemplateEdit(t *testing.T) {
 			"edit",
 			template.Name,
 		}
-		cmd, root := clitest.New(t, cmdArgs...)
+		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
 
-		ctx, _ := testutil.Context(t)
-		err = cmd.ExecuteContext(ctx)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err = inv.WithContext(ctx).Run()
 
 		require.NoError(t, err)
 
@@ -260,11 +260,11 @@ func TestTemplateEdit(t *testing.T) {
 				template.Name,
 				"--max-ttl", "1h",
 			}
-			cmd, root := clitest.New(t, cmdArgs...)
+			inv, root := clitest.New(t, cmdArgs...)
 			clitest.SetupConfig(t, client, root)
 
-			ctx, _ := testutil.Context(t)
-			err := cmd.ExecuteContext(ctx)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			err := inv.WithContext(ctx).Run()
 			require.Error(t, err)
 			require.ErrorContains(t, err, "appears to be an AGPL deployment")
 
@@ -332,11 +332,11 @@ func TestTemplateEdit(t *testing.T) {
 				template.Name,
 				"--max-ttl", "1h",
 			}
-			cmd, root := clitest.New(t, cmdArgs...)
+			inv, root := clitest.New(t, cmdArgs...)
 			clitest.SetupConfig(t, proxyClient, root)
 
-			ctx, _ := testutil.Context(t)
-			err = cmd.ExecuteContext(ctx)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			err = inv.WithContext(ctx).Run()
 			require.Error(t, err)
 			require.ErrorContains(t, err, "license is not entitled")
 
@@ -419,11 +419,11 @@ func TestTemplateEdit(t *testing.T) {
 				template.Name,
 				"--max-ttl", "1h",
 			}
-			cmd, root := clitest.New(t, cmdArgs...)
+			inv, root := clitest.New(t, cmdArgs...)
 			clitest.SetupConfig(t, proxyClient, root)
 
-			ctx, _ := testutil.Context(t)
-			err = cmd.ExecuteContext(ctx)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			err = inv.WithContext(ctx).Run()
 			require.NoError(t, err)
 
 			require.EqualValues(t, 1, atomic.LoadInt64(&updateTemplateCalled))

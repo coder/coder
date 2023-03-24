@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -100,25 +101,27 @@ type WorkspaceAgentMetadata struct {
 }
 
 type WorkspaceAgent struct {
-	ID                   uuid.UUID               `json:"id" format:"uuid"`
-	CreatedAt            time.Time               `json:"created_at" format:"date-time"`
-	UpdatedAt            time.Time               `json:"updated_at" format:"date-time"`
-	FirstConnectedAt     *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
-	LastConnectedAt      *time.Time              `json:"last_connected_at,omitempty" format:"date-time"`
-	DisconnectedAt       *time.Time              `json:"disconnected_at,omitempty" format:"date-time"`
-	Status               WorkspaceAgentStatus    `json:"status"`
-	LifecycleState       WorkspaceAgentLifecycle `json:"lifecycle_state"`
-	Name                 string                  `json:"name"`
-	ResourceID           uuid.UUID               `json:"resource_id" format:"uuid"`
-	InstanceID           string                  `json:"instance_id,omitempty"`
-	Architecture         string                  `json:"architecture"`
-	EnvironmentVariables map[string]string       `json:"environment_variables"`
-	OperatingSystem      string                  `json:"operating_system"`
-	StartupScript        string                  `json:"startup_script,omitempty"`
-	Directory            string                  `json:"directory,omitempty"`
-	ExpandedDirectory    string                  `json:"expanded_directory,omitempty"`
-	Version              string                  `json:"version"`
-	Apps                 []WorkspaceApp          `json:"apps"`
+	ID                    uuid.UUID               `json:"id" format:"uuid"`
+	CreatedAt             time.Time               `json:"created_at" format:"date-time"`
+	UpdatedAt             time.Time               `json:"updated_at" format:"date-time"`
+	FirstConnectedAt      *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
+	LastConnectedAt       *time.Time              `json:"last_connected_at,omitempty" format:"date-time"`
+	DisconnectedAt        *time.Time              `json:"disconnected_at,omitempty" format:"date-time"`
+	Status                WorkspaceAgentStatus    `json:"status"`
+	LifecycleState        WorkspaceAgentLifecycle `json:"lifecycle_state"`
+	Name                  string                  `json:"name"`
+	ResourceID            uuid.UUID               `json:"resource_id" format:"uuid"`
+	InstanceID            string                  `json:"instance_id,omitempty"`
+	Architecture          string                  `json:"architecture"`
+	EnvironmentVariables  map[string]string       `json:"environment_variables"`
+	OperatingSystem       string                  `json:"operating_system"`
+	StartupScript         string                  `json:"startup_script,omitempty"`
+	StartupLogsLength     int32                   `json:"startup_logs_length"`
+	StartupLogsOverflowed bool                    `json:"startup_logs_overflowed"`
+	Directory             string                  `json:"directory,omitempty"`
+	ExpandedDirectory     string                  `json:"expanded_directory,omitempty"`
+	Version               string                  `json:"version"`
+	Apps                  []WorkspaceApp          `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
 	DERPLatency              map[string]DERPRegion `json:"latency,omitempty"`
 	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
@@ -415,6 +418,65 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
 
+func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uuid.UUID, after int64) (<-chan []WorkspaceAgentStartupLog, io.Closer, error) {
+	afterQuery := ""
+	if after != 0 {
+		afterQuery = fmt.Sprintf("&after=%d", after)
+	}
+	followURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/startup-logs?follow%s", agentID, afterQuery))
+	if err != nil {
+		return nil, nil, err
+	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(followURL, []*http.Cookie{{
+		Name:  SessionTokenCookie,
+		Value: c.SessionToken(),
+	}})
+	httpClient := &http.Client{
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
+	}
+	conn, res, err := websocket.Dial(ctx, followURL.String(), &websocket.DialOptions{
+		HTTPClient:      httpClient,
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, nil, err
+		}
+		return nil, nil, ReadBodyAsError(res)
+	}
+	logChunks := make(chan []WorkspaceAgentStartupLog)
+	closed := make(chan struct{})
+	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
+	decoder := json.NewDecoder(wsNetConn)
+	go func() {
+		defer close(closed)
+		defer close(logChunks)
+		defer conn.Close(websocket.StatusGoingAway, "")
+		var logs []WorkspaceAgentStartupLog
+		for {
+			err = decoder.Decode(&logs)
+			if err != nil {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case logChunks <- logs:
+			}
+		}
+	}()
+	return logChunks, closeFunc(func() error {
+		_ = wsNetConn.Close()
+		<-closed
+		return nil
+	}), nil
+}
+
 // GitProvider is a constant that represents the
 // type of providers that are supported within Coder.
 type GitProvider string
@@ -440,3 +502,9 @@ const (
 	GitProviderGitLab      GitProvider = "gitlab"
 	GitProviderBitBucket   GitProvider = "bitbucket"
 )
+
+type WorkspaceAgentStartupLog struct {
+	ID        int64     `json:"id"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	Output    string    `json:"output"`
+}

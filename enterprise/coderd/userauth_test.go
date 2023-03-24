@@ -27,7 +27,7 @@ func TestUserOIDC(t *testing.T) {
 		t.Run("Assigns", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			conf := coderdtest.NewOIDCConfig(t, "")
 
 			const groupClaim = "custom-groups"
@@ -70,7 +70,7 @@ func TestUserOIDC(t *testing.T) {
 		t.Run("AssignsMapped", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitMedium)
 			conf := coderdtest.NewOIDCConfig(t, "")
 
 			oidcGroupName := "pingpong"
@@ -115,7 +115,7 @@ func TestUserOIDC(t *testing.T) {
 		t.Run("AddThenRemove", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			conf := coderdtest.NewOIDCConfig(t, "")
 
 			config := conf.OIDCConfig(t, jwt.MapClaims{})
@@ -181,7 +181,7 @@ func TestUserOIDC(t *testing.T) {
 		t.Run("NoneMatch", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			conf := coderdtest.NewOIDCConfig(t, "")
 
 			config := conf.OIDCConfig(t, jwt.MapClaims{})

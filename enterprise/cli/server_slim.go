@@ -8,13 +8,12 @@ import (
 
 	"golang.org/x/xerrors"
 
-	agpl "github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 	agplcoderd "github.com/coder/coder/coderd"
-	"github.com/spf13/cobra"
 )
 
-func server() *cobra.Command {
-	cmd := agpl.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
+func (r *RootCmd) server() *clibase.Cmd {
+	cmd := r.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
 		return nil, nil, xerrors.Errorf("slim build does not support `coder server`")
 	})
 	return cmd

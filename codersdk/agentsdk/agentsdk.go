@@ -535,6 +535,29 @@ func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error 
 	return nil
 }
 
+type StartupLog struct {
+	CreatedAt time.Time `json:"created_at"`
+	Output    string    `json:"output"`
+}
+
+type PatchStartupLogs struct {
+	Logs []StartupLog `json:"logs"`
+}
+
+// PatchStartupLogs writes log messages to the agent startup script.
+// Log messages are limited to 1MB in total.
+func (c *Client) PatchStartupLogs(ctx context.Context, req PatchStartupLogs) error {
+	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/startup-logs", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
+
 type GitAuthResponse struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -607,4 +630,15 @@ func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websock
 		cancel: cancel,
 		Conn:   nc,
 	}
+}
+
+// StartupLogsNotifyChannel returns the channel name responsible for notifying
+// of new startup logs.
+func StartupLogsNotifyChannel(agentID uuid.UUID) string {
+	return fmt.Sprintf("startup-logs:%s", agentID)
+}
+
+type StartupLogsNotifyMessage struct {
+	CreatedAfter int64 `json:"created_after"`
+	EndOfLogs    bool  `json:"end_of_logs"`
 }

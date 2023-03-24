@@ -1,49 +1,56 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# {{ .Name }}
-{{ if .Cmd.Long }}
-{{ .Cmd.Long }}
-{{ else }}
-{{ .Cmd.Short }}
+# {{ fullName . }}
+
+{{ with .Short }}
+{{ . }}
+
 {{ end }}
 
-{{- if .Cmd.Runnable}}
+{{ with .Aliases }}
+Aliases:
+{{- range $index, $alias := . }}
+* {{ $alias }}
+{{- end }}
+{{ end }}
+
+{{- if .Use }}
 ## Usage
 ```console
-{{.Cmd.UseLine}}
+{{ .FullUsage }}
 ```
 {{end}}
 
-{{- if .Cmd.HasExample}}
-## Examples
+{{- if .Long}}
+## Description
 ```console
-{{.Cmd.Example}}
+{{.Long}}
 ```
 {{end}}
 
-{{- range $index, $cmd := .VisibleSubcommands }}
+{{- range $index, $cmd := visibleSubcommands . }}
 {{- if eq $index 0 }}
 ## Subcommands
 | Name |   Purpose |
 | ---- |   ----- |
 {{- end }}
-| [{{ $cmd.Name | wrapCode }}](./{{if $.AtRoot}}cli/{{end}}{{commandURI $cmd}}) | {{ $cmd.Short }} |
+| [{{ $cmd.Name | wrapCode }}](./{{if atRoot $}}cli/{{end}}{{commandURI $cmd}}) | {{ $cmd.Short }} |
 {{- end}}
 {{ "" }}
-{{- range $index, $flag := .Flags }}
+{{- range $index, $opt := visibleOptions . }}
 {{- if eq $index 0 }}
-## Flags
+## Options
 {{- end }}
-### --{{ $flag.Name }}{{ if $flag.Shorthand}}, -{{ $flag.Shorthand }}{{end}}
-{{ $flag.Usage | stripEnv | newLinesToBr }}
-<br/>
-| | |
-| --- | --- |
-{{- with $flag.Usage | parseEnv }}
-| Consumes | {{ . | wrapCode }} |
+### {{ with $opt.FlagShorthand}}-{{ . }}, {{end}}--{{ $opt.Flag }}
+{{" "}}
+{{ tableHeader }}
+| Type | {{ $opt.Value.Type | wrapCode }} |
+{{- with $opt.Env }}
+| Environment | {{ (print "$" .) | wrapCode }} |
 {{- end }}
-{{- with $flag.DefValue }}
-| Default | {{"    "}} {{- . | wrapCode }} |
+{{- with $opt.Default }}
+| Default | {{- . | wrapCode }} |
 {{ "" }}
 {{ end }}
 {{ "" }}
+{{ $opt.Description | newLinesToBr }}
 {{- end}}

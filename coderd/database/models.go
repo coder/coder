@@ -1569,6 +1569,10 @@ type WorkspaceAgent struct {
 	ShutdownScript sql.NullString `db:"shutdown_script" json:"shutdown_script"`
 	// The number of seconds to wait for the shutdown script to complete. If the script does not complete within this time, the agent lifecycle will be marked as shutdown_timeout.
 	ShutdownScriptTimeoutSeconds int32 `db:"shutdown_script_timeout_seconds" json:"shutdown_script_timeout_seconds"`
+	// Total length of startup logs
+	StartupLogsLength int32 `db:"startup_logs_length" json:"startup_logs_length"`
+	// Whether the startup logs overflowed in length
+	StartupLogsOverflowed bool `db:"startup_logs_overflowed" json:"startup_logs_overflowed"`
 }
 
 type WorkspaceAgentMetadatum struct {
@@ -1581,6 +1585,13 @@ type WorkspaceAgentMetadatum struct {
 	Timeout          int64     `db:"timeout" json:"timeout"`
 	Interval         int64     `db:"interval" json:"interval"`
 	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
+}
+
+type WorkspaceAgentStartupLog struct {
+	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Output    string    `db:"output" json:"output"`
+	ID        int64     `db:"id" json:"id"`
 }
 
 type WorkspaceAgentStat struct {

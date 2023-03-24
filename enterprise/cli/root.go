@@ -1,22 +1,25 @@
 package cli
 
 import (
-	"github.com/spf13/cobra"
-
-	agpl "github.com/coder/coder/cli"
+	"github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 )
 
-func enterpriseOnly() []*cobra.Command {
-	return []*cobra.Command{
-		server(),
-		features(),
-		licenses(),
-		groups(),
-		provisionerDaemons(),
+type RootCmd struct {
+	cli.RootCmd
+}
+
+func (r *RootCmd) enterpriseOnly() []*clibase.Cmd {
+	return []*clibase.Cmd{
+		r.server(),
+		r.features(),
+		r.licenses(),
+		r.groups(),
+		r.provisionerDaemons(),
 	}
 }
 
-func EnterpriseSubcommands() []*cobra.Command {
-	all := append(agpl.Core(), enterpriseOnly()...)
+func (r *RootCmd) EnterpriseSubcommands() []*clibase.Cmd {
+	all := append(r.Core(), r.enterpriseOnly()...)
 	return all
 }

@@ -65,7 +65,7 @@ func TestChecker_Notify(t *testing.T) {
 	})
 	defer c.Close()
 
-	ctx, _ := testutil.Context(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
 
 	for i := 0; i < len(wantVersion); i++ {
 		select {
@@ -138,7 +138,7 @@ func TestChecker_Latest(t *testing.T) {
 			})
 			defer c.Close()
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			_ = ctx
 
 			gotR, err := c.Latest(ctx)

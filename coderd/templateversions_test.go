@@ -53,7 +53,7 @@ func TestTemplateVersion(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 

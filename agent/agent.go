@@ -43,6 +43,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/usershell"
 	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -91,6 +92,7 @@ type Client interface {
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
 	PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequest) error
+	PatchStartupLogs(ctx context.Context, req agentsdk.PatchStartupLogs) error
 }
 
 func New(options Options) io.Closer {
@@ -793,13 +795,32 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 	}
 
 	a.logger.Info(ctx, "running script", slog.F("lifecycle", lifecycle), slog.F("script", script))
-	writer, err := a.filesystem.OpenFile(filepath.Join(a.logDir, fmt.Sprintf("coder-%s-script.log", lifecycle)), os.O_CREATE|os.O_RDWR, 0o600)
+	fileWriter, err := a.filesystem.OpenFile(filepath.Join(a.logDir, fmt.Sprintf("coder-%s-script.log", lifecycle)), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open %s script log file: %w", lifecycle, err)
 	}
 	defer func() {
-		_ = writer.Close()
+		_ = fileWriter.Close()
 	}()
+
+	var writer io.Writer = fileWriter
+	if lifecycle == "startup" {
+		// Create pipes for startup logs reader and writer
+		logsReader, logsWriter := io.Pipe()
+		defer func() {
+			_ = logsReader.Close()
+		}()
+		writer = io.MultiWriter(fileWriter, logsWriter)
+		flushedLogs, err := a.trackScriptLogs(ctx, logsReader)
+		if err != nil {
+			return xerrors.Errorf("track script logs: %w", err)
+		}
+		defer func() {
+			_ = logsWriter.Close()
+			<-flushedLogs
+		}()
+	}
+
 	cmd, err := a.createCommand(ctx, script, nil)
 	if err != nil {
 		return xerrors.Errorf("create command: %w", err)
@@ -815,8 +836,122 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 
 		return xerrors.Errorf("run: %w", err)
 	}
-
 	return nil
+}
+
+func (a *agent) trackScriptLogs(ctx context.Context, reader io.Reader) (chan struct{}, error) {
+	// Initialize variables for log management
+	queuedLogs := make([]agentsdk.StartupLog, 0)
+	var flushLogsTimer *time.Timer
+	var logMutex sync.Mutex
+	logsFlushed := sync.NewCond(&sync.Mutex{})
+	var logsSending bool
+	defer func() {
+		logMutex.Lock()
+		if flushLogsTimer != nil {
+			flushLogsTimer.Stop()
+		}
+		logMutex.Unlock()
+	}()
+
+	// sendLogs function uploads the queued logs to the server
+	sendLogs := func() {
+		// Lock logMutex and check if logs are already being sent
+		logMutex.Lock()
+		if logsSending {
+			logMutex.Unlock()
+			return
+		}
+		if flushLogsTimer != nil {
+			flushLogsTimer.Stop()
+		}
+		if len(queuedLogs) == 0 {
+			logMutex.Unlock()
+			return
+		}
+		// Move the current queued logs to logsToSend and clear the queue
+		logsToSend := queuedLogs
+		logsSending = true
+		queuedLogs = make([]agentsdk.StartupLog, 0)
+		logMutex.Unlock()
+
+		// Retry uploading logs until successful or a specific error occurs
+		for r := retry.New(time.Second, 5*time.Second); r.Wait(ctx); {
+			err := a.client.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
+				Logs: logsToSend,
+			})
+			if err == nil {
+				break
+			}
+			var sdkErr *codersdk.Error
+			if errors.As(err, &sdkErr) {
+				if sdkErr.StatusCode() == http.StatusRequestEntityTooLarge {
+					a.logger.Warn(ctx, "startup logs too large, dropping logs")
+					break
+				}
+			}
+			a.logger.Error(ctx, "upload startup logs", slog.Error(err), slog.F("to_send", logsToSend))
+		}
+		// Reset logsSending flag
+		logMutex.Lock()
+		logsSending = false
+		flushLogsTimer.Reset(100 * time.Millisecond)
+		logMutex.Unlock()
+		logsFlushed.Broadcast()
+	}
+	// queueLog function appends a log to the queue and triggers sendLogs if necessary
+	queueLog := func(log agentsdk.StartupLog) {
+		logMutex.Lock()
+		defer logMutex.Unlock()
+
+		// Append log to the queue
+		queuedLogs = append(queuedLogs, log)
+
+		// If there are more than 100 logs, send them immediately
+		if len(queuedLogs) > 100 {
+			// Don't early return after this, because we still want
+			// to reset the timer just in case logs come in while
+			// we're sending.
+			go sendLogs()
+		}
+		// Reset or set the flushLogsTimer to trigger sendLogs after 100 milliseconds
+		if flushLogsTimer != nil {
+			flushLogsTimer.Reset(100 * time.Millisecond)
+			return
+		}
+		flushLogsTimer = time.AfterFunc(100*time.Millisecond, sendLogs)
+	}
+
+	// It's important that we either flush or drop all logs before returning
+	// because the startup state is reported after flush.
+	//
+	// It'd be weird for the startup state to be ready, but logs are still
+	// coming in.
+	logsFinished := make(chan struct{})
+	err := a.trackConnGoroutine(func() {
+		scanner := bufio.NewScanner(reader)
+		for scanner.Scan() {
+			queueLog(agentsdk.StartupLog{
+				CreatedAt: database.Now(),
+				Output:    scanner.Text(),
+			})
+		}
+		defer close(logsFinished)
+		logsFlushed.L.Lock()
+		for {
+			logMutex.Lock()
+			if len(queuedLogs) == 0 {
+				logMutex.Unlock()
+				break
+			}
+			logMutex.Unlock()
+			logsFlushed.Wait()
+		}
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("track conn goroutine: %w", err)
+	}
+	return logsFinished, nil
 }
 
 func (a *agent) init(ctx context.Context) {

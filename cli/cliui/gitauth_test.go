@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/pty/ptytest"
@@ -23,10 +23,10 @@ func TestGitAuth(t *testing.T) {
 	defer cancel()
 
 	ptty := ptytest.New(t)
-	cmd := &cobra.Command{
-		RunE: func(cmd *cobra.Command, args []string) error {
+	cmd := &clibase.Cmd{
+		Handler: func(inv *clibase.Invocation) error {
 			var fetched atomic.Bool
-			return cliui.GitAuth(cmd.Context(), cmd.OutOrStdout(), cliui.GitAuthOptions{
+			return cliui.GitAuth(inv.Context(), inv.Stdout, cliui.GitAuthOptions{
 				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionGitAuth, error) {
 					defer fetched.Store(true)
 					return []codersdk.TemplateVersionGitAuth{{
@@ -40,12 +40,14 @@ func TestGitAuth(t *testing.T) {
 			})
 		},
 	}
-	cmd.SetOutput(ptty.Output())
-	cmd.SetIn(ptty.Input())
+
+	inv := cmd.Invoke().WithContext(ctx)
+
+	ptty.Attach(inv)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		err := cmd.Execute()
+		err := inv.Run()
 		assert.NoError(t, err)
 	}()
 	ptty.ExpectMatchContext(ctx, "You must authenticate with")
