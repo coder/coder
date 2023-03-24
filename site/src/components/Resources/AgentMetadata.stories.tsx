@@ -90,5 +90,18 @@ Example.args = {
         key: "stale",
       },
     },
+    {
+      result: {
+        ...resultDefaults,
+        value: "",
+        collected_at: "0001-01-01T00:00:00Z",
+        age: 1000000,
+      },
+      description: {
+        ...descriptionDefaults,
+        display_name: "Never loads",
+        key: "nloads",
+      },
+    },
   ],
 }

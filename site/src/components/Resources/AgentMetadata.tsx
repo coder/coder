@@ -13,6 +13,7 @@ import dayjs from "dayjs"
 import {
   createContext,
   FC,
+  PropsWithChildren,
   useContext,
   useEffect,
   useRef,
@@ -21,61 +22,20 @@ import {
 
 export const WatchAgentMetadataContext = createContext(watchAgentMetadata)
 
-const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
-  const styles = useStyles()
-
+const MetadataItemValue: FC<
+  PropsWithChildren<{ item: WorkspaceAgentMetadata }>
+> = ({ item, children }) => {
   const [isOpen, setIsOpen] = useState(false)
-
   const anchorRef = useRef<HTMLDivElement>(null)
-
-  if (item.result === undefined) {
-    throw new Error("Metadata item result is undefined")
-  }
-  if (item.description === undefined) {
-    throw new Error("Metadata item description is undefined")
-  }
-
-  const staleThreshold = Math.max(
-    item.description.interval + item.description.timeout * 2,
-    5,
-  )
-
-  const isStale = item.result.age > staleThreshold
-
-  // Stale data is as good as no data. Plus, we want to build confidence in our
-  // users that what's shown is real. If times aren't correctly synced this
-  // could be buggy. But, how common is that anyways?
-  const value = isStale ? (
-    <CircularProgress size={12} />
-  ) : (
-    <div
-      className={
-        styles.metadataValue +
-        " " +
-        (item.result.error.length === 0
-          ? styles.metadataValueSuccess
-          : styles.metadataValueError)
-      }
-    >
-      {item.result.value}
-    </div>
-  )
-
-  const updatesInSeconds = -(item.description.interval - item.result.age)
-
+  const styles = useStyles()
   return (
     <>
-      <div className={styles.metadata}>
-        <div
-          className={styles.metadataLabel}
-          onMouseEnter={() => setIsOpen(true)}
-          // onMouseLeave={() => setIsOpen(false)}
-          role="presentation"
-          ref={anchorRef}
-        >
-          {item.description.display_name}
-        </div>
-        {value}
+      <div
+        ref={anchorRef}
+        onMouseEnter={() => setIsOpen(true)}
+        role="presentation"
+      >
+        {children}
       </div>
       <Popover
         anchorOrigin={{
@@ -96,7 +56,113 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
         classes={{ paper: styles.metadataPopover }}
       >
         <HelpTooltipTitle>{item.description.display_name}</HelpTooltipTitle>
-        {isStale ? (
+        {item.result.value.length > 0 && (
+          <>
+            <HelpTooltipText>Last result:</HelpTooltipText>
+            <HelpTooltipText>
+              <CodeExample code={item.result.value} />
+            </HelpTooltipText>
+          </>
+        )}
+        {item.result.error.length > 0 && (
+          <>
+            <HelpTooltipText>Last error:</HelpTooltipText>
+            <HelpTooltipText>
+              <CodeExample code={item.result.error} />
+            </HelpTooltipText>
+          </>
+        )}
+      </Popover>
+    </>
+  )
+}
+
+const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
+  const styles = useStyles()
+
+  const [isOpen, setIsOpen] = useState(false)
+
+  const labelAnchorRef = useRef<HTMLDivElement>(null)
+
+  if (item.result === undefined) {
+    throw new Error("Metadata item result is undefined")
+  }
+  if (item.description === undefined) {
+    throw new Error("Metadata item description is undefined")
+  }
+
+  const staleThreshold = Math.max(
+    item.description.interval + item.description.timeout * 2,
+    5,
+  )
+
+  const status: "stale" | "valid" | "loading" = (() => {
+    const year = dayjs(item.result.collected_at).year()
+    if (year <= 1970 || isNaN(year)) {
+      return "loading"
+    }
+    if (item.result.age > staleThreshold) {
+      return "stale"
+    }
+    return "valid"
+  })()
+
+  // Stale data is as good as no data. Plus, we want to build confidence in our
+  // users that what's shown is real. If times aren't correctly synced this
+  // could be buggy. But, how common is that anyways?
+  const value =
+    status === "stale" || status === "loading" ? (
+      <CircularProgress size={12} />
+    ) : (
+      <div
+        className={
+          styles.metadataValue +
+          " " +
+          (item.result.error.length === 0
+            ? styles.metadataValueSuccess
+            : styles.metadataValueError)
+        }
+      >
+        {item.result.value}
+      </div>
+    )
+
+  const updatesInSeconds = -(item.description.interval - item.result.age)
+
+  return (
+    <>
+      <div className={styles.metadata}>
+        <div
+          className={styles.metadataLabel}
+          onMouseEnter={() => setIsOpen(true)}
+          // onMouseLeave={() => setIsOpen(false)}
+          role="presentation"
+          ref={labelAnchorRef}
+        >
+          {item.description.display_name}
+        </div>
+        <MetadataItemValue item={item}>{value}</MetadataItemValue>
+      </div>
+      <Popover
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "left",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "left",
+        }}
+        open={isOpen}
+        anchorEl={labelAnchorRef.current}
+        onClose={() => setIsOpen(false)}
+        PaperProps={{
+          onMouseEnter: () => setIsOpen(true),
+          onMouseLeave: () => setIsOpen(false),
+        }}
+        classes={{ paper: styles.metadataPopover }}
+      >
+        <HelpTooltipTitle>{item.description.display_name}</HelpTooltipTitle>
+        {status === "stale" ? (
           <HelpTooltipText>
             This item is now stale because the agent hasn{"'"}t reported a new
             value in {dayjs.duration(item.result.age, "s").humanize()}.
@@ -104,12 +170,25 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
         ) : (
           <></>
         )}
+        {status === "valid" ? (
+          <HelpTooltipText>
+            The agent collected this value{" "}
+            {dayjs.duration(item.result.age, "s").humanize()} ago and will
+            update it in{" "}
+            {dayjs.duration(Math.min(updatesInSeconds, 0), "s").humanize()}.
+          </HelpTooltipText>
+        ) : (
+          <></>
+        )}
+        {status === "loading" ? (
+          <HelpTooltipText>
+            This value is loading for the first time...
+          </HelpTooltipText>
+        ) : (
+          <></>
+        )}
         <HelpTooltipText>
-          This item was collected{" "}
-          {dayjs.duration(item.result.age, "s").humanize()} ago and will be
-          updated in{" "}
-          {dayjs.duration(Math.min(updatesInSeconds, 0), "s").humanize()} by
-          running the following command:
+          This value is produced by the following script:
         </HelpTooltipText>
         <HelpTooltipText>
           <CodeExample code={item.description.script}></CodeExample>
