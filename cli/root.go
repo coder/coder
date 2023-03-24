@@ -842,18 +842,21 @@ func (p *prettyErrorFormatter) format(err error) {
 		errorWithoutChildren = strings.TrimSuffix(err.Error(), ": "+underErr.Error())
 	}
 
-	const errorHeader = "ERROR"
 	// Format the root error specially since it's the most relevant.
 	if p.level == 0 {
 		textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644")).Bold(false)
+		var msg string
+		var sdkError *codersdk.Error
+		if errors.As(err, &sdkError) {
+			msg = sdkError.Message + sdkError.Helper
+		} else {
+			msg = errorWithoutChildren
+		}
 		p.wrappedPrintf(
 			"%s\n",
-			fmt.Sprintf(
-				"%s\n%s",
-				lipgloss.NewStyle().Inherit(textStyle).Underline(true).Render(errorHeader),
-				textStyle.Render(errorWithoutChildren),
-			),
+			textStyle.Render(msg),
 		)
+
 		p.level++
 		p.format(underErr)
 		return
@@ -861,21 +864,11 @@ func (p *prettyErrorFormatter) format(err error) {
 
 	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#969696")).Bold(false)
 
-	border := strings.Repeat("─", len(errorHeader))
 	p.wrappedPrintf(
-		"%s\n%s\n",
-		textStyle.Render(border),
+		"%s",
 		textStyle.Render(errorWithoutChildren),
 	)
 	p.level++
-	if underErr == nil {
-		// Print closing border.
-		p.wrappedPrintf(
-			"%s\n",
-			textStyle.Render(border),
-		)
-		return
-	}
 	p.format(underErr)
 }
 

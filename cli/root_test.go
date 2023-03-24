@@ -47,6 +47,10 @@ func TestCommandHelp(t *testing.T) {
 			cmd:  []string{"--help"},
 		},
 		{
+			name: "coder --help",
+			cmd:  []string{"--help"},
+		},
+		{
 			name: "coder server --help",
 			cmd:  []string{"server", "--help"},
 		},
