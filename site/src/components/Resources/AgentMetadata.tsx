@@ -96,12 +96,6 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
         classes={{ paper: styles.metadataPopover }}
       >
         <HelpTooltipTitle>{item.description.display_name}</HelpTooltipTitle>
-        <HelpTooltipText>
-          This item was collected{" "}
-          {dayjs.duration(item.result.age, "s").humanize()} ago and will be
-          updated in{" "}
-          {dayjs.duration(Math.min(updatesInSeconds, 0), "s").humanize()}.
-        </HelpTooltipText>
         {isStale ? (
           <HelpTooltipText>
             This item is now stale because the agent hasn{"'"}t reported a new
@@ -111,7 +105,11 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
           <></>
         )}
         <HelpTooltipText>
-          This item is collected by running the following command:
+          This item was collected{" "}
+          {dayjs.duration(item.result.age, "s").humanize()} ago and will be
+          updated in{" "}
+          {dayjs.duration(Math.min(updatesInSeconds, 0), "s").humanize()} by
+          running the following command:
         </HelpTooltipText>
         <HelpTooltipText>
           <CodeExample code={item.description.script}></CodeExample>
