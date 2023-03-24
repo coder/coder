@@ -723,7 +723,7 @@ func (q *fakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]datab
 		}
 	}
 
-	return rows, sql.ErrNoRows
+	return rows, nil
 }
 
 func (q *fakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {

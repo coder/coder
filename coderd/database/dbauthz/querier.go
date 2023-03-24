@@ -95,7 +95,7 @@ func (q *querier) GetFileByHashAndCreator(ctx context.Context, arg database.GetF
 	err = q.authorizeContext(ctx, rbac.ActionRead, file)
 	if err != nil {
 		// Check the user's access to the file's templates.
-		if q.authorizeReadFile(ctx, file) != nil {
+		if q.authorizeUpdateFileTemplate(ctx, file) != nil {
 			return database.File{}, err
 		}
 	}
@@ -123,7 +123,7 @@ func (q *querier) GetFileByID(ctx context.Context, id uuid.UUID) (database.File,
 // independent of template permissions. This function checks if the user has
 // update access to any of the file's templates.
 func (q *querier) authorizeUpdateFileTemplate(ctx context.Context, file database.File) error {
-	tpls, err := q.GetFileTemplates(AsSystemRestricted(ctx), file.ID)
+	tpls, err := q.db.GetFileTemplates(ctx, file.ID)
 	if err != nil {
 		return err
 	}

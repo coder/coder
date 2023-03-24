@@ -976,6 +976,54 @@ func TestUpdateTemplateACL(t *testing.T) {
 	})
 }
 
+func TestReadFileWithTemplateUpdate(t *testing.T) {
+	t.Parallel()
+	t.Run("HasTemplateUpdate", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := testutil.Context(t)
+		defer cancel()
+
+		// Upload a file
+		client := coderdenttest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		})
+
+		resp, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(make([]byte, 1024)))
+		require.NoError(t, err)
+
+		// Make a new user
+		member, memberData := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		// Try to download file, this should fail
+		_, _, err = member.Download(ctx, resp.ID)
+		require.Error(t, err, "no template yet")
+
+		// Make a new template version with the file
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil, func(request *codersdk.CreateTemplateVersionRequest) {
+			request.FileID = resp.ID
+		})
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+
+		// Not in acl yet
+		_, _, err = member.Download(ctx, resp.ID)
+		require.Error(t, err, "not in acl yet")
+
+		err = client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{
+				memberData.ID.String(): codersdk.TemplateRoleAdmin,
+			},
+		})
+		require.NoError(t, err)
+
+		_, _, err = member.Download(ctx, resp.ID)
+		require.NoError(t, err)
+	})
+}
+
 // TestTemplateAccess tests the rego -> sql conversion. We need to implement
 // this test on at least 1 table type to ensure that the conversion is correct.
 // The rbac tests only assert against static SQL queries.
