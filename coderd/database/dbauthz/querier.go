@@ -1500,6 +1500,9 @@ func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.Ins
 
 func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.WorkspaceAgentID)
+	if err != nil {
+		return err
+	}
 
 	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
 	if err != nil {
@@ -1511,6 +1514,9 @@ func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database
 
 func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.WorkspaceAgentID)
+	if err != nil {
+		return err
+	}
 
 	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
 	if err != nil {

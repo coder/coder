@@ -1316,7 +1316,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 
-	ctx, _ := testutil.Context(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	manifest, err := agentClient.Manifest(ctx)
 	require.NoError(t, err)
@@ -1327,9 +1327,6 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.Equal(t, "echo hi", manifest.Metadata[0].Script)
 	require.EqualValues(t, 10, manifest.Metadata[0].Interval)
 	require.EqualValues(t, 3, manifest.Metadata[0].Timeout)
-
-	ctx, cancel := testutil.Context(t)
-	defer cancel()
 
 	post := func(key string, mr codersdk.WorkspaceAgentMetadataResult) {
 		err := agentClient.PostMetadata(ctx, key, mr)
