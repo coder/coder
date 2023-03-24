@@ -347,7 +347,8 @@ func (api *API) followProvisionerJobLogs(actor rbac.Subject, jobID uuid.UUID) (<
 	logger := api.Logger.With(slog.F("job_id", jobID))
 
 	var (
-		bufferedLogs  = make(chan *database.ProvisionerJobLog, 128)
+		// With debug logging enabled length = 128 is insufficient
+		bufferedLogs  = make(chan *database.ProvisionerJobLog, 1024)
 		endOfLogs     atomic.Bool
 		lastSentLogID atomic.Int64
 	)
