@@ -1,4 +1,4 @@
-import { Popover } from "@material-ui/core"
+import Popover from "@material-ui/core/Popover"
 import CircularProgress from "@material-ui/core/CircularProgress"
 import makeStyles from "@material-ui/core/styles/makeStyles"
 import { watchAgentMetadata } from "api/api"
@@ -6,8 +6,6 @@ import { WorkspaceAgent, WorkspaceAgentMetadata } from "api/typesGenerated"
 import { CodeExample } from "components/CodeExample/CodeExample"
 import { Stack } from "components/Stack/Stack"
 import {
-  HelpPopover,
-  HelpTooltip,
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/Tooltips/HelpTooltip"
@@ -66,7 +64,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
   const updatesInSeconds = -(item.description.interval - item.result.age)
 
   return (
-    <div
+    <span
       className={styles.metadata}
       onMouseEnter={() => setIsOpen(true)}
       onMouseLeave={() => setIsOpen(false)}
@@ -87,11 +85,13 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
         onClose={() => setIsOpen(false)}
         PaperProps={{
           onMouseEnter: () => setIsOpen(true),
-          // onMouseLeave: () => setIsOpen(false),
+          onMouseLeave: () => setIsOpen(false),
         }}
-        style={{
-          width: "auto",
-        }}
+        style={
+          {
+            // width: "auto",
+          }
+        }
       >
         <HelpTooltipTitle>{item.description.display_name}</HelpTooltipTitle>
         <HelpTooltipText>
@@ -117,7 +117,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
         {item.description.display_name}
       </div>
       {value}
-    </div>
+    </span>
   )
 }
 
@@ -131,7 +131,12 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
     return <></>
   }
   return (
-    <Stack alignItems="flex-start" direction="row" spacing={5}>
+    <Stack
+      alignItems="flex-start"
+      direction="row"
+      spacing={5}
+      className={styles.metadataStack}
+    >
       <div className={styles.metadataHeader}>
         {metadata.map((m) => {
           if (m.description === undefined) {
@@ -178,6 +183,9 @@ export const AgentMetadata: FC<{
 // These are more or less copied from
 // site/src/components/Resources/ResourceCard.tsx
 const useStyles = makeStyles((theme) => ({
+  metadataStack: {
+    // padding: "24px 32px",
+  },
   metadataHeader: {
     display: "grid",
     gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
@@ -209,5 +217,21 @@ const useStyles = makeStyles((theme) => ({
   },
   metadataValueError: {
     color: theme.palette.error.main,
+  },
+
+  metadataPopover: {
+    padding: 0,
+    width: theme.spacing(28),
+
+    "& .MuiButton-root": {
+      padding: theme.spacing(1, 2),
+      borderRadius: 0,
+      width: "100%",
+      border: 0,
+
+      "&:hover": {
+        background: theme.palette.action.hover,
+      },
+    },
   },
 }))
