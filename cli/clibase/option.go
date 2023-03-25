@@ -105,6 +105,8 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 		return nil
 	}
 
+	var stringArrayType = StringArray{}.Type()
+
 	var merr *multierror.Error
 
 	// We parse environment variables first instead of using a nested loop to
@@ -126,7 +128,7 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 		// way for a user to change a Default value to an empty string from
 		// the environment. Unfortunately, we have old configuration files
 		// that rely on the faulty behavior.
-		if !ok || envVal == "" {
+		if !ok || (envVal == "" && opt.Value.Type() != stringArrayType) {
 			continue
 		}
 
