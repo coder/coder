@@ -58,6 +58,17 @@ jobs:
         with:
           requireScope: false
 
+  markdown-link-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    - uses: gaurav-nelson/github-action-markdown-link-check@v1
+      with:
+        use-quiet-mode: 'yes'
+        use-verbose-mode: 'yes'
+        config-file: 'mlc_config.json'
+        folder-path: 'docs'
+
   release-labels:
     runs-on: ubuntu-latest
     # Depend on lint so that title is Conventional Commits-compatible.
