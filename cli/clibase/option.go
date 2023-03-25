@@ -105,7 +105,7 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 		return nil
 	}
 
-	var stringArrayType = StringArray{}.Type()
+	stringArrayType := StringArray{}.Type()
 
 	var merr *multierror.Error
 
