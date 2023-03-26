@@ -53,7 +53,7 @@ export const WorkspacePage: FC = () => {
   }
 
   return (
-    <RequirePermission isFeatureVisible={permissions?.readPagePermissions}>
+    <RequirePermission isFeatureVisible={permissions.readPagePermissions}>
       <ChooseOne>
         <Cond condition={workspaceState.matches("error")}>
           <div className={styles.error}>
