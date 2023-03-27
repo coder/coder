@@ -211,7 +211,7 @@ func (c *Checker) update() (r Result, err error) {
 	}
 
 	// nolint:gocritic // Inserting the last update check is a system function.
-	err = c.db.UpsertLastUpdateCheck(dbauthz.AsSystemRestricted(ctx), string(b))
+	err = c.db.InsertOrUpdateServiceBannerLastUpdateCheck(dbauthz.AsSystemRestricted(ctx), string(b))
 	if err != nil {
 		return r, err
 	}

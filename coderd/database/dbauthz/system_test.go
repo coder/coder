@@ -102,11 +102,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			DailyCost: 10,
 		}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate).Returns(o)
 	}))
-	s.Run("UpsertLastUpdateCheck", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("InsertOrUpdateServiceBannerLastUpdateCheck", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("value").Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
 	}))
 	s.Run("GetLastUpdateCheck", s.Subtest(func(db database.Store, check *expects) {
-		err := db.UpsertLastUpdateCheck(context.Background(), "value")
+		err := db.InsertOrUpdateServiceBannerLastUpdateCheck(context.Background(), "value")
 		require.NoError(s.T(), err)
 		check.Args().Asserts(rbac.ResourceSystem, rbac.ActionRead)
 	}))

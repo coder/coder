@@ -3103,33 +3103,33 @@ func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error
 	return err
 }
 
-const upsertLastUpdateCheck = `-- name: UpsertLastUpdateCheck :exec
+const InsertOrUpdateServiceBannerLastUpdateCheck = `-- name: InsertOrUpdateServiceBannerLastUpdateCheck :exec
 INSERT INTO site_configs (key, value) VALUES ('last_update_check', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'last_update_check'
 `
 
-func (q *sqlQuerier) UpsertLastUpdateCheck(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertLastUpdateCheck, value)
+func (q *sqlQuerier) InsertOrUpdateServiceBannerLastUpdateCheck(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, InsertOrUpdateServiceBannerLastUpdateCheck, value)
 	return err
 }
 
-const upsertLogoURL = `-- name: UpsertLogoURL :exec
+const InsertOrUpdateServiceBannerLogoURL = `-- name: InsertOrUpdateServiceBannerLogoURL :exec
 INSERT INTO site_configs (key, value) VALUES ('logo_url', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'logo_url'
 `
 
-func (q *sqlQuerier) UpsertLogoURL(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertLogoURL, value)
+func (q *sqlQuerier) InsertOrUpdateServiceBannerLogoURL(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, InsertOrUpdateServiceBannerLogoURL, value)
 	return err
 }
 
-const upsertServiceBanner = `-- name: UpsertServiceBanner :exec
+const InsertOrUpdateServiceBannerServiceBanner = `-- name: InsertOrUpdateServiceBannerServiceBanner :exec
 INSERT INTO site_configs (key, value) VALUES ('service_banner', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'service_banner'
 `
 
-func (q *sqlQuerier) UpsertServiceBanner(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertServiceBanner, value)
+func (q *sqlQuerier) InsertOrUpdateServiceBannerServiceBanner(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, InsertOrUpdateServiceBannerServiceBanner, value)
 	return err
 }
 
