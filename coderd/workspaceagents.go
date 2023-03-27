@@ -774,7 +774,11 @@ func (api *API) dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspac
 	go func() {
 		err := (*api.TailnetCoordinator.Load()).ServeClient(serverConn, uuid.New(), agentID)
 		if err != nil {
-			api.Logger.Warn(ctx, "tailnet coordinator client error", slog.Error(err))
+			// Sometimes, we get benign closed pipe errors when the server is
+			// shutting down.
+			if api.ctx.Err() == nil {
+				api.Logger.Warn(ctx, "tailnet coordinator client error", slog.Error(err))
+			}
 			_ = agentConn.Close()
 		}
 	}()
