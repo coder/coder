@@ -1414,7 +1414,7 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 		Value: ellipse(req.Value, 10<<10),
 		Error: ellipse(req.Error, 10<<10),
 		// We ignore the CollectedAt from the agent to avoid bugs caused by
-		// misaligned clocks.
+		// clock skew.
 		CollectedAt: time.Now(),
 	}
 
@@ -1478,8 +1478,6 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	defer refreshTicker.Stop()
 
 	var (
-		// In practice, two concurrent sends is extremely unlikely because the
-		// refreshTicker would have to fire right as we receive a new DB update.
 		lastDBMetaMu sync.Mutex
 		lastDBMeta   []database.WorkspaceAgentMetadatum
 	)
@@ -1487,9 +1485,6 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	sendMetadata := func(pull bool) {
 		lastDBMetaMu.Lock()
 		defer lastDBMetaMu.Unlock()
-
-		// Avoid sending refreshes if the natural pace of updates is fast.
-		refreshTicker.Reset(refreshInterval)
 
 		var err error
 		if pull {
@@ -1509,6 +1504,10 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 			slices.SortFunc(lastDBMeta, func(i, j database.WorkspaceAgentMetadatum) bool {
 				return i.Key < j.Key
 			})
+
+			// Avoid sending refresh if the client is about to get a
+			// fresh update.
+			refreshTicker.Reset(refreshInterval)
 		}
 
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
@@ -1533,10 +1532,10 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	for {
 		select {
 		case <-refreshTicker.C:
-			// Avoid spamming the DB when we know there are no updates. We want
-			// to continue sending updates so that "Result.Age" is always accurate on
-			// the frontend. This way, the frontend doesn't need complex clock
-			// skew logic to understand if metadata is stale.
+			// Avoid spamming the DB with reads we know there are no updates. We want
+			// to continue sending updates to the frontend so that "Result.Age"
+			// is always accurate. This way, the frontend doesn't need to
+			// sync its own clock with the backend.
 			sendMetadata(false)
 		case <-senderClosed:
 			return

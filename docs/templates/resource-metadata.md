@@ -109,14 +109,16 @@ resource "coder_agent" "dev" {
   dir  = "/workspace"
   metadata {
     name = "Process Count"
-    cmd = ["sh", "-c", "ps aux | wc -l"]
-    refresh = 5s
-    # Any data above this width will require scrolling.
-    width = 5
+    script = "ps aux | wc -l"
+    interval = 1
+    timeout = 3
   }
 }
 ```
 
+Read more [here](./agent-metadata.md).
+
 ## Up next
 
 - Learn about [secrets](../secrets.md)
+- Learn about [Agent Metadata](../agent-metadata.md)
