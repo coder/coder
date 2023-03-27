@@ -5,7 +5,6 @@ on:
     - cron: "0 9 * * 1"
   workflow_dispatch:
 
-
 jobs:
   check-links:
     runs-on: ubuntu-latest
@@ -18,10 +17,10 @@ jobs:
         id: markdown-link-check
         # checks all markdown files from /docs including all subfolders
         with:
-          use-quiet-mode: 'yes'
-          use-verbose-mode: 'yes'
-          config-file: '.github/workflows/markdown.links.config.json'
-          folder-path: 'docs/'
+          use-quiet-mode: "yes"
+          use-verbose-mode: "yes"
+          config-file: ".github/workflows/markdown.links.config.json"
+          folder-path: "docs/"
 
   post-to-slack:
     runs-on: ubuntu-latest
