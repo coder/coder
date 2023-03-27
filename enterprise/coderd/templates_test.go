@@ -57,7 +57,7 @@ func TestTemplates(t *testing.T) {
 		workspace3 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		// To unset TTL you have to update, as setting a nil TTL on create
 		// copies the template default TTL.
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := client.UpdateWorkspaceTTL(ctx, workspace3.ID, codersdk.UpdateWorkspaceTTLRequest{
 			TTLMillis: nil,
 		})
@@ -226,7 +226,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
@@ -347,7 +347,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
@@ -387,7 +387,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
@@ -426,7 +426,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "test",
@@ -477,7 +477,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
@@ -589,7 +589,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		numLogs := len(auditor.AuditLogs)
 
@@ -689,7 +689,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
@@ -716,7 +716,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
@@ -744,7 +744,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
@@ -772,7 +772,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -810,7 +810,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -872,7 +872,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Create a group to add to the template.
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{

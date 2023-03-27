@@ -77,7 +77,7 @@ func (s *OptionSet) FlagSet() *pflag.FlagSet {
 
 		val := opt.Value
 		if val == nil {
-			val = &DiscardValue{}
+			val = DiscardValue
 		}
 
 		fs.AddFlag(&pflag.Flag{

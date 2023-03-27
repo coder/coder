@@ -12,26 +12,25 @@ import (
 	"syscall"
 
 	"github.com/pion/udp"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/agent"
-	"github.com/coder/coder/cli/cliflag"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func portForward() *cobra.Command {
+func (r *RootCmd) portForward() *clibase.Cmd {
 	var (
 		tcpForwards []string // <port>:<port>
 		udpForwards []string // <port>:<port>
 	)
-	cmd := &cobra.Command{
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Use:     "port-forward <workspace>",
 		Short:   "Forward ports from machine to a workspace",
 		Aliases: []string{"tunnel"},
-		Args:    cobra.ExactArgs(1),
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Description: "Port forward a single TCP port from 1234 in the workspace to port 5678 on your local machine",
 				Command:     "coder port-forward <workspace> --tcp 5678:1234",
@@ -49,8 +48,12 @@ func portForward() *cobra.Command {
 				Command:     "coder port-forward <workspace> --tcp 8080,9000:3000,9090-9092,10000-10002:10010-10012",
 			},
 		),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := context.WithCancel(cmd.Context())
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
 			specs, err := parsePortForwards(tcpForwards, udpForwards)
@@ -58,19 +61,14 @@ func portForward() *cobra.Command {
 				return xerrors.Errorf("parse port-forward specs: %w", err)
 			}
 			if len(specs) == 0 {
-				err = cmd.Help()
+				err = inv.Command.HelpHandler(inv)
 				if err != nil {
 					return xerrors.Errorf("generate help output: %w", err)
 				}
 				return xerrors.New("no port-forwards requested")
 			}
 
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return err
-			}
-
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, cmd, client, codersdk.Me, args[0], false)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -78,13 +76,13 @@ func portForward() *cobra.Command {
 				return xerrors.New("workspace must be in start transition to port-forward")
 			}
 			if workspace.LatestBuild.Job.CompletedAt == nil {
-				err = cliui.WorkspaceBuild(ctx, cmd.ErrOrStderr(), client, workspace.LatestBuild.ID)
+				err = cliui.WorkspaceBuild(ctx, inv.Stderr, client, workspace.LatestBuild.ID)
 				if err != nil {
 					return err
 				}
 			}
 
-			err = cliui.Agent(ctx, cmd.ErrOrStderr(), cliui.AgentOptions{
+			err = cliui.Agent(ctx, inv.Stderr, cliui.AgentOptions{
 				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
@@ -116,7 +114,7 @@ func portForward() *cobra.Command {
 			defer closeAllListeners()
 
 			for i, spec := range specs {
-				l, err := listenAndPortForward(ctx, cmd, conn, wg, spec)
+				l, err := listenAndPortForward(ctx, inv, conn, wg, spec)
 				if err != nil {
 					return err
 				}
@@ -137,7 +135,7 @@ func portForward() *cobra.Command {
 				case <-ctx.Done():
 					closeErr = ctx.Err()
 				case <-sigs:
-					_, _ = fmt.Fprintln(cmd.OutOrStderr(), "\nReceived signal, closing all listeners and active connections")
+					_, _ = fmt.Fprintln(inv.Stderr, "\nReceived signal, closing all listeners and active connections")
 				}
 
 				cancel()
@@ -145,19 +143,33 @@ func portForward() *cobra.Command {
 			}()
 
 			conn.AwaitReachable(ctx)
-			_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Ready!")
+			_, _ = fmt.Fprintln(inv.Stderr, "Ready!")
 			wg.Wait()
 			return closeErr
 		},
 	}
 
-	cliflag.StringArrayVarP(cmd.Flags(), &tcpForwards, "tcp", "p", "CODER_PORT_FORWARD_TCP", nil, "Forward TCP port(s) from the workspace to the local machine")
-	cliflag.StringArrayVarP(cmd.Flags(), &udpForwards, "udp", "", "CODER_PORT_FORWARD_UDP", nil, "Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:          "tcp",
+			FlagShorthand: "p",
+			Env:           "CODER_PORT_FORWARD_TCP",
+			Description:   "Forward TCP port(s) from the workspace to the local machine.",
+			Value:         clibase.StringArrayOf(&tcpForwards),
+		},
+		{
+			Flag:        "udp",
+			Env:         "CODER_PORT_FORWARD_UDP",
+			Description: "Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.",
+			Value:       clibase.StringArrayOf(&udpForwards),
+		},
+	}
+
 	return cmd
 }
 
-func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *codersdk.WorkspaceAgentConn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
-	_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
+func listenAndPortForward(ctx context.Context, inv *clibase.Invocation, conn *codersdk.WorkspaceAgentConn, wg *sync.WaitGroup, spec portForwardSpec) (net.Listener, error) {
+	_, _ = fmt.Fprintf(inv.Stderr, "Forwarding '%v://%v' locally to '%v://%v' in the workspace\n", spec.listenNetwork, spec.listenAddress, spec.dialNetwork, spec.dialAddress)
 
 	var (
 		l   net.Listener
@@ -200,8 +212,8 @@ func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *codersd
 				if xerrors.Is(err, net.ErrClosed) {
 					return
 				}
-				_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Error accepting connection from '%v://%v': %v\n", spec.listenNetwork, spec.listenAddress, err)
-				_, _ = fmt.Fprintln(cmd.OutOrStderr(), "Killing listener")
+				_, _ = fmt.Fprintf(inv.Stderr, "Error accepting connection from '%v://%v': %v\n", spec.listenNetwork, spec.listenAddress, err)
+				_, _ = fmt.Fprintln(inv.Stderr, "Killing listener")
 				return
 			}
 
@@ -209,7 +221,7 @@ func listenAndPortForward(ctx context.Context, cmd *cobra.Command, conn *codersd
 				defer netConn.Close()
 				remoteConn, err := conn.DialContext(ctx, spec.dialNetwork, spec.dialAddress)
 				if err != nil {
-					_, _ = fmt.Fprintf(cmd.OutOrStderr(), "Failed to dial '%v://%v' in workspace: %s\n", spec.dialNetwork, spec.dialAddress, err)
+					_, _ = fmt.Fprintf(inv.Stderr, "Failed to dial '%v://%v' in workspace: %s\n", spec.dialNetwork, spec.dialAddress, err)
 					return
 				}
 				defer remoteConn.Close()

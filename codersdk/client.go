@@ -181,7 +181,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return nil, xerrors.Errorf("do: %w", err)
+		return nil, err
 	}
 
 	span.SetAttributes(semconv.HTTPStatusCodeKey.Int(resp.StatusCode))

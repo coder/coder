@@ -905,11 +905,22 @@ func (q *querier) UpdateTemplateScheduleByID(ctx context.Context, arg database.U
 }
 
 func (q *querier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
-	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID.UUID)
+	// An actor is allowed to update the template version if they are authorized to update the template.
+	tv, err := q.db.GetTemplateVersionByID(ctx, arg.ID)
 	if err != nil {
 		return database.TemplateVersion{}, err
 	}
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+	var obj rbac.Objecter
+	if !tv.TemplateID.Valid {
+		obj = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		tpl, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		if err != nil {
+			return database.TemplateVersion{}, err
+		}
+		obj = tpl
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, obj); err != nil {
 		return database.TemplateVersion{}, err
 	}
 	return q.db.UpdateTemplateVersionByID(ctx, arg)
