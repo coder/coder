@@ -874,12 +874,16 @@ func TestAgent_Metadata(t *testing.T) {
 		dir := t.TempDir()
 		const reportInterval = 2
 		greetingPath := filepath.Join(dir, "greeting")
+		script := "echo hello | tee " + greetingPath
+		if runtime.GOOS == "windows" {
+			script = "powershell " + script
+		}
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
 				{
 					Key:      "greeting",
 					Interval: reportInterval,
-					Script:   "echo hello | tee -a " + greetingPath,
+					Script:   script,
 				},
 				{
 					Key:      "bad",
@@ -899,7 +903,8 @@ func TestAgent_Metadata(t *testing.T) {
 				panic("unexpected number of metadata entries")
 			}
 
-			require.Equal(t, "hello\n", md["greeting"].Value)
+			// Trim space to be OS-newline agnostic.
+			require.Equal(t, "hello", strings.TrimSpace(md["greeting"].Value))
 			require.Equal(t, "exit status 1", md["bad"].Error)
 
 			greetingByt, err := os.ReadFile(greetingPath)
@@ -930,13 +935,17 @@ func TestAgent_Metadata(t *testing.T) {
 
 	t.Run("CollectOnce", func(t *testing.T) {
 		t.Parallel()
+		script := "echo -n hello"
+		if runtime.GOOS == "windows" {
+			script = "powershell " + script
+		}
 		//nolint:dogsled
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
 				{
 					Key:      "greeting",
 					Interval: 0,
-					Script:   "echo -n hello",
+					Script:   script,
 				},
 			},
 		}, 0)
