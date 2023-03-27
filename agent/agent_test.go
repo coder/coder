@@ -869,9 +869,43 @@ func TestAgent_StartupScript(t *testing.T) {
 func TestAgent_Metadata(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Basic", func(t *testing.T) {
+	t.Run("Once", func(t *testing.T) {
+		t.Parallel()
+		script := "echo -n hello"
 		if runtime.GOOS == "windows" {
-			// Shell scripting in Windows is a pain, so but we test that it works in the simpler "CollectOnce"
+			script = "powershell " + script
+		}
+		//nolint:dogsled
+		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
+			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
+				{
+					Key:      "greeting",
+					Interval: 0,
+					Script:   script,
+				},
+			},
+		}, 0)
+
+		var gotMd map[string]agentsdk.PostMetadataRequest
+		require.Eventually(t, func() bool {
+			gotMd = client.getMetadata()
+			return len(gotMd) == 1
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		collectedAt := gotMd["greeting"].CollectedAt
+
+		require.Never(t, func() bool {
+			gotMd = client.getMetadata()
+			if len(gotMd) != 1 {
+				panic("unexpected number of metadata")
+			}
+			return !gotMd["greeting"].CollectedAt.Equal(collectedAt)
+		}, testutil.WaitShort, testutil.IntervalMedium)
+	})
+
+	t.Run("Many", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			// Shell scripting in Windows is a pain, but we test that it works in the simpler "CollectOnce"
 			// test.
 			t.Skip()
 		}
@@ -906,8 +940,7 @@ func TestAgent_Metadata(t *testing.T) {
 				panic("unexpected number of metadata entries")
 			}
 
-			// Trim space to be OS-newline agnostic.
-			require.Equal(t, "hello", strings.TrimSpace(md["greeting"].Value))
+			require.Equal(t, "hello\n", md["greeting"].Value)
 			require.Equal(t, "exit status 1", md["bad"].Error)
 
 			greetingByt, err := os.ReadFile(greetingPath)
@@ -920,7 +953,7 @@ func TestAgent_Metadata(t *testing.T) {
 				lowerBound        = (int(idealNumGreetings) / 2)
 			)
 
-			if idealNumGreetings < 5 {
+			if idealNumGreetings < 10 {
 				// Not enough time has passed to get a good sample size.
 				continue
 			}
@@ -936,39 +969,6 @@ func TestAgent_Metadata(t *testing.T) {
 		}
 	})
 
-	t.Run("CollectOnce", func(t *testing.T) {
-		t.Parallel()
-		script := "echo -n hello"
-		if runtime.GOOS == "windows" {
-			script = "powershell " + script
-		}
-		//nolint:dogsled
-		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
-				{
-					Key:      "greeting",
-					Interval: 0,
-					Script:   script,
-				},
-			},
-		}, 0)
-
-		var gotMd map[string]agentsdk.PostMetadataRequest
-		require.Eventually(t, func() bool {
-			gotMd = client.getMetadata()
-			return len(gotMd) == 1
-		}, testutil.WaitShort, testutil.IntervalMedium)
-
-		collectedAt := gotMd["greeting"].CollectedAt
-
-		require.Never(t, func() bool {
-			gotMd = client.getMetadata()
-			if len(gotMd) != 1 {
-				panic("unexpected number of metadata")
-			}
-			return !gotMd["greeting"].CollectedAt.Equal(collectedAt)
-		}, testutil.WaitShort, testutil.IntervalMedium)
-	})
 }
 
 func TestAgent_Lifecycle(t *testing.T) {
