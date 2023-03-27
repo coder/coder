@@ -6,7 +6,7 @@ on:
   workflow_dispatch: # allows to run manually for testing
 
 jobs:
-  check-links:
+  check-docs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
