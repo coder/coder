@@ -870,14 +870,17 @@ func TestAgent_Metadata(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Basic", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			// Shell scripting in Windows is a pain, so but we test that it works in the simpler "CollectOnce"
+			// test.
+			t.Skip()
+		}
 		t.Parallel()
+
 		dir := t.TempDir()
 		const reportInterval = 2
 		greetingPath := filepath.Join(dir, "greeting")
 		script := "echo hello | tee " + greetingPath
-		if runtime.GOOS == "windows" {
-			script = "powershell " + script
-		}
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
 				{
