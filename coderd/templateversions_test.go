@@ -1347,7 +1347,7 @@ func TestTemplateVersionPatch(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		const newName = "new_name"
+		const newName = "new-name"
 		updatedVersion, err := client.UpdateTemplateVersion(ctx, version.ID, codersdk.PatchTemplateVersionRequest{
 			Name: newName,
 		})
@@ -1434,5 +1434,21 @@ func TestTemplateVersionPatch(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Equal(t, commonTemplateVersionName, updatedVersion1.Name)
+	})
+
+	t.Run("Use incorrect template version name", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		const incorrectTemplateVersionName = "incorrect/name"
+		_, err := client.UpdateTemplateVersion(ctx, version1.ID, codersdk.PatchTemplateVersionRequest{
+			Name: incorrectTemplateVersionName,
+		})
+		require.Error(t, err)
 	})
 }
