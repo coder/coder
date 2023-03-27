@@ -340,18 +340,18 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 	return q.db.InsertLicense(ctx, arg)
 }
 
-func (q *querier) InsertOrUpdateServiceBannerLogoURL(ctx context.Context, value string) error {
+func (q *querier) InsertOrUpdateLogoURL(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
 		return err
 	}
-	return q.db.InsertOrUpdateServiceBannerLogoURL(ctx, value)
+	return q.db.InsertOrUpdateLogoURL(ctx, value)
 }
 
-func (q *querier) InsertOrUpdateServiceBannerServiceBanner(ctx context.Context, value string) error {
+func (q *querier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
 		return err
 	}
-	return q.db.InsertOrUpdateServiceBannerServiceBanner(ctx, value)
+	return q.db.InsertOrUpdateServiceBanner(ctx, value)
 }
 
 func (q *querier) GetLicenseByID(ctx context.Context, id int32) (database.License, error) {

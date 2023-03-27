@@ -312,10 +312,10 @@ func (s *MethodTestSuite) TestLicense() {
 		check.Args(database.InsertLicenseParams{}).
 			Asserts(rbac.ResourceLicense, rbac.ActionCreate)
 	}))
-	s.Run("InsertOrUpdateServiceBannerLogoURL", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("InsertOrUpdateLogoURL", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("value").Asserts(rbac.ResourceDeploymentValues, rbac.ActionCreate)
 	}))
-	s.Run("InsertOrUpdateServiceBannerServiceBanner", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("InsertOrUpdateServiceBanner", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("value").Asserts(rbac.ResourceDeploymentValues, rbac.ActionCreate)
 	}))
 	s.Run("GetLicenseByID", s.Subtest(func(db database.Store, check *expects) {
@@ -336,12 +336,12 @@ func (s *MethodTestSuite) TestLicense() {
 		check.Args().Asserts().Returns("")
 	}))
 	s.Run("GetLogoURL", s.Subtest(func(db database.Store, check *expects) {
-		err := db.InsertOrUpdateServiceBannerLogoURL(context.Background(), "value")
+		err := db.InsertOrUpdateLogoURL(context.Background(), "value")
 		require.NoError(s.T(), err)
 		check.Args().Asserts().Returns("value")
 	}))
 	s.Run("GetServiceBanner", s.Subtest(func(db database.Store, check *expects) {
-		err := db.InsertOrUpdateServiceBannerServiceBanner(context.Background(), "value")
+		err := db.InsertOrUpdateServiceBanner(context.Background(), "value")
 		require.NoError(s.T(), err)
 		check.Args().Asserts().Returns("value")
 	}))

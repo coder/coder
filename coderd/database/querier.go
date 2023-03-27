@@ -241,9 +241,9 @@ type sqlcQuerier interface {
 	UpdateWorkspaceLastUsedAt(ctx context.Context, arg UpdateWorkspaceLastUsedAtParams) error
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 	UpdateWorkspaceTTLToBeWithinTemplateMax(ctx context.Context, arg UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error
-	InsertOrUpdateServiceBannerLastUpdateCheck(ctx context.Context, value string) error
-	InsertOrUpdateServiceBannerLogoURL(ctx context.Context, value string) error
-	InsertOrUpdateServiceBannerServiceBanner(ctx context.Context, value string) error
+	InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error
+	InsertOrUpdateLogoURL(ctx context.Context, value string) error
+	InsertOrUpdateServiceBanner(ctx context.Context, value string) error
 }
 
 var _ sqlcQuerier = (*sqlQuerier)(nil)
