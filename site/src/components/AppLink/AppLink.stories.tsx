@@ -35,6 +35,36 @@ WithIconExternal.args = {
   agent: MockWorkspaceAgent,
 }
 
+export const SharingLevelOwner = Template.bind({})
+SharingLevelOwner.args = {
+  workspace: MockWorkspace,
+  app: {
+    ...MockWorkspaceApp,
+    sharing_level: "owner",
+  },
+  agent: MockWorkspaceAgent,
+}
+
+export const SharingLevelAuthenticated = Template.bind({})
+SharingLevelAuthenticated.args = {
+  workspace: MockWorkspace,
+  app: {
+    ...MockWorkspaceApp,
+    sharing_level: "authenticated",
+  },
+  agent: MockWorkspaceAgent,
+}
+
+export const SharingLevelPublic = Template.bind({})
+SharingLevelPublic.args = {
+  workspace: MockWorkspace,
+  app: {
+    ...MockWorkspaceApp,
+    sharing_level: "public",
+  },
+  agent: MockWorkspaceAgent,
+}
+
 export const WithoutIcon = Template.bind({})
 WithoutIcon.args = {
   workspace: MockWorkspace,
