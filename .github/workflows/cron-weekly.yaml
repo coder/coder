@@ -3,7 +3,7 @@ name: Markdown Links Check
 on:
   schedule:
     - cron: "0 9 * * 1"
-  workflow_dispatch:
+  workflow_dispatch: # allows to run manually for testing
 
 jobs:
   check-links:
