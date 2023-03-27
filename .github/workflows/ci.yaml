@@ -302,7 +302,7 @@ jobs:
             echo "cover=false" >> $GITHUB_OUTPUT
           fi
 
-          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=7m -short -failfast $COVERAGE_FLAGS
+          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=4 -timeout=15m -short -failfast $COVERAGE_FLAGS
 
       - uses: actions/upload-artifact@v3
         if: success() || failure()
