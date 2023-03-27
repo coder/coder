@@ -980,8 +980,7 @@ func TestReadFileWithTemplateUpdate(t *testing.T) {
 	t.Parallel()
 	t.Run("HasTemplateUpdate", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := testutil.Context(t)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		// Upload a file
 		client := coderdenttest.New(t, nil)
