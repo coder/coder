@@ -82,10 +82,13 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				if xerrors.Is(err, context.Canceled) {
 					return cliui.Canceled
 				}
-				if xerrors.Is(err, cliui.AgentStartError) {
-					return xerrors.New("Agent startup script exited with non-zero status, use --no-wait to login anyway.")
+				if !xerrors.Is(err, cliui.AgentStartError) {
+					return xerrors.Errorf("await agent: %w", err)
 				}
-				return xerrors.Errorf("await agent: %w", err)
+
+				// We don't want to fail on a startup script error because it's
+				// natural that the user will want to fix the script and try again.
+				// We don't print the error because cliui.Agent does that for us.
 			}
 
 			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{})

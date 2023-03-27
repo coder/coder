@@ -4,7 +4,7 @@ import { useOrganizationId } from "hooks/useOrganizationId"
 import { usePermissions } from "hooks/usePermissions"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "util/page"
 import { templateVersionEditorMachine } from "xServices/templateVersionEditor/templateVersionEditorXService"
 import { useTemplateVersionData } from "./data"
@@ -16,9 +16,15 @@ type Params = {
 
 export const TemplateVersionEditorPage: FC = () => {
   const { version: versionName, template: templateName } = useParams() as Params
+  const navigate = useNavigate()
   const orgId = useOrganizationId()
   const [editorState, sendEvent] = useMachine(templateVersionEditorMachine, {
     context: { orgId },
+    actions: {
+      onPublish: () => {
+        navigate(`/templates/${templateName}`)
+      },
+    },
   })
   const permissions = usePermissions()
   const { isSuccess, data } = useTemplateVersionData(
@@ -53,11 +59,27 @@ export const TemplateVersionEditorPage: FC = () => {
               templateId: data.template.id,
             })
           }}
-          onUpdate={() => {
+          onCancelPublish={() => {
             sendEvent({
-              type: "UPDATE_ACTIVE_VERSION",
+              type: "CANCEL_PUBLISH",
             })
           }}
+          onPublish={() => {
+            sendEvent({
+              type: "PUBLISH",
+            })
+          }}
+          onConfirmPublish={(data) => {
+            sendEvent({
+              type: "CONFIRM_PUBLISH",
+              ...data,
+            })
+          }}
+          isAskingPublishParameters={editorState.matches(
+            "askPublishParameters",
+          )}
+          publishingError={editorState.context.publishingError}
+          isPublishing={editorState.matches("publishingVersion")}
           disablePreview={editorState.hasTag("loading")}
           disableUpdate={
             editorState.hasTag("loading") ||
