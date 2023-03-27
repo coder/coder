@@ -92,12 +92,43 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	if params.Name != "" {
 		updateParams.Name = params.Name
 	}
-	// It is not allowed to "patch" the template ID, and reassign it.
-	updatedTemplateVersion, err := api.Database.UpdateTemplateVersionByID(ctx, updateParams)
+
+	errTemplateVersionNameConflict := xerrors.New("template version name must be unique for a template")
+
+	var updatedTemplateVersion database.TemplateVersion
+	err := api.Database.InTx(func(tx database.Store) error {
+		if templateVersion.TemplateID.Valid && templateVersion.Name != updateParams.Name {
+			// User wants to rename the template version
+
+			_, err := tx.GetTemplateVersionByTemplateIDAndName(ctx, database.GetTemplateVersionByTemplateIDAndNameParams{
+				TemplateID: templateVersion.TemplateID,
+				Name:       updateParams.Name,
+			})
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("error on retrieving conflicting template version: %v", err)
+			}
+			if err == nil {
+				return errTemplateVersionNameConflict
+			}
+		}
+
+		// It is not allowed to "patch" the template ID, and reassign it.
+		var err error
+		updatedTemplateVersion, err = tx.UpdateTemplateVersionByID(ctx, updateParams)
+		if err != nil {
+			return xerrors.Errorf("error on patching template version: %v", err)
+		}
+		return nil
+	}, nil)
+	if errors.Is(err, errTemplateVersionNameConflict) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: err.Error(),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error on patching template version.",
-			Detail:  err.Error(),
+			Message: err.Error(),
 		})
 		return
 	}

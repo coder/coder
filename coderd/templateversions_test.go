@@ -1413,12 +1413,10 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		updatedVersion2, err := client.UpdateTemplateVersion(ctx, version2.ID, codersdk.PatchTemplateVersionRequest{
+		_, err := client.UpdateTemplateVersion(ctx, version2.ID, codersdk.PatchTemplateVersionRequest{
 			Name: version1.Name,
 		})
-		require.NoError(t, err)
-		assert.NotEqual(t, version1.Name, version2.Name)     // version names remain different
-		assert.Equal(t, version2.Name, updatedVersion2.Name) // version name doesn't change
+		require.Error(t, err)
 	})
 
 	t.Run("Rename the unassigned template", func(t *testing.T) {
