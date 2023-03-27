@@ -968,7 +968,6 @@ func TestAgent_Metadata(t *testing.T) {
 			}
 		}
 	})
-
 }
 
 func TestAgent_Lifecycle(t *testing.T) {
