@@ -25,8 +25,8 @@ WithIcon.args = {
   agent: MockWorkspaceAgent,
 }
 
-export const WithIconExternal = Template.bind({})
-WithIconExternal.args = {
+export const ExternalApp = Template.bind({})
+ExternalApp.args = {
   workspace: MockWorkspace,
   app: {
     ...MockWorkspaceApp,
@@ -61,17 +61,6 @@ SharingLevelPublic.args = {
   app: {
     ...MockWorkspaceApp,
     sharing_level: "public",
-  },
-  agent: MockWorkspaceAgent,
-}
-
-export const WithoutIcon = Template.bind({})
-WithoutIcon.args = {
-  workspace: MockWorkspace,
-  app: {
-    ...MockWorkspaceApp,
-    sharing_level: "owner",
-    health: "healthy",
   },
   agent: MockWorkspaceAgent,
 }
