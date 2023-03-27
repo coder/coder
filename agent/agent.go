@@ -223,6 +223,12 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	var out bytes.Buffer
 
 	result := &codersdk.WorkspaceAgentMetadataResult{
+		// CollectedAt is set here for testing purposes and overrided by
+		// the server to the time the server received the result to protect
+		// against clock skew.
+		//
+		// In the future, the server may accept the timestamp from the agent
+		// if it is certain the clocks are in sync.
 		CollectedAt: time.Now(),
 	}
 	cmd, err := a.createCommand(ctx, md.Script, nil)
@@ -237,7 +243,7 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	// The error isn't mutually exclusive with useful output.
 	err = cmd.Run()
 
-	const bufLimit = 10 << 14
+	const bufLimit = 10 << 10
 	if out.Len() > bufLimit {
 		err = errors.Join(
 			err,
@@ -293,7 +299,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				// If we're backpressured on sending back results, we risk
 				// runaway goroutine growth and/or overloading coderd. So,
 				// we just skip the collection. Since we never update
-				// "lastCollectedAt" for this key, we'll retry the collection
+				// the collections map, we'll retry the collection
 				// on the next tick.
 				a.logger.Debug(
 					ctx, "metadata collection backpressured",
@@ -317,8 +323,9 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				}
 			}
 
-			// Spawn a goroutine for each metadata collection, and use channels
-			// to synchronize the results and avoid messy mutex logic.
+			// Spawn a goroutine for each metadata collection, and use a
+			// channel to synchronize the results and avoid both messy
+			// mutex logic and overloading the API.
 			for _, md := range manifest.Metadata {
 				collectedAt, ok := lastCollectedAts[md.Key]
 				if ok {

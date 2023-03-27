@@ -905,16 +905,21 @@ func TestAgent_Metadata(t *testing.T) {
 
 	t.Run("Many", func(t *testing.T) {
 		if runtime.GOOS == "windows" {
-			// Shell scripting in Windows is a pain, but we test that it works in the simpler "CollectOnce"
-			// test.
+			// Shell scripting in Windows is a pain, and we have already tested
+			// that the OS logic works in the simpler "Once" test above.
 			t.Skip()
 		}
 		t.Parallel()
 
 		dir := t.TempDir()
+
+		// In tests, the interval unit is 100 milliseconds while in production
+		// it is 1 second.
 		const reportInterval = 2
-		greetingPath := filepath.Join(dir, "greeting")
-		script := "echo hello | tee -a " + greetingPath
+		var (
+			greetingPath = filepath.Join(dir, "greeting")
+			script       = "echo hello | tee -a " + greetingPath
+		)
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
 				{
@@ -949,12 +954,16 @@ func TestAgent_Metadata(t *testing.T) {
 			var (
 				numGreetings      = bytes.Count(greetingByt, []byte("hello"))
 				idealNumGreetings = time.Since(start) / (reportInterval * 100 * time.Millisecond)
-				upperBound        = int(idealNumGreetings) + 1
-				lowerBound        = (int(idealNumGreetings) / 2)
+				// We allow a 50% error margin because the report loop may backlog
+				// in CI and other toasters. In production, there is no hard
+				// guarantee on timing either, and the frontend gives similar
+				// wiggle room to the staleness of the value.
+				upperBound = int(idealNumGreetings) + 1
+				lowerBound = (int(idealNumGreetings) / 2)
 			)
 
 			if idealNumGreetings < 5 {
-				// Not enough time has passed to get a good sample size.
+				// There is an insufficient sample size.
 				continue
 			}
 
