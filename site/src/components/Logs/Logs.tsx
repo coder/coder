@@ -108,7 +108,11 @@ const useStyles = makeStyles<
       backgroundColor: theme.palette.error.dark,
     },
 
-    "&.warning": {
+    "&.debug": {
+      backgroundColor: theme.palette.grey[900],
+    },
+
+    "&.warn": {
       backgroundColor: theme.palette.warning.dark,
     },
   },

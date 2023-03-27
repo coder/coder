@@ -844,6 +844,7 @@ func (a *agent) init(ctx context.Context) {
 				_ = session.Exit(MagicSessionErrorCode)
 				return
 			}
+			_ = session.Exit(0)
 		},
 		HostSigners: []ssh.Signer{randomSigner},
 		LocalPortForwardingCallback: func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
@@ -1100,7 +1101,9 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		if err != nil {
 			return xerrors.Errorf("start command: %w", err)
 		}
+		var wg sync.WaitGroup
 		defer func() {
+			defer wg.Wait()
 			closeErr := ptty.Close()
 			if closeErr != nil {
 				a.logger.Warn(ctx, "failed to close tty", slog.Error(closeErr))
@@ -1117,10 +1120,16 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 				}
 			}
 		}()
+		// We don't add input copy to wait group because
+		// it won't return until the session is closed.
 		go func() {
 			_, _ = io.Copy(ptty.Input(), session)
 		}()
+		wg.Add(1)
 		go func() {
+			// Ensure data is flushed to session on command exit, if we
+			// close the session too soon, we might lose data.
+			defer wg.Done()
 			_, _ = io.Copy(session, ptty.Output())
 		}()
 		err = process.Wait()

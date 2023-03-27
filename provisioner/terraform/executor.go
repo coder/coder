@@ -460,7 +460,27 @@ func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel
 	defer close(done)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		sink.Log(&proto.Log{Level: level, Output: scanner.Text()})
+		var log terraformProvisionLog
+		err := json.Unmarshal(scanner.Bytes(), &log)
+		if err != nil {
+			if strings.TrimSpace(scanner.Text()) == "" {
+				continue
+			}
+
+			sink.Log(&proto.Log{Level: level, Output: scanner.Text()})
+			continue
+		}
+
+		logLevel := convertTerraformLogLevel(log.Level, sink)
+		if logLevel == proto.LogLevel_TRACE {
+			continue // skip TRACE log entries as they produce a lot of noise
+		}
+
+		// Degrade JSON log entries marked as INFO as these are logs produced in debug mode.
+		if logLevel == proto.LogLevel_INFO {
+			logLevel = proto.LogLevel_DEBUG
+		}
+		sink.Log(&proto.Log{Level: logLevel, Output: log.Message})
 	}
 }
 
