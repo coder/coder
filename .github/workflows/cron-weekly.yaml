@@ -21,19 +21,3 @@ jobs:
           use-verbose-mode: "yes"
           config-file: ".github/workflows/markdown.links.config.json"
           folder-path: "docs/"
-
-  post-to-slack:
-    runs-on: ubuntu-latest
-    needs: check-links
-    if: ${{ always() }}
-    steps:
-      - name: Post to Slack
-        id: post-to-slack
-        uses: slackapi/slack-github-action@v1.23.0
-        with:
-          payload: |
-            {
-              "msg": "${{ steps.markdown-link-check.outputs}}",
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}
