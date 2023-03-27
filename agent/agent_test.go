@@ -914,7 +914,7 @@ func TestAgent_Metadata(t *testing.T) {
 		dir := t.TempDir()
 		const reportInterval = 2
 		greetingPath := filepath.Join(dir, "greeting")
-		script := "echo hello | tee " + greetingPath
+		script := "echo hello | tee -a " + greetingPath
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
 				{
@@ -953,7 +953,7 @@ func TestAgent_Metadata(t *testing.T) {
 				lowerBound        = (int(idealNumGreetings) / 2)
 			)
 
-			if idealNumGreetings < 10 {
+			if idealNumGreetings < 5 {
 				// Not enough time has passed to get a good sample size.
 				continue
 			}
