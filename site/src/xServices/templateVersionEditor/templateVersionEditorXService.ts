@@ -25,6 +25,7 @@ export interface TemplateVersionEditorMachineContext {
   resources?: WorkspaceResource[]
   buildLogs?: ProvisionerJobLog[]
   tarReader?: TarReader
+  publishingError?: unknown
 }
 
 export const templateVersionEditorMachine = createMachine(
@@ -97,11 +98,16 @@ export const templateVersionEditorMachine = createMachine(
       },
       publishingVersion: {
         tags: "loading",
+        entry: ["clearPublishingError"],
         invoke: {
           id: "publishingVersion",
           src: "publishingVersion",
           onDone: {
             actions: ["onPublish"],
+          },
+          onError: {
+            actions: ["assignPublishingError"],
+            target: "askPublishParameters",
           },
         },
       },
@@ -225,6 +231,10 @@ export const templateVersionEditorMachine = createMachine(
       assignTarReader: assign({
         tarReader: (_, { tarReader }) => tarReader,
       }),
+      assignPublishingError: assign({
+        publishingError: (_, event) => event.data,
+      }),
+      clearPublishingError: assign({ publishingError: (_) => undefined }),
     },
     services: {
       uploadTar: async ({ fileTree, tarReader }) => {

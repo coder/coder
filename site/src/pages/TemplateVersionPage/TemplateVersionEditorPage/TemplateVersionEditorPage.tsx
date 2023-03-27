@@ -78,6 +78,7 @@ export const TemplateVersionEditorPage: FC = () => {
           isAskingPublishParameters={editorState.matches(
             "askPublishParameters",
           )}
+          publishingError={editorState.context.publishingError}
           isPublishing={editorState.matches("publishingVersion")}
           disablePreview={editorState.hasTag("loading")}
           disableUpdate={

@@ -56,6 +56,7 @@ export interface TemplateVersionEditorProps {
   onPublish: () => void
   onConfirmPublish: (data: PublishVersionData) => void
   onCancelPublish: () => void
+  publishingError: unknown
   isAskingPublishParameters: boolean
   isPublishing: boolean
 }
@@ -85,6 +86,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   onPublish,
   onConfirmPublish,
   onCancelPublish,
+  publishingError,
   isAskingPublishParameters,
   isPublishing,
   buildLogs,
@@ -400,6 +402,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       </div>
 
       <PublishTemplateVersionDialog
+        key={templateVersion.name}
+        publishingError={publishingError}
         open={isAskingPublishParameters || isPublishing}
         onClose={onCancelPublish}
         onConfirm={onConfirmPublish}

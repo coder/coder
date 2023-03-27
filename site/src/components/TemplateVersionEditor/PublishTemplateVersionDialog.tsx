@@ -14,13 +14,21 @@ import { Stack } from "components/Stack/Stack"
 export type PublishTemplateVersionDialogProps = DialogProps & {
   defaultName: string
   isPublishing: boolean
+  publishingError?: unknown
   onClose: () => void
   onConfirm: (data: PublishVersionData) => void
 }
 
 export const PublishTemplateVersionDialog: FC<
   PublishTemplateVersionDialogProps
-> = ({ onConfirm, isPublishing, onClose, defaultName, ...dialogProps }) => {
+> = ({
+  onConfirm,
+  isPublishing,
+  onClose,
+  defaultName,
+  publishingError,
+  ...dialogProps
+}) => {
   const form = useFormik({
     initialValues: {
       name: defaultName,
@@ -32,7 +40,7 @@ export const PublishTemplateVersionDialog: FC<
     }),
     onSubmit: onConfirm,
   })
-  const getFieldHelpers = getFormHelpers(form)
+  const getFieldHelpers = getFormHelpers(form, publishingError)
   const handleClose = () => {
     form.resetForm()
     onClose()
