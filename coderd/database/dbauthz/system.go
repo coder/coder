@@ -10,6 +10,13 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
+func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]database.GetFileTemplatesRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetFileTemplates(ctx, fileID)
+}
+
 // GetWorkspaceAppsByAgentIDs
 // The workspace/job is already fetched.
 func (q *querier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {

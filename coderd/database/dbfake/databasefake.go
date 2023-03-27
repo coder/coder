@@ -686,6 +686,47 @@ func (q *fakeQuerier) GetFileByID(_ context.Context, id uuid.UUID) (database.Fil
 	return database.File{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]database.GetFileTemplatesRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	rows := make([]database.GetFileTemplatesRow, 0)
+	var file database.File
+	for _, f := range q.files {
+		if f.ID == id {
+			file = f
+			break
+		}
+	}
+	if file.Hash == "" {
+		return rows, nil
+	}
+
+	for _, job := range q.provisionerJobs {
+		if job.FileID == id {
+			for _, version := range q.templateVersions {
+				if version.JobID == job.ID {
+					for _, template := range q.templates {
+						if template.ID == version.TemplateID.UUID {
+							rows = append(rows, database.GetFileTemplatesRow{
+								FileID:                 file.ID,
+								FileCreatedBy:          file.CreatedBy,
+								TemplateID:             template.ID,
+								TemplateOrganizationID: template.OrganizationID,
+								TemplateCreatedBy:      template.CreatedBy,
+								UserACL:                template.UserACL,
+								GroupACL:               template.GroupACL,
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return rows, nil
+}
+
 func (q *fakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
