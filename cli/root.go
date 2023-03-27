@@ -26,6 +26,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-isatty"
@@ -434,7 +435,14 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 		panic("root is nil")
 	}
 	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
-		return func(i *clibase.Invocation) error {
+		return func(inv *clibase.Invocation) error {
+			if r.verbose {
+				client.LogBodies = true
+				client.Logger = slog.Make(
+					sloghuman.Sink(inv.Stderr),
+				).Leveled(slog.LevelDebug)
+			}
+
 			conf := r.createConfig()
 			var err error
 			if r.clientURL == nil || r.clientURL.String() == "" {
@@ -463,7 +471,6 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 					return err
 				}
 			}
-
 			err = r.setClient(client, r.clientURL)
 			if err != nil {
 				return err
@@ -477,31 +484,31 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				warningErr = make(chan error)
 			)
 			go func() {
-				versionErr <- r.checkVersions(i, client)
+				versionErr <- r.checkVersions(inv, client)
 				close(versionErr)
 			}()
 
 			go func() {
-				warningErr <- r.checkWarnings(i, client)
+				warningErr <- r.checkWarnings(inv, client)
 				close(warningErr)
 			}()
 
 			if err = <-versionErr; err != nil {
 				// Just log the error here. We never want to fail a command
 				// due to a pre-run.
-				_, _ = fmt.Fprintf(i.Stderr,
+				_, _ = fmt.Fprintf(inv.Stderr,
 					cliui.Styles.Warn.Render("check versions error: %s"), err)
-				_, _ = fmt.Fprintln(i.Stderr)
+				_, _ = fmt.Fprintln(inv.Stderr)
 			}
 
 			if err = <-warningErr; err != nil {
 				// Same as above
-				_, _ = fmt.Fprintf(i.Stderr,
+				_, _ = fmt.Fprintf(inv.Stderr,
 					cliui.Styles.Warn.Render("check entitlement warnings error: %s"), err)
-				_, _ = fmt.Fprintln(i.Stderr)
+				_, _ = fmt.Fprintln(inv.Stderr)
 			}
 
-			return next(i)
+			return next(inv)
 		}
 	}
 }
