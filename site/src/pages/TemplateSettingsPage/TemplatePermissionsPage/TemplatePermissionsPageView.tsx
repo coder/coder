@@ -30,6 +30,7 @@ import { FC, useState } from "react"
 import { Maybe } from "components/Conditionals/Maybe"
 import { GroupAvatar } from "components/GroupAvatar/GroupAvatar"
 import { getGroupSubtitle } from "util/groups"
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 
 type AddTemplateUserOrGroupProps = {
   organizationId: string
@@ -199,194 +200,202 @@ export const TemplatePermissionsPageView: FC<
   )
 
   return (
-    <Stack spacing={2.5}>
-      <Maybe condition={canUpdatePermissions}>
-        <AddTemplateUserOrGroup
-          templateACL={templateACL}
-          organizationId={organizationId}
-          isLoading={isAddingUser || isAddingGroup}
-          onSubmit={(value, role, resetAutocomplete) =>
-            "members" in value
-              ? onAddGroup(value, role, resetAutocomplete)
-              : onAddUser(value, role, resetAutocomplete)
-          }
-        />
-      </Maybe>
-      <TableContainer>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell width="60%">Member</TableCell>
-              <TableCell width="40%">Role</TableCell>
-              <TableCell width="1%" />
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            <ChooseOne>
-              <Cond condition={!templateACL}>
-                <TableLoader />
-              </Cond>
-              <Cond condition={isEmpty}>
-                <TableRow>
-                  <TableCell colSpan={999}>
-                    <EmptyState
-                      message="No members yet"
-                      description="Add a member using the controls above"
-                    />
-                  </TableCell>
-                </TableRow>
-              </Cond>
-              <Cond>
-                {templateACL?.group.map((group) => (
-                  <TableRow key={group.id}>
-                    <TableCell>
-                      <AvatarData
-                        avatar={
-                          <GroupAvatar
-                            name={group.name}
-                            avatarURL={group.avatar_url}
-                          />
-                        }
-                        title={group.name}
-                        subtitle={getGroupSubtitle(group)}
+    <>
+      <PageHeader className={styles.pageHeader}>
+        <PageHeaderTitle>Permissions</PageHeaderTitle>
+      </PageHeader>
+
+      <Stack spacing={2.5}>
+        <Maybe condition={canUpdatePermissions}>
+          <AddTemplateUserOrGroup
+            templateACL={templateACL}
+            organizationId={organizationId}
+            isLoading={isAddingUser || isAddingGroup}
+            onSubmit={(value, role, resetAutocomplete) =>
+              "members" in value
+                ? onAddGroup(value, role, resetAutocomplete)
+                : onAddUser(value, role, resetAutocomplete)
+            }
+          />
+        </Maybe>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell width="60%">Member</TableCell>
+                <TableCell width="40%">Role</TableCell>
+                <TableCell width="1%" />
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              <ChooseOne>
+                <Cond condition={!templateACL}>
+                  <TableLoader />
+                </Cond>
+                <Cond condition={isEmpty}>
+                  <TableRow>
+                    <TableCell colSpan={999}>
+                      <EmptyState
+                        message="No members yet"
+                        description="Add a member using the controls above"
                       />
                     </TableCell>
-                    <TableCell>
-                      <ChooseOne>
-                        <Cond condition={canUpdatePermissions}>
-                          <RoleSelect
-                            value={group.role}
-                            disabled={
-                              updatingGroup && updatingGroup.id === group.id
-                            }
-                            onChange={(event) => {
-                              onUpdateGroup(
-                                group,
-                                event.target.value as TemplateRole,
-                              )
-                            }}
-                          />
-                        </Cond>
-                        <Cond>
-                          <div className={styles.role}>{group.role}</div>
-                        </Cond>
-                      </ChooseOne>
-                    </TableCell>
-
-                    <TableCell>
-                      <Maybe condition={canUpdatePermissions}>
-                        <TableRowMenu
-                          data={group}
-                          menuItems={[
-                            {
-                              label: "Remove",
-                              onClick: () => onRemoveGroup(group),
-                              disabled: false,
-                            },
-                          ]}
-                        />
-                      </Maybe>
-                    </TableCell>
                   </TableRow>
-                ))}
-
-                {templateACL?.users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <AvatarData
-                        title={user.username}
-                        subtitle={user.email}
-                        src={user.avatar_url}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <ChooseOne>
-                        <Cond condition={canUpdatePermissions}>
-                          <RoleSelect
-                            value={user.role}
-                            disabled={
-                              updatingUser && updatingUser.id === user.id
-                            }
-                            onChange={(event) => {
-                              onUpdateUser(
-                                user,
-                                event.target.value as TemplateRole,
-                              )
-                            }}
-                          />
-                        </Cond>
-                        <Cond>
-                          <div className={styles.role}>{user.role}</div>
-                        </Cond>
-                      </ChooseOne>
-                    </TableCell>
-
-                    <TableCell>
-                      <Maybe condition={canUpdatePermissions}>
-                        <TableRowMenu
-                          data={user}
-                          menuItems={[
-                            {
-                              label: "Remove",
-                              onClick: () => onRemoveUser(user),
-                              disabled: false,
-                            },
-                          ]}
+                </Cond>
+                <Cond>
+                  {templateACL?.group.map((group) => (
+                    <TableRow key={group.id}>
+                      <TableCell>
+                        <AvatarData
+                          avatar={
+                            <GroupAvatar
+                              name={group.name}
+                              avatarURL={group.avatar_url}
+                            />
+                          }
+                          title={group.name}
+                          subtitle={getGroupSubtitle(group)}
                         />
-                      </Maybe>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </Cond>
-            </ChooseOne>
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <ChooseOne>
+                          <Cond condition={canUpdatePermissions}>
+                            <RoleSelect
+                              value={group.role}
+                              disabled={
+                                updatingGroup && updatingGroup.id === group.id
+                              }
+                              onChange={(event) => {
+                                onUpdateGroup(
+                                  group,
+                                  event.target.value as TemplateRole,
+                                )
+                              }}
+                            />
+                          </Cond>
+                          <Cond>
+                            <div className={styles.role}>{group.role}</div>
+                          </Cond>
+                        </ChooseOne>
+                      </TableCell>
+
+                      <TableCell>
+                        <Maybe condition={canUpdatePermissions}>
+                          <TableRowMenu
+                            data={group}
+                            menuItems={[
+                              {
+                                label: "Remove",
+                                onClick: () => onRemoveGroup(group),
+                                disabled: false,
+                              },
+                            ]}
+                          />
+                        </Maybe>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+
+                  {templateACL?.users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <AvatarData
+                          title={user.username}
+                          subtitle={user.email}
+                          src={user.avatar_url}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <ChooseOne>
+                          <Cond condition={canUpdatePermissions}>
+                            <RoleSelect
+                              value={user.role}
+                              disabled={
+                                updatingUser && updatingUser.id === user.id
+                              }
+                              onChange={(event) => {
+                                onUpdateUser(
+                                  user,
+                                  event.target.value as TemplateRole,
+                                )
+                              }}
+                            />
+                          </Cond>
+                          <Cond>
+                            <div className={styles.role}>{user.role}</div>
+                          </Cond>
+                        </ChooseOne>
+                      </TableCell>
+
+                      <TableCell>
+                        <Maybe condition={canUpdatePermissions}>
+                          <TableRowMenu
+                            data={user}
+                            menuItems={[
+                              {
+                                label: "Remove",
+                                onClick: () => onRemoveUser(user),
+                                disabled: false,
+                              },
+                            ]}
+                          />
+                        </Maybe>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </Cond>
+              </ChooseOne>
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Stack>
+    </>
   )
 }
 
-export const useStyles = makeStyles((theme) => {
-  return {
-    select: {
-      // Match button small height
-      height: 36,
-      fontSize: 14,
-      width: 100,
-    },
+export const useStyles = makeStyles((theme) => ({
+  select: {
+    // Match button small height
+    height: 36,
+    fontSize: 14,
+    width: 100,
+  },
 
-    updateSelect: {
-      margin: 0,
-      // Set a fixed width for the select. It avoids selects having different sizes
-      // depending on how many roles they have selected.
-      width: theme.spacing(25),
+  updateSelect: {
+    margin: 0,
+    // Set a fixed width for the select. It avoids selects having different sizes
+    // depending on how many roles they have selected.
+    width: theme.spacing(25),
 
-      "& .MuiSelect-root": {
-        // Adjusting padding because it does not have label
-        paddingTop: theme.spacing(1.5),
-        paddingBottom: theme.spacing(1.5),
-
-        ".secondary": {
-          display: "none",
-        },
-      },
-    },
-
-    role: {
-      textTransform: "capitalize",
-    },
-
-    menuItem: {
-      lineHeight: "140%",
+    "& .MuiSelect-root": {
+      // Adjusting padding because it does not have label
       paddingTop: theme.spacing(1.5),
       paddingBottom: theme.spacing(1.5),
-      whiteSpace: "normal",
-      inlineSize: "250px",
-    },
 
-    menuItemSecondary: {
-      fontSize: 14,
-      color: theme.palette.text.secondary,
+      ".secondary": {
+        display: "none",
+      },
     },
-  }
-})
+  },
+
+  role: {
+    textTransform: "capitalize",
+  },
+
+  menuItem: {
+    lineHeight: "140%",
+    paddingTop: theme.spacing(1.5),
+    paddingBottom: theme.spacing(1.5),
+    whiteSpace: "normal",
+    inlineSize: "250px",
+  },
+
+  menuItemSecondary: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+  },
+
+  pageHeader: {
+    paddingTop: 0,
+  },
+}))
