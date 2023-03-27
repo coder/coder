@@ -85,8 +85,13 @@ func (pf *templateUploadFlags) templateName(args []string) (string, error) {
 	if len(args) > 0 {
 		return args[0], nil
 	}
+	// Have to take absPath to resolve "." and "..".
+	absPath, err := filepath.Abs(pf.directory)
+	if err != nil {
+		return "", err
+	}
 	// If no name is provided, use the directory name.
-	return filepath.Base(pf.directory), nil
+	return filepath.Base(absPath), nil
 }
 
 func (r *RootCmd) templatePush() *clibase.Cmd {
