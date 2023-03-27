@@ -44,7 +44,7 @@ func init() {
 		valid := NameValid(str)
 		return valid == nil
 	}
-	for _, tag := range []string{"username", "template_name", "workspace_name"} {
+	for _, tag := range []string{"username", "template_name", "workspace_name", "template_version_name"} {
 		err := Validate.RegisterValidation(tag, nameValidator)
 		if err != nil {
 			panic(err)
