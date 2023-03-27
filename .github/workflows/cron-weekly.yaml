@@ -28,5 +28,3 @@ jobs:
           echo "Sent Slack notification"
         env:
           LOGS_URL: ${{ https://github.com/coder/coder/actions/runs/${{ github.run_id }}
-
-
