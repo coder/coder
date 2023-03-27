@@ -373,6 +373,17 @@ export const updateActiveTemplateVersion = async (
   return response.data
 }
 
+export const patchTemplateVersion = async (
+  templateVersionId: string,
+  data: TypesGen.PatchTemplateVersionRequest,
+) => {
+  const response = await axios.patch<TypesGen.TemplateVersion>(
+    `/api/v2/templateversions/${templateVersionId}`,
+    data,
+  )
+  return response.data
+}
+
 export const updateTemplateMeta = async (
   templateId: string,
   data: TypesGen.UpdateTemplateMeta,
@@ -1031,4 +1042,27 @@ export const watchAgentMetadata = (agentId: string): EventSource => {
     `${location.protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
     { withCredentials: true },
   )
+}
+
+export const watchBuildLogs = (
+  versionId: string,
+  onMessage: (log: TypesGen.ProvisionerJobLog) => void,
+) => {
+  return new Promise<void>((resolve, reject) => {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:"
+    const socket = new WebSocket(
+      `${proto}//${location.host}/api/v2/templateversions/${versionId}/logs?follow=true`,
+    )
+    socket.binaryType = "blob"
+    socket.addEventListener("message", (event) =>
+      onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
+    )
+    socket.addEventListener("error", () => {
+      reject(new Error("Connection for logs failed."))
+    })
+    socket.addEventListener("close", () => {
+      // When the socket closes, logs have finished streaming!
+      resolve()
+    })
+  })
 }
