@@ -4,10 +4,12 @@ You can install and run Coder using the official Docker images published on [Git
 
 Docker is required. See the [official installation documentation](https://docs.docker.com/install/).
 
+> Note that the below steps are only supported on a Linux distribution. If on macOS, please [run Coder via the standalone binary](./binary.md).
+
 ## Run Coder with the built-in database (quick)
 
 For proof-of-concept deployments, you can run a complete Coder instance with
-the following command:
+the following command.
 
 ```console
 export CODER_DATA=$HOME/.config/coderv2-docker
