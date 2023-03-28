@@ -120,6 +120,7 @@ const getInitialValues = ({
   fromCopy,
   canSetMaxTTL,
   variables,
+  parameters,
 }: GetInitialValuesParams) => {
   let initialValues = defaultInitialValues
 
@@ -151,16 +152,23 @@ const getInitialValues = ({
 
   if (variables) {
     variables.forEach((variable) => {
-      if (variable.sensitive) {
-        return
-      }
       if (!initialValues.user_variable_values) {
         initialValues.user_variable_values = []
       }
       initialValues.user_variable_values.push({
         name: variable.name,
-        value: variable.value,
+        value: variable.sensitive ? "" : variable.value,
       })
+    })
+  }
+
+  if (parameters) {
+    parameters.forEach((parameter) => {
+      if (!initialValues.parameter_values_by_name) {
+        initialValues.parameter_values_by_name = {}
+      }
+      initialValues.parameter_values_by_name[parameter.name] =
+        parameter.default_source_value
     })
   }
 
@@ -203,6 +211,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
       fromExample: starterTemplate,
       fromCopy: copiedTemplate,
       variables,
+      parameters,
     }),
     validationSchema,
     onSubmit,
@@ -407,7 +416,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
           <FormFields>
             {variables.map((variable, index) => (
               <VariableInput
-                defaultValue={form.values.user_variable_values?.[index].value}
+                defaultValue={variable.value}
                 variable={variable}
                 disabled={isSubmitting}
                 key={variable.name}

@@ -8,6 +8,7 @@ import {
   getTemplateVersionLogs,
   getTemplateVersionVariables,
   getTemplateByName,
+  getTemplateVersionParameters,
 } from "api/api"
 import {
   CreateTemplateVersionRequest,
@@ -114,7 +115,7 @@ export const createTemplateMachine =
             data: {
               template: Template
               version: TemplateVersion
-
+              parameters: ParameterSchema[]
               variables: TemplateVersionVariable[]
             }
           }
@@ -155,7 +156,7 @@ export const createTemplateMachine =
               {
                 target: "creating.promptParametersAndVariables",
                 actions: ["assignCopiedTemplateData"],
-                cond: "hasVariables",
+                cond: "hasParametersOrVariables",
               },
               {
                 target: "idle",
@@ -340,14 +341,36 @@ export const createTemplateMachine =
             organizationId,
             templateNameToCopy,
           )
-          const [version, variables] = await Promise.all([
-            getTemplateVersion(template.active_version_id),
+          const [version, schemaParameters, computedParameters, variables] =
+            await Promise.all([
+              getTemplateVersion(template.active_version_id),
+              getTemplateVersionSchema(template.active_version_id),
+              getTemplateVersionParameters(template.active_version_id),
+              getTemplateVersionVariables(template.active_version_id),
+            ])
 
-            getTemplateVersionVariables(template.active_version_id),
-          ])
+          // Recreate parameters with default_source_value from the already
+          // computed version parameters
+          const parameters: ParameterSchema[] = []
+          computedParameters.forEach((computedParameter) => {
+            const schema = schemaParameters.find(
+              (schema) => schema.name === computedParameter.name,
+            )
+            if (!schema) {
+              throw new Error(
+                `Parameter ${computedParameter.name} not found in schema`,
+              )
+            }
+            parameters.push({
+              ...schema,
+              default_source_value: computedParameter.source_value,
+            })
+          })
+
           return {
             template,
             version,
+            parameters,
             variables,
           }
         },
@@ -518,6 +541,7 @@ export const createTemplateMachine =
         assignCopiedTemplateData: assign({
           copiedTemplate: (_, { data }) => data.template,
           version: (_, { data }) => data.version,
+          parameters: (_, { data }) => data.parameters,
           variables: (_, { data }) => data.variables,
         }),
       },
@@ -535,8 +559,8 @@ export const createTemplateMachine =
           ),
         hasNoParametersOrVariables: (_, { data }) =>
           data.parameters === undefined && data.variables === undefined,
-        hasVariables: (_, { data }) => {
-          return data.variables.length > 0
+        hasParametersOrVariables: (_, { data }) => {
+          return data.parameters.length > 0 || data.variables.length > 0
         },
       },
     },
