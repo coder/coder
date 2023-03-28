@@ -233,7 +233,7 @@ Output Stackdriver compatible logs to a given file.
 | ----------- | -------------------------------------- |
 | Type        | <code>duration</code>                  |
 | Environment | <code>$CODER_MAX_TOKEN_LIFETIME</code> |
-| Default     | <code>2562047h47m16.854775807s</code>  |
+| Default     | <code>876600h0m0s</code>               |
 
 The maximum lifetime duration users can specify when creating an API token.
 
