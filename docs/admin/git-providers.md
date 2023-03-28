@@ -121,4 +121,4 @@ EOF
 }
 ```
 
-See the [Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/git_auth) for all avalible options.
+See the [Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/git_auth) for all available options.
