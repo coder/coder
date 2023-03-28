@@ -248,7 +248,7 @@ export interface CreateWorkspaceBuildRequest {
   readonly orphan?: boolean
   readonly parameter_values?: CreateParameterRequest[]
   readonly rich_parameter_values?: WorkspaceBuildParameter[]
-  readonly log_level: ProvisionerLogLevel
+  readonly log_level?: ProvisionerLogLevel
 }
 
 // From codersdk/organizations.go

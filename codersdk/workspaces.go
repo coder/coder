@@ -66,7 +66,7 @@ type CreateWorkspaceBuildRequest struct {
 	ParameterValues     []CreateParameterRequest  `json:"parameter_values,omitempty"`
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
 
-	LogLevel ProvisionerLogLevel `json:"log_level" validate:"oneof=debug"`
+	LogLevel ProvisionerLogLevel `json:"log_level,omitempty" validate:"omitempty,oneof=debug"`
 }
 
 type WorkspaceOptions struct {

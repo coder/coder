@@ -241,7 +241,7 @@ message Provision {
         bytes state = 2;
         Metadata metadata = 3;
 
-		string provisioner_log_level = 4;
+        string provisioner_log_level = 4;
     }
 
     message Plan {
