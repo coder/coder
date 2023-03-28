@@ -146,6 +146,10 @@ func writeAsCSV(vals []string) string {
 }
 
 func (s *StringArray) Set(v string) error {
+	if v == "" {
+		*s = nil
+		return nil
+	}
 	ss, err := readAsCSV(v)
 	if err != nil {
 		return err
