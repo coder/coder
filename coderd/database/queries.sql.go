@@ -3103,33 +3103,33 @@ func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error
 	return err
 }
 
-const UpsertLastUpdateCheck = `-- name: UpsertLastUpdateCheck :exec
+const upsertLastUpdateCheck = `-- name: UpsertLastUpdateCheck :exec
 INSERT INTO site_configs (key, value) VALUES ('last_update_check', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'last_update_check'
 `
 
 func (q *sqlQuerier) UpsertLastUpdateCheck(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, UpsertLastUpdateCheck, value)
+	_, err := q.db.ExecContext(ctx, upsertLastUpdateCheck, value)
 	return err
 }
 
-const UpsertLogoURL = `-- name: UpsertLogoURL :exec
+const upsertLogoURL = `-- name: UpsertLogoURL :exec
 INSERT INTO site_configs (key, value) VALUES ('logo_url', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'logo_url'
 `
 
 func (q *sqlQuerier) UpsertLogoURL(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, UpsertLogoURL, value)
+	_, err := q.db.ExecContext(ctx, upsertLogoURL, value)
 	return err
 }
 
-const UpsertServiceBanner = `-- name: UpsertServiceBanner :exec
+const upsertServiceBanner = `-- name: UpsertServiceBanner :exec
 INSERT INTO site_configs (key, value) VALUES ('service_banner', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'service_banner'
 `
 
 func (q *sqlQuerier) UpsertServiceBanner(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, UpsertServiceBanner, value)
+	_, err := q.db.ExecContext(ctx, upsertServiceBanner, value)
 	return err
 }
 
