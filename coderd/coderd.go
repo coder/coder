@@ -287,6 +287,7 @@ func New(options *Options) *API {
 			options.Database,
 			options.DeploymentValues,
 			oauthConfigs,
+			options.AgentInactiveDisconnectTimeout,
 			options.AppSigningKey,
 		),
 		metricsCache:          metricsCache,

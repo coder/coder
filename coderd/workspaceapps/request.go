@@ -20,8 +20,8 @@ type AccessMethod string
 const (
 	AccessMethodPath      AccessMethod = "path"
 	AccessMethodSubdomain AccessMethod = "subdomain"
-	// Terminal is special since it's not a real app and only applies to the PTY
-	// endpoint on the API.
+	// AccessMethodTerminal is special since it's not a real app and only
+	// applies to the PTY endpoint on the API.
 	AccessMethodTerminal AccessMethod = "terminal"
 )
 
@@ -115,12 +115,15 @@ type databaseRequest struct {
 	// AppURL is the resolved URL to the workspace app. This is only set for non
 	// terminal requests.
 	AppURL string
+	// AppHealth is the health of the app. For terminal requests, this is always
+	// database.WorkspaceAppHealthHealthy.
+	AppHealth database.WorkspaceAppHealth
 	// AppSharingLevel is the sharing level of the app. This is forced to be set
 	// to AppSharingLevelOwner if the access method is terminal.
 	AppSharingLevel database.AppSharingLevel
 }
 
-// GetDatabase does queries to get the owner user, workspace and agent
+// getDatabase does queries to get the owner user, workspace and agent
 // associated with the app in the request. This will correctly perform the
 // queries in the correct order based on the access method and what fields are
 // available.
@@ -131,49 +134,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	// If the AccessMethod is AccessMethodTerminal, then we need to get the
 	// agent first since that's the only info we have.
 	if r.AccessMethod == AccessMethodTerminal {
-		agentID, uuidErr := uuid.Parse(r.AgentNameOrID)
-		if uuidErr != nil {
-			return nil, xerrors.Errorf("invalid agent name or ID %q, must be a UUID for terminal requests: %w", r.AgentNameOrID, uuidErr)
-		}
-
-		var err error
-		agent, err := db.GetWorkspaceAgentByID(ctx, agentID)
-		if err != nil {
-			return nil, xerrors.Errorf("get workspace agent %q: %w", agentID, err)
-		}
-
-		// Get the corresponding resource.
-		res, err := db.GetWorkspaceResourceByID(ctx, agent.ResourceID)
-		if err != nil {
-			return nil, xerrors.Errorf("get workspace agent resource %q: %w", agent.ResourceID, err)
-		}
-
-		// Get the corresponding workspace build.
-		build, err := db.GetWorkspaceBuildByJobID(ctx, res.JobID)
-		if err != nil {
-			return nil, xerrors.Errorf("get workspace build by job ID %q: %w", res.JobID, err)
-		}
-
-		// Get the corresponding workspace.
-		workspace, err := db.GetWorkspaceByID(ctx, build.WorkspaceID)
-		if err != nil {
-			return nil, xerrors.Errorf("get workspace %q: %w", build.WorkspaceID, err)
-		}
-
-		// Get the workspace's owner.
-		user, err := db.GetUserByID(ctx, workspace.OwnerID)
-		if err != nil {
-			return nil, xerrors.Errorf("get user %q: %w", workspace.OwnerID, err)
-		}
-
-		return &databaseRequest{
-			Request:         r,
-			User:            user,
-			Workspace:       workspace,
-			Agent:           agent,
-			AppURL:          "",
-			AppSharingLevel: database.AppSharingLevelOwner,
-		}, nil
+		return r.getDatabaseTerminal(ctx, db)
 	}
 
 	// For non-terminal requests, get the objects in order since we have all
@@ -284,6 +245,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	var (
 		appSharingLevel = database.AppSharingLevelOwner
 		appURL          string
+		appHealth       database.WorkspaceAppHealth
 	)
 	portUint, portUintErr := strconv.ParseUint(r.AppSlugOrPort, 10, 16)
 	if r.AccessMethod == AccessMethodSubdomain && portUintErr == nil {
@@ -306,8 +268,11 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 
 		if app.SharingLevel != "" {
 			appSharingLevel = app.SharingLevel
+		} else {
+			appSharingLevel = database.AppSharingLevelOwner
 		}
 		appURL = app.Url.String
+		appHealth = app.Health
 	}
 
 	return &databaseRequest{
@@ -316,6 +281,60 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		Workspace:       workspace,
 		Agent:           agent,
 		AppURL:          appURL,
+		AppHealth:       appHealth,
 		AppSharingLevel: appSharingLevel,
+	}, nil
+}
+
+// getDatabaseTerminal is called by getDatabase for AccessMethodTerminal
+// requests.
+func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*databaseRequest, error) {
+	if r.AccessMethod != AccessMethodTerminal {
+		return nil, xerrors.Errorf("invalid access method %q for terminal request", r.AccessMethod)
+	}
+
+	agentID, uuidErr := uuid.Parse(r.AgentNameOrID)
+	if uuidErr != nil {
+		return nil, xerrors.Errorf("invalid agent name or ID %q, must be a UUID for terminal requests: %w", r.AgentNameOrID, uuidErr)
+	}
+
+	var err error
+	agent, err := db.GetWorkspaceAgentByID(ctx, agentID)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace agent %q: %w", agentID, err)
+	}
+
+	// Get the corresponding resource.
+	res, err := db.GetWorkspaceResourceByID(ctx, agent.ResourceID)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace agent resource %q: %w", agent.ResourceID, err)
+	}
+
+	// Get the corresponding workspace build.
+	build, err := db.GetWorkspaceBuildByJobID(ctx, res.JobID)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace build by job ID %q: %w", res.JobID, err)
+	}
+
+	// Get the corresponding workspace.
+	workspace, err := db.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace %q: %w", build.WorkspaceID, err)
+	}
+
+	// Get the workspace's owner.
+	user, err := db.GetUserByID(ctx, workspace.OwnerID)
+	if err != nil {
+		return nil, xerrors.Errorf("get user %q: %w", workspace.OwnerID, err)
+	}
+
+	return &databaseRequest{
+		Request:         r,
+		User:            user,
+		Workspace:       workspace,
+		Agent:           agent,
+		AppURL:          "",
+		AppHealth:       database.WorkspaceAppHealthHealthy,
+		AppSharingLevel: database.AppSharingLevelOwner,
 	}, nil
 }

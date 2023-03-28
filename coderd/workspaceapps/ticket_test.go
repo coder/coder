@@ -163,7 +163,7 @@ func Test_TicketMatchesRequest(t *testing.T) {
 func Test_GenerateTicket(t *testing.T) {
 	t.Parallel()
 
-	provider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, coderdtest.AppSigningKey)
+	provider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, time.Minute, coderdtest.AppSigningKey)
 
 	t.Run("SetExpiry", func(t *testing.T) {
 		t.Parallel()
@@ -286,7 +286,7 @@ func Test_GenerateTicket(t *testing.T) {
 func Test_ParseTicket(t *testing.T) {
 	t.Parallel()
 
-	provider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, coderdtest.AppSigningKey)
+	provider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, time.Minute, coderdtest.AppSigningKey)
 
 	t.Run("InvalidJWS", func(t *testing.T) {
 		t.Parallel()
@@ -306,7 +306,7 @@ func Test_ParseTicket(t *testing.T) {
 		require.NotEqual(t, coderdtest.AppSigningKey, otherKey)
 		require.Len(t, otherKey, 64)
 
-		otherProvider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, otherKey)
+		otherProvider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, time.Minute, otherKey)
 
 		ticketStr, err := otherProvider.GenerateTicket(workspaceapps.Ticket{
 			Request: workspaceapps.Request{

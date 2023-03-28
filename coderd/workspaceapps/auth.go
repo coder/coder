@@ -3,6 +3,7 @@ package workspaceapps
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -155,6 +156,19 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 			// Return an error.
 			httpapi.ResourceNotFound(rw)
 		}
+		return nil, false
+	}
+
+	// Check that the agent is online.
+	agentStatus := dbReq.Agent.Status(p.WorkspaceAgentInactiveTimeout)
+	if agentStatus.Status != database.WorkspaceAgentStatusConnected {
+		p.writeWorkspaceAppOffline(rw, r, &appReq, fmt.Sprintf("Agent state is %q, not %q", agentStatus.Status, database.WorkspaceAgentStatusConnected))
+		return nil, false
+	}
+
+	// Check that the app is healthy.
+	if dbReq.AppHealth != "" && dbReq.AppHealth != database.WorkspaceAppHealthDisabled && dbReq.AppHealth != database.WorkspaceAppHealthHealthy {
+		p.writeWorkspaceAppOffline(rw, r, &appReq, fmt.Sprintf("App health is %q, not %q", dbReq.AppHealth, database.WorkspaceAppHealthHealthy))
 		return nil, false
 	}
 
@@ -344,6 +358,30 @@ func (p *Provider) writeWorkspaceApp500(rw http.ResponseWriter, r *http.Request,
 		Title:        "Internal Server Error",
 		Description:  "An internal server error occurred.",
 		RetryEnabled: false,
+		DashboardURL: p.AccessURL.String(),
+	})
+}
+
+// writeWorkspaceAppOffline writes a HTML 502 error page for a workspace app. If
+// appReq is not nil, it will be used to log the request details at debug level.
+func (p *Provider) writeWorkspaceAppOffline(rw http.ResponseWriter, r *http.Request, appReq *Request, msg string) {
+	if appReq != nil {
+		slog.Helper()
+		p.Logger.Debug(r.Context(),
+			"workspace app offline: "+msg,
+			slog.F("username_or_id", appReq.UsernameOrID),
+			slog.F("workspace_and_agent", appReq.WorkspaceAndAgent),
+			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),
+			slog.F("agent_name_or_id", appReq.AgentNameOrID),
+			slog.F("app_slug_or_port", appReq.AppSlugOrPort),
+		)
+	}
+
+	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+		Status:       http.StatusBadGateway,
+		Title:        "Application Offline",
+		Description:  msg,
+		RetryEnabled: true,
 		DashboardURL: p.AccessURL.String(),
 	})
 }

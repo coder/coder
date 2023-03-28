@@ -18,7 +18,7 @@ const ticketSigningAlgorithm = jose.HS512
 // The JSON field names are short to reduce the size of the ticket.
 type Ticket struct {
 	// Request details.
-	Request `json:"r"`
+	Request `json:"request"`
 
 	// Trusted resolved details.
 	Expiry      int64     `json:"expiry"` // set by GenerateTicket if unset
