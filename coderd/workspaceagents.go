@@ -1373,13 +1373,6 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
-func ellipse(s string, maxLength int) string {
-	if len(s) > maxLength {
-		return s[:maxLength] + "..."
-	}
-	return s
-}
-
 // @Summary Submit workspace agent metadata
 // @ID submit-workspace-agent-metadata
 // @Security CoderSessionToken
@@ -1411,12 +1404,30 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 
 	key := chi.URLParam(r, "key")
 
+	const (
+		maxValueLen = 64 << 10
+		maxErrorLen = maxValueLen
+	)
+
+	metadataError := req.Error
+
+	// We overwrite the error if the provided payload is too long.
+	if len(req.Value) > maxValueLen {
+		metadataError = fmt.Sprintf("value of %d bytes exceeded %d bytes", len(req.Value), maxValueLen)
+		req.Value = req.Value[:maxValueLen]
+	}
+
+	if len(req.Error) > maxErrorLen {
+		metadataError = fmt.Sprintf("error of %d bytes exceeded %d bytes", len(req.Error), maxErrorLen)
+		req.Error = req.Error[:maxErrorLen]
+	}
+
 	datum := database.UpdateWorkspaceAgentMetadataParams{
 		WorkspaceAgentID: workspaceAgent.ID,
 		// We don't want a misconfigured agent to fill the database.
-		Key:   ellipse(key, 128),
-		Value: ellipse(req.Value, 10<<10),
-		Error: ellipse(req.Error, 10<<10),
+		Key:   key,
+		Value: req.Value,
+		Error: metadataError,
 		// We ignore the CollectedAt from the agent to avoid bugs caused by
 		// clock skew.
 		CollectedAt: time.Now(),
@@ -1434,7 +1445,6 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 		slog.F("workspace", workspace.ID),
 		slog.F("collected_at", datum.CollectedAt),
 		slog.F("key", datum.Key),
-		slog.F("value", ellipse(datum.Value, 5)),
 	)
 
 	err = api.Pubsub.Publish(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), []byte(datum.Key))
@@ -1535,15 +1545,17 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 
 	for {
 		select {
-		case <-refreshTicker.C:
-			// Avoid spamming the DB with reads we know there are no updates. We want
-			// to continue sending updates to the frontend so that "Result.Age"
-			// is always accurate. This way, the frontend doesn't need to
-			// sync its own clock with the backend.
-			sendMetadata(false)
 		case <-senderClosed:
 			return
+		case <-refreshTicker.C:
+			break
 		}
+
+		// Avoid spamming the DB with reads we know there are no updates. We want
+		// to continue sending updates to the frontend so that "Result.Age"
+		// is always accurate. This way, the frontend doesn't need to
+		// sync its own clock with the backend.
+		sendMetadata(false)
 	}
 }
 

@@ -214,9 +214,8 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	if timeout == 0 {
 		timeout = md.Interval
 	}
-	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(
+	ctx, cancel := context.WithTimeout(ctx,
 		time.Duration(timeout)*time.Second,
-	),
 	)
 	defer cancel()
 
@@ -295,63 +294,65 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				a.logger.Error(ctx, "report metadata", slog.Error(err))
 			}
 		case <-baseTicker.C:
-			if len(metadataResults) > cap(metadataResults)/2 {
-				// If we're backpressured on sending back results, we risk
-				// runaway goroutine growth and/or overloading coderd. So,
-				// we just skip the collection. Since we never update
-				// the collections map, we'll retry the collection
-				// on the next tick.
-				a.logger.Debug(
-					ctx, "metadata collection backpressured",
-					slog.F("queue_len", len(metadataResults)),
-				)
-				continue
-			}
+			break
+		}
 
-			manifest := a.manifest.Load()
-			if manifest == nil {
-				continue
+		if len(metadataResults) > cap(metadataResults)/2 {
+			// If we're backpressured on sending back results, we risk
+			// runaway goroutine growth and/or overloading coderd. So,
+			// we just skip the collection. Since we never update
+			// the collections map, we'll retry the collection
+			// on the next tick.
+			a.logger.Debug(
+				ctx, "metadata collection backpressured",
+				slog.F("queue_len", len(metadataResults)),
+			)
+			continue
+		}
+
+		manifest := a.manifest.Load()
+		if manifest == nil {
+			continue
+		}
+		// If the manifest changes (e.g. on agent reconnect) we need to
+		// purge old cache values to prevent lastCollectedAt from growing
+		// boundlessly.
+		for key := range lastCollectedAts {
+			if slices.IndexFunc(manifest.Metadata, func(md codersdk.WorkspaceAgentMetadataDescription) bool {
+				return md.Key == key
+			}) < 0 {
+				delete(lastCollectedAts, key)
 			}
-			// If the manifest changes (e.g. on agent reconnect) we need to
-			// purge old cache values to prevent lastCollectedAt from growing
-			// boundlessly.
-			for key := range lastCollectedAts {
-				if slices.IndexFunc(manifest.Metadata, func(md codersdk.WorkspaceAgentMetadataDescription) bool {
-					return md.Key == key
-				}) < 0 {
-					delete(lastCollectedAts, key)
+		}
+
+		// Spawn a goroutine for each metadata collection, and use a
+		// channel to synchronize the results and avoid both messy
+		// mutex logic and overloading the API.
+		for _, md := range manifest.Metadata {
+			collectedAt, ok := lastCollectedAts[md.Key]
+			if ok {
+				// If the interval is zero, we assume the user just wants
+				// a single collection at startup, not a spinning loop.
+				if md.Interval == 0 {
+					continue
+				}
+				if collectedAt.Add(
+					convertInterval(md.Interval),
+				).After(time.Now()) {
+					continue
 				}
 			}
 
-			// Spawn a goroutine for each metadata collection, and use a
-			// channel to synchronize the results and avoid both messy
-			// mutex logic and overloading the API.
-			for _, md := range manifest.Metadata {
-				collectedAt, ok := lastCollectedAts[md.Key]
-				if ok {
-					// If the interval is zero, we assume the user just wants
-					// a single collection at startup, not a spinning loop.
-					if md.Interval == 0 {
-						continue
-					}
-					if collectedAt.Add(
-						convertInterval(md.Interval),
-					).After(time.Now()) {
-						continue
-					}
+			go func(md codersdk.WorkspaceAgentMetadataDescription) {
+				select {
+				case <-ctx.Done():
+					return
+				case metadataResults <- metadataResultAndKey{
+					key:    md.Key,
+					result: a.collectMetadata(ctx, md),
+				}:
 				}
-
-				go func(md codersdk.WorkspaceAgentMetadataDescription) {
-					select {
-					case <-ctx.Done():
-						return
-					case metadataResults <- metadataResultAndKey{
-						key:    md.Key,
-						result: a.collectMetadata(ctx, md),
-					}:
-					}
-				}(md)
-			}
+			}(md)
 		}
 	}
 }
@@ -1077,7 +1078,7 @@ func (a *agent) init(ctx context.Context) {
 }
 
 // createCommand processes raw command input with OpenSSH-like behavior.
-// If the rawScript provided is empty, it will default to the users shell.
+// If the createCommand provided is empty, it will default to the users shell.
 // This injects environment variables specified by the user at launch too.
 func (a *agent) createCommand(ctx context.Context, script string, env []string) (*exec.Cmd, error) {
 	currentUser, err := user.Current()

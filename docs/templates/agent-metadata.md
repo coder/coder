@@ -13,9 +13,10 @@ See the [Terraform reference](https://registry.terraform.io/providers/coder/code
 
 ## Examples
 
-Here are useful agent metadata snippets for Linux agents:
+All of these examples use [heredoc strings](https://developer.hashicorp.com/terraform/language/expressions/strings#heredoc-strings) for the script declaration. With heredoc strings you
+can script without messy escape codes, just as if you were working in your terminal.
 
-Show users how much CPU they're using:
+Here are useful agent metadata snippets for Linux agents:
 
 ```hcl
 resource "coder_agent" "main" {

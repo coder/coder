@@ -1556,13 +1556,9 @@ func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.Ins
 }
 
 func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
-	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.WorkspaceAgentID)
-	if err != nil {
-		return xerrors.Errorf("find workspace by agent %v: %v", arg.WorkspaceAgentID, err)
-	}
-
-	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
-	if err != nil {
+	// We don't check for workspace ownership here since the agent metadata may
+	// be associated with an orphaned agent used by a dry run build.
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
 	}
 

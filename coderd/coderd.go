@@ -603,6 +603,9 @@ func New(options *Options) *API {
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/manifest", api.workspaceAgentManifest)
+				// This route is deprecated and will be removed in a future release.
+				// New agents will use /me/manifest instead.
+				r.Get("/metadata", api.workspaceAgentManifest)
 				r.Post("/startup", api.postWorkspaceAgentStartup)
 				r.Patch("/startup-logs", api.patchWorkspaceAgentStartupLogs)
 				r.Post("/app-health", api.postWorkspaceAppHealth)

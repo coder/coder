@@ -477,11 +477,11 @@ CREATE TABLE users (
 
 CREATE TABLE workspace_agent_metadata (
     workspace_agent_id uuid NOT NULL,
-    display_name text NOT NULL,
-    key character varying(128) NOT NULL,
-    script text NOT NULL,
-    value text DEFAULT ''::text NOT NULL,
-    error text DEFAULT ''::text NOT NULL,
+    display_name character varying(127) NOT NULL,
+    key character varying(127) NOT NULL,
+    script character varying(65535) NOT NULL,
+    value character varying(65535) DEFAULT ''::character varying NOT NULL,
+    error character varying(65535) DEFAULT ''::character varying NOT NULL,
     timeout bigint NOT NULL,
     "interval" bigint NOT NULL,
     collected_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL

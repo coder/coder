@@ -1291,6 +1291,13 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 									Interval:    10,
 									Timeout:     3,
 								},
+								{
+									DisplayName: "TooLong",
+									Key:         "foo3",
+									Script:      "echo howdy",
+									Interval:    10,
+									Timeout:     3,
+								},
 							},
 							Id: uuid.NewString(),
 							Auth: &proto.Agent_Token{
@@ -1370,7 +1377,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	}
 
 	update = recvUpdate()
-	require.Len(t, update, 2)
+	require.Len(t, update, 3)
 	check(wantMetadata1, update[0])
 	// The second metadata result is not yet posted.
 	require.Zero(t, update[1].Result.CollectedAt)
@@ -1378,17 +1385,27 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	wantMetadata2 := wantMetadata1
 	post("foo2", wantMetadata2)
 	update = recvUpdate()
-	require.Len(t, update, 2)
+	require.Len(t, update, 3)
 	check(wantMetadata1, update[0])
 	check(wantMetadata2, update[1])
 
 	wantMetadata1.Error = "error"
 	post("foo1", wantMetadata1)
 	update = recvUpdate()
-	require.Len(t, update, 2)
+	require.Len(t, update, 3)
 	check(wantMetadata1, update[0])
 
-	badMetadata := wantMetadata1
-	err = agentClient.PostMetadata(ctx, "unknown", badMetadata)
+	const maxValueLen = 64 << 10
+	tooLongValueMetadata := wantMetadata1
+	tooLongValueMetadata.Value = strings.Repeat("a", maxValueLen*2)
+	tooLongValueMetadata.Error = ""
+	tooLongValueMetadata.CollectedAt = time.Now()
+	post("foo3", tooLongValueMetadata)
+	got := recvUpdate()[2]
+	require.Len(t, got.Result.Value, maxValueLen)
+	require.NotEmpty(t, got.Result.Error)
+
+	unknownKeyMetadata := wantMetadata1
+	err = agentClient.PostMetadata(ctx, "unknown", unknownKeyMetadata)
 	require.Error(t, err)
 }

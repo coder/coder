@@ -309,34 +309,36 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				sse, err := nextEvent()
+				break
+			}
+
+			sse, err := nextEvent()
+			if err != nil {
+				return err
+			}
+
+			b, ok := sse.Data.([]byte)
+			if !ok {
+				return xerrors.Errorf("unexpected data type: %T", sse.Data)
+			}
+
+			switch sse.Type {
+			case ServerSentEventTypeData:
+				var met []WorkspaceAgentMetadata
+				err = json.Unmarshal(b, &met)
 				if err != nil {
-					return err
+					return xerrors.Errorf("unmarshal metadata: %w", err)
 				}
-
-				b, ok := sse.Data.([]byte)
-				if !ok {
-					return xerrors.Errorf("unexpected data type: %T", sse.Data)
+				metadataChan <- met
+			case ServerSentEventTypeError:
+				var r Response
+				err = json.Unmarshal(b, &r)
+				if err != nil {
+					return xerrors.Errorf("unmarshal error: %w", err)
 				}
-
-				switch sse.Type {
-				case ServerSentEventTypeData:
-					var met []WorkspaceAgentMetadata
-					err = json.Unmarshal(b, &met)
-					if err != nil {
-						return xerrors.Errorf("unmarshal metadata: %w", err)
-					}
-					metadataChan <- met
-				case ServerSentEventTypeError:
-					var r Response
-					err = json.Unmarshal(b, &r)
-					if err != nil {
-						return xerrors.Errorf("unmarshal error: %w", err)
-					}
-					return xerrors.Errorf("%+v", r)
-				default:
-					return xerrors.Errorf("unexpected event type: %s", sse.Type)
-				}
+				return xerrors.Errorf("%+v", r)
+			default:
+				return xerrors.Errorf("unexpected event type: %s", sse.Type)
 			}
 		}
 	}
