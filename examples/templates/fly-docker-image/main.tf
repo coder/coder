@@ -281,7 +281,8 @@ resource "coder_agent" "main" {
     sudo hostname -b "${data.coder_workspace.me.name}-fly"
     # Install the Fly CLI and add it to the PATH
     curl -L https://fly.io/install.sh | sh
-    echo "export PATH=\$PATH:/home/coder/.fly" >> ~/.bashrc
+    echo "export PATH=$PATH:/home/coder/.fly/bin" >> ~/.bashrc
+    source ~/.bashrc
   EOT
 }
 

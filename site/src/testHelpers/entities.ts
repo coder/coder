@@ -669,8 +669,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
   ttl_ms: 2 * 60 * 60 * 1000,
   latest_build: MockWorkspaceBuild,
-  last_used_at: "",
-  organization_id: MockOrganization.id,
+  last_used_at: "2022-05-16T15:29:10.302441433Z",
 }
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
