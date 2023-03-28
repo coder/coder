@@ -1,17 +1,19 @@
 import userEvent from "@testing-library/user-event"
 import {
-  MockTemplateVersionParameter1,
-  MockTemplateVersionParameter2,
-  MockWorkspace,
-  MockWorkspaceBuild,
-  MockWorkspaceBuildParameter1,
-  MockWorkspaceBuildParameter2,
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers"
 import WorkspaceSettingsPage from "./WorkspaceSettingsPage"
 import { screen, waitFor, within } from "@testing-library/react"
 import * as api from "api/api"
+import {
+  MockWorkspace,
+  MockTemplateVersionParameter1,
+  MockTemplateVersionParameter2,
+  MockWorkspaceBuildParameter1,
+  MockWorkspaceBuildParameter2,
+  MockWorkspaceBuild,
+} from "testHelpers/entities"
 
 test("Submit the workspace settings page successfully", async () => {
   // Mock the API calls that loads data

@@ -1,18 +1,18 @@
+import { renderWithAuth } from "testHelpers/renderHelpers"
+import CreateTemplatePage from "./CreateTemplatePage"
+import { screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import * as API from "api/api"
 import {
-  MockOrganization,
-  MockProvisionerJob,
-  MockTemplate,
   MockTemplateExample,
   MockTemplateVersion,
   MockTemplateVersionVariable1,
   MockTemplateVersionVariable2,
   MockTemplateVersionVariable3,
-  renderWithAuth,
-} from "testHelpers/renderHelpers"
-import CreateTemplatePage from "./CreateTemplatePage"
-import { screen, waitFor, within } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
-import * as API from "api/api"
+  MockTemplate,
+  MockOrganization,
+  MockProvisionerJob,
+} from "testHelpers/entities"
 
 const renderPage = async () => {
   // Render with the example ID so we don't need to upload a file
