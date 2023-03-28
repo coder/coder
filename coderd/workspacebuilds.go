@@ -582,6 +582,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		workspaceBuildID := uuid.New()
 		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 			WorkspaceBuildID: workspaceBuildID,
+			LogLevel:         string(createBuild.LogLevel),
 		})
 		if err != nil {
 			return xerrors.Errorf("marshal provision job: %w", err)

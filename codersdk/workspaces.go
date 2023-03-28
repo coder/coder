@@ -46,6 +46,12 @@ type WorkspacesResponse struct {
 	Count      int         `json:"count"`
 }
 
+type ProvisionerLogLevel string
+
+const (
+	ProvisionerLogLevelDebug ProvisionerLogLevel = "debug"
+)
+
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty" format:"uuid"`
@@ -59,6 +65,8 @@ type CreateWorkspaceBuildRequest struct {
 	// This will not delete old params not included in this list.
 	ParameterValues     []CreateParameterRequest  `json:"parameter_values,omitempty"`
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
+
+	LogLevel ProvisionerLogLevel `json:"log_level" validate:"oneof=debug"`
 }
 
 type WorkspaceOptions struct {

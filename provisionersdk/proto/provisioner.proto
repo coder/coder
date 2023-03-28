@@ -240,6 +240,8 @@ message Provision {
         string directory = 1;
         bytes state = 2;
         Metadata metadata = 3;
+
+		string provisioner_log_level = 4;
     }
 
     message Plan {

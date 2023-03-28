@@ -20,6 +20,7 @@ message AcquiredJob {
         repeated provisioner.GitAuthProvider git_auth_providers = 6;
         provisioner.Provision.Metadata metadata = 7;
         bytes state = 8;
+		string log_level = 9;
     }
     message TemplateImport {
         provisioner.Provision.Metadata metadata = 1;

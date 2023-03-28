@@ -248,6 +248,7 @@ export interface CreateWorkspaceBuildRequest {
   readonly orphan?: boolean
   readonly parameter_values?: CreateParameterRequest[]
   readonly rich_parameter_values?: WorkspaceBuildParameter[]
+  readonly log_level: ProvisionerLogLevel
 }
 
 // From codersdk/organizations.go
@@ -1347,6 +1348,10 @@ export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
   "running",
   "succeeded",
 ]
+
+// From codersdk/workspaces.go
+export type ProvisionerLogLevel = "debug"
+export const ProvisionerLogLevels: ProvisionerLogLevel[] = ["debug"]
 
 // From codersdk/organizations.go
 export type ProvisionerStorageMethod = "file"
