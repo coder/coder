@@ -146,6 +146,12 @@
           "description": "Use parameters to customize templates",
           "path": "./templates/parameters.md",
           "icon_path": "./images/icons/code.svg"
+        },
+        {
+          "title": "Open in Coder",
+          "description": "Learn how to add an \"Open in Coder\" button to your repos",
+          "path": "./templates/open-in-coder.md",
+          "icon_path": "./images/icons/key.svg"
         }
       ]
     },
