@@ -66,6 +66,7 @@ func TestConfigSSH(t *testing.T) {
 
 	const hostname = "test-coder."
 	const expectedKey = "ConnectionAttempts"
+	const removeKey = "ConnectionTimeout"
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 		ConfigSSH: codersdk.SSHConfigResponse{
@@ -73,6 +74,7 @@ func TestConfigSSH(t *testing.T) {
 			SSHConfigOptions: map[string]string{
 				// Something we can test for
 				expectedKey: "3",
+				removeKey:   "",
 			},
 		},
 	})
@@ -176,6 +178,7 @@ func TestConfigSSH(t *testing.T) {
 	fileContents, err := os.ReadFile(sshConfigFile)
 	require.NoError(t, err, "read ssh config file")
 	require.Contains(t, string(fileContents), expectedKey, "ssh config file contains expected key")
+	require.NotContains(t, string(fileContents), removeKey, "ssh config file should not have removed key")
 
 	home := filepath.Dir(filepath.Dir(sshConfigFile))
 	// #nosec
