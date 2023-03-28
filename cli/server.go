@@ -484,7 +484,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				tunnelDone <-chan struct{} = make(chan struct{}, 1)
 			)
 			if cfg.AccessURL.String() == "" {
-				cliui.Infof(inv.Stderr, "Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
+				cliui.Infof(inv.Stderr, "Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL")
 				tunnel, err = devtunnel.New(ctx, logger.Named("devtunnel"), cfg.WgtunnelHost.String())
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
@@ -531,7 +531,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			// A newline is added before for visibility in terminal output.
-			cliui.Infof(inv.Stdout, "\nView the Web UI: %s\n", cfg.AccessURL.String())
+			cliui.Infof(inv.Stdout, "\nView the Web UI: %s", cfg.AccessURL.String())
 
 			// Used for zero-trust instance identity with Google Cloud.
 			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
