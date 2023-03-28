@@ -4,6 +4,7 @@ import TextField from "@material-ui/core/TextField"
 import {
   ParameterSchema,
   ProvisionerJobLog,
+  Template,
   TemplateExample,
   TemplateVersionVariable,
 } from "api/typesGenerated"
@@ -108,7 +109,10 @@ const defaultInitialValues: CreateTemplateData = {
 
 const getInitialValues = (
   canSetMaxTTL: boolean,
-  starterTemplate?: TemplateExample,
+  {
+    fromExample,
+    fromCopy,
+  }: { fromExample?: TemplateExample; fromCopy?: Template },
 ) => {
   let initialValues = defaultInitialValues
   if (!canSetMaxTTL) {
@@ -117,17 +121,27 @@ const getInitialValues = (
       max_ttl_hours: 0,
     }
   }
-  if (!starterTemplate) {
-    return initialValues
+
+  if (fromExample) {
+    return {
+      ...initialValues,
+      name: fromExample.id,
+      display_name: fromExample.name,
+      icon: fromExample.icon,
+      description: fromExample.description,
+    }
   }
 
-  return {
-    ...initialValues,
-    name: starterTemplate.id,
-    display_name: starterTemplate.name,
-    icon: starterTemplate.icon,
-    description: starterTemplate.description,
+  if (fromCopy) {
+    return {
+      ...initialValues,
+      ...fromCopy,
+      name: `${fromCopy.name}-copy`,
+      display_name: `${fromCopy.display_name} Copy`,
+    }
   }
+
+  return initialValues
 }
 
 export interface CreateTemplateFormProps {
@@ -142,12 +156,14 @@ export interface CreateTemplateFormProps {
   jobError?: string
   logs?: ProvisionerJobLog[]
   canSetMaxTTL: boolean
+  copiedTemplate?: Template
 }
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   onCancel,
   onSubmit,
   starterTemplate,
+  copiedTemplate,
   parameters,
   variables,
   isSubmitting,
@@ -157,9 +173,13 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   logs,
   canSetMaxTTL,
 }) => {
+  console.log(copiedTemplate)
   const styles = useStyles()
   const form = useFormik<CreateTemplateData>({
-    initialValues: getInitialValues(canSetMaxTTL, starterTemplate),
+    initialValues: getInitialValues(canSetMaxTTL, {
+      fromExample: starterTemplate,
+      fromCopy: copiedTemplate,
+    }),
     validationSchema,
     onSubmit,
   })
@@ -177,6 +197,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
         <FormFields>
           {starterTemplate ? (
             <SelectedTemplate template={starterTemplate} />
+          ) : copiedTemplate ? (
+            <SelectedTemplate template={copiedTemplate} />
           ) : (
             <TemplateUpload
               {...upload}
@@ -329,7 +351,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
       </FormSection>
 
       {/* Parameters */}
-      {parameters && (
+      {parameters && parameters.length > 0 && (
         <FormSection
           title={t("form.parameters.title")}
           description={t("form.parameters.description")}
@@ -353,7 +375,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
       )}
 
       {/* Variables */}
-      {variables && (
+      {variables && variables.length > 0 && (
         <FormSection
           title="Variables"
           description="Input variables allow you to customize templates without altering their source code."
@@ -361,13 +383,14 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
           <FormFields>
             {variables.map((variable, index) => (
               <VariableInput
+                defaultValue={variable.value}
                 variable={variable}
                 disabled={isSubmitting}
                 key={variable.name}
                 onChange={async (value) => {
                   await form.setFieldValue("user_variable_values." + index, {
                     name: variable.name,
-                    value: value,
+                    value,
                   })
                 }}
               />

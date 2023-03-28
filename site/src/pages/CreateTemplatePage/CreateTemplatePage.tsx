@@ -24,6 +24,7 @@ const CreateTemplatePage: FC = () => {
     context: {
       organizationId,
       exampleId: searchParams.get("exampleId"),
+      templateNameToCopy: searchParams.get("copyTemplate"),
     },
     actions: {
       onCreate: (_, { data }) => {
@@ -67,6 +68,7 @@ const CreateTemplatePage: FC = () => {
 
           {shouldDisplayForm && (
             <CreateTemplateForm
+              copiedTemplate={state.context.copiedTemplate}
               canSetMaxTTL={canSetMaxTTL}
               error={error}
               starterTemplate={starterTemplate}

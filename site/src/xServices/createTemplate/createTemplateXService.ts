@@ -7,6 +7,7 @@ import {
   uploadTemplateFile,
   getTemplateVersionLogs,
   getTemplateVersionVariables,
+  getTemplateByName,
 } from "api/api"
 import {
   CreateTemplateVersionRequest,
@@ -61,6 +62,9 @@ interface CreateTemplateContext {
   // uploadedFile is the response from the server to use in the API
   file?: File
   uploadResponse?: UploadResponse
+  // When wanting to copy a Template
+  templateNameToCopy: string | null // It can be null because it is passed from query string
+  copiedTemplate?: Template
 }
 
 export const createTemplateMachine =
@@ -106,6 +110,14 @@ export const createTemplateMachine =
           loadVersionLogs: {
             data: ProvisionerJobLog[]
           }
+          copyTemplateData: {
+            data: {
+              template: Template
+              version: TemplateVersion
+              parameters: ParameterSchema[]
+              variables: TemplateVersionVariable[]
+            }
+          }
         },
       },
       tsTypes: {} as import("./createTemplateXService.typegen").Typegen0,
@@ -114,6 +126,10 @@ export const createTemplateMachine =
         starting: {
           always: [
             { target: "loadingStarterTemplate", cond: "isExampleProvided" },
+            {
+              target: "copyingTemplateData",
+              cond: "isTemplateIdToCopyProvided",
+            },
             { target: "idle" },
           ],
           tags: ["loading"],
@@ -125,6 +141,27 @@ export const createTemplateMachine =
               target: "idle",
               actions: ["assignStarterTemplate"],
             },
+            onError: {
+              target: "idle",
+              actions: ["assignError"],
+            },
+          },
+          tags: ["loading"],
+        },
+        copyingTemplateData: {
+          invoke: {
+            src: "copyTemplateData",
+            onDone: [
+              {
+                target: "creating.promptParametersAndVariables",
+                actions: ["assignCopiedTemplateData"],
+                cond: "hasParametersOrVariables",
+              },
+              {
+                target: "idle",
+                actions: ["assignCopiedTemplateData"],
+              },
+            ],
             onError: {
               target: "idle",
               actions: ["assignError"],
@@ -292,6 +329,29 @@ export const createTemplateMachine =
           }
           return starterTemplate
         },
+        copyTemplateData: async ({ organizationId, templateNameToCopy }) => {
+          if (!organizationId) {
+            throw new Error("No organization ID provided")
+          }
+          if (!templateNameToCopy) {
+            throw new Error("No template name to copy provided")
+          }
+          const template = await getTemplateByName(
+            organizationId,
+            templateNameToCopy,
+          )
+          const [version, parameters, variables] = await Promise.all([
+            getTemplateVersion(template.active_version_id),
+            getTemplateVersionSchema(template.active_version_id),
+            getTemplateVersionVariables(template.active_version_id),
+          ])
+          return {
+            template,
+            version,
+            parameters,
+            variables,
+          }
+        },
         createFirstVersion: async ({
           organizationId,
           exampleId,
@@ -456,9 +516,17 @@ export const createTemplateMachine =
           uploadResponse: (_) => undefined,
         }),
         assignJobLogs: assign({ jobLogs: (_, { data }) => data }),
+        assignCopiedTemplateData: assign({
+          copiedTemplate: (_, { data }) => data.template,
+          version: (_, { data }) => data.version,
+          parameters: (_, { data }) => data.parameters,
+          variables: (_, { data }) => data.variables,
+        }),
       },
       guards: {
         isExampleProvided: ({ exampleId }) => Boolean(exampleId),
+        isTemplateIdToCopyProvided: ({ templateNameToCopy }) =>
+          Boolean(templateNameToCopy),
         isNotUsingExample: ({ exampleId }) => !exampleId,
         hasFile: ({ file }) => Boolean(file),
         hasFailed: (_, { data }) =>
@@ -469,6 +537,9 @@ export const createTemplateMachine =
           ),
         hasNoParametersOrVariables: (_, { data }) =>
           data.parameters === undefined && data.variables === undefined,
+        hasParametersOrVariables: (_, { data }) => {
+          return data.parameters.length > 0 || data.variables.length > 0
+        },
       },
     },
   )
