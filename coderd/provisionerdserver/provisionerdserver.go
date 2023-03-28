@@ -1276,20 +1276,27 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		}
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
 
-		for _, md := range prAgent.Metadata {
-			err := db.InsertWorkspaceAgentMetadata(ctx, database.InsertWorkspaceAgentMetadataParams{
-				WorkspaceAgentID: agentID,
-				DisplayName:      md.DisplayName,
-				Script:           md.Script,
-				Key:              md.Key,
-				Timeout:          md.Timeout,
-				Interval:         md.Interval,
-			})
-			if err != nil {
-				return xerrors.Errorf("insert agent metadata: %w", err)
+		// We don't need to insert metadata if the agent is not for a workspace.
+		// This is probably an agent made during the provisioning process.
+		_, err = db.GetWorkspaceByAgentID(ctx, agentID)
+		if err == nil {
+			for _, md := range prAgent.Metadata {
+				p := database.InsertWorkspaceAgentMetadataParams{
+					WorkspaceAgentID: agentID,
+					DisplayName:      md.DisplayName,
+					Script:           md.Script,
+					Key:              md.Key,
+					Timeout:          md.Timeout,
+					Interval:         md.Interval,
+				}
+				err := db.InsertWorkspaceAgentMetadata(ctx, p)
+				if err != nil {
+					return xerrors.Errorf("insert agent metadata: %w, params: %+v", err, p)
+				}
 			}
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get workspace by agent ID: %w", err)
 		}
-
 		for _, app := range prAgent.Apps {
 			slug := app.Slug
 			if slug == "" {

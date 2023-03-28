@@ -1558,7 +1558,7 @@ func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.Ins
 func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.WorkspaceAgentID)
 	if err != nil {
-		return err
+		return xerrors.Errorf("find workspace by agent %v: %v", arg.WorkspaceAgentID, err)
 	}
 
 	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
