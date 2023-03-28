@@ -4,6 +4,8 @@ import { CreateWorkspaceBuildRequest } from "../api/typesGenerated"
 import { permissionsToCheck } from "../xServices/auth/authXService"
 import * as M from "./entities"
 import { MockGroup, MockWorkspaceQuota } from "./entities"
+import fs from "fs"
+import path from "path"
 
 export const handlers = [
   rest.get("/api/v2/templates/:templateId/daus", async (req, res, ctx) => {
@@ -318,4 +320,17 @@ export const handlers = [
       return res(ctx.status(200), ctx.json([M.MockWorkspaceBuildParameter1]))
     },
   ),
+
+  rest.get("api/v2/files/:fileId", (_, res, ctx) => {
+    const fileBuffer = fs.readFileSync(
+      path.resolve(__dirname, "./templateFiles.tar"),
+    )
+
+    return res(
+      ctx.set("Content-Length", fileBuffer.byteLength.toString()),
+      ctx.set("Content-Type", "application/octet-stream"),
+      // Respond with the "ArrayBuffer".
+      ctx.body(fileBuffer),
+    )
+  }),
 ]
