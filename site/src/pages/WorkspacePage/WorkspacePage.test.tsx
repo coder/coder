@@ -31,9 +31,6 @@ const { t } = i18next
 
 // It renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async () => {
-  jest.spyOn(api, "checkAuthorization").mockResolvedValue({
-    readPagePermissions: true,
-  })
   jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
   jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([])
   renderWithAuth(<WorkspacePage />, {
@@ -194,9 +191,6 @@ describe("WorkspacePage", () => {
   it("updates the parameters when they are missing during update", async () => {
     // Setup mocks
     const user = userEvent.setup()
-    jest.spyOn(api, "checkAuthorization").mockResolvedValue({
-      readPagePermissions: true,
-    })
     jest
       .spyOn(api, "getWorkspaceByOwnerAndName")
       .mockResolvedValueOnce(MockOutdatedWorkspace)

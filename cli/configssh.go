@@ -62,7 +62,7 @@ func (o *sshConfigOptions) addOptions(options ...string) error {
 }
 
 func (o *sshConfigOptions) addOption(option string) error {
-	key, _, err := codersdk.ParseSSHConfigOption(option)
+	key, value, err := codersdk.ParseSSHConfigOption(option)
 	if err != nil {
 		return err
 	}
@@ -77,11 +77,20 @@ func (o *sshConfigOptions) addOption(option string) error {
 			continue
 		}
 		if strings.EqualFold(existingKey, key) {
-			o.sshOptions[i] = option
+			if value == "" {
+				// Delete existing option.
+				o.sshOptions = append(o.sshOptions[:i], o.sshOptions[i+1:]...)
+			} else {
+				// Override existing option.
+				o.sshOptions[i] = option
+			}
 			return nil
 		}
 	}
-	o.sshOptions = append(o.sshOptions, option)
+	// Only append the option if it is not empty.
+	if value != "" {
+		o.sshOptions = append(o.sshOptions, option)
+	}
 	return nil
 }
 
