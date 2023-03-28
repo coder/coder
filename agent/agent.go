@@ -1125,13 +1125,28 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		go func() {
 			_, _ = io.Copy(ptty.Input(), session)
 		}()
+
+		// In low parallelism scenarios, the command may exit and we may close
+		// the pty before the output copy has started. This can result in the
+		// output being lost. To avoid this, we wait for the output copy to
+		// start before waiting for the command to exit. This ensures that the
+		// output copy goroutine will be scheduled before calling close on the
+		// pty. There is still a risk of data loss if a command produces a lot
+		// of output, see TestAgent_Session_TTY_HugeOutputIsNotLost (skipped).
+		outputCopyStarted := make(chan struct{})
+		ptyOutput := func() io.Reader {
+			defer close(outputCopyStarted)
+			return ptty.Output()
+		}
 		wg.Add(1)
 		go func() {
 			// Ensure data is flushed to session on command exit, if we
 			// close the session too soon, we might lose data.
 			defer wg.Done()
-			_, _ = io.Copy(session, ptty.Output())
+			_, _ = io.Copy(session, ptyOutput())
 		}()
+		<-outputCopyStarted
+
 		err = process.Wait()
 		var exitErr *exec.ExitError
 		// ExitErrors just mean the command we run returned a non-zero exit code, which is normal
