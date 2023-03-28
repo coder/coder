@@ -48,10 +48,6 @@ describe("AuditPage", () => {
     const mock = jest.spyOn(CreateDayString, "createDayString")
     mock.mockImplementation(() => "a minute ago")
 
-    jest.spyOn(API, "checkAuthorization").mockResolvedValue({
-      readPagePermissions: true,
-    })
-
     // Mock the entitlements
     server.use(
       rest.get("/api/v2/entitlements", (req, res, ctx) => {
