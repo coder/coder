@@ -77,7 +77,7 @@ func (s *OptionSet) FlagSet() *pflag.FlagSet {
 
 		val := opt.Value
 		if val == nil {
-			val = &DiscardValue{}
+			val = DiscardValue
 		}
 
 		fs.AddFlag(&pflag.Flag{
@@ -126,6 +126,9 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 		// way for a user to change a Default value to an empty string from
 		// the environment. Unfortunately, we have old configuration files
 		// that rely on the faulty behavior.
+		//
+		// TODO: We should remove this hack in May 2023, when deployments
+		// have had months to migrate to the new behavior.
 		if !ok || envVal == "" {
 			continue
 		}

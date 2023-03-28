@@ -60,6 +60,7 @@ func New() database.Store {
 			templateVersions:          make([]database.TemplateVersion, 0),
 			templates:                 make([]database.Template, 0),
 			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
+			workspaceAgentLogs:        make([]database.WorkspaceAgentStartupLog, 0),
 			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
@@ -123,6 +124,7 @@ type data struct {
 	templateVersionVariables  []database.TemplateVersionVariable
 	templates                 []database.Template
 	workspaceAgents           []database.WorkspaceAgent
+	workspaceAgentLogs        []database.WorkspaceAgentStartupLog
 	workspaceApps             []database.WorkspaceApp
 	workspaceBuilds           []database.WorkspaceBuild
 	workspaceBuildParameters  []database.WorkspaceBuildParameter
@@ -681,6 +683,47 @@ func (q *fakeQuerier) GetFileByID(_ context.Context, id uuid.UUID) (database.Fil
 		}
 	}
 	return database.File{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]database.GetFileTemplatesRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	rows := make([]database.GetFileTemplatesRow, 0)
+	var file database.File
+	for _, f := range q.files {
+		if f.ID == id {
+			file = f
+			break
+		}
+	}
+	if file.Hash == "" {
+		return rows, nil
+	}
+
+	for _, job := range q.provisionerJobs {
+		if job.FileID == id {
+			for _, version := range q.templateVersions {
+				if version.JobID == job.ID {
+					for _, template := range q.templates {
+						if template.ID == version.TemplateID.UUID {
+							rows = append(rows, database.GetFileTemplatesRow{
+								FileID:                 file.ID,
+								FileCreatedBy:          file.CreatedBy,
+								TemplateID:             template.ID,
+								TemplateOrganizationID: template.OrganizationID,
+								TemplateCreatedBy:      template.CreatedBy,
+								UserACL:                template.UserACL,
+								GroupACL:               template.GroupACL,
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return rows, nil
 }
 
 func (q *fakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
@@ -1761,7 +1804,7 @@ func (q *fakeQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (databa
 func (q *fakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (database.Template, error) {
 	for _, template := range q.templates {
 		if template.ID == id {
-			return template, nil
+			return template.DeepCopy(), nil
 		}
 	}
 	return database.Template{}, sql.ErrNoRows
@@ -1785,7 +1828,7 @@ func (q *fakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg da
 		if template.Deleted != arg.Deleted {
 			continue
 		}
-		return template, nil
+		return template.DeepCopy(), nil
 	}
 	return database.Template{}, sql.ErrNoRows
 }
@@ -1808,7 +1851,7 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.Description = arg.Description
 		tpl.Icon = arg.Icon
 		q.templates[idx] = tpl
-		return tpl, nil
+		return tpl.DeepCopy(), nil
 	}
 
 	return database.Template{}, sql.ErrNoRows
@@ -1830,7 +1873,7 @@ func (q *fakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.DefaultTTL = arg.DefaultTTL
 		tpl.MaxTTL = arg.MaxTTL
 		q.templates[idx] = tpl
-		return tpl, nil
+		return tpl.DeepCopy(), nil
 	}
 
 	return database.Template{}, sql.ErrNoRows
@@ -1889,7 +1932,7 @@ func (q *fakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 				continue
 			}
 		}
-		templates = append(templates, template)
+		templates = append(templates, template.DeepCopy())
 	}
 	if len(templates) > 0 {
 		slices.SortFunc(templates, func(i, j database.Template) bool {
@@ -2190,6 +2233,9 @@ func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	defer q.mutex.RUnlock()
 
 	templates := slices.Clone(q.templates)
+	for i := range templates {
+		templates[i] = templates[i].DeepCopy()
+	}
 	slices.SortFunc(templates, func(i, j database.Template) bool {
 		if i.Name != j.Name {
 			return i.Name < j.Name
@@ -2611,7 +2657,7 @@ func (q *fakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after ti
 	return jobs, nil
 }
 
-func (q *fakeQuerier) GetProvisionerLogsByIDBetween(_ context.Context, arg database.GetProvisionerLogsByIDBetweenParams) ([]database.ProvisionerJobLog, error) {
+func (q *fakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.GetProvisionerLogsAfterIDParams) ([]database.ProvisionerJobLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -2622,9 +2668,6 @@ func (q *fakeQuerier) GetProvisionerLogsByIDBetween(_ context.Context, arg datab
 	logs := make([]database.ProvisionerJobLog, 0)
 	for _, jobLog := range q.provisionerJobLogs {
 		if jobLog.JobID != arg.JobID {
-			continue
-		}
-		if arg.CreatedBefore != 0 && jobLog.ID > arg.CreatedBefore {
 			continue
 		}
 		if arg.CreatedAfter != 0 && jobLog.ID < arg.CreatedAfter {
@@ -2775,7 +2818,7 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		AllowUserCancelWorkspaceJobs: arg.AllowUserCancelWorkspaceJobs,
 	}
 	q.templates = append(q.templates, template)
-	return template, nil
+	return template.DeepCopy(), nil
 }
 
 func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
@@ -3403,16 +3446,16 @@ func (q *fakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.Upda
 			template.UserACL = arg.UserACL
 
 			q.templates[i] = template
-			return template, nil
+			return template.DeepCopy(), nil
 		}
 	}
 
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) error {
+func (q *fakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return err
+		return database.TemplateVersion{}, err
 	}
 
 	q.mutex.Lock()
@@ -3424,10 +3467,11 @@ func (q *fakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.
 		}
 		templateVersion.TemplateID = arg.TemplateID
 		templateVersion.UpdatedAt = arg.UpdatedAt
+		templateVersion.Name = arg.Name
 		q.templateVersions[index] = templateVersion
-		return nil
+		return templateVersion, nil
 	}
-	return sql.ErrNoRows
+	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context, arg database.UpdateTemplateVersionDescriptionByJobIDParams) error {
@@ -3511,6 +3555,70 @@ func (q *fakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) GetWorkspaceAgentStartupLogsAfter(_ context.Context, arg database.GetWorkspaceAgentStartupLogsAfterParams) ([]database.WorkspaceAgentStartupLog, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	logs := []database.WorkspaceAgentStartupLog{}
+	for _, log := range q.workspaceAgentLogs {
+		if log.AgentID != arg.AgentID {
+			continue
+		}
+		if arg.CreatedAfter != 0 && log.ID < arg.CreatedAfter {
+			continue
+		}
+		logs = append(logs, log)
+	}
+	return logs, nil
+}
+
+func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(_ context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]database.WorkspaceAgentStartupLog, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	logs := []database.WorkspaceAgentStartupLog{}
+	id := int64(1)
+	if len(q.workspaceAgentLogs) > 0 {
+		id = q.workspaceAgentLogs[len(q.workspaceAgentLogs)-1].ID
+	}
+	outputLength := int32(0)
+	for index, output := range arg.Output {
+		id++
+		logs = append(logs, database.WorkspaceAgentStartupLog{
+			ID:        id,
+			AgentID:   arg.AgentID,
+			CreatedAt: arg.CreatedAt[index],
+			Output:    output,
+		})
+		outputLength += int32(len(output))
+	}
+	for index, agent := range q.workspaceAgents {
+		if agent.ID != arg.AgentID {
+			continue
+		}
+		// Greater than 1MB, same as the PostgreSQL constraint!
+		if agent.StartupLogsLength+outputLength > (1 << 20) {
+			return nil, &pq.Error{
+				Constraint: "max_startup_logs_length",
+				Table:      "workspace_agents",
+			}
+		}
+		agent.StartupLogsLength += outputLength
+		q.workspaceAgents[index] = agent
+		break
+	}
+	q.workspaceAgentLogs = append(q.workspaceAgentLogs, logs...)
+	return logs, nil
 }
 
 func (q *fakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.UpdateProvisionerJobByIDParams) error {
@@ -4179,7 +4287,7 @@ func (q *fakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
 	return q.derpMeshKey, nil
 }
 
-func (q *fakeQuerier) InsertOrUpdateLastUpdateCheck(_ context.Context, data string) error {
+func (q *fakeQuerier) UpsertLastUpdateCheck(_ context.Context, data string) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -4197,7 +4305,7 @@ func (q *fakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
 	return string(q.lastUpdateCheck), nil
 }
 
-func (q *fakeQuerier) InsertOrUpdateServiceBanner(_ context.Context, data string) error {
+func (q *fakeQuerier) UpsertServiceBanner(_ context.Context, data string) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -4216,7 +4324,7 @@ func (q *fakeQuerier) GetServiceBanner(_ context.Context) (string, error) {
 	return string(q.serviceBanner), nil
 }
 
-func (q *fakeQuerier) InsertOrUpdateLogoURL(_ context.Context, data string) error {
+func (q *fakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -4319,6 +4427,11 @@ func (q *fakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) 
 		}
 	}
 	return 0, sql.ErrNoRows
+}
+
+func (*fakeQuerier) DeleteOldWorkspaceAgentStartupLogs(_ context.Context) error {
+	// noop
+	return nil
 }
 
 func (q *fakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (database.UserLink, error) {
@@ -4725,6 +4838,23 @@ func (q *fakeQuerier) UpdateWorkspaceAgentLifecycleStateByID(_ context.Context, 
 	for i, agent := range q.workspaceAgents {
 		if agent.ID == arg.ID {
 			agent.LifecycleState = arg.LifecycleState
+			q.workspaceAgents[i] = agent
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateWorkspaceAgentStartupLogOverflowByID(_ context.Context, arg database.UpdateWorkspaceAgentStartupLogOverflowByIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for i, agent := range q.workspaceAgents {
+		if agent.ID == arg.ID {
+			agent.StartupLogsOverflowed = arg.StartupLogsOverflowed
 			q.workspaceAgents[i] = agent
 			return nil
 		}

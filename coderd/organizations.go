@@ -24,14 +24,9 @@ import (
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {object} codersdk.Organization
 // @Router /organizations/{organization} [get]
-func (api *API) organization(rw http.ResponseWriter, r *http.Request) {
+func (*API) organization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
-
-	if !api.Authorize(r, rbac.ActionRead, organization) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertOrganization(organization))
 }
@@ -48,12 +43,6 @@ func (api *API) organization(rw http.ResponseWriter, r *http.Request) {
 func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	// Create organization uses the organization resource without an OrgID.
-	// This means you need the site wide permission to make a new organization.
-	if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceOrganization) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	var req codersdk.CreateOrganizationRequest
 	if !httpapi.Read(ctx, rw, r, &req) {

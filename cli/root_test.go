@@ -10,18 +10,17 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/clitest"
+	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/codersdk"
@@ -34,39 +33,26 @@ var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
 var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?Z`)
 
-//nolint:tparallel,paralleltest // These test sets env vars.
 func TestCommandHelp(t *testing.T) {
-	commonEnv := map[string]string{
-		"HOME":             "~",
-		"CODER_CONFIG_DIR": "~/.config/coderv2",
-	}
-
+	t.Parallel()
 	rootClient, replacements := prepareTestData(t)
 
 	type testCase struct {
 		name string
 		cmd  []string
-		env  map[string]string
 	}
 	tests := []testCase{
 		{
 			name: "coder --help",
 			cmd:  []string{"--help"},
 		},
-		// Re-enable after clibase migrations.
-		// {
-		// 	name: "coder server --help",
-		// 	cmd:  []string{"server", "--help"},
-		// 	env: map[string]string{
-		// 		"CODER_CACHE_DIRECTORY": "~/.cache/coder",
-		// 	},
-		// },
+		{
+			name: "coder server --help",
+			cmd:  []string{"server", "--help"},
+		},
 		{
 			name: "coder agent --help",
 			cmd:  []string{"agent", "--help"},
-			env: map[string]string{
-				"CODER_AGENT_LOG_DIR": "/tmp",
-			},
 		},
 		{
 			name: "coder list --output json",
@@ -78,9 +64,12 @@ func TestCommandHelp(t *testing.T) {
 		},
 	}
 
-	root := cli.Root(cli.AGPL())
+	rootCmd := new(cli.RootCmd)
+	root, err := rootCmd.Command(rootCmd.AGPL())
+	require.NoError(t, err)
+
 ExtractCommandPathsLoop:
-	for _, cp := range extractVisibleCommandPaths(nil, root.Commands()) {
+	for _, cp := range extractVisibleCommandPaths(nil, root.Children) {
 		name := fmt.Sprintf("coder %s --help", strings.Join(cp, " "))
 		cmd := append(cp, "--help")
 		for _, tt := range tests {
@@ -91,100 +80,88 @@ ExtractCommandPathsLoop:
 		tests = append(tests, testCase{name: name, cmd: cmd})
 	}
 
-	wd, err := os.Getwd()
-	require.NoError(t, err)
-	if runtime.GOOS == "windows" {
-		wd = strings.ReplaceAll(wd, "\\", "\\\\")
-	}
-
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			env := make(map[string]string)
-			for k, v := range commonEnv {
-				env[k] = v
-			}
-			for k, v := range tt.env {
-				env[k] = v
-			}
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
 
-			// Unset all CODER_ environment variables for a clean slate.
-			for _, kv := range os.Environ() {
-				name := strings.Split(kv, "=")[0]
-				if _, ok := env[name]; !ok && strings.HasPrefix(name, "CODER_") {
-					t.Setenv(name, "")
-				}
-			}
-			// Override environment variables for a reproducible test.
-			for k, v := range env {
-				t.Setenv(k, v)
-			}
+			var outBuf bytes.Buffer
+			inv, cfg := clitest.New(t, tt.cmd...)
+			inv.Stderr = &outBuf
+			inv.Stdout = &outBuf
+			inv.Environ.Set("CODER_URL", rootClient.URL.String())
+			inv.Environ.Set("CODER_SESSION_TOKEN", rootClient.SessionToken())
+			inv.Environ.Set("CODER_CACHE_DIRECTORY", "~/.cache")
 
-			ctx, _ := testutil.Context(t)
-
-			tmpwd := "/"
-			if runtime.GOOS == "windows" {
-				tmpwd = "C:\\"
-			}
-			err := os.Chdir(tmpwd)
-			var buf bytes.Buffer
-			cmd, cfg := clitest.New(t, tt.cmd...)
 			clitest.SetupConfig(t, rootClient, cfg)
-			cmd.SetOut(&buf)
-			assert.NoError(t, err)
-			err = cmd.ExecuteContext(ctx)
-			err2 := os.Chdir(wd)
-			require.NoError(t, err)
-			require.NoError(t, err2)
 
-			got := buf.Bytes()
+			clitest.StartWithWaiter(t, inv.WithContext(ctx)).RequireSuccess()
 
-			replace := map[string][]byte{
-				// Remove CRLF newlines (Windows).
-				string([]byte{'\r', '\n'}): []byte("\n"),
-				// The `coder templates create --help` command prints the path
-				// to the working directory (--directory flag default value).
-				fmt.Sprintf("%q", tmpwd): []byte("\"[current directory]\""),
+			actual := outBuf.Bytes()
+			if len(actual) == 0 {
+				t.Fatal("no output")
 			}
+
 			for k, v := range replacements {
-				replace[k] = []byte(v)
-			}
-			for k, v := range replace {
-				got = bytes.ReplaceAll(got, []byte(k), v)
+				actual = bytes.ReplaceAll(actual, []byte(k), []byte(v))
 			}
 
 			// Replace any timestamps with a placeholder.
-			got = timestampRegex.ReplaceAll(got, []byte("[timestamp]"))
+			actual = timestampRegex.ReplaceAll(actual, []byte("[timestamp]"))
 
-			gf := filepath.Join("testdata", strings.Replace(tt.name, " ", "_", -1)+".golden")
+			homeDir, err := os.UserHomeDir()
+			require.NoError(t, err)
+
+			configDir := config.DefaultDir()
+			actual = bytes.ReplaceAll(actual, []byte(configDir), []byte("~/.config/coderv2"))
+
+			actual = bytes.ReplaceAll(actual, []byte(codersdk.DefaultCacheDir()), []byte("[cache dir]"))
+
+			// The home directory changes depending on the test environment.
+			actual = bytes.ReplaceAll(actual, []byte(homeDir), []byte("~"))
+
+			goldenPath := filepath.Join("testdata", strings.Replace(tt.name, " ", "_", -1)+".golden")
 			if *updateGoldenFiles {
-				t.Logf("update golden file for: %q: %s", tt.name, gf)
-				err = os.WriteFile(gf, got, 0o600)
+				t.Logf("update golden file for: %q: %s", tt.name, goldenPath)
+				err = os.WriteFile(goldenPath, actual, 0o600)
 				require.NoError(t, err, "update golden file")
 			}
 
-			want, err := os.ReadFile(gf)
+			expected, err := os.ReadFile(goldenPath)
 			require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
-			// Remove CRLF newlines (Windows).
-			want = bytes.ReplaceAll(want, []byte{'\r', '\n'}, []byte{'\n'})
-			require.Equal(t, string(want), string(got), "golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes", gf)
+
+			// Normalize files to tolerate different operating systems.
+			for _, r := range []struct {
+				old string
+				new string
+			}{
+				{"\r\n", "\n"},
+				{`~\.cache\coder`, "~/.cache/coder"},
+				{`C:\Users\RUNNER~1\AppData\Local\Temp`, "/tmp"},
+				{os.TempDir(), "/tmp"},
+			} {
+				expected = bytes.ReplaceAll(expected, []byte(r.old), []byte(r.new))
+				actual = bytes.ReplaceAll(actual, []byte(r.old), []byte(r.new))
+			}
+			require.Equal(
+				t, string(expected), string(actual),
+				"golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes",
+				goldenPath,
+			)
 		})
 	}
 }
 
-func extractVisibleCommandPaths(cmdPath []string, cmds []*cobra.Command) [][]string {
+func extractVisibleCommandPaths(cmdPath []string, cmds []*clibase.Cmd) [][]string {
 	var cmdPaths [][]string
 	for _, c := range cmds {
 		if c.Hidden {
 			continue
 		}
-		// TODO: re-enable after clibase migration.
-		if c.Name() == "server" {
-			continue
-		}
 		cmdPath := append(cmdPath, c.Name())
 		cmdPaths = append(cmdPaths, cmdPath)
-		cmdPaths = append(cmdPaths, extractVisibleCommandPaths(cmdPath, c.Commands())...)
+		cmdPaths = append(cmdPaths, extractVisibleCommandPaths(cmdPath, c.Children)...)
 	}
 	return cmdPaths
 }
@@ -241,113 +218,13 @@ func prepareTestData(t *testing.T) (*codersdk.Client, map[string]string) {
 
 func TestRoot(t *testing.T) {
 	t.Parallel()
-	t.Run("FormatCobraError", func(t *testing.T) {
-		t.Parallel()
-
-		t.Run("OK", func(t *testing.T) {
-			t.Parallel()
-
-			cmd, _ := clitest.New(t, "delete")
-
-			cmd, err := cmd.ExecuteC()
-			errStr := cli.FormatCobraError(err, cmd)
-			require.Contains(t, errStr, "Run 'coder delete --help' for usage.")
-		})
-
-		t.Run("Verbose", func(t *testing.T) {
-			t.Parallel()
-
-			// Test that the verbose error is masked without verbose flag.
-			t.Run("NoVerboseAPIError", func(t *testing.T) {
-				t.Parallel()
-
-				cmd, _ := clitest.New(t)
-
-				cmd.RunE = func(cmd *cobra.Command, args []string) error {
-					var err error = &codersdk.Error{
-						Response: codersdk.Response{
-							Message: "This is a message.",
-						},
-						Helper: "Try this instead.",
-					}
-
-					err = xerrors.Errorf("wrap me: %w", err)
-
-					return err
-				}
-
-				cmd, err := cmd.ExecuteC()
-				errStr := cli.FormatCobraError(err, cmd)
-				require.Contains(t, errStr, "This is a message. Try this instead.")
-				require.NotContains(t, errStr, err.Error())
-			})
-
-			// Assert that a regular error is not masked when verbose is not
-			// specified.
-			t.Run("NoVerboseRegularError", func(t *testing.T) {
-				t.Parallel()
-
-				cmd, _ := clitest.New(t)
-
-				cmd.RunE = func(cmd *cobra.Command, args []string) error {
-					return xerrors.Errorf("this is a non-codersdk error: %w", xerrors.Errorf("a wrapped error"))
-				}
-
-				cmd, err := cmd.ExecuteC()
-				errStr := cli.FormatCobraError(err, cmd)
-				require.Contains(t, errStr, err.Error())
-			})
-
-			// Test that both the friendly error and the verbose error are
-			// displayed when verbose is passed.
-			t.Run("APIError", func(t *testing.T) {
-				t.Parallel()
-
-				cmd, _ := clitest.New(t, "--verbose")
-
-				cmd.RunE = func(cmd *cobra.Command, args []string) error {
-					var err error = &codersdk.Error{
-						Response: codersdk.Response{
-							Message: "This is a message.",
-						},
-						Helper: "Try this instead.",
-					}
-
-					err = xerrors.Errorf("wrap me: %w", err)
-
-					return err
-				}
-
-				cmd, err := cmd.ExecuteC()
-				errStr := cli.FormatCobraError(err, cmd)
-				require.Contains(t, errStr, "This is a message. Try this instead.")
-				require.Contains(t, errStr, err.Error())
-			})
-
-			// Assert that a regular error is not masked when verbose specified.
-			t.Run("RegularError", func(t *testing.T) {
-				t.Parallel()
-
-				cmd, _ := clitest.New(t, "--verbose")
-
-				cmd.RunE = func(cmd *cobra.Command, args []string) error {
-					return xerrors.Errorf("this is a non-codersdk error: %w", xerrors.Errorf("a wrapped error"))
-				}
-
-				cmd, err := cmd.ExecuteC()
-				errStr := cli.FormatCobraError(err, cmd)
-				require.Contains(t, errStr, err.Error())
-			})
-		})
-	})
-
 	t.Run("Version", func(t *testing.T) {
 		t.Parallel()
 
 		buf := new(bytes.Buffer)
-		cmd, _ := clitest.New(t, "version")
-		cmd.SetOut(buf)
-		err := cmd.Execute()
+		inv, _ := clitest.New(t, "version")
+		inv.Stdout = buf
+		err := inv.Run()
 		require.NoError(t, err)
 
 		output := buf.String()
@@ -370,9 +247,9 @@ func TestRoot(t *testing.T) {
 		}))
 		defer srv.Close()
 		buf := new(bytes.Buffer)
-		cmd, _ := clitest.New(t, "--header", "X-Testing=wow", "login", srv.URL)
-		cmd.SetOut(buf)
+		inv, _ := clitest.New(t, "--header", "X-Testing=wow", "login", srv.URL)
+		inv.Stdout = buf
 		// This won't succeed, because we're using the login cmd to assert requests.
-		_ = cmd.Execute()
+		_ = inv.Run()
 	})
 }

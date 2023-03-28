@@ -41,7 +41,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/afero"
-	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
@@ -65,6 +64,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/dbpurge"
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitauth"
@@ -85,6 +85,7 @@ import (
 	"github.com/coder/coder/provisionersdk"
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/tailnet"
+	"github.com/coder/wgtunnel/tunnelsdk"
 )
 
 // ReadGitAuthProvidersFromEnv is provided for compatibility purposes with the
@@ -95,7 +96,7 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 	sort.Strings(environ)
 
 	var providers []codersdk.GitAuthConfig
-	for _, v := range clibase.ParseEnviron(environ, envPrefix+"GITAUTH_") {
+	for _, v := range clibase.ParseEnviron(environ, "CODER_GITAUTH_") {
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
 			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
@@ -155,92 +156,29 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 }
 
 // nolint:gocyclo
-func Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *cobra.Command {
-	root := &cobra.Command{
-		Use:                "server",
-		Short:              "Start a Coder server",
-		DisableFlagParsing: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
+func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Cmd {
+	var (
+		cfg  = new(codersdk.DeploymentValues)
+		opts = cfg.Options()
+	)
+	serverCmd := &clibase.Cmd{
+		Use:        "server",
+		Short:      "Start a Coder server",
+		Options:    opts,
+		Middleware: clibase.RequireNArgs(0),
+		Handler: func(inv *clibase.Invocation) error {
 			// Main command context for managing cancellation of running
 			// services.
-			ctx, cancel := context.WithCancel(cmd.Context())
+			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-
-			cfg := &codersdk.DeploymentValues{}
-			cliOpts := cfg.Options()
-			var configDir clibase.String
-			// This is a hack to get around the fact that the Cobra-defined
-			// flags are not available.
-			cliOpts.Add(clibase.Option{
-				Name:        "Global Config",
-				Flag:        config.FlagName,
-				Description: "Global Config is ignored in server mode.",
-				Hidden:      true,
-				Default:     config.DefaultDir(),
-				Value:       &configDir,
-			})
-
-			err := cliOpts.SetDefaults()
-			if err != nil {
-				return xerrors.Errorf("set defaults: %w", err)
-			}
-
-			err = cliOpts.ParseEnv(clibase.ParseEnviron(os.Environ(), envPrefix))
-			if err != nil {
-				return xerrors.Errorf("parse env: %w", err)
-			}
-
-			flagSet := cliOpts.FlagSet()
-			// These parents and children will be moved once we convert the
-			// rest of the `cli` package to clibase.
-			flagSet.Usage = usageFn(cmd.ErrOrStderr(), &clibase.Cmd{
-				Parent: &clibase.Cmd{
-					Use: "coder",
-				},
-				Children: []*clibase.Cmd{
-					{
-						Use:   "postgres-builtin-url",
-						Short: "Output the connection URL for the built-in PostgreSQL deployment.",
-					},
-					{
-						Use:   "postgres-builtin-serve",
-						Short: "Run the built-in PostgreSQL deployment.",
-					},
-				},
-				Use:   "server [flags]",
-				Short: "Start a Coder server",
-				Long: `
-The server provides the Coder dashboard, API, and provisioners.
-If no options are provided, the server will start with a built-in postgres
-and an access URL provided by Coder's cloud service.
-
-Use the following command to print the built-in postgres URL:
-	$ coder server postgres-builtin-url
-
-Use the following command to manually run the built-in postgres:
-	$ coder server postgres-builtin-serve
-
-Options may be provided via environment variables prefixed with "CODER_",
-flags, and YAML configuration. The precedence is as follows:
-	1. Defaults
-	2. YAML configuration
-	3. Environment variables
-	4. Flags
-				`,
-				Options: cliOpts,
-			})
-			err = flagSet.Parse(args)
-			if err != nil {
-				return xerrors.Errorf("parse flags: %w", err)
-			}
 
 			if cfg.WriteConfig {
 				// TODO: this should output to a file.
-				n, err := cliOpts.ToYAML()
+				n, err := opts.ToYAML()
 				if err != nil {
 					return xerrors.Errorf("generate yaml: %w", err)
 				}
-				enc := yaml.NewEncoder(cmd.ErrOrStderr())
+				enc := yaml.NewEncoder(inv.Stderr)
 				err = enc.Encode(n)
 				if err != nil {
 					return xerrors.Errorf("encode yaml: %w", err)
@@ -253,7 +191,7 @@ flags, and YAML configuration. The precedence is as follows:
 			}
 
 			// Print deprecation warnings.
-			for _, opt := range cliOpts {
+			for _, opt := range opts {
 				if opt.UseInstead == nil {
 					continue
 				}
@@ -271,8 +209,8 @@ flags, and YAML configuration. The precedence is as follows:
 				}
 				warnStr += "instead.\n"
 
-				cmd.PrintErr(
-					cliui.Styles.Warn.Render("WARN: ") + warnStr,
+				cliui.Warn(inv.Stderr,
+					warnStr,
 				)
 			}
 
@@ -311,8 +249,8 @@ flags, and YAML configuration. The precedence is as follows:
 				filesRateLimit = -1
 			}
 
-			printLogo(cmd)
-			logger, logCloser, err := buildLogger(cmd, cfg)
+			printLogo(inv)
+			logger, logCloser, err := buildLogger(inv, cfg)
 			if err != nil {
 				return xerrors.Errorf("make logger: %w", err)
 			}
@@ -358,7 +296,7 @@ flags, and YAML configuration. The precedence is as follows:
 			shouldCoderTrace := cfg.Telemetry.Enable.Value() && !isTest()
 			// Only override if telemetryTraceEnable was specifically set.
 			// By default we want it to be controlled by telemetryEnable.
-			if cmd.Flags().Changed("telemetry-trace") {
+			if inv.ParsedFlags().Changed("telemetry-trace") {
 				shouldCoderTrace = cfg.Telemetry.Trace.Value()
 			}
 
@@ -387,12 +325,13 @@ flags, and YAML configuration. The precedence is as follows:
 				}
 			}
 
-			config := config.Root(configDir)
+			config := r.createConfig()
+
 			builtinPostgres := false
 			// Only use built-in if PostgreSQL URL isn't specified!
 			if !cfg.InMemoryDatabase && cfg.PostgresURL == "" {
 				var closeFunc func() error
-				cmd.Printf("Using built-in PostgreSQL (%s)\n", config.PostgresPath())
+				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)", config.PostgresPath())
 				pgURL, closeFunc, err := startBuiltinPostgres(ctx, config, logger)
 				if err != nil {
 					return err
@@ -404,12 +343,12 @@ flags, and YAML configuration. The precedence is as follows:
 				}
 				builtinPostgres = true
 				defer func() {
-					cmd.Printf("Stopping built-in PostgreSQL...\n")
+					cliui.Infof(inv.Stdout, "Stopping built-in PostgreSQL...")
 					// Gracefully shut PostgreSQL down!
 					if err := closeFunc(); err != nil {
-						cmd.Printf("Failed to stop built-in PostgreSQL: %v\n", err)
+						cliui.Errorf(inv.Stderr, "Failed to stop built-in PostgreSQL: %v", err)
 					} else {
-						cmd.Printf("Stopped built-in PostgreSQL\n")
+						cliui.Infof(inv.Stdout, "Stopped built-in PostgreSQL")
 					}
 				}()
 			}
@@ -421,7 +360,7 @@ flags, and YAML configuration. The precedence is as follows:
 			if cfg.HTTPAddress.String() != "" {
 				httpListener, err = net.Listen("tcp", cfg.HTTPAddress.String())
 				if err != nil {
-					return xerrors.Errorf("listen %q: %w", cfg.HTTPAddress.String(), err)
+					return err
 				}
 				defer httpListener.Close()
 
@@ -436,7 +375,7 @@ flags, and YAML configuration. The precedence is as follows:
 
 				// We want to print out the address the user supplied, not the
 				// loopback device.
-				cmd.Println("Started HTTP listener at", (&url.URL{Scheme: "http", Host: listenAddrStr}).String())
+				_, _ = fmt.Fprintf(inv.Stdout, "Started HTTP listener at %s\n", (&url.URL{Scheme: "http", Host: listenAddrStr}).String())
 
 				// Set the http URL we want to use when connecting to ourselves.
 				tcpAddr, tcpAddrValid := httpListener.Addr().(*net.TCPAddr)
@@ -464,8 +403,8 @@ flags, and YAML configuration. The precedence is as follows:
 
 				// DEPRECATED: This redirect used to default to true.
 				// It made more sense to have the redirect be opt-in.
-				if os.Getenv("CODER_TLS_REDIRECT_HTTP") == "true" || cmd.Flags().Changed("tls-redirect-http-to-https") {
-					cmd.PrintErr(cliui.Styles.Warn.Render("WARN:") + " --tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead\n")
+				if inv.Environ.Get("CODER_TLS_REDIRECT_HTTP") == "true" || inv.ParsedFlags().Changed("tls-redirect-http-to-https") {
+					cliui.Warn(inv.Stderr, "--tls-redirect-http-to-https is deprecated, please use --redirect-to-access-url instead")
 					cfg.RedirectToAccessURL = cfg.TLS.RedirectHTTP
 				}
 
@@ -481,7 +420,7 @@ flags, and YAML configuration. The precedence is as follows:
 				}
 				httpsListenerInner, err := net.Listen("tcp", cfg.TLS.Address.String())
 				if err != nil {
-					return xerrors.Errorf("listen %q: %w", cfg.TLS.Address.String(), err)
+					return err
 				}
 				defer httpsListenerInner.Close()
 
@@ -500,7 +439,7 @@ flags, and YAML configuration. The precedence is as follows:
 
 				// We want to print out the address the user supplied, not the
 				// loopback device.
-				cmd.Println("Started TLS/HTTPS listener at", (&url.URL{Scheme: "https", Host: listenAddrStr}).String())
+				_, _ = fmt.Fprintf(inv.Stdout, "Started TLS/HTTPS listener at %s\n", (&url.URL{Scheme: "https", Host: listenAddrStr}).String())
 
 				// Set the https URL we want to use when connecting to
 				// ourselves.
@@ -538,34 +477,25 @@ flags, and YAML configuration. The precedence is as follows:
 				return xerrors.Errorf("configure http client: %w", err)
 			}
 
-			var (
-				ctxTunnel, closeTunnel = context.WithCancel(ctx)
-				tunnel                 *devtunnel.Tunnel
-				tunnelErr              <-chan error
-			)
-			defer closeTunnel()
-
 			// If the access URL is empty, we attempt to run a reverse-proxy
 			// tunnel to make the initial setup really simple.
+			var (
+				tunnel     *tunnelsdk.Tunnel
+				tunnelDone <-chan struct{} = make(chan struct{}, 1)
+			)
 			if cfg.AccessURL.String() == "" {
-				cmd.Printf("Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
-				tunnel, tunnelErr, err = devtunnel.New(ctxTunnel, logger.Named("devtunnel"))
+				cliui.Infof(inv.Stderr, "Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL")
+				tunnel, err = devtunnel.New(ctx, logger.Named("devtunnel"), cfg.WgtunnelHost.String())
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
 				}
-				err = cfg.AccessURL.Set(tunnel.URL)
-				if err != nil {
-					return xerrors.Errorf("set access url: %w", err)
-				}
+				defer tunnel.Close()
+				tunnelDone = tunnel.Wait()
+				cfg.AccessURL = clibase.URL(*tunnel.URL)
 
 				if cfg.WildcardAccessURL.String() == "" {
-					u, err := parseURL(tunnel.URL)
-					if err != nil {
-						return xerrors.Errorf("parse tunnel url: %w", err)
-					}
-
 					// Suffixed wildcard access URL.
-					u, err = url.Parse(fmt.Sprintf("*--%s", u.Hostname()))
+					u, err := url.Parse(fmt.Sprintf("*--%s", tunnel.URL.Hostname()))
 					if err != nil {
 						return xerrors.Errorf("parse wildcard url: %w", err)
 					}
@@ -593,14 +523,15 @@ flags, and YAML configuration. The precedence is as follows:
 				if isLocal {
 					reason = "isn't externally reachable"
 				}
-				cmd.Printf(
-					"%s The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n",
-					cliui.Styles.Warn.Render("Warning:"), cliui.Styles.Field.Render(cfg.AccessURL.String()), reason,
+				cliui.Warnf(
+					inv.Stderr,
+					"The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n",
+					cliui.Styles.Field.Render(cfg.AccessURL.String()), reason,
 				)
 			}
 
 			// A newline is added before for visibility in terminal output.
-			cmd.Printf("\nView the Web UI: %s\n", cfg.AccessURL.String())
+			cliui.Infof(inv.Stdout, "\nView the Web UI: %s", cfg.AccessURL.String())
 
 			// Used for zero-trust instance identity with Google Cloud.
 			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
@@ -672,6 +603,11 @@ flags, and YAML configuration. The precedence is as follows:
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
+			configSSHOptions, err := cfg.SSHConfig.ParseOptions()
+			if err != nil {
+				return xerrors.Errorf("parse ssh config options %q: %w", cfg.SSHConfig.SSHConfigOptions.String(), err)
+			}
+
 			options := &coderd.Options{
 				AccessURL:                   cfg.AccessURL.Value(),
 				AppHostname:                 appHostname,
@@ -696,6 +632,10 @@ flags, and YAML configuration. The precedence is as follows:
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
+				SSHConfig: codersdk.SSHConfigResponse{
+					HostnamePrefix:   cfg.SSHConfig.DeploymentName.String(),
+					SSHConfigOptions: configSSHOptions,
+				},
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates
@@ -787,6 +727,7 @@ flags, and YAML configuration. The precedence is as follows:
 					AllowSignups:        cfg.OIDC.AllowSignups.Value(),
 					UsernameField:       cfg.OIDC.UsernameField.String(),
 					GroupField:          cfg.OIDC.GroupField.String(),
+					GroupMapping:        cfg.OIDC.GroupMapping.Value,
 					SignInText:          cfg.OIDC.SignInText.String(),
 					IconURL:             cfg.OIDC.IconURL.String(),
 					IgnoreEmailVerified: cfg.OIDC.IgnoreEmailVerified.Value(),
@@ -940,7 +881,7 @@ flags, and YAML configuration. The precedence is as follows:
 			// than abstracting the Coder API itself.
 			coderAPI, coderAPICloser, err := newAPI(ctx, options)
 			if err != nil {
-				return err
+				return xerrors.Errorf("create coder API: %w", err)
 			}
 
 			client := codersdk.New(localURL)
@@ -978,10 +919,15 @@ flags, and YAML configuration. The precedence is as follows:
 					_ = daemon.Close()
 				}
 			}()
+
+			var provisionerdWaitGroup sync.WaitGroup
+			defer provisionerdWaitGroup.Wait()
 			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
 			for i := int64(0); i < cfg.Provisioner.Daemons.Value(); i++ {
 				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
-				daemon, err := newProvisionerDaemon(ctx, coderAPI, provisionerdMetrics, logger, cfg, daemonCacheDir, errCh, false)
+				daemon, err := newProvisionerDaemon(
+					ctx, coderAPI, provisionerdMetrics, logger, cfg, daemonCacheDir, errCh, false, &provisionerdWaitGroup,
+				)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
 				}
@@ -990,6 +936,10 @@ flags, and YAML configuration. The precedence is as follows:
 
 			shutdownConnsCtx, shutdownConns := context.WithCancel(ctx)
 			defer shutdownConns()
+
+			// Ensures that old database entries are cleaned up over time!
+			purger := dbpurge.New(ctx, logger, options.Database)
+			defer purger.Close()
 
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.
@@ -1057,7 +1007,7 @@ flags, and YAML configuration. The precedence is as follows:
 				}
 			}()
 
-			cmd.Println("\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
+			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
@@ -1077,17 +1027,15 @@ flags, and YAML configuration. The precedence is as follows:
 			select {
 			case <-notifyCtx.Done():
 				exitErr = notifyCtx.Err()
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), cliui.Styles.Bold.Render(
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.Styles.Bold.Render(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
-			case exitErr = <-tunnelErr:
-				if exitErr == nil {
-					exitErr = xerrors.New("dev tunnel closed unexpectedly")
-				}
+			case <-tunnelDone:
+				exitErr = xerrors.New("dev tunnel closed unexpectedly")
 			case exitErr = <-errCh:
 			}
 			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
-				cmd.Printf("Unexpected error, shutting down server: %s\n", exitErr)
+				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
 			}
 
 			// Begin clean shut down stage, we try to shut down services
@@ -1099,18 +1047,18 @@ flags, and YAML configuration. The precedence is as follows:
 
 			_, err = daemon.SdNotify(false, daemon.SdNotifyStopping)
 			if err != nil {
-				cmd.Printf("Notify systemd failed: %s", err)
+				cliui.Errorf(inv.Stderr, "Notify systemd failed: %s", err)
 			}
 
 			// Stop accepting new connections without interrupting
 			// in-flight requests, give in-flight requests 5 seconds to
 			// complete.
-			cmd.Println("Shutting down API server...")
+			cliui.Info(inv.Stdout, "Shutting down API server..."+"\n")
 			err = shutdownWithTimeout(httpServer.Shutdown, 3*time.Second)
 			if err != nil {
-				cmd.Printf("API server shutdown took longer than 3s: %s\n", err)
+				cliui.Errorf(inv.Stderr, "API server shutdown took longer than 3s: %s\n", err)
 			} else {
-				cmd.Printf("Gracefully shut down API server\n")
+				cliui.Info(inv.Stdout, "Gracefully shut down API server\n")
 			}
 			// Cancel any remaining in-flight requests.
 			shutdownConns()
@@ -1125,36 +1073,36 @@ flags, and YAML configuration. The precedence is as follows:
 				go func() {
 					defer wg.Done()
 
-					if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
-						cmd.Printf("Shutting down provisioner daemon %d...\n", id)
+					if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
+						cliui.Infof(inv.Stdout, "Shutting down provisioner daemon %d...\n", id)
 					}
 					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
 					if err != nil {
-						cmd.PrintErrf("Failed to shutdown provisioner daemon %d: %s\n", id, err)
+						cliui.Errorf(inv.Stderr, "Failed to shutdown provisioner daemon %d: %s\n", id, err)
 						return
 					}
 					err = provisionerDaemon.Close()
 					if err != nil {
-						cmd.PrintErrf("Close provisioner daemon %d: %s\n", id, err)
+						cliui.Errorf(inv.Stderr, "Close provisioner daemon %d: %s\n", id, err)
 						return
 					}
-					if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
-						cmd.Printf("Gracefully shut down provisioner daemon %d\n", id)
+					if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
+						cliui.Infof(inv.Stdout, "Gracefully shut down provisioner daemon %d\n", id)
 					}
 				}()
 			}
 			wg.Wait()
 
-			cmd.Println("Waiting for WebSocket connections to close...")
+			cliui.Info(inv.Stdout, "Waiting for WebSocket connections to close..."+"\n")
 			_ = coderAPICloser.Close()
-			cmd.Println("Done waiting for WebSocket connections")
+			cliui.Info(inv.Stdout, "Done waiting for WebSocket connections"+"\n")
 
 			// Close tunnel after we no longer have in-flight connections.
 			if tunnel != nil {
-				cmd.Println("Waiting for tunnel to close...")
-				closeTunnel()
-				<-tunnelErr
-				cmd.Println("Done waiting for tunnel")
+				cliui.Infof(inv.Stdout, "Waiting for tunnel to close...")
+				_ = tunnel.Close()
+				<-tunnel.Wait()
+				cliui.Infof(inv.Stdout, "Done waiting for tunnel")
 			}
 
 			// Ensures a last report can be sent before exit!
@@ -1163,40 +1111,49 @@ flags, and YAML configuration. The precedence is as follows:
 			// Trigger context cancellation for any remaining services.
 			cancel()
 
-			if xerrors.Is(exitErr, context.Canceled) {
+			switch {
+			case xerrors.Is(exitErr, context.DeadlineExceeded):
+				cliui.Warnf(inv.Stderr, "Graceful shutdown timed out")
+				// Errors here cause a significant number of benign CI failures.
+				return nil
+			case xerrors.Is(exitErr, context.Canceled):
+				return nil
+			case exitErr != nil:
+				return xerrors.Errorf("graceful shutdown: %w", exitErr)
+			default:
 				return nil
 			}
-			return exitErr
 		},
 	}
 
 	var pgRawURL bool
-	postgresBuiltinURLCmd := &cobra.Command{
+
+	postgresBuiltinURLCmd := &clibase.Cmd{
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			cfg := createConfig(cmd)
-			url, err := embeddedPostgresURL(cfg)
+		Handler: func(inv *clibase.Invocation) error {
+			url, err := embeddedPostgresURL(r.createConfig())
 			if err != nil {
 				return err
 			}
 			if pgRawURL {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", url)
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", url)
 			} else {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", cliui.Styles.Code.Render(fmt.Sprintf("psql %q", url)))
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.Styles.Code.Render(fmt.Sprintf("psql %q", url)))
 			}
 			return nil
 		},
 	}
-	postgresBuiltinServeCmd := &cobra.Command{
+
+	postgresBuiltinServeCmd := &clibase.Cmd{
 		Use:   "postgres-builtin-serve",
 		Short: "Run the built-in PostgreSQL deployment.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
+		Handler: func(inv *clibase.Invocation) error {
+			ctx := inv.Context()
 
-			cfg := createConfig(cmd)
-			logger := slog.Make(sloghuman.Sink(cmd.ErrOrStderr()))
-			if ok, _ := cmd.Flags().GetBool(varVerbose); ok {
+			cfg := r.createConfig()
+			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+			if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
@@ -1210,41 +1167,34 @@ flags, and YAML configuration. The precedence is as follows:
 			defer func() { _ = closePg() }()
 
 			if pgRawURL {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", url)
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", url)
 			} else {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", cliui.Styles.Code.Render(fmt.Sprintf("psql %q", url)))
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.Styles.Code.Render(fmt.Sprintf("psql %q", url)))
 			}
 
 			<-ctx.Done()
 			return nil
 		},
 	}
-	postgresBuiltinURLCmd.Flags().BoolVar(&pgRawURL, "raw-url", false, "Output the raw connection URL instead of a psql command.")
-	postgresBuiltinServeCmd.Flags().BoolVar(&pgRawURL, "raw-url", false, "Output the raw connection URL instead of a psql command.")
 
-	createAdminUserCommand := newCreateAdminUserCommand()
-	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		// Help is handled by clibase in command body.
-	})
-	root.AddCommand(postgresBuiltinURLCmd, postgresBuiltinServeCmd, createAdminUserCommand)
+	createAdminUserCmd := r.newCreateAdminUserCommand()
 
-	return root
-}
+	rawURLOpt := clibase.Option{
+		Flag: "raw-url",
 
-// parseURL parses a string into a URL.
-func parseURL(u string) (*url.URL, error) {
-	hasScheme := strings.HasPrefix(u, "http:") || strings.HasPrefix(u, "https:")
-
-	if !hasScheme {
-		return nil, xerrors.Errorf("URL %q must have a scheme of either http or https", u)
+		Value:       clibase.BoolOf(&pgRawURL),
+		Description: "Output the raw connection URL instead of a psql command.",
 	}
+	createAdminUserCmd.Options.Add(rawURLOpt)
+	postgresBuiltinURLCmd.Options.Add(rawURLOpt)
+	postgresBuiltinServeCmd.Options.Add(rawURLOpt)
 
-	parsed, err := url.Parse(u)
-	if err != nil {
-		return nil, err
-	}
+	serverCmd.Children = append(
+		serverCmd.Children,
+		createAdminUserCmd, postgresBuiltinURLCmd, postgresBuiltinServeCmd,
+	)
 
-	return parsed, nil
+	return serverCmd
 }
 
 // isLocalURL returns true if the hostname of the provided URL appears to
@@ -1280,6 +1230,7 @@ func newProvisionerDaemon(
 	cacheDir string,
 	errCh chan error,
 	dev bool,
+	wg *sync.WaitGroup,
 ) (srv *provisionerd.Server, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -1294,12 +1245,16 @@ func newProvisionerDaemon(
 	}
 
 	terraformClient, terraformServer := provisionersdk.MemTransportPipe()
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		<-ctx.Done()
 		_ = terraformClient.Close()
 		_ = terraformServer.Close()
 	}()
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		defer cancel()
 
 		err := terraform.Serve(ctx, &terraform.ServeOptions{
@@ -1328,12 +1283,16 @@ func newProvisionerDaemon(
 	// include echo provisioner when in dev mode
 	if dev {
 		echoClient, echoServer := provisionersdk.MemTransportPipe()
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			<-ctx.Done()
 			_ = echoClient.Close()
 			_ = echoServer.Close()
 		}()
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			defer cancel()
 
 			err := echo.Serve(ctx, afero.NewOsFs(), &provisionersdk.ServeOptions{Listener: echoServer})
@@ -1366,13 +1325,13 @@ func newProvisionerDaemon(
 }
 
 // nolint: revive
-func printLogo(cmd *cobra.Command) {
+func printLogo(inv *clibase.Invocation) {
 	// Only print the logo in TTYs.
-	if !isTTYOut(cmd) {
+	if !isTTYOut(inv) {
 		return
 	}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s - Your Self-Hosted Remote Development Platform\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
+	_, _ = fmt.Fprintf(inv.Stdout, "%s - Your Self-Hosted Remote Development Platform\n", cliui.Styles.Bold.Render("Coder "+buildinfo.Version()))
 }
 
 func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, error) {
@@ -1771,7 +1730,7 @@ func isLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentValues) (slog.Logger, func(), error) {
+func buildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.Logger, func(), error) {
 	var (
 		sinks   = []slog.Sink{}
 		closers = []func() error{}
@@ -1782,10 +1741,10 @@ func buildLogger(cmd *cobra.Command, cfg *codersdk.DeploymentValues) (slog.Logge
 		case "":
 
 		case "/dev/stdout":
-			sinks = append(sinks, sinkFn(cmd.OutOrStdout()))
+			sinks = append(sinks, sinkFn(inv.Stdout))
 
 		case "/dev/stderr":
-			sinks = append(sinks, sinkFn(cmd.ErrOrStderr()))
+			sinks = append(sinks, sinkFn(inv.Stderr))
 
 		default:
 			fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)

@@ -2,16 +2,17 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
 // createUserStatusCommand sets a user status.
-func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
+func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibase.Cmd {
 	var verb string
 	var pastVerb string
 	var aliases []string
@@ -31,29 +32,29 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 		panic(fmt.Sprintf("%s is not supported", sdkStatus))
 	}
 
+	client := new(codersdk.Client)
+
 	var columns []string
-	cmd := &cobra.Command{
+	cmd := &clibase.Cmd{
 		Use:     fmt.Sprintf("%s <username|user_id>", verb),
 		Short:   short,
-		Args:    cobra.ExactArgs(1),
 		Aliases: aliases,
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Command: fmt.Sprintf("coder users %s example_user", verb),
 			},
 		),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return err
-			}
-
-			identifier := args[0]
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			identifier := inv.Args[0]
 			if identifier == "" {
 				return xerrors.Errorf("user identifier cannot be an empty string")
 			}
 
-			user, err := client.User(cmd.Context(), identifier)
+			user, err := client.User(inv.Context(), identifier)
 			if err != nil {
 				return xerrors.Errorf("fetch user: %w", err)
 			}
@@ -65,16 +66,16 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 			if err != nil {
 				return xerrors.Errorf("render user table: %w", err)
 			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), table)
+			_, _ = fmt.Fprintln(inv.Stdout, table)
 
 			// User status is already set to this
 			if user.Status == sdkStatus {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "User status is already %q\n", sdkStatus)
+				_, _ = fmt.Fprintf(inv.Stdout, "User status is already %q\n", sdkStatus)
 				return nil
 			}
 
 			// Prompt to confirm the action
-			_, err = cliui.Prompt(cmd, cliui.PromptOptions{
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Are you sure you want to %s this user?", verb),
 				IsConfirm: true,
 				Default:   cliui.ConfirmYes,
@@ -83,16 +84,23 @@ func createUserStatusCommand(sdkStatus codersdk.UserStatus) *cobra.Command {
 				return err
 			}
 
-			_, err = client.UpdateUserStatus(cmd.Context(), user.ID.String(), sdkStatus)
+			_, err = client.UpdateUserStatus(inv.Context(), user.ID.String(), sdkStatus)
 			if err != nil {
 				return xerrors.Errorf("%s user: %w", verb, err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nUser %s has been %s!\n", cliui.Styles.Keyword.Render(user.Username), pastVerb)
+			_, _ = fmt.Fprintf(inv.Stdout, "\nUser %s has been %s!\n", cliui.Styles.Keyword.Render(user.Username), pastVerb)
 			return nil
 		},
 	}
-	cmd.Flags().StringArrayVarP(&columns, "column", "c", []string{"username", "email", "created_at", "status"},
-		"Specify a column to filter in the table.")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:          "column",
+			FlagShorthand: "c",
+			Description:   "Specify a column to filter in the table.",
+			Default:       strings.Join([]string{"username", "email", "created_at", "status"}, ","),
+			Value:         clibase.StringArrayOf(&columns),
+		},
+	}
 	return cmd
 }

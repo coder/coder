@@ -384,6 +384,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/deployment/ssh": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "SSH Config",
+                "operationId": "ssh-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.SSHConfigResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/deployment/stats": {
             "get": {
                 "security": [
@@ -2230,6 +2255,51 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Patch template version by ID",
+                "operationId": "patch-template-version-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Patch template version request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchTemplateVersionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateVersion"
+                        }
+                    }
+                }
             }
         },
         "/templateversions/{templateversion}/cancel": {
@@ -2574,13 +2644,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Before Unix timestamp",
+                        "description": "Before log id",
                         "name": "before",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "After Unix timestamp",
+                        "description": "After log id",
                         "name": "after",
                         "in": "query"
                     },
@@ -3357,6 +3427,40 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.GenerateAPIKeyResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{user}/keys/tokens/tokenconfig": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get token config",
+                "operationId": "get-token-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TokenConfig"
                         }
                     }
                 }
@@ -4298,6 +4402,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/startup-logs": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Patch workspace agent startup logs",
+                "operationId": "patch-workspace-agent-startup-logs",
+                "parameters": [
+                    {
+                        "description": "Startup logs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.PatchStartupLogs"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}": {
             "get": {
                 "security": [
@@ -4457,6 +4603,62 @@ const docTemplate = `{
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/startup-logs": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get startup logs by workspace agent",
+                "operationId": "get-startup-logs-by-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Before log id",
+                        "name": "before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "After log id",
+                        "name": "after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Follow log stream",
+                        "name": "follow",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceAgentStartupLog"
+                            }
+                        }
                     }
                 }
             }
@@ -5240,6 +5442,17 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.PatchStartupLogs": {
+            "type": "object",
+            "properties": {
+                "logs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.StartupLog"
+                    }
+                }
+            }
+        },
         "agentsdk.PostAppHealthsRequest": {
             "type": "object",
             "properties": {
@@ -5267,6 +5480,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "agentsdk.StartupLog": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "output": {
                     "type": "string"
                 }
             }
@@ -6540,6 +6764,9 @@ const docTemplate = `{
                 "config": {
                     "type": "string"
                 },
+                "config_ssh": {
+                    "$ref": "#/definitions/codersdk.SSHConfig"
+                },
                 "dangerous": {
                     "$ref": "#/definitions/codersdk.DangerousConfig"
                 },
@@ -6658,6 +6885,9 @@ const docTemplate = `{
                 "verbose": {
                     "type": "boolean"
                 },
+                "wgtunnel_host": {
+                    "type": "string"
+                },
                 "wildcard_access_url": {
                     "$ref": "#/definitions/clibase.URL"
                 },
@@ -6714,11 +6944,9 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "authz_querier",
                 "template_editor"
             ],
             "x-enum-varnames": [
-                "ExperimentAuthzQuerier",
                 "ExperimentTemplateEditor"
             ]
         },
@@ -7078,6 +7306,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "group_mapping": {
+                    "type": "object"
+                },
                 "groups_field": {
                     "type": "string"
                 },
@@ -7333,6 +7564,14 @@ const docTemplate = `{
                 "ParameterSourceSchemeNone",
                 "ParameterSourceSchemeData"
             ]
+        },
+        "codersdk.PatchTemplateVersionRequest": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.PprofConfig": {
             "type": "object",
@@ -7651,6 +7890,36 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.SSHConfig": {
+            "type": "object",
+            "properties": {
+                "deploymentName": {
+                    "description": "DeploymentName is the config-ssh Hostname prefix",
+                    "type": "string"
+                },
+                "sshconfigOptions": {
+                    "description": "SSHConfigOptions are additional options to add to the ssh config file.\nThis will override defaults.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.SSHConfigResponse": {
+            "type": "object",
+            "properties": {
+                "hostname_prefix": {
+                    "type": "string"
+                },
+                "ssh_config_options": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -8044,7 +8313,8 @@ const docTemplate = `{
                     "enum": [
                         "string",
                         "number",
-                        "bool"
+                        "bool",
+                        "list(string)"
                     ]
                 },
                 "validation_error": {
@@ -8117,6 +8387,14 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.TokenConfig": {
+            "type": "object",
+            "properties": {
+                "max_token_lifetime": {
+                    "type": "integer"
                 }
             }
         },
@@ -8403,6 +8681,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "outdated": {
                     "type": "boolean"
                 },
@@ -8518,6 +8800,12 @@ const docTemplate = `{
                 "shutdown_script_timeout_seconds": {
                     "type": "integer"
                 },
+                "startup_logs_length": {
+                    "type": "integer"
+                },
+                "startup_logs_overflowed": {
+                    "type": "boolean"
+                },
                 "startup_script": {
                     "type": "string"
                 },
@@ -8598,6 +8886,21 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPort"
                     }
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentStartupLog": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "output": {
+                    "type": "string"
                 }
             }
         },

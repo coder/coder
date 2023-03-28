@@ -219,6 +219,8 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	mux := drpcmux.New()
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
 		AccessURL:             api.AccessURL,
+		GitAuthConfigs:        api.GitAuthConfigs,
+		OIDCConfig:            api.OIDCConfig,
 		ID:                    daemon.ID,
 		Database:              api.Database,
 		Pubsub:                api.Pubsub,

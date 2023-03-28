@@ -24,8 +24,8 @@ func TestUpdate(t *testing.T) {
 	t.Run("NoArgs", func(t *testing.T) {
 		t.Parallel()
 
-		cmd, _ := clitest.New(t, "update")
-		err := cmd.Execute()
+		inv, _ := clitest.New(t, "update")
+		err := inv.Run()
 		require.Error(t, err)
 	})
 
@@ -39,14 +39,14 @@ func TestUpdate(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
 
-		cmd, root := clitest.New(t, "create",
+		inv, root := clitest.New(t, "create",
 			"my-workspace",
 			"--template", template.Name,
 			"-y",
 		)
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Execute()
+		err := inv.Run()
 		require.NoError(t, err)
 
 		ws, err := client.WorkspaceByOwnerAndName(context.Background(), "testuser", "my-workspace", codersdk.WorkspaceOptions{})
@@ -65,10 +65,10 @@ func TestUpdate(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		cmd, root = clitest.New(t, "update", ws.Name)
+		inv, root = clitest.New(t, "update", ws.Name)
 		clitest.SetupConfig(t, client, root)
 
-		err = cmd.Execute()
+		err = inv.Run()
 		require.NoError(t, err)
 
 		ws, err = client.WorkspaceByOwnerAndName(context.Background(), "testuser", "my-workspace", codersdk.WorkspaceOptions{})
@@ -86,14 +86,14 @@ func TestUpdate(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
 
-		cmd, root := clitest.New(t, "create",
+		inv, root := clitest.New(t, "create",
 			"my-workspace",
 			"--template", template.Name,
 			"-y",
 		)
 		clitest.SetupConfig(t, client, root)
 
-		err := cmd.Execute()
+		err := inv.Run()
 		require.NoError(t, err)
 
 		ws, err := client.WorkspaceByOwnerAndName(context.Background(), "testuser", "my-workspace", codersdk.WorkspaceOptions{})
@@ -113,17 +113,15 @@ func TestUpdate(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		cmd, root = clitest.New(t, "update", ws.Name)
+		inv, root = clitest.New(t, "update", ws.Name)
 		clitest.SetupConfig(t, client, root)
 
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
 		doneChan := make(chan struct{})
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -199,21 +197,19 @@ func TestUpdateWithRichParameters(t *testing.T) {
 				immutableParameterName + ": " + immutableParameterValue + "\n" +
 				secondParameterName + ": " + secondParameterValue)
 
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
 		clitest.SetupConfig(t, client, root)
-		err := cmd.Execute()
+		err := inv.Run()
 		assert.NoError(t, err)
 
-		cmd, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
+		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
 		clitest.SetupConfig(t, client, root)
 
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -297,20 +293,18 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		_, _ = parameterFile.WriteString(
 			stringParameterName + ": " + stringParameterValue)
 
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
 		clitest.SetupConfig(t, client, root)
-		err := cmd.Execute()
+		err := inv.Run()
 		require.NoError(t, err)
 
-		cmd, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
+		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -344,20 +338,18 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		_, _ = parameterFile.WriteString(
 			numberParameterName + ": " + numberParameterValue)
 
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
 		clitest.SetupConfig(t, client, root)
-		err := cmd.Execute()
+		err := inv.Run()
 		require.NoError(t, err)
 
-		cmd, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
+		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -394,20 +386,18 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		_, _ = parameterFile.WriteString(
 			boolParameterName + ": " + boolParameterValue)
 
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
 		clitest.SetupConfig(t, client, root)
-		err := cmd.Execute()
+		err := inv.Run()
 		require.NoError(t, err)
 
-		cmd, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
+		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -443,9 +433,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			stringParameterName + ": " + stringParameterValue)
 
 		// Create workspace
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
 		clitest.SetupConfig(t, client, root)
-		err := cmd.Execute()
+		err := inv.Run()
 		require.NoError(t, err)
 
 		// Modify template
@@ -467,15 +457,13 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update the workspace
-		cmd, root = clitest.New(t, "update", "my-workspace")
+		inv, root = clitest.New(t, "update", "my-workspace")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -513,9 +501,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			stringParameterName + ": " + stringParameterValue)
 
 		// Create workspace
-		cmd, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
 		clitest.SetupConfig(t, client, root)
-		err := cmd.Execute()
+		err := inv.Run()
 		require.NoError(t, err)
 
 		// Modify template
@@ -538,15 +526,13 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update the workspace
-		cmd, root = clitest.New(t, "update", "my-workspace")
+		inv, root = clitest.New(t, "update", "my-workspace")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 

@@ -88,11 +88,57 @@ func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditL
 }
 
 func (q *querier) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
-	return fetch(q.log, q.auth, q.db.GetFileByHashAndCreator)(ctx, arg)
+	file, err := q.db.GetFileByHashAndCreator(ctx, arg)
+	if err != nil {
+		return database.File{}, err
+	}
+	err = q.authorizeContext(ctx, rbac.ActionRead, file)
+	if err != nil {
+		// Check the user's access to the file's templates.
+		if q.authorizeUpdateFileTemplate(ctx, file) != nil {
+			return database.File{}, err
+		}
+	}
+
+	return file, nil
 }
 
 func (q *querier) GetFileByID(ctx context.Context, id uuid.UUID) (database.File, error) {
-	return fetch(q.log, q.auth, q.db.GetFileByID)(ctx, id)
+	file, err := q.db.GetFileByID(ctx, id)
+	if err != nil {
+		return database.File{}, err
+	}
+	err = q.authorizeContext(ctx, rbac.ActionRead, file)
+	if err != nil {
+		// Check the user's access to the file's templates.
+		if q.authorizeUpdateFileTemplate(ctx, file) != nil {
+			return database.File{}, err
+		}
+	}
+
+	return file, nil
+}
+
+// authorizeReadFile is a hotfix for the fact that file permissions are
+// independent of template permissions. This function checks if the user has
+// update access to any of the file's templates.
+func (q *querier) authorizeUpdateFileTemplate(ctx context.Context, file database.File) error {
+	tpls, err := q.db.GetFileTemplates(ctx, file.ID)
+	if err != nil {
+		return err
+	}
+	// There __should__ only be 1 template per file, but there can be more than
+	// 1, so check them all.
+	for _, tpl := range tpls {
+		// If the user has update access to any template, they have read access to the file.
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, tpl); err == nil {
+			return nil
+		}
+	}
+
+	return NotAuthorizedError{
+		Err: xerrors.Errorf("not authorized to read file %s", file.ID),
+	}
 }
 
 func (q *querier) InsertFile(ctx context.Context, arg database.InsertFileParams) (database.File, error) {
@@ -263,13 +309,21 @@ func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (data
 	return job, nil
 }
 
-func (q *querier) GetProvisionerLogsByIDBetween(ctx context.Context, arg database.GetProvisionerLogsByIDBetweenParams) ([]database.ProvisionerJobLog, error) {
+func (q *querier) GetProvisionerLogsAfterID(ctx context.Context, arg database.GetProvisionerLogsAfterIDParams) ([]database.ProvisionerJobLog, error) {
 	// Authorized read on job lets the actor also read the logs.
 	_, err := q.GetProvisionerJobByID(ctx, arg.JobID)
 	if err != nil {
 		return nil, err
 	}
-	return q.db.GetProvisionerLogsByIDBetween(ctx, arg)
+	return q.db.GetProvisionerLogsAfterID(ctx, arg)
+}
+
+func (q *querier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg database.GetWorkspaceAgentStartupLogsAfterParams) ([]database.WorkspaceAgentStartupLog, error) {
+	_, err := q.GetWorkspaceAgentByID(ctx, arg.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentStartupLogsAfter(ctx, arg)
 }
 
 func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
@@ -286,18 +340,18 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 	return q.db.InsertLicense(ctx, arg)
 }
 
-func (q *querier) InsertOrUpdateLogoURL(ctx context.Context, value string) error {
+func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
 		return err
 	}
-	return q.db.InsertOrUpdateLogoURL(ctx, value)
+	return q.db.UpsertLogoURL(ctx, value)
 }
 
-func (q *querier) InsertOrUpdateServiceBanner(ctx context.Context, value string) error {
+func (q *querier) UpsertServiceBanner(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
 		return err
 	}
-	return q.db.InsertOrUpdateServiceBanner(ctx, value)
+	return q.db.UpsertServiceBanner(ctx, value)
 }
 
 func (q *querier) GetLicenseByID(ctx context.Context, id int32) (database.License, error) {
@@ -735,7 +789,7 @@ func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersi
 		object = tv.RBACObject(template)
 	}
 
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, object); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, object); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateVersionVariables(ctx, templateVersionID)
@@ -850,13 +904,24 @@ func (q *querier) UpdateTemplateScheduleByID(ctx context.Context, arg database.U
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateTemplateScheduleByID)(ctx, arg)
 }
 
-func (q *querier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) error {
-	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID.UUID)
+func (q *querier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
+	// An actor is allowed to update the template version if they are authorized to update the template.
+	tv, err := q.db.GetTemplateVersionByID(ctx, arg.ID)
 	if err != nil {
-		return err
+		return database.TemplateVersion{}, err
 	}
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
-		return err
+	var obj rbac.Objecter
+	if !tv.TemplateID.Valid {
+		obj = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		tpl, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+		if err != nil {
+			return database.TemplateVersion{}, err
+		}
+		obj = tpl
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, obj); err != nil {
+		return database.TemplateVersion{}, err
 	}
 	return q.db.UpdateTemplateVersionByID(ctx, arg)
 }
@@ -1068,7 +1133,11 @@ func (q *querier) UpdateUserHashedPassword(ctx context.Context, arg database.Upd
 
 	err = q.authorizeContext(ctx, rbac.ActionUpdate, user.UserDataRBACObject())
 	if err != nil {
-		return err
+		// Admins can update passwords for other users.
+		err = q.authorizeContext(ctx, rbac.ActionUpdate, user.RBACObject())
+		if err != nil {
+			return err
+		}
 	}
 
 	return q.db.UpdateUserHashedPassword(ctx, arg)
@@ -1239,6 +1308,24 @@ func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, ar
 	}
 
 	return q.db.UpdateWorkspaceAgentLifecycleStateByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceAgentStartupLogOverflowByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupLogOverflowByIDParams) error {
+	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agent.ID)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, workspace); err != nil {
+		return err
+	}
+
+	return q.db.UpdateWorkspaceAgentStartupLogOverflowByID(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {

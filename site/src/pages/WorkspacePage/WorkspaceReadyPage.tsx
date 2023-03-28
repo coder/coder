@@ -46,14 +46,13 @@ export const WorkspaceReadyPage = ({
   const {
     workspace,
     template,
-    templateParameters,
     builds,
     getBuildsError,
     buildError,
     cancellationError,
     applicationsHost,
     permissions,
-    missingParameters,
+    missedParameters,
   } = workspaceState.context
   if (workspace === undefined) {
     throw Error("Workspace is undefined")
@@ -112,8 +111,7 @@ export const WorkspaceReadyPage = ({
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
         handleUpdate={() => workspaceSend({ type: "UPDATE" })}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
-        handleChangeVersion={() => navigate("change-version")}
-        handleBuildParameters={() => navigate("build-parameters")}
+        handleSettings={() => navigate("settings")}
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
@@ -127,7 +125,6 @@ export const WorkspaceReadyPage = ({
         buildInfo={buildInfo}
         applicationsHost={applicationsHost}
         template={template}
-        templateParameters={templateParameters}
         quota_budget={quotaState.context.quota?.budget}
       />
       <DeleteDialog
@@ -143,7 +140,7 @@ export const WorkspaceReadyPage = ({
         }}
       />
       <UpdateBuildParametersDialog
-        parameters={missingParameters}
+        missedParameters={missedParameters}
         open={workspaceState.matches(
           "ready.build.askingForMissedBuildParameters",
         )}

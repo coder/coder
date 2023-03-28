@@ -4,15 +4,13 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/briandowns/spinner"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
@@ -24,22 +22,27 @@ type templateUploadFlags struct {
 	directory string
 }
 
-func (pf *templateUploadFlags) register(f *pflag.FlagSet) {
-	currentDirectory, _ := os.Getwd()
-	f.StringVarP(&pf.directory, "directory", "d", currentDirectory, "Specify the directory to create from, use '-' to read tar from stdin")
+func (pf *templateUploadFlags) option() clibase.Option {
+	return clibase.Option{
+		Flag:          "directory",
+		FlagShorthand: "d",
+		Description:   "Specify the directory to create from, use '-' to read tar from stdin.",
+		Default:       ".",
+		Value:         clibase.StringOf(&pf.directory),
+	}
 }
 
 func (pf *templateUploadFlags) stdin() bool {
 	return pf.directory == "-"
 }
 
-func (pf *templateUploadFlags) upload(cmd *cobra.Command, client *codersdk.Client) (*codersdk.UploadResponse, error) {
+func (pf *templateUploadFlags) upload(inv *clibase.Invocation, client *codersdk.Client) (*codersdk.UploadResponse, error) {
 	var content io.Reader
 	if pf.stdin() {
-		content = cmd.InOrStdin()
+		content = inv.Stdin
 	} else {
 		prettyDir := prettyDirectoryPath(pf.directory)
-		_, err := cliui.Prompt(cmd, cliui.PromptOptions{
+		_, err := cliui.Prompt(inv, cliui.PromptOptions{
 			Text:      fmt.Sprintf("Upload %q?", prettyDir),
 			IsConfirm: true,
 			Default:   cliui.ConfirmYes,
@@ -58,12 +61,12 @@ func (pf *templateUploadFlags) upload(cmd *cobra.Command, client *codersdk.Clien
 	}
 
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
-	spin.Writer = cmd.OutOrStdout()
+	spin.Writer = inv.Stdout
 	spin.Suffix = cliui.Styles.Keyword.Render(" Uploading directory...")
 	spin.Start()
 	defer spin.Stop()
 
-	resp, err := client.Upload(cmd.Context(), codersdk.ContentTypeTar, bufio.NewReader(content))
+	resp, err := client.Upload(inv.Context(), codersdk.ContentTypeTar, bufio.NewReader(content))
 	if err != nil {
 		return nil, xerrors.Errorf("upload: %w", err)
 	}
@@ -79,14 +82,19 @@ func (pf *templateUploadFlags) templateName(args []string) (string, error) {
 		return args[0], nil
 	}
 
-	name := filepath.Base(pf.directory)
 	if len(args) > 0 {
-		name = args[0]
+		return args[0], nil
 	}
-	return name, nil
+	// Have to take absPath to resolve "." and "..".
+	absPath, err := filepath.Abs(pf.directory)
+	if err != nil {
+		return "", err
+	}
+	// If no name is provided, use the directory name.
+	return filepath.Base(absPath), nil
 }
 
-func templatePush() *cobra.Command {
+func (r *RootCmd) templatePush() *clibase.Cmd {
 	var (
 		versionName     string
 		provisioner     string
@@ -97,32 +105,31 @@ func templatePush() *cobra.Command {
 		provisionerTags []string
 		uploadFlags     templateUploadFlags
 	)
-
-	cmd := &cobra.Command{
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
 		Use:   "push [template]",
-		Args:  cobra.MaximumNArgs(1),
 		Short: "Push a new template version from the current directory or as specified by flag",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return err
-			}
-			organization, err := CurrentOrganization(cmd, client)
-			if err != nil {
-				return err
-			}
-
-			name, err := uploadFlags.templateName(args)
+		Middleware: clibase.Chain(
+			clibase.RequireRangeArgs(0, 1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
 				return err
 			}
 
-			template, err := client.TemplateByName(cmd.Context(), organization.ID, name)
+			name, err := uploadFlags.templateName(inv.Args)
 			if err != nil {
 				return err
 			}
 
-			resp, err := uploadFlags.upload(cmd, client)
+			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
+			if err != nil {
+				return err
+			}
+
+			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
 				return err
 			}
@@ -132,7 +139,7 @@ func templatePush() *cobra.Command {
 				return err
 			}
 
-			job, _, err := createValidTemplateVersion(cmd, createValidTemplateVersionArgs{
+			job, _, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
 				Name:            versionName,
 				Client:          client,
 				Organization:    organization,
@@ -153,32 +160,60 @@ func templatePush() *cobra.Command {
 				return xerrors.Errorf("job failed: %s", job.Job.Status)
 			}
 
-			err = client.UpdateActiveTemplateVersion(cmd.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
+			err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
 				ID: job.ID,
 			})
 			if err != nil {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Updated version at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", cliui.Styles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&provisioner, "test.provisioner", "", "terraform", "Customize the provisioner backend")
-	cmd.Flags().StringVarP(&parameterFile, "parameter-file", "", "", "Specify a file path with parameter values.")
-	cmd.Flags().StringVarP(&variablesFile, "variables-file", "", "", "Specify a file path with values for Terraform-managed variables.")
-	cmd.Flags().StringArrayVarP(&variables, "variable", "", []string{}, "Specify a set of values for Terraform-managed variables.")
-	cmd.Flags().StringVarP(&versionName, "name", "", "", "Specify a name for the new template version. It will be automatically generated if not provided.")
-	cmd.Flags().StringArrayVarP(&provisionerTags, "provisioner-tag", "", []string{}, "Specify a set of tags to target provisioner daemons.")
-	cmd.Flags().BoolVar(&alwaysPrompt, "always-prompt", false, "Always prompt all parameters. Does not pull parameter values from active template version")
-	uploadFlags.register(cmd.Flags())
-	cliui.AllowSkipPrompt(cmd)
-	// This is for testing!
-	err := cmd.Flags().MarkHidden("test.provisioner")
-	if err != nil {
-		panic(err)
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:          "test.provisioner",
+			FlagShorthand: "p",
+			Description:   "Customize the provisioner backend.",
+			Default:       "terraform",
+			Value:         clibase.StringOf(&provisioner),
+			// This is for testing!
+			Hidden: true,
+		},
+		{
+			Flag:        "parameter-file",
+			Description: "Specify a file path with parameter values.",
+			Value:       clibase.StringOf(&parameterFile),
+		},
+		{
+			Flag:        "variables-file",
+			Description: "Specify a file path with values for Terraform-managed variables.",
+			Value:       clibase.StringOf(&variablesFile),
+		},
+		{
+			Flag:        "variable",
+			Description: "Specify a set of values for Terraform-managed variables.",
+			Value:       clibase.StringArrayOf(&variables),
+		},
+		{
+			Flag:        "provisioner-tag",
+			Description: "Specify a set of tags to target provisioner daemons.",
+			Value:       clibase.StringArrayOf(&provisionerTags),
+		},
+		{
+			Flag:        "name",
+			Description: "Specify a name for the new template version. It will be automatically generated if not provided.",
+			Value:       clibase.StringOf(&versionName),
+		},
+		{
+			Flag:        "always-prompt",
+			Description: "Always prompt all parameters. Does not pull parameter values from active template version.",
+			Value:       clibase.BoolOf(&alwaysPrompt),
+		},
+		cliui.SkipPromptOption(),
+		uploadFlags.option(),
 	}
-
 	return cmd
 }

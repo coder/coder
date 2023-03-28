@@ -6,75 +6,75 @@ import (
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func userList() *cobra.Command {
+func (r *RootCmd) userList() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created_at", "status"}),
 		cliui.JSONFormat(),
 	)
+	client := new(codersdk.Client)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Cmd{
 		Use:     "list",
 		Aliases: []string{"ls"},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return err
-			}
-			res, err := client.Users(cmd.Context(), codersdk.UsersRequest{})
-			if err != nil {
-				return err
-			}
-
-			out, err := formatter.Format(cmd.Context(), res.Users)
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(0),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			res, err := client.Users(inv.Context(), codersdk.UsersRequest{})
 			if err != nil {
 				return err
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
+			out, err := formatter.Format(inv.Context(), res.Users)
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}
 
-	formatter.AttachFlags(cmd)
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 
-func userSingle() *cobra.Command {
+func (r *RootCmd) userSingle() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
 		&userShowFormat{},
 		cliui.JSONFormat(),
 	)
+	client := new(codersdk.Client)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Cmd{
 		Use:   "show <username|user_id|'me'>",
 		Short: "Show a single user. Use 'me' to indicate the currently authenticated user.",
-		Example: formatExamples(
+		Long: formatExamples(
 			example{
 				Command: "coder users show me",
 			},
 		),
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return err
-			}
-
-			user, err := client.User(cmd.Context(), args[0])
+		Middleware: clibase.Chain(
+			clibase.RequireNArgs(1),
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			user, err := client.User(inv.Context(), inv.Args[0])
 			if err != nil {
 				return err
 			}
 
 			orgNames := make([]string, len(user.OrganizationIDs))
 			for i, orgID := range user.OrganizationIDs {
-				org, err := client.Organization(cmd.Context(), orgID)
+				org, err := client.Organization(inv.Context(), orgID)
 				if err != nil {
 					return xerrors.Errorf("get organization %q: %w", orgID.String(), err)
 				}
@@ -82,7 +82,7 @@ func userSingle() *cobra.Command {
 				orgNames[i] = org.Name
 			}
 
-			out, err := formatter.Format(cmd.Context(), userWithOrgNames{
+			out, err := formatter.Format(inv.Context(), userWithOrgNames{
 				User:              user,
 				OrganizationNames: orgNames,
 			})
@@ -90,12 +90,12 @@ func userSingle() *cobra.Command {
 				return err
 			}
 
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}
 
-	formatter.AttachFlags(cmd)
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 
@@ -113,8 +113,8 @@ func (*userShowFormat) ID() string {
 	return "table"
 }
 
-// AttachFlags implements OutputFormat.
-func (*userShowFormat) AttachFlags(_ *cobra.Command) {}
+// AttachOptions implements OutputFormat.
+func (*userShowFormat) AttachOptions(_ *clibase.OptionSet) {}
 
 // Format implements OutputFormat.
 func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error) {

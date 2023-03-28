@@ -282,13 +282,18 @@ func (s *MethodTestSuite) TestProvsionerJob() {
 		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
 			Asserts(v.RBACObject(tpl), []rbac.Action{rbac.ActionRead, rbac.ActionUpdate}).Returns()
 	}))
-	s.Run("GetProvisionerLogsByIDBetween", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *expects) {
+		a := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{})
+		b := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{})
+		check.Args([]uuid.UUID{a.ID, b.ID}).Asserts().Returns(slice.New(a, b))
+	}))
+	s.Run("GetProvisionerLogsAfterID", s.Subtest(func(db database.Store, check *expects) {
 		w := dbgen.Workspace(s.T(), db, database.Workspace{})
 		j := dbgen.ProvisionerJob(s.T(), db, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
 		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
-		check.Args(database.GetProvisionerLogsByIDBetweenParams{
+		check.Args(database.GetProvisionerLogsAfterIDParams{
 			JobID: j.ID,
 		}).Asserts(w, rbac.ActionRead).Returns([]database.ProvisionerJobLog{})
 	}))
@@ -307,10 +312,10 @@ func (s *MethodTestSuite) TestLicense() {
 		check.Args(database.InsertLicenseParams{}).
 			Asserts(rbac.ResourceLicense, rbac.ActionCreate)
 	}))
-	s.Run("InsertOrUpdateLogoURL", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpsertLogoURL", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("value").Asserts(rbac.ResourceDeploymentValues, rbac.ActionCreate)
 	}))
-	s.Run("InsertOrUpdateServiceBanner", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpsertServiceBanner", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("value").Asserts(rbac.ResourceDeploymentValues, rbac.ActionCreate)
 	}))
 	s.Run("GetLicenseByID", s.Subtest(func(db database.Store, check *expects) {
@@ -331,12 +336,12 @@ func (s *MethodTestSuite) TestLicense() {
 		check.Args().Asserts().Returns("")
 	}))
 	s.Run("GetLogoURL", s.Subtest(func(db database.Store, check *expects) {
-		err := db.InsertOrUpdateLogoURL(context.Background(), "value")
+		err := db.UpsertLogoURL(context.Background(), "value")
 		require.NoError(s.T(), err)
 		check.Args().Asserts().Returns("value")
 	}))
 	s.Run("GetServiceBanner", s.Subtest(func(db database.Store, check *expects) {
-		err := db.InsertOrUpdateServiceBanner(context.Background(), "value")
+		err := db.UpsertServiceBanner(context.Background(), "value")
 		require.NoError(s.T(), err)
 		check.Args().Asserts().Returns("value")
 	}))
@@ -599,6 +604,16 @@ func (s *MethodTestSuite) TestTemplate() {
 		})
 		check.Args(tv.ID).Asserts(t1, rbac.ActionRead).Returns([]database.TemplateVersionParameter{})
 	}))
+	s.Run("GetTemplateVersionVariables", s.Subtest(func(db database.Store, check *expects) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
+		})
+		tvv1 := dbgen.TemplateVersionVariable(s.T(), db, database.TemplateVersionVariable{
+			TemplateVersionID: tv.ID,
+		})
+		check.Args(tv.ID).Asserts(t1, rbac.ActionRead).Returns([]database.TemplateVersionVariable{tvv1})
+	}))
 	s.Run("GetTemplateGroupRoles", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(t1.ID).Asserts(t1, rbac.ActionRead)
@@ -711,7 +726,9 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(database.UpdateTemplateVersionByIDParams{
 			ID:         tv.ID,
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-		}).Asserts(t1, rbac.ActionUpdate).Returns()
+			Name:       tv.Name,
+			UpdatedAt:  tv.UpdatedAt,
+		}).Asserts(t1, rbac.ActionUpdate).Returns(tv)
 	}))
 	s.Run("UpdateTemplateVersionDescriptionByJobID", s.Subtest(func(db database.Store, check *expects) {
 		jobID := uuid.New()
@@ -966,6 +983,16 @@ func (s *MethodTestSuite) TestWorkspace() {
 			LifecycleState: database.WorkspaceAgentLifecycleStateCreated,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
+	s.Run("UpdateWorkspaceAgentStartupLogOverflowByID", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		check.Args(database.UpdateWorkspaceAgentStartupLogOverflowByIDParams{
+			ID:                    agt.ID,
+			StartupLogsOverflowed: true,
+		}).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
 	s.Run("UpdateWorkspaceAgentStartupByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
@@ -974,6 +1001,15 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(database.UpdateWorkspaceAgentStartupByIDParams{
 			ID: agt.ID,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
+	}))
+	s.Run("GetWorkspaceAgentStartupLogsAfter", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
+		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		check.Args(database.GetWorkspaceAgentStartupLogsAfterParams{
+			AgentID: agt.ID,
+		}).Asserts(ws, rbac.ActionRead).Returns([]database.WorkspaceAgentStartupLog{})
 	}))
 	s.Run("GetWorkspaceAppByAgentIDAndSlug", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
@@ -1140,9 +1176,10 @@ func (s *MethodTestSuite) TestWorkspace() {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		check.Args(database.UpdateWorkspaceBuildByIDParams{
-			ID:        build.ID,
-			UpdatedAt: build.UpdatedAt,
-			Deadline:  build.Deadline,
+			ID:               build.ID,
+			UpdatedAt:        build.UpdatedAt,
+			Deadline:         build.Deadline,
+			ProvisionerState: []byte{},
 		}).Asserts(ws, rbac.ActionUpdate).Returns(build)
 	}))
 	s.Run("SoftDeleteWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {

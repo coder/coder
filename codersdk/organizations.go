@@ -42,7 +42,7 @@ type OrganizationMember struct {
 
 // CreateTemplateVersionRequest enables callers to create a new Template Version.
 type CreateTemplateVersionRequest struct {
-	Name string `json:"name,omitempty" validate:"omitempty,template_name"`
+	Name string `json:"name,omitempty" validate:"omitempty,template_version_name"`
 	// TemplateID optionally associates a version with a template.
 	TemplateID      uuid.UUID                `json:"template_id,omitempty" format:"uuid"`
 	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required" enums:"file"`
@@ -221,6 +221,9 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 
 // TemplateByName finds a template inside the organization provided with a case-insensitive name.
 func (c *Client) TemplateByName(ctx context.Context, organizationID uuid.UUID, name string) (Template, error) {
+	if name == "" {
+		return Template{}, xerrors.Errorf("template name cannot be empty")
+	}
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/templates/%s", organizationID.String(), name),
 		nil,

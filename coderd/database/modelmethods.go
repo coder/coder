@@ -4,6 +4,8 @@ import (
 	"sort"
 	"strconv"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/coder/coder/coderd/rbac"
 )
 
@@ -84,6 +86,20 @@ func (t Template) RBACObject() rbac.Object {
 		InOrg(t.OrganizationID).
 		WithACLUserList(t.UserACL).
 		WithGroupACL(t.GroupACL)
+}
+
+func (t GetFileTemplatesRow) RBACObject() rbac.Object {
+	return rbac.ResourceTemplate.WithID(t.TemplateID).
+		InOrg(t.TemplateOrganizationID).
+		WithACLUserList(t.UserACL).
+		WithGroupACL(t.GroupACL)
+}
+
+func (t Template) DeepCopy() Template {
+	cpy := t
+	cpy.UserACL = maps.Clone(t.UserACL)
+	cpy.GroupACL = maps.Clone(t.GroupACL)
+	return cpy
 }
 
 func (TemplateVersion) RBACObject(template Template) rbac.Object {

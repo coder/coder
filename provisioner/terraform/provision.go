@@ -136,7 +136,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		return xerrors.Errorf("initialize terraform: %w", err)
 	}
 	s.logger.Debug(ctx, "ran initialization")
-	env, err := provisionEnv(config, request.GetPlan().GetParameterValues(), request.GetPlan().GetRichParameterValues())
+	env, err := provisionEnv(config, request.GetPlan().GetParameterValues(), request.GetPlan().GetRichParameterValues(), request.GetPlan().GetGitAuthProviders())
 	if err != nil {
 		return err
 	}
@@ -205,7 +205,7 @@ func planVars(plan *proto.Provision_Plan) ([]string, error) {
 	return vars, nil
 }
 
-func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue, richParams []*proto.RichParameterValue) ([]string, error) {
+func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue, richParams []*proto.RichParameterValue, gitAuth []*proto.GitAuthProvider) ([]string, error) {
 	env := safeEnviron()
 	env = append(env,
 		"CODER_AGENT_URL="+config.Metadata.CoderUrl,
@@ -213,6 +213,7 @@ func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue
 		"CODER_WORKSPACE_NAME="+config.Metadata.WorkspaceName,
 		"CODER_WORKSPACE_OWNER="+config.Metadata.WorkspaceOwner,
 		"CODER_WORKSPACE_OWNER_EMAIL="+config.Metadata.WorkspaceOwnerEmail,
+		"CODER_WORKSPACE_OWNER_OIDC_ACCESS_TOKEN="+config.Metadata.WorkspaceOwnerOidcAccessToken,
 		"CODER_WORKSPACE_ID="+config.Metadata.WorkspaceId,
 		"CODER_WORKSPACE_OWNER_ID="+config.Metadata.WorkspaceOwnerId,
 	)
@@ -232,6 +233,10 @@ func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue
 	for _, param := range richParams {
 		env = append(env, provider.ParameterEnvironmentVariable(param.Name)+"="+param.Value)
 	}
+	for _, gitAuth := range gitAuth {
+		env = append(env, provider.GitAuthAccessTokenEnvironmentVariable(gitAuth.Id)+"="+gitAuth.AccessToken)
+	}
+	// FIXME env = append(env, "TF_LOG=JSON")
 	return env, nil
 }
 

@@ -26,3 +26,31 @@ INSERT INTO
 	files (id, hash, created_at, created_by, mimetype, "data")
 VALUES
 	($1, $2, $3, $4, $5, $6) RETURNING *;
+
+-- name: GetFileTemplates :many
+-- Get all templates that use a file.
+SELECT
+	files.id AS file_id,
+	files.created_by AS file_created_by,
+	templates.id AS template_id,
+	templates.organization_id AS template_organization_id,
+	templates.created_by AS template_created_by,
+	templates.user_acl,
+	templates.group_acl
+FROM
+	templates
+INNER JOIN
+	template_versions
+	ON templates.id = template_versions.template_id
+INNER JOIN
+	provisioner_jobs
+	ON job_id = provisioner_jobs.id
+INNER JOIN
+	files
+	ON files.id = provisioner_jobs.file_id
+WHERE
+    -- Only fetch template version associated files.
+	storage_method = 'file'
+	AND provisioner_jobs.type = 'template_version_import'
+	AND file_id = @file_id
+;

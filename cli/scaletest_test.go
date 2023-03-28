@@ -54,7 +54,7 @@ param3: 1
 		err = f.Close()
 		require.NoError(t, err)
 
-		cmd, root := clitest.New(t, "scaletest", "create-workspaces",
+		inv, root := clitest.New(t, "scaletest", "create-workspaces",
 			"--count", "2",
 			"--template", template.Name,
 			"--parameters-file", paramsFile,
@@ -77,12 +77,12 @@ param3: 1
 		)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.SetOut(pty.Output())
-		cmd.SetErr(pty.Output())
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
 
 		done := make(chan any)
 		go func() {
-			err := cmd.ExecuteContext(ctx)
+			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 			close(done)
 		}()
@@ -148,19 +148,19 @@ param3: 1
 		require.Len(t, users.Users, len(seenUsers)+1)
 
 		// Cleanup.
-		cmd, root = clitest.New(t, "scaletest", "cleanup",
+		inv, root = clitest.New(t, "scaletest", "cleanup",
 			"--cleanup-concurrency", "1",
 			"--cleanup-timeout", "30s",
 			"--cleanup-job-timeout", "15s",
 		)
 		clitest.SetupConfig(t, client, root)
 		pty = ptytest.New(t)
-		cmd.SetOut(pty.Output())
-		cmd.SetErr(pty.Output())
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
 
 		done = make(chan any)
 		go func() {
-			err := cmd.ExecuteContext(ctx)
+			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err)
 			close(done)
 		}()

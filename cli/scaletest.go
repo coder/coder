@@ -14,11 +14,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/cliflag"
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/tracing"
@@ -33,20 +32,18 @@ import (
 
 const scaletestTracerName = "coder_scaletest"
 
-func scaletest() *cobra.Command {
-	cmd := &cobra.Command{
+func (r *RootCmd) scaletest() *clibase.Cmd {
+	cmd := &clibase.Cmd{
 		Use:   "scaletest",
 		Short: "Run a scale test against the Coder API",
-		Long:  "Perform scale tests against the Coder server.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
+		Handler: func(inv *clibase.Invocation) error {
+			return inv.Command.HelpHandler(inv)
+		},
+		Children: []*clibase.Cmd{
+			r.scaletestCleanup(),
+			r.scaletestCreateWorkspaces(),
 		},
 	}
-
-	cmd.AddCommand(
-		scaletestCleanup(),
-		scaletestCreateWorkspaces(),
-	)
 
 	return cmd
 }
@@ -58,11 +55,34 @@ type scaletestTracingFlags struct {
 	tracePropagate       bool
 }
 
-func (s *scaletestTracingFlags) attach(cmd *cobra.Command) {
-	cliflag.BoolVarP(cmd.Flags(), &s.traceEnable, "trace", "", "CODER_LOADTEST_TRACE", false, "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md")
-	cliflag.BoolVarP(cmd.Flags(), &s.traceCoder, "trace-coder", "", "CODER_LOADTEST_TRACE_CODER", false, "Whether opentelemetry traces are sent to Coder. We recommend keeping this disabled unless we advise you to enable it.")
-	cliflag.StringVarP(cmd.Flags(), &s.traceHoneycombAPIKey, "trace-honeycomb-api-key", "", "CODER_LOADTEST_TRACE_HONEYCOMB_API_KEY", "", "Enables trace exporting to Honeycomb.io using the provided API key.")
-	cliflag.BoolVarP(cmd.Flags(), &s.tracePropagate, "trace-propagate", "", "CODER_LOADTEST_TRACE_PROPAGATE", false, "Enables trace propagation to the Coder backend, which will be used to correlate server-side spans with client-side spans. Only enable this if the server is configured with the exact same tracing configuration as the client.")
+func (s *scaletestTracingFlags) attach(opts *clibase.OptionSet) {
+	*opts = append(
+		*opts,
+		clibase.Option{
+			Flag:        "trace",
+			Env:         "CODER_SCALETEST_TRACE",
+			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.",
+			Value:       clibase.BoolOf(&s.traceEnable),
+		},
+		clibase.Option{
+			Flag:        "trace-coder",
+			Env:         "CODER_SCALETEST_TRACE_CODER",
+			Description: "Whether opentelemetry traces are sent to Coder. We recommend keeping this disabled unless we advise you to enable it.",
+			Value:       clibase.BoolOf(&s.traceCoder),
+		},
+		clibase.Option{
+			Flag:        "trace-honeycomb-api-key",
+			Env:         "CODER_SCALETEST_TRACE_HONEYCOMB_API_KEY",
+			Description: "Enables trace exporting to Honeycomb.io using the provided API key.",
+			Value:       clibase.StringOf(&s.traceHoneycombAPIKey),
+		},
+		clibase.Option{
+			Flag:        "trace-propagate",
+			Env:         "CODER_SCALETEST_TRACE_PROPAGATE",
+			Description: "Enables trace propagation to the Coder backend, which will be used to correlate server-side spans with client-side spans. Only enable this if the server is configured with the exact same tracing configuration as the client.",
+			Value:       clibase.BoolOf(&s.tracePropagate),
+		},
+	)
 }
 
 // provider returns a trace.TracerProvider, a close function and a bool showing
@@ -96,24 +116,45 @@ func (s *scaletestTracingFlags) provider(ctx context.Context) (trace.TracerProvi
 
 type scaletestStrategyFlags struct {
 	cleanup       bool
-	concurrency   int
+	concurrency   int64
 	timeout       time.Duration
 	timeoutPerJob time.Duration
 }
 
-func (s *scaletestStrategyFlags) attach(cmd *cobra.Command) {
-	concurrencyLong, concurrencyEnv, concurrencyDescription := "concurrency", "CODER_LOADTEST_CONCURRENCY", "Number of concurrent jobs to run. 0 means unlimited."
-	timeoutLong, timeoutEnv, timeoutDescription := "timeout", "CODER_LOADTEST_TIMEOUT", "Timeout for the entire test run. 0 means unlimited."
-	jobTimeoutLong, jobTimeoutEnv, jobTimeoutDescription := "job-timeout", "CODER_LOADTEST_JOB_TIMEOUT", "Timeout per job. Jobs may take longer to complete under higher concurrency limits."
+func (s *scaletestStrategyFlags) attach(opts *clibase.OptionSet) {
+	concurrencyLong, concurrencyEnv, concurrencyDescription := "concurrency", "CODER_SCALETEST_CONCURRENCY", "Number of concurrent jobs to run. 0 means unlimited."
+	timeoutLong, timeoutEnv, timeoutDescription := "timeout", "CODER_SCALETEST_TIMEOUT", "Timeout for the entire test run. 0 means unlimited."
+	jobTimeoutLong, jobTimeoutEnv, jobTimeoutDescription := "job-timeout", "CODER_SCALETEST_JOB_TIMEOUT", "Timeout per job. Jobs may take longer to complete under higher concurrency limits."
 	if s.cleanup {
-		concurrencyLong, concurrencyEnv, concurrencyDescription = "cleanup-"+concurrencyLong, "CODER_LOADTEST_CLEANUP_CONCURRENCY", strings.ReplaceAll(concurrencyDescription, "jobs", "cleanup jobs")
-		timeoutLong, timeoutEnv, timeoutDescription = "cleanup-"+timeoutLong, "CODER_LOADTEST_CLEANUP_TIMEOUT", strings.ReplaceAll(timeoutDescription, "test", "cleanup")
-		jobTimeoutLong, jobTimeoutEnv, jobTimeoutDescription = "cleanup-"+jobTimeoutLong, "CODER_LOADTEST_CLEANUP_JOB_TIMEOUT", strings.ReplaceAll(jobTimeoutDescription, "jobs", "cleanup jobs")
+		concurrencyLong, concurrencyEnv, concurrencyDescription = "cleanup-"+concurrencyLong, "CODER_SCALETEST_CLEANUP_CONCURRENCY", strings.ReplaceAll(concurrencyDescription, "jobs", "cleanup jobs")
+		timeoutLong, timeoutEnv, timeoutDescription = "cleanup-"+timeoutLong, "CODER_SCALETEST_CLEANUP_TIMEOUT", strings.ReplaceAll(timeoutDescription, "test", "cleanup")
+		jobTimeoutLong, jobTimeoutEnv, jobTimeoutDescription = "cleanup-"+jobTimeoutLong, "CODER_SCALETEST_CLEANUP_JOB_TIMEOUT", strings.ReplaceAll(jobTimeoutDescription, "jobs", "cleanup jobs")
 	}
 
-	cliflag.IntVarP(cmd.Flags(), &s.concurrency, concurrencyLong, "", concurrencyEnv, 1, concurrencyDescription)
-	cliflag.DurationVarP(cmd.Flags(), &s.timeout, timeoutLong, "", timeoutEnv, 30*time.Minute, timeoutDescription)
-	cliflag.DurationVarP(cmd.Flags(), &s.timeoutPerJob, jobTimeoutLong, "", jobTimeoutEnv, 5*time.Minute, jobTimeoutDescription)
+	*opts = append(
+		*opts,
+		clibase.Option{
+			Flag:        concurrencyLong,
+			Env:         concurrencyEnv,
+			Description: concurrencyDescription,
+			Default:     "1",
+			Value:       clibase.Int64Of(&s.concurrency),
+		},
+		clibase.Option{
+			Flag:        timeoutLong,
+			Env:         timeoutEnv,
+			Description: timeoutDescription,
+			Default:     "30m",
+			Value:       clibase.DurationOf(&s.timeout),
+		},
+		clibase.Option{
+			Flag:        jobTimeoutLong,
+			Env:         jobTimeoutEnv,
+			Description: jobTimeoutDescription,
+			Default:     "5m",
+			Value:       clibase.DurationOf(&s.timeoutPerJob),
+		},
+	)
 }
 
 func (s *scaletestStrategyFlags) toStrategy() harness.ExecutionStrategy {
@@ -124,7 +165,7 @@ func (s *scaletestStrategyFlags) toStrategy() harness.ExecutionStrategy {
 		strategy = harness.ConcurrentExecutionStrategy{}
 	} else {
 		strategy = harness.ParallelExecutionStrategy{
-			Limit: s.concurrency,
+			Limit: int(s.concurrency),
 		}
 	}
 
@@ -208,8 +249,14 @@ type scaletestOutputFlags struct {
 	outputSpecs []string
 }
 
-func (s *scaletestOutputFlags) attach(cmd *cobra.Command) {
-	cliflag.StringArrayVarP(cmd.Flags(), &s.outputSpecs, "output", "", "CODER_SCALETEST_OUTPUTS", []string{"text"}, `Output format specs in the format "<format>[:<path>]". Not specifying a path will default to stdout. Available formats: text, json.`)
+func (s *scaletestOutputFlags) attach(opts *clibase.OptionSet) {
+	*opts = append(*opts, clibase.Option{
+		Flag:        "output",
+		Env:         "CODER_SCALETEST_OUTPUTS",
+		Description: `Output format specs in the format "<format>[:<path>]". Not specifying a path will default to stdout. Available formats: text, json.`,
+		Default:     "text",
+		Value:       clibase.StringArrayOf(&s.outputSpecs),
+	})
 }
 
 func (s *scaletestOutputFlags) parse() ([]scaleTestOutput, error) {
@@ -308,21 +355,21 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 	return nil
 }
 
-func scaletestCleanup() *cobra.Command {
+func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 	cleanupStrategy := &scaletestStrategyFlags{cleanup: true}
+	client := new(codersdk.Client)
 
-	cmd := &cobra.Command{
+	cmd := &clibase.Cmd{
 		Use:   "cleanup",
-		Short: "Cleanup any orphaned scaletest resources",
-		Long:  "Cleanup scaletest workspaces, then cleanup scaletest users. The strategy flags will apply to each stage of the cleanup process.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return err
-			}
+		Short: "Cleanup scaletest workspaces, then cleanup scaletest users.",
+		Long:  "The strategy flags will apply to each stage of the cleanup process.",
+		Middleware: clibase.Chain(
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			ctx := inv.Context()
 
-			_, err = requireAdmin(ctx, client)
+			_, err := requireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -330,13 +377,13 @@ func scaletestCleanup() *cobra.Command {
 			client.HTTPClient = &http.Client{
 				Transport: &headerTransport{
 					transport: http.DefaultTransport,
-					headers: map[string]string{
-						codersdk.BypassRatelimitHeader: "true",
+					header: map[string][]string{
+						codersdk.BypassRatelimitHeader: {"true"},
 					},
 				},
 			}
 
-			cmd.PrintErrln("Fetching scaletest workspaces...")
+			cliui.Infof(inv.Stdout, "Fetching scaletest workspaces...")
 			var (
 				pageNumber = 0
 				limit      = 100
@@ -366,9 +413,9 @@ func scaletestCleanup() *cobra.Command {
 				workspaces = append(workspaces, pageWorkspaces...)
 			}
 
-			cmd.PrintErrf("Found %d scaletest workspaces\n", len(workspaces))
+			cliui.Errorf(inv.Stderr, "Found %d scaletest workspaces\n", len(workspaces))
 			if len(workspaces) != 0 {
-				cmd.Println("Deleting scaletest workspaces...")
+				cliui.Infof(inv.Stdout, "Deleting scaletest workspaces..."+"\n")
 				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
 
 				for i, w := range workspaces {
@@ -384,16 +431,16 @@ func scaletestCleanup() *cobra.Command {
 					return xerrors.Errorf("run test harness to delete workspaces (harness failure, not a test failure): %w", err)
 				}
 
-				cmd.Println("Done deleting scaletest workspaces:")
+				cliui.Infof(inv.Stdout, "Done deleting scaletest workspaces:"+"\n")
 				res := harness.Results()
-				res.PrintText(cmd.ErrOrStderr())
+				res.PrintText(inv.Stderr)
 
 				if res.TotalFail > 0 {
 					return xerrors.Errorf("failed to delete scaletest workspaces")
 				}
 			}
 
-			cmd.PrintErrln("Fetching scaletest users...")
+			cliui.Infof(inv.Stdout, "Fetching scaletest users...")
 			pageNumber = 0
 			limit = 100
 			var users []codersdk.User
@@ -423,9 +470,9 @@ func scaletestCleanup() *cobra.Command {
 				users = append(users, pageUsers...)
 			}
 
-			cmd.PrintErrf("Found %d scaletest users\n", len(users))
+			cliui.Errorf(inv.Stderr, "Found %d scaletest users\n", len(users))
 			if len(workspaces) != 0 {
-				cmd.Println("Deleting scaletest users...")
+				cliui.Infof(inv.Stdout, "Deleting scaletest users..."+"\n")
 				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
 
 				for i, u := range users {
@@ -444,9 +491,9 @@ func scaletestCleanup() *cobra.Command {
 					return xerrors.Errorf("run test harness to delete users (harness failure, not a test failure): %w", err)
 				}
 
-				cmd.Println("Done deleting scaletest users:")
+				cliui.Infof(inv.Stdout, "Done deleting scaletest users:"+"\n")
 				res := harness.Results()
-				res.PrintText(cmd.ErrOrStderr())
+				res.PrintText(inv.Stderr)
 
 				if res.TotalFail > 0 {
 					return xerrors.Errorf("failed to delete scaletest users")
@@ -457,13 +504,13 @@ func scaletestCleanup() *cobra.Command {
 		},
 	}
 
-	cleanupStrategy.attach(cmd)
+	cleanupStrategy.attach(&cmd.Options)
 	return cmd
 }
 
-func scaletestCreateWorkspaces() *cobra.Command {
+func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 	var (
-		count          int
+		count          int64
 		template       string
 		parametersFile string
 		parameters     []string // key=value
@@ -494,18 +541,15 @@ func scaletestCreateWorkspaces() *cobra.Command {
 		output          = &scaletestOutputFlags{}
 	)
 
-	cmd := &cobra.Command{
-		Use:   "create-workspaces",
-		Short: "Creates many workspaces and waits for them to be ready",
-		Long: `Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.
+	client := new(codersdk.Client)
 
-It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			client, err := CreateClient(cmd)
-			if err != nil {
-				return err
-			}
+	cmd := &clibase.Cmd{
+		Use:        "create-workspaces",
+		Short:      "Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.",
+		Long:       `It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
+		Middleware: r.InitClient(client),
+		Handler: func(inv *clibase.Invocation) error {
+			ctx := inv.Context()
 
 			me, err := requireAdmin(ctx, client)
 			if err != nil {
@@ -515,8 +559,8 @@ It is recommended that all rate limits are disabled on the server before running
 			client.HTTPClient = &http.Client{
 				Transport: &headerTransport{
 					transport: http.DefaultTransport,
-					headers: map[string]string{
-						codersdk.BypassRatelimitHeader: "true",
+					header: map[string][]string{
+						codersdk.BypassRatelimitHeader: {"true"},
 					},
 				},
 			}
@@ -612,16 +656,16 @@ It is recommended that all rate limits are disabled on the server before running
 				if err != nil {
 					return xerrors.Errorf("start dry run workspace creation: %w", err)
 				}
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Planning workspace...")
-				err = cliui.ProvisionerJob(cmd.Context(), cmd.OutOrStdout(), cliui.ProvisionerJobOptions{
+				_, _ = fmt.Fprintln(inv.Stdout, "Planning workspace...")
+				err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 					Fetch: func() (codersdk.ProvisionerJob, error) {
-						return client.TemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
+						return client.TemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
 					},
 					Cancel: func() error {
-						return client.CancelTemplateVersionDryRun(cmd.Context(), templateVersion.ID, dryRun.ID)
+						return client.CancelTemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
 					},
 					Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
-						return client.TemplateVersionDryRunLogsAfter(cmd.Context(), templateVersion.ID, dryRun.ID, 0)
+						return client.TemplateVersionDryRunLogsAfter(inv.Context(), templateVersion.ID, dryRun.ID, 0)
 					},
 					// Don't show log output for the dry-run unless there's an error.
 					Silent: true,
@@ -645,7 +689,7 @@ It is recommended that all rate limits are disabled on the server before running
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
-			for i := 0; i < count; i++ {
+			for i := 0; i < int(count); i++ {
 				const name = "workspacebuild"
 				id := strconv.Itoa(i)
 
@@ -728,7 +772,7 @@ It is recommended that all rate limits are disabled on the server before running
 			}
 
 			// TODO: live progress output
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Running load test...")
+			_, _ = fmt.Fprintln(inv.Stderr, "Running load test...")
 			testCtx, testCancel := strategy.toContext(ctx)
 			defer testCancel()
 			err = th.Run(testCtx)
@@ -738,13 +782,13 @@ It is recommended that all rate limits are disabled on the server before running
 
 			res := th.Results()
 			for _, o := range outputs {
-				err = o.write(res, cmd.OutOrStdout())
+				err = o.write(res, inv.Stdout)
 				if err != nil {
 					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
 				}
 			}
 
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "\nCleaning up...")
+			_, _ = fmt.Fprintln(inv.Stderr, "\nCleaning up...")
 			cleanupCtx, cleanupCancel := cleanupStrategy.toContext(ctx)
 			defer cleanupCancel()
 			err = th.Cleanup(cleanupCtx)
@@ -754,12 +798,12 @@ It is recommended that all rate limits are disabled on the server before running
 
 			// Upload traces.
 			if tracingEnabled {
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "\nUploading traces...")
+				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
 				ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 				defer cancel()
 				err := closeTracing(ctx)
 				if err != nil {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\nError uploading traces: %+v\n", err)
+					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
 				}
 			}
 
@@ -771,32 +815,124 @@ It is recommended that all rate limits are disabled on the server before running
 		},
 	}
 
-	cliflag.IntVarP(cmd.Flags(), &count, "count", "c", "CODER_LOADTEST_COUNT", 1, "Required: Number of workspaces to create.")
-	cliflag.StringVarP(cmd.Flags(), &template, "template", "t", "CODER_LOADTEST_TEMPLATE", "", "Required: Name or ID of the template to use for workspaces.")
-	cliflag.StringVarP(cmd.Flags(), &parametersFile, "parameters-file", "", "CODER_LOADTEST_PARAMETERS_FILE", "", "Path to a YAML file containing the parameters to use for each workspace.")
-	cliflag.StringArrayVarP(cmd.Flags(), &parameters, "parameter", "", "CODER_LOADTEST_PARAMETERS", []string{}, "Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value")
+	cmd.Options = clibase.OptionSet{
+		{
+			Flag:          "count",
+			FlagShorthand: "c",
+			Env:           "CODER_SCALETEST_COUNT",
+			Default:       "1",
+			Description:   "Required: Number of workspaces to create.",
+			Value:         clibase.Int64Of(&count),
+		},
+		{
+			Flag:          "template",
+			FlagShorthand: "t",
+			Env:           "CODER_SCALETEST_TEMPLATE",
+			Description:   "Required: Name or ID of the template to use for workspaces.",
+			Value:         clibase.StringOf(&template),
+		},
+		{
+			Flag:        "parameters-file",
+			Env:         "CODER_SCALETEST_PARAMETERS_FILE",
+			Description: "Path to a YAML file containing the parameters to use for each workspace.",
+			Value:       clibase.StringOf(&parametersFile),
+		},
+		{
+			Flag:        "parameter",
+			Env:         "CODER_SCALETEST_PARAMETERS",
+			Description: "Parameters to use for each workspace. Can be specified multiple times. Overrides any existing parameters with the same name from --parameters-file. Format: key=value.",
+			Value:       clibase.StringArrayOf(&parameters),
+		},
+		{
+			Flag:        "no-plan",
+			Env:         "CODER_SCALETEST_NO_PLAN",
+			Description: `Skip the dry-run step to plan the workspace creation. This step ensures that the given parameters are valid for the given template.`,
+			Value:       clibase.BoolOf(&noPlan),
+		},
+		{
+			Flag:        "no-cleanup",
+			Env:         "CODER_SCALETEST_NO_CLEANUP",
+			Description: "Do not clean up resources after the test completes. You can cleanup manually using coder scaletest cleanup.",
+			Value:       clibase.BoolOf(&noCleanup),
+		},
+		{
+			Flag:        "no-wait-for-agents",
+			Env:         "CODER_SCALETEST_NO_WAIT_FOR_AGENTS",
+			Description: `Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly.`,
+			Value:       clibase.BoolOf(&noWaitForAgents),
+		},
+		{
+			Flag:        "run-command",
+			Env:         "CODER_SCALETEST_RUN_COMMAND",
+			Description: "Command to run inside each workspace using reconnecting-pty (i.e. web terminal protocol). " + "If not specified, no command will be run.",
+			Value:       clibase.StringOf(&runCommand),
+		},
+		{
+			Flag:        "run-timeout",
+			Env:         "CODER_SCALETEST_RUN_TIMEOUT",
+			Default:     "5s",
+			Description: "Timeout for the command to complete.",
+			Value:       clibase.DurationOf(&runTimeout),
+		},
+		{
+			Flag: "run-expect-timeout",
+			Env:  "CODER_SCALETEST_RUN_EXPECT_TIMEOUT",
 
-	cliflag.BoolVarP(cmd.Flags(), &noPlan, "no-plan", "", "CODER_LOADTEST_NO_PLAN", false, "Skip the dry-run step to plan the workspace creation. This step ensures that the given parameters are valid for the given template.")
-	cliflag.BoolVarP(cmd.Flags(), &noCleanup, "no-cleanup", "", "CODER_LOADTEST_NO_CLEANUP", false, "Do not clean up resources after the test completes. You can cleanup manually using `coder scaletest cleanup`.")
-	// cliflag.BoolVarP(cmd.Flags(), &noCleanupFailures, "no-cleanup-failures", "", "CODER_LOADTEST_NO_CLEANUP_FAILURES", false, "Do not clean up resources from failed jobs to aid in debugging failures. You can cleanup manually using `coder scaletest cleanup`.")
-	cliflag.BoolVarP(cmd.Flags(), &noWaitForAgents, "no-wait-for-agents", "", "CODER_LOADTEST_NO_WAIT_FOR_AGENTS", false, "Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly.")
+			Description: "Expect the command to timeout." + " If the command does not finish within the given --run-timeout, it will be marked as succeeded." + " If the command finishes before the timeout, it will be marked as failed.",
+			Value:       clibase.BoolOf(&runExpectTimeout),
+		},
+		{
+			Flag:        "run-expect-output",
+			Env:         "CODER_SCALETEST_RUN_EXPECT_OUTPUT",
+			Description: "Expect the command to output the given string (on a single line). " + "If the command does not output the given string, it will be marked as failed.",
+			Value:       clibase.StringOf(&runExpectOutput),
+		},
+		{
+			Flag:        "run-log-output",
+			Env:         "CODER_SCALETEST_RUN_LOG_OUTPUT",
+			Description: "Log the output of the command to the test logs. " + "This should be left off unless you expect small amounts of output. " + "Large amounts of output will cause high memory usage.",
+			Value:       clibase.BoolOf(&runLogOutput),
+		},
+		{
+			Flag:        "connect-url",
+			Env:         "CODER_SCALETEST_CONNECT_URL",
+			Description: "URL to connect to inside the the workspace over WireGuard. " + "If not specified, no connections will be made over WireGuard.",
+			Value:       clibase.StringOf(&connectURL),
+		},
+		{
+			Flag:        "connect-mode",
+			Env:         "CODER_SCALETEST_CONNECT_MODE",
+			Default:     "derp",
+			Description: "Mode to use for connecting to the workspace.",
+			Value:       clibase.EnumOf(&connectMode, "derp", "direct"),
+		},
+		{
+			Flag:        "connect-hold",
+			Env:         "CODER_SCALETEST_CONNECT_HOLD",
+			Default:     "30s",
+			Description: "How long to hold the WireGuard connection open for.",
+			Value:       clibase.DurationOf(&connectHold),
+		},
+		{
+			Flag:        "connect-interval",
+			Env:         "CODER_SCALETEST_CONNECT_INTERVAL",
+			Default:     "1s",
+			Value:       clibase.DurationOf(&connectInterval),
+			Description: "How long to wait between making requests to the --connect-url once the connection is established.",
+		},
+		{
+			Flag:        "connect-timeout",
+			Env:         "CODER_SCALETEST_CONNECT_TIMEOUT",
+			Default:     "5s",
+			Description: "Timeout for each request to the --connect-url.",
+			Value:       clibase.DurationOf(&connectTimeout),
+		},
+	}
 
-	cliflag.StringVarP(cmd.Flags(), &runCommand, "run-command", "", "CODER_LOADTEST_RUN_COMMAND", "", "Command to run inside each workspace using reconnecting-pty (i.e. web terminal protocol). If not specified, no command will be run.")
-	cliflag.DurationVarP(cmd.Flags(), &runTimeout, "run-timeout", "", "CODER_LOADTEST_RUN_TIMEOUT", 5*time.Second, "Timeout for the command to complete.")
-	cliflag.BoolVarP(cmd.Flags(), &runExpectTimeout, "run-expect-timeout", "", "CODER_LOADTEST_RUN_EXPECT_TIMEOUT", false, "Expect the command to timeout. If the command does not finish within the given --run-timeout, it will be marked as succeeded. If the command finishes before the timeout, it will be marked as failed.")
-	cliflag.StringVarP(cmd.Flags(), &runExpectOutput, "run-expect-output", "", "CODER_LOADTEST_RUN_EXPECT_OUTPUT", "", "Expect the command to output the given string (on a single line). If the command does not output the given string, it will be marked as failed.")
-	cliflag.BoolVarP(cmd.Flags(), &runLogOutput, "run-log-output", "", "CODER_LOADTEST_RUN_LOG_OUTPUT", false, "Log the output of the command to the test logs. This should be left off unless you expect small amounts of output. Large amounts of output will cause high memory usage.")
-
-	cliflag.StringVarP(cmd.Flags(), &connectURL, "connect-url", "", "CODER_LOADTEST_CONNECT_URL", "", "URL to connect to inside the the workspace over WireGuard. If not specified, no connections will be made over WireGuard.")
-	cliflag.StringVarP(cmd.Flags(), &connectMode, "connect-mode", "", "CODER_LOADTEST_CONNECT_MODE", "derp", "Mode to use for connecting to the workspace. Can be 'derp' or 'direct'.")
-	cliflag.DurationVarP(cmd.Flags(), &connectHold, "connect-hold", "", "CODER_LOADTEST_CONNECT_HOLD", 30*time.Second, "How long to hold the WireGuard connection open for.")
-	cliflag.DurationVarP(cmd.Flags(), &connectInterval, "connect-interval", "", "CODER_LOADTEST_CONNECT_INTERVAL", time.Second, "How long to wait between making requests to the --connect-url once the connection is established.")
-	cliflag.DurationVarP(cmd.Flags(), &connectTimeout, "connect-timeout", "", "CODER_LOADTEST_CONNECT_TIMEOUT", 5*time.Second, "Timeout for each request to the --connect-url.")
-
-	tracingFlags.attach(cmd)
-	strategy.attach(cmd)
-	cleanupStrategy.attach(cmd)
-	output.attach(cmd)
+	tracingFlags.attach(&cmd.Options)
+	strategy.attach(&cmd.Options)
+	cleanupStrategy.attach(&cmd.Options)
+	output.attach(&cmd.Options)
 	return cmd
 }
 

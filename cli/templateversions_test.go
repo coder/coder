@@ -20,16 +20,14 @@ func TestTemplateVersions(t *testing.T) {
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		cmd, root := clitest.New(t, "templates", "versions", "list", template.Name)
+		inv, root := clitest.New(t, "templates", "versions", "list", template.Name)
 		clitest.SetupConfig(t, client, root)
 
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.Execute()
+			errC <- inv.Run()
 		}()
 
 		require.NoError(t, <-errC)

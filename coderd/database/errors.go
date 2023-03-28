@@ -6,6 +6,14 @@ import (
 	"github.com/lib/pq"
 )
 
+func IsSerializedError(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return pqErr.Code.Name() == "serialization_failure"
+	}
+	return false
+}
+
 // IsUniqueViolation checks if the error is due to a unique violation.
 // If one or more specific unique constraints are given as arguments,
 // the error must be caused by one of them. If no constraints are given,
@@ -33,6 +41,15 @@ func IsQueryCanceledError(err error) bool {
 	var pqErr *pq.Error
 	if errors.As(err, &pqErr) {
 		return pqErr.Code.Name() == "query_canceled"
+	}
+
+	return false
+}
+
+func IsStartupLogsLimitError(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return pqErr.Constraint == "max_startup_logs_length" && pqErr.Table == "workspace_agents"
 	}
 
 	return false

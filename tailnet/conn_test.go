@@ -99,8 +99,7 @@ func TestTailnet(t *testing.T) {
 
 	t.Run("ForcesWebSockets", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancelFunc := testutil.Context(t)
-		defer cancelFunc()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		w1IP := tailnet.IP()
 		derpMap := tailnettest.RunDERPOnlyWebSockets(t)
@@ -160,7 +159,7 @@ func TestTailnet(t *testing.T) {
 		node := <-nodes
 		require.Len(t, node.DERPForcedWebsocket, 1)
 		// Ensure the reason is valid!
-		require.Equal(t, "GET failed with status code 400: Invalid \"Upgrade\" header: DERP", node.DERPForcedWebsocket[derpMap.RegionIDs()[0]])
+		require.Equal(t, `GET failed with status code 400 (a proxy could be disallowing the use of 'Upgrade: derp'): Invalid "Upgrade" header: DERP`, node.DERPForcedWebsocket[derpMap.RegionIDs()[0]])
 
 		w1.Close()
 		w2.Close()

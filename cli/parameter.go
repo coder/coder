@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
@@ -15,19 +17,32 @@ import (
 // Throws an error if the file name is empty.
 func createParameterMapFromFile(parameterFile string) (map[string]string, error) {
 	if parameterFile != "" {
-		parameterMap := make(map[string]string)
-
 		parameterFileContents, err := os.ReadFile(parameterFile)
 		if err != nil {
 			return nil, err
 		}
 
-		err = yaml.Unmarshal(parameterFileContents, &parameterMap)
-
+		mapStringInterface := make(map[string]interface{})
+		err = yaml.Unmarshal(parameterFileContents, &mapStringInterface)
 		if err != nil {
 			return nil, err
 		}
 
+		parameterMap := map[string]string{}
+		for k, v := range mapStringInterface {
+			switch val := v.(type) {
+			case string, bool, int:
+				parameterMap[k] = fmt.Sprintf("%v", val)
+			case []interface{}:
+				b, err := json.Marshal(&val)
+				if err != nil {
+					return nil, err
+				}
+				parameterMap[k] = string(b)
+			default:
+				return nil, xerrors.Errorf("invalid parameter type: %T", v)
+			}
+		}
 		return parameterMap, nil
 	}
 
@@ -36,20 +51,20 @@ func createParameterMapFromFile(parameterFile string) (map[string]string, error)
 
 // Returns a parameter value from a given map, if the map does not exist or does not contain the item, it takes input from the user.
 // Throws an error if there are any errors with the users input.
-func getParameterValueFromMapOrInput(cmd *cobra.Command, parameterMap map[string]string, parameterSchema codersdk.ParameterSchema) (string, error) {
+func getParameterValueFromMapOrInput(inv *clibase.Invocation, parameterMap map[string]string, parameterSchema codersdk.ParameterSchema) (string, error) {
 	var parameterValue string
 	var err error
 	if parameterMap != nil {
 		var ok bool
 		parameterValue, ok = parameterMap[parameterSchema.Name]
 		if !ok {
-			parameterValue, err = cliui.ParameterSchema(cmd, parameterSchema)
+			parameterValue, err = cliui.ParameterSchema(inv, parameterSchema)
 			if err != nil {
 				return "", err
 			}
 		}
 	} else {
-		parameterValue, err = cliui.ParameterSchema(cmd, parameterSchema)
+		parameterValue, err = cliui.ParameterSchema(inv, parameterSchema)
 		if err != nil {
 			return "", err
 		}
@@ -57,20 +72,20 @@ func getParameterValueFromMapOrInput(cmd *cobra.Command, parameterMap map[string
 	return parameterValue, nil
 }
 
-func getWorkspaceBuildParameterValueFromMapOrInput(cmd *cobra.Command, parameterMap map[string]string, templateVersionParameter codersdk.TemplateVersionParameter) (*codersdk.WorkspaceBuildParameter, error) {
+func getWorkspaceBuildParameterValueFromMapOrInput(inv *clibase.Invocation, parameterMap map[string]string, templateVersionParameter codersdk.TemplateVersionParameter) (*codersdk.WorkspaceBuildParameter, error) {
 	var parameterValue string
 	var err error
 	if parameterMap != nil {
 		var ok bool
 		parameterValue, ok = parameterMap[templateVersionParameter.Name]
 		if !ok {
-			parameterValue, err = cliui.RichParameter(cmd, templateVersionParameter)
+			parameterValue, err = cliui.RichParameter(inv, templateVersionParameter)
 			if err != nil {
 				return nil, err
 			}
 		}
 	} else {
-		parameterValue, err = cliui.RichParameter(cmd, templateVersionParameter)
+		parameterValue, err = cliui.RichParameter(inv, templateVersionParameter)
 		if err != nil {
 			return nil, err
 		}

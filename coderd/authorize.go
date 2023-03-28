@@ -51,28 +51,6 @@ type HTTPAuthorizer struct {
 //		return
 //	}
 func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
-	// The experiment does not replace ALL rbac checks, but does replace most.
-	// This statement aborts early on the checks that will be removed in the
-	// future when this experiment is default.
-	if api.Experiments.Enabled(codersdk.ExperimentAuthzQuerier) {
-		// Some resource types do not interact with the persistent layer and
-		// we need to keep these checks happening in the API layer.
-		switch object.RBACObject().Type {
-		case rbac.ResourceWorkspaceExecution.Type:
-			// This is not a db resource, always in API layer
-		case rbac.ResourceDeploymentValues.Type:
-			// For metric cache items like DAU, we do not hit the DB.
-			// Some db actions are in asserted in the authz layer.
-		case rbac.ResourceReplicas.Type:
-			// Replica rbac is checked for adding and removing replicas.
-		case rbac.ResourceProvisionerDaemon.Type:
-			// Provisioner rbac is checked for adding and removing provisioners.
-		case rbac.ResourceDebugInfo.Type:
-			// This is not a db resource, always in API layer.
-		default:
-			return true
-		}
-	}
 	return api.HTTPAuth.Authorize(r, action, object)
 }
 

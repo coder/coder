@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -31,8 +33,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/text/encoding/unicode"
-	"golang.org/x/text/transform"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -40,6 +40,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/pty/ptytest"
@@ -345,6 +346,117 @@ func TestAgent_Session_TTY_Hushlogin(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
+}
+
+func TestAgent_Session_TTY_FastCommandHasOutput(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		// This might be our implementation, or ConPTY itself.
+		// It's difficult to find extensive tests for it, so
+		// it seems like it could be either.
+		t.Skip("ConPTY appears to be inconsistent on Windows.")
+	}
+
+	// This test is here to prevent regressions where quickly executing
+	// commands (with TTY) don't flush their output to the SSH session.
+	//
+	// See: https://github.com/coder/coder/issues/6656
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	//nolint:dogsled
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	sshClient, err := conn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	ptty := ptytest.New(t)
+
+	var stdout bytes.Buffer
+	// NOTE(mafredri): Increase iterations to increase chance of failure,
+	//                 assuming bug is present. Limiting GOMAXPROCS further
+	//                 increases the chance of failure.
+	// Using 1000 iterations is basically a guaranteed failure (but let's
+	// not increase test times needlessly).
+	// Limit GOMAXPROCS (e.g. `export GOMAXPROCS=1`) to further increase
+	// chance of failure. Also -race helps.
+	for i := 0; i < 5; i++ {
+		func() {
+			stdout.Reset()
+
+			session, err := sshClient.NewSession()
+			require.NoError(t, err)
+			defer session.Close()
+			err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+			require.NoError(t, err)
+
+			session.Stdout = &stdout
+			session.Stderr = ptty.Output()
+			session.Stdin = ptty.Input()
+			err = session.Start("echo wazzup")
+			require.NoError(t, err)
+
+			err = session.Wait()
+			require.NoError(t, err)
+			require.Contains(t, stdout.String(), "wazzup", "should output greeting")
+		}()
+	}
+}
+
+func TestAgent_Session_TTY_HugeOutputIsNotLost(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		// This might be our implementation, or ConPTY itself.
+		// It's difficult to find extensive tests for it, so
+		// it seems like it could be either.
+		t.Skip("ConPTY appears to be inconsistent on Windows.")
+	}
+	t.Skip("This test proves we have a bug where parts of large output on a PTY can be lost after the command exits, skipped to avoid test failures.")
+
+	// This test is here to prevent prove we have a bug where quickly executing
+	// commands (with TTY) don't flush their output to the SSH session. This is
+	// due to the pty being closed before all the output has been copied, but
+	// protecting against this requires a non-trivial rewrite of the output
+	// processing (or figuring out a way to put the pty in a mode where this
+	// does not happen).
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	//nolint:dogsled
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	sshClient, err := conn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshClient.Close()
+
+	ptty := ptytest.New(t)
+
+	var stdout bytes.Buffer
+	// NOTE(mafredri): Increase iterations to increase chance of failure,
+	//                 assuming bug is present.
+	// Using 10 iterations is basically a guaranteed failure (but let's
+	// not increase test times needlessly). Run with -race and do not
+	// limit parallelism (`export GOMAXPROCS=10`) to increase the chance
+	// of failure.
+	for i := 0; i < 1; i++ {
+		func() {
+			stdout.Reset()
+
+			session, err := sshClient.NewSession()
+			require.NoError(t, err)
+			defer session.Close()
+			err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+			require.NoError(t, err)
+
+			session.Stdout = &stdout
+			session.Stderr = ptty.Output()
+			session.Stdin = ptty.Input()
+			want := strings.Repeat("wazzup", 1024+1) // ~6KB, +1 because 1024 is a common buffer size.
+			err = session.Start("echo " + want)
+			require.NoError(t, err)
+
+			err = session.Wait()
+			require.NoError(t, err)
+			require.Contains(t, stdout.String(), want, "should output entire greeting")
+		}()
+	}
 }
 
 //nolint:paralleltest // This test reserves a port.
@@ -739,37 +851,78 @@ func TestAgent_SSHConnectionEnvVars(t *testing.T) {
 
 func TestAgent_StartupScript(t *testing.T) {
 	t.Parallel()
+	output := "something"
+	command := "sh -c 'echo " + output + "'"
 	if runtime.GOOS == "windows" {
-		t.Skip("This test doesn't work on Windows for some reason...")
+		command = "cmd.exe /c echo " + output
 	}
-	content := "output"
-	//nolint:dogsled
-	_, _, _, fs, _ := setupAgent(t, agentsdk.Metadata{
-		StartupScript: "echo " + content,
-	}, 0)
-	var gotContent string
-	require.Eventually(t, func() bool {
-		outputPath := filepath.Join(os.TempDir(), "coder-startup-script.log")
-		content, err := afero.ReadFile(fs, outputPath)
-		if err != nil {
-			t.Logf("read file %q: %s", outputPath, err)
-			return false
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		client := &client{
+			t:       t,
+			agentID: uuid.New(),
+			metadata: agentsdk.Metadata{
+				StartupScript: command,
+				DERPMap:       &tailcfg.DERPMap{},
+			},
+			statsChan:   make(chan *agentsdk.Stats),
+			coordinator: tailnet.NewCoordinator(),
 		}
-		if len(content) == 0 {
-			t.Logf("no content in %q", outputPath)
-			return false
+		closer := agent.New(agent.Options{
+			Client:                 client,
+			Filesystem:             afero.NewMemMapFs(),
+			Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			ReconnectingPTYTimeout: 0,
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+		assert.Eventually(t, func() bool {
+			got := client.getLifecycleStates()
+			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
+		}, testutil.WaitShort, testutil.IntervalMedium)
+
+		require.Len(t, client.getStartupLogs(), 1)
+		require.Equal(t, output, client.getStartupLogs()[0].Output)
+	})
+	// This ensures that even when coderd sends back that the startup
+	// script has written too many lines it will still succeed!
+	t.Run("OverflowsAndSkips", func(t *testing.T) {
+		t.Parallel()
+		client := &client{
+			t:       t,
+			agentID: uuid.New(),
+			metadata: agentsdk.Metadata{
+				StartupScript: command,
+				DERPMap:       &tailcfg.DERPMap{},
+			},
+			patchWorkspaceLogs: func() error {
+				resp := httptest.NewRecorder()
+				httpapi.Write(context.Background(), resp, http.StatusRequestEntityTooLarge, codersdk.Response{
+					Message: "Too many lines!",
+				})
+				res := resp.Result()
+				defer res.Body.Close()
+				return codersdk.ReadBodyAsError(res)
+			},
+			statsChan:   make(chan *agentsdk.Stats),
+			coordinator: tailnet.NewCoordinator(),
 		}
-		if runtime.GOOS == "windows" {
-			// Windows uses UTF16! 🪟🪟🪟
-			content, _, err = transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), content)
-			if !assert.NoError(t, err) {
-				return false
-			}
-		}
-		gotContent = string(content)
-		return true
-	}, testutil.WaitShort, testutil.IntervalMedium)
-	require.Equal(t, content, strings.TrimSpace(gotContent))
+		closer := agent.New(agent.Options{
+			Client:                 client,
+			Filesystem:             afero.NewMemMapFs(),
+			Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+			ReconnectingPTYTimeout: 0,
+		})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+		assert.Eventually(t, func() bool {
+			got := client.getLifecycleStates()
+			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
+		}, testutil.WaitShort, testutil.IntervalMedium)
+		require.Len(t, client.getStartupLogs(), 0)
+	})
 }
 
 func TestAgent_Lifecycle(t *testing.T) {
@@ -1495,10 +1648,12 @@ type client struct {
 	statsChan          chan *agentsdk.Stats
 	coordinator        tailnet.Coordinator
 	lastWorkspaceAgent func()
+	patchWorkspaceLogs func() error
 
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 	startup         agentsdk.PostStartupRequest
+	logs            []agentsdk.StartupLog
 }
 
 func (c *client) Metadata(_ context.Context) (agentsdk.Metadata, error) {
@@ -1580,6 +1735,22 @@ func (c *client) PostStartup(_ context.Context, startup agentsdk.PostStartupRequ
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.startup = startup
+	return nil
+}
+
+func (c *client) getStartupLogs() []agentsdk.StartupLog {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.logs
+}
+
+func (c *client) PatchStartupLogs(_ context.Context, logs agentsdk.PatchStartupLogs) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.patchWorkspaceLogs != nil {
+		return c.patchWorkspaceLogs()
+	}
+	c.logs = append(c.logs, logs.Logs...)
 	return nil
 }
 

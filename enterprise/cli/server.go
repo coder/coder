@@ -9,11 +9,11 @@ import (
 	"io"
 	"net/url"
 
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/types/key"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/enterprise/audit"
 	"github.com/coder/coder/enterprise/audit/backends"
@@ -21,12 +21,11 @@ import (
 	"github.com/coder/coder/enterprise/trialer"
 	"github.com/coder/coder/tailnet"
 
-	agpl "github.com/coder/coder/cli"
 	agplcoderd "github.com/coder/coder/coderd"
 )
 
-func server() *cobra.Command {
-	cmd := agpl.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
+func (r *RootCmd) server() *clibase.Cmd {
+	cmd := r.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
 		if options.DeploymentValues.DERP.Server.RelayURL.String() != "" {
 			_, err := url.Parse(options.DeploymentValues.DERP.Server.RelayURL.String())
 			if err != nil {

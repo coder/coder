@@ -22,6 +22,7 @@ type Workspace struct {
 	UpdatedAt                            time.Time      `json:"updated_at" format:"date-time"`
 	OwnerID                              uuid.UUID      `json:"owner_id" format:"uuid"`
 	OwnerName                            string         `json:"owner_name"`
+	OrganizationID                       uuid.UUID      `json:"organization_id" format:"uuid"`
 	TemplateID                           uuid.UUID      `json:"template_id" format:"uuid"`
 	TemplateName                         string         `json:"template_name"`
 	TemplateDisplayName                  string         `json:"template_display_name"`

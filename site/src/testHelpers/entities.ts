@@ -37,19 +37,22 @@ export const MockAPIKey: TypesGen.GenerateAPIKeyResponse = {
   key: "my-api-key",
 }
 
-export const MockTokens: TypesGen.APIKey[] = [
-  {
-    id: "tBoVE3dqLl",
-    user_id: "f9ee61d8-1d84-4410-ab6e-c1ec1a641e0b",
-    last_used: "0001-01-01T00:00:00Z",
-    expires_at: "2023-01-15T20:10:45.637438Z",
-    created_at: "2022-12-16T20:10:45.637452Z",
-    updated_at: "2022-12-16T20:10:45.637452Z",
-    login_type: "token",
-    scope: "all",
-    lifetime_seconds: 2592000,
-    token_name: "token-one",
-  },
+export const MockToken: TypesGen.APIKeyWithOwner = {
+  id: "tBoVE3dqLl",
+  user_id: "f9ee61d8-1d84-4410-ab6e-c1ec1a641e0b",
+  last_used: "0001-01-01T00:00:00Z",
+  expires_at: "2023-01-15T20:10:45.637438Z",
+  created_at: "2022-12-16T20:10:45.637452Z",
+  updated_at: "2022-12-16T20:10:45.637452Z",
+  login_type: "token",
+  scope: "all",
+  lifetime_seconds: 2592000,
+  token_name: "token-one",
+  username: "admin",
+}
+
+export const MockTokens: TypesGen.APIKeyWithOwner[] = [
+  MockToken,
   {
     id: "tBoVE3dqLl",
     user_id: "f9ee61d8-1d84-4410-ab6e-c1ec1a641e0b",
@@ -61,6 +64,7 @@ export const MockTokens: TypesGen.APIKey[] = [
     scope: "all",
     lifetime_seconds: 2592000,
     token_name: "token-two",
+    username: "admin",
   },
 ]
 
@@ -401,6 +405,8 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   troubleshooting_url: "https://coder.com/troubleshoot",
   lifecycle_state: "starting",
   login_before_ready: false,
+  startup_logs_length: 0,
+  startup_logs_overflowed: false,
   startup_script_timeout_seconds: 120,
   shutdown_script_timeout_seconds: 120,
 }
@@ -464,6 +470,13 @@ export const MockWorkspaceAgentStarting: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-starting",
   name: "a-starting-workspace-agent",
   lifecycle_state: "starting",
+}
+
+export const MockWorkspaceAgentReady: TypesGen.WorkspaceAgent = {
+  ...MockWorkspaceAgent,
+  id: "test-workspace-agent-ready",
+  name: "a-ready-workspace-agent",
+  lifecycle_state: "ready",
 }
 
 export const MockWorkspaceAgentStartTimeout: TypesGen.WorkspaceAgent = {
@@ -651,11 +664,12 @@ export const MockWorkspace: TypesGen.Workspace = {
     MockTemplate.allow_user_cancel_workspace_jobs,
   outdated: false,
   owner_id: MockUser.id,
+  organization_id: MockOrganization.id,
   owner_name: MockUser.username,
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,
-  ttl_ms: 2 * 60 * 60 * 1000, // 2 hours as milliseconds
+  ttl_ms: 2 * 60 * 60 * 1000,
   latest_build: MockWorkspaceBuild,
-  last_used_at: "",
+  last_used_at: "2022-05-16T15:29:10.302441433Z",
 }
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -1266,6 +1280,20 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   }),
 }
 
+export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
+  errors: [],
+  warnings: [],
+  has_license: true,
+  require_telemetry: false,
+  trial: false,
+  features: withDefaultFeatures({
+    advanced_template_scheduling: {
+      enabled: true,
+      entitlement: "entitled",
+    },
+  }),
+}
+
 export const MockExperiments: TypesGen.Experiment[] = []
 
 export const MockAuditLog: TypesGen.AuditLog = {
@@ -1378,12 +1406,6 @@ export const MockAuditLogSuccessfulLogin: TypesGen.AuditLog = {
 export const MockAuditLogUnsuccessfulLoginKnownUser: TypesGen.AuditLog = {
   ...MockAuditLogSuccessfulLogin,
   status_code: 401,
-}
-
-export const MockAuditLogUnsuccessfulLoginUnknownUser: TypesGen.AuditLog = {
-  ...MockAuditLogSuccessfulLogin,
-  status_code: 401,
-  user: undefined,
 }
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {

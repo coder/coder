@@ -53,9 +53,11 @@ export type AuditDiff = Record<string, AuditDiffField>
 
 // From codersdk/audit.go
 export interface AuditDiffField {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // Empty interface{} type, cannot resolve the type.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
   readonly old?: any
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // Empty interface{} type, cannot resolve the type.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
   readonly new?: any
   readonly secret: boolean
 }
@@ -67,7 +69,7 @@ export interface AuditLog {
   readonly time: string
   readonly organization_id: string
   // Named type "net/netip.Addr" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly ip: any
   readonly user_agent: string
   readonly resource_type: ResourceType
@@ -288,6 +290,7 @@ export interface DERPServerConfig {
   readonly region_id: number
   readonly region_code: string
   readonly region_name: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
   readonly stun_addresses: string[]
   readonly relay_url: string
 }
@@ -323,7 +326,9 @@ export interface DeploymentValues {
   readonly derp?: DERP
   readonly prometheus?: PrometheusConfig
   readonly pprof?: PprofConfig
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
   readonly proxy_trusted_headers?: string[]
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
   readonly proxy_trusted_origins?: string[]
   readonly cache_directory?: string
   readonly in_memory_database?: boolean
@@ -335,6 +340,7 @@ export interface DeploymentValues {
   readonly trace?: TraceConfig
   readonly secure_auth_cookie?: boolean
   readonly strict_transport_security?: number
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
   readonly strict_transport_security_options?: string[]
   readonly ssh_keygen_algorithm?: string
   readonly metrics_cache_refresh_interval?: number
@@ -345,6 +351,7 @@ export interface DeploymentValues {
   readonly scim_api_key?: string
   readonly provisioner?: ProvisionerConfig
   readonly rate_limit?: RateLimitConfig
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
   readonly experiments?: string[]
   readonly update_check?: boolean
   readonly max_token_lifetime?: number
@@ -357,12 +364,14 @@ export interface DeploymentValues {
   readonly disable_password_auth?: boolean
   readonly support?: SupportConfig
   // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.GitAuthConfig]" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly git_auth?: any
+  readonly config_ssh?: SSHConfig
+  readonly wgtunnel_host?: string
   readonly config?: string
   readonly write_config?: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address?: any
 }
 
@@ -441,7 +450,8 @@ export interface License {
   readonly id: number
   readonly uuid: string
   readonly uploaded_at: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // Empty interface{} type, cannot resolve the type.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
   readonly claims: Record<string, any>
 }
 
@@ -479,7 +489,9 @@ export interface OAuth2Config {
 export interface OAuth2GithubConfig {
   readonly client_id: string
   readonly client_secret: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
   readonly allowed_orgs: string[]
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
   readonly allowed_teams: string[]
   readonly allow_signups: boolean
   readonly allow_everyone: boolean
@@ -497,12 +509,17 @@ export interface OIDCConfig {
   readonly allow_signups: boolean
   readonly client_id: string
   readonly client_secret: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
   readonly email_domain: string[]
   readonly issuer_url: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
   readonly scopes: string[]
   readonly ignore_email_verified: boolean
   readonly username_field: string
   readonly groups_field: string
+  // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly group_mapping: any
   readonly sign_in_text: string
   readonly icon_url: string
 }
@@ -573,11 +590,16 @@ export interface PatchGroupRequest {
   readonly quota_allowance?: number
 }
 
+// From codersdk/templateversions.go
+export interface PatchTemplateVersionRequest {
+  readonly name: string
+}
+
 // From codersdk/deployment.go
 export interface PprofConfig {
   readonly enable: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address: any
 }
 
@@ -585,7 +607,7 @@ export interface PprofConfig {
 export interface PrometheusConfig {
   readonly enable: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address: any
 }
 
@@ -667,10 +689,24 @@ export interface Role {
   readonly display_name: string
 }
 
+// From codersdk/deployment.go
+export interface SSHConfig {
+  readonly DeploymentName: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly SSHConfigOptions: string[]
+}
+
+// From codersdk/deployment.go
+export interface SSHConfigResponse {
+  readonly hostname_prefix: string
+  readonly ssh_config_options: Record<string, string>
+}
+
 // From codersdk/serversentevents.go
 export interface ServerSentEvent {
   readonly type: ServerSentEventType
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // Empty interface{} type, cannot resolve the type.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
   readonly data: any
 }
 
@@ -692,7 +728,7 @@ export interface SessionCountDeploymentStats {
 // From codersdk/deployment.go
 export interface SupportConfig {
   // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.LinkConfig]" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly links: any
 }
 
@@ -705,12 +741,14 @@ export interface SwaggerConfig {
 export interface TLSConfig {
   readonly enable: boolean
   // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO explain why this is needed
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address: any
   readonly redirect_http: boolean
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
   readonly cert_file: string[]
   readonly client_auth: string
   readonly client_ca_file: string
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
   readonly key_file: string[]
   readonly min_version: string
   readonly client_cert_file: string
@@ -848,6 +886,12 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 }
 
 // From codersdk/apikey.go
+export interface TokenConfig {
+  // This is likely an enum in an external package ("time.Duration")
+  readonly max_token_lifetime: number
+}
+
+// From codersdk/apikey.go
 export interface TokensFilter {
   readonly include_all: boolean
 }
@@ -979,6 +1023,7 @@ export interface Workspace {
   readonly updated_at: string
   readonly owner_id: string
   readonly owner_name: string
+  readonly organization_id: string
   readonly template_id: string
   readonly template_name: string
   readonly template_display_name: string
@@ -1009,6 +1054,8 @@ export interface WorkspaceAgent {
   readonly environment_variables: Record<string, string>
   readonly operating_system: string
   readonly startup_script?: string
+  readonly startup_logs_length: number
+  readonly startup_logs_overflowed: boolean
   readonly directory?: string
   readonly expanded_directory?: string
   readonly version: string
@@ -1032,6 +1079,13 @@ export interface WorkspaceAgentListeningPort {
 // From codersdk/workspaceagentconn.go
 export interface WorkspaceAgentListeningPortsResponse {
   readonly ports: WorkspaceAgentListeningPort[]
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentStartupLog {
+  readonly id: number
+  readonly created_at: string
+  readonly output: string
 }
 
 // From codersdk/workspaceapps.go
@@ -1192,8 +1246,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "authz_querier" | "template_editor"
-export const Experiments: Experiment[] = ["authz_querier", "template_editor"]
+export type Experiment = "template_editor"
+export const Experiments: Experiment[] = ["template_editor"]
 
 // From codersdk/deployment.go
 export type FeatureName =

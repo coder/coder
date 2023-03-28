@@ -33,6 +33,9 @@ type sqlcQuerier interface {
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
 	DeleteGroupMembersByOrgAndUser(ctx context.Context, arg DeleteGroupMembersByOrgAndUserParams) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
+	// If an agent hasn't connected in the last 7 days, we purge it's logs.
+	// Logs can take up a lot of space, so it's important we clean up frequently.
+	DeleteOldWorkspaceAgentStartupLogs(ctx context.Context) error
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteParameterValueByID(ctx context.Context, id uuid.UUID) error
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
@@ -57,6 +60,8 @@ type sqlcQuerier interface {
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
 	GetFileByHashAndCreator(ctx context.Context, arg GetFileByHashAndCreatorParams) (File, error)
 	GetFileByID(ctx context.Context, id uuid.UUID) (File, error)
+	// Get all templates that use a file.
+	GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]GetFileTemplatesRow, error)
 	// This will never count deleted users.
 	GetFilteredUserCount(ctx context.Context, arg GetFilteredUserCountParams) (int64, error)
 	GetGitAuthLink(ctx context.Context, arg GetGitAuthLinkParams) (GitAuthLink, error)
@@ -87,7 +92,7 @@ type sqlcQuerier interface {
 	GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)
 	GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error)
 	GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error)
-	GetProvisionerLogsByIDBetween(ctx context.Context, arg GetProvisionerLogsByIDBetweenParams) ([]ProvisionerJobLog, error)
+	GetProvisionerLogsAfterID(ctx context.Context, arg GetProvisionerLogsAfterIDParams) ([]ProvisionerJobLog, error)
 	GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	GetQuotaConsumedForUser(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
@@ -121,6 +126,7 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error)
+	GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg GetWorkspaceAgentStartupLogsAfterParams) ([]WorkspaceAgentStartupLog, error)
 	GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentStatsRow, error)
 	GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgent, error)
 	GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error)
@@ -160,9 +166,6 @@ type sqlcQuerier interface {
 	InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error)
 	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error
 	InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error)
-	InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error
-	InsertOrUpdateLogoURL(ctx context.Context, value string) error
-	InsertOrUpdateServiceBanner(ctx context.Context, value string) error
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
 	InsertParameterSchema(ctx context.Context, arg InsertParameterSchemaParams) (ParameterSchema, error)
@@ -181,6 +184,7 @@ type sqlcQuerier interface {
 	InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error)
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error)
 	InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error)
+	InsertWorkspaceAgentStartupLogs(ctx context.Context, arg InsertWorkspaceAgentStartupLogsParams) ([]WorkspaceAgentStartupLog, error)
 	InsertWorkspaceAgentStat(ctx context.Context, arg InsertWorkspaceAgentStatParams) (WorkspaceAgentStat, error)
 	InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error)
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuild, error)
@@ -210,7 +214,7 @@ type sqlcQuerier interface {
 	UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTemplateDeletedByIDParams) error
 	UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) (Template, error)
 	UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) (Template, error)
-	UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error
+	UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) (TemplateVersion, error)
 	UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error
 	UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionGitAuthProvidersByJobIDParams) error
 	UpdateUserDeletedByID(ctx context.Context, arg UpdateUserDeletedByIDParams) error
@@ -225,6 +229,7 @@ type sqlcQuerier interface {
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
 	UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg UpdateWorkspaceAgentLifecycleStateByIDParams) error
 	UpdateWorkspaceAgentStartupByID(ctx context.Context, arg UpdateWorkspaceAgentStartupByIDParams) error
+	UpdateWorkspaceAgentStartupLogOverflowByID(ctx context.Context, arg UpdateWorkspaceAgentStartupLogOverflowByIDParams) error
 	UpdateWorkspaceAppHealthByID(ctx context.Context, arg UpdateWorkspaceAppHealthByIDParams) error
 	UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error
 	UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) (WorkspaceBuild, error)
@@ -233,6 +238,9 @@ type sqlcQuerier interface {
 	UpdateWorkspaceLastUsedAt(ctx context.Context, arg UpdateWorkspaceLastUsedAtParams) error
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 	UpdateWorkspaceTTLToBeWithinTemplateMax(ctx context.Context, arg UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error
+	UpsertLastUpdateCheck(ctx context.Context, value string) error
+	UpsertLogoURL(ctx context.Context, value string) error
+	UpsertServiceBanner(ctx context.Context, value string) error
 }
 
 var _ sqlcQuerier = (*sqlQuerier)(nil)

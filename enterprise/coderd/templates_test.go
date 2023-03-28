@@ -57,7 +57,7 @@ func TestTemplates(t *testing.T) {
 		workspace3 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		// To unset TTL you have to update, as setting a nil TTL on create
 		// copies the template default TTL.
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := client.UpdateWorkspaceTTL(ctx, workspace3.ID, codersdk.UpdateWorkspaceTTLRequest{
 			TTLMillis: nil,
 		})
@@ -226,7 +226,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
@@ -347,7 +347,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
@@ -387,7 +387,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
@@ -426,7 +426,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "test",
@@ -477,7 +477,7 @@ func TestTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
@@ -589,7 +589,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		numLogs := len(auditor.AuditLogs)
 
@@ -689,7 +689,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
@@ -716,7 +716,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
@@ -744,7 +744,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
@@ -772,7 +772,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -786,7 +786,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		err = client2.UpdateTemplateACL(ctx, template.ID, req)
 		require.Error(t, err)
 		cerr, _ := codersdk.AsError(err)
-		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+		require.Equal(t, http.StatusInternalServerError, cerr.StatusCode())
 	})
 
 	t.Run("RegularUserWithAdminCanUpdate", func(t *testing.T) {
@@ -810,7 +810,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -872,7 +872,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, _ := testutil.Context(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Create a group to add to the template.
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -976,6 +976,53 @@ func TestUpdateTemplateACL(t *testing.T) {
 	})
 }
 
+func TestReadFileWithTemplateUpdate(t *testing.T) {
+	t.Parallel()
+	t.Run("HasTemplateUpdate", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Upload a file
+		client := coderdenttest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		})
+
+		resp, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(make([]byte, 1024)))
+		require.NoError(t, err)
+
+		// Make a new user
+		member, memberData := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		// Try to download file, this should fail
+		_, _, err = member.Download(ctx, resp.ID)
+		require.Error(t, err, "no template yet")
+
+		// Make a new template version with the file
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil, func(request *codersdk.CreateTemplateVersionRequest) {
+			request.FileID = resp.ID
+		})
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+
+		// Not in acl yet
+		_, _, err = member.Download(ctx, resp.ID)
+		require.Error(t, err, "not in acl yet")
+
+		err = client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{
+				memberData.ID.String(): codersdk.TemplateRoleAdmin,
+			},
+		})
+		require.NoError(t, err)
+
+		_, _, err = member.Download(ctx, resp.ID)
+		require.NoError(t, err)
+	})
+}
+
 // TestTemplateAccess tests the rego -> sql conversion. We need to implement
 // this test on at least 1 table type to ensure that the conversion is correct.
 // The rbac tests only assert against static SQL queries.
@@ -984,7 +1031,9 @@ func TestUpdateTemplateACL(t *testing.T) {
 //nolint:tparallel
 func TestTemplateAccess(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	// TODO: This context is for all the subtests. Each subtest should have its
+	// own context.
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*3)
 	t.Cleanup(cancel)
 
 	ownerClient := coderdenttest.New(t, nil)

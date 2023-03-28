@@ -3,6 +3,7 @@ package coderd
 import (
 	"net/http"
 
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -58,4 +59,28 @@ func (api *API) deploymentStats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, stats)
+}
+
+// @Summary Build info
+// @ID build-info
+// @Produce json
+// @Tags General
+// @Success 200 {object} codersdk.BuildInfoResponse
+// @Router /buildinfo [get]
+func buildInfo(rw http.ResponseWriter, r *http.Request) {
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
+		ExternalURL: buildinfo.ExternalURL(),
+		Version:     buildinfo.Version(),
+	})
+}
+
+// @Summary SSH Config
+// @ID ssh-config
+// @Security CoderSessionToken
+// @Produce json
+// @Tags General
+// @Success 200 {object} codersdk.SSHConfigResponse
+// @Router /deployment/ssh [get]
+func (api *API) sshConfig(rw http.ResponseWriter, r *http.Request) {
+	httpapi.Write(r.Context(), rw, http.StatusOK, api.SSHConfig)
 }

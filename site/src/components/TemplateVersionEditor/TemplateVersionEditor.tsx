@@ -16,6 +16,7 @@ import { AvatarData } from "components/AvatarData/AvatarData"
 import { bannerHeight } from "components/DeploymentBanner/DeploymentBannerView"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
+import { PublishVersionData } from "pages/TemplateVersionPage/TemplateVersionEditorPage/types"
 import { FC, useCallback, useEffect, useRef, useState } from "react"
 import { navHeight, dashboardContentBottomPadding } from "theme/constants"
 import {
@@ -36,6 +37,7 @@ import {
 } from "./FileDialog"
 import { FileTreeView } from "./FileTreeView"
 import { MonacoEditor } from "./MonacoEditor"
+import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog"
 import {
   getStatus,
   TemplateVersionStatusBadge,
@@ -51,7 +53,12 @@ export interface TemplateVersionEditorProps {
   disablePreview: boolean
   disableUpdate: boolean
   onPreview: (files: FileTree) => void
-  onUpdate: () => void
+  onPublish: () => void
+  onConfirmPublish: (data: PublishVersionData) => void
+  onCancelPublish: () => void
+  publishingError: unknown
+  isAskingPublishParameters: boolean
+  isPublishing: boolean
 }
 
 const topbarHeight = 80
@@ -76,7 +83,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   templateVersion,
   defaultFileTree,
   onPreview,
-  onUpdate,
+  onPublish,
+  onConfirmPublish,
+  onCancelPublish,
+  publishingError,
+  isAskingPublishParameters,
+  isPublishing,
   buildLogs,
   resources,
 }) => {
@@ -89,6 +101,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   const [createFileOpen, setCreateFileOpen] = useState(false)
   const [deleteFileOpen, setDeleteFileOpen] = useState<string>()
   const [renameFileOpen, setRenameFileOpen] = useState<string>()
+  const [dirty, setDirty] = useState(false)
   const [activePath, setActivePath] = useState<string | undefined>(() =>
     findInitialFile(fileTree),
   )
@@ -139,11 +152,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
     previousVersion.current = templateVersion
   }, [templateVersion])
 
-  const [dirty, setDirty] = useState(false)
   const hasIcon = template.icon && template.icon !== ""
   const templateVersionSucceeded = templateVersion.job.status === "succeeded"
   const showBuildLogs = Boolean(buildLogs)
   const editorValue = getFileContent(activePath ?? "", fileTree) as string
+  const firstTemplateVersionOnEditor = useRef(templateVersion)
 
   useEffect(() => {
     window.dispatchEvent(new Event("resize"))
@@ -155,230 +168,249 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   })
 
   return (
-    <div className={styles.root}>
-      <div className={styles.topbar}>
-        <div className={styles.topbarSides}>
-          <AvatarData
-            title={template.display_name || template.name}
-            subtitle={template.description}
-            avatar={
-              hasIcon && (
-                <Avatar src={template.icon} variant="square" fitImage />
-              )
-            }
-          />
-        </div>
-
-        <div className={styles.topbarSides}>
-          <div className={styles.buildStatus}>
-            <TemplateVersionStatusBadge version={templateVersion} />
-          </div>
-
-          <Button
-            title="Build template (Ctrl + Enter)"
-            size="small"
-            variant="outlined"
-            disabled={disablePreview}
-            onClick={() => {
-              triggerPreview()
-            }}
-          >
-            Build template
-          </Button>
-
-          <Button
-            title={
-              dirty
-                ? "You have edited files! Run another build before updating."
-                : templateVersion.job.status !== "succeeded"
-                ? "Something"
-                : ""
-            }
-            size="small"
-            disabled={dirty || disableUpdate}
-            onClick={onUpdate}
-          >
-            Publish version
-          </Button>
-        </div>
-      </div>
-
-      <div className={styles.sidebarAndEditor}>
-        <div className={styles.sidebar}>
-          <div className={styles.sidebarTitle}>
-            Template files
-            <div className={styles.sidebarActions}>
-              <Tooltip title="Create File" placement="top">
-                <IconButton
-                  size="small"
-                  aria-label="Create File"
-                  onClick={(event) => {
-                    setCreateFileOpen(true)
-                    event.currentTarget.blur()
-                  }}
-                >
-                  <CreateIcon />
-                </IconButton>
-              </Tooltip>
-            </div>
-            <CreateFileDialog
-              fileTree={fileTree}
-              open={createFileOpen}
-              onClose={() => {
-                setCreateFileOpen(false)
-              }}
-              checkExists={(path) => existsFile(path, fileTree)}
-              onConfirm={(path) => {
-                setFileTree((fileTree) => createFile(path, fileTree, ""))
-                setActivePath(path)
-                setCreateFileOpen(false)
-                setDirty(true)
-              }}
-            />
-            <DeleteFileDialog
-              onConfirm={() => {
-                if (!deleteFileOpen) {
-                  throw new Error("delete file must be set")
-                }
-                setFileTree((fileTree) => removeFile(deleteFileOpen, fileTree))
-                setDeleteFileOpen(undefined)
-                if (activePath === deleteFileOpen) {
-                  setActivePath(undefined)
-                }
-                setDirty(true)
-              }}
-              open={Boolean(deleteFileOpen)}
-              onClose={() => setDeleteFileOpen(undefined)}
-              filename={deleteFileOpen || ""}
-            />
-            <RenameFileDialog
-              fileTree={fileTree}
-              open={Boolean(renameFileOpen)}
-              onClose={() => {
-                setRenameFileOpen(undefined)
-              }}
-              filename={renameFileOpen || ""}
-              checkExists={(path) => existsFile(path, fileTree)}
-              onConfirm={(newPath) => {
-                if (!renameFileOpen) {
-                  return
-                }
-                setFileTree((fileTree) =>
-                  moveFile(renameFileOpen, newPath, fileTree),
+    <>
+      <div className={styles.root}>
+        <div className={styles.topbar} data-testid="topbar">
+          <div className={styles.topbarSides}>
+            <AvatarData
+              title={template.display_name || template.name}
+              subtitle={template.description}
+              avatar={
+                hasIcon && (
+                  <Avatar src={template.icon} variant="square" fitImage />
                 )
-                setActivePath(newPath)
-                setRenameFileOpen(undefined)
-                setDirty(true)
-              }}
+              }
             />
           </div>
-          <FileTreeView
-            fileTree={fileTree}
-            onDelete={(file) => setDeleteFileOpen(file)}
-            onSelect={(filePath) => {
-              if (!isFolder(filePath, fileTree)) {
-                setActivePath(filePath)
+
+          <div className={styles.topbarSides}>
+            {/* Only start to show the build when a new template version is building */}
+            {templateVersion.id !== firstTemplateVersionOnEditor.current.id && (
+              <div className={styles.buildStatus}>
+                <TemplateVersionStatusBadge version={templateVersion} />
+              </div>
+            )}
+
+            <Button
+              title="Build template (Ctrl + Enter)"
+              size="small"
+              variant="outlined"
+              disabled={disablePreview}
+              onClick={() => {
+                triggerPreview()
+              }}
+            >
+              Build template
+            </Button>
+
+            <Button
+              title={
+                dirty
+                  ? "You have edited files! Run another build before updating."
+                  : templateVersion.job.status !== "succeeded"
+                  ? "Something"
+                  : ""
               }
-            }}
-            onRename={(file) => setRenameFileOpen(file)}
-            activePath={activePath}
-          />
+              size="small"
+              disabled={dirty || disableUpdate}
+              onClick={onPublish}
+            >
+              Publish version
+            </Button>
+          </div>
         </div>
 
-        <div className={styles.editorPane}>
-          <div className={styles.editor} data-chromatic="ignore">
-            {activePath ? (
-              <MonacoEditor
-                value={editorValue}
-                path={activePath}
-                onChange={(value) => {
-                  if (!activePath) {
-                    return
-                  }
-                  setFileTree((fileTree) =>
-                    updateFile(activePath, value, fileTree),
-                  )
+        <div className={styles.sidebarAndEditor}>
+          <div className={styles.sidebar}>
+            <div className={styles.sidebarTitle}>
+              Template files
+              <div className={styles.sidebarActions}>
+                <Tooltip title="Create File" placement="top">
+                  <IconButton
+                    size="small"
+                    aria-label="Create File"
+                    onClick={(event) => {
+                      setCreateFileOpen(true)
+                      event.currentTarget.blur()
+                    }}
+                  >
+                    <CreateIcon />
+                  </IconButton>
+                </Tooltip>
+              </div>
+              <CreateFileDialog
+                fileTree={fileTree}
+                open={createFileOpen}
+                onClose={() => {
+                  setCreateFileOpen(false)
+                }}
+                checkExists={(path) => existsFile(path, fileTree)}
+                onConfirm={(path) => {
+                  setFileTree((fileTree) => createFile(path, fileTree, ""))
+                  setActivePath(path)
+                  setCreateFileOpen(false)
                   setDirty(true)
                 }}
               />
-            ) : (
-              <div>No file opened</div>
-            )}
+              <DeleteFileDialog
+                onConfirm={() => {
+                  if (!deleteFileOpen) {
+                    throw new Error("delete file must be set")
+                  }
+                  setFileTree((fileTree) =>
+                    removeFile(deleteFileOpen, fileTree),
+                  )
+                  setDeleteFileOpen(undefined)
+                  if (activePath === deleteFileOpen) {
+                    setActivePath(undefined)
+                  }
+                  setDirty(true)
+                }}
+                open={Boolean(deleteFileOpen)}
+                onClose={() => setDeleteFileOpen(undefined)}
+                filename={deleteFileOpen || ""}
+              />
+              <RenameFileDialog
+                fileTree={fileTree}
+                open={Boolean(renameFileOpen)}
+                onClose={() => {
+                  setRenameFileOpen(undefined)
+                }}
+                filename={renameFileOpen || ""}
+                checkExists={(path) => existsFile(path, fileTree)}
+                onConfirm={(newPath) => {
+                  if (!renameFileOpen) {
+                    return
+                  }
+                  setFileTree((fileTree) =>
+                    moveFile(renameFileOpen, newPath, fileTree),
+                  )
+                  setActivePath(newPath)
+                  setRenameFileOpen(undefined)
+                  setDirty(true)
+                }}
+              />
+            </div>
+            <FileTreeView
+              fileTree={fileTree}
+              onDelete={(file) => setDeleteFileOpen(file)}
+              onSelect={(filePath) => {
+                if (!isFolder(filePath, fileTree)) {
+                  setActivePath(filePath)
+                }
+              }}
+              onRename={(file) => setRenameFileOpen(file)}
+              activePath={activePath}
+            />
           </div>
 
-          <div className={styles.panelWrapper}>
-            <div className={styles.tabs}>
-              <button
-                className={`${styles.tab} ${selectedTab === 0 ? "active" : ""}`}
-                onClick={() => {
-                  setSelectedTab(0)
-                }}
-              >
-                {templateVersion.job.status !== "succeeded" ? (
-                  getStatus(templateVersion).icon
-                ) : (
-                  <BuildIcon />
-                )}
-                Build Log
-              </button>
+          <div className={styles.editorPane}>
+            <div className={styles.editor} data-chromatic="ignore">
+              {activePath ? (
+                <MonacoEditor
+                  value={editorValue}
+                  path={activePath}
+                  onChange={(value) => {
+                    if (!activePath) {
+                      return
+                    }
+                    setFileTree((fileTree) =>
+                      updateFile(activePath, value, fileTree),
+                    )
+                    setDirty(true)
+                  }}
+                />
+              ) : (
+                <div>No file opened</div>
+              )}
+            </div>
 
-              {!disableUpdate && (
+            <div className={styles.panelWrapper}>
+              <div className={styles.tabs}>
                 <button
                   className={`${styles.tab} ${
-                    selectedTab === 1 ? "active" : ""
+                    selectedTab === 0 ? "active" : ""
                   }`}
                   onClick={() => {
-                    setSelectedTab(1)
+                    setSelectedTab(0)
                   }}
                 >
-                  <PreviewIcon />
-                  Workspace Preview
-                </button>
-              )}
-            </div>
-
-            <div
-              className={`${styles.panel} ${styles.buildLogs} ${
-                selectedTab === 0 ? "" : "hidden"
-              }`}
-            >
-              {buildLogs && (
-                <WorkspaceBuildLogs
-                  templateEditorPane
-                  hideTimestamps
-                  logs={buildLogs}
-                />
-              )}
-              {templateVersion.job.error && (
-                <div className={styles.buildLogError}>
-                  {templateVersion.job.error}
-                </div>
-              )}
-            </div>
-
-            <div
-              className={`${styles.panel} ${styles.resources} ${
-                selectedTab === 1 ? "" : "hidden"
-              }`}
-            >
-              {resources && (
-                <TemplateResourcesTable
-                  resources={resources.filter(
-                    (r) => r.workspace_transition === "start",
+                  {templateVersion.job.status !== "succeeded" ? (
+                    getStatus(templateVersion).icon
+                  ) : (
+                    <BuildIcon />
                   )}
-                />
-              )}
-            </div>
-          </div>
+                  Build Log
+                </button>
 
-          {templateVersionSucceeded && (
-            <>
-              <div className={styles.panelDivider} />
-            </>
-          )}
+                {!disableUpdate && (
+                  <button
+                    className={`${styles.tab} ${
+                      selectedTab === 1 ? "active" : ""
+                    }`}
+                    onClick={() => {
+                      setSelectedTab(1)
+                    }}
+                  >
+                    <PreviewIcon />
+                    Workspace Preview
+                  </button>
+                )}
+              </div>
+
+              <div
+                className={`${styles.panel} ${styles.buildLogs} ${
+                  selectedTab === 0 ? "" : "hidden"
+                }`}
+              >
+                {buildLogs && (
+                  <WorkspaceBuildLogs
+                    templateEditorPane
+                    hideTimestamps
+                    logs={buildLogs}
+                  />
+                )}
+                {templateVersion.job.error && (
+                  <div className={styles.buildLogError}>
+                    {templateVersion.job.error}
+                  </div>
+                )}
+              </div>
+
+              <div
+                className={`${styles.panel} ${styles.resources} ${
+                  selectedTab === 1 ? "" : "hidden"
+                }`}
+              >
+                {resources && (
+                  <TemplateResourcesTable
+                    resources={resources.filter(
+                      (r) => r.workspace_transition === "start",
+                    )}
+                  />
+                )}
+              </div>
+            </div>
+
+            {templateVersionSucceeded && (
+              <>
+                <div className={styles.panelDivider} />
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      <PublishTemplateVersionDialog
+        key={templateVersion.name}
+        publishingError={publishingError}
+        open={isAskingPublishParameters || isPublishing}
+        onClose={onCancelPublish}
+        onConfirm={onConfirmPublish}
+        isPublishing={isPublishing}
+        defaultName={templateVersion.name}
+      />
+    </>
   )
 }
 
@@ -387,7 +419,7 @@ const useStyles = makeStyles<
   {
     templateVersionSucceeded: boolean
     showBuildLogs: boolean
-    deploymentBannerVisible: boolean
+    deploymentBannerVisible?: boolean
   }
 >((theme) => ({
   root: {

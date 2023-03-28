@@ -259,7 +259,17 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 		modules = append(modules, plan.PriorState.Values.RootModule)
 	}
 	modules = append(modules, plan.PlannedValues.RootModule)
-	return ConvertState(modules, rawGraph)
+
+	rawParameterNames, err := rawRichParameterNames(e.workdir)
+	if err != nil {
+		return nil, xerrors.Errorf("raw rich parameter names: %w", err)
+	}
+
+	state, err := ConvertState(modules, rawGraph, rawParameterNames)
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
 }
 
 // showPlan must only be called while the lock is held.
@@ -366,9 +376,14 @@ func (e *executor) stateResources(ctx, killCtx context.Context) (*State, error) 
 	}
 	converted := &State{}
 	if state.Values != nil {
+		rawParameterNames, err := rawRichParameterNames(e.workdir)
+		if err != nil {
+			return nil, xerrors.Errorf("raw rich parameter names: %w", err)
+		}
+
 		converted, err = ConvertState([]*tfjson.StateModule{
 			state.Values.RootModule,
-		}, rawGraph)
+		}, rawGraph, rawParameterNames)
 		if err != nil {
 			return nil, err
 		}
@@ -445,7 +460,27 @@ func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel
 	defer close(done)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		sink.Log(&proto.Log{Level: level, Output: scanner.Text()})
+		var log terraformProvisionLog
+		err := json.Unmarshal(scanner.Bytes(), &log)
+		if err != nil {
+			if strings.TrimSpace(scanner.Text()) == "" {
+				continue
+			}
+
+			sink.Log(&proto.Log{Level: level, Output: scanner.Text()})
+			continue
+		}
+
+		logLevel := convertTerraformLogLevel(log.Level, sink)
+		if logLevel == proto.LogLevel_TRACE {
+			continue // skip TRACE log entries as they produce a lot of noise
+		}
+
+		// Degrade JSON log entries marked as INFO as these are logs produced in debug mode.
+		if logLevel == proto.LogLevel_INFO {
+			logLevel = proto.LogLevel_DEBUG
+		}
+		sink.Log(&proto.Log{Level: logLevel, Output: log.Message})
 	}
 }
 
@@ -496,8 +531,10 @@ func provisionReadAndLog(sink logSink, r io.Reader, done chan<- any) {
 		if log.Diagnostic == nil {
 			continue
 		}
-		logLevel = convertTerraformLogLevel(log.Diagnostic.Severity, sink)
-		sink.Log(&proto.Log{Level: logLevel, Output: log.Diagnostic.Detail})
+		logLevel = convertTerraformLogLevel(string(log.Diagnostic.Severity), sink)
+		for _, diagLine := range strings.Split(FormatDiagnostic(log.Diagnostic), "\n") {
+			sink.Log(&proto.Log{Level: logLevel, Output: diagLine})
+		}
 	}
 }
 
@@ -509,7 +546,7 @@ func convertTerraformLogLevel(logLevel string, sink logSink) proto.LogLevel {
 		return proto.LogLevel_DEBUG
 	case "info":
 		return proto.LogLevel_INFO
-	case "warn":
+	case "warn", "warning":
 		return proto.LogLevel_WARN
 	case "error":
 		return proto.LogLevel_ERROR
@@ -526,13 +563,7 @@ type terraformProvisionLog struct {
 	Level   string `json:"@level"`
 	Message string `json:"@message"`
 
-	Diagnostic *terraformProvisionLogDiagnostic `json:"diagnostic"`
-}
-
-type terraformProvisionLogDiagnostic struct {
-	Severity string `json:"severity"`
-	Summary  string `json:"summary"`
-	Detail   string `json:"detail"`
+	Diagnostic *tfjson.Diagnostic `json:"diagnostic,omitempty"`
 }
 
 // syncWriter wraps an io.Writer in a sync.Mutex.

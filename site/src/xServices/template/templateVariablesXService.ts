@@ -1,6 +1,5 @@
 import {
   createTemplateVersion,
-  getTemplateByName,
   getTemplateVersion,
   getTemplateVersionVariables,
   updateActiveTemplateVersion,
@@ -17,9 +16,8 @@ import { Message } from "api/types"
 
 type TemplateVariablesContext = {
   organizationId: string
-  templateName: string
 
-  template?: Template
+  template: Template
   activeTemplateVersion?: TemplateVersion
   templateVariables?: TemplateVersionVariable[]
 
@@ -28,6 +26,8 @@ type TemplateVariablesContext = {
 
   getTemplateDataError?: Error | unknown
   updateTemplateError?: Error | unknown
+
+  jobError?: TemplateVersion["job"]["error"]
 }
 
 type UpdateTemplateEvent = {
@@ -44,9 +44,6 @@ export const templateVariablesMachine = createMachine(
       context: {} as TemplateVariablesContext,
       events: {} as UpdateTemplateEvent,
       services: {} as {
-        getTemplate: {
-          data: Template
-        }
         getActiveTemplateVersion: {
           data: TemplateVersion
         }
@@ -64,24 +61,8 @@ export const templateVariablesMachine = createMachine(
         }
       },
     },
-    initial: "gettingTemplate",
+    initial: "gettingActiveTemplateVersion",
     states: {
-      gettingTemplate: {
-        entry: "clearGetTemplateDataError",
-        invoke: {
-          src: "getTemplate",
-          onDone: [
-            {
-              actions: ["assignTemplate"],
-              target: "gettingActiveTemplateVersion",
-            },
-          ],
-          onError: {
-            actions: ["assignGetTemplateDataError"],
-            target: "error",
-          },
-        },
-      },
       gettingActiveTemplateVersion: {
         entry: "clearGetTemplateDataError",
         invoke: {
@@ -117,7 +98,7 @@ export const templateVariablesMachine = createMachine(
       fillingParams: {
         on: {
           UPDATE_TEMPLATE_EVENT: {
-            actions: ["assignCreateTemplateVersionRequest"],
+            actions: ["assignCreateTemplateVersionRequest", "clearJobError"],
             target: "creatingTemplateVersion",
           },
         },
@@ -141,6 +122,11 @@ export const templateVariablesMachine = createMachine(
         invoke: {
           src: "waitForJobToBeCompleted",
           onDone: [
+            {
+              target: "fillingParams",
+              cond: "hasJobError",
+              actions: ["assignJobError"],
+            },
             {
               actions: ["assignNewTemplateVersion"],
               target: "updatingTemplate",
@@ -176,19 +162,10 @@ export const templateVariablesMachine = createMachine(
   },
   {
     services: {
-      getTemplate: ({ organizationId, templateName }) => {
-        return getTemplateByName(organizationId, templateName)
-      },
       getActiveTemplateVersion: ({ template }) => {
-        if (!template) {
-          throw new Error("No template selected")
-        }
         return getTemplateVersion(template.active_version_id)
       },
       getTemplateVariables: ({ template }) => {
-        if (!template) {
-          throw new Error("No template selected")
-        }
         return getTemplateVersionVariables(template.active_version_id)
       },
       createNewTemplateVersion: ({
@@ -217,10 +194,6 @@ export const templateVariablesMachine = createMachine(
         return newTemplateVersion
       },
       updateTemplate: ({ template, newTemplateVersion }) => {
-        if (!template) {
-          throw new Error("No template selected")
-        }
-
         if (!newTemplateVersion) {
           throw new Error("New template version is undefined")
         }
@@ -231,9 +204,6 @@ export const templateVariablesMachine = createMachine(
       },
     },
     actions: {
-      assignTemplate: assign({
-        template: (_, event) => event.data,
-      }),
       assignActiveTemplateVersion: assign({
         activeTemplateVersion: (_, event) => event.data,
       }),
@@ -258,6 +228,17 @@ export const templateVariablesMachine = createMachine(
       clearUpdateTemplateError: assign({
         updateTemplateError: (_) => undefined,
       }),
+      assignJobError: assign({
+        jobError: (_, event) => event.data.job.error,
+      }),
+      clearJobError: assign({
+        jobError: (_) => undefined,
+      }),
+    },
+    guards: {
+      hasJobError: (_, { data }) => {
+        return Boolean(data.job.error)
+      },
     },
   },
 )

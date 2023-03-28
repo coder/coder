@@ -31,15 +31,13 @@ func TestShow(t *testing.T) {
 			"show",
 			workspace.Name,
 		}
-		cmd, root := clitest.New(t, args...)
+		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
-			err := cmd.Execute()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 		matches := []struct {

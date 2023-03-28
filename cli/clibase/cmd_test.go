@@ -213,6 +213,66 @@ func TestCommand(t *testing.T) {
 	})
 }
 
+func TestCommand_DeepNest(t *testing.T) {
+	t.Parallel()
+	cmd := &clibase.Cmd{
+		Use: "1",
+		Children: []*clibase.Cmd{
+			{
+				Use: "2",
+				Children: []*clibase.Cmd{
+					{
+						Use: "3",
+						Handler: func(i *clibase.Invocation) error {
+							i.Stdout.Write([]byte("3"))
+							return nil
+						},
+					},
+				},
+			},
+		},
+	}
+	inv := cmd.Invoke("2", "3")
+	stdio := fakeIO(inv)
+	err := inv.Run()
+	require.NoError(t, err)
+	require.Equal(t, "3", stdio.Stdout.String())
+}
+
+func TestCommand_FlagOverride(t *testing.T) {
+	t.Parallel()
+	var flag string
+
+	cmd := &clibase.Cmd{
+		Use: "1",
+		Options: clibase.OptionSet{
+			{
+				Flag:  "f",
+				Value: clibase.DiscardValue,
+			},
+		},
+		Children: []*clibase.Cmd{
+			{
+				Use: "2",
+				Options: clibase.OptionSet{
+					{
+						Flag:  "f",
+						Value: clibase.StringOf(&flag),
+					},
+				},
+				Handler: func(i *clibase.Invocation) error {
+					return nil
+				},
+			},
+		},
+	}
+
+	err := cmd.Invoke("2", "--f", "mhmm").Run()
+	require.NoError(t, err)
+
+	require.Equal(t, "mhmm", flag)
+}
+
 func TestCommand_MiddlewareOrder(t *testing.T) {
 	t.Parallel()
 
@@ -252,7 +312,7 @@ func TestCommand_RawArgs(t *testing.T) {
 	cmd := func() *clibase.Cmd {
 		return &clibase.Cmd{
 			Use: "root",
-			Options: []clibase.Option{
+			Options: clibase.OptionSet{
 				{
 					Name:  "password",
 					Flag:  "password",
@@ -365,4 +425,113 @@ func TestCommand_ContextCancels(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Error(t, gotCtx.Err())
+}
+
+func TestCommand_Help(t *testing.T) {
+	t.Parallel()
+
+	cmd := func() *clibase.Cmd {
+		return &clibase.Cmd{
+			Use: "root",
+			HelpHandler: (func(i *clibase.Invocation) error {
+				i.Stdout.Write([]byte("abdracadabra"))
+				return nil
+			}),
+			Handler: (func(i *clibase.Invocation) error {
+				return xerrors.New("should not be called")
+			}),
+		}
+	}
+
+	t.Run("NoHandler", func(t *testing.T) {
+		t.Parallel()
+
+		c := cmd()
+		c.HelpHandler = nil
+		err := c.Invoke("--help").Run()
+		require.Error(t, err)
+	})
+
+	t.Run("Long", func(t *testing.T) {
+		t.Parallel()
+
+		inv := cmd().Invoke("--help")
+		stdio := fakeIO(inv)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		require.Contains(t, stdio.Stdout.String(), "abdracadabra")
+	})
+
+	t.Run("Short", func(t *testing.T) {
+		t.Parallel()
+
+		inv := cmd().Invoke("-h")
+		stdio := fakeIO(inv)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		require.Contains(t, stdio.Stdout.String(), "abdracadabra")
+	})
+}
+
+func TestCommand_SliceFlags(t *testing.T) {
+	t.Parallel()
+
+	cmd := func(want ...string) *clibase.Cmd {
+		var got []string
+		return &clibase.Cmd{
+			Use: "root",
+			Options: clibase.OptionSet{
+				{
+					Name:    "arr",
+					Flag:    "arr",
+					Default: "bad,bad,bad",
+					Value:   clibase.StringArrayOf(&got),
+				},
+			},
+			Handler: (func(i *clibase.Invocation) error {
+				require.Equal(t, want, got)
+				return nil
+			}),
+		}
+	}
+
+	err := cmd("good", "good", "good").Invoke("--arr", "good", "--arr", "good", "--arr", "good").Run()
+	require.NoError(t, err)
+
+	err = cmd("bad", "bad", "bad").Invoke().Run()
+	require.NoError(t, err)
+}
+
+func TestCommand_EmptySlice(t *testing.T) {
+	t.Parallel()
+
+	cmd := func(want ...string) *clibase.Cmd {
+		var got []string
+		return &clibase.Cmd{
+			Use: "root",
+			Options: clibase.OptionSet{
+				{
+					Name:    "arr",
+					Flag:    "arr",
+					Default: "bad,bad,bad",
+					Env:     "ARR",
+					Value:   clibase.StringArrayOf(&got),
+				},
+			},
+			Handler: (func(i *clibase.Invocation) error {
+				require.Equal(t, want, got)
+				return nil
+			}),
+		}
+	}
+
+	// Base-case
+	err := cmd("bad", "bad", "bad").Invoke().Run()
+	require.NoError(t, err)
+
+	inv := cmd().Invoke("--arr", "")
+	err = inv.Run()
+	require.NoError(t, err)
 }

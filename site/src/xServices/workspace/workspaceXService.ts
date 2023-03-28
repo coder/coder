@@ -55,7 +55,6 @@ export interface WorkspaceContext {
   eventSource?: EventSource
   workspace?: TypesGen.Workspace
   template?: TypesGen.Template
-  templateParameters?: TypesGen.TemplateVersionParameter[]
   build?: TypesGen.WorkspaceBuild
   getWorkspaceError?: Error | unknown
   getTemplateWarning: Error | unknown
@@ -63,7 +62,7 @@ export interface WorkspaceContext {
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
   getBuildsError?: Error | unknown
-  missingParameters?: TypesGen.TemplateVersionParameter[]
+  missedParameters?: TypesGen.TemplateVersionParameter[]
   // error creating a new WorkspaceBuild
   buildError?: Error | unknown
   cancellationMessage?: Types.Message
@@ -203,7 +202,7 @@ export const workspaceMachine = createMachine(
           onDone: [
             {
               actions: ["assignTemplate", "clearGetTemplateWarning"],
-              target: "gettingTemplateParameters",
+              target: "gettingPermissions",
             },
           ],
           onError: [
@@ -211,31 +210,6 @@ export const workspaceMachine = createMachine(
               actions: [
                 "assignGetTemplateWarning",
                 "displayGetTemplateWarning",
-              ],
-              target: "error",
-            },
-          ],
-        },
-        tags: "loading",
-      },
-      gettingTemplateParameters: {
-        invoke: {
-          src: "getTemplateParameters",
-          id: "getTemplateParameters",
-          onDone: [
-            {
-              actions: [
-                "assignTemplateParameters",
-                "clearGetTemplateParametersWarning",
-              ],
-              target: "gettingPermissions",
-            },
-          ],
-          onError: [
-            {
-              actions: [
-                "assignGetTemplateParametersWarning",
-                "displayGetTemplateParametersWarning",
               ],
               target: "error",
             },
@@ -328,7 +302,7 @@ export const workspaceMachine = createMachine(
                     {
                       target: "askingForMissedBuildParameters",
                       cond: "isMissingBuildParameterError",
-                      actions: ["assignMissingParameters"],
+                      actions: ["assignMissedParameters"],
                     },
                     {
                       target: "idle",
@@ -524,9 +498,6 @@ export const workspaceMachine = createMachine(
       assignTemplate: assign({
         template: (_, event) => event.data,
       }),
-      assignTemplateParameters: assign({
-        templateParameters: (_, event) => event.data,
-      }),
       assignPermissions: assign({
         // Setting event.data as Permissions to be more stricted. So we know
         // what permissions we asked for.
@@ -587,15 +558,6 @@ export const workspaceMachine = createMachine(
       clearGetTemplateWarning: assign({
         getTemplateWarning: (_) => undefined,
       }),
-      assignGetTemplateParametersWarning: assign({
-        getTemplateParametersWarning: (_, event) => event.data,
-      }),
-      displayGetTemplateParametersWarning: () => {
-        displayError(Language.getTemplateParametersWarning)
-      },
-      clearGetTemplateParametersWarning: assign({
-        getTemplateParametersWarning: (_) => undefined,
-      }),
       // Timeline
       assignBuilds: assign({
         builds: (_, event) => event.data,
@@ -635,8 +597,8 @@ export const workspaceMachine = createMachine(
           }
         },
       }),
-      assignMissingParameters: assign({
-        missingParameters: (_, { data }) => {
+      assignMissedParameters: assign({
+        missedParameters: (_, { data }) => {
           if (!(data instanceof API.MissingBuildParameters)) {
             throw new Error("data is not a MissingBuildParameters error")
           }
@@ -665,15 +627,6 @@ export const workspaceMachine = createMachine(
           return await API.getTemplate(context.workspace.template_id)
         } else {
           throw Error("Cannot get template without workspace")
-        }
-      },
-      getTemplateParameters: async (context) => {
-        if (context.workspace) {
-          return await API.getTemplateVersionRichParameters(
-            context.workspace.latest_build.template_version_id,
-          )
-        } else {
-          throw Error("Cannot get template parameters without workspace")
         }
       },
       updateWorkspace:
@@ -746,6 +699,7 @@ export const workspaceMachine = createMachine(
             checkRefresh: true,
             data: JSON.parse(event.data),
           })
+          // refresh
         })
 
         // handle any error events returned by our sse

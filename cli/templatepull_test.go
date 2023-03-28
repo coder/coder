@@ -46,8 +46,8 @@ func TestTemplatePull(t *testing.T) {
 	t.Run("NoName", func(t *testing.T) {
 		t.Parallel()
 
-		cmd, _ := clitest.New(t, "templates", "pull")
-		err := cmd.Execute()
+		inv, _ := clitest.New(t, "templates", "pull")
+		err := inv.Run()
 		require.Error(t, err)
 	})
 
@@ -77,13 +77,13 @@ func TestTemplatePull(t *testing.T) {
 		// are being sorted correctly.
 		_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
 
-		cmd, root := clitest.New(t, "templates", "pull", "--tar", template.Name)
+		inv, root := clitest.New(t, "templates", "pull", "--tar", template.Name)
 		clitest.SetupConfig(t, client, root)
 
 		var buf bytes.Buffer
-		cmd.SetOut(&buf)
+		inv.Stdout = &buf
 
-		err = cmd.Execute()
+		err = inv.Run()
 		require.NoError(t, err)
 
 		require.True(t, bytes.Equal(expected, buf.Bytes()), "tar files differ")
@@ -124,20 +124,12 @@ func TestTemplatePull(t *testing.T) {
 		err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
 		require.NoError(t, err)
 
-		cmd, root := clitest.New(t, "templates", "pull", template.Name, actualDest)
+		inv, root := clitest.New(t, "templates", "pull", template.Name, actualDest)
 		clitest.SetupConfig(t, client, root)
 
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		ptytest.New(t).Attach(inv)
 
-		errChan := make(chan error)
-		go func() {
-			defer close(errChan)
-			errChan <- cmd.Execute()
-		}()
-
-		require.NoError(t, <-errChan)
+		require.NoError(t, inv.Run())
 
 		require.Equal(t,
 			dirSum(t, expectedDest),
@@ -190,23 +182,17 @@ func TestTemplatePull(t *testing.T) {
 		err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
 		require.NoError(t, err)
 
-		cmd, root := clitest.New(t, "templates", "pull", template.Name, conflictDest)
+		inv, root := clitest.New(t, "templates", "pull", template.Name, conflictDest)
 		clitest.SetupConfig(t, client, root)
 
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
-		errChan := make(chan error)
-		go func() {
-			defer close(errChan)
-			errChan <- cmd.Execute()
-		}()
+		waiter := clitest.StartWithWaiter(t, inv)
 
 		pty.ExpectMatch("not empty")
 		pty.WriteLine("no")
 
-		require.Error(t, <-errChan)
+		waiter.RequireError()
 
 		ents, err := os.ReadDir(conflictDest)
 		require.NoError(t, err)

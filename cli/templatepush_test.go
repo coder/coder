@@ -46,15 +46,13 @@ func TestTemplatePush(t *testing.T) {
 			Parse:          createTestParseResponse(),
 			ProvisionApply: echo.ProvisionComplete,
 		})
-		cmd, root := clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+		inv, root := clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- inv.Run()
 		}()
 
 		matches := []struct {
@@ -79,10 +77,10 @@ func TestTemplatePush(t *testing.T) {
 
 		// Second update of the same source requires no prompt since the params
 		// are carried over.
-		cmd, root = clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+		inv, root = clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- inv.Run()
 		}()
 		require.NoError(t, <-execDone)
 
@@ -98,10 +96,10 @@ func TestTemplatePush(t *testing.T) {
 			ProvisionApply: echo.ProvisionComplete,
 		})
 
-		cmd, root = clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+		inv, root = clitest.New(t, "templates", "push", template.Name, "-y", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- inv.Run()
 		}()
 		require.NoError(t, <-execDone)
 		// Assert template version changed and the param was removed
@@ -125,15 +123,13 @@ func TestTemplatePush(t *testing.T) {
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ProvisionComplete,
 		})
-		cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
+		inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- inv.Run()
 		}()
 
 		matches := []struct {
@@ -159,8 +155,9 @@ func TestTemplatePush(t *testing.T) {
 		require.Equal(t, "example", templateVersions[1].Name)
 	})
 
+	// This test modifies the working directory.
+	//nolint:paralleltest
 	t.Run("UseWorkingDir", func(t *testing.T) {
-		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -177,18 +174,22 @@ func TestTemplatePush(t *testing.T) {
 				r.Name = filepath.Base(source)
 			})
 
+		oldDir, err := os.Getwd()
+		require.NoError(t, err)
+
+		os.Chdir(source)
+
+		t.Cleanup(func() {
+			os.Chdir(oldDir)
+		})
+
 		// Don't pass the name of the template, it should use the
 		// directory of the source.
-		cmd, root := clitest.New(t, "templates", "push", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+		inv, root := clitest.New(t, "templates", "push", "--test.provisioner", string(database.ProvisionerTypeEcho))
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
 
-		execDone := make(chan error)
-		go func() {
-			execDone <- cmd.Execute()
-		}()
+		waiter := clitest.StartWithWaiter(t, inv)
 
 		matches := []struct {
 			match string
@@ -201,7 +202,7 @@ func TestTemplatePush(t *testing.T) {
 			pty.WriteLine(m.write)
 		}
 
-		require.NoError(t, <-execDone)
+		waiter.RequireSuccess()
 
 		// Assert that the template version changed.
 		templateVersions, err := client.TemplateVersionsByTemplate(context.Background(), codersdk.TemplateVersionsByTemplateRequest{
@@ -227,19 +228,19 @@ func TestTemplatePush(t *testing.T) {
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		cmd, root := clitest.New(
+		inv, root := clitest.New(
 			t, "templates", "push", "--directory", "-",
 			"--test.provisioner", string(database.ProvisionerTypeEcho),
 			template.Name,
 		)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
-		cmd.SetIn(bytes.NewReader(source))
-		cmd.SetOut(pty.Output())
+		inv.Stdin = bytes.NewReader(source)
+		inv.Stdout = pty.Output()
 
 		execDone := make(chan error)
 		go func() {
-			execDone <- cmd.Execute()
+			execDone <- inv.Run()
 		}()
 
 		require.NoError(t, <-execDone)
@@ -280,7 +281,7 @@ func TestTemplatePush(t *testing.T) {
 			modifiedTemplateVariables := append(initialTemplateVariables,
 				&proto.TemplateVariable{
 					Name:        "second_variable",
-					Description: "This is the second variable",
+					Description: "This is the second variable.",
 					Type:        "string",
 					Required:    true,
 				},
@@ -290,15 +291,15 @@ func TestTemplatePush(t *testing.T) {
 			removeTmpDirUntilSuccessAfterTest(t, tempDir)
 			variablesFile, _ := os.CreateTemp(tempDir, "variables*.yaml")
 			_, _ = variablesFile.WriteString(`second_variable: foobar`)
-			cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--variables-file", variablesFile.Name())
+			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--variables-file", variablesFile.Name())
 			clitest.SetupConfig(t, client, root)
 			pty := ptytest.New(t)
-			cmd.SetIn(pty.Input())
-			cmd.SetOut(pty.Output())
+			inv.Stdin = pty.Input()
+			inv.Stdout = pty.Output()
 
 			execDone := make(chan error)
 			go func() {
-				execDone <- cmd.Execute()
+				execDone <- inv.Run()
 			}()
 
 			matches := []struct {
@@ -343,21 +344,21 @@ func TestTemplatePush(t *testing.T) {
 			modifiedTemplateVariables := append(initialTemplateVariables,
 				&proto.TemplateVariable{
 					Name:        "second_variable",
-					Description: "This is the second variable",
+					Description: "This is the second variable.",
 					Type:        "string",
 					Required:    true,
 				},
 			)
 			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
-			cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
+			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 			clitest.SetupConfig(t, client, root)
 			pty := ptytest.New(t)
-			cmd.SetIn(pty.Input())
-			cmd.SetOut(pty.Output())
+			inv.Stdin = pty.Input()
+			inv.Stdout = pty.Output()
 
 			execDone := make(chan error)
 			go func() {
-				execDone <- cmd.Execute()
+				execDone <- inv.Run()
 			}()
 
 			matches := []struct {
@@ -396,15 +397,15 @@ func TestTemplatePush(t *testing.T) {
 				},
 			)
 			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
-			cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
+			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 			clitest.SetupConfig(t, client, root)
 			pty := ptytest.New(t)
-			cmd.SetIn(pty.Input())
-			cmd.SetOut(pty.Output())
+			inv.Stdin = pty.Input()
+			inv.Stdout = pty.Output()
 
 			execDone := make(chan error)
 			go func() {
-				execDone <- cmd.Execute()
+				execDone <- inv.Run()
 			}()
 
 			matches := []struct {
@@ -450,21 +451,21 @@ func TestTemplatePush(t *testing.T) {
 			modifiedTemplateVariables := append(initialTemplateVariables,
 				&proto.TemplateVariable{
 					Name:        "second_variable",
-					Description: "This is the second variable",
+					Description: "This is the second variable.",
 					Type:        "string",
 					Required:    true,
 				},
 			)
 			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
-			cmd, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--variable", "second_variable=foobar")
+			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--variable", "second_variable=foobar")
 			clitest.SetupConfig(t, client, root)
 			pty := ptytest.New(t)
-			cmd.SetIn(pty.Input())
-			cmd.SetOut(pty.Output())
+			inv.Stdin = pty.Input()
+			inv.Stdout = pty.Output()
 
 			execDone := make(chan error)
 			go func() {
-				execDone <- cmd.Execute()
+				execDone <- inv.Run()
 			}()
 
 			matches := []struct {

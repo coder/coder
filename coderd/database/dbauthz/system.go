@@ -10,6 +10,13 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
+func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]database.GetFileTemplatesRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetFileTemplates(ctx, fileID)
+}
+
 // GetWorkspaceAppsByAgentIDs
 // The workspace/job is already fetched.
 func (q *querier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {
@@ -221,11 +228,11 @@ func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database
 	return q.db.UpdateWorkspaceBuildCostByID(ctx, arg)
 }
 
-func (q *querier) InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error {
+func (q *querier) UpsertLastUpdateCheck(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.InsertOrUpdateLastUpdateCheck(ctx, value)
+	return q.db.UpsertLastUpdateCheck(ctx, value)
 }
 
 func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
@@ -278,6 +285,13 @@ func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 		return err
 	}
 	return q.db.DeleteOldWorkspaceAgentStats(ctx)
+}
+
+func (q *querier) DeleteOldWorkspaceAgentStartupLogs(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldWorkspaceAgentStartupLogs(ctx)
 }
 
 func (q *querier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAfter time.Time) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
@@ -368,6 +382,10 @@ func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.Ins
 	// return nil, err
 	// }
 	return q.db.InsertProvisionerJobLogs(ctx, arg)
+}
+
+func (q *querier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]database.WorkspaceAgentStartupLog, error) {
+	return q.db.InsertWorkspaceAgentStartupLogs(ctx, arg)
 }
 
 // TODO: We need to create a ProvisionerDaemon resource type

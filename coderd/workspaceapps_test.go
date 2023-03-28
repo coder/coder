@@ -175,11 +175,9 @@ func setupProxyTest(t *testing.T, opts *setupProxyTestOpts) (*codersdk.Client, c
 	deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = clibase.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:            deploymentValues,
-		AppHostname:                 opts.AppHost,
-		IncludeProvisionerDaemon:    true,
-		AgentStatsRefreshInterval:   time.Millisecond * 100,
-		MetricsCacheRefreshInterval: time.Millisecond * 100,
+		DeploymentValues:         deploymentValues,
+		AppHostname:              opts.AppHost,
+		IncludeProvisionerDaemon: true,
 		RealIPConfig: &httpmw.RealIPConfig{
 			TrustedOrigins: []*net.IPNet{{
 				IP:   net.ParseIP("127.0.0.1"),
@@ -1438,11 +1436,11 @@ func TestAppSharing(t *testing.T) {
 		siteOwnerCanAccess := !isPathApp || siteOwnerPathAppAccessEnabled
 		siteOwnerCanAccessShared := siteOwnerCanAccess || pathAppSharingEnabled
 
-		deploymentValues, err := ownerClient.DeploymentValues(context.Background())
+		deploymentConfig, err := ownerClient.DeploymentConfig(context.Background())
 		require.NoError(t, err)
 
-		assert.Equal(t, pathAppSharingEnabled, deploymentValues.Values.Dangerous.AllowPathAppSharing.Value())
-		assert.Equal(t, siteOwnerPathAppAccessEnabled, deploymentValues.Values.Dangerous.AllowPathAppSiteOwnerAccess.Value())
+		assert.Equal(t, pathAppSharingEnabled, deploymentConfig.Values.Dangerous.AllowPathAppSharing.Value())
+		assert.Equal(t, siteOwnerPathAppAccessEnabled, deploymentConfig.Values.Dangerous.AllowPathAppSiteOwnerAccess.Value())
 
 		t.Run("LevelOwner", func(t *testing.T) {
 			t.Parallel()

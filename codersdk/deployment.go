@@ -126,8 +126,8 @@ type DeploymentValues struct {
 	DERP                            DERP                            `json:"derp,omitempty" typescript:",notnull"`
 	Prometheus                      PrometheusConfig                `json:"prometheus,omitempty" typescript:",notnull"`
 	Pprof                           PprofConfig                     `json:"pprof,omitempty" typescript:",notnull"`
-	ProxyTrustedHeaders             clibase.Strings                 `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
-	ProxyTrustedOrigins             clibase.Strings                 `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
+	ProxyTrustedHeaders             clibase.StringArray             `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
+	ProxyTrustedOrigins             clibase.StringArray             `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
 	CacheDir                        clibase.String                  `json:"cache_directory,omitempty" typescript:",notnull"`
 	InMemoryDatabase                clibase.Bool                    `json:"in_memory_database,omitempty" typescript:",notnull"`
 	PostgresURL                     clibase.String                  `json:"pg_connection_url,omitempty" typescript:",notnull"`
@@ -138,7 +138,7 @@ type DeploymentValues struct {
 	Trace                           TraceConfig                     `json:"trace,omitempty" typescript:",notnull"`
 	SecureAuthCookie                clibase.Bool                    `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
 	StrictTransportSecurity         clibase.Int64                   `json:"strict_transport_security,omitempty" typescript:",notnull"`
-	StrictTransportSecurityOptions  clibase.Strings                 `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
+	StrictTransportSecurityOptions  clibase.StringArray             `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
 	SSHKeygenAlgorithm              clibase.String                  `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
 	MetricsCacheRefreshInterval     clibase.Duration                `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
 	AgentStatRefreshInterval        clibase.Duration                `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
@@ -148,7 +148,7 @@ type DeploymentValues struct {
 	SCIMAPIKey                      clibase.String                  `json:"scim_api_key,omitempty" typescript:",notnull"`
 	Provisioner                     ProvisionerConfig               `json:"provisioner,omitempty" typescript:",notnull"`
 	RateLimit                       RateLimitConfig                 `json:"rate_limit,omitempty" typescript:",notnull"`
-	Experiments                     clibase.Strings                 `json:"experiments,omitempty" typescript:",notnull"`
+	Experiments                     clibase.StringArray             `json:"experiments,omitempty" typescript:",notnull"`
 	UpdateCheck                     clibase.Bool                    `json:"update_check,omitempty" typescript:",notnull"`
 	MaxTokenLifetime                clibase.Duration                `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 	Swagger                         SwaggerConfig                   `json:"swagger,omitempty" typescript:",notnull"`
@@ -160,6 +160,8 @@ type DeploymentValues struct {
 	DisablePasswordAuth             clibase.Bool                    `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                   `json:"support,omitempty" typescript:",notnull"`
 	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
+	SSHConfig                       SSHConfig                       `json:"config_ssh,omitempty" typescript:",notnull"`
+	WgtunnelHost                    clibase.String                  `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 
 	Config      clibase.String `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool   `json:"write_config,omitempty" typescript:",notnull"`
@@ -168,18 +170,52 @@ type DeploymentValues struct {
 	Address clibase.HostPort `json:"address,omitempty" typescript:",notnull"`
 }
 
+// SSHConfig is configuration the cli & vscode extension use for configuring
+// ssh connections.
+type SSHConfig struct {
+	// DeploymentName is the config-ssh Hostname prefix
+	DeploymentName clibase.String
+	// SSHConfigOptions are additional options to add to the ssh config file.
+	// This will override defaults.
+	SSHConfigOptions clibase.StringArray
+}
+
+func (c SSHConfig) ParseOptions() (map[string]string, error) {
+	m := make(map[string]string)
+	for _, opt := range c.SSHConfigOptions {
+		key, value, err := ParseSSHConfigOption(opt)
+		if err != nil {
+			return nil, err
+		}
+		m[key] = value
+	}
+	return m, nil
+}
+
+// ParseSSHConfigOption parses a single ssh config option into it's key/value pair.
+func ParseSSHConfigOption(opt string) (key string, value string, err error) {
+	// An equal sign or whitespace is the separator between the key and value.
+	idx := strings.IndexFunc(opt, func(r rune) bool {
+		return r == ' ' || r == '='
+	})
+	if idx == -1 {
+		return "", "", xerrors.Errorf("invalid config-ssh option %q", opt)
+	}
+	return opt[:idx], opt[idx+1:], nil
+}
+
 type DERP struct {
 	Server DERPServerConfig `json:"server" typescript:",notnull"`
 	Config DERPConfig       `json:"config" typescript:",notnull"`
 }
 
 type DERPServerConfig struct {
-	Enable        clibase.Bool    `json:"enable" typescript:",notnull"`
-	RegionID      clibase.Int64   `json:"region_id" typescript:",notnull"`
-	RegionCode    clibase.String  `json:"region_code" typescript:",notnull"`
-	RegionName    clibase.String  `json:"region_name" typescript:",notnull"`
-	STUNAddresses clibase.Strings `json:"stun_addresses" typescript:",notnull"`
-	RelayURL      clibase.URL     `json:"relay_url" typescript:",notnull"`
+	Enable        clibase.Bool        `json:"enable" typescript:",notnull"`
+	RegionID      clibase.Int64       `json:"region_id" typescript:",notnull"`
+	RegionCode    clibase.String      `json:"region_code" typescript:",notnull"`
+	RegionName    clibase.String      `json:"region_name" typescript:",notnull"`
+	STUNAddresses clibase.StringArray `json:"stun_addresses" typescript:",notnull"`
+	RelayURL      clibase.URL         `json:"relay_url" typescript:",notnull"`
 }
 
 type DERPConfig struct {
@@ -202,27 +238,28 @@ type OAuth2Config struct {
 }
 
 type OAuth2GithubConfig struct {
-	ClientID          clibase.String  `json:"client_id" typescript:",notnull"`
-	ClientSecret      clibase.String  `json:"client_secret" typescript:",notnull"`
-	AllowedOrgs       clibase.Strings `json:"allowed_orgs" typescript:",notnull"`
-	AllowedTeams      clibase.Strings `json:"allowed_teams" typescript:",notnull"`
-	AllowSignups      clibase.Bool    `json:"allow_signups" typescript:",notnull"`
-	AllowEveryone     clibase.Bool    `json:"allow_everyone" typescript:",notnull"`
-	EnterpriseBaseURL clibase.String  `json:"enterprise_base_url" typescript:",notnull"`
+	ClientID          clibase.String      `json:"client_id" typescript:",notnull"`
+	ClientSecret      clibase.String      `json:"client_secret" typescript:",notnull"`
+	AllowedOrgs       clibase.StringArray `json:"allowed_orgs" typescript:",notnull"`
+	AllowedTeams      clibase.StringArray `json:"allowed_teams" typescript:",notnull"`
+	AllowSignups      clibase.Bool        `json:"allow_signups" typescript:",notnull"`
+	AllowEveryone     clibase.Bool        `json:"allow_everyone" typescript:",notnull"`
+	EnterpriseBaseURL clibase.String      `json:"enterprise_base_url" typescript:",notnull"`
 }
 
 type OIDCConfig struct {
-	AllowSignups        clibase.Bool    `json:"allow_signups" typescript:",notnull"`
-	ClientID            clibase.String  `json:"client_id" typescript:",notnull"`
-	ClientSecret        clibase.String  `json:"client_secret" typescript:",notnull"`
-	EmailDomain         clibase.Strings `json:"email_domain" typescript:",notnull"`
-	IssuerURL           clibase.String  `json:"issuer_url" typescript:",notnull"`
-	Scopes              clibase.Strings `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified clibase.Bool    `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField       clibase.String  `json:"username_field" typescript:",notnull"`
-	GroupField          clibase.String  `json:"groups_field" typescript:",notnull"`
-	SignInText          clibase.String  `json:"sign_in_text" typescript:",notnull"`
-	IconURL             clibase.URL     `json:"icon_url" typescript:",notnull"`
+	AllowSignups        clibase.Bool                      `json:"allow_signups" typescript:",notnull"`
+	ClientID            clibase.String                    `json:"client_id" typescript:",notnull"`
+	ClientSecret        clibase.String                    `json:"client_secret" typescript:",notnull"`
+	EmailDomain         clibase.StringArray               `json:"email_domain" typescript:",notnull"`
+	IssuerURL           clibase.String                    `json:"issuer_url" typescript:",notnull"`
+	Scopes              clibase.StringArray               `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified clibase.Bool                      `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       clibase.String                    `json:"username_field" typescript:",notnull"`
+	GroupField          clibase.String                    `json:"groups_field" typescript:",notnull"`
+	GroupMapping        clibase.Struct[map[string]string] `json:"group_mapping" typescript:",notnull"`
+	SignInText          clibase.String                    `json:"sign_in_text" typescript:",notnull"`
+	IconURL             clibase.URL                       `json:"icon_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -232,16 +269,16 @@ type TelemetryConfig struct {
 }
 
 type TLSConfig struct {
-	Enable         clibase.Bool     `json:"enable" typescript:",notnull"`
-	Address        clibase.HostPort `json:"address" typescript:",notnull"`
-	RedirectHTTP   clibase.Bool     `json:"redirect_http" typescript:",notnull"`
-	CertFiles      clibase.Strings  `json:"cert_file" typescript:",notnull"`
-	ClientAuth     clibase.String   `json:"client_auth" typescript:",notnull"`
-	ClientCAFile   clibase.String   `json:"client_ca_file" typescript:",notnull"`
-	KeyFiles       clibase.Strings  `json:"key_file" typescript:",notnull"`
-	MinVersion     clibase.String   `json:"min_version" typescript:",notnull"`
-	ClientCertFile clibase.String   `json:"client_cert_file" typescript:",notnull"`
-	ClientKeyFile  clibase.String   `json:"client_key_file" typescript:",notnull"`
+	Enable         clibase.Bool        `json:"enable" typescript:",notnull"`
+	Address        clibase.HostPort    `json:"address" typescript:",notnull"`
+	RedirectHTTP   clibase.Bool        `json:"redirect_http" typescript:",notnull"`
+	CertFiles      clibase.StringArray `json:"cert_file" typescript:",notnull"`
+	ClientAuth     clibase.String      `json:"client_auth" typescript:",notnull"`
+	ClientCAFile   clibase.String      `json:"client_ca_file" typescript:",notnull"`
+	KeyFiles       clibase.StringArray `json:"key_file" typescript:",notnull"`
+	MinVersion     clibase.String      `json:"min_version" typescript:",notnull"`
+	ClientCertFile clibase.String      `json:"client_cert_file" typescript:",notnull"`
+	ClientKeyFile  clibase.String      `json:"client_key_file" typescript:",notnull"`
 }
 
 type TraceConfig struct {
@@ -390,6 +427,11 @@ when required by your organization's security policy.`,
 		deploymentGroupDangerous = clibase.Group{
 			Name: "⚠️ Dangerous",
 		}
+		deploymentGroupClient = clibase.Group{
+			Name: "Client",
+			Description: "These options change the behavior of how clients interact with the Coder. " +
+				"Clients include the coder cli, vs code extension, and the web UI.",
+		}
 		deploymentGroupConfig = clibase.Group{
 			Name:        "Config",
 			Description: `Use a YAML configuration file when your server launch become unwieldy.`,
@@ -400,7 +442,7 @@ when required by your organization's security policy.`,
 		Name:        "HTTP Address",
 		Description: "HTTP bind address of the server. Unset to disable the HTTP endpoint.",
 		Flag:        "http-address",
-		Env:         "HTTP_ADDRESS",
+		Env:         "CODER_HTTP_ADDRESS",
 		Default:     "127.0.0.1:3000",
 		Value:       &c.HTTPAddress,
 		Group:       &deploymentGroupNetworkingHTTP,
@@ -410,7 +452,7 @@ when required by your organization's security policy.`,
 		Name:        "TLS Address",
 		Description: "HTTPS bind address of the server.",
 		Flag:        "tls-address",
-		Env:         "TLS_ADDRESS",
+		Env:         "CODER_TLS_ADDRESS",
 		Default:     "127.0.0.1:3443",
 		Value:       &c.TLS.Address,
 		Group:       &deploymentGroupNetworkingTLS,
@@ -420,18 +462,18 @@ when required by your organization's security policy.`,
 		Name:        "Redirect to Access URL",
 		Description: "Specifies whether to redirect requests that do not match the access URL host.",
 		Flag:        "redirect-to-access-url",
-		Env:         "REDIRECT_TO_ACCESS_URL",
+		Env:         "CODER_REDIRECT_TO_ACCESS_URL",
 		Value:       &c.RedirectToAccessURL,
 		Group:       &deploymentGroupNetworking,
 		YAML:        "redirectToAccessURL",
 	}
-	return clibase.OptionSet{
+	opts := clibase.OptionSet{
 		{
 			Name:        "Access URL",
 			Description: `The URL that users will use to access the Coder deployment.`,
 			Value:       &c.AccessURL,
 			Flag:        "access-url",
-			Env:         "ACCESS_URL",
+			Env:         "CODER_ACCESS_URL",
 			Group:       &deploymentGroupNetworking,
 			YAML:        "accessURL",
 		},
@@ -439,7 +481,7 @@ when required by your organization's security policy.`,
 			Name:        "Wildcard Access URL",
 			Description: "Specifies the wildcard hostname to use for workspace applications in the form \"*.example.com\".",
 			Flag:        "wildcard-access-url",
-			Env:         "WILDCARD_ACCESS_URL",
+			Env:         "CODER_WILDCARD_ACCESS_URL",
 			Value:       &c.WildcardAccessURL,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "wildcardAccessURL",
@@ -449,7 +491,7 @@ when required by your organization's security policy.`,
 			Name:        "Autobuild Poll Interval",
 			Description: "Interval to poll for scheduled workspace builds.",
 			Flag:        "autobuild-poll-interval",
-			Env:         "AUTOBUILD_POLL_INTERVAL",
+			Env:         "CODER_AUTOBUILD_POLL_INTERVAL",
 			Hidden:      true,
 			Default:     time.Minute.String(),
 			Value:       &c.AutobuildPollInterval,
@@ -462,10 +504,10 @@ when required by your organization's security policy.`,
 			Description:   "Bind address of the server.",
 			Flag:          "address",
 			FlagShorthand: "a",
-			Env:           "ADDRESS",
+			Env:           "CODER_ADDRESS",
 			Hidden:        true,
 			Value:         &c.Address,
-			UseInstead: []clibase.Option{
+			UseInstead: clibase.OptionSet{
 				httpAddress,
 				tlsBindAddress,
 			},
@@ -476,7 +518,7 @@ when required by your organization's security policy.`,
 			Name:        "TLS Enable",
 			Description: "Whether TLS will be enabled.",
 			Flag:        "tls-enable",
-			Env:         "TLS_ENABLE",
+			Env:         "CODER_TLS_ENABLE",
 			Value:       &c.TLS.Enable,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "enable",
@@ -485,11 +527,11 @@ when required by your organization's security policy.`,
 			Name:        "Redirect HTTP to HTTPS",
 			Description: "Whether HTTP requests will be redirected to the access URL (if it's a https URL and TLS is enabled). Requests to local IP addresses are never redirected regardless of this setting.",
 			Flag:        "tls-redirect-http-to-https",
-			Env:         "TLS_REDIRECT_HTTP_TO_HTTPS",
+			Env:         "CODER_TLS_REDIRECT_HTTP_TO_HTTPS",
 			Default:     "true",
 			Hidden:      true,
 			Value:       &c.TLS.RedirectHTTP,
-			UseInstead:  []clibase.Option{redirectToAccessURL},
+			UseInstead:  clibase.OptionSet{redirectToAccessURL},
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "redirectHTTP",
 		},
@@ -497,16 +539,16 @@ when required by your organization's security policy.`,
 			Name:        "TLS Certificate Files",
 			Description: "Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.",
 			Flag:        "tls-cert-file",
-			Env:         "TLS_CERT_FILE",
+			Env:         "CODER_TLS_CERT_FILE",
 			Value:       &c.TLS.CertFiles,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "certFiles",
 		},
 		{
 			Name:        "TLS Client CA Files",
-			Description: "PEM-encoded Certificate Authority file used for checking the authenticity of client",
+			Description: "PEM-encoded Certificate Authority file used for checking the authenticity of client.",
 			Flag:        "tls-client-ca-file",
-			Env:         "TLS_CLIENT_CA_FILE",
+			Env:         "CODER_TLS_CLIENT_CA_FILE",
 			Value:       &c.TLS.ClientCAFile,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientCAFile",
@@ -515,7 +557,7 @@ when required by your organization's security policy.`,
 			Name:        "TLS Client Auth",
 			Description: "Policy the server will follow for TLS Client Authentication. Accepted values are \"none\", \"request\", \"require-any\", \"verify-if-given\", or \"require-and-verify\".",
 			Flag:        "tls-client-auth",
-			Env:         "TLS_CLIENT_AUTH",
+			Env:         "CODER_TLS_CLIENT_AUTH",
 			Default:     "none",
 			Value:       &c.TLS.ClientAuth,
 			Group:       &deploymentGroupNetworkingTLS,
@@ -525,16 +567,16 @@ when required by your organization's security policy.`,
 			Name:        "TLS Key Files",
 			Description: "Paths to the private keys for each of the certificates. It requires a PEM-encoded file.",
 			Flag:        "tls-key-file",
-			Env:         "TLS_KEY_FILE",
+			Env:         "CODER_TLS_KEY_FILE",
 			Value:       &c.TLS.KeyFiles,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "keyFiles",
 		},
 		{
 			Name:        "TLS Minimum Version",
-			Description: "Minimum supported version of TLS. Accepted values are \"tls10\", \"tls11\", \"tls12\" or \"tls13\"",
+			Description: "Minimum supported version of TLS. Accepted values are \"tls10\", \"tls11\", \"tls12\" or \"tls13\".",
 			Flag:        "tls-min-version",
-			Env:         "TLS_MIN_VERSION",
+			Env:         "CODER_TLS_MIN_VERSION",
 			Default:     "tls12",
 			Value:       &c.TLS.MinVersion,
 			Group:       &deploymentGroupNetworkingTLS,
@@ -544,7 +586,7 @@ when required by your organization's security policy.`,
 			Name:        "TLS Client Cert File",
 			Description: "Path to certificate for client TLS authentication. It requires a PEM-encoded file.",
 			Flag:        "tls-client-cert-file",
-			Env:         "TLS_CLIENT_CERT_FILE",
+			Env:         "CODER_TLS_CLIENT_CERT_FILE",
 			Value:       &c.TLS.ClientCertFile,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientCertFile",
@@ -553,7 +595,7 @@ when required by your organization's security policy.`,
 			Name:        "TLS Client Key File",
 			Description: "Path to key for client TLS authentication. It requires a PEM-encoded file.",
 			Flag:        "tls-client-key-file",
-			Env:         "TLS_CLIENT_KEY_FILE",
+			Env:         "CODER_TLS_CLIENT_KEY_FILE",
 			Value:       &c.TLS.ClientKeyFile,
 			Group:       &deploymentGroupNetworkingTLS,
 			YAML:        "clientKeyFile",
@@ -563,7 +605,7 @@ when required by your organization's security policy.`,
 			Name:        "DERP Server Enable",
 			Description: "Whether to enable or disable the embedded DERP relay server.",
 			Flag:        "derp-server-enable",
-			Env:         "DERP_SERVER_ENABLE",
+			Env:         "CODER_DERP_SERVER_ENABLE",
 			Default:     "true",
 			Value:       &c.DERP.Server.Enable,
 			Group:       &deploymentGroupNetworkingDERP,
@@ -573,7 +615,7 @@ when required by your organization's security policy.`,
 			Name:        "DERP Server Region ID",
 			Description: "Region ID to use for the embedded DERP server.",
 			Flag:        "derp-server-region-id",
-			Env:         "DERP_SERVER_REGION_ID",
+			Env:         "CODER_DERP_SERVER_REGION_ID",
 			Default:     "999",
 			Value:       &c.DERP.Server.RegionID,
 			Group:       &deploymentGroupNetworkingDERP,
@@ -583,7 +625,7 @@ when required by your organization's security policy.`,
 			Name:        "DERP Server Region Code",
 			Description: "Region code to use for the embedded DERP server.",
 			Flag:        "derp-server-region-code",
-			Env:         "DERP_SERVER_REGION_CODE",
+			Env:         "CODER_DERP_SERVER_REGION_CODE",
 			Default:     "coder",
 			Value:       &c.DERP.Server.RegionCode,
 			Group:       &deploymentGroupNetworkingDERP,
@@ -593,7 +635,7 @@ when required by your organization's security policy.`,
 			Name:        "DERP Server Region Name",
 			Description: "Region name that for the embedded DERP server.",
 			Flag:        "derp-server-region-name",
-			Env:         "DERP_SERVER_REGION_NAME",
+			Env:         "CODER_DERP_SERVER_REGION_NAME",
 			Default:     "Coder Embedded Relay",
 			Value:       &c.DERP.Server.RegionName,
 			Group:       &deploymentGroupNetworkingDERP,
@@ -603,7 +645,7 @@ when required by your organization's security policy.`,
 			Name:        "DERP Server STUN Addresses",
 			Description: "Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.",
 			Flag:        "derp-server-stun-addresses",
-			Env:         "DERP_SERVER_STUN_ADDRESSES",
+			Env:         "CODER_DERP_SERVER_STUN_ADDRESSES",
 			Default:     "stun.l.google.com:19302",
 			Value:       &c.DERP.Server.STUNAddresses,
 			Group:       &deploymentGroupNetworkingDERP,
@@ -613,7 +655,7 @@ when required by your organization's security policy.`,
 			Name:        "DERP Server Relay URL",
 			Description: "An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.",
 			Flag:        "derp-server-relay-url",
-			Env:         "DERP_SERVER_RELAY_URL",
+			Env:         "CODER_DERP_SERVER_RELAY_URL",
 			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
 			Value:       &c.DERP.Server.RelayURL,
 			Group:       &deploymentGroupNetworkingDERP,
@@ -621,18 +663,18 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "DERP Config URL",
-			Description: "URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/",
+			Description: "URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.",
 			Flag:        "derp-config-url",
-			Env:         "DERP_CONFIG_URL",
+			Env:         "CODER_DERP_CONFIG_URL",
 			Value:       &c.DERP.Config.URL,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "url",
 		},
 		{
 			Name:        "DERP Config Path",
-			Description: "Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/",
+			Description: "Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.",
 			Flag:        "derp-config-path",
-			Env:         "DERP_CONFIG_PATH",
+			Env:         "CODER_DERP_CONFIG_PATH",
 			Value:       &c.DERP.Config.Path,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "configPath",
@@ -643,7 +685,7 @@ when required by your organization's security policy.`,
 			Name:        "Prometheus Enable",
 			Description: "Serve prometheus metrics on the address defined by prometheus address.",
 			Flag:        "prometheus-enable",
-			Env:         "PROMETHEUS_ENABLE",
+			Env:         "CODER_PROMETHEUS_ENABLE",
 			Value:       &c.Prometheus.Enable,
 			Group:       &deploymentGroupIntrospectionPrometheus,
 			YAML:        "enable",
@@ -652,7 +694,7 @@ when required by your organization's security policy.`,
 			Name:        "Prometheus Address",
 			Description: "The bind address to serve prometheus metrics.",
 			Flag:        "prometheus-address",
-			Env:         "PROMETHEUS_ADDRESS",
+			Env:         "CODER_PROMETHEUS_ADDRESS",
 			Default:     "127.0.0.1:2112",
 			Value:       &c.Prometheus.Address,
 			Group:       &deploymentGroupIntrospectionPrometheus,
@@ -663,7 +705,7 @@ when required by your organization's security policy.`,
 			Name:        "pprof Enable",
 			Description: "Serve pprof metrics on the address defined by pprof address.",
 			Flag:        "pprof-enable",
-			Env:         "PPROF_ENABLE",
+			Env:         "CODER_PPROF_ENABLE",
 			Value:       &c.Pprof.Enable,
 			Group:       &deploymentGroupIntrospectionPPROF,
 			YAML:        "enable",
@@ -672,7 +714,7 @@ when required by your organization's security policy.`,
 			Name:        "pprof Address",
 			Description: "The bind address to serve pprof.",
 			Flag:        "pprof-address",
-			Env:         "PPROF_ADDRESS",
+			Env:         "CODER_PPROF_ADDRESS",
 			Default:     "127.0.0.1:6060",
 			Value:       &c.Pprof.Address,
 			Group:       &deploymentGroupIntrospectionPPROF,
@@ -683,7 +725,7 @@ when required by your organization's security policy.`,
 			Name:        "OAuth2 GitHub Client ID",
 			Description: "Client ID for Login with GitHub.",
 			Flag:        "oauth2-github-client-id",
-			Env:         "OAUTH2_GITHUB_CLIENT_ID",
+			Env:         "CODER_OAUTH2_GITHUB_CLIENT_ID",
 			Value:       &c.OAuth2.Github.ClientID,
 			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "clientID",
@@ -692,7 +734,7 @@ when required by your organization's security policy.`,
 			Name:        "OAuth2 GitHub Client Secret",
 			Description: "Client secret for Login with GitHub.",
 			Flag:        "oauth2-github-client-secret",
-			Env:         "OAUTH2_GITHUB_CLIENT_SECRET",
+			Env:         "CODER_OAUTH2_GITHUB_CLIENT_SECRET",
 			Value:       &c.OAuth2.Github.ClientSecret,
 			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
 			Group:       &deploymentGroupOAuth2GitHub,
@@ -701,7 +743,7 @@ when required by your organization's security policy.`,
 			Name:        "OAuth2 GitHub Allowed Orgs",
 			Description: "Organizations the user must be a member of to Login with GitHub.",
 			Flag:        "oauth2-github-allowed-orgs",
-			Env:         "OAUTH2_GITHUB_ALLOWED_ORGS",
+			Env:         "CODER_OAUTH2_GITHUB_ALLOWED_ORGS",
 			Value:       &c.OAuth2.Github.AllowedOrgs,
 			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "allowedOrgs",
@@ -710,7 +752,7 @@ when required by your organization's security policy.`,
 			Name:        "OAuth2 GitHub Allowed Teams",
 			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
 			Flag:        "oauth2-github-allowed-teams",
-			Env:         "OAUTH2_GITHUB_ALLOWED_TEAMS",
+			Env:         "CODER_OAUTH2_GITHUB_ALLOWED_TEAMS",
 			Value:       &c.OAuth2.Github.AllowedTeams,
 			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "allowedTeams",
@@ -719,7 +761,7 @@ when required by your organization's security policy.`,
 			Name:        "OAuth2 GitHub Allow Signups",
 			Description: "Whether new users can sign up with GitHub.",
 			Flag:        "oauth2-github-allow-signups",
-			Env:         "OAUTH2_GITHUB_ALLOW_SIGNUPS",
+			Env:         "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS",
 			Value:       &c.OAuth2.Github.AllowSignups,
 			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "allowSignups",
@@ -728,7 +770,7 @@ when required by your organization's security policy.`,
 			Name:        "OAuth2 GitHub Allow Everyone",
 			Description: "Allow all logins, setting this option means allowed orgs and teams must be empty.",
 			Flag:        "oauth2-github-allow-everyone",
-			Env:         "OAUTH2_GITHUB_ALLOW_EVERYONE",
+			Env:         "CODER_OAUTH2_GITHUB_ALLOW_EVERYONE",
 			Value:       &c.OAuth2.Github.AllowEveryone,
 			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "allowEveryone",
@@ -737,7 +779,7 @@ when required by your organization's security policy.`,
 			Name:        "OAuth2 GitHub Enterprise Base URL",
 			Description: "Base URL of a GitHub Enterprise deployment to use for Login with GitHub.",
 			Flag:        "oauth2-github-enterprise-base-url",
-			Env:         "OAUTH2_GITHUB_ENTERPRISE_BASE_URL",
+			Env:         "CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL",
 			Value:       &c.OAuth2.Github.EnterpriseBaseURL,
 			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "enterpriseBaseURL",
@@ -747,7 +789,7 @@ when required by your organization's security policy.`,
 			Name:        "OIDC Allow Signups",
 			Description: "Whether new users can sign up with OIDC.",
 			Flag:        "oidc-allow-signups",
-			Env:         "OIDC_ALLOW_SIGNUPS",
+			Env:         "CODER_OIDC_ALLOW_SIGNUPS",
 			Default:     "true",
 			Value:       &c.OIDC.AllowSignups,
 			Group:       &deploymentGroupOIDC,
@@ -757,7 +799,7 @@ when required by your organization's security policy.`,
 			Name:        "OIDC Client ID",
 			Description: "Client ID to use for Login with OIDC.",
 			Flag:        "oidc-client-id",
-			Env:         "OIDC_CLIENT_ID",
+			Env:         "CODER_OIDC_CLIENT_ID",
 			Value:       &c.OIDC.ClientID,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "clientID",
@@ -766,7 +808,7 @@ when required by your organization's security policy.`,
 			Name:        "OIDC Client Secret",
 			Description: "Client secret to use for Login with OIDC.",
 			Flag:        "oidc-client-secret",
-			Env:         "OIDC_CLIENT_SECRET",
+			Env:         "CODER_OIDC_CLIENT_SECRET",
 			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
 			Value:       &c.OIDC.ClientSecret,
 			Group:       &deploymentGroupOIDC,
@@ -775,7 +817,7 @@ when required by your organization's security policy.`,
 			Name:        "OIDC Email Domain",
 			Description: "Email domains that clients logging in with OIDC must match.",
 			Flag:        "oidc-email-domain",
-			Env:         "OIDC_EMAIL_DOMAIN",
+			Env:         "CODER_OIDC_EMAIL_DOMAIN",
 			Value:       &c.OIDC.EmailDomain,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "emailDomain",
@@ -784,7 +826,7 @@ when required by your organization's security policy.`,
 			Name:        "OIDC Issuer URL",
 			Description: "Issuer URL to use for Login with OIDC.",
 			Flag:        "oidc-issuer-url",
-			Env:         "OIDC_ISSUER_URL",
+			Env:         "CODER_OIDC_ISSUER_URL",
 			Value:       &c.OIDC.IssuerURL,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "issuerURL",
@@ -793,7 +835,7 @@ when required by your organization's security policy.`,
 			Name:        "OIDC Scopes",
 			Description: "Scopes to grant when authenticating with OIDC.",
 			Flag:        "oidc-scopes",
-			Env:         "OIDC_SCOPES",
+			Env:         "CODER_OIDC_SCOPES",
 			Default:     strings.Join([]string{oidc.ScopeOpenID, "profile", "email"}, ","),
 			Value:       &c.OIDC.Scopes,
 			Group:       &deploymentGroupOIDC,
@@ -803,17 +845,17 @@ when required by your organization's security policy.`,
 			Name:        "OIDC Ignore Email Verified",
 			Description: "Ignore the email_verified claim from the upstream provider.",
 			Flag:        "oidc-ignore-email-verified",
-			Env:         "OIDC_IGNORE_EMAIL_VERIFIED",
-			Default:     "false",
-			Value:       &c.OIDC.IgnoreEmailVerified,
-			Group:       &deploymentGroupOIDC,
-			YAML:        "ignoreEmailVerified",
+			Env:         "CODER_OIDC_IGNORE_EMAIL_VERIFIED",
+
+			Value: &c.OIDC.IgnoreEmailVerified,
+			Group: &deploymentGroupOIDC,
+			YAML:  "ignoreEmailVerified",
 		},
 		{
 			Name:        "OIDC Username Field",
 			Description: "OIDC claim field to use as the username.",
 			Flag:        "oidc-username-field",
-			Env:         "OIDC_USERNAME_FIELD",
+			Env:         "CODER_OIDC_USERNAME_FIELD",
 			Default:     "preferred_username",
 			Value:       &c.OIDC.UsernameField,
 			Group:       &deploymentGroupOIDC,
@@ -823,7 +865,7 @@ when required by your organization's security policy.`,
 			Name:        "OIDC Group Field",
 			Description: "Change the OIDC default 'groups' claim field. By default, will be 'groups' if present in the oidc scopes argument.",
 			Flag:        "oidc-group-field",
-			Env:         "OIDC_GROUP_FIELD",
+			Env:         "CODER_OIDC_GROUP_FIELD",
 			// This value is intentionally blank. If this is empty, then OIDC group
 			// behavior is disabled. If 'oidc-scopes' contains 'groups', then the
 			// default value will be 'groups'. If the user wants to use a different claim
@@ -835,10 +877,20 @@ when required by your organization's security policy.`,
 			YAML:    "groupField",
 		},
 		{
+			Name:        "OIDC Group Mapping",
+			Description: "A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.",
+			Flag:        "oidc-group-mapping",
+			Env:         "OIDC_GROUP_MAPPING",
+			Default:     "{}",
+			Value:       &c.OIDC.GroupMapping,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "groupMapping",
+		},
+		{
 			Name:        "OpenID Connect sign in text",
-			Description: "The text to show on the OpenID Connect sign in button",
+			Description: "The text to show on the OpenID Connect sign in button.",
 			Flag:        "oidc-sign-in-text",
-			Env:         "OIDC_SIGN_IN_TEXT",
+			Env:         "CODER_OIDC_SIGN_IN_TEXT",
 			Default:     "OpenID Connect",
 			Value:       &c.OIDC.SignInText,
 			Group:       &deploymentGroupOIDC,
@@ -846,9 +898,9 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "OpenID connect icon URL",
-			Description: "URL pointing to the icon to use on the OepnID Connect login button",
+			Description: "URL pointing to the icon to use on the OepnID Connect login button.",
 			Flag:        "oidc-icon-url",
-			Env:         "OIDC_ICON_URL",
+			Env:         "CODER_OIDC_ICON_URL",
 			Value:       &c.OIDC.IconURL,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "iconURL",
@@ -858,7 +910,7 @@ when required by your organization's security policy.`,
 			Name:        "Telemetry Enable",
 			Description: "Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.",
 			Flag:        "telemetry",
-			Env:         "TELEMETRY_ENABLE",
+			Env:         "CODER_TELEMETRY_ENABLE",
 			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
 			Value:       &c.Telemetry.Enable,
 			Group:       &deploymentGroupTelemetry,
@@ -868,7 +920,7 @@ when required by your organization's security policy.`,
 			Name:        "Telemetry Trace",
 			Description: "Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.",
 			Flag:        "telemetry-trace",
-			Env:         "TELEMETRY_TRACE",
+			Env:         "CODER_TELEMETRY_TRACE",
 			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
 			Value:       &c.Telemetry.Trace,
 			Group:       &deploymentGroupTelemetry,
@@ -878,7 +930,7 @@ when required by your organization's security policy.`,
 			Name:        "Telemetry URL",
 			Description: "URL to send telemetry.",
 			Flag:        "telemetry-url",
-			Env:         "TELEMETRY_URL",
+			Env:         "CODER_TELEMETRY_URL",
 			Hidden:      true,
 			Default:     "https://telemetry.coder.com",
 			Value:       &c.Telemetry.URL,
@@ -888,9 +940,9 @@ when required by your organization's security policy.`,
 		// Trace settings
 		{
 			Name:        "Trace Enable",
-			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md",
+			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.",
 			Flag:        "trace",
-			Env:         "TRACE_ENABLE",
+			Env:         "CODER_TRACE_ENABLE",
 			Value:       &c.Trace.Enable,
 			Group:       &deploymentGroupIntrospectionTracing,
 			YAML:        "enable",
@@ -899,7 +951,7 @@ when required by your organization's security policy.`,
 			Name:        "Trace Honeycomb API Key",
 			Description: "Enables trace exporting to Honeycomb.io using the provided API Key.",
 			Flag:        "trace-honeycomb-api-key",
-			Env:         "TRACE_HONEYCOMB_API_KEY",
+			Env:         "CODER_TRACE_HONEYCOMB_API_KEY",
 			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
 			Value:       &c.Trace.HoneycombAPIKey,
 			Group:       &deploymentGroupIntrospectionTracing,
@@ -908,7 +960,7 @@ when required by your organization's security policy.`,
 			Name:        "Capture Logs in Traces",
 			Description: "Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.",
 			Flag:        "trace-logs",
-			Env:         "TRACE_LOGS",
+			Env:         "CODER_TRACE_LOGS",
 			Value:       &c.Trace.CaptureLogs,
 			Group:       &deploymentGroupIntrospectionTracing,
 			YAML:        "captureLogs",
@@ -918,7 +970,7 @@ when required by your organization's security policy.`,
 			Name:        "Provisioner Daemons",
 			Description: "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
 			Flag:        "provisioner-daemons",
-			Env:         "PROVISIONER_DAEMONS",
+			Env:         "CODER_PROVISIONER_DAEMONS",
 			Default:     "3",
 			Value:       &c.Provisioner.Daemons,
 			Group:       &deploymentGroupProvisioning,
@@ -928,7 +980,7 @@ when required by your organization's security policy.`,
 			Name:        "Poll Interval",
 			Description: "Time to wait before polling for a new job.",
 			Flag:        "provisioner-daemon-poll-interval",
-			Env:         "PROVISIONER_DAEMON_POLL_INTERVAL",
+			Env:         "CODER_PROVISIONER_DAEMON_POLL_INTERVAL",
 			Default:     time.Second.String(),
 			Value:       &c.Provisioner.DaemonPollInterval,
 			Group:       &deploymentGroupProvisioning,
@@ -938,7 +990,7 @@ when required by your organization's security policy.`,
 			Name:        "Poll Jitter",
 			Description: "Random jitter added to the poll interval.",
 			Flag:        "provisioner-daemon-poll-jitter",
-			Env:         "PROVISIONER_DAEMON_POLL_JITTER",
+			Env:         "CODER_PROVISIONER_DAEMON_POLL_JITTER",
 			Default:     (100 * time.Millisecond).String(),
 			Value:       &c.Provisioner.DaemonPollJitter,
 			Group:       &deploymentGroupProvisioning,
@@ -948,7 +1000,7 @@ when required by your organization's security policy.`,
 			Name:        "Force Cancel Interval",
 			Description: "Time to force cancel provisioning tasks that are stuck.",
 			Flag:        "provisioner-force-cancel-interval",
-			Env:         "PROVISIONER_FORCE_CANCEL_INTERVAL",
+			Env:         "CODER_PROVISIONER_FORCE_CANCEL_INTERVAL",
 			Default:     (10 * time.Minute).String(),
 			Value:       &c.Provisioner.ForceCancelInterval,
 			Group:       &deploymentGroupProvisioning,
@@ -959,17 +1011,17 @@ when required by your organization's security policy.`,
 			Name:        "Disable All Rate Limits",
 			Description: "Disables all rate limits. This is not recommended in production.",
 			Flag:        "dangerous-disable-rate-limits",
-			Env:         "DANGEROUS_DISABLE_RATE_LIMITS",
-			Default:     "false",
-			Value:       &c.RateLimit.DisableAll,
-			Hidden:      true,
+			Env:         "CODER_DANGEROUS_DISABLE_RATE_LIMITS",
+
+			Value:  &c.RateLimit.DisableAll,
+			Hidden: true,
 		},
 		{
 			Name:        "API Rate Limit",
 			Description: "Maximum number of requests per minute allowed to the API per user, or per IP address for unauthenticated users. Negative values mean no rate limit. Some API endpoints have separate strict rate limits regardless of this value to prevent denial-of-service or brute force attacks.",
 			// Change the env from the auto-generated CODER_RATE_LIMIT_API to the
 			// old value to avoid breaking existing deployments.
-			Env:     "API_RATE_LIMIT",
+			Env:     "CODER_API_RATE_LIMIT",
 			Flag:    "api-rate-limit",
 			Default: "512",
 			Value:   &c.RateLimit.API,
@@ -980,18 +1032,18 @@ when required by your organization's security policy.`,
 			Name:          "Verbose",
 			Description:   "Output debug-level logs.",
 			Flag:          "verbose",
-			Env:           "VERBOSE",
+			Env:           "CODER_VERBOSE",
 			FlagShorthand: "v",
-			Default:       "false",
-			Value:         &c.Verbose,
-			Group:         &deploymentGroupIntrospectionLogging,
-			YAML:          "verbose",
+
+			Value: &c.Verbose,
+			Group: &deploymentGroupIntrospectionLogging,
+			YAML:  "verbose",
 		},
 		{
 			Name:        "Human Log Location",
 			Description: "Output human-readable logs to a given file.",
 			Flag:        "log-human",
-			Env:         "LOGGING_HUMAN",
+			Env:         "CODER_LOGGING_HUMAN",
 			Default:     "/dev/stderr",
 			Value:       &c.Logging.Human,
 			Group:       &deploymentGroupIntrospectionLogging,
@@ -1001,7 +1053,7 @@ when required by your organization's security policy.`,
 			Name:        "JSON Log Location",
 			Description: "Output JSON logs to a given file.",
 			Flag:        "log-json",
-			Env:         "LOGGING_JSON",
+			Env:         "CODER_LOGGING_JSON",
 			Default:     "",
 			Value:       &c.Logging.JSON,
 			Group:       &deploymentGroupIntrospectionLogging,
@@ -1011,7 +1063,7 @@ when required by your organization's security policy.`,
 			Name:        "Stackdriver Log Location",
 			Description: "Output Stackdriver compatible logs to a given file.",
 			Flag:        "log-stackdriver",
-			Env:         "LOGGING_STACKDRIVER",
+			Env:         "CODER_LOGGING_STACKDRIVER",
 			Default:     "",
 			Value:       &c.Logging.Stackdriver,
 			Group:       &deploymentGroupIntrospectionLogging,
@@ -1022,26 +1074,26 @@ when required by your organization's security policy.`,
 			Name:        "DANGEROUS: Allow Path App Sharing",
 			Description: "Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
 			Flag:        "dangerous-allow-path-app-sharing",
-			Env:         "DANGEROUS_ALLOW_PATH_APP_SHARING",
-			Default:     "false",
-			Value:       &c.Dangerous.AllowPathAppSharing,
-			Group:       &deploymentGroupDangerous,
+			Env:         "CODER_DANGEROUS_ALLOW_PATH_APP_SHARING",
+
+			Value: &c.Dangerous.AllowPathAppSharing,
+			Group: &deploymentGroupDangerous,
 		},
 		{
 			Name:        "DANGEROUS: Allow Site Owners to Access Path Apps",
 			Description: "Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.",
 			Flag:        "dangerous-allow-path-app-site-owner-access",
-			Env:         "DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS",
-			Default:     "false",
-			Value:       &c.Dangerous.AllowPathAppSiteOwnerAccess,
-			Group:       &deploymentGroupDangerous,
+			Env:         "CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS",
+
+			Value: &c.Dangerous.AllowPathAppSiteOwnerAccess,
+			Group: &deploymentGroupDangerous,
 		},
 		// Misc. settings
 		{
 			Name:        "Experiments",
 			Description: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
 			Flag:        "experiments",
-			Env:         "EXPERIMENTS",
+			Env:         "CODER_EXPERIMENTS",
 			Value:       &c.Experiments,
 			YAML:        "experiments",
 		},
@@ -1049,7 +1101,7 @@ when required by your organization's security policy.`,
 			Name:        "Update Check",
 			Description: "Periodically check for new releases of Coder and inform the owner. The check is performed once per day.",
 			Flag:        "update-check",
-			Env:         "UPDATE_CHECK",
+			Env:         "CODER_UPDATE_CHECK",
 			Default: strconv.FormatBool(
 				flag.Lookup("test.v") == nil && !buildinfo.IsDev(),
 			),
@@ -1060,7 +1112,7 @@ when required by your organization's security policy.`,
 			Name:        "Max Token Lifetime",
 			Description: "The maximum lifetime duration users can specify when creating an API token.",
 			Flag:        "max-token-lifetime",
-			Env:         "MAX_TOKEN_LIFETIME",
+			Env:         "CODER_MAX_TOKEN_LIFETIME",
 			Default:     time.Duration(math.MaxInt64).String(),
 			Value:       &c.MaxTokenLifetime,
 			Group:       &deploymentGroupNetworkingHTTP,
@@ -1070,16 +1122,16 @@ when required by your organization's security policy.`,
 			Name:        "Enable swagger endpoint",
 			Description: "Expose the swagger endpoint via /swagger.",
 			Flag:        "swagger-enable",
-			Env:         "SWAGGER_ENABLE",
-			Default:     "false",
-			Value:       &c.Swagger.Enable,
-			YAML:        "enableSwagger",
+			Env:         "CODER_SWAGGER_ENABLE",
+
+			Value: &c.Swagger.Enable,
+			YAML:  "enableSwagger",
 		},
 		{
 			Name:        "Proxy Trusted Headers",
 			Flag:        "proxy-trusted-headers",
-			Env:         "PROXY_TRUSTED_HEADERS",
-			Description: "Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For",
+			Env:         "CODER_PROXY_TRUSTED_HEADERS",
+			Description: "Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For.",
 			Value:       &c.ProxyTrustedHeaders,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "proxyTrustedHeaders",
@@ -1087,8 +1139,8 @@ when required by your organization's security policy.`,
 		{
 			Name:        "Proxy Trusted Origins",
 			Flag:        "proxy-trusted-origins",
-			Env:         "PROXY_TRUSTED_ORIGINS",
-			Description: "Origin addresses to respect \"proxy-trusted-headers\". e.g. 192.168.1.0/24",
+			Env:         "CODER_PROXY_TRUSTED_ORIGINS",
+			Description: "Origin addresses to respect \"proxy-trusted-headers\". e.g. 192.168.1.0/24.",
 			Value:       &c.ProxyTrustedOrigins,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "proxyTrustedOrigins",
@@ -1097,7 +1149,7 @@ when required by your organization's security policy.`,
 			Name:        "Cache Directory",
 			Description: "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.",
 			Flag:        "cache-dir",
-			Env:         "CACHE_DIRECTORY",
+			Env:         "CODER_CACHE_DIRECTORY",
 			Default:     DefaultCacheDir(),
 			Value:       &c.CacheDir,
 			YAML:        "cacheDir",
@@ -1106,7 +1158,7 @@ when required by your organization's security policy.`,
 			Name:        "In Memory Database",
 			Description: "Controls whether data will be stored in an in-memory database.",
 			Flag:        "in-memory",
-			Env:         "IN_MEMORY",
+			Env:         "CODER_IN_MEMORY",
 			Hidden:      true,
 			Value:       &c.InMemoryDatabase,
 			YAML:        "inMemoryDatabase",
@@ -1115,7 +1167,7 @@ when required by your organization's security policy.`,
 			Name:        "Postgres Connection URL",
 			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
 			Flag:        "postgres-url",
-			Env:         "PG_CONNECTION_URL",
+			Env:         "CODER_PG_CONNECTION_URL",
 			Annotations: clibase.Annotations{}.Mark(flagSecretKey, "true"),
 			Value:       &c.PostgresURL,
 		},
@@ -1123,7 +1175,7 @@ when required by your organization's security policy.`,
 			Name:        "Secure Auth Cookie",
 			Description: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:        "secure-auth-cookie",
-			Env:         "SECURE_AUTH_COOKIE",
+			Env:         "CODER_SECURE_AUTH_COOKIE",
 			Value:       &c.SecureAuthCookie,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "secureAuthCookie",
@@ -1135,7 +1187,7 @@ when required by your organization's security policy.`,
 				"the header.",
 			Default: "0",
 			Flag:    "strict-transport-security",
-			Env:     "STRICT_TRANSPORT_SECURITY",
+			Env:     "CODER_STRICT_TRANSPORT_SECURITY",
 			Value:   &c.StrictTransportSecurity,
 			Group:   &deploymentGroupNetworkingTLS,
 			YAML:    "strictTransportSecurity",
@@ -1145,7 +1197,7 @@ when required by your organization's security policy.`,
 			Description: "Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. " +
 				"The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.",
 			Flag:  "strict-transport-security-options",
-			Env:   "STRICT_TRANSPORT_SECURITY_OPTIONS",
+			Env:   "CODER_STRICT_TRANSPORT_SECURITY_OPTIONS",
 			Value: &c.StrictTransportSecurityOptions,
 			Group: &deploymentGroupNetworkingTLS,
 			YAML:  "strictTransportSecurityOptions",
@@ -1154,34 +1206,34 @@ when required by your organization's security policy.`,
 			Name:        "SSH Keygen Algorithm",
 			Description: "The algorithm to use for generating ssh keys. Accepted values are \"ed25519\", \"ecdsa\", or \"rsa4096\".",
 			Flag:        "ssh-keygen-algorithm",
-			Env:         "SSH_KEYGEN_ALGORITHM",
+			Env:         "CODER_SSH_KEYGEN_ALGORITHM",
 			Default:     "ed25519",
 			Value:       &c.SSHKeygenAlgorithm,
 			YAML:        "sshKeygenAlgorithm",
 		},
 		{
 			Name:        "Metrics Cache Refresh Interval",
-			Description: "How frequently metrics are refreshed",
+			Description: "How frequently metrics are refreshed.",
 			Flag:        "metrics-cache-refresh-interval",
-			Env:         "METRICS_CACHE_REFRESH_INTERVAL",
+			Env:         "CODER_METRICS_CACHE_REFRESH_INTERVAL",
 			Hidden:      true,
 			Default:     time.Hour.String(),
 			Value:       &c.MetricsCacheRefreshInterval,
 		},
 		{
 			Name:        "Agent Stat Refresh Interval",
-			Description: "How frequently agent stats are recorded",
+			Description: "How frequently agent stats are recorded.",
 			Flag:        "agent-stats-refresh-interval",
-			Env:         "AGENT_STATS_REFRESH_INTERVAL",
+			Env:         "CODER_AGENT_STATS_REFRESH_INTERVAL",
 			Hidden:      true,
 			Default:     (30 * time.Second).String(),
 			Value:       &c.AgentStatRefreshInterval,
 		},
 		{
 			Name:        "Agent Fallback Troubleshooting URL",
-			Description: "URL to use for agent troubleshooting when not set in the template",
+			Description: "URL to use for agent troubleshooting when not set in the template.",
 			Flag:        "agent-fallback-troubleshooting-url",
-			Env:         "AGENT_FALLBACK_TROUBLESHOOTING_URL",
+			Env:         "CODER_AGENT_FALLBACK_TROUBLESHOOTING_URL",
 			Hidden:      true,
 			Default:     "https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates",
 			Value:       &c.AgentFallbackTroubleshootingURL,
@@ -1191,7 +1243,7 @@ when required by your organization's security policy.`,
 			Name:        "Audit Logging",
 			Description: "Specifies whether audit logging is enabled.",
 			Flag:        "audit-logging",
-			Env:         "AUDIT_LOGGING",
+			Env:         "CODER_AUDIT_LOGGING",
 			Default:     "true",
 			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
 			Value:       &c.AuditLogging,
@@ -1201,7 +1253,7 @@ when required by your organization's security policy.`,
 			Name:        "Browser Only",
 			Description: "Whether Coder only allows connections to workspaces via the browser.",
 			Flag:        "browser-only",
-			Env:         "BROWSER_ONLY",
+			Env:         "CODER_BROWSER_ONLY",
 			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
 			Value:       &c.BrowserOnly,
 			Group:       &deploymentGroupNetworking,
@@ -1211,7 +1263,7 @@ when required by your organization's security policy.`,
 			Name:        "SCIM API Key",
 			Description: "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.",
 			Flag:        "scim-auth-header",
-			Env:         "SCIM_AUTH_HEADER",
+			Env:         "CODER_SCIM_AUTH_HEADER",
 			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true").Mark(flagSecretKey, "true"),
 			Value:       &c.SCIMAPIKey,
 		},
@@ -1220,16 +1272,16 @@ when required by your organization's security policy.`,
 			Name:        "Disable Path Apps",
 			Description: "Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.",
 			Flag:        "disable-path-apps",
-			Env:         "DISABLE_PATH_APPS",
-			Default:     "false",
-			Value:       &c.DisablePathApps,
-			YAML:        "disablePathApps",
+			Env:         "CODER_DISABLE_PATH_APPS",
+
+			Value: &c.DisablePathApps,
+			YAML:  "disablePathApps",
 		},
 		{
 			Name:        "Session Duration",
 			Description: "The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.",
 			Flag:        "session-duration",
-			Env:         "SESSION_DURATION",
+			Env:         "CODER_SESSION_DURATION",
 			Default:     (24 * time.Hour).String(),
 			Value:       &c.SessionDuration,
 			Group:       &deploymentGroupNetworkingHTTP,
@@ -1239,38 +1291,63 @@ when required by your organization's security policy.`,
 			Name:        "Disable Session Expiry Refresh",
 			Description: "Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.",
 			Flag:        "disable-session-expiry-refresh",
-			Env:         "DISABLE_SESSION_EXPIRY_REFRESH",
-			Default:     "false",
-			Value:       &c.DisableSessionExpiryRefresh,
-			Group:       &deploymentGroupNetworkingHTTP,
-			YAML:        "disableSessionExpiryRefresh",
+			Env:         "CODER_DISABLE_SESSION_EXPIRY_REFRESH",
+
+			Value: &c.DisableSessionExpiryRefresh,
+			Group: &deploymentGroupNetworkingHTTP,
+			YAML:  "disableSessionExpiryRefresh",
 		},
 		{
 			Name:        "Disable Password Authentication",
 			Description: "Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.",
 			Flag:        "disable-password-auth",
-			Env:         "DISABLE_PASSWORD_AUTH",
-			Default:     "false",
-			Value:       &c.DisablePasswordAuth,
-			Group:       &deploymentGroupNetworkingHTTP,
-			YAML:        "disablePasswordAuth",
+			Env:         "CODER_DISABLE_PASSWORD_AUTH",
+
+			Value: &c.DisablePasswordAuth,
+			Group: &deploymentGroupNetworkingHTTP,
+			YAML:  "disablePasswordAuth",
 		},
 		{
 			Name:          "Config Path",
 			Description:   `Specify a YAML file to load configuration from.`,
 			Flag:          "config",
-			Env:           "CONFIG_PATH",
+			Env:           "CODER_CONFIG_PATH",
 			FlagShorthand: "c",
-			Hidden:        true,
-			Group:         &deploymentGroupConfig,
-			Value:         &c.Config,
+			// The config parameters are hidden until they are tested and
+			// documented.
+			Hidden: true,
+			Group:  &deploymentGroupConfig,
+			Value:  &c.Config,
+		},
+		{
+			Name:        "SSH Host Prefix",
+			Description: "The SSH deployment prefix is used in the Host of the ssh config.",
+			Flag:        "ssh-hostname-prefix",
+			Env:         "CODER_SSH_HOSTNAME_PREFIX",
+			YAML:        "sshHostnamePrefix",
+			Group:       &deploymentGroupClient,
+			Value:       &c.SSHConfig.DeploymentName,
+			Hidden:      false,
+			Default:     "coder.",
+		},
+		{
+			Name: "SSH Config Options",
+			Description: "These SSH config options will override the default SSH config options. " +
+				"Provide options in \"key=value\" or \"key value\" format separated by commas." +
+				"Using this incorrectly can break SSH to your deployment, use cautiously.",
+			Flag:   "ssh-config-options",
+			Env:    "CODER_SSH_CONFIG_OPTIONS",
+			YAML:   "sshConfigOptions",
+			Group:  &deploymentGroupClient,
+			Value:  &c.SSHConfig.SSHConfigOptions,
+			Hidden: false,
 		},
 		{
 			Name: "Write Config",
 			Description: `
 Write out the current server configuration to the path specified by --config.`,
 			Flag:   "write-config",
-			Env:    "WRITE_CONFIG",
+			Env:    "CODER_WRITE_CONFIG",
 			Group:  &deploymentGroupConfig,
 			Hidden: true,
 			Value:  &c.WriteConfig,
@@ -1280,16 +1357,30 @@ Write out the current server configuration to the path specified by --config.`,
 			Description: "Support links to display in the top right drop down menu.",
 			YAML:        "supportLinks",
 			Value:       &c.Support.Links,
+			// The support links are hidden until they are defined in the
+			// YAML.
+			Hidden: true,
 		},
 		{
 			// Env handling is done in cli.ReadGitAuthFromEnvironment
 			Name:        "Git Auth Providers",
-			Description: "Git Authentication providers",
+			Description: "Git Authentication providers.",
 			YAML:        "gitAuthProviders",
 			Value:       &c.GitAuthProviders,
 			Hidden:      true,
 		},
+		{
+			Name:        "Custom wgtunnel Host",
+			Description: `Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By default, this will pick the best available wgtunnel server hosted by Coder. e.g. "tunnel.example.com".`,
+			Flag:        "wg-tunnel-host",
+			Env:         "WGTUNNEL_HOST",
+			YAML:        "wgtunnelHost",
+			Value:       &c.WgtunnelHost,
+			Default:     "", // empty string means pick best server
+			Hidden:      true,
+		},
 	}
+	return opts
 }
 
 type SupportConfig struct {
@@ -1336,8 +1427,8 @@ func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
 	return &ff, nil
 }
 
-// DeploymentValues returns the deployment config for the coder server.
-func (c *Client) DeploymentValues(ctx context.Context) (*DeploymentConfig, error) {
+// DeploymentConfig returns the deployment config for the coder server.
+func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/config", nil)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
@@ -1452,10 +1543,6 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 type Experiment string
 
 const (
-	// ExperimentAuthzQuerier is an internal experiment that enables the ExperimentAuthzQuerier
-	// interface for all RBAC operations. NOT READY FOR PRODUCTION USE.
-	ExperimentAuthzQuerier Experiment = "authz_querier"
-
 	// ExperimentTemplateEditor is an internal experiment that enables the template editor
 	// for all users.
 	ExperimentTemplateEditor Experiment = "template_editor"
@@ -1579,4 +1666,26 @@ type DeploymentStats struct {
 
 	Workspaces   WorkspaceDeploymentStats    `json:"workspaces"`
 	SessionCount SessionCountDeploymentStats `json:"session_count"`
+}
+
+type SSHConfigResponse struct {
+	HostnamePrefix   string            `json:"hostname_prefix"`
+	SSHConfigOptions map[string]string `json:"ssh_config_options"`
+}
+
+// SSHConfiguration returns information about the SSH configuration for the
+// Coder instance.
+func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/ssh", nil)
+	if err != nil {
+		return SSHConfigResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return SSHConfigResponse{}, ReadBodyAsError(res)
+	}
+
+	var sshConfig SSHConfigResponse
+	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
 }

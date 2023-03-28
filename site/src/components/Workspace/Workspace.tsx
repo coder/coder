@@ -1,8 +1,15 @@
 import { makeStyles } from "@material-ui/core/styles"
+import { Avatar } from "components/Avatar/Avatar"
+import { AgentRow } from "components/Resources/AgentRow"
+import {
+  ActiveTransition,
+  WorkspaceBuildProgress,
+} from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
+import { AlertBanner } from "../AlertBanner/AlertBanner"
 import { BuildsTable } from "../BuildsTable/BuildsTable"
 import { Margins } from "../Margins/Margins"
 import {
@@ -16,13 +23,6 @@ import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
 import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
 import { WorkspaceScheduleButton } from "../WorkspaceScheduleButton/WorkspaceScheduleButton"
 import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
-import { AlertBanner } from "../AlertBanner/AlertBanner"
-import {
-  ActiveTransition,
-  WorkspaceBuildProgress,
-} from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
-import { AgentRow } from "components/Resources/AgentRow"
-import { Avatar } from "components/Avatar/Avatar"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -42,8 +42,7 @@ export interface WorkspaceProps {
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
-  handleChangeVersion: () => void
-  handleBuildParameters: () => void
+  handleSettings: () => void
   isUpdating: boolean
   workspace: TypesGen.Workspace
   resources?: TypesGen.WorkspaceResource[]
@@ -55,7 +54,6 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
   template?: TypesGen.Template
-  templateParameters?: TypesGen.TemplateVersionParameter[]
   quota_budget?: number
 }
 
@@ -69,8 +67,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleDelete,
   handleUpdate,
   handleCancel,
-  handleChangeVersion,
-  handleBuildParameters,
+  handleSettings,
   workspace,
   isUpdating,
   resources,
@@ -82,7 +79,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   applicationsHost,
   template,
-  templateParameters,
   quota_budget,
 }) => {
   const styles = useStyles()
@@ -126,17 +122,13 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             />
             <WorkspaceActions
               workspaceStatus={workspace.latest_build.status}
-              hasTemplateParameters={
-                templateParameters ? templateParameters.length > 0 : false
-              }
               isOutdated={workspace.outdated}
               handleStart={handleStart}
               handleStop={handleStop}
               handleDelete={handleDelete}
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
-              handleChangeVersion={handleChangeVersion}
-              handleBuildParameters={handleBuildParameters}
+              handleSettings={handleSettings}
               isUpdating={isUpdating}
             />
           </Stack>
@@ -256,6 +248,9 @@ export const useStyles = makeStyles((theme) => {
 
     timelineContents: {
       margin: 0,
+    },
+    logs: {
+      border: `1px solid ${theme.palette.divider}`,
     },
   }
 })

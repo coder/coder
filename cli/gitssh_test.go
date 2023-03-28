@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
@@ -48,23 +47,9 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, str
 	// setup template
 	agentToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:         echo.ParseComplete,
-		ProvisionPlan: echo.ProvisionComplete,
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "somename",
-						Type: "someinstance",
-						Agents: []*proto.Agent{{
-							Auth: &proto.Agent_Token{
-								Token: agentToken,
-							},
-						}},
-					}},
-				},
-			},
-		}},
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(agentToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -72,15 +57,12 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, str
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// start workspace agent
-	cmd, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
+	inv, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
 	agentClient := client
 	clitest.SetupConfig(t, agentClient, root)
 
-	errC := make(chan error, 1)
-	go func() {
-		errC <- cmd.ExecuteContext(ctx)
-	}()
-	t.Cleanup(func() { require.NoError(t, <-errC) })
+	clitest.Start(t, inv)
+
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	return agentClient, agentToken, pubkey
 }
@@ -156,7 +138,7 @@ func TestGitSSH(t *testing.T) {
 		}, pubkey)
 
 		// set to agent config dir
-		cmd, _ := clitest.New(t,
+		inv, _ := clitest.New(t,
 			"gitssh",
 			"--agent-url", client.URL.String(),
 			"--agent-token", token,
@@ -166,7 +148,7 @@ func TestGitSSH(t *testing.T) {
 			"-o", "IdentitiesOnly=yes",
 			"127.0.0.1",
 		)
-		err := cmd.ExecuteContext(ctx)
+		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		require.EqualValues(t, 1, inc)
 
@@ -228,10 +210,10 @@ func TestGitSSH(t *testing.T) {
 			"mytest",
 		}
 		// Test authentication via local private key.
-		cmd, _ := clitest.New(t, cmdArgs...)
-		cmd.SetOut(pty.Output())
-		cmd.SetErr(pty.Output())
-		err = cmd.ExecuteContext(ctx)
+		inv, _ := clitest.New(t, cmdArgs...)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		select {
 		case key := <-authkey:
@@ -245,10 +227,10 @@ func TestGitSSH(t *testing.T) {
 		require.NoError(t, err)
 
 		// With the local file deleted, the coder key should be used.
-		cmd, _ = clitest.New(t, cmdArgs...)
-		cmd.SetOut(pty.Output())
-		cmd.SetErr(pty.Output())
-		err = cmd.ExecuteContext(ctx)
+		inv, _ = clitest.New(t, cmdArgs...)
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 		select {
 		case key := <-authkey:

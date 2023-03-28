@@ -17,7 +17,6 @@ import (
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
@@ -32,14 +31,12 @@ func TestPortForward(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 
-		cmd, root := clitest.New(t, "port-forward", "blah")
+		inv, root := clitest.New(t, "port-forward", "blah")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-		cmd.SetErr(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stderr = pty.Output()
 
-		err := cmd.Execute()
+		err := inv.Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "no port-forwards")
 
@@ -134,17 +131,17 @@ func TestPortForward(t *testing.T) {
 
 				// Launch port-forward in a goroutine so we can start dialing
 				// the "local" listener.
-				cmd, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag)
+				inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag)
 				clitest.SetupConfig(t, client, root)
 				pty := ptytest.New(t)
-				cmd.SetIn(pty.Input())
-				cmd.SetOut(pty.Output())
-				cmd.SetErr(pty.Output())
+				inv.Stdin = pty.Input()
+				inv.Stdout = pty.Output()
+				inv.Stderr = pty.Output()
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				errC := make(chan error)
 				go func() {
-					errC <- cmd.ExecuteContext(ctx)
+					errC <- inv.WithContext(ctx).Run()
 				}()
 				pty.ExpectMatch("Ready!")
 
@@ -182,17 +179,17 @@ func TestPortForward(t *testing.T) {
 
 				// Launch port-forward in a goroutine so we can start dialing
 				// the "local" listeners.
-				cmd, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag1, flag2)
+				inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag1, flag2)
 				clitest.SetupConfig(t, client, root)
 				pty := ptytest.New(t)
-				cmd.SetIn(pty.Input())
-				cmd.SetOut(pty.Output())
-				cmd.SetErr(pty.Output())
+				inv.Stdin = pty.Input()
+				inv.Stdout = pty.Output()
+				inv.Stderr = pty.Output()
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				errC := make(chan error)
 				go func() {
-					errC <- cmd.ExecuteContext(ctx)
+					errC <- inv.WithContext(ctx).Run()
 				}()
 				pty.ExpectMatch("Ready!")
 
@@ -239,17 +236,15 @@ func TestPortForward(t *testing.T) {
 
 		// Launch port-forward in a goroutine so we can start dialing
 		// the "local" listeners.
-		cmd, root := clitest.New(t, append([]string{"-v", "port-forward", workspace.Name}, flags...)...)
+		inv, root := clitest.New(t, append([]string{"-v", "port-forward", workspace.Name}, flags...)...)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		cmd.SetIn(pty.Input())
-		cmd.SetOut(pty.Output())
-		cmd.SetErr(pty.Output())
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stderr = pty.Output()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		errC := make(chan error)
 		go func() {
-			errC <- cmd.ExecuteContext(ctx)
+			errC <- inv.WithContext(ctx).Run()
 		}()
 		pty.ExpectMatch("Ready!")
 
@@ -293,23 +288,9 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) codersdk.
 	// Setup template
 	agentToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
-		Parse:         echo.ParseComplete,
-		ProvisionPlan: echo.ProvisionComplete,
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name: "somename",
-						Type: "someinstance",
-						Agents: []*proto.Agent{{
-							Auth: &proto.Agent_Token{
-								Token: agentToken,
-							},
-						}},
-					}},
-				},
-			},
-		}},
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(agentToken),
 	})
 
 	// Create template and workspace
@@ -319,12 +300,12 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) codersdk.
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// Start workspace agent in a goroutine
-	cmd, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
+	inv, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)
-	cmd.SetIn(pty.Input())
-	cmd.SetOut(pty.Output())
-	cmd.SetErr(pty.Output())
+	inv.Stdin = pty.Input()
+	inv.Stdout = pty.Output()
+	inv.Stderr = pty.Output()
 	errC := make(chan error)
 	agentCtx, agentCancel := context.WithCancel(ctx)
 	t.Cleanup(func() {
@@ -333,7 +314,7 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) codersdk.
 		require.NoError(t, err)
 	})
 	go func() {
-		errC <- cmd.ExecuteContext(agentCtx)
+		errC <- inv.WithContext(agentCtx).Run()
 	}()
 
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)

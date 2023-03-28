@@ -5,6 +5,7 @@
     "updated_at": "[timestamp]",
     "owner_id": "[first user ID]",
     "owner_name": "testuser",
+    "organization_id": "[first org ID]",
     "template_id": "[template ID]",
     "template_name": "test-template",
     "template_display_name": "",

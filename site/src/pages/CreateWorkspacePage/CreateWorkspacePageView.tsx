@@ -24,6 +24,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import {
   selectInitialRichParametersValues,
   useValidationSchemaForRichParameters,
+  workspaceBuildParameterValue,
 } from "util/richParameters"
 
 export enum CreateWorkspaceErrors {
@@ -273,7 +274,7 @@ export const CreateWorkspacePageView: FC<
         {props.templateSchema && props.templateSchema.length > 0 && (
           <FormSection
             title="Template params"
-            description="Those values are provided by your template's Terraform configuration."
+            description="These values are provided by your template's Terraform configuration."
           >
             <FormFields>
               {props.templateSchema
@@ -302,7 +303,7 @@ export const CreateWorkspacePageView: FC<
           props.templateParameters.filter((p) => p.mutable).length > 0 && (
             <FormSection
               title="Parameters"
-              description="Those values are provided by your template's Terraform configuration. Values can be changed after creating the workspace."
+              description="These parameters are provided by your template's Terraform configuration and can be changed after creating the workspace."
             >
               <FormFields>
                 {props.templateParameters.map(
@@ -341,7 +342,7 @@ export const CreateWorkspacePageView: FC<
               classes={{ root: styles.warningSection }}
               description={
                 <>
-                  Those values are also parameters provided from your Terraform
+                  These parameters are also provided by your Terraform
                   configuration but they{" "}
                   <strong className={styles.warningText}>
                     cannot be changed after creating the workspace.
@@ -401,13 +402,3 @@ const useStyles = makeStyles((theme) => ({
     marginRight: -theme.spacing(10),
   },
 }))
-
-export const workspaceBuildParameterValue = (
-  workspaceBuildParameters: TypesGen.WorkspaceBuildParameter[],
-  parameter: TypesGen.TemplateVersionParameter,
-): string => {
-  const buildParameter = workspaceBuildParameters.find((buildParameter) => {
-    return buildParameter.name === parameter.name
-  })
-  return (buildParameter && buildParameter.value) || ""
-}

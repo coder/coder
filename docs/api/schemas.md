@@ -200,6 +200,25 @@
 | `startup_script_timeout`  | integer                                                 | false    |              |                                                                                                                                                            |
 | `vscode_port_proxy_uri`   | string                                                  | false    |              |                                                                                                                                                            |
 
+## agentsdk.PatchStartupLogs
+
+```json
+{
+  "logs": [
+    {
+      "created_at": "string",
+      "output": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name   | Type                                                | Required | Restrictions | Description |
+| ------ | --------------------------------------------------- | -------- | ------------ | ----------- |
+| `logs` | array of [agentsdk.StartupLog](#agentsdkstartuplog) | false    |              |             |
+
 ## agentsdk.PostAppHealthsRequest
 
 ```json
@@ -247,6 +266,22 @@
 | -------------------- | ------ | -------- | ------------ | ----------- |
 | `expanded_directory` | string | false    |              |             |
 | `version`            | string | false    |              |             |
+
+## agentsdk.StartupLog
+
+```json
+{
+  "created_at": "string",
+  "output": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `created_at` | string | false    |              |             |
+| `output`     | string | false    |              |             |
 
 ## agentsdk.Stats
 
@@ -1687,6 +1722,10 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "browser_only": true,
     "cache_directory": "string",
     "config": "string",
+    "config_ssh": {
+      "deploymentName": "string",
+      "sshconfigOptions": ["string"]
+    },
     "dangerous": {
       "allow_path_app_sharing": true,
       "allow_path_app_site_owner_access": true
@@ -1762,6 +1801,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "client_id": "string",
       "client_secret": "string",
       "email_domain": ["string"],
+      "group_mapping": {},
       "groups_field": "string",
       "icon_url": {
         "forceQuery": true,
@@ -1868,6 +1908,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     },
     "update_check": true,
     "verbose": true,
+    "wgtunnel_host": "string",
     "wildcard_access_url": {
       "forceQuery": true,
       "fragment": "string",
@@ -2027,6 +2068,10 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "browser_only": true,
   "cache_directory": "string",
   "config": "string",
+  "config_ssh": {
+    "deploymentName": "string",
+    "sshconfigOptions": ["string"]
+  },
   "dangerous": {
     "allow_path_app_sharing": true,
     "allow_path_app_site_owner_access": true
@@ -2102,6 +2147,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "client_id": "string",
     "client_secret": "string",
     "email_domain": ["string"],
+    "group_mapping": {},
     "groups_field": "string",
     "icon_url": {
       "forceQuery": true,
@@ -2208,6 +2254,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   },
   "update_check": true,
   "verbose": true,
+  "wgtunnel_host": "string",
   "wildcard_access_url": {
     "forceQuery": true,
     "fragment": "string",
@@ -2238,6 +2285,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `browser_only`                       | boolean                                                                                    | false    |              |                                                                    |
 | `cache_directory`                    | string                                                                                     | false    |              |                                                                    |
 | `config`                             | string                                                                                     | false    |              |                                                                    |
+| `config_ssh`                         | [codersdk.SSHConfig](#codersdksshconfig)                                                   | false    |              |                                                                    |
 | `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                       | false    |              |                                                                    |
 | `derp`                               | [codersdk.DERP](#codersdkderp)                                                             | false    |              |                                                                    |
 | `disable_password_auth`              | boolean                                                                                    | false    |              |                                                                    |
@@ -2273,6 +2321,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                               | false    |              |                                                                    |
 | `update_check`                       | boolean                                                                                    | false    |              |                                                                    |
 | `verbose`                            | boolean                                                                                    | false    |              |                                                                    |
+| `wgtunnel_host`                      | string                                                                                     | false    |              |                                                                    |
 | `wildcard_access_url`                | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                    | false    |              |                                                                    |
 
@@ -2333,7 +2382,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ## codersdk.Experiment
 
 ```json
-"authz_querier"
+"template_editor"
 ```
 
 ### Properties
@@ -2342,7 +2391,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 | Value             |
 | ----------------- |
-| `authz_querier`   |
 | `template_editor` |
 
 ## codersdk.Feature
@@ -2763,6 +2811,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "client_id": "string",
   "client_secret": "string",
   "email_domain": ["string"],
+  "group_mapping": {},
   "groups_field": "string",
   "icon_url": {
     "forceQuery": true,
@@ -2793,6 +2842,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `client_id`             | string                     | false    |              |             |
 | `client_secret`         | string                     | false    |              |             |
 | `email_domain`          | array of string            | false    |              |             |
+| `group_mapping`         | object                     | false    |              |             |
 | `groups_field`          | string                     | false    |              |             |
 | `icon_url`              | [clibase.URL](#clibaseurl) | false    |              |             |
 | `ignore_email_verified` | boolean                    | false    |              |             |
@@ -2993,6 +3043,20 @@ Parameter represents a set value for the scope.
 | ------ |
 | `none` |
 | `data` |
+
+## codersdk.PatchTemplateVersionRequest
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| `name` | string | false    |              |             |
 
 ## codersdk.PprofConfig
 
@@ -3317,6 +3381,42 @@ Parameter represents a set value for the scope.
 | -------------- | ------ | -------- | ------------ | ----------- |
 | `display_name` | string | false    |              |             |
 | `name`         | string | false    |              |             |
+
+## codersdk.SSHConfig
+
+```json
+{
+  "deploymentName": "string",
+  "sshconfigOptions": ["string"]
+}
+```
+
+### Properties
+
+| Name               | Type            | Required | Restrictions | Description                                                                                         |
+| ------------------ | --------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------- |
+| `deploymentName`   | string          | false    |              | Deploymentname is the config-ssh Hostname prefix                                                    |
+| `sshconfigOptions` | array of string | false    |              | Sshconfigoptions are additional options to add to the ssh config file. This will override defaults. |
+
+## codersdk.SSHConfigResponse
+
+```json
+{
+  "hostname_prefix": "string",
+  "ssh_config_options": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                 | Type   | Required | Restrictions | Description |
+| -------------------- | ------ | -------- | ------------ | ----------- |
+| `hostname_prefix`    | string | false    |              |             |
+| `ssh_config_options` | object | false    |              |             |
+| » `[any property]`   | string | false    |              |             |
 
 ## codersdk.ServiceBannerConfig
 
@@ -3777,13 +3877,14 @@ Parameter represents a set value for the scope.
 
 #### Enumerated Values
 
-| Property               | Value        |
-| ---------------------- | ------------ |
-| `type`                 | `string`     |
-| `type`                 | `number`     |
-| `type`                 | `bool`       |
-| `validation_monotonic` | `increasing` |
-| `validation_monotonic` | `decreasing` |
+| Property               | Value          |
+| ---------------------- | -------------- |
+| `type`                 | `string`       |
+| `type`                 | `number`       |
+| `type`                 | `bool`         |
+| `type`                 | `list(string)` |
+| `validation_monotonic` | `increasing`   |
+| `validation_monotonic` | `decreasing`   |
 
 ## codersdk.TemplateVersionParameterOption
 
@@ -3838,6 +3939,20 @@ Parameter represents a set value for the scope.
 | `type`   | `string` |
 | `type`   | `number` |
 | `type`   | `bool`   |
+
+## codersdk.TokenConfig
+
+```json
+{
+  "max_token_lifetime": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+| -------------------- | ------- | -------- | ------------ | ----------- |
+| `max_token_lifetime` | integer | false    |              |             |
 
 ## codersdk.TraceConfig
 
@@ -4241,6 +4356,8 @@ Parameter represents a set value for the scope.
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "shutdown_script": "string",
             "shutdown_script_timeout_seconds": 0,
+            "startup_logs_length": 0,
+            "startup_logs_overflowed": true,
             "startup_script": "string",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
@@ -4278,6 +4395,7 @@ Parameter represents a set value for the scope.
     "workspace_owner_name": "string"
   },
   "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -4301,6 +4419,7 @@ Parameter represents a set value for the scope.
 | `last_used_at`                              | string                                             | false    |              |             |
 | `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |             |
 | `name`                                      | string                                             | false    |              |             |
+| `organization_id`                           | string                                             | false    |              |             |
 | `outdated`                                  | boolean                                            | false    |              |             |
 | `owner_id`                                  | string                                             | false    |              |             |
 | `owner_name`                                | string                                             | false    |              |             |
@@ -4366,6 +4485,8 @@ Parameter represents a set value for the scope.
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "shutdown_script": "string",
   "shutdown_script_timeout_seconds": 0,
+  "startup_logs_length": 0,
+  "startup_logs_overflowed": true,
   "startup_script": "string",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",
@@ -4401,6 +4522,8 @@ Parameter represents a set value for the scope.
 | `resource_id`                     | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `shutdown_script`                 | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `shutdown_script_timeout_seconds` | integer                                                              | false    |              |                                                                                                                                                                                                            |
+| `startup_logs_length`             | integer                                                              | false    |              |                                                                                                                                                                                                            |
+| `startup_logs_overflowed`         | boolean                                                              | false    |              |                                                                                                                                                                                                            |
 | `startup_script`                  | string                                                               | false    |              |                                                                                                                                                                                                            |
 | `startup_script_timeout_seconds`  | integer                                                              | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
 | `status`                          | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)       | false    |              |                                                                                                                                                                                                            |
@@ -4531,6 +4654,24 @@ Parameter represents a set value for the scope.
 | Name    | Type                                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                                            |
 | ------- | ------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `ports` | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | If there are no ports in the list, nothing should be displayed in the UI. There must not be a "no ports available" message or anything similar, as there will always be no ports displayed on platforms where our port detection logic is unsupported. |
+
+## codersdk.WorkspaceAgentStartupLog
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": 0,
+  "output": "string"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `created_at` | string  | false    |              |             |
+| `id`         | integer | false    |              |             |
+| `output`     | string  | false    |              |             |
 
 ## codersdk.WorkspaceAgentStatus
 
@@ -4711,6 +4852,8 @@ Parameter represents a set value for the scope.
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
+          "startup_logs_length": 0,
+          "startup_logs_overflowed": true,
           "startup_script": "string",
           "startup_script_timeout_seconds": 0,
           "status": "connecting",
@@ -4930,6 +5073,8 @@ Parameter represents a set value for the scope.
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "shutdown_script": "string",
       "shutdown_script_timeout_seconds": 0,
+      "startup_logs_length": 0,
+      "startup_logs_overflowed": true,
       "startup_script": "string",
       "startup_script_timeout_seconds": 0,
       "status": "connecting",
@@ -5125,6 +5270,8 @@ Parameter represents a set value for the scope.
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "shutdown_script": "string",
                 "shutdown_script_timeout_seconds": 0,
+                "startup_logs_length": 0,
+                "startup_logs_overflowed": true,
                 "startup_script": "string",
                 "startup_script_timeout_seconds": 0,
                 "status": "connecting",
@@ -5162,6 +5309,7 @@ Parameter represents a set value for the scope.
         "workspace_owner_name": "string"
       },
       "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "outdated": true,
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",

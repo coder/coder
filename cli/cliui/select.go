@@ -8,9 +8,9 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/spf13/cobra"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -35,6 +35,21 @@ func init() {
   {{- template "option" $.IterateOption $ix $option}}
 {{- end}}
 {{- end }}`
+
+	survey.MultiSelectQuestionTemplate = `
+{{- define "option"}}
+    {{- if eq .SelectedIndex .CurrentIndex }}{{color .Config.Icons.SelectFocus.Format }}{{ .Config.Icons.SelectFocus.Text }}{{color "reset"}}{{else}} {{end}}
+    {{- if index .Checked .CurrentOpt.Index }}{{color .Config.Icons.MarkedOption.Format }} {{ .Config.Icons.MarkedOption.Text }} {{else}}{{color .Config.Icons.UnmarkedOption.Format }} {{ .Config.Icons.UnmarkedOption.Text }} {{end}}
+    {{- color "reset"}}
+    {{- " "}}{{- .CurrentOpt.Value}}
+{{end}}
+{{- if .ShowHelp }}{{- color .Config.Icons.Help.Format }}{{ .Config.Icons.Help.Text }} {{ .Help }}{{color "reset"}}{{"\n"}}{{end}}
+{{- if not .ShowAnswer }}
+  {{- "\n"}}
+  {{- range $ix, $option := .PageEntries}}
+    {{- template "option" $.IterateOption $ix $option}}
+  {{- end}}
+{{- end}}`
 }
 
 type SelectOptions struct {
@@ -53,7 +68,7 @@ type RichSelectOptions struct {
 }
 
 // RichSelect displays a list of user options including name and description.
-func RichSelect(cmd *cobra.Command, richOptions RichSelectOptions) (*codersdk.TemplateVersionParameterOption, error) {
+func RichSelect(inv *clibase.Invocation, richOptions RichSelectOptions) (*codersdk.TemplateVersionParameterOption, error) {
 	opts := make([]string, len(richOptions.Options))
 	for i, option := range richOptions.Options {
 		line := option.Name
@@ -63,7 +78,7 @@ func RichSelect(cmd *cobra.Command, richOptions RichSelectOptions) (*codersdk.Te
 		opts[i] = line
 	}
 
-	selected, err := Select(cmd, SelectOptions{
+	selected, err := Select(inv, SelectOptions{
 		Options:    opts,
 		Default:    richOptions.Default,
 		Size:       richOptions.Size,
@@ -82,7 +97,7 @@ func RichSelect(cmd *cobra.Command, richOptions RichSelectOptions) (*codersdk.Te
 }
 
 // Select displays a list of user options.
-func Select(cmd *cobra.Command, opts SelectOptions) (string, error) {
+func Select(inv *clibase.Invocation, opts SelectOptions) (string, error) {
 	// The survey library used *always* fails when testing on Windows,
 	// as it requires a live TTY (can't be a conpty). We should fork
 	// this library to add a dummy fallback, that simply reads/writes
@@ -108,14 +123,37 @@ func Select(cmd *cobra.Command, opts SelectOptions) (string, error) {
 			is.Help.Text = ""
 		}
 	}), survey.WithStdio(fileReadWriter{
-		Reader: cmd.InOrStdin(),
+		Reader: inv.Stdin,
 	}, fileReadWriter{
-		Writer: cmd.OutOrStdout(),
-	}, cmd.OutOrStdout()))
+		Writer: inv.Stdout,
+	}, inv.Stdout))
 	if errors.Is(err, terminal.InterruptErr) {
 		return value, Canceled
 	}
 	return value, err
+}
+
+func MultiSelect(inv *clibase.Invocation, items []string) ([]string, error) {
+	// Similar hack is applied to Select()
+	if flag.Lookup("test.v") != nil {
+		return items, nil
+	}
+
+	prompt := &survey.MultiSelect{
+		Options: items,
+		Default: items,
+	}
+
+	var values []string
+	err := survey.AskOne(prompt, &values, survey.WithStdio(fileReadWriter{
+		Reader: inv.Stdin,
+	}, fileReadWriter{
+		Writer: inv.Stdout,
+	}, inv.Stdout))
+	if errors.Is(err, terminal.InterruptErr) {
+		return nil, Canceled
+	}
+	return values, err
 }
 
 type fileReadWriter struct {

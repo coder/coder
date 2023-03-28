@@ -4,19 +4,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/spf13/cobra"
 
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
-func templates() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "templates",
-		Short:   "Manage templates",
-		Long:    "Templates are written in standard Terraform and describe the infrastructure for workspaces",
-		Aliases: []string{"template"},
-		Example: formatExamples(
+func (r *RootCmd) templates() *clibase.Cmd {
+	cmd := &clibase.Cmd{
+		Use:   "templates",
+		Short: "Manage templates",
+		Long: "Templates are written in standard Terraform and describe the infrastructure for workspaces\n" + formatExamples(
 			example{
 				Description: "Create a template for developers to create workspaces",
 				Command:     "coder templates create",
@@ -30,21 +28,22 @@ func templates() *cobra.Command {
 				Command:     "coder templates push my-template",
 			},
 		),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
+		Aliases: []string{"template"},
+		Handler: func(inv *clibase.Invocation) error {
+			return inv.Command.HelpHandler(inv)
+		},
+		Children: []*clibase.Cmd{
+			r.templateCreate(),
+			r.templateEdit(),
+			r.templateInit(),
+			r.templateList(),
+			r.templatePlan(),
+			r.templatePush(),
+			r.templateVersions(),
+			r.templateDelete(),
+			r.templatePull(),
 		},
 	}
-	cmd.AddCommand(
-		templateCreate(),
-		templateEdit(),
-		templateInit(),
-		templateList(),
-		templatePlan(),
-		templatePush(),
-		templateVersions(),
-		templateDelete(),
-		templatePull(),
-	)
 
 	return cmd
 }

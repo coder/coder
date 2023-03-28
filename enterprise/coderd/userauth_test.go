@@ -27,7 +27,7 @@ func TestUserOIDC(t *testing.T) {
 		t.Run("Assigns", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			conf := coderdtest.NewOIDCConfig(t, "")
 
 			const groupClaim = "custom-groups"
@@ -67,10 +67,55 @@ func TestUserOIDC(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, group.Members, 1)
 		})
+		t.Run("AssignsMapped", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			conf := coderdtest.NewOIDCConfig(t, "")
+
+			oidcGroupName := "pingpong"
+			coderGroupName := "bingbong"
+
+			config := conf.OIDCConfig(t, jwt.MapClaims{}, func(cfg *coderd.OIDCConfig) {
+				cfg.GroupMapping = map[string]string{oidcGroupName: coderGroupName}
+			})
+			config.AllowSignups = true
+
+			client := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					OIDCConfig: config,
+				},
+			})
+			_ = coderdtest.CreateFirstUser(t, client)
+			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+				AllFeatures: true,
+			})
+
+			admin, err := client.User(ctx, "me")
+			require.NoError(t, err)
+			require.Len(t, admin.OrganizationIDs, 1)
+
+			group, err := client.CreateGroup(ctx, admin.OrganizationIDs[0], codersdk.CreateGroupRequest{
+				Name: coderGroupName,
+			})
+			require.NoError(t, err)
+			require.Len(t, group.Members, 0)
+
+			resp := oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
+				"email":  "colin@coder.com",
+				"groups": []string{oidcGroupName},
+			}))
+			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+			group, err = client.Group(ctx, group.ID)
+			require.NoError(t, err)
+			require.Len(t, group.Members, 1)
+		})
+
 		t.Run("AddThenRemove", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			conf := coderdtest.NewOIDCConfig(t, "")
 
 			config := conf.OIDCConfig(t, jwt.MapClaims{})
@@ -136,7 +181,7 @@ func TestUserOIDC(t *testing.T) {
 		t.Run("NoneMatch", func(t *testing.T) {
 			t.Parallel()
 
-			ctx, _ := testutil.Context(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			conf := coderdtest.NewOIDCConfig(t, "")
 
 			config := conf.OIDCConfig(t, jwt.MapClaims{})

@@ -83,7 +83,7 @@ type State struct {
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
 // nolint:gocyclo
-func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error) {
+func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNames []string) (*State, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
 		return nil, xerrors.Errorf("parse graph: %w", err)
@@ -99,12 +99,20 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 	// Indexes Terraform resources by their label.
 	// The label is what "terraform graph" uses to reference nodes.
 	tfResourcesByLabel := map[string]map[string]*tfjson.StateResource{}
+
+	// Extra array to preserve the order of rich parameters.
+	tfResourcesRichParameters := make([]*tfjson.StateResource, 0)
+
 	var findTerraformResources func(mod *tfjson.StateModule)
 	findTerraformResources = func(mod *tfjson.StateModule) {
 		for _, module := range mod.ChildModules {
 			findTerraformResources(module)
 		}
 		for _, resource := range mod.Resources {
+			if resource.Type == "coder_parameter" {
+				tfResourcesRichParameters = append(tfResourcesRichParameters, resource)
+			}
+
 			label := convertAddressToLabel(resource.Address)
 			if tfResourcesByLabel[label] == nil {
 				tfResourcesByLabel[label] = map[string]*tfjson.StateResource{}
@@ -434,46 +442,41 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 	}
 
 	parameters := make([]*proto.RichParameter, 0)
-	for _, tfResources := range tfResourcesByLabel {
-		for _, resource := range tfResources {
-			if resource.Type != "coder_parameter" {
-				continue
-			}
-			var param provider.Parameter
-			err = mapstructure.Decode(resource.AttributeValues, &param)
-			if err != nil {
-				return nil, xerrors.Errorf("decode map values for coder_parameter.%s: %w", resource.Name, err)
-			}
-			protoParam := &proto.RichParameter{
-				Name:               param.Name,
-				Description:        param.Description,
-				Type:               param.Type,
-				Mutable:            param.Mutable,
-				DefaultValue:       param.Default,
-				Icon:               param.Icon,
-				Required:           !param.Optional,
-				LegacyVariableName: param.LegacyVariableName,
-			}
-			if len(param.Validation) == 1 {
-				protoParam.ValidationRegex = param.Validation[0].Regex
-				protoParam.ValidationError = param.Validation[0].Error
-				protoParam.ValidationMax = int32(param.Validation[0].Max)
-				protoParam.ValidationMin = int32(param.Validation[0].Min)
-				protoParam.ValidationMonotonic = param.Validation[0].Monotonic
-			}
-			if len(param.Option) > 0 {
-				protoParam.Options = make([]*proto.RichParameterOption, 0, len(param.Option))
-				for _, option := range param.Option {
-					protoParam.Options = append(protoParam.Options, &proto.RichParameterOption{
-						Name:        option.Name,
-						Description: option.Description,
-						Value:       option.Value,
-						Icon:        option.Icon,
-					})
-				}
-			}
-			parameters = append(parameters, protoParam)
+	for _, resource := range orderedRichParametersResources(tfResourcesRichParameters, rawParameterNames) {
+		var param provider.Parameter
+		err = mapstructure.Decode(resource.AttributeValues, &param)
+		if err != nil {
+			return nil, xerrors.Errorf("decode map values for coder_parameter.%s: %w", resource.Name, err)
 		}
+		protoParam := &proto.RichParameter{
+			Name:               param.Name,
+			Description:        param.Description,
+			Type:               param.Type,
+			Mutable:            param.Mutable,
+			DefaultValue:       param.Default,
+			Icon:               param.Icon,
+			Required:           !param.Optional,
+			LegacyVariableName: param.LegacyVariableName,
+		}
+		if len(param.Validation) == 1 {
+			protoParam.ValidationRegex = param.Validation[0].Regex
+			protoParam.ValidationError = param.Validation[0].Error
+			protoParam.ValidationMax = int32(param.Validation[0].Max)
+			protoParam.ValidationMin = int32(param.Validation[0].Min)
+			protoParam.ValidationMonotonic = param.Validation[0].Monotonic
+		}
+		if len(param.Option) > 0 {
+			protoParam.Options = make([]*proto.RichParameterOption, 0, len(param.Option))
+			for _, option := range param.Option {
+				protoParam.Options = append(protoParam.Options, &proto.RichParameterOption{
+					Name:        option.Name,
+					Description: option.Description,
+					Value:       option.Value,
+					Icon:        option.Icon,
+				})
+			}
+		}
+		parameters = append(parameters, protoParam)
 	}
 
 	// A map is used to ensure we don't have duplicates!
@@ -622,4 +625,20 @@ func findResourcesInGraph(graph *gographviz.Graph, tfResourcesByLabel map[string
 	}
 
 	return graphResources
+}
+
+func orderedRichParametersResources(tfResourcesRichParameters []*tfjson.StateResource, orderedNames []string) []*tfjson.StateResource {
+	if len(orderedNames) == 0 {
+		return tfResourcesRichParameters
+	}
+
+	ordered := make([]*tfjson.StateResource, len(orderedNames))
+	for i, name := range orderedNames {
+		for _, resource := range tfResourcesRichParameters {
+			if resource.Name == name {
+				ordered[i] = resource
+			}
+		}
+	}
+	return ordered
 }
