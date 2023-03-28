@@ -67,22 +67,23 @@ resource "coder_agent" "main" {
 
 ## Utilities
 
-* [vmstat](https://linux.die.net/man/8/vmstat) is available in most Linux
+[vmstat](https://linux.die.net/man/8/vmstat) is available in most Linux
 distributions and contains virtual memory, CPU and IO statistics. Running `vmstat`
 produces output that looks like:
+
 ```
 procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
- r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
- 0  0  19580 4781680 12133692 217646944    0    2     4    32    1    0  1  1 98  0  0
- ```
+r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
+0  0  19580 4781680 12133692 217646944    0    2     4    32    1    0  1  1 98  0  0
+```
 
-* [dstat](https://linux.die.net/man/1/dstat) is considerably more human-friendly
-than `vmstat` but not always already installed. It is available in almost any
-package manager under the name `dstat`. The output of running `dstat 1 1` looks
+[dstat](https://linux.die.net/man/1/dstat) is considerably more parseable
+than `vmstat` but often not included in base images. It is easily installed by
+most package managers under the name `dstat`. The output of running `dstat 1 1` looks
 like:
 
 ```
 --total-cpu-usage-- -dsk/total- -net/total- ---paging-- ---system--
 usr sys idl wai stl| read  writ| recv  send|  in   out | int   csw 
-  1   1  98   0   0|3422k   25M|   0     0 | 153k  904k| 123k  174k
+1   1  98   0   0|3422k   25M|   0     0 | 153k  904k| 123k  174k
 ```
