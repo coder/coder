@@ -222,7 +222,7 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	var out bytes.Buffer
 
 	result := &codersdk.WorkspaceAgentMetadataResult{
-		// CollectedAt is set here for testing purposes and overrided by
+		// CollectedAt is set here for testing purposes and overrode by
 		// the server to the time the server received the result to protect
 		// against clock skew.
 		//
