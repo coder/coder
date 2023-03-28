@@ -302,7 +302,14 @@ jobs:
             echo "cover=false" >> $GITHUB_OUTPUT
           fi
 
-          gotestsum --junitfile="gotests.xml" --packages="./..." -- -parallel=8 -timeout=7m -short -failfast $COVERAGE_FLAGS
+          gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" --packages="./..." -- -parallel=8 -timeout=7m -short -failfast $COVERAGE_FLAGS
+
+      - name: Print test stats
+        if: success() || failure()
+        run: |
+          # Artifacts are not available after rerunning a job,
+          # so we need to print the test stats to the log.
+          go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
 
       - uses: actions/upload-artifact@v3
         if: success() || failure()
@@ -371,6 +378,13 @@ jobs:
       - name: Test with PostgreSQL Database
         run: |
           make test-postgres
+
+      - name: Print test stats
+        if: success() || failure()
+        run: |
+          # Artifacts are not available after rerunning a job,
+          # so we need to print the test stats to the log.
+          go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
 
       - uses: actions/upload-artifact@v3
         if: success() || failure()

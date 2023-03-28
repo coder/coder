@@ -596,6 +596,7 @@ test-postgres: test-clean test-postgres-docker
 	# more consistent execution.
 	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum \
 		--junitfile="gotests.xml" \
+		--jsonfile="gotests.json" \
 		--packages="./..." -- \
 		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
 		-parallel=4 \
