@@ -1,6 +1,6 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
-import * as Mocks from "../../../testHelpers/renderHelpers"
+import { MockTemplate } from "testHelpers/entities"
 import {
   TemplateSchedulePageView,
   TemplateSchedulePageViewProps,
@@ -11,7 +11,7 @@ export default {
   component: TemplateSchedulePageView,
   args: {
     canSetMaxTTL: true,
-    template: Mocks.MockTemplate,
+    template: MockTemplate,
     onSubmit: action("onSubmit"),
     onCancel: action("cancel"),
   },

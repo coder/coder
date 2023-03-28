@@ -138,5 +138,3 @@ export const waitForLoaderToBeRemoved = (): Promise<void> =>
   waitForElementToBeRemoved(() => screen.queryByTestId("loader"), {
     timeout: 5_000,
   })
-
-export * from "./entities"
