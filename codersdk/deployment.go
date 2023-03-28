@@ -1115,7 +1115,7 @@ when required by your organization's security policy.`,
 			// The default value is essentially "forever", so just use 100 years.
 			// We have to add in the 25 leap days for the frontend to show the
 			// "100 years" correctly.
-			Default: time.Duration((100 * 365 * time.Hour * 24) + (25 * time.Hour * 24)).String(),
+			Default: ((100 * 365 * time.Hour * 24) + (25 * time.Hour * 24)).String(),
 			Value:   &c.MaxTokenLifetime,
 			Group:   &deploymentGroupNetworkingHTTP,
 			YAML:    "maxTokenLifetime",
