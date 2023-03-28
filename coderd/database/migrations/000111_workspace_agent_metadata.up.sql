@@ -1,5 +1,3 @@
--- TODO: Do we need an index for workspace_agent_id or is the multi-column PRIMARY
--- key enough?
 CREATE TABLE workspace_agent_metadata (
     workspace_agent_id uuid NOT NULL,
     display_name varchar(127) NOT NULL,

@@ -422,7 +422,7 @@ func TestAgent_Session_TTY_HugeOutputIsNotLost(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Metadata{}, 0)
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshClient.Close()
