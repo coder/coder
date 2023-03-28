@@ -1104,6 +1104,18 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		var wg sync.WaitGroup
 		defer func() {
 			defer wg.Wait()
+
+			// If we call Close() before the output is read, the output
+			// will be lost. We set a deadline on the read so that we can
+			// wait for the output to be read before closing the PTY.
+			// OpenSSH also uses a 100ms timeout for reading from the PTY.
+			if dlErr := ptty.Output().Reader.SetReadDeadline(time.Now().Add(100 * time.Millisecond)); dlErr != nil {
+				a.logger.Warn(ctx, "failed to set read deadline, pty output may be lost", slog.Error(dlErr))
+			} else {
+				// If we successfully set the deadline, we can immediately
+				// wait for the output copy goroutine to exit.
+				wg.Wait()
+			}
 			closeErr := ptty.Close()
 			if closeErr != nil {
 				a.logger.Warn(ctx, "failed to close tty", slog.Error(closeErr))
@@ -1131,8 +1143,7 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		// output being lost. To avoid this, we wait for the output copy to
 		// start before waiting for the command to exit. This ensures that the
 		// output copy goroutine will be scheduled before calling close on the
-		// pty. There is still a risk of data loss if a command produces a lot
-		// of output, see TestAgent_Session_TTY_HugeOutputIsNotLost (skipped).
+		// pty. This is a safety-net in case SetReadDeadline doesn't work.
 		outputCopyStarted := make(chan struct{})
 		ptyOutput := func() io.Reader {
 			defer close(outputCopyStarted)

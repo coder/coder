@@ -410,14 +410,11 @@ func TestAgent_Session_TTY_HugeOutputIsNotLost(t *testing.T) {
 		// it seems like it could be either.
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
-	t.Skip("This test proves we have a bug where parts of large output on a PTY can be lost after the command exits, skipped to avoid test failures.")
 
-	// This test is here to prevent prove we have a bug where quickly executing
-	// commands (with TTY) don't flush their output to the SSH session. This is
-	// due to the pty being closed before all the output has been copied, but
-	// protecting against this requires a non-trivial rewrite of the output
-	// processing (or figuring out a way to put the pty in a mode where this
-	// does not happen).
+	// This test is here to prevent regressions where the PTY for commands is
+	// closed before the buffer is consumed.
+	//
+	// See: https://github.com/coder/coder/issues/6656
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	//nolint:dogsled
