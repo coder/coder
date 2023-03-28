@@ -401,8 +401,8 @@ describe("UsersPage", () => {
         // Check if the select text was updated with the Auditor role
         await waitFor(() => {
           expect(userRow).toHaveTextContent(MockOwnerRole.display_name)
-          expect(userRow).toHaveTextContent(MockAuditorRole.display_name)
         })
+        expect(userRow).toHaveTextContent(MockAuditorRole.display_name)
 
         // Check if the API was called correctly
         const currentRoles = MockUser.roles.map((r) => r.name)

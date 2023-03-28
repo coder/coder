@@ -32,6 +32,16 @@ plugins:
   - react-hooks
   - jest
   - unicorn
+  - testing-library
+overrides:
+  - files: ["**/__tests__/**/*.[jt]s?(x)", "**/?(*.)+(spec|test).[jt]s?(x)"]
+    extends: ["plugin:testing-library/react", "plugin:testing-library/dom"]
+    rules:
+      # These rules are disabled because they can degrade test speed a bit since
+      # sometimes we need to access the directly in a lower scope to prevent the
+      # library to fetch a bunch of element
+      testing-library/no-node-access: off
+      testing-library/no-container: off
 root: true
 rules:
   "@typescript-eslint/brace-style":
@@ -145,6 +155,7 @@ rules:
         message: "Default React import not allowed",
       },
     ]
+
 settings:
   react:
     version: detect

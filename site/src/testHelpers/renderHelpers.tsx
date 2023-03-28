@@ -132,6 +132,6 @@ export function renderWithTemplateSettingsLayout(
 }
 
 export const waitForLoaderToBeRemoved = (): Promise<void> =>
-  waitForElementToBeRemoved(() => screen.getByTestId("loader"))
+  waitForElementToBeRemoved(() => screen.queryByTestId("loader"))
 
 export * from "./entities"

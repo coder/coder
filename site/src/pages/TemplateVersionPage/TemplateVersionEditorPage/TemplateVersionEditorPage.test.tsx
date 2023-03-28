@@ -71,9 +71,9 @@ test("Use custom name and set it as active when publishing", async () => {
     expect(patchTemplateVersion).toBeCalledWith("new-version-id", {
       name: "v1.0",
     })
-    expect(updateActiveTemplateVersion).toBeCalledWith("test-template", {
-      id: "new-version-id",
-    })
+  })
+  expect(updateActiveTemplateVersion).toBeCalledWith("test-template", {
+    id: "new-version-id",
   })
 })
 

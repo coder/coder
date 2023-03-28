@@ -69,12 +69,12 @@ test("Submit the workspace settings page successfully", async () => {
     expect(patchWorkspaceSpy).toHaveBeenCalledWith(MockWorkspace.id, {
       name: "new-name",
     })
-    expect(postWorkspaceBuildSpy).toHaveBeenCalledWith(MockWorkspace.id, {
-      transition: "start",
-      rich_parameter_values: [
-        { name: MockTemplateVersionParameter1.name, value: "new-value" },
-        { name: MockTemplateVersionParameter2.name, value: "1" },
-      ],
-    })
+  })
+  expect(postWorkspaceBuildSpy).toHaveBeenCalledWith(MockWorkspace.id, {
+    transition: "start",
+    rich_parameter_values: [
+      { name: MockTemplateVersionParameter1.name, value: "new-value" },
+      { name: MockTemplateVersionParameter2.name, value: "1" },
+    ],
   })
 })
