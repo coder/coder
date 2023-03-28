@@ -65,8 +65,6 @@ resource "coder_agent" "main" {
 }
 ```
 
-Show users the space used in their `/` volume:
-
 ## Utilities
 
 * [vmstat](https://linux.die.net/man/8/vmstat) is available in most Linux
@@ -78,3 +76,13 @@ procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
  0  0  19580 4781680 12133692 217646944    0    2     4    32    1    0  1  1 98  0  0
  ```
 
+* [dstat](https://linux.die.net/man/1/dstat) is considerably more human-friendly
+than `vmstat` but not always already installed. It is available in almost any
+package manager under the name `dstat`. The output of running `dstat 1 1` looks
+like:
+
+```
+--total-cpu-usage-- -dsk/total- -net/total- ---paging-- ---system--
+usr sys idl wai stl| read  writ| recv  send|  in   out | int   csw 
+  1   1  98   0   0|3422k   25M|   0     0 | 153k  904k| 123k  174k
+```
