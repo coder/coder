@@ -293,11 +293,19 @@ func (i *Invocation) run(state *runState) error {
 				return
 			}
 
+			// If flag was changed, we need to remove the default values.
 			sv, ok := f.Value.(pflag.SliceValue)
 			if !ok {
 				panic("defaulted array option is not a slice value")
 			}
-			err := sv.Replace(sv.GetSlice()[i:])
+			ss := sv.GetSlice()
+			if len(ss) == 0 {
+				// Slice likely zeroed by a flag.
+				// E.g. "--fruit" may default to "apples,oranges" but the user
+				// provided "--fruit=""".
+				return
+			}
+			err := sv.Replace(ss[i:])
 			if err != nil {
 				panic(err)
 			}
