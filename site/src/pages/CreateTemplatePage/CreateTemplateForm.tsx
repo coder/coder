@@ -107,14 +107,22 @@ const defaultInitialValues: CreateTemplateData = {
   allow_user_cancel_workspace_jobs: false,
 }
 
-const getInitialValues = (
-  canSetMaxTTL: boolean,
-  {
-    fromExample,
-    fromCopy,
-  }: { fromExample?: TemplateExample; fromCopy?: Template },
-) => {
+type GetInitialValuesParams = {
+  fromExample?: TemplateExample
+  fromCopy?: Template
+  parameters?: ParameterSchema[]
+  variables?: TemplateVersionVariable[]
+  canSetMaxTTL: boolean
+}
+
+const getInitialValues = ({
+  fromExample,
+  fromCopy,
+  canSetMaxTTL,
+  variables,
+}: GetInitialValuesParams) => {
   let initialValues = defaultInitialValues
+
   if (!canSetMaxTTL) {
     initialValues = {
       ...initialValues,
@@ -123,7 +131,7 @@ const getInitialValues = (
   }
 
   if (fromExample) {
-    return {
+    initialValues = {
       ...initialValues,
       name: fromExample.id,
       display_name: fromExample.name,
@@ -133,12 +141,27 @@ const getInitialValues = (
   }
 
   if (fromCopy) {
-    return {
+    initialValues = {
       ...initialValues,
       ...fromCopy,
       name: `${fromCopy.name}-copy`,
       display_name: `${fromCopy.display_name} Copy`,
     }
+  }
+
+  if (variables) {
+    variables.forEach((variable) => {
+      if (variable.sensitive) {
+        return
+      }
+      if (!initialValues.user_variable_values) {
+        initialValues.user_variable_values = []
+      }
+      initialValues.user_variable_values.push({
+        name: variable.name,
+        value: variable.value,
+      })
+    })
   }
 
   return initialValues
@@ -173,12 +196,13 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   logs,
   canSetMaxTTL,
 }) => {
-  console.log(copiedTemplate)
   const styles = useStyles()
   const form = useFormik<CreateTemplateData>({
-    initialValues: getInitialValues(canSetMaxTTL, {
+    initialValues: getInitialValues({
+      canSetMaxTTL,
       fromExample: starterTemplate,
       fromCopy: copiedTemplate,
+      variables,
     }),
     validationSchema,
     onSubmit,
@@ -383,7 +407,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
           <FormFields>
             {variables.map((variable, index) => (
               <VariableInput
-                defaultValue={variable.value}
+                defaultValue={form.values.user_variable_values?.[index].value}
                 variable={variable}
                 disabled={isSubmitting}
                 key={variable.name}

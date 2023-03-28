@@ -114,7 +114,7 @@ export const createTemplateMachine =
             data: {
               template: Template
               version: TemplateVersion
-              parameters: ParameterSchema[]
+
               variables: TemplateVersionVariable[]
             }
           }
@@ -155,7 +155,7 @@ export const createTemplateMachine =
               {
                 target: "creating.promptParametersAndVariables",
                 actions: ["assignCopiedTemplateData"],
-                cond: "hasParametersOrVariables",
+                cond: "hasVariables",
               },
               {
                 target: "idle",
@@ -340,15 +340,14 @@ export const createTemplateMachine =
             organizationId,
             templateNameToCopy,
           )
-          const [version, parameters, variables] = await Promise.all([
+          const [version, variables] = await Promise.all([
             getTemplateVersion(template.active_version_id),
-            getTemplateVersionSchema(template.active_version_id),
+
             getTemplateVersionVariables(template.active_version_id),
           ])
           return {
             template,
             version,
-            parameters,
             variables,
           }
         },
@@ -519,7 +518,6 @@ export const createTemplateMachine =
         assignCopiedTemplateData: assign({
           copiedTemplate: (_, { data }) => data.template,
           version: (_, { data }) => data.version,
-          parameters: (_, { data }) => data.parameters,
           variables: (_, { data }) => data.variables,
         }),
       },
@@ -537,8 +535,8 @@ export const createTemplateMachine =
           ),
         hasNoParametersOrVariables: (_, { data }) =>
           data.parameters === undefined && data.variables === undefined,
-        hasParametersOrVariables: (_, { data }) => {
-          return data.parameters.length > 0 || data.variables.length > 0
+        hasVariables: (_, { data }) => {
+          return data.variables.length > 0
         },
       },
     },
