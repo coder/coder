@@ -503,3 +503,35 @@ func TestCommand_SliceFlags(t *testing.T) {
 	err = cmd("bad", "bad", "bad").Invoke().Run()
 	require.NoError(t, err)
 }
+
+func TestCommand_EmptySlice(t *testing.T) {
+	t.Parallel()
+
+	cmd := func(want ...string) *clibase.Cmd {
+		var got []string
+		return &clibase.Cmd{
+			Use: "root",
+			Options: clibase.OptionSet{
+				{
+					Name:    "arr",
+					Flag:    "arr",
+					Default: "bad,bad,bad",
+					Env:     "ARR",
+					Value:   clibase.StringArrayOf(&got),
+				},
+			},
+			Handler: (func(i *clibase.Invocation) error {
+				require.Equal(t, want, got)
+				return nil
+			}),
+		}
+	}
+
+	// Base-case
+	err := cmd("bad", "bad", "bad").Invoke().Run()
+	require.NoError(t, err)
+
+	inv := cmd().Invoke("--arr", "")
+	err = inv.Run()
+	require.NoError(t, err)
+}

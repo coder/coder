@@ -4287,7 +4287,7 @@ func (q *fakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
 	return q.derpMeshKey, nil
 }
 
-func (q *fakeQuerier) InsertOrUpdateLastUpdateCheck(_ context.Context, data string) error {
+func (q *fakeQuerier) UpsertLastUpdateCheck(_ context.Context, data string) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -4305,7 +4305,7 @@ func (q *fakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
 	return string(q.lastUpdateCheck), nil
 }
 
-func (q *fakeQuerier) InsertOrUpdateServiceBanner(_ context.Context, data string) error {
+func (q *fakeQuerier) UpsertServiceBanner(_ context.Context, data string) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -4324,7 +4324,7 @@ func (q *fakeQuerier) GetServiceBanner(_ context.Context) (string, error) {
 	return string(q.serviceBanner), nil
 }
 
-func (q *fakeQuerier) InsertOrUpdateLogoURL(_ context.Context, data string) error {
+func (q *fakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
