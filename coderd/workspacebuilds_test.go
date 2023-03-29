@@ -1194,9 +1194,8 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// Create workspace build
-	// ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	//defer cancel()
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
 
 	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 		TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
