@@ -174,6 +174,8 @@ CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
 
 When a new user logs in via OIDC, Coder will by default use the value
 of the claim field named `preferred_username` as the the username.
+If this claim is empty, the email address will be stripped of the domain, and
+become the username (e.g. `example@coder.com` becomes `example`).
 
 If your upstream identity provider uses a different claim, you can
 set `CODER_OIDC_USERNAME_FIELD` to the desired claim.
