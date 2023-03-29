@@ -1092,7 +1092,7 @@ func (a *agent) init(ctx context.Context) {
 }
 
 // createCommand processes raw command input with OpenSSH-like behavior.
-// If the createCommand provided is empty, it will default to the users shell.
+// If the script provided is empty, it will default to the users shell.
 // This injects environment variables specified by the user at launch too.
 func (a *agent) createCommand(ctx context.Context, script string, env []string) (*exec.Cmd, error) {
 	currentUser, err := user.Current()
