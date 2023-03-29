@@ -473,7 +473,7 @@ func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel
 
 		logLevel := convertTerraformLogLevel(log.Level, sink)
 		if logLevel == proto.LogLevel_TRACE {
-			// Skip TRACE log entries as they produce a lot of noise
+			// Skip TRACE log entries as they produce a lot of noise.
 			//
 			// FIXME consider config.ProvisionerLogLevel to enable custom level logging
 			// instead of "just-debug-level" mode.
