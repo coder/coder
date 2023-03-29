@@ -156,14 +156,17 @@ func (s *OptionSet) SetDefaults(skip map[string]struct{}) error {
 	var merr *multierror.Error
 
 	for _, opt := range *s {
-		if opt.Name == "" {
-			merr = multierror.Append(
-				merr, xerrors.Errorf("parse: no Name field set"),
-			)
-			continue
-		}
-		if _, ok := skip[opt.Name]; ok {
-			continue
+		// Skip values that may have already been set by the user.
+		if len(skip) > 0 {
+			if opt.Name == "" {
+				merr = multierror.Append(
+					merr, xerrors.Errorf("parse: no Name field set"),
+				)
+				continue
+			}
+			if _, ok := skip[opt.Name]; ok {
+				continue
+			}
 		}
 
 		if opt.Default == "" {
