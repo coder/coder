@@ -10,4 +10,6 @@ test("signing out redirects to login page", async ({ page, baseURL }) => {
   await page.getByRole("menuitem", { name: "Sign Out" }).click()
 
   await expect(page.getByRole("heading", { name: "Sign in to Coder" })).toBeVisible()
+
+  expect(page.url()).toMatch(/\/login$/) // ensure we're on the login page with no query params
 })
