@@ -46,6 +46,9 @@ overrides:
   - files: ["e2e/**/*.[tj]s"]
     extends: ["plugin:testing-library/react", "plugin:testing-library/dom"]
     rules:
+      # Sometimes the eslint-plugin-testing-library believes playwright queries are
+      # also react-testing-library queries, which is not the case. So we disable this
+      # rule for all e2e tests.
       testing-library/prefer-screen-queries: "off"
 root: true
 rules:
@@ -111,16 +114,20 @@ rules:
     - error
     - paths:
         - name: "@material-ui/core"
-          message: "Use path imports to avoid pulling in unused modules. See:
+          message:
+            "Use path imports to avoid pulling in unused modules. See:
             https://material-ui.com/guides/minimizing-bundle-size/"
         - name: "@material-ui/icons"
-          message: "Use path imports to avoid pulling in unused modules. See:
+          message:
+            "Use path imports to avoid pulling in unused modules. See:
             https://material-ui.com/guides/minimizing-bundle-size/"
         - name: "@material-ui/styles"
-          message: "Use path imports to avoid pulling in unused modules. See:
+          message:
+            "Use path imports to avoid pulling in unused modules. See:
             https://material-ui.com/guides/minimizing-bundle-size/"
         - name: "@material-ui/core/Avatar"
-          message: "You should use the Avatar component provided on
+          message:
+            "You should use the Avatar component provided on
             components/Avatar/Avatar"
   no-unused-vars: "off"
   "object-curly-spacing": "off"
