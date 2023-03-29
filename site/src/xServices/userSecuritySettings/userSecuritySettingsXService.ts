@@ -68,7 +68,7 @@ export const userSecuritySettingsMachine = createMachine(
       }),
       redirectToHome: () => {
         window.location.href = location.origin
-      }
+      },
     },
   },
 )
