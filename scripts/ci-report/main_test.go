@@ -17,6 +17,14 @@ var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 func TestOutputMatchesGoldenFile(t *testing.T) {
 	t.Parallel()
 
+	// Sample created via:
+	//	gotestsum --jsonfile ./scripts/ci-report/testdata/gotests-sample.json \
+	//	-- \
+	//	./agent ./cli ./cli/cliui \
+	//	-count=1 \
+	//	-timeout=5m \
+	//	-parallel=24 \
+	//	-run='^(TestServer|TestAgent_Session|TestGitAuth$|TestPrompt$)'
 	goTests, err := parseGoTestJSON(filepath.Join("testdata", "gotests-sample.json"))
 	if err != nil {
 		t.Fatalf("error parsing gotestsum report: %v", err)
