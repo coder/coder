@@ -136,7 +136,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		return xerrors.Errorf("initialize terraform: %w", err)
 	}
 	s.logger.Debug(ctx, "ran initialization")
-	env, err := provisionEnv(config, request.GetPlan().GetParameterValues(), request.GetPlan().GetRichParameterValues(), request.GetPlan().GetGitAuthProviders(), config.ProvisionerLogLevel != "")
+	env, err := provisionEnv(config, request.GetPlan().GetParameterValues(), request.GetPlan().GetRichParameterValues(), request.GetPlan().GetGitAuthProviders())
 	if err != nil {
 		return err
 	}
@@ -205,7 +205,7 @@ func planVars(plan *proto.Provision_Plan) ([]string, error) {
 	return vars, nil
 }
 
-func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue, richParams []*proto.RichParameterValue, gitAuth []*proto.GitAuthProvider, verboseLoggingEnabled bool) ([]string, error) {
+func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue, richParams []*proto.RichParameterValue, gitAuth []*proto.GitAuthProvider) ([]string, error) {
 	env := safeEnviron()
 	env = append(env,
 		"CODER_AGENT_URL="+config.Metadata.CoderUrl,
@@ -237,7 +237,7 @@ func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue
 		env = append(env, provider.GitAuthAccessTokenEnvironmentVariable(gitAuth.Id)+"="+gitAuth.AccessToken)
 	}
 
-	if verboseLoggingEnabled {
+	if config.ProvisionerLogLevel != "" {
 		// TF_LOG=JSON enables all kind of logging: trace-debug-info-warn-error.
 		// The idea behind using TF_LOG=JSON instead of TF_LOG=debug is ensuring the proper log format.
 		env = append(env, "TF_LOG=JSON")
