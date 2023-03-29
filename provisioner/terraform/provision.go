@@ -205,7 +205,7 @@ func planVars(plan *proto.Provision_Plan) ([]string, error) {
 	return vars, nil
 }
 
-func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue, richParams []*proto.RichParameterValue, gitAuth []*proto.GitAuthProvider, verbose bool) ([]string, error) {
+func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue, richParams []*proto.RichParameterValue, gitAuth []*proto.GitAuthProvider, verboseLoggingEnabled bool) ([]string, error) {
 	env := safeEnviron()
 	env = append(env,
 		"CODER_AGENT_URL="+config.Metadata.CoderUrl,
@@ -237,7 +237,7 @@ func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue
 		env = append(env, provider.GitAuthAccessTokenEnvironmentVariable(gitAuth.Id)+"="+gitAuth.AccessToken)
 	}
 
-	if verbose {
+	if verboseLoggingEnabled {
 		// TF_LOG=JSON enables all kind of logging: trace-debug-info-warn-error.
 		// The idea behind using TF_LOG=JSON instead of TF_LOG=debug is ensuring the proper log format.
 		env = append(env, "TF_LOG=JSON")
