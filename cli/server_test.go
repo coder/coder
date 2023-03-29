@@ -1090,7 +1090,6 @@ func TestServer(t *testing.T) {
 			require.Empty(t, deploymentConfig.Values.OIDC.GroupMapping.Value)
 			require.Equal(t, "OpenID Connect", deploymentConfig.Values.OIDC.SignInText.Value())
 			require.Empty(t, deploymentConfig.Values.OIDC.IconURL.Value())
-
 		})
 
 		t.Run("Overrides", func(t *testing.T) {
