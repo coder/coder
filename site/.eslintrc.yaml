@@ -43,6 +43,13 @@ overrides:
       # https://coder.com/docs/v2/latest/contributing/frontend#tests-getting-too-slow.
       testing-library/no-node-access: off
       testing-library/no-container: off
+  - files: ["e2e/**/*.[tj]s"]
+    extends: ["plugin:testing-library/react", "plugin:testing-library/dom"]
+    rules:
+      # Sometimes the eslint-plugin-testing-library believes playwright queries are
+      # also react-testing-library queries, which is not the case. So we disable this
+      # rule for all e2e tests.
+      testing-library/prefer-screen-queries: "off"
 root: true
 rules:
   "@typescript-eslint/brace-style":
@@ -156,7 +163,6 @@ rules:
         message: "Default React import not allowed",
       },
     ]
-
 settings:
   react:
     version: detect
