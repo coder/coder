@@ -44,8 +44,6 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
   return (
     <Stack spacing={4}>
       <TemplateStats template={template} activeVersion={activeVersion} />
-      {daus && <DAUChart daus={daus} />}
-      <TemplateResourcesTable resources={getStartedResources(resources)} />
 
       <div className={styles.markdownSection} id="readme">
         <div className={styles.readmeLabel}>README.md</div>
@@ -53,6 +51,10 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
           <MemoizedMarkdown>{readme.body}</MemoizedMarkdown>
         </div>
       </div>
+
+      {daus && <DAUChart daus={daus} />}
+      <TemplateResourcesTable resources={getStartedResources(resources)} />
+
 
       <VersionsTable versions={versions} />
     </Stack>
