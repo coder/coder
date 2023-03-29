@@ -848,10 +848,9 @@ when required by your organization's security policy.`,
 			Description: "Ignore the email_verified claim from the upstream provider.",
 			Flag:        "oidc-ignore-email-verified",
 			Env:         "CODER_OIDC_IGNORE_EMAIL_VERIFIED",
-
-			Value: &c.OIDC.IgnoreEmailVerified,
-			Group: &deploymentGroupOIDC,
-			YAML:  "ignoreEmailVerified",
+			Value:       &c.OIDC.IgnoreEmailVerified,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "ignoreEmailVerified",
 		},
 		{
 			Name:        "OIDC Username Field",
