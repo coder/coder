@@ -680,6 +680,15 @@ func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client) 
 	return nil
 }
 
+// verboseStderr returns the stderr writer if verbose is set, otherwise
+// it returns a discard writer.
+func (r *RootCmd) verboseStderr(inv *clibase.Invocation) io.Writer {
+	if r.verbose {
+		return inv.Stderr
+	}
+	return io.Discard
+}
+
 func (r *RootCmd) checkWarnings(i *clibase.Invocation, client *codersdk.Client) error {
 	if r.noFeatureWarning {
 		return nil

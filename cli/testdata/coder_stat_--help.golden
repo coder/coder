@@ -1,0 +1,15 @@
+Usage: coder stat [flags] <type> [flags...]
+
+Display local system resource usage statistics
+
+stat calls can be used as the script for agent metadata blocks.
+
+[1mSubcommands[0m
+    cpu    Display the system's cpu usage
+
+[1mOptions[0m
+  -w, --watch duration
+          Continuously display the statistic on the given interval.
+
+---
+Run `coder --help` for a list of global options.

@@ -678,6 +678,16 @@
           "path": "cli/start.md"
         },
         {
+          "title": "stat",
+          "description": "Display local system resource usage statistics",
+          "path": "cli/stat.md"
+        },
+        {
+          "title": "stat cpu",
+          "description": "Display the system's cpu usage",
+          "path": "cli/stat_cpu.md"
+        },
+        {
           "title": "state",
           "description": "Manually manage Terraform state to fix broken workspaces",
           "path": "cli/state.md"

@@ -49,6 +49,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>speedtest</code>](./cli/speedtest)           | Run upload and download tests from your machine to a workspace         |
 | [<code>ssh</code>](./cli/ssh)                       | Start a shell into a workspace                                         |
 | [<code>start</code>](./cli/start)                   | Start a workspace                                                      |
+| [<code>stat</code>](./cli/stat)                     | Display local system resource usage statistics                         |
 | [<code>state</code>](./cli/state)                   | Manually manage Terraform state to fix broken workspaces               |
 | [<code>stop</code>](./cli/stop)                     | Stop a workspace                                                       |
 | [<code>templates</code>](./cli/templates)           | Manage templates                                                       |

@@ -1,0 +1,13 @@
+Usage: coder stat cpu [flags]
+
+Display the system's cpu usage
+
+If inside a cgroup (e.g. docker container), the cpu usage is
+
+[1mOptions[0m
+  -i, --interval duration (default: 0s)
+          The sample collection interval. If --watch is set, it overrides this
+          value.
+
+---
+Run `coder --help` for a list of global options.

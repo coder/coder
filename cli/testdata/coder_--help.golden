@@ -34,6 +34,7 @@ Coder v0.0.0-devel — A tool for provisioning self-hosted development environme
                       workspace
     ssh               Start a shell into a workspace
     start             Start a workspace
+    stat              Display local system resource usage statistics
     state             Manually manage Terraform state to fix broken workspaces
     stop              Stop a workspace
     templates         Manage templates
