@@ -17,7 +17,7 @@ var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 func TestOutputMatchesGoldenFile(t *testing.T) {
 	t.Parallel()
 
-	goTests, err := parseGoTestJSON(filepath.Join("testdata", "gotests.json"))
+	goTests, err := parseGoTestJSON(filepath.Join("testdata", "gotests-sample.json"))
 	if err != nil {
 		t.Fatalf("error parsing gotestsum report: %v", err)
 	}
