@@ -1078,7 +1078,7 @@ func TestServer(t *testing.T) {
 			// The client secret is not returned from the API.
 			require.Empty(t, deploymentConfig.Values.OIDC.ClientSecret.Value())
 			require.Equal(t, oidcServer.URL, deploymentConfig.Values.OIDC.IssuerURL.Value())
-			// These are the default values returned from the API.
+			// These are the default values returned from the API. See codersdk/deployment.go for the default values.
 			require.True(t, deploymentConfig.Values.OIDC.AllowSignups.Value())
 			require.Empty(t, deploymentConfig.Values.OIDC.EmailDomain.Value())
 			require.Equal(t, []string{"openid", "profile", "email"}, deploymentConfig.Values.OIDC.Scopes.Value())
@@ -1163,7 +1163,7 @@ func TestServer(t *testing.T) {
 			// The client secret is not returned from the API.
 			require.Empty(t, deploymentConfig.Values.OIDC.ClientSecret.Value())
 			require.Equal(t, oidcServer.URL, deploymentConfig.Values.OIDC.IssuerURL.Value())
-			// These are the default values. TODO: how to get the default values from the struct?
+			// These are values that we want to make sure were overridden.
 			require.False(t, deploymentConfig.Values.OIDC.AllowSignups.Value())
 			require.Equal(t, []string{"example.com"}, deploymentConfig.Values.OIDC.EmailDomain.Value())
 			require.Equal(t, []string{"360noscope"}, deploymentConfig.Values.OIDC.Scopes.Value())
