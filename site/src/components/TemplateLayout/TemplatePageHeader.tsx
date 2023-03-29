@@ -68,13 +68,15 @@ const TemplateMenu: FC<{
         >
           {Language.settingsButton}
         </MenuItem>
-        <MenuItem
-          onClick={handleClose}
-          component={RouterLink}
-          to={`/templates/new?copyTemplate=${templateName}`}
-        >
-          {Language.duplicateButton}
-        </MenuItem>
+        {canEditFiles && (
+          <MenuItem
+            onClick={handleClose}
+            component={RouterLink}
+            to={`/templates/new?copyTemplate=${templateName}`}
+          >
+            {Language.duplicateButton}
+          </MenuItem>
+        )}
         {canEditFiles && (
           <MenuItem
             component={RouterLink}

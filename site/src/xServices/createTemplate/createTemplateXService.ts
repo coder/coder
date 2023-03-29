@@ -376,13 +376,28 @@ export const createTemplateMachine =
         },
         createFirstVersion: async ({
           organizationId,
+          templateNameToCopy,
           exampleId,
           uploadResponse,
+          version,
         }) => {
           if (exampleId) {
             return createTemplateVersion(organizationId, {
               storage_method: "file",
               example_id: exampleId,
+              provisioner: "terraform",
+              tags: {},
+            })
+          }
+
+          if (templateNameToCopy) {
+            if (!version) {
+              throw new Error("Not able to copy without having a version")
+            }
+
+            return createTemplateVersion(organizationId, {
+              storage_method: "file",
+              file_id: version.job.file_id,
               provisioner: "terraform",
               tags: {},
             })
