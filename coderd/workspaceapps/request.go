@@ -174,62 +174,97 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		return nil, xerrors.Errorf("get workspace %q: %w", r.WorkspaceNameOrID, workspaceErr)
 	}
 
-	// Get agent.
+	// Get workspace agents.
+	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace agents: %w", err)
+	}
+	if len(agents) == 0 {
+		// TODO(@deansheather): return a 404 if there are no agents in the
+		// workspace, requires a different error type.
+		return nil, xerrors.New("no agents in workspace")
+	}
+
+	// Get workspace apps.
+	agentIDs := make([]uuid.UUID, len(agents))
+	for i, agent := range agents {
+		agentIDs[i] = agent.ID
+	}
+	apps, err := db.GetWorkspaceAppsByAgentIDs(ctx, agentIDs)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace apps: %w", err)
+	}
+
+	// Get the app first, because r.AgentNameOrID is optional depending on
+	// whether the app is a slug or a port and whether there are multiple agents
+	// in the workspace or not.
 	var (
-		agent database.WorkspaceAgent
+		agentNameOrID         = r.AgentNameOrID
+		appURL                string
+		appSharingLevel       database.AppSharingLevel
+		appHealth             = database.WorkspaceAppHealthDisabled
+		portUint, portUintErr = strconv.ParseUint(r.AppSlugOrPort, 10, 16)
 	)
-	if agentID, uuidErr := uuid.Parse(r.AgentNameOrID); uuidErr == nil {
-		var err error
-		agent, err = db.GetWorkspaceAgentByID(ctx, agentID)
-		if err != nil {
-			return nil, xerrors.Errorf("get workspace agent by ID %q: %w", agentID, err)
+	if portUintErr == nil {
+		if r.AccessMethod != AccessMethodSubdomain {
+			// TODO(@deansheather): this should return a 400 instead of a 500.
+			return nil, xerrors.New("port-based URLs are only supported for subdomain-based applications")
 		}
 
-		// Verify that the agent belongs to the workspace.
+		// If the user specified a port, then they must specify the agent if
+		// there are multiple agents in the workspace. App names are unique per
+		// workspace.
+		if agentNameOrID == "" {
+			if len(agents) != 1 {
+				return nil, xerrors.New("port specified with no agent, but multiple agents exist in the workspace")
+			}
+			agentNameOrID = agents[0].ID.String()
+		}
 
-		//nolint:gocritic // We need to fetch the agent to authenticate the request. This is a system function.
-		agentResource, err := db.GetWorkspaceResourceByID(ctx, agent.ResourceID)
-		if err != nil {
-			return nil, xerrors.Errorf("get agent workspace resource: %w", err)
+		// If the app slug is a port number, then route to the port as an
+		// "anonymous app". We only support HTTP for port-based URLs.
+		//
+		// This is only supported for subdomain-based applications.
+		appURL = fmt.Sprintf("http://127.0.0.1:%d", portUint)
+		appSharingLevel = database.AppSharingLevelOwner
+	} else {
+		for _, app := range apps {
+			if app.Slug == r.AppSlugOrPort {
+				if !app.Url.Valid {
+					return nil, xerrors.Errorf("app URL is not valid")
+				}
+
+				agentNameOrID = app.AgentID.String()
+				if app.SharingLevel != "" {
+					appSharingLevel = app.SharingLevel
+				} else {
+					appSharingLevel = database.AppSharingLevelOwner
+				}
+				appURL = app.Url.String
+				appHealth = app.Health
+				break
+			}
 		}
-		build, err := db.GetWorkspaceBuildByJobID(ctx, agentResource.JobID)
-		if err != nil {
-			return nil, xerrors.Errorf("get workspace build by job ID %q: %w", agentResource.JobID, err)
-		}
-		if build.WorkspaceID != workspace.ID {
-			return nil, xerrors.Errorf("agent %q does not belong to workspace %q: %w", agent.ID, workspace.ID, sql.ErrNoRows)
+	}
+	if appURL == "" {
+		return nil, xerrors.Errorf("no app found with slug %q: %w", r.AppSlugOrPort, sql.ErrNoRows)
+	}
+
+	// Finally, get agent.
+	var agent database.WorkspaceAgent
+	if agentID, uuidErr := uuid.Parse(agentNameOrID); uuidErr == nil {
+		for _, a := range agents {
+			if a.ID == agentID {
+				agent = a
+				break
+			}
 		}
 	} else {
-		build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-		if err != nil {
-			return nil, xerrors.Errorf("get latest workspace build by workspace ID %q: %w", workspace.ID, err)
-		}
-
-		// nolint:gocritic // We need to fetch the agent to authenticate the request. This is a system function.
-		resources, err := db.GetWorkspaceResourcesByJobID(ctx, build.JobID)
-		if err != nil {
-			return nil, xerrors.Errorf("get workspace resources by job ID %q: %w", build.JobID, err)
-		}
-		resourcesIDs := []uuid.UUID{}
-		for _, resource := range resources {
-			resourcesIDs = append(resourcesIDs, resource.ID)
-		}
-
-		// nolint:gocritic // We need to fetch the agent to authenticate the request. This is a system function.
-		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, resourcesIDs)
-		if err != nil {
-			return nil, xerrors.Errorf("get workspace agents by resource IDs %v: %w", resourcesIDs, err)
-		}
-
-		if r.AgentNameOrID == "" {
-			if len(agents) != 1 {
-				return nil, xerrors.Errorf("no agent specified, but multiple exist in workspace")
-			}
-
+		if agentNameOrID == "" && len(agents) == 1 {
 			agent = agents[0]
 		} else {
 			for _, a := range agents {
-				if a.Name == r.AgentNameOrID {
+				if a.Name == agentNameOrID {
 					agent = a
 					break
 				}
@@ -239,40 +274,6 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		if agent.ID == uuid.Nil {
 			return nil, xerrors.Errorf("no agent found with name %q: %w", r.AgentNameOrID, sql.ErrNoRows)
 		}
-	}
-
-	// Get app.
-	var (
-		appSharingLevel = database.AppSharingLevelOwner
-		appURL          string
-		appHealth       database.WorkspaceAppHealth
-	)
-	portUint, portUintErr := strconv.ParseUint(r.AppSlugOrPort, 10, 16)
-	if r.AccessMethod == AccessMethodSubdomain && portUintErr == nil {
-		// If the app slug is a port number, then route to the port as an
-		// "anonymous app". We only support HTTP for port-based URLs.
-		//
-		// This is only supported for subdomain-based applications.
-		appURL = fmt.Sprintf("http://127.0.0.1:%d", portUint)
-	} else {
-		app, err := db.GetWorkspaceAppByAgentIDAndSlug(ctx, database.GetWorkspaceAppByAgentIDAndSlugParams{
-			AgentID: agent.ID,
-			Slug:    r.AppSlugOrPort,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("get workspace app by agent ID %q and slug %q: %w", agent.ID, r.AppSlugOrPort, err)
-		}
-		if !app.Url.Valid {
-			return nil, xerrors.Errorf("app URL is not valid")
-		}
-
-		if app.SharingLevel != "" {
-			appSharingLevel = app.SharingLevel
-		} else {
-			appSharingLevel = database.AppSharingLevelOwner
-		}
-		appURL = app.Url.String
-		appHealth = app.Health
 	}
 
 	return &databaseRequest{

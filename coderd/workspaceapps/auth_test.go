@@ -3,11 +3,13 @@ package workspaceapps_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,12 +38,24 @@ func Test_ResolveRequest(t *testing.T) {
 		appNameAuthed     = "app-authed"
 		appNamePublic     = "app-public"
 		appNameInvalidURL = "app-invalid-url"
+		appNameUnhealthy  = "app-unhealthy"
+
+		// This agent will never connect, so it will never become "connected".
+		agentNameUnhealthy    = "agent-unhealthy"
+		appNameAgentUnhealthy = "app-agent-unhealthy"
 
 		// This is not a valid URL we listen on in the test, but it needs to be
 		// set to a value.
 		appURL = "http://localhost:8080"
 	)
 	allApps := []string{appNameOwner, appNameAuthed, appNamePublic}
+
+	// Start a listener for a server that always responds with 500 for the
+	// unhealthy app.
+	unhealthySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("unhealthy"))
+	}))
 
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.DisablePathApps = false
@@ -86,39 +100,67 @@ func Test_ResolveRequest(t *testing.T) {
 					Resources: []*proto.Resource{{
 						Name: "example",
 						Type: "aws_instance",
-						Agents: []*proto.Agent{{
-							Id:   uuid.NewString(),
-							Name: agentName,
-							Auth: &proto.Agent_Token{
-								Token: agentAuthToken,
+						Agents: []*proto.Agent{
+							{
+								Id:   uuid.NewString(),
+								Name: agentName,
+								Auth: &proto.Agent_Token{
+									Token: agentAuthToken,
+								},
+								Apps: []*proto.App{
+									{
+										Slug:         appNameOwner,
+										DisplayName:  appNameOwner,
+										SharingLevel: proto.AppSharingLevel_OWNER,
+										Url:          appURL,
+									},
+									{
+										Slug:         appNameAuthed,
+										DisplayName:  appNameAuthed,
+										SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
+										Url:          appURL,
+									},
+									{
+										Slug:         appNamePublic,
+										DisplayName:  appNamePublic,
+										SharingLevel: proto.AppSharingLevel_PUBLIC,
+										Url:          appURL,
+									},
+									{
+										Slug:         appNameInvalidURL,
+										DisplayName:  appNameInvalidURL,
+										SharingLevel: proto.AppSharingLevel_PUBLIC,
+										Url:          "test:path/to/app",
+									},
+									{
+										Slug:         appNameUnhealthy,
+										DisplayName:  appNameUnhealthy,
+										SharingLevel: proto.AppSharingLevel_PUBLIC,
+										Url:          appURL,
+										Healthcheck: &proto.Healthcheck{
+											Url:       unhealthySrv.URL,
+											Interval:  1,
+											Threshold: 1,
+										},
+									},
+								},
 							},
-							Apps: []*proto.App{
-								{
-									Slug:         appNameOwner,
-									DisplayName:  appNameOwner,
-									SharingLevel: proto.AppSharingLevel_OWNER,
-									Url:          appURL,
+							{
+								Id:   uuid.NewString(),
+								Name: agentNameUnhealthy,
+								Auth: &proto.Agent_Token{
+									Token: uuid.NewString(),
 								},
-								{
-									Slug:         appNameAuthed,
-									DisplayName:  appNameAuthed,
-									SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
-									Url:          appURL,
-								},
-								{
-									Slug:         appNamePublic,
-									DisplayName:  appNamePublic,
-									SharingLevel: proto.AppSharingLevel_PUBLIC,
-									Url:          appURL,
-								},
-								{
-									Slug:         appNameInvalidURL,
-									DisplayName:  appNameInvalidURL,
-									SharingLevel: proto.AppSharingLevel_PUBLIC,
-									Url:          "test:path/to/app",
+								Apps: []*proto.App{
+									{
+										Slug:         appNameAgentUnhealthy,
+										DisplayName:  appNameAgentUnhealthy,
+										SharingLevel: proto.AppSharingLevel_PUBLIC,
+										Url:          appURL,
+									},
 								},
 							},
-						}},
+						},
 					}},
 				},
 			},
@@ -138,7 +180,7 @@ func Test_ResolveRequest(t *testing.T) {
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID, agentName)
 
 	agentID := uuid.Nil
 	for _, resource := range resources {
@@ -335,7 +377,7 @@ func Test_ResolveRequest(t *testing.T) {
 			ok                bool
 		}{
 			{
-				name:              "WorkspaecOnly",
+				name:              "WorkspaceOnly",
 				workspaceAndAgent: workspace.Name,
 				workspace:         workspace.Name,
 				agent:             "",
@@ -621,5 +663,90 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Equal(t, "http", redirectURI.Scheme)
 		require.Equal(t, "app.com", redirectURI.Host)
 		require.Equal(t, "/some-path", redirectURI.Path)
+	})
+
+	t.Run("UnhealthyAgent", func(t *testing.T) {
+		t.Parallel()
+
+		req := workspaceapps.Request{
+			AccessMethod:      workspaceapps.AccessMethodPath,
+			BasePath:          "/app",
+			UsernameOrID:      me.Username,
+			WorkspaceNameOrID: workspace.Name,
+			AgentNameOrID:     agentNameUnhealthy,
+			AppSlugOrPort:     appNameAgentUnhealthy,
+		}
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/app", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+		require.False(t, ok, "request succeeded even though agent is not connected")
+		require.Nil(t, ticket)
+
+		w := rw.Result()
+		defer w.Body.Close()
+		require.Equal(t, http.StatusBadGateway, w.StatusCode)
+
+		body, err := io.ReadAll(w.Body)
+		require.NoError(t, err)
+		bodyStr := string(body)
+		bodyStr = strings.ReplaceAll(bodyStr, "&#34;", `"`)
+		// It'll either be "connecting" or "disconnected". Both are OK for this
+		// test.
+		require.Contains(t, bodyStr, `Agent state is "`)
+	})
+
+	t.Run("UnhealthyApp", func(t *testing.T) {
+		t.Parallel()
+
+		require.Eventually(t, func() bool {
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			agent, err := client.WorkspaceAgent(ctx, agentID)
+			if err != nil {
+				t.Log("could not get agent", err)
+				return false
+			}
+
+			for _, app := range agent.Apps {
+				if app.Slug == appNameUnhealthy {
+					t.Log("app is", app.Health)
+					return app.Health == codersdk.WorkspaceAppHealthUnhealthy
+				}
+			}
+
+			t.Log("could not find app")
+			return false
+		}, testutil.WaitLong, testutil.IntervalFast, "wait for app to become unhealthy")
+
+		req := workspaceapps.Request{
+			AccessMethod:      workspaceapps.AccessMethodPath,
+			BasePath:          "/app",
+			UsernameOrID:      me.Username,
+			WorkspaceNameOrID: workspace.Name,
+			AgentNameOrID:     agentName,
+			AppSlugOrPort:     appNameUnhealthy,
+		}
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/app", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+
+		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+		require.False(t, ok, "request succeeded even though app is unhealthy")
+		require.Nil(t, ticket)
+
+		w := rw.Result()
+		defer w.Body.Close()
+		require.Equal(t, http.StatusBadGateway, w.StatusCode)
+
+		body, err := io.ReadAll(w.Body)
+		require.NoError(t, err)
+		bodyStr := string(body)
+		bodyStr = strings.ReplaceAll(bodyStr, "&#34;", `"`)
+		require.Contains(t, bodyStr, `App health is "unhealthy"`)
 	})
 }

@@ -368,7 +368,7 @@ func (p *Provider) writeWorkspaceAppOffline(rw http.ResponseWriter, r *http.Requ
 	if appReq != nil {
 		slog.Helper()
 		p.Logger.Debug(r.Context(),
-			"workspace app offline: "+msg,
+			"workspace app unavailable: "+msg,
 			slog.F("username_or_id", appReq.UsernameOrID),
 			slog.F("workspace_and_agent", appReq.WorkspaceAndAgent),
 			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),
@@ -379,7 +379,7 @@ func (p *Provider) writeWorkspaceAppOffline(rw http.ResponseWriter, r *http.Requ
 
 	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 		Status:       http.StatusBadGateway,
-		Title:        "Application Offline",
+		Title:        "Application Unavailable",
 		Description:  msg,
 		RetryEnabled: true,
 		DashboardURL: p.AccessURL.String(),
