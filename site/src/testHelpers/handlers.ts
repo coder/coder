@@ -321,7 +321,7 @@ export const handlers = [
     },
   ),
 
-  rest.get("api/v2/files/:fileId", (_, res, ctx) => {
+  rest.get("/api/v2/files/:fileId", (_, res, ctx) => {
     const fileBuffer = fs.readFileSync(
       path.resolve(__dirname, "./templateFiles.tar"),
     )
@@ -333,4 +333,32 @@ export const handlers = [
       ctx.body(fileBuffer),
     )
   }),
+
+  rest.get(
+    "/api/v2/templateversions/:templateVersionId/parameters",
+    (_, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json([
+          M.MockTemplateVersionParameter1,
+          M.MockTemplateVersionParameter2,
+          M.MockTemplateVersionParameter3,
+        ]),
+      )
+    },
+  ),
+
+  rest.get(
+    "/api/v2/templateversions/:templateVersionId/variables",
+    (_, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json([
+          M.MockTemplateVersionVariable1,
+          M.MockTemplateVersionVariable2,
+          M.MockTemplateVersionVariable3,
+        ]),
+      )
+    },
+  ),
 ]
