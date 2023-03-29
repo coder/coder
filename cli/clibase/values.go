@@ -190,19 +190,6 @@ func (d *Duration) String() string {
 	return time.Duration(*d).String()
 }
 
-func (d *Duration) MarshalJSON() ([]byte, error) {
-	return json.Marshal(d.String())
-}
-
-func (d *Duration) UnmarshalJSON(b []byte) error {
-	var s string
-	err := json.Unmarshal(b, &s)
-	if err != nil {
-		return err
-	}
-	return d.Set(s)
-}
-
 func (Duration) Type() string {
 	return "duration"
 }
