@@ -345,6 +345,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				if md.Interval == 0 {
 					continue
 				}
+				// The last collected value isn't quite stale yet, so we skip it.
 				if collectedAt.Add(
 					adjustIntervalForTests(md.Interval),
 				).After(time.Now()) {
