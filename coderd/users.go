@@ -1132,21 +1132,19 @@ func (api *API) userNotifications(rw http.ResponseWriter, r *http.Request) {
 	for topic, listenerFn := range subscriptionListeners {
 		go func(topic string, fn database.Listener) {
 			api.Logger.Debug(r.Context(), "Subscribing to channel.", slog.F("channel", topic))
-			errCh := make(chan error)
-			closer := func() {
-				defer close(errCh)
-			}
 			cancelFn, err := api.Pubsub.Subscribe(topic, fn)
 			if cancelFn != nil {
 				defer cancelFn()
 			}
-			defer closer()
 			if err != nil {
-				errCh <- err
 				api.Logger.Error(r.Context(), "PubSub subscribe error", slog.F("channel", topic), slog.Error(err))
 				sendErrorEvent(err, "Error with channel subscription.")
+				return
 			}
-
+			select {
+			case <-r.Context().Done():
+				return
+			}
 		}(topic, listenerFn)
 	}
 
