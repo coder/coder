@@ -53,7 +53,7 @@ func readGoldenFile(t *testing.T, name string) []byte {
 func updateGoldenFile(t *testing.T, name string, content []byte) bool {
 	t.Helper()
 	if *updateGoldenFiles {
-		err := os.WriteFile(name, content, 0o644)
+		err := os.WriteFile(name, content, 0o600)
 		require.NoError(t, err, "error updating golden file")
 		return true
 	}
