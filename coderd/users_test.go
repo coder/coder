@@ -3,6 +3,8 @@ package coderd_test
 import (
 	"context"
 	"fmt"
+	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 	"net/http"
 	"sort"
 	"strings"
@@ -1583,6 +1585,46 @@ func TestPaginatedUsers(t *testing.T) {
 			assertPagination(ctx, t, client, tt.limit, tt.allUsers, tt.opt)
 		})
 	}
+}
+
+func TestUserNotifications(t *testing.T) {
+	t.Parallel()
+	client, closeFunc := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	defer closeFunc.Close()
+	// create required resources
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.ProvisionComplete,
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id: uuid.NewString(),
+							Auth: &proto.Agent_Token{
+								Token: uuid.NewString(),
+							},
+							ConnectionTimeoutSeconds: 1,
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	// TODO: test receiving the actual event
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	sseCh, err := client.UserNotifications(ctx, user.UserID.String())
+	require.NoError(t, err)
+	require.Emptyf(t, <-sseCh, "not empty")
 }
 
 // Assert pagination will page through the list of all users using the given

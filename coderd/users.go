@@ -1,11 +1,13 @@
 package coderd
 
 import (
+	"cdr.dev/slog"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -1038,6 +1040,145 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 		return nil
 	}, nil)
+}
+
+// @Summary Watch all user notifications for many user resources.
+// @ID notifications-by-id
+// @Security CoderSessionToken
+// @Produce text/event-stream
+// @Tags Users
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.Response
+// @Router /users/{user}/notifications [get]
+func (api *API) userNotifications(rw http.ResponseWriter, r *http.Request) {
+	user := httpmw.UserParam(r)
+
+	sendEvent, senderClosed, err := httpapi.ServerSentEventSender(rw, r)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error setting up server-sent events.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer func() {
+		<-senderClosed
+	}()
+	sendErrorEvent := func(err error, message string) {
+		_ = sendEvent(r.Context(), codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeError,
+			Data: codersdk.Response{
+				Message: message,
+				Detail:  err.Error(),
+			},
+		})
+	}
+	// shows the corresponding template version and its template that got updated.
+	var notifyTemplateVersion = func(workspace database.Workspace) database.Listener {
+		return func(_ context.Context, _ []byte) {
+			template, err := api.Database.GetTemplateByID(r.Context(), workspace.TemplateID)
+			if err != nil {
+				sendErrorEvent(err, "Internal error getting user resources.")
+				return
+			}
+			version, err := api.Database.GetTemplateVersionByID(r.Context(), template.ActiveVersionID)
+			if err != nil {
+				sendErrorEvent(err, "Internal error getting user resources.")
+				return
+			}
+			_ = sendEvent(r.Context(), codersdk.ServerSentEvent{
+				Type: codersdk.ServerSentEventTypeData,
+				Data: notificationData{
+					Type: templateUpdateNotificationType,
+					Data: templateUpdateNotification{
+						TemplateVersion: version,
+						Template:        template,
+					},
+					CreatedAt: time.Now(),
+				},
+			})
+		}
+	}
+
+	workspaceRows, err := api.Database.GetWorkspaces(r.Context(), database.GetWorkspacesParams{
+		Deleted: false,
+		OwnerID: user.ID,
+		Limit:   25,
+	})
+	if err != nil {
+		sendErrorEvent(err, "Internal error getting user resources.")
+		return
+	}
+	workspaces := database.ConvertWorkspaceRows(workspaceRows)
+	if err != nil {
+		sendErrorEvent(err, "Internal error getting user resources.")
+		return
+	}
+	// defines channel name (e.g. pub sub "topic") and its callback for listening to events
+	var subscriptionListeners = make(map[string]database.Listener)
+
+	// sets up channel and its listener for TemplateNotifications
+	for _, workspace := range workspaces {
+		topic := watchTemplateChannel(workspace.TemplateID)
+		if _, found := subscriptionListeners[watchTemplateChannel(workspace.TemplateID)]; found {
+			// trivial but workspaces could have same template. we don't need to reset the func if we already defined it.
+			continue
+		}
+		subscriptionListeners[topic] = notifyTemplateVersion(workspace)
+	}
+
+	// starting subscriptions to channels
+	// using "topic" to avoid confusion with go channel
+	for topic, listenerFn := range subscriptionListeners {
+		go func(topic string, fn database.Listener) {
+			api.Logger.Debug(r.Context(), "Subscribing to channel.", slog.F("channel", topic))
+			errCh := make(chan error)
+			closer := func() {
+				defer close(errCh)
+			}
+			cancelFn, err := api.Pubsub.Subscribe(topic, fn)
+			if cancelFn != nil {
+				defer cancelFn()
+			}
+			defer closer()
+			if err != nil {
+				errCh <- err
+				api.Logger.Error(r.Context(), "PubSub subscribe error", slog.F("channel", topic), slog.Error(err))
+				sendErrorEvent(err, "Error with channel subscription.")
+			}
+
+		}(topic, listenerFn)
+	}
+
+	_ = sendEvent(r.Context(), codersdk.ServerSentEvent{
+		Type: codersdk.ServerSentEventTypePing,
+	})
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-senderClosed:
+			return
+		}
+	}
+}
+
+type notificationType string
+
+const (
+	templateUpdateNotificationType notificationType = "TemplateUpdateNotification"
+)
+
+type notificationData struct {
+	Type      notificationType `json:"type"`
+	Data      interface{}      `json:"data"`
+	CreatedAt time.Time        `json:"created_at"`
+}
+
+type templateUpdateNotification struct {
+	Template        database.Template        `json:"template"`
+	TemplateVersion database.TemplateVersion `json:"template_version"`
 }
 
 func convertUser(user database.User, organizationIDs []uuid.UUID) codersdk.User {

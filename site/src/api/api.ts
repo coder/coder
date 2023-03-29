@@ -164,6 +164,16 @@ export const deleteToken = async (keyId: string): Promise<void> => {
   await axios.delete("/api/v2/users/me/keys/" + keyId)
 }
 
+/**
+ * An event source that emits user notifications.
+ */
+export const getNotifications = async() => {
+    return new EventSource(
+      `${location.protocol}//${location.host}/api/v2/users/me/notifications`,
+      { withCredentials: true },
+    )
+}
+
 export const createToken = async (
   params: TypesGen.CreateTokenRequest,
 ): Promise<TypesGen.GenerateAPIKeyResponse> => {

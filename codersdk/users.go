@@ -418,3 +418,35 @@ func (c *Client) AuthMethods(ctx context.Context) (AuthMethods, error) {
 	var userAuth AuthMethods
 	return userAuth, json.NewDecoder(res.Body).Decode(&userAuth)
 }
+
+func (c *Client) UserNotifications(ctx context.Context, userID string) (<-chan ServerSentEvent, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/notifications", userID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	nextEvent := ServerSentEventReader(ctx, res.Body)
+	sseCh := make(chan ServerSentEvent, 256)
+	go func() {
+		defer close(sseCh)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				sse, err := nextEvent()
+				if err != nil {
+					return
+				}
+				if sse.Type != ServerSentEventTypeData {
+					continue
+				}
+				sseCh <- *sse
+			}
+		}
+	}()
+	return sseCh, nil
+}
