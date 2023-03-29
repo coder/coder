@@ -1390,6 +1390,7 @@ func generateSelfSignedCertificate() (*tls.Certificate, error) {
 func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
+		NextProtos: []string{"h2", "http/1.1"},
 	}
 	switch tlsMinVersion {
 	case "tls10":
@@ -1679,6 +1680,7 @@ func configureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile stri
 
 		tlsClientConfig := &tls.Config{ //nolint:gosec
 			Certificates: certificates,
+			NextProtos:   []string{"h2", "http/1.1"},
 		}
 		err = configureCAPool(tlsClientCAFile, tlsClientConfig)
 		if err != nil {
