@@ -1,4 +1,7 @@
-CREATE TABLE workspace_agent_metadata (
+-- This table is UNLOGGED because it is very update-heavy and the the data 
+-- is not valuable enough to justify the overhead of WAL logging. This should
+-- give us a ~70% improvement in write throughput.
+CREATE UNLOGGED TABLE workspace_agent_metadata (
     workspace_agent_id uuid NOT NULL,
     display_name varchar(127) NOT NULL,
     key varchar(127) NOT NULL,
