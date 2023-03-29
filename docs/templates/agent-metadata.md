@@ -58,7 +58,7 @@ resource "coder_agent" "main" {
     display_name = "Load Average"
     key  = "load"
     script = <<EOT
-        awk '{print $1,$2,$3}' /proc/loadavg 
+        awk '{print $1,$2,$3}' /proc/loadavg
     >>
     interval = 1
     timeout = 1
@@ -85,6 +85,6 @@ like:
 
 ```
 --total-cpu-usage-- -dsk/total- -net/total- ---paging-- ---system--
-usr sys idl wai stl| read  writ| recv  send|  in   out | int   csw 
+usr sys idl wai stl| read  writ| recv  send|  in   out | int   csw
 1   1  98   0   0|3422k   25M|   0     0 | 153k  904k| 123k  174k
 ```
