@@ -47,7 +47,7 @@ type Option struct {
 
 	Hidden bool `json:"hidden,omitempty"`
 
-	envSet bool
+	envChanged bool
 }
 
 // OptionSet is a group of options that can be applied to a command.
@@ -135,7 +135,7 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 			continue
 		}
 
-		opt.envSet = true
+		opt.envChanged = true
 		if err := opt.Value.Set(envVal); err != nil {
 			merr = multierror.Append(
 				merr, xerrors.Errorf("parse %q: %w", opt.Name, err),

@@ -264,14 +264,11 @@ func (i *Invocation) run(state *runState) error {
 
 	// Set defaults for flags that weren't set by the user.
 	skipDefaults := make(map[string]struct{}, len(i.Command.Options))
-	i.parsedFlags.VisitAll(func(f *pflag.Flag) {
-		if !f.Changed {
-			return
-		}
-		skipDefaults[f.Name] = struct{}{}
-	})
 	for _, opt := range i.Command.Options {
-		if opt.envSet {
+		if fl := i.parsedFlags.Lookup(opt.Flag); fl != nil && fl.Changed {
+			skipDefaults[opt.Name] = struct{}{}
+		}
+		if opt.envChanged {
 			skipDefaults[opt.Name] = struct{}{}
 		}
 	}
