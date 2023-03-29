@@ -219,29 +219,7 @@ func copyFlagSetWithout(fs *pflag.FlagSet, without string) *pflag.FlagSet {
 // allArgs is wired through the stack so that global flags can be accepted
 // anywhere in the command invocation.
 func (i *Invocation) run(state *runState) error {
-	err := i.Command.Options.SetDefaults()
-	if err != nil {
-		return xerrors.Errorf("setting defaults: %w", err)
-	}
-
-	// If we set the Default of an array but later see a flag for it, we
-	// don't want to append, we want to replace. So, we need to keep the state
-	// of defaulted array options.
-	defaultedArrays := make(map[string]int)
-	for _, opt := range i.Command.Options {
-		sv, ok := opt.Value.(pflag.SliceValue)
-		if !ok {
-			continue
-		}
-
-		if opt.Flag == "" {
-			continue
-		}
-
-		defaultedArrays[opt.Flag] = len(sv.GetSlice())
-	}
-
-	err = i.Command.Options.ParseEnv(i.Environ)
+	err := i.Command.Options.ParseEnv(i.Environ)
 	if err != nil {
 		return xerrors.Errorf("parsing env: %w", err)
 	}
@@ -282,34 +260,24 @@ func (i *Invocation) run(state *runState) error {
 		// so we check the error after looking for a child command.
 		state.flagParseErr = i.parsedFlags.Parse(state.allArgs)
 		parsedArgs = i.parsedFlags.Args()
+	}
 
-		i.parsedFlags.VisitAll(func(f *pflag.Flag) {
-			i, ok := defaultedArrays[f.Name]
-			if !ok {
-				return
-			}
-
-			if !f.Changed {
-				return
-			}
-
-			// If flag was changed, we need to remove the default values.
-			sv, ok := f.Value.(pflag.SliceValue)
-			if !ok {
-				panic("defaulted array option is not a slice value")
-			}
-			ss := sv.GetSlice()
-			if len(ss) == 0 {
-				// Slice likely zeroed by a flag.
-				// E.g. "--fruit" may default to "apples,oranges" but the user
-				// provided "--fruit=""".
-				return
-			}
-			err := sv.Replace(ss[i:])
-			if err != nil {
-				panic(err)
-			}
-		})
+	// Set defaults for flags that weren't set by the user.
+	skipDefaults := make(map[string]struct{}, len(i.Command.Options))
+	i.parsedFlags.VisitAll(func(f *pflag.Flag) {
+		if !f.Changed {
+			return
+		}
+		skipDefaults[f.Name] = struct{}{}
+	})
+	for _, opt := range i.Command.Options {
+		if opt.envSet {
+			skipDefaults[opt.Name] = struct{}{}
+		}
+	}
+	err = i.Command.Options.SetDefaults(skipDefaults)
+	if err != nil {
+		return xerrors.Errorf("setting defaults: %w", err)
 	}
 
 	// Run child command if found (next child only)
