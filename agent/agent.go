@@ -258,7 +258,7 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	return result
 }
 
-func convertInterval(i int64) time.Duration {
+func adjustIntervalForTests(i int64) time.Duration {
 	// In tests we want to set shorter intervals because engineers are
 	// impatient.
 	base := time.Second
@@ -274,12 +274,14 @@ type metadataResultAndKey struct {
 }
 
 func (a *agent) reportMetadataLoop(ctx context.Context) {
-	baseInterval := convertInterval(1)
+	baseInterval := adjustIntervalForTests(1)
+
+	const metadataLimit = 128
 
 	var (
 		baseTicker       = time.NewTicker(baseInterval)
 		lastCollectedAts = make(map[string]time.Time)
-		metadataResults  = make(chan metadataResultAndKey, 16)
+		metadataResults  = make(chan metadataResultAndKey, metadataLimit)
 	)
 	defer baseTicker.Stop()
 
@@ -294,15 +296,13 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				a.logger.Error(ctx, "report metadata", slog.Error(err))
 			}
 		case <-baseTicker.C:
-			break
 		}
 
-		if len(metadataResults) > cap(metadataResults)/2 {
+		if len(metadataResults) > 0 {
 			// If we're backpressured on sending back results, we risk
 			// runaway goroutine growth and/or overloading coderd. So,
-			// we just skip the collection. Since we never update
-			// the collections map, we'll retry the collection
-			// on the next tick.
+			// we just skip the collection and give the loop another chance to
+			// post metadata.
 			a.logger.Debug(
 				ctx, "metadata collection backpressured",
 				slog.F("queue_len", len(metadataResults)),
@@ -314,6 +314,15 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 		if manifest == nil {
 			continue
 		}
+
+		if len(manifest.Metadata) > metadataLimit {
+			a.logger.Error(
+				ctx, "metadata limit exceeded",
+				slog.F("limit", metadataLimit), slog.F("got", len(manifest.Metadata)),
+			)
+			continue
+		}
+
 		// If the manifest changes (e.g. on agent reconnect) we need to
 		// purge old cache values to prevent lastCollectedAt from growing
 		// boundlessly.
@@ -337,7 +346,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 					continue
 				}
 				if collectedAt.Add(
-					convertInterval(md.Interval),
+					adjustIntervalForTests(md.Interval),
 				).After(time.Now()) {
 					continue
 				}
@@ -351,6 +360,10 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 					key:    md.Key,
 					result: a.collectMetadata(ctx, md),
 				}:
+				default:
+					// This should be impossible because the channel is empty
+					// before we start spinning up send goroutines.
+					a.logger.Error(ctx, "metadataResults channel full")
 				}
 			}(md)
 		}
