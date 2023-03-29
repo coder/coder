@@ -106,6 +106,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.scaletest(),
 		r.gitssh(),
 		r.vscodeSSH(),
+		r.stat(),
 	}
 }
 
