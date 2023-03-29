@@ -9,6 +9,7 @@ import {
   displayError,
   displaySuccess,
 } from "../../components/GlobalSnackbar/utils"
+import { AxiosError } from "axios"
 
 const latestBuild = (builds: TypesGen.WorkspaceBuild[]) => {
   // Cloning builds to not change the origin object with the sort()
@@ -56,7 +57,7 @@ export interface WorkspaceContext {
   workspace?: TypesGen.Workspace
   template?: TypesGen.Template
   build?: TypesGen.WorkspaceBuild
-  getWorkspaceError?: Error | unknown
+  getWorkspaceError?: AxiosError
   getTemplateWarning: Error | unknown
   getTemplateParametersWarning: Error | unknown
   // Builds
@@ -491,7 +492,7 @@ export const workspaceMachine = createMachine(
         workspace: (_, event) => event.data,
       }),
       assignGetWorkspaceError: assign({
-        getWorkspaceError: (_, event) => event.data,
+        getWorkspaceError: (_, event) => event.data as AxiosError,
       }),
       clearGetWorkspaceError: (context) =>
         assign({ ...context, getWorkspaceError: undefined }),
