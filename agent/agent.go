@@ -299,10 +299,8 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 		}
 
 		if len(metadataResults) > 0 {
-			// If we're backpressured on sending back results, we risk
-			// runaway goroutine growth and/or overloading coderd. So,
-			// we just skip the collection and give the loop another chance to
-			// post metadata.
+			// The inner collection loop expects the channel is empty before spinning up
+			// all the collection goroutines.
 			a.logger.Debug(
 				ctx, "metadata collection backpressured",
 				slog.F("queue_len", len(metadataResults)),
