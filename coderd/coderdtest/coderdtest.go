@@ -60,6 +60,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/healthcheck"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -104,6 +105,10 @@ type Options struct {
 	GitAuthConfigs        []*gitauth.Config
 	TrialGenerator        func(context.Context, string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
+
+	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
+	HealthcheckTimeout time.Duration
+	HealthcheckRefresh time.Duration
 
 	// All rate limits default to -1 (unlimited) in tests if not set.
 	APIRateLimit   int
@@ -335,6 +340,9 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			SwaggerEndpoint:             options.SwaggerEndpoint,
 			AppSigningKey:               AppSigningKey,
 			SSHConfig:                   options.ConfigSSH,
+			HealthcheckFunc:             options.HealthcheckFunc,
+			HealthcheckTimeout:          options.HealthcheckTimeout,
+			HealthcheckRefresh:          options.HealthcheckRefresh,
 		}
 }
 
