@@ -18,14 +18,14 @@ func TestOutputMatchesGoldenFile(t *testing.T) {
 	t.Parallel()
 
 	// Sample created via:
-	//	gotestsum --jsonfile ./scripts/ci-report/testdata/gotests-sample.json \
+	//	gotestsum --jsonfile ./scripts/ci-report/testdata/gotests.json.sample \
 	//	-- \
 	//	./agent ./cli ./cli/cliui \
 	//	-count=1 \
 	//	-timeout=5m \
 	//	-parallel=24 \
 	//	-run='^(TestServer|TestAgent_Session|TestGitAuth$|TestPrompt$)'
-	goTests, err := parseGoTestJSON(filepath.Join("testdata", "gotests-sample.json"))
+	goTests, err := parseGoTestJSON(filepath.Join("testdata", "gotests.json.sample"))
 	if err != nil {
 		t.Fatalf("error parsing gotestsum report: %v", err)
 	}
