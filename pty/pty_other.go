@@ -12,7 +12,6 @@ import (
 	"github.com/creack/pty"
 	"github.com/u-root/u-root/pkg/termios"
 	"golang.org/x/sys/unix"
-	"golang.org/x/xerrors"
 )
 
 func newPty(opt ...Option) (retPTY *otherPty, err error) {
@@ -146,7 +145,7 @@ func (p *otherPty) Close() error {
 	if err != nil {
 		p.err = err
 	} else {
-		p.err = xerrors.New("pty: closed")
+		p.err = ErrClosed
 	}
 
 	return err

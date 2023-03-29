@@ -6,7 +6,11 @@ import (
 	"os"
 
 	"github.com/gliderlabs/ssh"
+	"golang.org/x/xerrors"
 )
+
+// ErrClosed is returned when a PTY is used after it has been closed.
+var ErrClosed = xerrors.New("pty: closed")
 
 // PTY is a minimal interface for interacting with a TTY.
 type PTY interface {

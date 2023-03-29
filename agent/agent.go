@@ -1115,7 +1115,8 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		go func() {
 			for win := range windowSize {
 				resizeErr := ptty.Resize(uint16(win.Height), uint16(win.Width))
-				if resizeErr != nil {
+				// If the pty is closed, then command has exited, no need to log.
+				if resizeErr != nil && !errors.Is(resizeErr, pty.ErrClosed) {
 					a.logger.Warn(ctx, "failed to resize tty", slog.Error(resizeErr))
 				}
 			}
@@ -1188,6 +1189,11 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 	}
 	return cmd.Wait()
 }
+
+type readNopCloser struct{ io.Reader }
+
+// Close implements io.Closer.
+func (readNopCloser) Close() error { return nil }
 
 func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
 	defer conn.Close()
@@ -1384,11 +1390,6 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		}
 	}
 }
-
-type readNopCloser struct{ io.Reader }
-
-// Close implements io.Closer.
-func (readNopCloser) Close() error { return nil }
 
 // startReportingConnectionStats runs the connection stats reporting goroutine.
 func (a *agent) startReportingConnectionStats(ctx context.Context) {
