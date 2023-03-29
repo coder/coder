@@ -239,8 +239,6 @@ func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue
 
 	if logLevel == "debug" {
 		// TF_LOG=JSON enables all kind of logging: trace-debug-info-warn-error.
-		// Coder shows info-warn-error by default, so we need to filter "trace" log entries,
-		// on the upper layer.
 		// The idea behind using TF_LOG=JSON instead of TF_LOG=debug is ensuring the proper log format.
 		env = append(env, "TF_LOG=JSON")
 	}

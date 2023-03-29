@@ -1151,3 +1151,80 @@ func TestMigrateLegacyToRichParameters(t *testing.T) {
 	require.Len(t, buildParameters, 1)
 	require.Equal(t, "carrot", buildParameters[0].Value)
 }
+
+func TestWorkspaceBuildDebugMode(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.ProvisionComplete,
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Log{
+				Log: &proto.Log{
+					Level:  proto.LogLevel_DEBUG,
+					Output: "want-it",
+				},
+			},
+		}, {
+			Type: &proto.Provision_Response_Log{
+				Log: &proto.Log{
+					Level:  proto.LogLevel_TRACE,
+					Output: "dont-want-it",
+				},
+			},
+		}, {
+			Type: &proto.Provision_Response_Log{
+				Log: &proto.Log{
+					Level:  proto.LogLevel_DEBUG,
+					Output: "done",
+				},
+			},
+		}, {
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		}},
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+	// Create workspace
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	// Create workspace build
+	// ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	//defer cancel()
+	ctx := context.Background()
+
+	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+		Transition:        codersdk.WorkspaceTransitionStart,
+		ProvisionerState:  []byte(" "),
+		LogLevel:          "debug",
+	})
+	require.Nil(t, err)
+
+	build = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+	// Watch for incoming logs
+	logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
+	require.NoError(t, err)
+	defer closer.Close()
+
+	for {
+		log, ok := <-logs
+		if !ok {
+			break
+		}
+
+		if log.Output == "dont-want-it" {
+			require.Failf(t, "unexpected log message", "%s log message shouldn't be logged: %s", log.Level, log.Output)
+		}
+
+		if log.Output == "done" {
+			return
+		}
+	}
+}
