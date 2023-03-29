@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -1154,76 +1155,115 @@ func TestMigrateLegacyToRichParameters(t *testing.T) {
 
 func TestWorkspaceBuildDebugMode(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	user := coderdtest.CreateFirstUser(t, client)
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:         echo.ParseComplete,
-		ProvisionPlan: echo.ProvisionComplete,
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Log{
-				Log: &proto.Log{
-					Level:  proto.LogLevel_DEBUG,
-					Output: "want-it",
-				},
-			},
-		}, {
-			Type: &proto.Provision_Response_Log{
-				Log: &proto.Log{
-					Level:  proto.LogLevel_TRACE,
-					Output: "dont-want-it",
-				},
-			},
-		}, {
-			Type: &proto.Provision_Response_Log{
-				Log: &proto.Log{
-					Level:  proto.LogLevel_DEBUG,
-					Output: "done",
-				},
-			},
-		}, {
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{},
-			},
-		}},
+
+	t.Run("AsRegularUser", func(t *testing.T) {
+		t.Parallel()
+
+		// Create users
+		templateAuthorClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		templateAuthor := coderdtest.CreateFirstUser(t, templateAuthorClient)
+		regularUserClient, _ := coderdtest.CreateAnotherUser(t, templateAuthorClient, templateAuthor.OrganizationID)
+
+		// Template owner: create a template
+		version := coderdtest.CreateTemplateVersion(t, templateAuthorClient, templateAuthor.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, templateAuthorClient, templateAuthor.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, templateAuthorClient, version.ID)
+
+		// Regular user: create a workspace
+		workspace := coderdtest.CreateWorkspace(t, regularUserClient, templateAuthor.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, regularUserClient, workspace.LatestBuild.ID)
+
+		// Regular user: try to start a workspace build in debug mode
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := regularUserClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+			LogLevel:          "debug",
+		})
+
+		// Regular user: expect an error
+		require.NotNil(t, err)
+		var sdkError *codersdk.Error
+		isSdkError := xerrors.As(err, &sdkError)
+		require.True(t, isSdkError)
+		require.Contains(t, sdkError.Message, "Workspace builds with a custom log level are restricted to template authors only.")
 	})
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	t.Run("AsTemplateAuthor", func(t *testing.T) {
+		t.Parallel()
 
-	// Create workspace
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Log{
+					Log: &proto.Log{
+						Level:  proto.LogLevel_DEBUG,
+						Output: "want-it",
+					},
+				},
+			}, {
+				Type: &proto.Provision_Response_Log{
+					Log: &proto.Log{
+						Level:  proto.LogLevel_TRACE,
+						Output: "dont-want-it",
+					},
+				},
+			}, {
+				Type: &proto.Provision_Response_Log{
+					Log: &proto.Log{
+						Level:  proto.LogLevel_DEBUG,
+						Output: "done",
+					},
+				},
+			}, {
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
-	// Create workspace build
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+		// Create workspace
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-		TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
-		Transition:        codersdk.WorkspaceTransitionStart,
-		ProvisionerState:  []byte(" "),
-		LogLevel:          "debug",
+		// Create workspace build
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+			ProvisionerState:  []byte(" "),
+			LogLevel:          "debug",
+		})
+		require.Nil(t, err)
+
+		build = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+		// Watch for incoming logs
+		logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
+		require.NoError(t, err)
+		defer closer.Close()
+
+		for {
+			log, ok := <-logs
+			if !ok {
+				break
+			}
+
+			if log.Output == "dont-want-it" {
+				require.Failf(t, "unexpected log message", "%s log message shouldn't be logged: %s", log.Level, log.Output)
+			}
+
+			if log.Output == "done" {
+				return
+			}
+		}
 	})
-	require.Nil(t, err)
-
-	build = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
-
-	// Watch for incoming logs
-	logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
-	require.NoError(t, err)
-	defer closer.Close()
-
-	for {
-		log, ok := <-logs
-		if !ok {
-			break
-		}
-
-		if log.Output == "dont-want-it" {
-			require.Failf(t, "unexpected log message", "%s log message shouldn't be logged: %s", log.Level, log.Output)
-		}
-
-		if log.Output == "done" {
-			return
-		}
-	}
 }
