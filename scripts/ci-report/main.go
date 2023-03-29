@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"golang.org/x/exp/slices"
+	"golang.org/x/xerrors"
 )
 
 func main() {
@@ -19,10 +20,29 @@ func main() {
 	}
 	name := os.Args[1]
 
+	goTests, err := parseGoTestJSON(name)
+	if err != nil {
+		_, _ = fmt.Printf("error parsing gotestsum report: %v", err)
+		os.Exit(1)
+	}
+
+	rep, err := parseCIReport(goTests)
+	if err != nil {
+		_, _ = fmt.Printf("error parsing ci report: %v", err)
+		os.Exit(1)
+	}
+
+	err = printCIReport(os.Stdout, rep)
+	if err != nil {
+		_, _ = fmt.Printf("error printing report: %v", err)
+		os.Exit(1)
+	}
+}
+
+func parseGoTestJSON(name string) (GotestsumReport, error) {
 	f, err := os.Open(name)
 	if err != nil {
-		_, _ = fmt.Printf("error opening gotestsum json file: %v", err)
-		os.Exit(1)
+		return GotestsumReport{}, xerrors.Errorf("error opening gotestsum json file: %w", err)
 	}
 	defer f.Close()
 
@@ -35,13 +55,16 @@ func main() {
 			break
 		}
 		if err != nil {
-			_, _ = fmt.Printf("error decoding json: %v", err)
-			os.Exit(1)
+			return GotestsumReport{}, xerrors.Errorf("error decoding json: %w", err)
 		}
 		e.Package = strings.TrimPrefix(e.Package, "github.com/coder/coder/")
 		report = append(report, e)
 	}
 
+	return report, nil
+}
+
+func parseCIReport(report GotestsumReport) (CIReport, error) {
 	packagesSortedByName := []string{}
 	packageTimes := map[string]float64{}
 	packageFail := map[string]int{}
@@ -97,8 +120,7 @@ func main() {
 		case Pause:
 
 		default:
-			_, _ = fmt.Printf("unknown action: %v in entry %d (%v)", e.Action, i, e)
-			os.Exit(1)
+			return CIReport{}, xerrors.Errorf("unknown action: %v in entry %d (%v)", e.Action, i, e)
 		}
 	}
 
@@ -132,13 +154,17 @@ func main() {
 		})
 	}
 
-	enc := json.NewEncoder(os.Stdout)
+	return rep, nil
+}
+
+func printCIReport(dst io.Writer, rep CIReport) error {
+	enc := json.NewEncoder(dst)
 	enc.SetIndent("", "  ")
-	err = enc.Encode(rep)
+	err := enc.Encode(rep)
 	if err != nil {
-		_, _ = fmt.Printf("error encoding json: %v", err)
-		os.Exit(1)
+		return xerrors.Errorf("error encoding json: %w", err)
 	}
+	return nil
 }
 
 type CIReport struct {
