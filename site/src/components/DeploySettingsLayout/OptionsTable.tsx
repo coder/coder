@@ -62,7 +62,7 @@ const OptionsTable: FC<{
 }
 
 // optionValue is a helper function to format the value of a specific deployment options
-function optionValue(option: DeploymentOption): string[] | string | unknown {
+export function optionValue(option: DeploymentOption): string[] | string | unknown {
   switch (option.name) {
     case "Max Token Lifetime":
     case "Session Duration":
