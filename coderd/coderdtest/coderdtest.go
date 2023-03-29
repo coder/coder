@@ -1075,7 +1075,7 @@ QastnN77KfUwdj3SJt44U/uh1jAIv4oSLBr8HYUkbnI8
 func DeploymentValues(t *testing.T) *codersdk.DeploymentValues {
 	var cfg codersdk.DeploymentValues
 	opts := cfg.Options()
-	err := opts.SetDefaults()
+	err := opts.SetDefaults(nil)
 	require.NoError(t, err)
 	return &cfg
 }
