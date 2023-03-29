@@ -170,7 +170,7 @@ backed by Tailscale and WireGuard.
       --http-address string, $CODER_HTTP_ADDRESS (default: 127.0.0.1:3000)
           HTTP bind address of the server. Unset to disable the HTTP endpoint.
 
-      --max-token-lifetime duration, $CODER_MAX_TOKEN_LIFETIME (default: 2562047h47m16.854775807s)
+      --max-token-lifetime duration, $CODER_MAX_TOKEN_LIFETIME (default: 876600h0m0s)
           The maximum lifetime duration users can specify when creating an API
           token.
 
