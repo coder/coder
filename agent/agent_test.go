@@ -350,15 +350,8 @@ func TestAgent_Session_TTY_Hushlogin(t *testing.T) {
 
 func TestAgent_Session_TTY_FastCommandHasOutput(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS == "windows" {
-		// This might be our implementation, or ConPTY itself.
-		// It's difficult to find extensive tests for it, so
-		// it seems like it could be either.
-		t.Skip("ConPTY appears to be inconsistent on Windows.")
-	}
-
 	// This test is here to prevent regressions where quickly executing
-	// commands (with TTY) don't flush their output to the SSH session.
+	// commands (with TTY) don't sync their output to the SSH session.
 	//
 	// See: https://github.com/coder/coder/issues/6656
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -404,20 +397,13 @@ func TestAgent_Session_TTY_FastCommandHasOutput(t *testing.T) {
 
 func TestAgent_Session_TTY_HugeOutputIsNotLost(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS == "windows" {
-		// This might be our implementation, or ConPTY itself.
-		// It's difficult to find extensive tests for it, so
-		// it seems like it could be either.
-		t.Skip("ConPTY appears to be inconsistent on Windows.")
-	}
-	t.Skip("This test proves we have a bug where parts of large output on a PTY can be lost after the command exits, skipped to avoid test failures.")
 
-	// This test is here to prevent prove we have a bug where quickly executing
-	// commands (with TTY) don't flush their output to the SSH session. This is
-	// due to the pty being closed before all the output has been copied, but
-	// protecting against this requires a non-trivial rewrite of the output
-	// processing (or figuring out a way to put the pty in a mode where this
-	// does not happen).
+	// This test is here to prevent regressions where a command (with or
+	// without) a large amount of output would not be fully copied to the
+	// SSH session. On unix systems, this was fixed by duplicating the file
+	// descriptor of the PTY master and using it for copying the output.
+	//
+	// See: https://github.com/coder/coder/issues/6656
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	//nolint:dogsled

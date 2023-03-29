@@ -1131,19 +1131,32 @@ func (a *agent) handleSSHSession(session ssh.Session) (retErr error) {
 		// output being lost. To avoid this, we wait for the output copy to
 		// start before waiting for the command to exit. This ensures that the
 		// output copy goroutine will be scheduled before calling close on the
-		// pty. There is still a risk of data loss if a command produces a lot
-		// of output, see TestAgent_Session_TTY_HugeOutputIsNotLost (skipped).
+		// pty. This shouldn't be needed because of `pty.Dup()` below, but it
+		// may not be supported on all platforms.
 		outputCopyStarted := make(chan struct{})
-		ptyOutput := func() io.Reader {
+		ptyOutput := func() io.ReadCloser {
 			defer close(outputCopyStarted)
-			return ptty.Output()
+			// Try to dup so we can separate stdin and stdout closure.
+			// Once the original pty is closed, the dup will return
+			// input/output error once the buffered data has been read.
+			stdout, err := ptty.Dup()
+			if err == nil {
+				return stdout
+			}
+			// If we can't dup, we shouldn't close
+			// the fd since it's tied to stdin.
+			return readNopCloser{ptty.Output()}
 		}
 		wg.Add(1)
 		go func() {
 			// Ensure data is flushed to session on command exit, if we
 			// close the session too soon, we might lose data.
 			defer wg.Done()
-			_, _ = io.Copy(session, ptyOutput())
+
+			stdout := ptyOutput()
+			defer stdout.Close()
+
+			_, _ = io.Copy(session, stdout)
 		}()
 		<-outputCopyStarted
 
@@ -1371,6 +1384,11 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		}
 	}
 }
+
+type readNopCloser struct{ io.Reader }
+
+// Close implements io.Closer.
+func (readNopCloser) Close() error { return nil }
 
 // startReportingConnectionStats runs the connection stats reporting goroutine.
 func (a *agent) startReportingConnectionStats(ctx context.Context) {

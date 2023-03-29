@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"runtime"
 	"sync"
+	"syscall"
 
 	"github.com/creack/pty"
 	"github.com/u-root/u-root/pkg/termios"
@@ -111,6 +112,20 @@ func (p *otherPty) Resize(height uint16, width uint16) error {
 			},
 		})
 	})
+}
+
+func (p *otherPty) Dup() (*os.File, error) {
+	var newfd int
+	err := p.control(p.pty, func(fd uintptr) error {
+		var err error
+		newfd, err = syscall.Dup(int(fd))
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return os.NewFile(uintptr(newfd), p.pty.Name()), nil
 }
 
 func (p *otherPty) Close() error {
