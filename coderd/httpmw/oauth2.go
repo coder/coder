@@ -40,7 +40,15 @@ func OAuth2(r *http.Request) OAuth2State {
 // ExtractOAuth2 is a middleware for automatically redirecting to OAuth
 // URLs, and handling the exchange inbound. Any route that does not have
 // a "code" URL parameter will be redirected.
-func ExtractOAuth2(config OAuth2Config, client *http.Client) func(http.Handler) http.Handler {
+// AuthURLOpts are passed to the AuthCodeURL function. If this is nil,
+// the default option oauth2.AccessTypeOffline will be used.
+func ExtractOAuth2(config OAuth2Config, client *http.Client, authURLOpts map[string]string) func(http.Handler) http.Handler {
+	opts := make([]oauth2.AuthCodeOption, 0, len(authURLOpts)+1)
+	opts = append(opts, oauth2.AccessTypeOffline)
+	for k, v := range authURLOpts {
+		opts = append(opts, oauth2.SetAuthURLParam(k, v))
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -109,7 +117,7 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client) func(http.Handler) 
 					SameSite: http.SameSiteLaxMode,
 				})
 
-				http.Redirect(rw, r, config.AuthCodeURL(state, oauth2.AccessTypeOffline), http.StatusTemporaryRedirect)
+				http.Redirect(rw, r, config.AuthCodeURL(state, opts...), http.StatusTemporaryRedirect)
 				return
 			}
 
