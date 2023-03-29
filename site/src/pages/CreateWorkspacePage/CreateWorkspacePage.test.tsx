@@ -14,7 +14,10 @@ import {
   MockTemplateVersionParameter3,
   MockTemplateVersionGitAuth,
 } from "testHelpers/entities"
-import { renderWithAuth } from "testHelpers/renderHelpers"
+import {
+  renderWithAuth,
+  waitForLoaderToBeRemoved,
+} from "testHelpers/renderHelpers"
 import CreateWorkspacePage from "./CreateWorkspacePage"
 
 const { t } = i18next
@@ -147,15 +150,13 @@ describe("CreateWorkspacePage", () => {
       .spyOn(API, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([MockTemplateVersionParameter1])
 
-    await waitFor(() =>
-      renderWithAuth(<CreateWorkspacePage />, {
-        route:
-          "/templates/" +
-          MockTemplate.name +
-          `/workspace?param.${param}=${paramValue}`,
-        path: "/templates/:template/workspace",
-      }),
-    )
+    renderWithAuth(<CreateWorkspacePage />, {
+      route:
+        "/templates/" +
+        MockTemplate.name +
+        `/workspace?param.${param}=${paramValue}`,
+      path: "/templates/:template/workspace",
+    })
 
     await screen.findByDisplayValue(paramValue)
   })
@@ -168,7 +169,8 @@ describe("CreateWorkspacePage", () => {
         MockTemplateVersionParameter2,
       ])
 
-    await waitFor(() => renderCreateWorkspacePage())
+    renderCreateWorkspacePage()
+    await waitForLoaderToBeRemoved()
 
     const element = await screen.findByText("Create workspace")
     expect(element).toBeDefined()
@@ -202,7 +204,8 @@ describe("CreateWorkspacePage", () => {
         MockTemplateVersionParameter3,
       ])
 
-    await waitFor(() => renderCreateWorkspacePage())
+    renderCreateWorkspacePage()
+    await waitForLoaderToBeRemoved()
 
     const element = await screen.findByText(createWorkspaceText)
     expect(element).toBeDefined()
@@ -230,7 +233,8 @@ describe("CreateWorkspacePage", () => {
       .spyOn(API, "getTemplateVersionGitAuth")
       .mockResolvedValueOnce([MockTemplateVersionGitAuth])
 
-    await waitFor(() => renderCreateWorkspacePage())
+    renderCreateWorkspacePage()
+    await waitForLoaderToBeRemoved()
 
     const nameField = await screen.findByLabelText(nameLabelText)
 

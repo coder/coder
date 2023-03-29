@@ -5,6 +5,7 @@ import { addDecorator } from "node_modules/@storybook/react"
 import { unstable_HistoryRouter as HistoryRouter } from "react-router-dom"
 import { dark } from "../src/theme"
 import "../src/theme/globalFonts"
+import "../src/i18n"
 
 addDecorator((story) => (
   <ThemeProvider theme={dark}>
