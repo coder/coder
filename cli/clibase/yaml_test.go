@@ -60,6 +60,12 @@ func TestOptionSet_YAML(t *testing.T) {
 
 func TestOptionSet_YAMLIsomorphism(t *testing.T) {
 	t.Parallel()
+	//nolint:unused
+	type kid struct {
+		Name string `yaml:"name"`
+		Age  int    `yaml:"age"`
+	}
+
 	for _, tc := range []struct {
 		name      string
 		os        clibase.OptionSet
@@ -90,6 +96,21 @@ func TestOptionSet_YAMLIsomorphism(t *testing.T) {
 			},
 			zeroValue: func() pflag.Value {
 				return clibase.StringArrayOf(&[]string{})
+			},
+		},
+		{
+			name: "ComplexObject",
+			os: clibase.OptionSet{
+				{
+					YAML: "kids",
+					Default: `- name: jill
+  age: 12
+- name: jack
+  age: 13`,
+				},
+			},
+			zeroValue: func() pflag.Value {
+				return &clibase.Struct[[]kid]{}
 			},
 		},
 	} {
