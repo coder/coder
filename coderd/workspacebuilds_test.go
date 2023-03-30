@@ -1270,9 +1270,7 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 
 				logsProcessed++
 
-				if log.Output == "dont-want-it" {
-					require.Failf(t, "unexpected log message", "%s log message shouldn't be logged: %s", log.Level, log.Output)
-				}
+				require.NotEqual(t, "dont-want-it", log.Output, "unexpected log message", "%s log message shouldn't be logged: %s")
 
 				if log.Output == "done" {
 					goto done
@@ -1281,6 +1279,6 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		}
 
 	done:
-		require.Equal(t, len(echoResponses.ProvisionApply), logsProcessed)
+		require.Len(t, echoResponses.ProvisionApply, logsProcessed)
 	})
 }
