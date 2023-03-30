@@ -1258,6 +1258,8 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		defer closer.Close()
 
 		var logsProcessed int
+
+	processingLogs:
 		for {
 			select {
 			case <-ctx.Done():
@@ -1265,7 +1267,7 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 				return
 			case log, ok := <-logs:
 				if !ok {
-					goto done
+					break processingLogs
 				}
 
 				logsProcessed++
@@ -1273,12 +1275,11 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 				require.NotEqual(t, "dont-want-it", log.Output, "unexpected log message", "%s log message shouldn't be logged: %s")
 
 				if log.Output == "done" {
-					goto done
+					break processingLogs
 				}
 			}
 		}
 
-	done:
 		require.Len(t, echoResponses.ProvisionApply, logsProcessed)
 	})
 }
