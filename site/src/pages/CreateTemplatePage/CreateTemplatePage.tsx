@@ -24,7 +24,7 @@ const CreateTemplatePage: FC = () => {
     context: {
       organizationId,
       exampleId: searchParams.get("exampleId"),
-      templateNameToCopy: searchParams.get("copyTemplate"),
+      templateNameToCopy: searchParams.get("fromTemplate"),
     },
     actions: {
       onCreate: (_, { data }) => {

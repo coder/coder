@@ -72,7 +72,7 @@ const TemplateMenu: FC<{
           <MenuItem
             onClick={handleClose}
             component={RouterLink}
-            to={`/templates/new?copyTemplate=${templateName}`}
+            to={`/templates/new?fromTemplate=${templateName}`}
           >
             {Language.duplicateButton}
           </MenuItem>

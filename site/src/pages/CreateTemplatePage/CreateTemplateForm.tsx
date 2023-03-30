@@ -147,7 +147,7 @@ const getInitialValues = ({
       ...fromCopy,
       name: `${fromCopy.name}-copy`,
       display_name: fromCopy.display_name
-        ? `${fromCopy.display_name} Copy`
+        ? `Copy of ${fromCopy.display_name}`
         : "",
     }
   }

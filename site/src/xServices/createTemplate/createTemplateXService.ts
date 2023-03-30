@@ -63,7 +63,7 @@ interface CreateTemplateContext {
   // uploadedFile is the response from the server to use in the API
   file?: File
   uploadResponse?: UploadResponse
-  // When wanting to copy a Template
+  // When wanting to duplicate a Template
   templateNameToCopy: string | null // It can be null because it is passed from query string
   copiedTemplate?: Template
 }
@@ -392,7 +392,9 @@ export const createTemplateMachine =
 
           if (templateNameToCopy) {
             if (!version) {
-              throw new Error("Not able to copy without having a version")
+              throw new Error(
+                "Can't copy template due to a missing template version",
+              )
             }
 
             return createTemplateVersion(organizationId, {
