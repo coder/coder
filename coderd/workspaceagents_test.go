@@ -282,14 +282,19 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusRequestEntityTooLarge, apiError.StatusCode())
 
-		var update codersdk.Workspace
-		select {
-		case <-ctx.Done():
-			t.FailNow()
-		case update = <-updates:
+		// It's possible we have multiple updates queued, but that's alright, we just
+		// wait for the one where it overflows.
+		for {
+			var update codersdk.Workspace
+			select {
+			case <-ctx.Done():
+				t.FailNow()
+			case update = <-updates:
+			}
+			if update.LatestBuild.Resources[0].Agents[0].StartupLogsOverflowed {
+				break
+			}
 		}
-		// Ensure that the UI gets an update when the logs overflow!
-		require.True(t, update.LatestBuild.Resources[0].Agents[0].StartupLogsOverflowed)
 	})
 }
 
