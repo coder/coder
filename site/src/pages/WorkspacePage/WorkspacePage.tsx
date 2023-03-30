@@ -3,7 +3,7 @@ import { useMachine } from "@xstate/react"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Loader } from "components/Loader/Loader"
-import { FC, useEffect } from "react"
+import { FC } from "react"
 import { useParams } from "react-router-dom"
 import { quotaMachine } from "xServices/quotas/quotasXService"
 import { workspaceMachine } from "xServices/workspace/workspaceXService"
@@ -27,13 +27,9 @@ export const WorkspacePage: FC = () => {
     getTemplateParametersWarning,
     checkPermissionsError,
   } = workspaceState.context
-  const [quotaState, quotaSend] = useMachine(quotaMachine)
+  const [quotaState] = useMachine(quotaMachine, { context: { username } })
   const { getQuotaError } = quotaState.context
   const styles = useStyles()
-
-  useEffect(() => {
-    username && quotaSend({ type: "GET_QUOTA", username })
-  }, [username, quotaSend])
 
   return (
     <ChooseOne>
