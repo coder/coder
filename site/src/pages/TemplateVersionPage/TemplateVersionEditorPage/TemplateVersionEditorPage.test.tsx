@@ -133,7 +133,7 @@ test("Do not mark as active if promote is not checked", async () => {
   expect(updateActiveTemplateVersion).toBeCalledTimes(0)
 })
 
-test("The default version name is used when a new one is not used", async () => {
+test("Patch request is not send when the name is not updated", async () => {
   const user = userEvent.setup()
   renderWithAuth(<TemplateVersionEditorPage />, {
     extraRoutes: [
@@ -172,12 +172,12 @@ test("The default version name is used when a new one is not used", async () => 
   })
   await user.click(publishButton)
   const publishDialog = await screen.findByTestId("dialog")
+  // It is using the name from the template version
+  const nameField = within(publishDialog).getByLabelText("Version name")
+  expect(nameField).toHaveValue(MockTemplateVersion.name)
+  // Publish
   await user.click(
     within(publishDialog).getByRole("button", { name: "Publish" }),
   )
-  await waitFor(() => {
-    expect(patchTemplateVersion).toBeCalledWith("new-version-id", {
-      name: MockTemplateVersion.name,
-    })
-  })
+  expect(patchTemplateVersion).toBeCalledTimes(0)
 })

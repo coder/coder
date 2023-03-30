@@ -726,6 +726,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					EmailDomain:         cfg.OIDC.EmailDomain,
 					AllowSignups:        cfg.OIDC.AllowSignups.Value(),
 					UsernameField:       cfg.OIDC.UsernameField.String(),
+					EmailField:          cfg.OIDC.EmailField.String(),
+					AuthURLParams:       cfg.OIDC.AuthURLParams.Value,
 					GroupField:          cfg.OIDC.GroupField.String(),
 					GroupMapping:        cfg.OIDC.GroupMapping.Value,
 					SignInText:          cfg.OIDC.SignInText.String(),

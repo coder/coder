@@ -5,11 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -73,7 +71,8 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 	if err == nil {
 		ticket, err := p.ParseTicket(ticketCookie.Value)
 		if err == nil {
-			if ticket.MatchesRequest(appReq) {
+			err := ticket.Request.Validate()
+			if err == nil && ticket.MatchesRequest(appReq) {
 				// The request has a ticket, which is a valid ticket signed by
 				// us, and matches the app that the user was trying to access.
 				return &ticket, true
@@ -85,11 +84,7 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 	// session token, validate auth and access to the app, then generate a new
 	// ticket.
 	ticket := Ticket{
-		AccessMethod:      appReq.AccessMethod,
-		UsernameOrID:      appReq.UsernameOrID,
-		WorkspaceNameOrID: appReq.WorkspaceNameOrID,
-		AgentNameOrID:     appReq.AgentNameOrID,
-		AppSlugOrPort:     appReq.AppSlugOrPort,
+		Request: appReq,
 	}
 
 	// We use the regular API apiKey extraction middleware fn here to avoid any
@@ -109,167 +104,25 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 		return nil, false
 	}
 
-	// Get user.
-	var (
-		user    database.User
-		userErr error
-	)
-	if userID, uuidErr := uuid.Parse(appReq.UsernameOrID); uuidErr == nil {
-		user, userErr = p.Database.GetUserByID(dangerousSystemCtx, userID)
-	} else {
-		user, userErr = p.Database.GetUserByEmailOrUsername(dangerousSystemCtx, database.GetUserByEmailOrUsernameParams{
-			Username: appReq.UsernameOrID,
-		})
-	}
-	if xerrors.Is(userErr, sql.ErrNoRows) {
-		p.writeWorkspaceApp404(rw, r, &appReq, fmt.Sprintf("user %q not found", appReq.UsernameOrID))
+	// Lookup workspace app details from DB.
+	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		p.writeWorkspaceApp404(rw, r, &appReq, err.Error())
 		return nil, false
-	} else if userErr != nil {
-		p.writeWorkspaceApp500(rw, r, &appReq, userErr, "get user")
+	} else if err != nil {
+		p.writeWorkspaceApp500(rw, r, &appReq, err, "get app details from database")
 		return nil, false
 	}
-	ticket.UserID = user.ID
+	ticket.UserID = dbReq.User.ID
+	ticket.WorkspaceID = dbReq.Workspace.ID
+	ticket.AgentID = dbReq.Agent.ID
+	ticket.AppURL = dbReq.AppURL
 
-	// Get workspace.
-	var (
-		workspace    database.Workspace
-		workspaceErr error
-	)
-	if workspaceID, uuidErr := uuid.Parse(appReq.WorkspaceNameOrID); uuidErr == nil {
-		workspace, workspaceErr = p.Database.GetWorkspaceByID(dangerousSystemCtx, workspaceID)
-	} else {
-		workspace, workspaceErr = p.Database.GetWorkspaceByOwnerIDAndName(dangerousSystemCtx, database.GetWorkspaceByOwnerIDAndNameParams{
-			OwnerID: user.ID,
-			Name:    appReq.WorkspaceNameOrID,
-			Deleted: false,
-		})
-	}
-	if xerrors.Is(workspaceErr, sql.ErrNoRows) {
-		p.writeWorkspaceApp404(rw, r, &appReq, fmt.Sprintf("workspace %q not found", appReq.WorkspaceNameOrID))
-		return nil, false
-	} else if workspaceErr != nil {
-		p.writeWorkspaceApp500(rw, r, &appReq, workspaceErr, "get workspace")
-		return nil, false
-	}
-	ticket.WorkspaceID = workspace.ID
-
-	// Get agent.
-	var (
-		agent      database.WorkspaceAgent
-		agentErr   error
-		trustAgent = false
-	)
-	if agentID, uuidErr := uuid.Parse(appReq.AgentNameOrID); uuidErr == nil {
-		agent, agentErr = p.Database.GetWorkspaceAgentByID(dangerousSystemCtx, agentID)
-	} else {
-		build, err := p.Database.GetLatestWorkspaceBuildByWorkspaceID(dangerousSystemCtx, workspace.ID)
-		if err != nil {
-			p.writeWorkspaceApp500(rw, r, &appReq, err, "get latest workspace build")
-			return nil, false
-		}
-
-		// nolint:gocritic // We need to fetch the agent to authenticate the request. This is a system function.
-		resources, err := p.Database.GetWorkspaceResourcesByJobID(dangerousSystemCtx, build.JobID)
-		if err != nil {
-			p.writeWorkspaceApp500(rw, r, &appReq, err, "get workspace resources")
-			return nil, false
-		}
-		resourcesIDs := []uuid.UUID{}
-		for _, resource := range resources {
-			resourcesIDs = append(resourcesIDs, resource.ID)
-		}
-
-		// nolint:gocritic // We need to fetch the agent to authenticate the request. This is a system function.
-		agents, err := p.Database.GetWorkspaceAgentsByResourceIDs(dangerousSystemCtx, resourcesIDs)
-		if err != nil {
-			p.writeWorkspaceApp500(rw, r, &appReq, err, "get workspace agents")
-			return nil, false
-		}
-
-		if appReq.AgentNameOrID == "" {
-			if len(agents) != 1 {
-				p.writeWorkspaceApp404(rw, r, &appReq, "no agent specified, but multiple exist in workspace")
-				return nil, false
-			}
-
-			agent = agents[0]
-			trustAgent = true
-		} else {
-			for _, a := range agents {
-				if a.Name == appReq.AgentNameOrID {
-					agent = a
-					trustAgent = true
-					break
-				}
-			}
-		}
-
-		if agent.ID == uuid.Nil {
-			agentErr = sql.ErrNoRows
-		}
-	}
-	if xerrors.Is(agentErr, sql.ErrNoRows) {
-		p.writeWorkspaceApp404(rw, r, &appReq, fmt.Sprintf("agent %q not found", appReq.AgentNameOrID))
-		return nil, false
-	} else if agentErr != nil {
-		p.writeWorkspaceApp500(rw, r, &appReq, agentErr, "get agent")
-		return nil, false
-	}
-
-	// Verify the agent belongs to the workspace.
-	if !trustAgent {
-		//nolint:gocritic // We need to fetch the agent to authenticate the request. This is a system function.
-		agentResource, err := p.Database.GetWorkspaceResourceByID(dangerousSystemCtx, agent.ResourceID)
-		if err != nil {
-			p.writeWorkspaceApp500(rw, r, &appReq, err, "get agent resource")
-			return nil, false
-		}
-		build, err := p.Database.GetWorkspaceBuildByJobID(dangerousSystemCtx, agentResource.JobID)
-		if err != nil {
-			p.writeWorkspaceApp500(rw, r, &appReq, err, "get agent workspace build")
-			return nil, false
-		}
-		if build.WorkspaceID != workspace.ID {
-			p.writeWorkspaceApp404(rw, r, &appReq, "agent does not belong to workspace")
-			return nil, false
-		}
-	}
-	ticket.AgentID = agent.ID
-
-	// Get app.
-	appSharingLevel := database.AppSharingLevelOwner
-	portUint, portUintErr := strconv.ParseUint(appReq.AppSlugOrPort, 10, 16)
-	if appReq.AccessMethod == AccessMethodSubdomain && portUintErr == nil {
-		// If the app slug is a port number, then route to the port as an
-		// "anonymous app". We only support HTTP for port-based URLs.
-		//
-		// This is only supported for subdomain-based applications.
-		ticket.AppURL = fmt.Sprintf("http://127.0.0.1:%d", portUint)
-	} else {
-		app, ok := p.lookupWorkspaceApp(rw, r, agent.ID, appReq.AppSlugOrPort)
-		if !ok {
-			return nil, false
-		}
-
-		if !app.Url.Valid {
-			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-				Status:       http.StatusBadRequest,
-				Title:        "Bad Request",
-				Description:  fmt.Sprintf("Application %q does not have a URL set.", app.Slug),
-				RetryEnabled: true,
-				DashboardURL: p.AccessURL.String(),
-			})
-			return nil, false
-		}
-
-		if app.SharingLevel != "" {
-			appSharingLevel = app.SharingLevel
-		}
-		ticket.AppURL = app.Url.String
-	}
+	// TODO(@deansheather): return an error if the agent is offline or the app
+	// is not running.
 
 	// Verify the user has access to the app.
-	authed, ok := p.fetchWorkspaceApplicationAuth(rw, r, authz, appReq.AccessMethod, workspace, appSharingLevel)
+	authed, ok := p.verifyAuthz(rw, r, authz, dbReq)
 	if !ok {
 		return nil, false
 	}
@@ -282,7 +135,12 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 
 		// Redirect to login as they don't have permission to access the app
 		// and they aren't signed in.
-		if appReq.AccessMethod == AccessMethodSubdomain {
+		switch appReq.AccessMethod {
+		case AccessMethodPath:
+			httpmw.RedirectToLogin(rw, r, httpmw.SignedOutErrorMessage)
+		case AccessMethodSubdomain:
+			// Redirect to the app auth redirect endpoint with a valid redirect
+			// URI.
 			redirectURI := *r.URL
 			redirectURI.Scheme = p.AccessURL.Scheme
 			redirectURI.Host = httpapi.RequestHost(r)
@@ -294,9 +152,23 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 			u.RawQuery = q.Encode()
 
 			http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
-		} else {
-			httpmw.RedirectToLogin(rw, r, httpmw.SignedOutErrorMessage)
+		case AccessMethodTerminal:
+			// Return an error.
+			httpapi.ResourceNotFound(rw)
 		}
+		return nil, false
+	}
+
+	// Check that the agent is online.
+	agentStatus := dbReq.Agent.Status(p.WorkspaceAgentInactiveTimeout)
+	if agentStatus.Status != database.WorkspaceAgentStatusConnected {
+		p.writeWorkspaceAppOffline(rw, r, &appReq, fmt.Sprintf("Agent state is %q, not %q", agentStatus.Status, database.WorkspaceAgentStatusConnected))
+		return nil, false
+	}
+
+	// Check that the app is healthy.
+	if dbReq.AppHealth != "" && dbReq.AppHealth != database.WorkspaceAppHealthDisabled && dbReq.AppHealth != database.WorkspaceAppHealthHealthy {
+		p.writeWorkspaceAppOffline(rw, r, &appReq, fmt.Sprintf("App health is %q, not %q", dbReq.AppHealth, database.WorkspaceAppHealthHealthy))
 		return nil, false
 	}
 
@@ -329,35 +201,8 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 	return &ticket, true
 }
 
-// lookupWorkspaceApp looks up the workspace application by slug in the given
-// agent and returns it. If the application is not found or there was a server
-// error while looking it up, an HTML error page is returned and false is
-// returned so the caller can return early.
-func (p *Provider) lookupWorkspaceApp(rw http.ResponseWriter, r *http.Request, agentID uuid.UUID, appSlug string) (database.WorkspaceApp, bool) {
-	// nolint:gocritic // We need to fetch the workspace app to authorize the request.
-	app, err := p.Database.GetWorkspaceAppByAgentIDAndSlug(dbauthz.AsSystemRestricted(r.Context()), database.GetWorkspaceAppByAgentIDAndSlugParams{
-		AgentID: agentID,
-		Slug:    appSlug,
-	})
-	if xerrors.Is(err, sql.ErrNoRows) {
-		p.writeWorkspaceApp404(rw, r, nil, "application not found in agent by slug")
-		return database.WorkspaceApp{}, false
-	}
-	if err != nil {
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusInternalServerError,
-			Title:        "Internal Server Error",
-			Description:  "Could not fetch workspace application: " + err.Error(),
-			RetryEnabled: true,
-			DashboardURL: p.AccessURL.String(),
-		})
-		return database.WorkspaceApp{}, false
-	}
-
-	return app, true
-}
-
-func (p *Provider) authorizeWorkspaceApp(ctx context.Context, roles *httpmw.Authorization, accessMethod AccessMethod, sharingLevel database.AppSharingLevel, workspace database.Workspace) (bool, error) {
+func (p *Provider) authorizeRequest(ctx context.Context, roles *httpmw.Authorization, dbReq *databaseRequest) (bool, error) {
+	accessMethod := dbReq.AccessMethod
 	if accessMethod == "" {
 		accessMethod = AccessMethodPath
 	}
@@ -369,6 +214,7 @@ func (p *Provider) authorizeWorkspaceApp(ctx context.Context, roles *httpmw.Auth
 	//
 	// Site owners are blocked from accessing path-based apps unless the
 	// Dangerous.AllowPathAppSiteOwnerAccess flag is enabled in the check below.
+	sharingLevel := dbReq.AppSharingLevel
 	if isPathApp && !p.DeploymentValues.Dangerous.AllowPathAppSharing.Value() {
 		sharingLevel = database.AppSharingLevelOwner
 	}
@@ -389,9 +235,24 @@ func (p *Provider) authorizeWorkspaceApp(ctx context.Context, roles *httpmw.Auth
 	// workspaces owned by different users.
 	if isPathApp &&
 		sharingLevel == database.AppSharingLevelOwner &&
-		workspace.OwnerID.String() != roles.Actor.ID &&
+		dbReq.Workspace.OwnerID.String() != roles.Actor.ID &&
 		!p.DeploymentValues.Dangerous.AllowPathAppSiteOwnerAccess.Value() {
 		return false, nil
+	}
+
+	// Figure out which RBAC resource to check. For terminals we use execution
+	// instead of application connect.
+	var (
+		rbacAction   rbac.Action = rbac.ActionCreate
+		rbacResource rbac.Object = dbReq.Workspace.ApplicationConnectRBAC()
+		// rbacResourceOwned is for the level "authenticated". We still need to
+		// make sure the API key has permissions to connect to the actor's own
+		// workspace. Scopes would prevent this.
+		rbacResourceOwned rbac.Object = rbac.ResourceWorkspaceApplicationConnect.WithOwner(roles.Actor.ID)
+	)
+	if dbReq.AccessMethod == AccessMethodTerminal {
+		rbacResource = dbReq.Workspace.ExecutionRBAC()
+		rbacResourceOwned = rbac.ResourceWorkspaceExecution.WithOwner(roles.Actor.ID)
 	}
 
 	// Do a standard RBAC check. This accounts for share level "owner" and any
@@ -400,7 +261,7 @@ func (p *Provider) authorizeWorkspaceApp(ctx context.Context, roles *httpmw.Auth
 	// Regardless of share level or whether it's enabled or not, the owner of
 	// the workspace can always access applications (as long as their API key's
 	// scope allows it).
-	err := p.Authorizer.Authorize(ctx, roles.Actor, rbac.ActionCreate, workspace.ApplicationConnectRBAC())
+	err := p.Authorizer.Authorize(ctx, roles.Actor, rbacAction, rbacResource)
 	if err == nil {
 		return true, nil
 	}
@@ -411,19 +272,16 @@ func (p *Provider) authorizeWorkspaceApp(ctx context.Context, roles *httpmw.Auth
 		// Owners can always access their own apps according to RBAC rules, so
 		// they have already been returned from this function.
 	case database.AppSharingLevelAuthenticated:
-		// The user is authenticated at this point, but we need to make sure
-		// that they have ApplicationConnect permissions to their own
-		// workspaces. This ensures that the key's scope has permission to
-		// connect to workspace apps.
-		object := rbac.ResourceWorkspaceApplicationConnect.WithOwner(roles.Actor.ID)
-		err := p.Authorizer.Authorize(ctx, roles.Actor, rbac.ActionCreate, object)
+		// Check with the owned resource to ensure the API key has permissions
+		// to connect to the actor's own workspace. This enforces scopes.
+		err := p.Authorizer.Authorize(ctx, roles.Actor, rbacAction, rbacResourceOwned)
 		if err == nil {
 			return true, nil
 		}
 	case database.AppSharingLevelPublic:
 		// We don't really care about scopes and stuff if it's public anyways.
-		// Someone with a restricted-scope API key could just not submit the
-		// API key cookie in the request and access the page.
+		// Someone with a restricted-scope API key could just not submit the API
+		// key cookie in the request and access the page.
 		return true, nil
 	}
 
@@ -431,12 +289,12 @@ func (p *Provider) authorizeWorkspaceApp(ctx context.Context, roles *httpmw.Auth
 	return false, nil
 }
 
-// fetchWorkspaceApplicationAuth authorizes the user using api.Authorizer for a
+// verifyAuthz authorizes the user using api.Authorizer for a
 // given app share level in the given workspace. The user's authorization status
 // is returned. If a server error occurs, a HTML error page is rendered and
 // false is returned so the caller can return early.
-func (p *Provider) fetchWorkspaceApplicationAuth(rw http.ResponseWriter, r *http.Request, authz *httpmw.Authorization, accessMethod AccessMethod, workspace database.Workspace, appSharingLevel database.AppSharingLevel) (authed bool, ok bool) {
-	ok, err := p.authorizeWorkspaceApp(r.Context(), authz, accessMethod, appSharingLevel, workspace)
+func (p *Provider) verifyAuthz(rw http.ResponseWriter, r *http.Request, authz *httpmw.Authorization, dbReq *databaseRequest) (authed bool, ok bool) {
+	ok, err := p.authorizeRequest(r.Context(), authz, dbReq)
 	if err != nil {
 		p.Logger.Error(r.Context(), "authorize workspace app", slog.Error(err))
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
@@ -500,6 +358,30 @@ func (p *Provider) writeWorkspaceApp500(rw http.ResponseWriter, r *http.Request,
 		Title:        "Internal Server Error",
 		Description:  "An internal server error occurred.",
 		RetryEnabled: false,
+		DashboardURL: p.AccessURL.String(),
+	})
+}
+
+// writeWorkspaceAppOffline writes a HTML 502 error page for a workspace app. If
+// appReq is not nil, it will be used to log the request details at debug level.
+func (p *Provider) writeWorkspaceAppOffline(rw http.ResponseWriter, r *http.Request, appReq *Request, msg string) {
+	if appReq != nil {
+		slog.Helper()
+		p.Logger.Debug(r.Context(),
+			"workspace app unavailable: "+msg,
+			slog.F("username_or_id", appReq.UsernameOrID),
+			slog.F("workspace_and_agent", appReq.WorkspaceAndAgent),
+			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),
+			slog.F("agent_name_or_id", appReq.AgentNameOrID),
+			slog.F("app_slug_or_port", appReq.AppSlugOrPort),
+		)
+	}
+
+	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+		Status:       http.StatusBadGateway,
+		Title:        "Application Unavailable",
+		Description:  msg,
+		RetryEnabled: true,
 		DashboardURL: p.AccessURL.String(),
 	})
 }

@@ -673,13 +673,14 @@ func TestAgent_UnixRemoteForwarding(t *testing.T) {
 	err = cmd.Start()
 	require.NoError(t, err)
 
+	// It's possible that the socket is created but the server is not ready to
+	// accept connections yet. We need to retry until we can connect.
+	var conn net.Conn
 	require.Eventually(t, func() bool {
-		_, err := os.Stat(remoteSocketPath)
+		var err error
+		conn, err = net.Dial("unix", remoteSocketPath)
 		return err == nil
-	}, testutil.WaitLong, testutil.IntervalFast)
-
-	conn, err := net.Dial("unix", remoteSocketPath)
-	require.NoError(t, err)
+	}, testutil.WaitShort, testutil.IntervalFast)
 	defer conn.Close()
 	_, err = conn.Write([]byte("test"))
 	require.NoError(t, err)

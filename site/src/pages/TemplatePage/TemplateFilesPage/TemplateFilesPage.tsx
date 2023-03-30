@@ -6,10 +6,13 @@ import { TemplateFiles } from "components/TemplateFiles/TemplateFiles"
 import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { useTab } from "hooks/useTab"
-import { FC } from "react"
+import { FC, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "util/page"
-import { getTemplateVersionFiles } from "util/templateVersion"
+import {
+  getTemplateVersionFiles,
+  TemplateVersionFiles,
+} from "util/templateVersion"
 
 const fetchTemplateFiles = async (
   organizationId: string,
@@ -44,15 +47,35 @@ const useTemplateFiles = (
       fetchTemplateFiles(organizationId, templateName, activeVersion),
   })
 
+const useFileTab = (templateFiles: TemplateVersionFiles | undefined) => {
+  // Tabs The default tab is the tab that has main.tf but until we loads the
+  // files and check if main.tf exists we don't know which tab is the default
+  // one so we just use empty string
+  const tab = useTab("file", "")
+  const isLoaded = tab.value !== ""
+  useEffect(() => {
+    if (templateFiles && !isLoaded) {
+      const terraformFileIndex = Object.keys(templateFiles).indexOf("main.tf")
+      // If main.tf exists use the index if not just use the first tab
+      tab.set(terraformFileIndex !== -1 ? terraformFileIndex.toString() : "0")
+    }
+  }, [isLoaded, tab, templateFiles])
+
+  return {
+    ...tab,
+    isLoaded,
+  }
+}
+
 const TemplateFilesPage: FC = () => {
   const { template, activeVersion } = useTemplateLayoutContext()
   const orgId = useOrganizationId()
-  const tab = useTab("file", "0")
   const { data: templateFiles } = useTemplateFiles(
     orgId,
     template.name,
     activeVersion,
   )
+  const tab = useFileTab(templateFiles?.currentFiles)
 
   return (
     <>
@@ -60,7 +83,7 @@ const TemplateFilesPage: FC = () => {
         <title>{pageTitle(`${template?.name} · Source Code`)}</title>
       </Helmet>
 
-      {templateFiles ? (
+      {templateFiles && tab.isLoaded ? (
         <TemplateFiles
           currentFiles={templateFiles.currentFiles}
           previousFiles={templateFiles.previousFiles}

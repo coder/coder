@@ -335,7 +335,7 @@ export const getTemplateVersionGitAuth = async (
 
 export const getTemplateVersionParameters = async (
   versionId: string,
-): Promise<TypesGen.Parameter[]> => {
+): Promise<TypesGen.ComputedParameter[]> => {
   const response = await axios.get(
     `/api/v2/templateversions/${versionId}/parameters`,
   )

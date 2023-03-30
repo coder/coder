@@ -79,6 +79,7 @@ describe("CreateWorkspacePage", () => {
   })
 
   it("succeeds with default owner", async () => {
+    jest.spyOn(API, "getTemplateVersionSchema").mockResolvedValueOnce([])
     jest
       .spyOn(API, "getUsers")
       .mockResolvedValueOnce({ users: [MockUser], count: 1 })
