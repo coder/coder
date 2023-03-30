@@ -55,11 +55,7 @@ export const WorkspacesRow: FC<{
         />
       </TableCell>
 
-      <TableCell>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <span>{displayTemplateName}</span>
-        </Stack>
-      </TableCell>
+      <TableCell>{displayTemplateName}</TableCell>
 
       <TableCell>
         <LastUsed lastUsedAt={workspace.last_used_at} />
