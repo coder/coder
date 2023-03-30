@@ -477,6 +477,12 @@ type OIDCConfig struct {
 	// UsernameField selects the claim field to be used as the created user's
 	// username.
 	UsernameField string
+	// EmailField selects the claim field to be used as the created user's
+	// email.
+	EmailField string
+	// AuthURLParams are additional parameters to be passed to the OIDC provider
+	// when requesting an access token.
+	AuthURLParams map[string]string
 	// GroupField selects the claim field to be used as the created user's
 	// groups. If the group field is the empty string, then no group updates
 	// will ever come from the OIDC provider.
@@ -593,7 +599,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		username, _ = usernameRaw.(string)
 	}
 
-	emailRaw, ok := claims["email"]
+	emailRaw, ok := claims[api.OIDCConfig.EmailField]
 	if !ok {
 		// Email is an optional claim in OIDC and
 		// instead the email is frequently sent in

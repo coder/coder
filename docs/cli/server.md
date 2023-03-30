@@ -310,6 +310,16 @@ Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 
 Whether new users can sign up with OIDC.
 
+### --oidc-auth-url-params
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>struct[map[string]string]</code>   |
+| Environment | <code>$CODER_OIDC_AUTH_URL_PARAMS</code> |
+| Default     | <code>{"access_type": "offline"}</code>  |
+
+OIDC auth URL parameters to pass to the upstream provider.
+
 ### --oidc-client-id
 
 |             |                                    |
@@ -336,6 +346,16 @@ Client secret to use for Login with OIDC.
 | Environment | <code>$CODER_OIDC_EMAIL_DOMAIN</code> |
 
 Email domains that clients logging in with OIDC must match.
+
+### --oidc-email-field
+
+|             |                                      |
+| ----------- | ------------------------------------ |
+| Type        | <code>string</code>                  |
+| Environment | <code>$CODER_OIDC_EMAIL_FIELD</code> |
+| Default     | <code>email</code>                   |
+
+OIDC claim field to use as the email.
 
 ### --oidc-group-field
 

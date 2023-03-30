@@ -967,6 +967,8 @@ func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims, opts
 		}),
 		Provider:      provider,
 		UsernameField: "preferred_username",
+		EmailField:    "email",
+		AuthURLParams: map[string]string{"access_type": "offline"},
 		GroupField:    "groups",
 	}
 	for _, opt := range opts {
