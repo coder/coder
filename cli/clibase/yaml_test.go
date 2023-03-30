@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/cli/clibase"
 )
 
-func TestOptionSet_ToYAML(t *testing.T) {
+func TestOptionSet_YAML(t *testing.T) {
 	t.Parallel()
 
 	t.Run("RequireKey", func(t *testing.T) {
@@ -72,12 +72,24 @@ func TestOptionSet_YAMLIsomorphism(t *testing.T) {
 					Name:        "Workspace Name",
 					Default:     "billie",
 					Description: "The workspace's name.",
-					Group:       &clibase.Group{YAMLName: "names"},
+					Group:       &clibase.Group{YAML: "names"},
 					YAML:        "workspaceName",
 				},
 			},
 			zeroValue: func() pflag.Value {
 				return clibase.StringOf(new(string))
+			},
+		},
+		{
+			name: "Array",
+			os: clibase.OptionSet{
+				{
+					YAML:    "names",
+					Default: "jill,jack,joan",
+				},
+			},
+			zeroValue: func() pflag.Value {
+				return clibase.StringArrayOf(&[]string{})
 			},
 		},
 	} {

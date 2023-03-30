@@ -16,7 +16,7 @@ import (
 type Group struct {
 	Parent      *Group  `json:"parent,omitempty"`
 	Name        string  `json:"name,omitempty"`
-	YAMLName    string  `json:"yaml_name,omitempty"`
+	YAML        string  `json:"yaml_name,omitempty"`
 	Children    []Group `json:"children,omitempty"`
 	Description string  `json:"description,omitempty"`
 }

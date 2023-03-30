@@ -74,21 +74,43 @@ func (s OptionSet) ToYAML() (*yaml.Node, error) {
 				)
 			}
 		} else {
-			valueNode = yaml.Node{
-				Kind:  yaml.ScalarNode,
-				Value: opt.Value.String(),
+			// The all-other types case.
+			//
+			// A bit of a hack, we marshal and then unmarshal to get
+			// the underlying node.
+			byt, err := yaml.Marshal(opt.Value)
+			if err != nil {
+				return nil, xerrors.Errorf(
+					"marshal %q: %w", opt.Name, err,
+				)
 			}
+
+			var docNode yaml.Node
+			err = yaml.Unmarshal(byt, &docNode)
+			if err != nil {
+				return nil, xerrors.Errorf(
+					"unmarshal %q: %w", opt.Name, err,
+				)
+			}
+			if len(docNode.Content) != 1 {
+				return nil, xerrors.Errorf(
+					"unmarshal %q: expected one node, got %d",
+					opt.Name, len(docNode.Content),
+				)
+			}
+
+			valueNode = *docNode.Content[0]
 		}
 		var group []string
 		for _, g := range opt.Group.Ancestry() {
-			if g.YAMLName == "" {
+			if g.YAML == "" {
 				return nil, xerrors.Errorf(
 					"group yaml name is empty for %q, groups: %+v",
 					opt.Name,
 					opt.Group,
 				)
 			}
-			group = append(group, g.YAMLName)
+			group = append(group, g.YAML)
 		}
 		var groupDesc string
 		if opt.Group != nil {
@@ -141,10 +163,10 @@ func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
 		// even if that group is nil.
 		if opt.Group != ofGroup {
 			if opt.Group != nil && opt.Group.Parent == ofGroup {
-				if opt.Group.YAMLName == "" {
+				if opt.Group.YAML == "" {
 					return xerrors.Errorf("group yaml name is empty for %q, groups: %+v", opt.Name, opt.Group)
 				}
-				subGroupsByName[opt.Group.YAMLName] = opt.Group
+				subGroupsByName[opt.Group.YAML] = opt.Group
 			}
 			continue
 		}
@@ -195,30 +217,41 @@ func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
 				// Group, recurse.
 				err := fromYAML(os, g, item)
 				if err != nil {
-					merr = errors.Join(merr, xerrors.Errorf("group %q: %w", g.YAMLName, err))
+					merr = errors.Join(merr, xerrors.Errorf("group %q: %w", g.YAML, err))
 				}
 				continue
 			}
 			merr = errors.Join(merr, xerrors.Errorf("unknown option or subgroup %q", name))
-		case yaml.ScalarNode:
+		case yaml.ScalarNode, yaml.SequenceNode:
 			opt, ok := optionsByName[name]
 			if !ok {
 				merr = errors.Join(merr, xerrors.Errorf("unknown option %q", name))
 				continue
 			}
 
-			unmarshaler, ok := opt.Value.(yaml.Unmarshaler)
-			if !ok {
+			unmarshaler, _ := opt.Value.(yaml.Unmarshaler)
+			switch {
+			case unmarshaler == nil && item.Kind == yaml.ScalarNode:
 				err := opt.Value.Set(item.Value)
 				if err != nil {
 					merr = errors.Join(merr, xerrors.Errorf("set %q: %w", opt.Name, err))
 				}
-				continue
+			case unmarshaler == nil && item.Kind == yaml.SequenceNode:
+				// Item is an option with a slice value.
+				err := item.Decode(opt.Value)
+				if err != nil {
+					merr = errors.Join(merr, xerrors.Errorf("decode %q: %w", opt.Name, err))
+				}
+			case unmarshaler != nil:
+				err := unmarshaler.UnmarshalYAML(item)
+				if err != nil {
+					merr = errors.Join(merr, xerrors.Errorf("unmarshal %q: %w", opt.Name, err))
+				}
+			default:
+				panic("unreachable?")
 			}
-			err := unmarshaler.UnmarshalYAML(item)
-			if err != nil {
-				merr = errors.Join(merr, xerrors.Errorf("unmarshal %q: %w", opt.Name, err))
-			}
+			continue
+
 		default:
 			return xerrors.Errorf("unexpected kind for value %v", item.Kind)
 		}
