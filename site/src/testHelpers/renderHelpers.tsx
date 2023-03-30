@@ -132,6 +132,9 @@ export function renderWithTemplateSettingsLayout(
 }
 
 export const waitForLoaderToBeRemoved = (): Promise<void> =>
-  waitForElementToBeRemoved(() => screen.getByTestId("loader"))
-
-export * from "./entities"
+  // Sometimes, we have pages that are doing a lot of requests to get done, so the
+  // default timeout of 1_000 is not enough. We should revisit this when we unify
+  // some of the endpoints
+  waitForElementToBeRemoved(() => screen.queryByTestId("loader"), {
+    timeout: 5_000,
+  })

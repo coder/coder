@@ -26,6 +26,7 @@ import (
 
 type WorkspaceAgentStatus string
 
+// This is also in database/modelmethods.go and should be kept in sync.
 const (
 	WorkspaceAgentConnecting   WorkspaceAgentStatus = "connecting"
 	WorkspaceAgentConnected    WorkspaceAgentStatus = "connected"

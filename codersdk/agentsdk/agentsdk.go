@@ -180,12 +180,15 @@ func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
 		return nil, codersdk.ReadBodyAsError(res)
 	}
 
+	ctx, cancelFunc := context.WithCancel(ctx)
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 
 	// Ping once every 30 seconds to ensure that the websocket is alive. If we
 	// don't get a response within 30s we kill the websocket and reconnect.
 	// See: https://github.com/coder/coder/pull/5824
+	closed := make(chan struct{})
 	go func() {
+		defer close(closed)
 		tick := 30 * time.Second
 		ticker := time.NewTicker(tick)
 		defer ticker.Stop()
@@ -218,7 +221,13 @@ func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
 		}
 	}()
 
-	return wsNetConn, nil
+	return &closeNetConn{
+		Conn: wsNetConn,
+		closeFunc: func() {
+			cancelFunc()
+			<-closed
+		},
+	}, nil
 }
 
 type PostAppHealthsRequest struct {
@@ -641,4 +650,14 @@ func StartupLogsNotifyChannel(agentID uuid.UUID) string {
 type StartupLogsNotifyMessage struct {
 	CreatedAfter int64 `json:"created_after"`
 	EndOfLogs    bool  `json:"end_of_logs"`
+}
+
+type closeNetConn struct {
+	net.Conn
+	closeFunc func()
+}
+
+func (c *closeNetConn) Close() error {
+	c.closeFunc()
+	return c.Conn.Close()
 }

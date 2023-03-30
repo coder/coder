@@ -341,7 +341,10 @@ export const templateVersionEditorMachine = createMachine(
           throw new Error("Template is not set")
         }
         await Promise.all([
-          API.patchTemplateVersion(version.id, { name }),
+          // Only do a patch if the name is different
+          name !== version.name
+            ? API.patchTemplateVersion(version.id, { name })
+            : Promise.resolve(),
           isActiveVersion
             ? API.updateActiveTemplateVersion(templateId, {
                 id: version.id,

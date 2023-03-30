@@ -65,15 +65,15 @@ func TestCreateGroup(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name: "hi",
 		})
 		require.NoError(t, err)
 		numLogs++
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs[numLogs-1].Action)
-		require.Equal(t, group.ID, auditor.AuditLogs[numLogs-1].ResourceID)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, group.ID, auditor.AuditLogs()[numLogs-1].ResourceID)
 	})
 
 	t.Run("Conflict", func(t *testing.T) {
@@ -278,16 +278,16 @@ func TestPatchGroup(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
 			Name: "bye",
 		})
 		require.NoError(t, err)
 		numLogs++
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs[numLogs-1].Action)
-		require.Equal(t, group.ID, auditor.AuditLogs[numLogs-1].ResourceID)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, group.ID, auditor.AuditLogs()[numLogs-1].ResourceID)
 	})
 	t.Run("NameConflict", func(t *testing.T) {
 		t.Parallel()
@@ -731,14 +731,14 @@ func TestDeleteGroup(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 		err = client.DeleteGroup(ctx, group.ID)
 		require.NoError(t, err)
 		numLogs++
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionDelete, auditor.AuditLogs[numLogs-1].Action)
-		require.Equal(t, group.ID, auditor.AuditLogs[numLogs-1].ResourceID)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionDelete, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, group.ID, auditor.AuditLogs()[numLogs-1].ResourceID)
 	})
 
 	t.Run("allUsers", func(t *testing.T) {

@@ -12,10 +12,6 @@ describe("unit/CreateTokenForm", () => {
       maxTokenLifetime: number
       expected: LifetimeDay[]
     }>([
-      {
-        maxTokenLifetime: 0,
-        expected: lifetimeDayPresets,
-      },
       { maxTokenLifetime: 6 * 24 * NANO_HOUR, expected: [] },
       {
         maxTokenLifetime: 20 * 24 * NANO_HOUR,

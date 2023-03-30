@@ -28,17 +28,21 @@ func Test_TicketMatchesRequest(t *testing.T) {
 			name: "OK",
 			req: workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
+				BasePath:          "/app",
 				UsernameOrID:      "foo",
 				WorkspaceNameOrID: "bar",
 				AgentNameOrID:     "baz",
 				AppSlugOrPort:     "qux",
 			},
 			ticket: workspaceapps.Ticket{
-				AccessMethod:      workspaceapps.AccessMethodPath,
-				UsernameOrID:      "foo",
-				WorkspaceNameOrID: "bar",
-				AgentNameOrID:     "baz",
-				AppSlugOrPort:     "qux",
+				Request: workspaceapps.Request{
+					AccessMethod:      workspaceapps.AccessMethodPath,
+					BasePath:          "/app",
+					UsernameOrID:      "foo",
+					WorkspaceNameOrID: "bar",
+					AgentNameOrID:     "baz",
+					AppSlugOrPort:     "qux",
+				},
 			},
 			want: true,
 		},
@@ -48,7 +52,22 @@ func Test_TicketMatchesRequest(t *testing.T) {
 				AccessMethod: workspaceapps.AccessMethodPath,
 			},
 			ticket: workspaceapps.Ticket{
-				AccessMethod: workspaceapps.AccessMethodSubdomain,
+				Request: workspaceapps.Request{
+					AccessMethod: workspaceapps.AccessMethodSubdomain,
+				},
+			},
+			want: false,
+		},
+		{
+			name: "DifferentBasePath",
+			req: workspaceapps.Request{
+				AccessMethod: workspaceapps.AccessMethodPath,
+			},
+			ticket: workspaceapps.Ticket{
+				Request: workspaceapps.Request{
+					AccessMethod: workspaceapps.AccessMethodPath,
+					BasePath:     "/app",
+				},
 			},
 			want: false,
 		},
@@ -56,11 +75,15 @@ func Test_TicketMatchesRequest(t *testing.T) {
 			name: "DifferentUsernameOrID",
 			req: workspaceapps.Request{
 				AccessMethod: workspaceapps.AccessMethodPath,
+				BasePath:     "/app",
 				UsernameOrID: "foo",
 			},
 			ticket: workspaceapps.Ticket{
-				AccessMethod: workspaceapps.AccessMethodPath,
-				UsernameOrID: "bar",
+				Request: workspaceapps.Request{
+					AccessMethod: workspaceapps.AccessMethodPath,
+					BasePath:     "/app",
+					UsernameOrID: "bar",
+				},
 			},
 			want: false,
 		},
@@ -68,13 +91,17 @@ func Test_TicketMatchesRequest(t *testing.T) {
 			name: "DifferentWorkspaceNameOrID",
 			req: workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
+				BasePath:          "/app",
 				UsernameOrID:      "foo",
 				WorkspaceNameOrID: "bar",
 			},
 			ticket: workspaceapps.Ticket{
-				AccessMethod:      workspaceapps.AccessMethodPath,
-				UsernameOrID:      "foo",
-				WorkspaceNameOrID: "baz",
+				Request: workspaceapps.Request{
+					AccessMethod:      workspaceapps.AccessMethodPath,
+					BasePath:          "/app",
+					UsernameOrID:      "foo",
+					WorkspaceNameOrID: "baz",
+				},
 			},
 			want: false,
 		},
@@ -82,15 +109,19 @@ func Test_TicketMatchesRequest(t *testing.T) {
 			name: "DifferentAgentNameOrID",
 			req: workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
+				BasePath:          "/app",
 				UsernameOrID:      "foo",
 				WorkspaceNameOrID: "bar",
 				AgentNameOrID:     "baz",
 			},
 			ticket: workspaceapps.Ticket{
-				AccessMethod:      workspaceapps.AccessMethodPath,
-				UsernameOrID:      "foo",
-				WorkspaceNameOrID: "bar",
-				AgentNameOrID:     "qux",
+				Request: workspaceapps.Request{
+					AccessMethod:      workspaceapps.AccessMethodPath,
+					BasePath:          "/app",
+					UsernameOrID:      "foo",
+					WorkspaceNameOrID: "bar",
+					AgentNameOrID:     "qux",
+				},
 			},
 			want: false,
 		},
@@ -98,17 +129,21 @@ func Test_TicketMatchesRequest(t *testing.T) {
 			name: "DifferentAppSlugOrPort",
 			req: workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
+				BasePath:          "/app",
 				UsernameOrID:      "foo",
 				WorkspaceNameOrID: "bar",
 				AgentNameOrID:     "baz",
 				AppSlugOrPort:     "qux",
 			},
 			ticket: workspaceapps.Ticket{
-				AccessMethod:      workspaceapps.AccessMethodPath,
-				UsernameOrID:      "foo",
-				WorkspaceNameOrID: "bar",
-				AgentNameOrID:     "baz",
-				AppSlugOrPort:     "quux",
+				Request: workspaceapps.Request{
+					AccessMethod:      workspaceapps.AccessMethodPath,
+					BasePath:          "/app",
+					UsernameOrID:      "foo",
+					WorkspaceNameOrID: "bar",
+					AgentNameOrID:     "baz",
+					AppSlugOrPort:     "quux",
+				},
 			},
 			want: false,
 		},
@@ -128,17 +163,20 @@ func Test_TicketMatchesRequest(t *testing.T) {
 func Test_GenerateTicket(t *testing.T) {
 	t.Parallel()
 
-	provider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, coderdtest.AppSigningKey)
+	provider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, time.Minute, coderdtest.AppSigningKey)
 
 	t.Run("SetExpiry", func(t *testing.T) {
 		t.Parallel()
 
 		ticketStr, err := provider.GenerateTicket(workspaceapps.Ticket{
-			AccessMethod:      workspaceapps.AccessMethodPath,
-			UsernameOrID:      "foo",
-			WorkspaceNameOrID: "bar",
-			AgentNameOrID:     "baz",
-			AppSlugOrPort:     "qux",
+			Request: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
+				BasePath:          "/app",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     "baz",
+				AppSlugOrPort:     "qux",
+			},
 
 			Expiry:      0,
 			UserID:      uuid.MustParse("b1530ba9-76f3-415e-b597-4ddd7cd466a4"),
@@ -163,11 +201,14 @@ func Test_GenerateTicket(t *testing.T) {
 		{
 			name: "OK1",
 			ticket: workspaceapps.Ticket{
-				AccessMethod:      workspaceapps.AccessMethodPath,
-				UsernameOrID:      "foo",
-				WorkspaceNameOrID: "bar",
-				AgentNameOrID:     "baz",
-				AppSlugOrPort:     "qux",
+				Request: workspaceapps.Request{
+					AccessMethod:      workspaceapps.AccessMethodPath,
+					BasePath:          "/app",
+					UsernameOrID:      "foo",
+					WorkspaceNameOrID: "bar",
+					AgentNameOrID:     "baz",
+					AppSlugOrPort:     "qux",
+				},
 
 				Expiry:      future,
 				UserID:      uuid.MustParse("b1530ba9-76f3-415e-b597-4ddd7cd466a4"),
@@ -179,11 +220,14 @@ func Test_GenerateTicket(t *testing.T) {
 		{
 			name: "OK2",
 			ticket: workspaceapps.Ticket{
-				AccessMethod:      workspaceapps.AccessMethodSubdomain,
-				UsernameOrID:      "oof",
-				WorkspaceNameOrID: "rab",
-				AgentNameOrID:     "zab",
-				AppSlugOrPort:     "xuq",
+				Request: workspaceapps.Request{
+					AccessMethod:      workspaceapps.AccessMethodSubdomain,
+					BasePath:          "/",
+					UsernameOrID:      "oof",
+					WorkspaceNameOrID: "rab",
+					AgentNameOrID:     "zab",
+					AppSlugOrPort:     "xuq",
+				},
 
 				Expiry:      future,
 				UserID:      uuid.MustParse("6fa684a3-11aa-49fd-8512-ab527bd9b900"),
@@ -195,11 +239,14 @@ func Test_GenerateTicket(t *testing.T) {
 		{
 			name: "Expired",
 			ticket: workspaceapps.Ticket{
-				AccessMethod:      workspaceapps.AccessMethodSubdomain,
-				UsernameOrID:      "foo",
-				WorkspaceNameOrID: "bar",
-				AgentNameOrID:     "baz",
-				AppSlugOrPort:     "qux",
+				Request: workspaceapps.Request{
+					AccessMethod:      workspaceapps.AccessMethodSubdomain,
+					BasePath:          "/",
+					UsernameOrID:      "foo",
+					WorkspaceNameOrID: "bar",
+					AgentNameOrID:     "baz",
+					AppSlugOrPort:     "qux",
+				},
 
 				Expiry:      time.Now().Add(-time.Hour).Unix(),
 				UserID:      uuid.MustParse("b1530ba9-76f3-415e-b597-4ddd7cd466a4"),
@@ -239,7 +286,7 @@ func Test_GenerateTicket(t *testing.T) {
 func Test_ParseTicket(t *testing.T) {
 	t.Parallel()
 
-	provider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, coderdtest.AppSigningKey)
+	provider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, time.Minute, coderdtest.AppSigningKey)
 
 	t.Run("InvalidJWS", func(t *testing.T) {
 		t.Parallel()
@@ -259,14 +306,17 @@ func Test_ParseTicket(t *testing.T) {
 		require.NotEqual(t, coderdtest.AppSigningKey, otherKey)
 		require.Len(t, otherKey, 64)
 
-		otherProvider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, otherKey)
+		otherProvider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, time.Minute, otherKey)
 
 		ticketStr, err := otherProvider.GenerateTicket(workspaceapps.Ticket{
-			AccessMethod:      workspaceapps.AccessMethodPath,
-			UsernameOrID:      "foo",
-			WorkspaceNameOrID: "bar",
-			AgentNameOrID:     "baz",
-			AppSlugOrPort:     "qux",
+			Request: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
+				BasePath:          "/app",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     "baz",
+				AppSlugOrPort:     "qux",
+			},
 
 			Expiry:      time.Now().Add(time.Hour).Unix(),
 			UserID:      uuid.MustParse("b1530ba9-76f3-415e-b597-4ddd7cd466a4"),

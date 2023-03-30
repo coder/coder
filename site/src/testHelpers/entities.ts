@@ -1492,27 +1492,31 @@ export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
   value: "5",
 }
 
+export const MockParameterSchema: TypesGen.ParameterSchema = {
+  id: "000000",
+  job_id: "000000",
+  allow_override_destination: false,
+  allow_override_source: true,
+  created_at: "",
+  default_destination_scheme: "none",
+  default_refresh: "",
+  default_source_scheme: "data",
+  default_source_value: "default-value",
+  name: "parameter name",
+  description: "Some description!",
+  redisplay_value: false,
+  validation_condition: "",
+  validation_contains: [],
+  validation_error: "",
+  validation_type_system: "",
+  validation_value_type: "",
+}
+
 export const mockParameterSchema = (
   partial: Partial<TypesGen.ParameterSchema>,
 ): TypesGen.ParameterSchema => {
   return {
-    id: "000000",
-    job_id: "000000",
-    allow_override_destination: false,
-    allow_override_source: true,
-    created_at: "",
-    default_destination_scheme: "none",
-    default_refresh: "",
-    default_source_scheme: "data",
-    default_source_value: "default-value",
-    name: "parameter name",
-    description: "Some description!",
-    redisplay_value: false,
-    validation_condition: "",
-    validation_contains: [],
-    validation_error: "",
-    validation_type_system: "",
-    validation_value_type: "",
+    ...MockParameterSchema,
     ...partial,
   }
 }

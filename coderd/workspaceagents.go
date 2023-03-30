@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/tailnet"
@@ -83,6 +84,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 // @Tags Agents
 // @Success 200 {object} agentsdk.Manifest
 // @Router /workspaceagents/me/manifest [get]
+// @Router /workspaceagents/me/metadata [get]
 func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
@@ -561,28 +563,12 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
 
-	workspaceAgent := httpmw.WorkspaceAgentParam(r)
-	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
-		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
-	)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error reading workspace agent.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
-		})
+	ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, workspaceapps.Request{
+		AccessMethod:  workspaceapps.AccessMethodTerminal,
+		BasePath:      r.URL.Path,
+		AgentNameOrID: chi.URLParam(r, "workspaceagent"),
+	})
+	if !ok {
 		return
 	}
 
@@ -621,7 +607,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	go httpapi.Heartbeat(ctx, conn)
 
-	agentConn, release, err := api.workspaceAgentCache.Acquire(workspaceAgent.ID)
+	agentConn, release, err := api.workspaceAgentCache.Acquire(ticket.AgentID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
@@ -1237,45 +1223,11 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		}
 	}
 
-	if dbAgent.FirstConnectedAt.Valid {
-		workspaceAgent.FirstConnectedAt = &dbAgent.FirstConnectedAt.Time
-	}
-	if dbAgent.LastConnectedAt.Valid {
-		workspaceAgent.LastConnectedAt = &dbAgent.LastConnectedAt.Time
-	}
-	if dbAgent.DisconnectedAt.Valid {
-		workspaceAgent.DisconnectedAt = &dbAgent.DisconnectedAt.Time
-	}
-
-	connectionTimeout := time.Duration(dbAgent.ConnectionTimeoutSeconds) * time.Second
-	switch {
-	case !dbAgent.FirstConnectedAt.Valid:
-		switch {
-		case connectionTimeout > 0 && database.Now().Sub(dbAgent.CreatedAt) > connectionTimeout:
-			// If the agent took too long to connect the first time,
-			// mark it as timed out.
-			workspaceAgent.Status = codersdk.WorkspaceAgentTimeout
-		default:
-			// If the agent never connected, it's waiting for the compute
-			// to start up.
-			workspaceAgent.Status = codersdk.WorkspaceAgentConnecting
-		}
-	// We check before instead of after because last connected at and
-	// disconnected at can be equal timestamps in tight-timed tests.
-	case !dbAgent.DisconnectedAt.Time.Before(dbAgent.LastConnectedAt.Time):
-		// If we've disconnected after our last connection, we know the
-		// agent is no longer connected.
-		workspaceAgent.Status = codersdk.WorkspaceAgentDisconnected
-	case database.Now().Sub(dbAgent.LastConnectedAt.Time) > agentInactiveDisconnectTimeout:
-		// The connection died without updating the last connected.
-		workspaceAgent.Status = codersdk.WorkspaceAgentDisconnected
-		// Client code needs an accurate disconnected at if the agent has been inactive.
-		workspaceAgent.DisconnectedAt = &dbAgent.LastConnectedAt.Time
-	case dbAgent.LastConnectedAt.Valid:
-		// The agent should be assumed connected if it's under inactivity timeouts
-		// and last connected at has been properly set.
-		workspaceAgent.Status = codersdk.WorkspaceAgentConnected
-	}
+	status := dbAgent.Status(agentInactiveDisconnectTimeout)
+	workspaceAgent.Status = codersdk.WorkspaceAgentStatus(status.Status)
+	workspaceAgent.FirstConnectedAt = status.FirstConnectedAt
+	workspaceAgent.LastConnectedAt = status.LastConnectedAt
+	workspaceAgent.DisconnectedAt = status.DisconnectedAt
 
 	return workspaceAgent, nil
 }

@@ -1292,6 +1292,15 @@ func (q *querier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanc
 	return agent, nil
 }
 
+func (q *querier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	workspace, err := q.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+}
+
 func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
 	if err != nil {

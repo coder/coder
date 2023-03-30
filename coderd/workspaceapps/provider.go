@@ -2,6 +2,7 @@ package workspaceapps
 
 import (
 	"net/url"
+	"time"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"
@@ -16,26 +17,32 @@ import (
 type Provider struct {
 	Logger slog.Logger
 
-	AccessURL        *url.URL
-	Authorizer       rbac.Authorizer
-	Database         database.Store
-	DeploymentValues *codersdk.DeploymentValues
-	OAuth2Configs    *httpmw.OAuth2Configs
-	TicketSigningKey []byte
+	AccessURL                     *url.URL
+	Authorizer                    rbac.Authorizer
+	Database                      database.Store
+	DeploymentValues              *codersdk.DeploymentValues
+	OAuth2Configs                 *httpmw.OAuth2Configs
+	WorkspaceAgentInactiveTimeout time.Duration
+	TicketSigningKey              []byte
 }
 
-func New(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, ticketSigningKey []byte) *Provider {
+func New(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, workspaceAgentInactiveTimeout time.Duration, ticketSigningKey []byte) *Provider {
 	if len(ticketSigningKey) != 64 {
 		panic("ticket signing key must be 64 bytes")
 	}
 
+	if workspaceAgentInactiveTimeout == 0 {
+		workspaceAgentInactiveTimeout = 1 * time.Minute
+	}
+
 	return &Provider{
-		Logger:           log,
-		AccessURL:        accessURL,
-		Authorizer:       authz,
-		Database:         db,
-		DeploymentValues: cfg,
-		OAuth2Configs:    oauth2Cfgs,
-		TicketSigningKey: ticketSigningKey,
+		Logger:                        log,
+		AccessURL:                     accessURL,
+		Authorizer:                    authz,
+		Database:                      db,
+		DeploymentValues:              cfg,
+		OAuth2Configs:                 oauth2Cfgs,
+		WorkspaceAgentInactiveTimeout: workspaceAgentInactiveTimeout,
+		TicketSigningKey:              ticketSigningKey,
 	}
 }

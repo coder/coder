@@ -6620,6 +6620,17 @@ const docTemplate = `{
                 "dry_run": {
                     "type": "boolean"
                 },
+                "log_level": {
+                    "description": "Log level changes the default logging verbosity of a provider (\"info\" if empty).",
+                    "enum": [
+                        "debug"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerLogLevel"
+                        }
+                    ]
+                },
                 "orphan": {
                     "description": "Orphan may be set for the Destroy transition.",
                     "type": "boolean"
@@ -7395,6 +7406,9 @@ const docTemplate = `{
                 "allow_signups": {
                     "type": "boolean"
                 },
+                "auth_url_params": {
+                    "type": "object"
+                },
                 "client_id": {
                     "type": "string"
                 },
@@ -7406,6 +7420,9 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "email_field": {
+                    "type": "string"
                 },
                 "group_mapping": {
                     "type": "object"
@@ -7869,6 +7886,15 @@ const docTemplate = `{
                 "ProvisionerJobCanceling",
                 "ProvisionerJobCanceled",
                 "ProvisionerJobFailed"
+            ]
+        },
+        "codersdk.ProvisionerLogLevel": {
+            "type": "string",
+            "enum": [
+                "debug"
+            ],
+            "x-enum-varnames": [
+                "ProvisionerLogLevelDebug"
             ]
         },
         "codersdk.ProvisionerStorageMethod": {

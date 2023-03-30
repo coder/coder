@@ -248,6 +248,7 @@ export interface CreateWorkspaceBuildRequest {
   readonly orphan?: boolean
   readonly parameter_values?: CreateParameterRequest[]
   readonly rich_parameter_values?: WorkspaceBuildParameter[]
+  readonly log_level?: ProvisionerLogLevel
 }
 
 // From codersdk/organizations.go
@@ -516,6 +517,10 @@ export interface OIDCConfig {
   readonly scopes: string[]
   readonly ignore_email_verified: boolean
   readonly username_field: string
+  readonly email_field: string
+  // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly auth_url_params: any
   readonly groups_field: string
   // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
@@ -1370,6 +1375,10 @@ export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
   "running",
   "succeeded",
 ]
+
+// From codersdk/workspaces.go
+export type ProvisionerLogLevel = "debug"
+export const ProvisionerLogLevels: ProvisionerLogLevel[] = ["debug"]
 
 // From codersdk/organizations.go
 export type ProvisionerStorageMethod = "file"

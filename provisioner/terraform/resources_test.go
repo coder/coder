@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	protobuf "github.com/golang/protobuf/proto"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/terraform"
