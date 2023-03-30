@@ -575,7 +575,7 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	auditor := audit.NewMock()
-	numLogs := len(auditor.AuditLogs)
+	numLogs := len(auditor.AuditLogs())
 	client, closeDaemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 	user := coderdtest.CreateFirstUser(t, client)
 	numLogs++ // add an audit log for login
@@ -612,8 +612,8 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 
 	// assert an audit log has been created for workspace stopping
 	numLogs++ // add an audit log for workspace_build stop
-	require.Len(t, auditor.AuditLogs, numLogs)
-	require.Equal(t, database.AuditActionStop, auditor.AuditLogs[numLogs-1].Action)
+	require.Len(t, auditor.AuditLogs(), numLogs)
+	require.Equal(t, database.AuditActionStop, auditor.AuditLogs()[numLogs-1].Action)
 
 	_ = closeDaemon.Close()
 	// after successful cancel is "canceled"

@@ -25,7 +25,7 @@ func TestTokenCRUD(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	auditor := audit.NewMock()
-	numLogs := len(auditor.AuditLogs)
+	numLogs := len(auditor.AuditLogs())
 	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 	_ = coderdtest.CreateFirstUser(t, client)
 	numLogs++ // add an audit log for user creation
@@ -58,9 +58,9 @@ func TestTokenCRUD(t *testing.T) {
 	require.Empty(t, keys)
 
 	// ensure audit log count is correct
-	require.Len(t, auditor.AuditLogs, numLogs)
-	require.Equal(t, database.AuditActionCreate, auditor.AuditLogs[numLogs-2].Action)
-	require.Equal(t, database.AuditActionDelete, auditor.AuditLogs[numLogs-1].Action)
+	require.Len(t, auditor.AuditLogs(), numLogs)
+	require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-2].Action)
+	require.Equal(t, database.AuditActionDelete, auditor.AuditLogs()[numLogs-1].Action)
 }
 
 func TestTokenScoped(t *testing.T) {
