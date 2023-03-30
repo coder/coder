@@ -72,7 +72,7 @@ func TestOptionSet_YAMLIsomorphism(t *testing.T) {
 					Name:        "Workspace Name",
 					Default:     "billie",
 					Description: "The workspace's name.",
-					Group:       &clibase.Group{Name: "Names"},
+					Group:       &clibase.Group{YAMLName: "names"},
 					YAML:        "workspaceName",
 				},
 			},

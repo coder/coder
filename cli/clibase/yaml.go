@@ -3,7 +3,6 @@ package clibase
 import (
 	"errors"
 
-	"github.com/iancoleman/strcase"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
@@ -82,14 +81,14 @@ func (s OptionSet) ToYAML() (*yaml.Node, error) {
 		}
 		var group []string
 		for _, g := range opt.Group.Ancestry() {
-			if g.Name == "" {
+			if g.YAMLName == "" {
 				return nil, xerrors.Errorf(
-					"group name is empty for %q, groups: %+v",
+					"group yaml name is empty for %q, groups: %+v",
 					opt.Name,
 					opt.Group,
 				)
 			}
-			group = append(group, strcase.ToLowerCamel(g.Name))
+			group = append(group, g.YAMLName)
 		}
 		var groupDesc string
 		if opt.Group != nil {
@@ -141,8 +140,11 @@ func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
 		// We only want to process options that are of the identified group,
 		// even if that group is nil.
 		if opt.Group != ofGroup {
-			if opt.Group.Parent == ofGroup {
-				subGroupsByName[opt.Group.Name] = opt.Group
+			if opt.Group != nil && opt.Group.Parent == ofGroup {
+				if opt.Group.YAMLName == "" {
+					return xerrors.Errorf("group yaml name is empty for %q, groups: %+v", opt.Name, opt.Group)
+				}
+				subGroupsByName[opt.Group.YAMLName] = opt.Group
 			}
 			continue
 		}
@@ -193,7 +195,7 @@ func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
 				// Group, recurse.
 				err := fromYAML(os, g, item)
 				if err != nil {
-					merr = errors.Join(merr, xerrors.Errorf("group %q: %w", g.FullName(), err))
+					merr = errors.Join(merr, xerrors.Errorf("group %q: %w", g.YAMLName, err))
 				}
 				continue
 			}
@@ -208,7 +210,9 @@ func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
 			unmarshaler, ok := opt.Value.(yaml.Unmarshaler)
 			if !ok {
 				err := opt.Value.Set(item.Value)
-				merr = errors.Join(merr, xerrors.Errorf("set %q: %w", opt.Name, err))
+				if err != nil {
+					merr = errors.Join(merr, xerrors.Errorf("set %q: %w", opt.Name, err))
+				}
 				continue
 			}
 			err := unmarshaler.UnmarshalYAML(item)
