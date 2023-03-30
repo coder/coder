@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/google/uuid"
@@ -158,6 +159,10 @@ func TestTemplatePush(t *testing.T) {
 	// This test modifies the working directory.
 	//nolint:paralleltest
 	t.Run("UseWorkingDir", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip(`On Windows this test flakes with: "The process cannot access the file because it is being used by another process"`)
+		}
+
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
