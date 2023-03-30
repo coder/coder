@@ -1,6 +1,9 @@
+import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
+import RefreshOutlined from "@material-ui/icons/RefreshOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 import { AgentRow } from "components/Resources/AgentRow"
+import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import {
   ActiveTransition,
   WorkspaceBuildProgress,
@@ -55,6 +58,8 @@ export interface WorkspaceProps {
   applicationsHost?: string
   template?: TypesGen.Template
   quota_budget?: number
+  failedBuildLogs: TypesGen.ProvisionerJobLog[] | undefined
+  handleBuildRetry: () => void
 }
 
 /**
@@ -80,6 +85,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   applicationsHost,
   template,
   quota_budget,
+  failedBuildLogs,
+  handleBuildRetry,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
@@ -177,12 +184,36 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           handleUpdate={handleUpdate}
         />
 
-        {workspace.latest_build.job.error && (
-          <div>
-            <div>
-              The build failed. See the logs below for more information.
-            </div>
-          </div>
+        {failedBuildLogs && (
+          <Stack>
+            <AlertBanner severity="error">
+              <Stack
+                className={styles.fullWidth}
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+              >
+                <Stack spacing={0}>
+                  <span>Workspace build failed</span>
+                  <span className={styles.errorDetails}>
+                    {workspace.latest_build.job.error}
+                  </span>
+                </Stack>
+
+                <div>
+                  <Button
+                    onClick={handleBuildRetry}
+                    startIcon={<RefreshOutlined />}
+                    size="small"
+                    variant="outlined"
+                  >
+                    Try again in debug mode
+                  </Button>
+                </div>
+              </Stack>
+            </AlertBanner>
+            <WorkspaceBuildLogs logs={failedBuildLogs} />
+          </Stack>
         )}
 
         {transitionStats !== undefined && (
@@ -259,6 +290,15 @@ export const useStyles = makeStyles((theme) => {
     },
     logs: {
       border: `1px solid ${theme.palette.divider}`,
+    },
+
+    errorDetails: {
+      color: theme.palette.text.secondary,
+      fontSize: 12,
+    },
+
+    fullWidth: {
+      width: "100%",
     },
   }
 })

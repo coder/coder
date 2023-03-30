@@ -75,6 +75,8 @@ export interface WorkspaceContext {
   checkPermissionsError?: Error | unknown
   // applications
   applicationsHost?: string
+  // debug
+  debugMode?: boolean
 }
 
 export type WorkspaceEvent =
@@ -94,6 +96,7 @@ export type WorkspaceEvent =
   | { type: "EVENT_SOURCE_ERROR"; error: Error | unknown }
   | { type: "INCREASE_DEADLINE"; hours: number }
   | { type: "DECREASE_DEADLINE"; hours: number }
+  | { type: "RETRY_BUILD" }
 
 export const checks = {
   readWorkspace: "readWorkspace",
@@ -271,6 +274,23 @@ export const workspaceMachine = createMachine(
                   ASK_DELETE: "askingDelete",
                   UPDATE: "requestingUpdate",
                   CANCEL: "requestingCancel",
+                  RETRY_BUILD: [
+                    {
+                      target: "requestingStart",
+                      cond: "lastBuildWasStarting",
+                      actions: ["enableDebugMode"],
+                    },
+                    {
+                      target: "requestingStop",
+                      cond: "lastBuildWasStopping",
+                      actions: ["enableDebugMode"],
+                    },
+                    {
+                      target: "requestingDelete",
+                      cond: "lastBuildWasDeleting",
+                      actions: ["enableDebugMode"],
+                    },
+                  ],
                 },
               },
               askingDelete: {
@@ -317,7 +337,7 @@ export const workspaceMachine = createMachine(
                   id: "startWorkspace",
                   onDone: [
                     {
-                      actions: ["assignBuild"],
+                      actions: ["assignBuild", "disableDebugMode"],
                       target: "idle",
                     },
                   ],
@@ -336,7 +356,7 @@ export const workspaceMachine = createMachine(
                   id: "stopWorkspace",
                   onDone: [
                     {
-                      actions: ["assignBuild"],
+                      actions: ["assignBuild", "disableDebugMode"],
                       target: "idle",
                     },
                   ],
@@ -355,7 +375,7 @@ export const workspaceMachine = createMachine(
                   id: "deleteWorkspace",
                   onDone: [
                     {
-                      actions: ["assignBuild"],
+                      actions: ["assignBuild", "disableDebugMode"],
                       target: "idle",
                     },
                   ],
@@ -594,11 +614,23 @@ export const workspaceMachine = createMachine(
           return data.parameters
         },
       }),
+      // Debug mode when build fails
+      enableDebugMode: assign({ debugMode: (_) => true }),
+      disableDebugMode: assign({ debugMode: (_) => false }),
     },
     guards: {
       moreBuildsAvailable,
       isMissingBuildParameterError: (_, { data }) => {
         return data instanceof API.MissingBuildParameters
+      },
+      lastBuildWasStarting: ({ workspace }) => {
+        return workspace?.latest_build.transition === "start"
+      },
+      lastBuildWasStopping: ({ workspace }) => {
+        return workspace?.latest_build.transition === "stop"
+      },
+      lastBuildWasDeleting: ({ workspace }) => {
+        return workspace?.latest_build.transition === "delete"
       },
     },
     services: {
@@ -629,6 +661,7 @@ export const workspaceMachine = createMachine(
           const startWorkspacePromise = await API.startWorkspace(
             context.workspace.id,
             context.workspace.latest_build.template_version_id,
+            context.debugMode,
           )
           send({ type: "REFRESH_TIMELINE" })
           return startWorkspacePromise
@@ -640,6 +673,7 @@ export const workspaceMachine = createMachine(
         if (context.workspace) {
           const stopWorkspacePromise = await API.stopWorkspace(
             context.workspace.id,
+            context.debugMode,
           )
           send({ type: "REFRESH_TIMELINE" })
           return stopWorkspacePromise
@@ -651,6 +685,7 @@ export const workspaceMachine = createMachine(
         if (context.workspace) {
           const deleteWorkspacePromise = await API.deleteWorkspace(
             context.workspace.id,
+            context.debugMode,
           )
           send({ type: "REFRESH_TIMELINE" })
           return deleteWorkspacePromise

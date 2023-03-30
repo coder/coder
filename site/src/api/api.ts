@@ -489,15 +489,23 @@ export const postWorkspaceBuild = async (
 export const startWorkspace = (
   workspaceId: string,
   templateVersionID: string,
+  debug = false,
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "start",
     template_version_id: templateVersionID,
+    log_level: debug ? "debug" : undefined,
   })
-export const stopWorkspace = (workspaceId: string) =>
-  postWorkspaceBuild(workspaceId, { transition: "stop" })
-export const deleteWorkspace = (workspaceId: string) =>
-  postWorkspaceBuild(workspaceId, { transition: "delete" })
+export const stopWorkspace = (workspaceId: string, debug = false) =>
+  postWorkspaceBuild(workspaceId, {
+    transition: "stop",
+    log_level: debug ? "debug" : undefined,
+  })
+export const deleteWorkspace = (workspaceId: string, debug = false) =>
+  postWorkspaceBuild(workspaceId, {
+    transition: "delete",
+    log_level: debug ? "debug" : undefined,
+  })
 
 export const cancelWorkspaceBuild = async (
   workspaceBuildId: TypesGen.WorkspaceBuild["id"],
