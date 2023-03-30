@@ -84,7 +84,6 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 // @Tags Agents
 // @Success 200 {object} agentsdk.Manifest
 // @Router /workspaceagents/me/manifest [get]
-// @Router /workspaceagents/me/metadata [get]
 func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
