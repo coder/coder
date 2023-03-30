@@ -172,8 +172,8 @@ type Invocation struct {
 
 // WithOS returns the invocation as a main package, filling in the invocation's unset
 // fields with OS defaults.
-func (i *Invocation) WithOS() *Invocation {
-	return i.with(func(i *Invocation) {
+func (inv *Invocation) WithOS() *Invocation {
+	return inv.with(func(i *Invocation) {
 		i.Stdout = os.Stdout
 		i.Stderr = os.Stderr
 		i.Stdin = os.Stdin
@@ -182,18 +182,18 @@ func (i *Invocation) WithOS() *Invocation {
 	})
 }
 
-func (i *Invocation) Context() context.Context {
-	if i.ctx == nil {
+func (inv *Invocation) Context() context.Context {
+	if inv.ctx == nil {
 		return context.Background()
 	}
-	return i.ctx
+	return inv.ctx
 }
 
-func (i *Invocation) ParsedFlags() *pflag.FlagSet {
-	if i.parsedFlags == nil {
+func (inv *Invocation) ParsedFlags() *pflag.FlagSet {
+	if inv.parsedFlags == nil {
 		panic("flags not parsed, has Run() been called?")
 	}
-	return i.parsedFlags
+	return inv.parsedFlags
 }
 
 type runState struct {
@@ -403,33 +403,33 @@ func findArg(want string, args []string, fs *pflag.FlagSet) (int, error) {
 // If two command share a flag name, the first command wins.
 //
 //nolint:revive
-func (i *Invocation) Run() (err error) {
+func (inv *Invocation) Run() (err error) {
 	defer func() {
 		// Pflag is panicky, so additional context is helpful in tests.
 		if flag.Lookup("test.v") == nil {
 			return
 		}
 		if r := recover(); r != nil {
-			err = xerrors.Errorf("panic recovered for %s: %v", i.Command.FullName(), r)
+			err = xerrors.Errorf("panic recovered for %s: %v", inv.Command.FullName(), r)
 			panic(err)
 		}
 	}()
-	err = i.run(&runState{
-		allArgs: i.Args,
+	err = inv.run(&runState{
+		allArgs: inv.Args,
 	})
 	return err
 }
 
 // WithContext returns a copy of the Invocation with the given context.
-func (i *Invocation) WithContext(ctx context.Context) *Invocation {
-	return i.with(func(i *Invocation) {
+func (inv *Invocation) WithContext(ctx context.Context) *Invocation {
+	return inv.with(func(i *Invocation) {
 		i.ctx = ctx
 	})
 }
 
 // with returns a copy of the Invocation with the given function applied.
-func (i *Invocation) with(fn func(*Invocation)) *Invocation {
-	i2 := *i
+func (inv *Invocation) with(fn func(*Invocation)) *Invocation {
+	i2 := *inv
 	fn(&i2)
 	return &i2
 }
