@@ -190,6 +190,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return nil
 			}
 
+			if cfg.Config != "" {
+				cliui.Warnf(inv.Stderr, "YAML support is experimental and offers no compatibility guarantees.")
+			}
+
 			// Print deprecation warnings.
 			for _, opt := range opts {
 				if opt.UseInstead == nil {
