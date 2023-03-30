@@ -32,6 +32,7 @@ const CreateTemplatePage: FC = () => {
       },
     },
   })
+
   const {
     starterTemplate,
     parameters,

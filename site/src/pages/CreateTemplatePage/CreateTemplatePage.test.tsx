@@ -106,3 +106,32 @@ test("Create template with variables", async () => {
     ],
   })
 })
+
+test("Create template from another template", async () => {
+  const searchParams = new URLSearchParams({
+    fromTemplate: MockTemplate.name,
+  })
+  const { router } = await renderPage(searchParams)
+  // Name and display name are using copy prefixes
+  expect(screen.getByLabelText(/Name/)).toHaveValue(`${MockTemplate.name}-copy`)
+  expect(screen.getByLabelText(/Display name/)).toHaveValue(
+    `Copy of ${MockTemplate.display_name}`,
+  )
+  // Variables are using the same values
+  expect(
+    screen.getByLabelText(MockTemplateVersionVariable1.description, {
+      exact: false,
+    }),
+  ).toHaveValue(MockTemplateVersionVariable1.value)
+  // Create template
+  jest
+    .spyOn(API, "createTemplateVersion")
+    .mockResolvedValue(MockTemplateVersion)
+  jest.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate)
+  await userEvent.click(
+    screen.getByRole("button", { name: /create template/i }),
+  )
+  expect(router.state.location.pathname).toEqual(
+    `/templates/${MockTemplate.name}`,
+  )
+})
