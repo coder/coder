@@ -1,42 +1,20 @@
 networking:
     # The URL that users will use to access the Coder deployment.
     accessURL:
-        scheme: ""
-        opaque: ""
-        user: null
-        host: ""
-        path: ""
-        rawpath: ""
-        omithost: false
-        forcequery: false
-        rawquery: ""
-        fragment: ""
-        rawfragment: ""
     # Specifies the wildcard hostname to use for workspace applications in the form
     # "*.example.com".
     wildcardAccessURL:
-        scheme: ""
-        opaque: ""
-        user: null
-        host: ""
-        path: ""
-        rawpath: ""
-        omithost: false
-        forcequery: false
-        rawquery: ""
-        fragment: ""
-        rawfragment: ""
     # Specifies whether to redirect requests that do not match the access URL host.
     redirectToAccessURL: false
     http:
         # HTTP bind address of the server. Unset to disable the HTTP endpoint.
         httpAddress: 127.0.0.1:3000
         # The maximum lifetime duration users can specify when creating an API token.
-        maxTokenLifetime: 3155760000000000000
+        maxTokenLifetime: 876600h0m0s
         # The token expiry duration for browser sessions. Sessions may last longer if they
         # are actively making requests, but this functionality can be disabled via
         # --disable-session-expiry-refresh.
-        sessionDuration: 86400000000000
+        sessionDuration: 24h0m0s
         # Disable automatic session expiry bumping due to activity. This forces all
         # sessions to become invalid after the session expiry duration has been reached.
         disableSessionExpiryRefresh: false
@@ -52,9 +30,7 @@ networking:
     #  secure link, you can safely ignore these settings.
     tls:
         # HTTPS bind address of the server.
-        address:
-            host: 127.0.0.1
-            port: "3443"
+        address: 127.0.0.1:3443
         # Whether TLS will be enabled.
         enable: false
         # Whether HTTP requests will be redirected to the access URL (if it's a https URL
@@ -112,17 +88,6 @@ networking:
         # An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
         # for high availability.
         relayURL:
-            scheme: ""
-            opaque: ""
-            user: null
-            host: ""
-            path: ""
-            rawpath: ""
-            omithost: false
-            forcequery: false
-            rawquery: ""
-            fragment: ""
-            rawfragment: ""
         # URL to fetch a DERP mapping on startup. See:
         # https://tailscale.com/kb/1118/custom-derp-servers/.
         url: ""
@@ -139,22 +104,18 @@ networking:
     # Whether Coder only allows connections to workspaces via the browser.
     browserOnly: false
 # Interval to poll for scheduled workspace builds.
-autobuildPollInterval: 60000000000
+autobuildPollInterval: 1m0s
 introspection:
     prometheus:
         # Serve prometheus metrics on the address defined by prometheus address.
         enable: false
         # The bind address to serve prometheus metrics.
-        address:
-            host: 127.0.0.1
-            port: "2112"
+        address: 127.0.0.1:2112
     pprof:
         # Serve pprof metrics on the address defined by pprof address.
         enable: false
         # The bind address to serve pprof.
-        address:
-            host: 127.0.0.1
-            port: "6060"
+        address: 127.0.0.1:6060
     tracing:
         # Whether application tracing data is collected. It exports to a backend
         # configured by environment variables. See:
@@ -223,17 +184,6 @@ oidc:
     signInText: OpenID Connect
     # URL pointing to the icon to use on the OepnID Connect login button.
     iconURL:
-        scheme: ""
-        opaque: ""
-        user: null
-        host: ""
-        path: ""
-        rawpath: ""
-        omithost: false
-        forcequery: false
-        rawquery: ""
-        fragment: ""
-        rawfragment: ""
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 # information before sending data to our servers. Please only disable telemetry
 # when required by your organization's security policy.
@@ -246,18 +196,7 @@ telemetry:
     # disables this option.
     trace: false
     # URL to send telemetry.
-    url:
-        scheme: https
-        opaque: ""
-        user: null
-        host: telemetry.coder.com
-        path: ""
-        rawpath: ""
-        omithost: false
-        forcequery: false
-        rawquery: ""
-        fragment: ""
-        rawfragment: ""
+    url: https://telemetry.coder.com
 # Tune the behavior of the provisioner, which is responsible for creating,
 # updating, and deleting workspace resources.
 provisioning:
@@ -265,11 +204,11 @@ provisioning:
     # state for a long time, consider increasing this.
     daemons: 3
     # Time to wait before polling for a new job.
-    daemonPollInterval: 1000000000
+    daemonPollInterval: 1s
     # Random jitter added to the poll interval.
-    daemonPollJitter: 100000000
+    daemonPollJitter: 100ms
     # Time to force cancel provisioning tasks that are stuck.
-    forceCancelInterval: 600000000000
+    forceCancelInterval: 10m0s
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.
@@ -288,18 +227,7 @@ inMemoryDatabase: false
 # "ecdsa", or "rsa4096".
 sshKeygenAlgorithm: ed25519
 # URL to use for agent troubleshooting when not set in the template.
-agentFallbackTroubleshootingURL:
-    scheme: https
-    opaque: ""
-    user: null
-    host: coder.com
-    path: /docs/coder-oss/latest/templates
-    rawpath: ""
-    omithost: false
-    forcequery: false
-    rawquery: ""
-    fragment: troubleshooting-templates
-    rawfragment: ""
+agentFallbackTroubleshootingURL: https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates
 # Specifies whether audit logging is enabled.
 auditLogging: true
 # Disable workspace apps that are not served from subdomains. Path-based apps can

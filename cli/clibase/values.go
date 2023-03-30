@@ -194,6 +194,17 @@ func (Duration) Type() string {
 	return "duration"
 }
 
+func (d *Duration) MarshalYAML() (interface{}, error) {
+	return yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Value: d.String(),
+	}, nil
+}
+
+func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
+	return d.Set(n.Value)
+}
+
 type URL url.URL
 
 func URLOf(u *url.URL) *URL {
@@ -212,6 +223,17 @@ func (u *URL) Set(v string) error {
 func (u *URL) String() string {
 	uu := url.URL(*u)
 	return uu.String()
+}
+
+func (u *URL) MarshalYAML() (interface{}, error) {
+	return yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Value: u.String(),
+	}, nil
+}
+
+func (u *URL) UnmarshalYAML(n *yaml.Node) error {
+	return u.Set(n.Value)
 }
 
 func (u *URL) MarshalJSON() ([]byte, error) {
@@ -275,6 +297,17 @@ func (hp *HostPort) UnmarshalJSON(b []byte) error {
 		return nil
 	}
 	return hp.Set(s)
+}
+
+func (hp *HostPort) MarshalYAML() (interface{}, error) {
+	return yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Value: hp.String(),
+	}, nil
+}
+
+func (hp *HostPort) UnmarshalYAML(n *yaml.Node) error {
+	return hp.Set(n.Value)
 }
 
 func (*HostPort) Type() string {
