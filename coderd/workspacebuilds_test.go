@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -1193,9 +1194,13 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 	t.Run("AsTemplateAuthor", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		// Create users
+		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		admin := coderdtest.CreateFirstUser(t, adminClient)
+		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID, rbac.RoleTemplateAdmin())
+
+		// Interact as template admin
+		version := coderdtest.CreateTemplateVersion(t, templateAdminClient, admin.OrganizationID, &echo.Responses{
 			Parse:         echo.ParseComplete,
 			ProvisionPlan: echo.ProvisionComplete,
 			ProvisionApply: []*proto.Provision_Response{{
@@ -1225,18 +1230,18 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 				},
 			}},
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, templateAdminClient, admin.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, templateAdminClient, version.ID)
 
 		// Create workspace
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		workspace := coderdtest.CreateWorkspace(t, templateAdminClient, admin.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, templateAdminClient, workspace.LatestBuild.ID)
 
 		// Create workspace build
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		build, err := templateAdminClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
 			Transition:        codersdk.WorkspaceTransitionStart,
 			ProvisionerState:  []byte(" "),
@@ -1244,10 +1249,10 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		})
 		require.Nil(t, err)
 
-		build = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+		build = coderdtest.AwaitWorkspaceBuildJob(t, templateAdminClient, build.ID)
 
 		// Watch for incoming logs
-		logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
+		logs, closer, err := templateAdminClient.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
 		require.NoError(t, err)
 		defer closer.Close()
 
