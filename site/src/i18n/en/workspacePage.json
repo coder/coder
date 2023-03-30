@@ -21,6 +21,7 @@
   "actionButton": {
     "start": "Start",
     "stop": "Stop",
+    "restart": "Restart",
     "delete": "Delete",
     "cancel": "Cancel",
     "update": "Update",

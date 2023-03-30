@@ -6,9 +6,10 @@ import CloudQueueIcon from "@material-ui/icons/CloudQueue"
 import SettingsOutlined from "@material-ui/icons/SettingsOutlined"
 import CropSquareIcon from "@material-ui/icons/CropSquare"
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline"
+import ReplayIcon from "@material-ui/icons/Replay"
 import PlayCircleOutlineIcon from "@material-ui/icons/PlayCircleOutline"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
-import { FC } from "react"
+import { FC, PropsWithChildren } from "react"
 import { useTranslation } from "react-i18next"
 import { combineClasses } from "util/combineClasses"
 import { WorkspaceActionButton } from "../WorkspaceActionButton/WorkspaceActionButton"
@@ -17,7 +18,7 @@ interface WorkspaceAction {
   handleAction: () => void
 }
 
-export const UpdateButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
+export const UpdateButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   handleAction,
 }) => {
   const styles = useStyles()
@@ -35,7 +36,7 @@ export const UpdateButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
   )
 }
 
-export const SettingsButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
+export const SettingsButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   handleAction,
 }) => {
   const styles = useStyles()
@@ -53,7 +54,7 @@ export const SettingsButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
   )
 }
 
-export const StartButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
+export const StartButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   handleAction,
 }) => {
   const styles = useStyles()
@@ -69,7 +70,7 @@ export const StartButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
   )
 }
 
-export const StopButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
+export const StopButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   handleAction,
 }) => {
   const styles = useStyles()
@@ -85,7 +86,23 @@ export const StopButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
   )
 }
 
-export const DeleteButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
+export const RestartButton: FC<PropsWithChildren<WorkspaceAction>> = ({
+  handleAction,
+}) => {
+  const styles = useStyles()
+  const { t } = useTranslation("workspacePage")
+
+  return (
+    <WorkspaceActionButton
+      className={styles.actionButton}
+      icon={<ReplayIcon />}
+      onClick={handleAction}
+      label={t("actionButton.restart")}
+    />
+  )
+}
+
+export const DeleteButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   handleAction,
 }) => {
   const styles = useStyles()
@@ -101,7 +118,7 @@ export const DeleteButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
   )
 }
 
-export const CancelButton: FC<React.PropsWithChildren<WorkspaceAction>> = ({
+export const CancelButton: FC<PropsWithChildren<WorkspaceAction>> = ({
   handleAction,
 }) => {
   const styles = useStyles()
@@ -128,7 +145,7 @@ interface DisabledProps {
   label: string
 }
 
-export const DisabledButton: FC<React.PropsWithChildren<DisabledProps>> = ({
+export const DisabledButton: FC<PropsWithChildren<DisabledProps>> = ({
   label,
 }) => {
   const styles = useStyles()
@@ -144,7 +161,7 @@ interface LoadingProps {
   label: string
 }
 
-export const ActionLoadingButton: FC<React.PropsWithChildren<LoadingProps>> = ({
+export const ActionLoadingButton: FC<PropsWithChildren<LoadingProps>> = ({
   label,
 }) => {
   const styles = useStyles()

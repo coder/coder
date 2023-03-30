@@ -9,6 +9,7 @@ import {
   SettingsButton,
   StartButton,
   StopButton,
+  RestartButton,
   UpdateButton,
 } from "../DropdownButton/ActionCtas"
 import { ButtonMapping, ButtonTypesEnum, buttonAbilities } from "./constants"
@@ -18,6 +19,7 @@ export interface WorkspaceActionsProps {
   isOutdated: boolean
   handleStart: () => void
   handleStop: () => void
+  handleRestart: () => void
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
@@ -31,6 +33,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isOutdated,
   handleStart,
   handleStop,
+  handleRestart,
   handleDelete,
   handleUpdate,
   handleCancel,
@@ -57,6 +60,10 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     [ButtonTypesEnum.stop]: <StopButton handleAction={handleStop} />,
     [ButtonTypesEnum.stopping]: (
       <ActionLoadingButton label={t("actionButton.stopping")} />
+    ),
+    [ButtonTypesEnum.restart]: <RestartButton handleAction={handleRestart} />,
+    [ButtonTypesEnum.starting]: (
+      <ActionLoadingButton label={t("actionButton.starting")} />
     ),
     [ButtonTypesEnum.delete]: <DeleteButton handleAction={handleDelete} />,
     [ButtonTypesEnum.deleting]: (

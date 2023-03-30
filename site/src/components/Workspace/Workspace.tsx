@@ -125,6 +125,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               isOutdated={workspace.outdated}
               handleStart={handleStart}
               handleStop={handleStop}
+              handleRestart={() => console.log("restarting!")}
               handleDelete={handleDelete}
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
