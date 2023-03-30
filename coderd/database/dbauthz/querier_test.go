@@ -438,6 +438,38 @@ func (s *MethodTestSuite) TestOrganization() {
 	}))
 }
 
+func (s *MethodTestSuite) TestWorkspaceProxy() {
+	s.Run("InsertWorkspaceProxy", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		check.Args(database.InsertWorkspaceProxyParams{
+			ID:             uuid.New(),
+			OrganizationID: o.ID,
+		}).Asserts(rbac.ResourceWorkspaceProxy.InOrg(o.ID), rbac.ActionCreate)
+	}))
+	s.Run("UpdateWorkspaceProxy", s.Subtest(func(db database.Store, check *expects) {
+		p := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args(database.UpdateWorkspaceProxyParams{
+			ID: p.ID,
+		}).Asserts(p, rbac.ActionUpdate)
+	}))
+	s.Run("GetWorkspaceProxyByID", s.Subtest(func(db database.Store, check *expects) {
+		p := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args(p.ID).Asserts(p, rbac.ActionRead).Returns(p)
+	}))
+	s.Run("UpdateWorkspaceProxyDeleted", s.Subtest(func(db database.Store, check *expects) {
+		p := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args(database.UpdateWorkspaceProxyDeletedParams{
+			ID:      p.ID,
+			Deleted: true,
+		}).Asserts(p, rbac.ActionDelete)
+	}))
+	s.Run("GetWorkspaceProxies", s.Subtest(func(db database.Store, check *expects) {
+		p1 := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		p2 := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args().Asserts(p1, rbac.ActionRead, p2, rbac.ActionRead).Returns(slice.New(p1, p2))
+	}))
+}
+
 func (s *MethodTestSuite) TestParameters() {
 	s.Run("Workspace/InsertParameterValue", s.Subtest(func(db database.Store, check *expects) {
 		w := dbgen.Workspace(s.T(), db, database.Workspace{})

@@ -1647,6 +1647,34 @@ func (q *querier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceApp
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
 }
 
+func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
+	return fetchWithPostFilter(q.auth, func(ctx context.Context, _ any) ([]database.WorkspaceProxy, error) {
+		return q.db.GetWorkspaceProxies(ctx)
+	})(ctx, nil)
+}
+
+func (q *querier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (database.WorkspaceProxy, error) {
+	return fetch(q.log, q.auth, q.db.GetWorkspaceProxyByID)(ctx, id)
+}
+
+func (q *querier) InsertWorkspaceProxy(ctx context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+	return insert(q.log, q.auth, rbac.ResourceWorkspaceProxy.InOrg(arg.OrganizationID), q.db.InsertWorkspaceProxy)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateWorkspaceProxy)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceProxyDeleted(ctx context.Context, arg database.UpdateWorkspaceProxyDeletedParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceProxyDeletedParams) (database.WorkspaceProxy, error) {
+		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)
+	}
+	return deleteQ(q.log, q.auth, fetch, q.db.UpdateWorkspaceProxyDeleted)(ctx, arg)
+}
+
 func authorizedTemplateVersionFromJob(ctx context.Context, q *querier, job database.ProvisionerJob) (database.TemplateVersion, error) {
 	switch job.Type {
 	case database.ProvisionerJobTypeTemplateVersionDryRun:

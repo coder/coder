@@ -614,6 +614,22 @@ CREATE TABLE workspace_builds (
     max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
+CREATE TABLE workspace_proxies (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    name text NOT NULL,
+    icon text NOT NULL,
+    url text NOT NULL,
+    wildcard_url text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    deleted boolean NOT NULL
+);
+
+COMMENT ON COLUMN workspace_proxies.url IS 'Full url including scheme of the proxy api url: https://us.example.com';
+
+COMMENT ON COLUMN workspace_proxies.wildcard_url IS 'URL with the wildcard for subdomain based app hosting: https://*.us.example.com';
+
 CREATE TABLE workspace_resource_metadata (
     workspace_resource_id uuid NOT NULL,
     key character varying(1024) NOT NULL,
@@ -780,6 +796,9 @@ ALTER TABLE ONLY workspace_builds
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_build_number_key UNIQUE (workspace_id, build_number);
 
+ALTER TABLE ONLY workspace_proxies
+    ADD CONSTRAINT workspace_proxies_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspace_resource_metadata
     ADD CONSTRAINT workspace_resource_metadata_name UNIQUE (workspace_resource_id, key);
 
@@ -835,6 +854,8 @@ CREATE INDEX workspace_agent_startup_logs_id_agent_id_idx ON workspace_agent_sta
 CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
+
+CREATE UNIQUE INDEX workspace_proxies_organization_id_name_idx ON workspace_proxies USING btree (organization_id, name) WHERE (deleted = false);
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
 
