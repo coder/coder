@@ -46,8 +46,6 @@ type Option struct {
 	UseInstead []Option `json:"use_instead,omitempty"`
 
 	Hidden bool `json:"hidden,omitempty"`
-
-	envChanged bool
 }
 
 // OptionSet is a group of options that can be applied to a command.
@@ -135,7 +133,6 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 			continue
 		}
 
-		opt.envChanged = true
 		if err := opt.Value.Set(envVal); err != nil {
 			merr = multierror.Append(
 				merr, xerrors.Errorf("parse %q: %w", opt.Name, err),
@@ -146,27 +143,19 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 	return merr.ErrorOrNil()
 }
 
-// SetDefaults sets the default values for each Option, skipping values
-// that have already been set as indicated by the skip map.
-func (s *OptionSet) SetDefaults(skip map[int]struct{}) error {
+// SetDefaults sets the default values for each Option.
+// It should be called before all parsing (e.g. ParseFlags, ParseEnv).
+func (s *OptionSet) SetDefaults() error {
 	if s == nil {
 		return nil
 	}
 
 	var merr *multierror.Error
 
-	for i, opt := range *s {
-		// Skip values that may have already been set by the user.
-		if len(skip) > 0 {
-			if _, ok := skip[i]; ok {
-				continue
-			}
-		}
-
+	for _, opt := range *s {
 		if opt.Default == "" {
 			continue
 		}
-
 		if opt.Value == nil {
 			merr = multierror.Append(
 				merr,
