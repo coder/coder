@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/open-policy-agent/opa/ast"
-
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -519,7 +518,6 @@ func (a RegoAuthorizer) newPartialAuthorizer(ctx context.Context, subject Subjec
 
 	return pAuth, nil
 }
-
 
 // rbacTraceAttributes are the attributes that are added to all spans created by
 // the rbac package. These attributes should help to debug slow spans.
