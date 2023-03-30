@@ -147,7 +147,7 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 }
 
 // SetDefaults sets the default values for each Option, skipping values
-// that have already been set as indiciated by the skip map.
+// that have already been set as indicated by the skip map.
 func (s *OptionSet) SetDefaults(skip map[int]struct{}) error {
 	if s == nil {
 		return nil
