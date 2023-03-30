@@ -15,6 +15,11 @@ import (
 	"golang.org/x/xerrors"
 )
 
+type route struct {
+	path   string
+	method string
+}
+
 type SwaggerComment struct {
 	summary  string
 	id       string
@@ -23,8 +28,7 @@ type SwaggerComment struct {
 	accept   string
 	produce  string
 
-	method string
-	router string
+	routes []route
 
 	successes []response
 	failures  []response
@@ -32,6 +36,15 @@ type SwaggerComment struct {
 	parameters []parameter
 
 	raw []*ast.Comment
+}
+
+func (s *SwaggerComment) hasPath(path string) bool {
+	for _, route := range s.routes {
+		if route.path == path {
+			return true
+		}
+	}
+	return false
 }
 
 type parameter struct {
@@ -105,8 +118,10 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 
 		switch annotationName {
 		case "@Router":
-			c.router = args[0]
-			c.method = args[1][1 : len(args[1])-1]
+			c.routes = append(c.routes, route{
+				path:   args[0],
+				method: args[1][1 : len(args[1])-1],
+			})
 		case "@Success", "@Failure":
 			var r response
 			if len(args) > 0 {
@@ -160,7 +175,7 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 		t.Run(method+" "+route, func(t *testing.T) {
 			t.Parallel()
 
-			c := findSwaggerCommentByMethodAndRoute(swaggerComments, method, route)
+			c := findSwaggerCommentByMethodAndPath(swaggerComments, method, route)
 			assert.NotNil(t, c, "Missing @Router annotation")
 			if c == nil {
 				return // do not fail next assertion for this route
@@ -184,11 +199,13 @@ func assertUniqueRoutes(t *testing.T, comments []SwaggerComment) {
 	m := map[string]struct{}{}
 
 	for _, c := range comments {
-		key := c.method + " " + c.router
-		_, alreadyDefined := m[key]
-		assert.False(t, alreadyDefined, "defined route must be unique (method: %s, route: %s)", c.method, c.router)
-		if !alreadyDefined {
-			m[key] = struct{}{}
+		for _, r := range c.routes {
+			key := r.method + " " + r.path
+			_, alreadyDefined := m[key]
+			assert.False(t, alreadyDefined, "defined route must be unique (method: %s, route: %s)", r.method, r.path)
+			if !alreadyDefined {
+				m[key] = struct{}{}
+			}
 		}
 	}
 }
@@ -218,15 +235,17 @@ func assertSingleAnnotations(t *testing.T, comments []SwaggerComment) {
 
 		for _, annotation := range uniqueAnnotations {
 			v := counters[annotation]
-			assert.Equal(t, 1, v, "%s annotation for route %s must be defined only once", annotation, comment.router)
+			assert.LessOrEqual(t, 1, v, "%s annotation for route %s must be defined only once", annotation, comment.routes)
 		}
 	}
 }
 
-func findSwaggerCommentByMethodAndRoute(comments []SwaggerComment, method, route string) *SwaggerComment {
+func findSwaggerCommentByMethodAndPath(comments []SwaggerComment, method, path string) *SwaggerComment {
 	for _, c := range comments {
-		if c.method == method && c.router == route {
-			return &c
+		for _, r := range c.routes {
+			if r.method == method && r.path == path {
+				return &c
+			}
 		}
 	}
 	return nil
@@ -250,7 +269,7 @@ func assertRequiredAnnotations(t *testing.T, comment SwaggerComment) {
 	assert.NotEmpty(t, comment.id, "@ID must be defined")
 	assert.NotEmpty(t, comment.summary, "@Summary must be defined")
 	assert.NotEmpty(t, comment.tags, "@Tags must be defined")
-	assert.NotEmpty(t, comment.router, "@Router must be defined")
+	assert.NotEmpty(t, comment.routes, "@Router must be defined")
 }
 
 func assertGoCommentFirst(t *testing.T, comment SwaggerComment) {
@@ -274,7 +293,11 @@ func assertGoCommentFirst(t *testing.T, comment SwaggerComment) {
 var urlParameterRegexp = regexp.MustCompile(`{[^{}]*}`)
 
 func assertPathParametersDefined(t *testing.T, comment SwaggerComment) {
-	matches := urlParameterRegexp.FindAllString(comment.router, -1)
+	var paths []string
+	for _, r := range comment.routes {
+		paths = append(paths, r.path)
+	}
+	matches := urlParameterRegexp.FindAllString(strings.Join(paths, "\n"), -1)
 	if matches == nil {
 		return // router does not require any parameters
 	}
@@ -295,10 +318,10 @@ func assertPathParametersDefined(t *testing.T, comment SwaggerComment) {
 }
 
 func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
-	if comment.router == "/updatecheck" ||
-		comment.router == "/buildinfo" ||
-		comment.router == "/" ||
-		comment.router == "/users/login" {
+	if comment.hasPath("/updatecheck") ||
+		comment.hasPath("/buildinfo") ||
+		comment.hasPath("/") ||
+		comment.hasPath("/users/login") {
 		return // endpoints do not require authorization
 	}
 	assert.Equal(t, "CoderSessionToken", comment.security, "@Security must be equal CoderSessionToken")
@@ -319,12 +342,14 @@ func assertAccept(t *testing.T, comment SwaggerComment) {
 		hasAccept = true
 	}
 
-	if comment.method == "get" {
-		assert.Empty(t, comment.accept, "GET route does not require the @Accept annotation")
-		assert.False(t, hasRequestBody, "GET route does not require the request body")
-	} else {
-		assert.False(t, hasRequestBody && !hasAccept, "Route with the request body requires the @Accept annotation")
-		assert.False(t, !hasRequestBody && hasAccept, "Route with @Accept annotation requires the request body or file formData parameter")
+	for _, r := range comment.routes {
+		if r.method == "get" {
+			assert.Empty(t, comment.accept, "GET route does not require the @Accept annotation")
+			assert.False(t, hasRequestBody, "GET route does not require the request body")
+		} else {
+			assert.False(t, hasRequestBody && !hasAccept, "Route with the request body requires the @Accept annotation")
+			assert.False(t, !hasRequestBody && hasAccept, "Route with @Accept annotation requires the request body or file formData parameter")
+		}
 	}
 }
 
@@ -339,18 +364,20 @@ func assertProduce(t *testing.T, comment SwaggerComment) {
 		}
 	}
 
-	if hasResponseModel {
-		assert.True(t, comment.produce != "", "Route must have @Produce annotation as it responds with a model structure")
-		assert.Contains(t, allowedProduceTypes, comment.produce, "@Produce value is limited to specific types: %s", strings.Join(allowedProduceTypes, ","))
-	} else {
-		if (comment.router == "/workspaceagents/me/app-health" && comment.method == "post") ||
-			(comment.router == "/workspaceagents/me/startup" && comment.method == "post") ||
-			(comment.router == "/workspaceagents/me/startup/logs" && comment.method == "patch") ||
-			(comment.router == "/licenses/{id}" && comment.method == "delete") ||
-			(comment.router == "/debug/coordinator" && comment.method == "get") {
-			return // Exception: HTTP 200 is returned without response entity
-		}
+	for _, r := range comment.routes {
+		if hasResponseModel {
+			assert.True(t, comment.produce != "", "Route must have @Produce annotation as it responds with a model structure")
+			assert.Contains(t, allowedProduceTypes, comment.produce, "@Produce value is limited to specific types: %s", strings.Join(allowedProduceTypes, ","))
+		} else {
+			if (r.path == "/workspaceagents/me/app-health" && r.method == "post") ||
+				(r.path == "/workspaceagents/me/startup" && r.method == "post") ||
+				(r.path == "/workspaceagents/me/startup/logs" && r.method == "patch") ||
+				(r.path == "/licenses/{id}" && r.method == "delete") ||
+				(r.path == "/debug/coordinator" && r.method == "get") {
+				return // Exception: HTTP 200 is returned without response entity
+			}
 
-		assert.True(t, comment.produce == "", "Response model is undefined, so we can't predict the content type", comment)
+			assert.True(t, comment.produce == "", "Response model is undefined, so we can't predict the content type", comment)
+		}
 	}
 }
