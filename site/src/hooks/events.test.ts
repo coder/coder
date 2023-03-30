@@ -10,7 +10,7 @@ describe("useCustomEvent", () => {
     dispatchCustomEvent("testEvent", detail)
     await waitFor(() => {
       expect(callback).toBeCalledTimes(1)
-      expect(callback.mock.calls[0][0].detail).toBe(detail)
     })
+    expect(callback.mock.calls[0][0].detail).toBe(detail)
   })
 })

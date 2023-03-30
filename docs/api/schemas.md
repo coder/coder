@@ -1798,9 +1798,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     },
     "oidc": {
       "allow_signups": true,
+      "auth_url_params": {},
       "client_id": "string",
       "client_secret": "string",
       "email_domain": ["string"],
+      "email_field": "string",
       "group_mapping": {},
       "groups_field": "string",
       "icon_url": {
@@ -2144,9 +2146,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   },
   "oidc": {
     "allow_signups": true,
+    "auth_url_params": {},
     "client_id": "string",
     "client_secret": "string",
     "email_domain": ["string"],
+    "email_field": "string",
     "group_mapping": {},
     "groups_field": "string",
     "icon_url": {
@@ -2808,9 +2812,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "allow_signups": true,
+  "auth_url_params": {},
   "client_id": "string",
   "client_secret": "string",
   "email_domain": ["string"],
+  "email_field": "string",
   "group_mapping": {},
   "groups_field": "string",
   "icon_url": {
@@ -2839,9 +2845,11 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Name                    | Type                       | Required | Restrictions | Description |
 | ----------------------- | -------------------------- | -------- | ------------ | ----------- |
 | `allow_signups`         | boolean                    | false    |              |             |
+| `auth_url_params`       | object                     | false    |              |             |
 | `client_id`             | string                     | false    |              |             |
 | `client_secret`         | string                     | false    |              |             |
 | `email_domain`          | array of string            | false    |              |             |
+| `email_field`           | string                     | false    |              |             |
 | `group_mapping`         | object                     | false    |              |             |
 | `groups_field`          | string                     | false    |              |             |
 | `icon_url`              | [clibase.URL](#clibaseurl) | false    |              |             |

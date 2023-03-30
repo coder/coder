@@ -90,3 +90,35 @@ To support regex matching for paths (e.g. github.com/orgname), you'll need to ad
 ```console
 git config --global credential.useHttpPath true
 ```
+
+## Require git authentication in templates
+
+If your template requires git authentication (e.g. running `git clone` in the [startup_script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script)), you can require users authenticate via git prior to creating a workspace:
+
+![Git authentication in template](../images/admin/git-auth-template.png)
+
+The following example will require users authenticate via GitHub and auto-clone a repo
+into the `~/coder` directory.
+
+```hcl
+data "coder_git_auth" "github" {
+  # Matches the ID of the git auth provider in Coder.
+  id = "github"
+}
+
+resource "coder_agent" "dev" {
+  os   = "linux"
+  arch = "amd64"
+  dir  = "~/coder"
+  env = {
+    GITHUB_TOKEN : data.coder_git_auth.github.access_token
+  }
+  startup_script = <<EOF
+if [ ! -d ~/coder ]; then
+    git clone https://github.com/coder/coder
+fi
+EOF
+}
+```
+
+See the [Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/git_auth) for all available options.

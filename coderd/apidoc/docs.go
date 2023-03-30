@@ -7294,6 +7294,9 @@ const docTemplate = `{
                 "allow_signups": {
                     "type": "boolean"
                 },
+                "auth_url_params": {
+                    "type": "object"
+                },
                 "client_id": {
                     "type": "string"
                 },
@@ -7305,6 +7308,9 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "email_field": {
+                    "type": "string"
                 },
                 "group_mapping": {
                     "type": "object"

@@ -1,12 +1,12 @@
-import {
-  MockTemplateVersion,
-  MockWorkspaceBuildLogs,
-  renderWithAuth,
-} from "testHelpers/renderHelpers"
+import { renderWithAuth } from "testHelpers/renderHelpers"
 import TemplateVersionEditorPage from "./TemplateVersionEditorPage"
 import { screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import * as api from "api/api"
+import {
+  MockTemplateVersion,
+  MockWorkspaceBuildLogs,
+} from "testHelpers/entities"
 
 // For some reason this component in Jest is throwing a MUI style warning so,
 // since we don't need it for this test, we can mock it out
@@ -71,9 +71,9 @@ test("Use custom name and set it as active when publishing", async () => {
     expect(patchTemplateVersion).toBeCalledWith("new-version-id", {
       name: "v1.0",
     })
-    expect(updateActiveTemplateVersion).toBeCalledWith("test-template", {
-      id: "new-version-id",
-    })
+  })
+  expect(updateActiveTemplateVersion).toBeCalledWith("test-template", {
+    id: "new-version-id",
   })
 })
 
