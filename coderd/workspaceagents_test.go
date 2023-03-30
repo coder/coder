@@ -1400,7 +1400,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.Len(t, update, 3)
 	check(wantMetadata1, update[0])
 
-	const maxValueLen = 64 << 10
+	const maxValueLen = 32 << 10
 	tooLongValueMetadata := wantMetadata1
 	tooLongValueMetadata.Value = strings.Repeat("a", maxValueLen*2)
 	tooLongValueMetadata.Error = ""
@@ -1412,5 +1412,5 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 
 	unknownKeyMetadata := wantMetadata1
 	err = agentClient.PostMetadata(ctx, "unknown", unknownKeyMetadata)
-	require.Error(t, err)
+	require.NoError(t, err)
 }

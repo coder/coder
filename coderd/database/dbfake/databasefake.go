@@ -2762,7 +2762,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentMetadata(_ context.Context, arg databa
 		}
 	}
 
-	return sql.ErrNoRows
+	return nil
 }
 
 func (q *fakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {

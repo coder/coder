@@ -35,6 +35,7 @@ import (
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -285,6 +286,8 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	)
 	defer baseTicker.Stop()
 
+	var flight singleflight.Group
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -351,20 +354,25 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				}
 			}
 
-			go func(md codersdk.WorkspaceAgentMetadataDescription) {
+			md := md
+			// We send the result to the channel in the goroutine to avoid
+			// sending the same result multiple times. So, we don't care about
+			// the return values.
+			flight.DoChan(md.Key, func() (interface{}, error) {
 				select {
 				case <-ctx.Done():
-					return
+					return 0, nil
 				case metadataResults <- metadataResultAndKey{
 					key:    md.Key,
 					result: a.collectMetadata(ctx, md),
 				}:
 				default:
-					// This should be impossible because the channel is empty
-					// before we start spinning up send goroutines.
+					// This should be impossible because the channel is confirmed
+					// to be empty before this goroutine is spawned.
 					a.logger.Error(ctx, "metadataResults channel full")
 				}
-			}(md)
+				return 0, nil
+			})
 		}
 	}
 }

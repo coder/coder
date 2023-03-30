@@ -1356,7 +1356,7 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 	key := chi.URLParam(r, "key")
 
 	const (
-		maxValueLen = 64 << 10
+		maxValueLen = 32 << 10
 		maxErrorLen = maxValueLen
 	)
 

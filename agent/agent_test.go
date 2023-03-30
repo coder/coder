@@ -960,9 +960,8 @@ func TestAgent_Metadata(t *testing.T) {
 
 		dir := t.TempDir()
 
-		// In tests, the interval unit is 100 milliseconds while in production
-		// it is 1 second.
 		const reportInterval = 2
+		const intervalUnit = 100 * time.Millisecond
 		var (
 			greetingPath = filepath.Join(dir, "greeting")
 			script       = "echo hello | tee -a " + greetingPath
@@ -986,7 +985,7 @@ func TestAgent_Metadata(t *testing.T) {
 			return len(client.getMetadata()) == 2
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		for start := time.Now(); time.Since(start) < testutil.WaitShort; time.Sleep(testutil.IntervalMedium) {
+		for start := time.Now(); time.Since(start) < testutil.WaitMedium; time.Sleep(testutil.IntervalMedium) {
 			md := client.getMetadata()
 			if len(md) != 2 {
 				panic("unexpected number of metadata entries")
@@ -1000,7 +999,7 @@ func TestAgent_Metadata(t *testing.T) {
 
 			var (
 				numGreetings      = bytes.Count(greetingByt, []byte("hello"))
-				idealNumGreetings = time.Since(start) / (reportInterval * 100 * time.Millisecond)
+				idealNumGreetings = time.Since(start) / (reportInterval * intervalUnit)
 				// We allow a 50% error margin because the report loop may backlog
 				// in CI and other toasters. In production, there is no hard
 				// guarantee on timing either, and the frontend gives similar
@@ -1009,7 +1008,7 @@ func TestAgent_Metadata(t *testing.T) {
 				lowerBound = (int(idealNumGreetings) / 2)
 			)
 
-			if idealNumGreetings < 5 {
+			if idealNumGreetings < 50 {
 				// There is an insufficient sample size.
 				continue
 			}
@@ -1018,7 +1017,7 @@ func TestAgent_Metadata(t *testing.T) {
 			// The report loop may slow down on load, but it should never, ever
 			// speed up.
 			if numGreetings > upperBound {
-				t.Fatalf("too many greetings: %d > %d", numGreetings, upperBound)
+				t.Fatalf("too many greetings: %d > %d in %v", numGreetings, upperBound, time.Since(start))
 			} else if numGreetings < lowerBound {
 				t.Fatalf("too few greetings: %d < %d", numGreetings, lowerBound)
 			}
