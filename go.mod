@@ -2,9 +2,6 @@ module github.com/coder/coder
 
 go 1.20
 
-// Required until https://github.com/manifoldco/promptui/pull/169 is merged.
-replace github.com/manifoldco/promptui => github.com/kylecarbs/promptui v0.8.1-0.20201231190244-d8f2159af2b2
-
 // Required until https://github.com/hashicorp/terraform-config-inspect/pull/74 is merged.
 replace github.com/hashicorp/terraform-config-inspect => github.com/kylecarbs/terraform-config-inspect v0.0.0-20211215004401-bbc517866b88
 
@@ -20,6 +17,7 @@ replace github.com/fergusstrange/embedded-postgres => github.com/kylecarbs/embed
 // opencensus-go leaks a goroutine by default.
 replace go.opencensus.io => github.com/kylecarbs/opencensus-go v0.23.1-0.20220307014935-4d0325a68f8b
 
+// See https://github.com/kylecarbs/tview/commit/8464256e10a1e85074c7ef9c80346baa60e9ede6
 replace github.com/rivo/tview => github.com/kylecarbs/tview v0.0.0-20220309202238-8464256e10a1
 
 // glog has a single goroutine leak on start that we removed in a fork: https://github.com/coder/glog/pull/1.
@@ -29,9 +27,6 @@ replace github.com/golang/glog => github.com/coder/glog v1.0.1-0.20220322161911-
 // fixed in our fork:
 // https://github.com/coder/kcp-go/commit/83c0904cec69dcf21ec10c54ea666bda18ada831
 replace github.com/fatedier/kcp-go => github.com/coder/kcp-go v2.0.4-0.20220409183554-83c0904cec69+incompatible
-
-// https://github.com/pion/udp/pull/73
-replace github.com/pion/udp => github.com/mafredri/udp v0.1.2-0.20230105121435-9ece057cd011
 
 // https://github.com/tcnksm/go-httpstat/pull/29
 replace github.com/tcnksm/go-httpstat => github.com/kylecarbs/go-httpstat v0.0.0-20220831233600-c91452099472
