@@ -171,6 +171,10 @@ func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
 			continue
 		}
 
+		if opt.Group.YAML == "" {
+			return xerrors.Errorf("group yaml name is empty for %q", opt.Name)
+		}
+
 		if _, ok := optionsByName[opt.YAML]; ok {
 			return xerrors.Errorf("duplicate option name %q", opt.YAML)
 		}

@@ -1,0 +1,326 @@
+networking:
+    # The URL that users will use to access the Coder deployment.
+    accessURL:
+        scheme: ""
+        opaque: ""
+        user: null
+        host: ""
+        path: ""
+        rawpath: ""
+        omithost: false
+        forcequery: false
+        rawquery: ""
+        fragment: ""
+        rawfragment: ""
+    # Specifies the wildcard hostname to use for workspace applications in the form
+    # "*.example.com".
+    wildcardAccessURL:
+        scheme: ""
+        opaque: ""
+        user: null
+        host: ""
+        path: ""
+        rawpath: ""
+        omithost: false
+        forcequery: false
+        rawquery: ""
+        fragment: ""
+        rawfragment: ""
+    # Specifies whether to redirect requests that do not match the access URL host.
+    redirectToAccessURL: false
+    http:
+        # HTTP bind address of the server. Unset to disable the HTTP endpoint.
+        httpAddress: 127.0.0.1:3000
+        # The maximum lifetime duration users can specify when creating an API token.
+        maxTokenLifetime: 3155760000000000000
+        # The token expiry duration for browser sessions. Sessions may last longer if they
+        # are actively making requests, but this functionality can be disabled via
+        # --disable-session-expiry-refresh.
+        sessionDuration: 86400000000000
+        # Disable automatic session expiry bumping due to activity. This forces all
+        # sessions to become invalid after the session expiry duration has been reached.
+        disableSessionExpiryRefresh: false
+        # Disable password authentication. This is recommended for security purposes in
+        # production deployments that rely on an identity provider. Any user with the
+        # owner role will be able to sign in with their password regardless of this
+        # setting to avoid potential lock out. If you are locked out of your account, you
+        # can use the `coder server create-admin` command to create a new admin user
+        # directly in the database.
+        disablePasswordAuth: false
+    # Configure TLS / HTTPS for your Coder deployment. If you're running
+    #  Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
+    #  secure link, you can safely ignore these settings.
+    tls:
+        # HTTPS bind address of the server.
+        address:
+            host: 127.0.0.1
+            port: "3443"
+        # Whether TLS will be enabled.
+        enable: false
+        # Whether HTTP requests will be redirected to the access URL (if it's a https URL
+        # and TLS is enabled). Requests to local IP addresses are never redirected
+        # regardless of this setting.
+        redirectHTTP: true
+        # Path to each certificate for TLS. It requires a PEM-encoded file. To configure
+        # the listener to use a CA certificate, concatenate the primary certificate and
+        # the CA certificate together. The primary certificate should appear first in the
+        # combined file.
+        certFiles: []
+        # PEM-encoded Certificate Authority file used for checking the authenticity of
+        # client.
+        clientCAFile: ""
+        # Policy the server will follow for TLS Client Authentication. Accepted values are
+        # "none", "request", "require-any", "verify-if-given", or "require-and-verify".
+        clientAuth: none
+        # Paths to the private keys for each of the certificates. It requires a
+        # PEM-encoded file.
+        keyFiles: []
+        # Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12"
+        # or "tls13".
+        minVersion: tls12
+        # Path to certificate for client TLS authentication. It requires a PEM-encoded
+        # file.
+        clientCertFile: ""
+        # Path to key for client TLS authentication. It requires a PEM-encoded file.
+        clientKeyFile: ""
+        # Controls if the 'Strict-Transport-Security' header is set on all static file
+        # responses. This header should only be set if the server is accessed via HTTPS.
+        # This value is the MaxAge in seconds of the header.
+        strictTransportSecurity: 0
+        # Two optional fields can be set in the Strict-Transport-Security header;
+        # 'includeSubDomains' and 'preload'. The 'strict-transport-security' flag must be
+        # set to a non-zero value for these options to be used.
+        strictTransportSecurityOptions: []
+    # Most Coder deployments never have to think about DERP because all connections
+    #  between workspaces and users are peer-to-peer. However, when Coder cannot
+    # establish
+    #  a peer to peer connection, Coder uses a distributed relay network backed by
+    #  Tailscale and WireGuard.
+    derp:
+        # Whether to enable or disable the embedded DERP relay server.
+        enable: true
+        # Region ID to use for the embedded DERP server.
+        regionID: 999
+        # Region code to use for the embedded DERP server.
+        regionCode: coder
+        # Region name that for the embedded DERP server.
+        regionName: Coder Embedded Relay
+        # Addresses for STUN servers to establish P2P connections. Set empty to disable
+        # P2P connections.
+        stunAddresses:
+            - stun.l.google.com:19302
+        # An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
+        # for high availability.
+        relayURL:
+            scheme: ""
+            opaque: ""
+            user: null
+            host: ""
+            path: ""
+            rawpath: ""
+            omithost: false
+            forcequery: false
+            rawquery: ""
+            fragment: ""
+            rawfragment: ""
+        # URL to fetch a DERP mapping on startup. See:
+        # https://tailscale.com/kb/1118/custom-derp-servers/.
+        url: ""
+        # Path to read a DERP mapping from. See:
+        # https://tailscale.com/kb/1118/custom-derp-servers/.
+        configPath: ""
+    # Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip,
+    # True-Client-Ip, X-Forwarded-For.
+    proxyTrustedHeaders: []
+    # Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
+    proxyTrustedOrigins: []
+    # Controls if the 'Secure' property is set on browser session cookies.
+    secureAuthCookie: false
+    # Whether Coder only allows connections to workspaces via the browser.
+    browserOnly: false
+# Interval to poll for scheduled workspace builds.
+autobuildPollInterval: 60000000000
+introspection:
+    prometheus:
+        # Serve prometheus metrics on the address defined by prometheus address.
+        enable: false
+        # The bind address to serve prometheus metrics.
+        address:
+            host: 127.0.0.1
+            port: "2112"
+    pprof:
+        # Serve pprof metrics on the address defined by pprof address.
+        enable: false
+        # The bind address to serve pprof.
+        address:
+            host: 127.0.0.1
+            port: "6060"
+    tracing:
+        # Whether application tracing data is collected. It exports to a backend
+        # configured by environment variables. See:
+        # https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
+        enable: false
+        # Enables capturing of logs as events in traces. This is useful for debugging, but
+        # may result in a very large amount of events being sent to the tracing backend
+        # which may incur significant costs. If the verbose flag was supplied, debug-level
+        # logs will be included.
+        captureLogs: false
+    logging:
+        # Output debug-level logs.
+        verbose: false
+        # Output human-readable logs to a given file.
+        humanPath: /dev/stderr
+        # Output JSON logs to a given file.
+        jsonPath: ""
+        # Output Stackdriver compatible logs to a given file.
+        stackdriverPath: ""
+oauth2:
+    github:
+        # Client ID for Login with GitHub.
+        clientID: ""
+        # Organizations the user must be a member of to Login with GitHub.
+        allowedOrgs: []
+        # Teams inside organizations the user must be a member of to Login with GitHub.
+        # Structured as: <organization-name>/<team-slug>.
+        allowedTeams: []
+        # Whether new users can sign up with GitHub.
+        allowSignups: false
+        # Allow all logins, setting this option means allowed orgs and teams must be
+        # empty.
+        allowEveryone: false
+        # Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
+        enterpriseBaseURL: ""
+oidc:
+    # Whether new users can sign up with OIDC.
+    allowSignups: true
+    # Client ID to use for Login with OIDC.
+    clientID: ""
+    # Email domains that clients logging in with OIDC must match.
+    emailDomain: []
+    # Issuer URL to use for Login with OIDC.
+    issuerURL: ""
+    # Scopes to grant when authenticating with OIDC.
+    scopes:
+        - openid
+        - profile
+        - email
+    # Ignore the email_verified claim from the upstream provider.
+    ignoreEmailVerified: false
+    # OIDC claim field to use as the username.
+    usernameField: preferred_username
+    # OIDC claim field to use as the email.
+    emailField: email
+    # OIDC auth URL parameters to pass to the upstream provider.
+    authURLParams:
+        access_type: offline
+    # Change the OIDC default 'groups' claim field. By default, will be 'groups' if
+    # present in the oidc scopes argument.
+    groupField: ""
+    # A map of OIDC group IDs and the group in Coder it should map to. This is useful
+    # for when OIDC providers only return group IDs.
+    groupMapping: {}
+    # The text to show on the OpenID Connect sign in button.
+    signInText: OpenID Connect
+    # URL pointing to the icon to use on the OepnID Connect login button.
+    iconURL:
+        scheme: ""
+        opaque: ""
+        user: null
+        host: ""
+        path: ""
+        rawpath: ""
+        omithost: false
+        forcequery: false
+        rawquery: ""
+        fragment: ""
+        rawfragment: ""
+# Telemetry is critical to our ability to improve Coder. We strip all personal
+# information before sending data to our servers. Please only disable telemetry
+# when required by your organization's security policy.
+telemetry:
+    # Whether telemetry is enabled or not. Coder collects anonymized usage data to
+    # help improve our product.
+    enable: false
+    # Whether Opentelemetry traces are sent to Coder. Coder collects anonymized
+    # application tracing to help improve our product. Disabling telemetry also
+    # disables this option.
+    trace: false
+    # URL to send telemetry.
+    url:
+        scheme: https
+        opaque: ""
+        user: null
+        host: telemetry.coder.com
+        path: ""
+        rawpath: ""
+        omithost: false
+        forcequery: false
+        rawquery: ""
+        fragment: ""
+        rawfragment: ""
+# Tune the behavior of the provisioner, which is responsible for creating,
+# updating, and deleting workspace resources.
+provisioning:
+    # Number of provisioner daemons to create on start. If builds are stuck in queued
+    # state for a long time, consider increasing this.
+    daemons: 3
+    # Time to wait before polling for a new job.
+    daemonPollInterval: 1000000000
+    # Random jitter added to the poll interval.
+    daemonPollJitter: 100000000
+    # Time to force cancel provisioning tasks that are stuck.
+    forceCancelInterval: 600000000000
+# Enable one or more experiments. These are not ready for production. Separate
+# multiple experiments with commas, or enter '*' to opt-in to all available
+# experiments.
+experiments: []
+# Periodically check for new releases of Coder and inform the owner. The check is
+# performed once per day.
+updateCheck: false
+# Expose the swagger endpoint via /swagger.
+enableSwagger: false
+# The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is
+# set, it will be used for compatibility with systemd.
+cacheDir: /home/coder/.cache/coder
+# Controls whether data will be stored in an in-memory database.
+inMemoryDatabase: false
+# The algorithm to use for generating ssh keys. Accepted values are "ed25519",
+# "ecdsa", or "rsa4096".
+sshKeygenAlgorithm: ed25519
+# URL to use for agent troubleshooting when not set in the template.
+agentFallbackTroubleshootingURL:
+    scheme: https
+    opaque: ""
+    user: null
+    host: coder.com
+    path: /docs/coder-oss/latest/templates
+    rawpath: ""
+    omithost: false
+    forcequery: false
+    rawquery: ""
+    fragment: troubleshooting-templates
+    rawfragment: ""
+# Specifies whether audit logging is enabled.
+auditLogging: true
+# Disable workspace apps that are not served from subdomains. Path-based apps can
+# make requests to the Coder API and pose a security risk when the workspace
+# serves malicious JavaScript. This is recommended for security purposes if a
+# --wildcard-access-url is configured.
+disablePathApps: false
+# These options change the behavior of how clients interact with the Coder.
+# Clients include the coder cli, vs code extension, and the web UI.
+client:
+    # The SSH deployment prefix is used in the Host of the ssh config.
+    sshHostnamePrefix: coder.
+    # These SSH config options will override the default SSH config options. Provide
+    # options in "key=value" or "key value" format separated by commas.Using this
+    # incorrectly can break SSH to your deployment, use cautiously.
+    sshConfigOptions: []
+# Support links to display in the top right drop down menu.
+supportLinks: []
+# Git Authentication providers.
+gitAuthProviders: []
+# Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By
+# default, this will pick the best available wgtunnel server hosted by Coder. e.g.
+# "tunnel.example.com".
+wgtunnelHost: ""

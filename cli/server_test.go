@@ -18,6 +18,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -29,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"gopkg.in/yaml.v3"
 
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clitest"
@@ -1463,4 +1465,32 @@ func waitAccessURL(t *testing.T, cfg config.Root) *url.URL {
 	require.NoError(t, err, "failed to parse access URL")
 
 	return accessURL
+}
+
+func TestServerConfig(t *testing.T) {
+	t.Parallel()
+
+	var deployValues codersdk.DeploymentValues
+	opts := deployValues.Options()
+
+	err := opts.SetDefaults()
+	require.NoError(t, err)
+
+	n, err := opts.ToYAML()
+	require.NoError(t, err)
+
+	wantByt, err := yaml.Marshal(n)
+	require.NoError(t, err)
+
+	goldenPath := filepath.Join("testdata", "server-config.yaml.golden")
+
+	if *updateGoldenFiles {
+		require.NoError(t, os.WriteFile(goldenPath, wantByt, 0o600))
+		return
+	}
+
+	got, err := os.ReadFile(goldenPath)
+	require.NoError(t, err)
+
+	require.Equal(t, string(wantByt), string(got))
 }

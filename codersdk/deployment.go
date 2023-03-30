@@ -364,6 +364,7 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 	var (
 		deploymentGroupNetworking = clibase.Group{
 			Name: "Networking",
+			YAML: "networking",
 		}
 		deploymentGroupNetworkingTLS = clibase.Group{
 			Parent: &deploymentGroupNetworking,
@@ -371,10 +372,12 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
 			Description: `Configure TLS / HTTPS for your Coder deployment. If you're running
  Coder behind a TLS-terminating reverse proxy or are accessing Coder over a
  secure link, you can safely ignore these settings.`,
+			YAML: "tls",
 		}
 		deploymentGroupNetworkingHTTP = clibase.Group{
 			Parent: &deploymentGroupNetworking,
 			Name:   "HTTP",
+			YAML:   "http",
 		}
 		deploymentGroupNetworkingDERP = clibase.Group{
 			Parent: &deploymentGroupNetworking,
@@ -383,40 +386,50 @@ func (c *DeploymentValues) Options() clibase.OptionSet {
  between workspaces and users are peer-to-peer. However, when Coder cannot establish
  a peer to peer connection, Coder uses a distributed relay network backed by
  Tailscale and WireGuard.`,
+			YAML: "derp",
 		}
 		deploymentGroupIntrospection = clibase.Group{
 			Name:        "Introspection",
 			Description: `Configure logging, tracing, and metrics exporting.`,
+			YAML:        "introspection",
 		}
 		deploymentGroupIntrospectionPPROF = clibase.Group{
 			Parent: &deploymentGroupIntrospection,
 			Name:   "pprof",
+			YAML:   "pprof",
 		}
 		deploymentGroupIntrospectionPrometheus = clibase.Group{
 			Parent: &deploymentGroupIntrospection,
 			Name:   "Prometheus",
+			YAML:   "prometheus",
 		}
 		deploymentGroupIntrospectionTracing = clibase.Group{
 			Parent: &deploymentGroupIntrospection,
 			Name:   "Tracing",
+			YAML:   "tracing",
 		}
 		deploymentGroupIntrospectionLogging = clibase.Group{
 			Parent: &deploymentGroupIntrospection,
 			Name:   "Logging",
+			YAML:   "logging",
 		}
 		deploymentGroupOAuth2 = clibase.Group{
 			Name:        "OAuth2",
 			Description: `Configure login and user-provisioning with GitHub via oAuth2.`,
+			YAML:        "oauth2",
 		}
 		deploymentGroupOAuth2GitHub = clibase.Group{
 			Parent: &deploymentGroupOAuth2,
 			Name:   "GitHub",
+			YAML:   "github",
 		}
 		deploymentGroupOIDC = clibase.Group{
 			Name: "OIDC",
+			YAML: "oidc",
 		}
 		deploymentGroupTelemetry = clibase.Group{
 			Name: "Telemetry",
+			YAML: "telemetry",
 			Description: `Telemetry is critical to our ability to improve Coder. We strip all personal
 information before sending data to our servers. Please only disable telemetry
 when required by your organization's security policy.`,
@@ -424,14 +437,17 @@ when required by your organization's security policy.`,
 		deploymentGroupProvisioning = clibase.Group{
 			Name:        "Provisioning",
 			Description: `Tune the behavior of the provisioner, which is responsible for creating, updating, and deleting workspace resources.`,
+			YAML:        "provisioning",
 		}
 		deploymentGroupDangerous = clibase.Group{
 			Name: "⚠️ Dangerous",
+			YAML: "dangerous",
 		}
 		deploymentGroupClient = clibase.Group{
 			Name: "Client",
 			Description: "These options change the behavior of how clients interact with the Coder. " +
 				"Clients include the coder cli, vs code extension, and the web UI.",
+			YAML: "client",
 		}
 		deploymentGroupConfig = clibase.Group{
 			Name:        "Config",
