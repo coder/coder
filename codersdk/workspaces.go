@@ -66,6 +66,7 @@ type CreateWorkspaceBuildRequest struct {
 	ParameterValues     []CreateParameterRequest  `json:"parameter_values,omitempty"`
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
 
+	// Log level changes the default logging verbosity of a provider ("info" if empty).
 	LogLevel ProvisionerLogLevel `json:"log_level,omitempty" validate:"omitempty,oneof=debug"`
 }
 

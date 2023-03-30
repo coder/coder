@@ -6520,6 +6520,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "log_level": {
+                    "description": "Log level changes the default logging verbosity of a provider (\"info\" if empty).",
                     "enum": [
                         "debug"
                     ],
