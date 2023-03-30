@@ -178,10 +178,7 @@ func TestTemplatePush(t *testing.T) {
 		require.NoError(t, err)
 
 		os.Chdir(source)
-
-		t.Cleanup(func() {
-			os.Chdir(oldDir)
-		})
+		defer os.Chdir(oldDir)
 
 		// Don't pass the name of the template, it should use the
 		// directory of the source.
