@@ -247,6 +247,7 @@ func TestCommand_FlagOverride(t *testing.T) {
 		Use: "1",
 		Options: clibase.OptionSet{
 			{
+				Name:  "flag",
 				Flag:  "f",
 				Value: clibase.DiscardValue,
 			},
@@ -256,6 +257,7 @@ func TestCommand_FlagOverride(t *testing.T) {
 				Use: "2",
 				Options: clibase.OptionSet{
 					{
+						Name:  "flag",
 						Flag:  "f",
 						Value: clibase.StringOf(&flag),
 					},
@@ -527,11 +529,17 @@ func TestCommand_EmptySlice(t *testing.T) {
 		}
 	}
 
-	// Base-case
+	// Base-case, uses default.
 	err := cmd("bad", "bad", "bad").Invoke().Run()
 	require.NoError(t, err)
 
+	// Reset to nothing at all.
 	inv := cmd().Invoke("--arr", "")
+	err = inv.Run()
+	require.NoError(t, err)
+
+	// Override
+	inv = cmd("great").Invoke("--arr", "great")
 	err = inv.Run()
 	require.NoError(t, err)
 }
