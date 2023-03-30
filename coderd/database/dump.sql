@@ -475,7 +475,7 @@ CREATE TABLE users (
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
 );
 
-CREATE TABLE workspace_agent_metadata (
+CREATE UNLOGGED TABLE workspace_agent_metadata (
     workspace_agent_id uuid NOT NULL,
     display_name character varying(127) NOT NULL,
     key character varying(127) NOT NULL,
