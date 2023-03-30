@@ -5,17 +5,21 @@ import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Loader } from "components/Loader/Loader"
 import { FC, useEffect } from "react"
 import { useParams } from "react-router-dom"
-import { firstOrItem } from "util/array"
 import { quotaMachine } from "xServices/quotas/quotasXService"
 import { workspaceMachine } from "xServices/workspace/workspaceXService"
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage"
 
 export const WorkspacePage: FC = () => {
-  const { username: usernameQueryParam, workspace: workspaceQueryParam } =
-    useParams()
-  const username = firstOrItem(usernameQueryParam, null)
-  const workspaceName = firstOrItem(workspaceQueryParam, null)
-  const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
+  const { username, workspace: workspaceName } = useParams() as {
+    username: string
+    workspace: string
+  }
+  const [workspaceState, workspaceSend] = useMachine(workspaceMachine, {
+    context: {
+      workspaceName,
+      username,
+    },
+  })
   const {
     workspace,
     getWorkspaceError,
@@ -26,16 +30,6 @@ export const WorkspacePage: FC = () => {
   const [quotaState, quotaSend] = useMachine(quotaMachine)
   const { getQuotaError } = quotaState.context
   const styles = useStyles()
-
-  /**
-   * Get workspace, template, and organization on mount and whenever workspaceId changes.
-   * workspaceSend should not change.
-   */
-  useEffect(() => {
-    username &&
-      workspaceName &&
-      workspaceSend({ type: "GET_WORKSPACE", username, workspaceName })
-  }, [username, workspaceName, workspaceSend])
 
   useEffect(() => {
     username && quotaSend({ type: "GET_QUOTA", username })

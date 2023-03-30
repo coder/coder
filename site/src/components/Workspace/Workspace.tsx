@@ -177,6 +177,14 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           handleUpdate={handleUpdate}
         />
 
+        {workspace.latest_build.job.error && (
+          <div>
+            <div>
+              The build failed. See the logs below for more information.
+            </div>
+          </div>
+        )}
+
         {transitionStats !== undefined && (
           <WorkspaceBuildProgress
             workspace={workspace}

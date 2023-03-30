@@ -51,6 +51,9 @@ const Language = {
 type Permissions = Record<keyof ReturnType<typeof permissionsToCheck>, boolean>
 
 export interface WorkspaceContext {
+  // Initial data
+  username: string
+  workspaceName: string
   // our server side events instance
   eventSource?: EventSource
   workspace?: TypesGen.Workspace
@@ -75,7 +78,6 @@ export interface WorkspaceContext {
 }
 
 export type WorkspaceEvent =
-  | { type: "GET_WORKSPACE"; workspaceName: string; username: string }
   | { type: "REFRESH_WORKSPACE"; data: TypesGen.ServerSentEvent["data"] }
   | { type: "START" }
   | { type: "STOP" }
@@ -164,17 +166,8 @@ export const workspaceMachine = createMachine(
         }
       },
     },
-    initial: "idle",
-    on: {
-      GET_WORKSPACE: {
-        target: ".gettingWorkspace",
-        internal: false,
-      },
-    },
+    initial: "gettingWorkspace",
     states: {
-      idle: {
-        tags: "loading",
-      },
       gettingWorkspace: {
         entry: ["clearContext"],
         invoke: {
@@ -459,7 +452,7 @@ export const workspaceMachine = createMachine(
           schedule: {
             invoke: {
               id: "scheduleBannerMachine",
-              src: workspaceScheduleBannerMachine,
+              src: "scheduleBannerMachine",
               data: {
                 workspace: (context: WorkspaceContext) => context.workspace,
               },
@@ -468,11 +461,7 @@ export const workspaceMachine = createMachine(
         },
       },
       error: {
-        on: {
-          GET_WORKSPACE: {
-            target: "gettingWorkspace",
-          },
-        },
+        type: "final",
       },
     },
   },
@@ -613,14 +602,10 @@ export const workspaceMachine = createMachine(
       },
     },
     services: {
-      getWorkspace: async (_, event) => {
-        return await API.getWorkspaceByOwnerAndName(
-          event.username,
-          event.workspaceName,
-          {
-            include_deleted: true,
-          },
-        )
+      getWorkspace: async ({ username, workspaceName }) => {
+        return await API.getWorkspaceByOwnerAndName(username, workspaceName, {
+          include_deleted: true,
+        })
       },
       getTemplate: async (context) => {
         if (context.workspace) {
@@ -736,6 +721,7 @@ export const workspaceMachine = createMachine(
       getApplicationsHost: async () => {
         return API.getApplicationsHost()
       },
+      scheduleBannerMachine: workspaceScheduleBannerMachine,
     },
   },
 )
