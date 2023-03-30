@@ -81,7 +81,9 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
                 Connect to the agent:
               </strong>
             </HelpTooltipText>
-            <CodeExample code={`ssh ${sshPrefix}${workspaceName}.${agentName}`} />
+            <CodeExample
+              code={`ssh ${sshPrefix}${workspaceName}.${agentName}`}
+            />
           </div>
         </Stack>
 
