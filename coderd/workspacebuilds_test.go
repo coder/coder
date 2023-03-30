@@ -1200,7 +1200,7 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID, rbac.RoleTemplateAdmin())
 
 		// Interact as template admin
-		version := coderdtest.CreateTemplateVersion(t, templateAdminClient, admin.OrganizationID, &echo.Responses{
+		echoResponses := &echo.Responses{
 			Parse:         echo.ParseComplete,
 			ProvisionPlan: echo.ProvisionComplete,
 			ProvisionApply: []*proto.Provision_Response{{
@@ -1229,7 +1229,8 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 					Complete: &proto.Provision_Complete{},
 				},
 			}},
-		})
+		}
+		version := coderdtest.CreateTemplateVersion(t, templateAdminClient, admin.OrganizationID, echoResponses)
 		template := coderdtest.CreateTemplate(t, templateAdminClient, admin.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, templateAdminClient, version.ID)
 
@@ -1256,19 +1257,30 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		require.NoError(t, err)
 		defer closer.Close()
 
+		var logsProcessed int
 		for {
-			log, ok := <-logs
-			if !ok {
-				break
-			}
-
-			if log.Output == "dont-want-it" {
-				require.Failf(t, "unexpected log message", "%s log message shouldn't be logged: %s", log.Level, log.Output)
-			}
-
-			if log.Output == "done" {
+			select {
+			case <-ctx.Done():
+				require.Fail(t, "timeout occurred while processing logs")
 				return
+			case log, ok := <-logs:
+				if !ok {
+					goto done
+				}
+
+				logsProcessed++
+
+				if log.Output == "dont-want-it" {
+					require.Failf(t, "unexpected log message", "%s log message shouldn't be logged: %s", log.Level, log.Output)
+				}
+
+				if log.Output == "done" {
+					goto done
+				}
 			}
 		}
+
+	done:
+		require.Equal(t, len(echoResponses.ProvisionApply), logsProcessed)
 	})
 }
