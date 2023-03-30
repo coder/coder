@@ -2,6 +2,7 @@ package clibase
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/xerrors"
@@ -53,10 +54,19 @@ func (s OptionSet) ToYAML() (*yaml.Node, error) {
 		if opt.YAML == "" {
 			continue
 		}
+
+		defValue := opt.Default
+		if defValue == "" {
+			defValue = "<unset>"
+		}
+		comment := wordwrap.WrapString(
+			fmt.Sprintf("%s (default: %s)", opt.Description, defValue),
+			80,
+		)
 		nameNode := yaml.Node{
 			Kind:        yaml.ScalarNode,
 			Value:       opt.YAML,
-			HeadComment: wordwrap.WrapString(opt.Description, 80),
+			HeadComment: wordwrap.WrapString(comment, 80),
 		}
 		var valueNode yaml.Node
 		if m, ok := opt.Value.(yaml.Marshaler); ok {
