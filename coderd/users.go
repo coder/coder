@@ -1110,10 +1110,7 @@ func (api *API) userNotifications(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	workspaces := database.ConvertWorkspaceRows(workspaceRows)
-	if err != nil {
-		sendErrorEvent(err, "Internal error getting user resources.")
-		return
-	}
+
 	// defines channel name (e.g. pub sub "topic") and its callback for listening to events
 	var subscriptionListeners = make(map[string]database.Listener)
 
