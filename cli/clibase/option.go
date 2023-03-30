@@ -146,25 +146,19 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 	return merr.ErrorOrNil()
 }
 
-// SetDefaults sets the default values for each Option.
-// It should be called before all parsing (e.g. ParseFlags, ParseEnv).
-func (s *OptionSet) SetDefaults(skip map[string]struct{}) error {
+// SetDefaults sets the default values for each Option, skipping values
+// that have already been set as indiciated by the skip map.
+func (s *OptionSet) SetDefaults(skip map[int]struct{}) error {
 	if s == nil {
 		return nil
 	}
 
 	var merr *multierror.Error
 
-	for _, opt := range *s {
+	for i, opt := range *s {
 		// Skip values that may have already been set by the user.
 		if len(skip) > 0 {
-			if opt.Name == "" {
-				merr = multierror.Append(
-					merr, xerrors.Errorf("parse: no Name field set"),
-				)
-				continue
-			}
-			if _, ok := skip[opt.Name]; ok {
+			if _, ok := skip[i]; ok {
 				continue
 			}
 		}
