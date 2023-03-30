@@ -287,6 +287,7 @@ func New(options *Options) *API {
 			options.Database,
 			options.DeploymentValues,
 			oauthConfigs,
+			options.AgentInactiveDisconnectTimeout,
 			options.AppSigningKey,
 		),
 		metricsCache:          metricsCache,
@@ -618,6 +619,9 @@ func New(options *Options) *API {
 				r.Post("/report-stats", api.workspaceAgentReportStats)
 				r.Post("/report-lifecycle", api.workspaceAgentReportLifecycle)
 			})
+			// No middleware on the PTY endpoint since it uses workspace
+			// application auth and tickets.
+			r.Get("/{workspaceagent}/pty", api.workspaceAgentPTY)
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
 					apiKeyMiddleware,
@@ -625,7 +629,6 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
-				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/startup-logs", api.workspaceAgentStartupLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
