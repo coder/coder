@@ -142,6 +142,8 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
+
+	WorkspaceOwnerConnectionOnly bool
 }
 
 // @title Coder API

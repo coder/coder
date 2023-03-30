@@ -555,6 +555,16 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if api.Options.WorkspaceOwnerConnectionOnly {
+		user := httpmw.UserAuthorization(r)
+		if user.Actor.ID != workspace.OwnerID.String() {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Only workspace owners can connect to workspace",
+			})
+			return
+		}
+	}
+
 	apiAgent, err := convertWorkspaceAgent(
 		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
@@ -1087,6 +1097,17 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		httpapi.ResourceNotFound(rw)
 		return
 	}
+
+	if api.Options.WorkspaceOwnerConnectionOnly {
+		user := httpmw.UserAuthorization(r)
+		if user.Actor.ID != workspace.OwnerID.String() {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Only workspace owners can connect to workspace",
+			})
+			return
+		}
+	}
+
 	// This is used by Enterprise code to control the functionality of this route.
 	override := api.WorkspaceClientCoordinateOverride.Load()
 	if override != nil {

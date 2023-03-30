@@ -636,6 +636,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					HostnamePrefix:   cfg.SSHConfig.DeploymentName.String(),
 					SSHConfigOptions: configSSHOptions,
 				},
+				WorkspaceOwnerConnectionOnly: cfg.WorkspaceOwnerConnectionOnly.Value(),
 			}
 			if tlsConfig != nil {
 				options.TLSCertificates = tlsConfig.Certificates

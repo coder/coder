@@ -162,6 +162,7 @@ type DeploymentValues struct {
 	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                       `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    clibase.String                  `json:"wgtunnel_host,omitempty" typescript:",notnull"`
+	WorkspaceOwnerConnectionOnly    clibase.Bool                    `json:"workspace_owner_connection_only,omitempty" typescript:",notnull"`
 
 	Config      clibase.String `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool   `json:"write_config,omitempty" typescript:",notnull"`
@@ -1378,6 +1379,15 @@ Write out the current server configuration to the path specified by --config.`,
 			Value:       &c.WgtunnelHost,
 			Default:     "", // empty string means pick best server
 			Hidden:      true,
+		},
+		{
+			Name:        "Workspace Owner Connection Only",
+			Description: "Specifies whether owners only have access to their workspaces.",
+			Flag:        "workspace-owner-connection-only",
+			Env:         "CODER_WORKSPACE_OWNER_CONNECTION_ONLY",
+			Default:     "false",
+			Value:       &c.WorkspaceOwnerConnectionOnly,
+			YAML:        "workspaceOwnerConnectionOnly",
 		},
 	}
 	return opts
