@@ -763,7 +763,7 @@ type API struct {
 	metricsCache          *metricscache.Cache
 	workspaceAgentCache   *wsconncache.Cache
 	updateChecker         *updatecheck.Checker
-	WorkspaceAppsProvider *workspaceapps.Provider
+	WorkspaceAppsProvider *workspaceapps.DBTicketProvider
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.

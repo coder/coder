@@ -255,7 +255,7 @@ func Test_ResolveRequest(t *testing.T) {
 						AppURL:      appURL,
 					}, ticket)
 					require.NotZero(t, ticket.Expiry)
-					require.InDelta(t, time.Now().Add(workspaceapps.TicketExpiry).Unix(), ticket.Expiry, time.Minute.Seconds())
+					require.WithinDuration(t, time.Now().Add(workspaceapps.TicketExpiry), ticket.Expiry, time.Minute)
 
 					// Check that the ticket was set in the response and is valid.
 					require.Len(t, w.Cookies(), 1)
@@ -265,6 +265,9 @@ func Test_ResolveRequest(t *testing.T) {
 
 					parsedTicket, err := api.WorkspaceAppsProvider.ParseTicket(cookie.Value)
 					require.NoError(t, err)
+					// normalize expiry
+					require.WithinDuration(t, ticket.Expiry, parsedTicket.Expiry, 2*time.Second)
+					parsedTicket.Expiry = ticket.Expiry
 					require.Equal(t, ticket, &parsedTicket)
 
 					// Try resolving the request with the ticket only.
@@ -274,6 +277,9 @@ func Test_ResolveRequest(t *testing.T) {
 
 					secondTicket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
 					require.True(t, ok)
+					// normalize expiry
+					require.WithinDuration(t, ticket.Expiry, secondTicket.Expiry, 2*time.Second)
+					secondTicket.Expiry = ticket.Expiry
 					require.Equal(t, ticket, secondTicket)
 				}
 			})
@@ -470,7 +476,7 @@ func Test_ResolveRequest(t *testing.T) {
 				// App name differs
 				AppSlugOrPort: appNamePublic,
 			},
-			Expiry:      time.Now().Add(time.Minute).Unix(),
+			Expiry:      time.Now().Add(time.Minute),
 			UserID:      me.ID,
 			WorkspaceID: workspace.ID,
 			AgentID:     agentID,

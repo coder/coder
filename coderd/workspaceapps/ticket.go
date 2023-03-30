@@ -21,7 +21,7 @@ type Ticket struct {
 	Request `json:"request"`
 
 	// Trusted resolved details.
-	Expiry      int64     `json:"expiry"` // set by GenerateTicket if unset
+	Expiry      time.Time `json:"expiry"` // set by GenerateTicket if unset
 	UserID      uuid.UUID `json:"user_id"`
 	WorkspaceID uuid.UUID `json:"workspace_id"`
 	AgentID     uuid.UUID `json:"agent_id"`
@@ -37,9 +37,9 @@ func (t Ticket) MatchesRequest(req Request) bool {
 		t.AppSlugOrPort == req.AppSlugOrPort
 }
 
-func (p *Provider) GenerateTicket(payload Ticket) (string, error) {
-	if payload.Expiry == 0 {
-		payload.Expiry = time.Now().Add(TicketExpiry).Unix()
+func (p *DBTicketProvider) GenerateTicket(payload Ticket) (string, error) {
+	if payload.Expiry.IsZero() {
+		payload.Expiry = time.Now().Add(TicketExpiry)
 	}
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -69,7 +69,7 @@ func (p *Provider) GenerateTicket(payload Ticket) (string, error) {
 	return serialized, nil
 }
 
-func (p *Provider) ParseTicket(ticketStr string) (Ticket, error) {
+func (p *DBTicketProvider) ParseTicket(ticketStr string) (Ticket, error) {
 	object, err := jose.ParseSigned(ticketStr)
 	if err != nil {
 		return Ticket{}, xerrors.Errorf("parse JWS: %w", err)
@@ -91,7 +91,7 @@ func (p *Provider) ParseTicket(ticketStr string) (Ticket, error) {
 	if err != nil {
 		return Ticket{}, xerrors.Errorf("unmarshal payload: %w", err)
 	}
-	if ticket.Expiry < time.Now().Unix() {
+	if ticket.Expiry.Before(time.Now()) {
 		return Ticket{}, xerrors.New("ticket expired")
 	}
 

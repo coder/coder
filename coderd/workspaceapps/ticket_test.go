@@ -178,7 +178,7 @@ func Test_GenerateTicket(t *testing.T) {
 				AppSlugOrPort:     "qux",
 			},
 
-			Expiry:      0,
+			Expiry:      time.Time{},
 			UserID:      uuid.MustParse("b1530ba9-76f3-415e-b597-4ddd7cd466a4"),
 			WorkspaceID: uuid.MustParse("1e6802d3-963e-45ac-9d8c-bf997016ffed"),
 			AgentID:     uuid.MustParse("9ec18681-d2c9-4c9e-9186-f136efb4edbe"),
@@ -189,10 +189,10 @@ func Test_GenerateTicket(t *testing.T) {
 		ticket, err := provider.ParseTicket(ticketStr)
 		require.NoError(t, err)
 
-		require.InDelta(t, time.Now().Unix(), ticket.Expiry, time.Minute.Seconds())
+		require.WithinDuration(t, time.Now().Add(time.Minute), ticket.Expiry, 15*time.Second)
 	})
 
-	future := time.Now().Add(time.Hour).Unix()
+	future := time.Now().Add(time.Hour)
 	cases := []struct {
 		name             string
 		ticket           workspaceapps.Ticket
@@ -248,7 +248,7 @@ func Test_GenerateTicket(t *testing.T) {
 					AppSlugOrPort:     "qux",
 				},
 
-				Expiry:      time.Now().Add(-time.Hour).Unix(),
+				Expiry:      time.Now().Add(-time.Hour),
 				UserID:      uuid.MustParse("b1530ba9-76f3-415e-b597-4ddd7cd466a4"),
 				WorkspaceID: uuid.MustParse("1e6802d3-963e-45ac-9d8c-bf997016ffed"),
 				AgentID:     uuid.MustParse("9ec18681-d2c9-4c9e-9186-f136efb4edbe"),
@@ -276,6 +276,9 @@ func Test_GenerateTicket(t *testing.T) {
 				require.ErrorContains(t, err, c.parseErrContains)
 			} else {
 				require.NoError(t, err)
+				// normalize the expiry
+				require.WithinDuration(t, c.ticket.Expiry, ticket.Expiry, 10*time.Second)
+				c.ticket.Expiry = ticket.Expiry
 				require.Equal(t, c.ticket, ticket)
 			}
 		})
@@ -318,7 +321,7 @@ func Test_ParseTicket(t *testing.T) {
 				AppSlugOrPort:     "qux",
 			},
 
-			Expiry:      time.Now().Add(time.Hour).Unix(),
+			Expiry:      time.Now().Add(time.Hour),
 			UserID:      uuid.MustParse("b1530ba9-76f3-415e-b597-4ddd7cd466a4"),
 			WorkspaceID: uuid.MustParse("1e6802d3-963e-45ac-9d8c-bf997016ffed"),
 			AgentID:     uuid.MustParse("9ec18681-d2c9-4c9e-9186-f136efb4edbe"),

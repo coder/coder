@@ -29,26 +29,9 @@ const (
 	RedirectURIQueryParam = "redirect_uri"
 )
 
-// ResolveRequest takes an app request, checks if it's valid and authenticated,
-// and returns a ticket with details about the app.
-//
-// The ticket is written as a signed JWT into a cookie and will be automatically
-// used in the next request to the same app to avoid database calls.
-//
-// Upstream code should avoid any database calls ever.
-func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appReq Request) (*Ticket, bool) {
-	// nolint:gocritic // We need to make a number of database calls. Setting a system context here
-	//                 // is simpler than calling dbauthz.AsSystemRestricted on every call.
-	//                 // dangerousSystemCtx is only used for database calls. The actual authentication
-	//                 // logic is handled in Provider.authorizeWorkspaceApp which directly checks the actor's
-	//                 // permissions.
-	dangerousSystemCtx := dbauthz.AsSystemRestricted(r.Context())
-	err := appReq.Validate()
-	if err != nil {
-		p.writeWorkspaceApp500(rw, r, &appReq, err, "invalid app request")
-		return nil, false
-	}
-
+// TODO: remove this temporary shim
+func (p *DBTicketProvider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appReq Request) (*Ticket, bool) {
+	// TODO: this needs to be some sort of normalize function or something
 	if appReq.WorkspaceAndAgent != "" {
 		// workspace.agent
 		workspaceAndAgent := strings.SplitN(appReq.WorkspaceAndAgent, ".", 2)
@@ -66,23 +49,68 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 		}
 	}
 
+	ticket, ok := p.TicketFromRequest(r)
+	if ok && ticket.MatchesRequest(appReq) {
+		// The request has a valid ticket and it matches the request.
+		return ticket, true
+	}
+
+	ticket, ticketStr, ok := p.CreateTicket(r.Context(), rw, r, appReq)
+	if !ok {
+		return nil, false
+	}
+
+	// Write the ticket cookie. We always want this to apply to the current
+	// hostname (even for subdomain apps, without any wildcard shenanigans,
+	// because the ticket is only valid for a single app).
+	http.SetCookie(rw, &http.Cookie{
+		Name:    codersdk.DevURLSessionTicketCookie,
+		Value:   ticketStr,
+		Path:    appReq.BasePath,
+		Expires: ticket.Expiry,
+	})
+
+	return ticket, true
+}
+
+func (p *DBTicketProvider) TicketFromRequest(r *http.Request) (*Ticket, bool) {
 	// Get the existing ticket from the request.
 	ticketCookie, err := r.Cookie(codersdk.DevURLSessionTicketCookie)
 	if err == nil {
 		ticket, err := p.ParseTicket(ticketCookie.Value)
 		if err == nil {
 			err := ticket.Request.Validate()
-			if err == nil && ticket.MatchesRequest(appReq) {
+			if err == nil {
 				// The request has a ticket, which is a valid ticket signed by
-				// us, and matches the app that the user was trying to access.
+				// us. The caller must check that it matches the request.
 				return &ticket, true
 			}
 		}
 	}
 
-	// There's no ticket or it's invalid, so we need to check auth using the
-	// session token, validate auth and access to the app, then generate a new
-	// ticket.
+	return nil, false
+}
+
+// ResolveRequest takes an app request, checks if it's valid and authenticated,
+// and returns a ticket with details about the app.
+//
+// The ticket is written as a signed JWT into a cookie and will be automatically
+// used in the next request to the same app to avoid database calls.
+//
+// Upstream code should avoid any database calls ever.
+func (p *DBTicketProvider) CreateTicket(ctx context.Context, rw http.ResponseWriter, r *http.Request, appReq Request) (*Ticket, string, bool) {
+	// nolint:gocritic // We need to make a number of database calls. Setting a system context here
+	//                 // is simpler than calling dbauthz.AsSystemRestricted on every call.
+	//                 // dangerousSystemCtx is only used for database calls. The actual authentication
+	//                 // logic is handled in Provider.authorizeWorkspaceApp which directly checks the actor's
+	//                 // permissions.
+	dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
+	err := appReq.Validate()
+	if err != nil {
+		p.writeWorkspaceApp500(rw, r, &appReq, err, "invalid app request")
+		return nil, "", false
+	}
+
 	ticket := Ticket{
 		Request: appReq,
 	}
@@ -101,17 +129,17 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 		Optional: true,
 	})
 	if !ok {
-		return nil, false
+		return nil, "", false
 	}
 
 	// Lookup workspace app details from DB.
 	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database)
 	if xerrors.Is(err, sql.ErrNoRows) {
 		p.writeWorkspaceApp404(rw, r, &appReq, err.Error())
-		return nil, false
+		return nil, "", false
 	} else if err != nil {
 		p.writeWorkspaceApp500(rw, r, &appReq, err, "get app details from database")
-		return nil, false
+		return nil, "", false
 	}
 	ticket.UserID = dbReq.User.ID
 	ticket.WorkspaceID = dbReq.Workspace.ID
@@ -124,19 +152,20 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 	// Verify the user has access to the app.
 	authed, ok := p.verifyAuthz(rw, r, authz, dbReq)
 	if !ok {
-		return nil, false
+		return nil, "", false
 	}
 	if !authed {
 		if apiKey != nil {
 			// The request has a valid API key but insufficient permissions.
 			p.writeWorkspaceApp404(rw, r, &appReq, "insufficient permissions")
-			return nil, false
+			return nil, "", false
 		}
 
 		// Redirect to login as they don't have permission to access the app
 		// and they aren't signed in.
 		switch appReq.AccessMethod {
 		case AccessMethodPath:
+			// TODO(@deansheather): this doesn't work on moons
 			httpmw.RedirectToLogin(rw, r, httpmw.SignedOutErrorMessage)
 		case AccessMethodSubdomain:
 			// Redirect to the app auth redirect endpoint with a valid redirect
@@ -156,52 +185,41 @@ func (p *Provider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appRe
 			// Return an error.
 			httpapi.ResourceNotFound(rw)
 		}
-		return nil, false
+		return nil, "", false
 	}
 
 	// Check that the agent is online.
 	agentStatus := dbReq.Agent.Status(p.WorkspaceAgentInactiveTimeout)
 	if agentStatus.Status != database.WorkspaceAgentStatusConnected {
 		p.writeWorkspaceAppOffline(rw, r, &appReq, fmt.Sprintf("Agent state is %q, not %q", agentStatus.Status, database.WorkspaceAgentStatusConnected))
-		return nil, false
+		return nil, "", false
 	}
 
 	// Check that the app is healthy.
 	if dbReq.AppHealth != "" && dbReq.AppHealth != database.WorkspaceAppHealthDisabled && dbReq.AppHealth != database.WorkspaceAppHealthHealthy {
 		p.writeWorkspaceAppOffline(rw, r, &appReq, fmt.Sprintf("App health is %q, not %q", dbReq.AppHealth, database.WorkspaceAppHealthHealthy))
-		return nil, false
+		return nil, "", false
 	}
 
 	// As a sanity check, ensure the ticket we just made is valid for this
 	// request.
 	if !ticket.MatchesRequest(appReq) {
 		p.writeWorkspaceApp500(rw, r, &appReq, nil, "fresh ticket does not match request")
-		return nil, false
+		return nil, "", false
 	}
 
 	// Sign the ticket.
-	ticketExpiry := time.Now().Add(TicketExpiry)
-	ticket.Expiry = ticketExpiry.Unix()
+	ticket.Expiry = time.Now().Add(TicketExpiry)
 	ticketStr, err := p.GenerateTicket(ticket)
 	if err != nil {
 		p.writeWorkspaceApp500(rw, r, &appReq, err, "generate ticket")
-		return nil, false
+		return nil, "", false
 	}
 
-	// Write the ticket cookie. We always want this to apply to the current
-	// hostname (even for subdomain apps, without any wildcard shenanigans,
-	// because the ticket is only valid for a single app).
-	http.SetCookie(rw, &http.Cookie{
-		Name:    codersdk.DevURLSessionTicketCookie,
-		Value:   ticketStr,
-		Path:    appReq.BasePath,
-		Expires: ticketExpiry,
-	})
-
-	return &ticket, true
+	return &ticket, ticketStr, true
 }
 
-func (p *Provider) authorizeRequest(ctx context.Context, roles *httpmw.Authorization, dbReq *databaseRequest) (bool, error) {
+func (p *DBTicketProvider) authorizeRequest(ctx context.Context, roles *httpmw.Authorization, dbReq *databaseRequest) (bool, error) {
 	accessMethod := dbReq.AccessMethod
 	if accessMethod == "" {
 		accessMethod = AccessMethodPath
@@ -293,7 +311,7 @@ func (p *Provider) authorizeRequest(ctx context.Context, roles *httpmw.Authoriza
 // given app share level in the given workspace. The user's authorization status
 // is returned. If a server error occurs, a HTML error page is rendered and
 // false is returned so the caller can return early.
-func (p *Provider) verifyAuthz(rw http.ResponseWriter, r *http.Request, authz *httpmw.Authorization, dbReq *databaseRequest) (authed bool, ok bool) {
+func (p *DBTicketProvider) verifyAuthz(rw http.ResponseWriter, r *http.Request, authz *httpmw.Authorization, dbReq *databaseRequest) (authed bool, ok bool) {
 	ok, err := p.authorizeRequest(r.Context(), authz, dbReq)
 	if err != nil {
 		p.Logger.Error(r.Context(), "authorize workspace app", slog.Error(err))
@@ -312,7 +330,7 @@ func (p *Provider) verifyAuthz(rw http.ResponseWriter, r *http.Request, authz *h
 
 // writeWorkspaceApp404 writes a HTML 404 error page for a workspace app. If
 // appReq is not nil, it will be used to log the request details at debug level.
-func (p *Provider) writeWorkspaceApp404(rw http.ResponseWriter, r *http.Request, appReq *Request, msg string) {
+func (p *DBTicketProvider) writeWorkspaceApp404(rw http.ResponseWriter, r *http.Request, appReq *Request, msg string) {
 	if appReq != nil {
 		slog.Helper()
 		p.Logger.Debug(r.Context(),
@@ -336,7 +354,7 @@ func (p *Provider) writeWorkspaceApp404(rw http.ResponseWriter, r *http.Request,
 
 // writeWorkspaceApp500 writes a HTML 500 error page for a workspace app. If
 // appReq is not nil, it's fields will be added to the logged error message.
-func (p *Provider) writeWorkspaceApp500(rw http.ResponseWriter, r *http.Request, appReq *Request, err error, msg string) {
+func (p *DBTicketProvider) writeWorkspaceApp500(rw http.ResponseWriter, r *http.Request, appReq *Request, err error, msg string) {
 	slog.Helper()
 	ctx := r.Context()
 	if appReq != nil {
@@ -364,7 +382,7 @@ func (p *Provider) writeWorkspaceApp500(rw http.ResponseWriter, r *http.Request,
 
 // writeWorkspaceAppOffline writes a HTML 502 error page for a workspace app. If
 // appReq is not nil, it will be used to log the request details at debug level.
-func (p *Provider) writeWorkspaceAppOffline(rw http.ResponseWriter, r *http.Request, appReq *Request, msg string) {
+func (p *DBTicketProvider) writeWorkspaceAppOffline(rw http.ResponseWriter, r *http.Request, appReq *Request, msg string) {
 	if appReq != nil {
 		slog.Helper()
 		p.Logger.Debug(r.Context(),
