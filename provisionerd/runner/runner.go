@@ -1001,6 +1001,8 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		Directory: r.workDirectory,
 		Metadata:  r.job.GetWorkspaceBuild().Metadata,
 		State:     r.job.GetWorkspaceBuild().State,
+
+		ProvisionerLogLevel: r.job.GetWorkspaceBuild().LogLevel,
 	}
 
 	completedPlan, failed := r.buildWorkspace(ctx, "Planning infrastructure", &sdkproto.Provision_Request{

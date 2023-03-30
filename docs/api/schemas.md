@@ -1463,6 +1463,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 ```json
 {
   "dry_run": true,
+  "log_level": "debug",
   "orphan": true,
   "parameter_values": [
     {
@@ -1490,6 +1491,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Name                    | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                              |
 | ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dry_run`               | boolean                                                                       | false    |              |                                                                                                                                                                                                          |
+| `log_level`             | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                         |
 | `orphan`                | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                            |
 | `parameter_values`      | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest)   | false    |              | Parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
 | `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |                                                                                                                                                                                                          |
@@ -1501,6 +1503,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 | Property     | Value    |
 | ------------ | -------- |
+| `log_level`  | `debug`  |
 | `transition` | `create` |
 | `transition` | `start`  |
 | `transition` | `stop`   |
@@ -3258,6 +3261,20 @@ Parameter represents a set value for the scope.
 | `canceling` |
 | `canceled`  |
 | `failed`    |
+
+## codersdk.ProvisionerLogLevel
+
+```json
+"debug"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value   |
+| ------- |
+| `debug` |
 
 ## codersdk.ProvisionerStorageMethod
 

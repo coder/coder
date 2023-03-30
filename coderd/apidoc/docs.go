@@ -6519,6 +6519,17 @@ const docTemplate = `{
                 "dry_run": {
                     "type": "boolean"
                 },
+                "log_level": {
+                    "description": "Log level changes the default logging verbosity of a provider (\"info\" if empty).",
+                    "enum": [
+                        "debug"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerLogLevel"
+                        }
+                    ]
+                },
                 "orphan": {
                     "description": "Orphan may be set for the Destroy transition.",
                     "type": "boolean"
@@ -7774,6 +7785,15 @@ const docTemplate = `{
                 "ProvisionerJobCanceling",
                 "ProvisionerJobCanceled",
                 "ProvisionerJobFailed"
+            ]
+        },
+        "codersdk.ProvisionerLogLevel": {
+            "type": "string",
+            "enum": [
+                "debug"
+            ],
+            "x-enum-varnames": [
+                "ProvisionerLogLevelDebug"
             ]
         },
         "codersdk.ProvisionerStorageMethod": {
