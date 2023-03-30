@@ -40,8 +40,7 @@ coder:
 
   # coder.labels -- The Deployment labels. See:
   # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
-  labels:
-    eric: paulsen
+  labels: {}
 
   # coder.serviceAccount -- Configuration for the automatically created service
   # account. Creation of the service account cannot be disabled.
