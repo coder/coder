@@ -41,12 +41,12 @@ func TestOptionSet_YAML(t *testing.T) {
 				Value:       &workspaceName,
 				Default:     "billie",
 				Description: "The workspace's name.",
-				Group:       &clibase.Group{Name: "Names"},
+				Group:       &clibase.Group{YAML: "names"},
 				YAML:        "workspaceName",
 			},
 		}
 
-		err := os.SetDefaults(nil)
+		err := os.SetDefaults()
 		require.NoError(t, err)
 
 		n, err := os.ToYAML()
@@ -139,6 +139,7 @@ func TestOptionSet_YAMLIsomorphism(t *testing.T) {
 			os2 := slices.Clone(tc.os)
 			for i := range os2 {
 				os2[i].Value = tc.zeroValue()
+				os2[i].ValueSource = clibase.ValueSourceNone
 			}
 
 			// os2 values should be zeroed whereas tc.os should be
@@ -147,6 +148,11 @@ func TestOptionSet_YAMLIsomorphism(t *testing.T) {
 			require.NotEqual(t, tc.os, os2)
 			err = os2.FromYAML(&y2)
 			require.NoError(t, err)
+
+			want := tc.os
+			for i := range want {
+				want[i].ValueSource = clibase.ValueSourceYAML
+			}
 
 			require.Equal(t, tc.os, os2)
 		})

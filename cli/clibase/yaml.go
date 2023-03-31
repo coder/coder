@@ -181,7 +181,7 @@ func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
 			continue
 		}
 
-		if opt.Group.YAML == "" {
+		if opt.Group != nil && opt.Group.YAML == "" {
 			return xerrors.Errorf("group yaml name is empty for %q", opt.Name)
 		}
 
@@ -213,10 +213,18 @@ func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
 			continue
 		}
 
+		opt, foundOpt := optionsByName[name]
+		if foundOpt {
+			if opt.ValueSource != ValueSourceNone {
+				continue
+			}
+			opt.ValueSource = ValueSourceYAML
+		}
+
 		switch item.Kind {
 		case yaml.MappingNode:
 			// Item is either a group or an option with a complex object.
-			if opt, ok := optionsByName[name]; ok {
+			if foundOpt {
 				unmarshaler, ok := opt.Value.(yaml.Unmarshaler)
 				if !ok {
 					return xerrors.Errorf("complex option %q must support unmarshaling", opt.Name)
@@ -237,8 +245,7 @@ func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
 			}
 			merr = errors.Join(merr, xerrors.Errorf("unknown option or subgroup %q", name))
 		case yaml.ScalarNode, yaml.SequenceNode:
-			opt, ok := optionsByName[name]
-			if !ok {
+			if !foundOpt {
 				merr = errors.Join(merr, xerrors.Errorf("unknown option %q", name))
 				continue
 			}

@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
+	"gopkg.in/yaml.v3"
 )
 
 // Cmd describes an executable command.
@@ -262,17 +263,42 @@ func (inv *Invocation) run(state *runState) error {
 		parsedArgs = inv.parsedFlags.Args()
 	}
 
-	// Set defaults for flags that weren't set by the user.
-	skipDefaults := make(map[int]struct{}, len(inv.Command.Options))
+	// Set value sources for flags.
 	for i, opt := range inv.Command.Options {
 		if fl := inv.parsedFlags.Lookup(opt.Flag); fl != nil && fl.Changed {
-			skipDefaults[i] = struct{}{}
-		}
-		if opt.envChanged {
-			skipDefaults[i] = struct{}{}
+			inv.Command.Options[i].ValueSource = ValueSourceFlag
 		}
 	}
-	err = inv.Command.Options.SetDefaults(skipDefaults)
+
+	// Read configs, if any.
+	for _, opt := range inv.Command.Options {
+		path, ok := opt.Value.(*YAMLConfigPath)
+		if !ok || path.String() == "" {
+			continue
+		}
+
+		fi, err := os.OpenFile(path.String(), os.O_RDONLY, 0)
+		if err != nil {
+			return xerrors.Errorf("opening config file: %w", err)
+		}
+		//nolint:revive
+		defer fi.Close()
+
+		dec := yaml.NewDecoder(fi)
+
+		var n yaml.Node
+		err = dec.Decode(&n)
+		if err != nil {
+			return xerrors.Errorf("decoding config: %w", err)
+		}
+
+		err = inv.Command.Options.FromYAML(&n)
+		if err != nil {
+			return xerrors.Errorf("applying config: %w", err)
+		}
+	}
+
+	err = inv.Command.Options.SetDefaults()
 	if err != nil {
 		return xerrors.Errorf("setting defaults: %w", err)
 	}
