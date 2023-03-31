@@ -415,3 +415,22 @@ func (e *Enum) Type() string {
 func (e *Enum) String() string {
 	return *e.Value
 }
+
+var _ pflag.Value = (*YAMLConfigPath)(nil)
+
+// YAMLConfigPath is a special value type that encodes a path to a YAML
+// configuration file where options are read from.
+type YAMLConfigPath string
+
+func (p *YAMLConfigPath) Set(v string) error {
+	*p = YAMLConfigPath(v)
+	return nil
+}
+
+func (p *YAMLConfigPath) String() string {
+	return string(*p)
+}
+
+func (*YAMLConfigPath) Type() string {
+	return "yaml-config-path"
+}
