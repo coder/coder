@@ -76,7 +76,7 @@ export interface WorkspaceContext {
   // applications
   applicationsHost?: string
   // debug
-  debugMode?: boolean
+  createBuildLogLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"]
 }
 
 export type WorkspaceEvent =
@@ -615,8 +615,8 @@ export const workspaceMachine = createMachine(
         },
       }),
       // Debug mode when build fails
-      enableDebugMode: assign({ debugMode: (_) => true }),
-      disableDebugMode: assign({ debugMode: (_) => false }),
+      enableDebugMode: assign({ createBuildLogLevel: (_) => "debug" as const }),
+      disableDebugMode: assign({ createBuildLogLevel: (_) => undefined }),
     },
     guards: {
       moreBuildsAvailable,
@@ -661,7 +661,7 @@ export const workspaceMachine = createMachine(
           const startWorkspacePromise = await API.startWorkspace(
             context.workspace.id,
             context.workspace.latest_build.template_version_id,
-            context.debugMode,
+            context.createBuildLogLevel,
           )
           send({ type: "REFRESH_TIMELINE" })
           return startWorkspacePromise
@@ -673,7 +673,7 @@ export const workspaceMachine = createMachine(
         if (context.workspace) {
           const stopWorkspacePromise = await API.stopWorkspace(
             context.workspace.id,
-            context.debugMode,
+            context.createBuildLogLevel,
           )
           send({ type: "REFRESH_TIMELINE" })
           return stopWorkspacePromise
@@ -685,7 +685,7 @@ export const workspaceMachine = createMachine(
         if (context.workspace) {
           const deleteWorkspacePromise = await API.deleteWorkspace(
             context.workspace.id,
-            context.debugMode,
+            context.createBuildLogLevel,
           )
           send({ type: "REFRESH_TIMELINE" })
           return deleteWorkspacePromise
