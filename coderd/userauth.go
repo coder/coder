@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -551,46 +552,62 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	api.Logger.Debug(ctx, "got oidc claims",
+		slog.F("source", "id_token"),
+		slog.F("claim_fields", claimFields(claims)),
+		slog.F("blank", blankFields(claims)),
+	)
+
 	// Not all claims are necessarily embedded in the `id_token`.
 	// In GitLab, the username is left empty and must be fetched in UserInfo.
 	//
 	// The OIDC specification says claims can be in either place, so we fetch
-	// user info and merge the two claim sets to be sure we have all of
-	// the correct data.
-	userInfo, err := api.OIDCConfig.Provider.UserInfo(ctx, oauth2.StaticTokenSource(state.Token))
-	if err == nil {
-		userInfoClaims := map[string]interface{}{}
-		err = userInfo.Claims(&userInfoClaims)
-		if err != nil {
+	// user info if required and merge the two claim sets to be sure we have
+	// all of the correct data.
+	//
+	// However, if we already have the required claims, we can just skip
+	// the UserInfo call.
+	needUserInfo := !requiredClaimsPresent(api.OIDCConfig, claims)
+	if needUserInfo {
+		userInfo, err := api.OIDCConfig.Provider.UserInfo(ctx, oauth2.StaticTokenSource(state.Token))
+		if err == nil {
+			userInfoClaims := map[string]interface{}{}
+			err = userInfo.Claims(&userInfoClaims)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to unmarshal user info claims.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			api.Logger.Debug(ctx, "got oidc claims",
+				slog.F("source", "userinfo"),
+				slog.F("claim_fields", claimFields(userInfoClaims)),
+				slog.F("blank", blankFields(userInfoClaims)),
+			)
+
+			// Merge the claims from the ID token and the UserInfo endpoint.
+			// Information from UserInfo takes precedence.
+			claims = mergeClaims(claims, userInfoClaims)
+
+			// Log all of the field names after merging.
+			api.Logger.Debug(ctx, "got oidc claims",
+				slog.F("source", "merged"),
+				slog.F("claim_fields", claimFields(claims)),
+				slog.F("blank", blankFields(claims)),
+			)
+		} else if !strings.Contains(err.Error(), "user info endpoint is not supported by this provider") {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to unmarshal user info claims.",
-				Detail:  err.Error(),
+				Message: "Failed to obtain user information claims.",
+				Detail:  "The OIDC provider returned no claims as part of the `id_token`. The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
 			})
 			return
+		} else {
+			// The OIDC provider does not support the UserInfo endpoint.
+			// This is not an error, but we should log it as it may mean
+			// that some claims are missing.
+			api.Logger.Warn(ctx, "OIDC provider does not support the user info endpoint, ensure that all required claims are present in the id_token")
 		}
-		for k, v := range userInfoClaims {
-			claims[k] = v
-		}
-	} else if !strings.Contains(err.Error(), "user info endpoint is not supported by this provider") {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to obtain user information claims.",
-			Detail:  "The OIDC provider returned no claims as part of the `id_token`. The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
-		})
-		return
-	}
-
-	// Log all of the field names returned in the ID token claims, and the
-	// userinfo returned from the provider.
-	{
-		fields := make([]string, 0, len(claims))
-		for f := range claims {
-			fields = append(fields, f)
-		}
-
-		api.Logger.Debug(ctx, "got oidc claims",
-			slog.F("user_info", userInfo),
-			slog.F("claim_fields", fields),
-		)
 	}
 
 	usernameRaw, ok := claims[api.OIDCConfig.UsernameField]
@@ -657,7 +674,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 					group, ok := groupInterface.(string)
 					if !ok {
 						httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-							Message: fmt.Sprintf("Invalid group type. Expected string, got: %t", emailRaw),
+							Message: fmt.Sprintf("Invalid group type. Expected string, got: %T", groupInterface),
 						})
 						return
 					}
@@ -759,6 +776,63 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		redirect = "/"
 	}
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
+}
+
+// claimFields returns the sorted list of fields in the claims map.
+func claimFields(claims map[string]interface{}) []string {
+	var fields []string
+	for field := range claims {
+		fields = append(fields, field)
+	}
+	sort.Strings(fields)
+	return fields
+}
+
+// blankFields returns the list of fields in the claims map that are
+// an empty string.
+func blankFields(claims map[string]interface{}) []string {
+	fields := make([]string, 0)
+	for field, value := range claims {
+		if valueStr, ok := value.(string); ok && valueStr == "" {
+			fields = append(fields, field)
+		}
+	}
+	sort.Strings(fields)
+	return fields
+}
+
+// requiredClaimsPresent returns false if any of the following claims are missing:
+// - email (or the configured email field)
+// - username (or the configured username field)
+// - group (or the configured group field, unless GroupField is empty)
+// - email_verified (unless IgnoreEmailVerified is true)
+func requiredClaimsPresent(cfg *OIDCConfig, claims map[string]interface{}) bool {
+	if _, ok := claims[cfg.EmailField]; !ok {
+		return false
+	}
+	if _, ok := claims[cfg.UsernameField]; !ok {
+		return false
+	}
+	if _, hasGroupField := claims[cfg.GroupField]; !hasGroupField && cfg.GroupField != "" {
+		return false
+	}
+	if _, hasEmailVerifiedField := claims["email_verified"]; !hasEmailVerifiedField && !cfg.IgnoreEmailVerified {
+		return false
+	}
+	return true
+}
+
+// mergeClaims merges the claims from a and b and returns the merged set.
+// claims from b take precedence over claims from a.
+func mergeClaims(a, b map[string]interface{}) map[string]interface{} {
+	c := make(map[string]interface{})
+	for k, v := range a {
+		c[k] = v
+	}
+	for k, v := range b {
+		c[k] = v
+	}
+	return c
 }
 
 type oauthLoginParams struct {
