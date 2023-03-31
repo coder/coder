@@ -1,7 +1,6 @@
 package rbac
 
 import (
-	"context"
 	"strings"
 
 	"github.com/coder/coder/coderd/rbac/regosql"
@@ -53,10 +52,6 @@ func Compile(cfg regosql.ConvertConfig, pa *PartialAuthorizer) (AuthorizeFilter,
 		sqlString: sqlString,
 		auth:      pa,
 	}, nil
-}
-
-func (a *authorizedSQLFilter) Eval(object Object) bool {
-	return a.auth.Authorize(context.Background(), object) == nil
 }
 
 func (a *authorizedSQLFilter) SQLString() string {
