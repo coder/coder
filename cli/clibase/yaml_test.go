@@ -46,7 +46,7 @@ func TestOptionSet_YAML(t *testing.T) {
 			},
 		}
 
-		err := os.SetDefaults()
+		err := os.SetDefaults(nil)
 		require.NoError(t, err)
 
 		n, err := os.ToYAML()
