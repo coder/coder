@@ -280,7 +280,7 @@ can safely ignore these settings.
           Change the OIDC default 'groups' claim field. By default, will be
           'groups' if present in the oidc scopes argument.
 
-      --oidc-group-mapping struct[map[string]string], $OIDC_GROUP_MAPPING (default: {})
+      --oidc-group-mapping struct[map[string]string], $CODER_OIDC_GROUP_MAPPING (default: {})
           A map of OIDC group IDs and the group in Coder it should map to. This
           is useful for when OIDC providers only return group IDs.
 

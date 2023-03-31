@@ -501,166 +501,164 @@ func TestUserOIDC(t *testing.T) {
 		AvatarURL           string
 		StatusCode          int
 		IgnoreEmailVerified bool
-	}{
-		{
-			Name: "EmailOnly",
-			IDTokenClaims: jwt.MapClaims{
-				"email": "kyle@kwc.io",
-			},
-			AllowSignups: true,
-			StatusCode:   http.StatusTemporaryRedirect,
-			Username:     "kyle",
-		}, {
-			Name: "EmailNotVerified",
-			IDTokenClaims: jwt.MapClaims{
-				"email":          "kyle@kwc.io",
-				"email_verified": false,
-			},
-			AllowSignups: true,
-			StatusCode:   http.StatusForbidden,
-		}, {
-			Name: "EmailNotAString",
-			IDTokenClaims: jwt.MapClaims{
-				"email":          3.14159,
-				"email_verified": false,
-			},
-			AllowSignups: true,
-			StatusCode:   http.StatusBadRequest,
-		}, {
-			Name: "EmailNotVerifiedIgnored",
-			IDTokenClaims: jwt.MapClaims{
-				"email":          "kyle@kwc.io",
-				"email_verified": false,
-			},
-			AllowSignups:        true,
-			StatusCode:          http.StatusTemporaryRedirect,
-			Username:            "kyle",
-			IgnoreEmailVerified: true,
-		}, {
-			Name: "NotInRequiredEmailDomain",
-			IDTokenClaims: jwt.MapClaims{
-				"email":          "kyle@kwc.io",
-				"email_verified": true,
-			},
-			AllowSignups: true,
-			EmailDomain: []string{
-				"coder.com",
-			},
-			StatusCode: http.StatusForbidden,
-		}, {
-			Name: "EmailDomainCaseInsensitive",
-			IDTokenClaims: jwt.MapClaims{
-				"email":          "kyle@KWC.io",
-				"email_verified": true,
-			},
-			AllowSignups: true,
-			EmailDomain: []string{
-				"kwc.io",
-			},
-			StatusCode: http.StatusTemporaryRedirect,
-		}, {
-			Name:          "EmptyClaims",
-			IDTokenClaims: jwt.MapClaims{},
-			AllowSignups:  true,
-			StatusCode:    http.StatusBadRequest,
-		}, {
-			Name: "NoSignups",
-			IDTokenClaims: jwt.MapClaims{
-				"email":          "kyle@kwc.io",
-				"email_verified": true,
-			},
-			StatusCode: http.StatusForbidden,
-		}, {
-			Name: "UsernameFromEmail",
-			IDTokenClaims: jwt.MapClaims{
-				"email":          "kyle@kwc.io",
-				"email_verified": true,
-			},
-			Username:     "kyle",
-			AllowSignups: true,
-			StatusCode:   http.StatusTemporaryRedirect,
-		}, {
-			Name: "UsernameFromClaims",
-			IDTokenClaims: jwt.MapClaims{
-				"email":              "kyle@kwc.io",
-				"email_verified":     true,
-				"preferred_username": "hotdog",
-			},
-			Username:     "hotdog",
-			AllowSignups: true,
-			StatusCode:   http.StatusTemporaryRedirect,
-		}, {
-			// Services like Okta return the email as the username:
-			// https://developer.okta.com/docs/reference/api/oidc/#base-claims-always-present
-			Name: "UsernameAsEmail",
-			IDTokenClaims: jwt.MapClaims{
-				"email":              "kyle@kwc.io",
-				"email_verified":     true,
-				"preferred_username": "kyle@kwc.io",
-			},
-			Username:     "kyle",
-			AllowSignups: true,
-			StatusCode:   http.StatusTemporaryRedirect,
-		}, {
-			// See: https://github.com/coder/coder/issues/4472
-			Name: "UsernameIsEmail",
-			IDTokenClaims: jwt.MapClaims{
-				"preferred_username": "kyle@kwc.io",
-			},
-			Username:     "kyle",
-			AllowSignups: true,
-			StatusCode:   http.StatusTemporaryRedirect,
-		}, {
-			Name: "WithPicture",
-			IDTokenClaims: jwt.MapClaims{
-				"email":              "kyle@kwc.io",
-				"email_verified":     true,
-				"preferred_username": "kyle",
-				"picture":            "/example.png",
-			},
-			Username:     "kyle",
-			AllowSignups: true,
-			AvatarURL:    "/example.png",
-			StatusCode:   http.StatusTemporaryRedirect,
-		}, {
-			Name: "WithUserInfoClaims",
-			IDTokenClaims: jwt.MapClaims{
-				"email":          "kyle@kwc.io",
-				"email_verified": true,
-			},
-			UserInfoClaims: jwt.MapClaims{
-				"preferred_username": "potato",
-				"picture":            "/example.png",
-			},
-			Username:     "potato",
-			AllowSignups: true,
-			AvatarURL:    "/example.png",
-			StatusCode:   http.StatusTemporaryRedirect,
-		}, {
-			Name: "GroupsDoesNothing",
-			IDTokenClaims: jwt.MapClaims{
-				"email":  "coolin@coder.com",
-				"groups": []string{"pingpong"},
-			},
-			AllowSignups: true,
-			StatusCode:   http.StatusTemporaryRedirect,
-		}, {
-			Name: "UserInfoOverridesIDTokenClaims",
-			IDTokenClaims: jwt.MapClaims{
-				"email":          "internaluser@internal.domain",
-				"email_verified": false,
-			},
-			UserInfoClaims: jwt.MapClaims{
-				"email":              "externaluser@external.domain",
-				"email_verified":     true,
-				"preferred_username": "user",
-			},
-			Username:            "user",
-			AllowSignups:        true,
-			IgnoreEmailVerified: false,
-			StatusCode:          http.StatusTemporaryRedirect,
+	}{{
+		Name: "EmailOnly",
+		IDTokenClaims: jwt.MapClaims{
+			"email": "kyle@kwc.io",
 		},
-	} {
+		AllowSignups: true,
+		StatusCode:   http.StatusTemporaryRedirect,
+		Username:     "kyle",
+	}, {
+		Name: "EmailNotVerified",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": false,
+		},
+		AllowSignups: true,
+		StatusCode:   http.StatusForbidden,
+	}, {
+		Name: "EmailNotAString",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          3.14159,
+			"email_verified": false,
+		},
+		AllowSignups: true,
+		StatusCode:   http.StatusBadRequest,
+	}, {
+		Name: "EmailNotVerifiedIgnored",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": false,
+		},
+		AllowSignups:        true,
+		StatusCode:          http.StatusTemporaryRedirect,
+		Username:            "kyle",
+		IgnoreEmailVerified: true,
+	}, {
+		Name: "NotInRequiredEmailDomain",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": true,
+		},
+		AllowSignups: true,
+		EmailDomain: []string{
+			"coder.com",
+		},
+		StatusCode: http.StatusForbidden,
+	}, {
+		Name: "EmailDomainCaseInsensitive",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "kyle@KWC.io",
+			"email_verified": true,
+		},
+		AllowSignups: true,
+		EmailDomain: []string{
+			"kwc.io",
+		},
+		StatusCode: http.StatusTemporaryRedirect,
+	}, {
+		Name:          "EmptyClaims",
+		IDTokenClaims: jwt.MapClaims{},
+		AllowSignups:  true,
+		StatusCode:    http.StatusBadRequest,
+	}, {
+		Name: "NoSignups",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": true,
+		},
+		StatusCode: http.StatusForbidden,
+	}, {
+		Name: "UsernameFromEmail",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": true,
+		},
+		Username:     "kyle",
+		AllowSignups: true,
+		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
+		Name: "UsernameFromClaims",
+		IDTokenClaims: jwt.MapClaims{
+			"email":              "kyle@kwc.io",
+			"email_verified":     true,
+			"preferred_username": "hotdog",
+		},
+		Username:     "hotdog",
+		AllowSignups: true,
+		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
+		// Services like Okta return the email as the username:
+		// https://developer.okta.com/docs/reference/api/oidc/#base-claims-always-present
+		Name: "UsernameAsEmail",
+		IDTokenClaims: jwt.MapClaims{
+			"email":              "kyle@kwc.io",
+			"email_verified":     true,
+			"preferred_username": "kyle@kwc.io",
+		},
+		Username:     "kyle",
+		AllowSignups: true,
+		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
+		// See: https://github.com/coder/coder/issues/4472
+		Name: "UsernameIsEmail",
+		IDTokenClaims: jwt.MapClaims{
+			"preferred_username": "kyle@kwc.io",
+		},
+		Username:     "kyle",
+		AllowSignups: true,
+		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
+		Name: "WithPicture",
+		IDTokenClaims: jwt.MapClaims{
+			"email":              "kyle@kwc.io",
+			"email_verified":     true,
+			"preferred_username": "kyle",
+			"picture":            "/example.png",
+		},
+		Username:     "kyle",
+		AllowSignups: true,
+		AvatarURL:    "/example.png",
+		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
+		Name: "WithUserInfoClaims",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": true,
+		},
+		UserInfoClaims: jwt.MapClaims{
+			"preferred_username": "potato",
+			"picture":            "/example.png",
+		},
+		Username:     "potato",
+		AllowSignups: true,
+		AvatarURL:    "/example.png",
+		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
+		Name: "GroupsDoesNothing",
+		IDTokenClaims: jwt.MapClaims{
+			"email":  "coolin@coder.com",
+			"groups": []string{"pingpong"},
+		},
+		AllowSignups: true,
+		StatusCode:   http.StatusTemporaryRedirect,
+	}, {
+		Name: "UserInfoOverridesIDTokenClaims",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "internaluser@internal.domain",
+			"email_verified": false,
+		},
+		UserInfoClaims: jwt.MapClaims{
+			"email":              "externaluser@external.domain",
+			"email_verified":     true,
+			"preferred_username": "user",
+		},
+		Username:            "user",
+		AllowSignups:        true,
+		IgnoreEmailVerified: false,
+		StatusCode:          http.StatusTemporaryRedirect,
+	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
