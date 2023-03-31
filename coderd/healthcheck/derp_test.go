@@ -121,10 +121,8 @@ func TestDERP(t *testing.T) {
 		handler, closeHandler := tailnet.WithWebsocketSupport(derpSrv, derphttp.Handler(derpSrv))
 		defer closeHandler()
 
-		first := true
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if first {
-				first = false
+			if r.Header.Get("Upgrade") == "DERP" {
 				w.WriteHeader(http.StatusBadRequest)
 				w.Write([]byte("bad request"))
 				return
