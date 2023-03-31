@@ -3,13 +3,13 @@ package rbac_test
 import (
 	"context"
 	"fmt"
-	"github.com/coder/coder/coderd/coderdtest"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/rbac"
 )
 
@@ -235,7 +235,6 @@ func benchmarkSetup(orgs []uuid.UUID, users []uuid.UUID, size int, opts ...func(
 
 	return objectList
 }
-
 
 // BenchmarkCacher benchmarks the performance of the cacher with a given
 // cache size. The expected cache size in prod will usually be 1-2. In Filter

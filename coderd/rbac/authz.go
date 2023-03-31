@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/coder/coderd/rbac/regosql/sqltypes"
-
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/prometheus/client_golang/prometheus"
@@ -18,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac/regosql"
+	"github.com/coder/coder/coderd/rbac/regosql/sqltypes"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/util/slice"
 )
