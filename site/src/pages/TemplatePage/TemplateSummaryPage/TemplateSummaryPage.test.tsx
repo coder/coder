@@ -31,14 +31,13 @@ const renderPage = () =>
   )
 
 describe("TemplateSummaryPage", () => {
-  it("shows the template name, readme and resources", async () => {
+  it("shows the template name and resources", async () => {
     // Mocking the dayjs module within the createDayString file
     const mock = jest.spyOn(CreateDayString, "createDayString")
     mock.mockImplementation(() => "a minute ago")
 
     renderPage()
     await screen.findByText(MockTemplate.display_name)
-    await screen.findByTestId("markdown")
     screen.getByText(MockWorkspaceResource.name)
     screen.queryAllByText(`${MockTemplateVersion.name}`).length
   })
