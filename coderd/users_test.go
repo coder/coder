@@ -109,7 +109,7 @@ func TestPostLogin(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -130,15 +130,15 @@ func TestPostLogin(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 
 	t.Run("Suspended", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 		first := coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for create user
 		numLogs++ // add an audit log for login
@@ -173,8 +173,8 @@ func TestPostLogin(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "suspended")
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 
 	t.Run("DisabledPasswordAuth", func(t *testing.T) {
@@ -218,7 +218,7 @@ func TestPostLogin(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -246,8 +246,8 @@ func TestPostLogin(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
 	})
 
 	t.Run("Lifetime&Expire", func(t *testing.T) {
@@ -347,7 +347,7 @@ func TestPostLogout(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		admin := coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for login
@@ -370,8 +370,8 @@ func TestPostLogout(t *testing.T) {
 		res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionLogout, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionLogout, auditor.AuditLogs()[numLogs-1].Action)
 
 		cookies := res.Cookies()
 
@@ -475,7 +475,7 @@ func TestPostUsers(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		user := coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for user create
@@ -492,9 +492,9 @@ func TestPostUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs[numLogs-1].Action)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs[numLogs-2].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-2].Action)
 	})
 
 	t.Run("LastSeenAt", func(t *testing.T) {
@@ -574,7 +574,7 @@ func TestUpdateUserProfile(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for login
@@ -590,8 +590,8 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.Equal(t, userProfile.Username, "newusername")
 		numLogs++ // add an audit log for user update
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
 	})
 }
 
@@ -643,7 +643,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		admin := coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for user create
@@ -663,8 +663,8 @@ func TestUpdateUserPassword(t *testing.T) {
 
 		require.NoError(t, err, "member should be able to update own password")
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
 	})
 	t.Run("MemberCantUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
 		t.Parallel()
@@ -684,7 +684,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		_ = coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for login
@@ -699,8 +699,8 @@ func TestUpdateUserPassword(t *testing.T) {
 
 		require.NoError(t, err, "admin should be able to update own password without providing old password")
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
 	})
 
 	t.Run("ChangingPasswordDeletesKeys", func(t *testing.T) {
@@ -972,7 +972,7 @@ func TestPutUserSuspend(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		numLogs := len(auditor.AuditLogs)
+		numLogs := len(auditor.AuditLogs())
 
 		me := coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for user create
@@ -989,8 +989,8 @@ func TestPutUserSuspend(t *testing.T) {
 		require.Equal(t, user.Status, codersdk.UserStatusSuspended)
 		numLogs++ // add an audit log for user update
 
-		require.Len(t, auditor.AuditLogs, numLogs)
-		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs[numLogs-1].Action)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
 	})
 
 	t.Run("SuspendItSelf", func(t *testing.T) {

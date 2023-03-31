@@ -4,6 +4,8 @@ bazil.org/fuse v0.0.0-20200407214033-5883e5a4b512/go.mod h1:FbcW6z/2VytnFDhZfumh
 bitbucket.org/creachadair/shell v0.0.6/go.mod h1:8Qqi/cYk7vPnsOePHroKXDJYmb5x7ENhtiFtfZq8K+M=
 cdr.dev/slog v1.4.2-0.20230228204227-60d22dceaf04 h1:d5MQ+iI2zk7t0HrHwBP9p7k2XfRsXnRclSe8Kpp3xOo=
 cdr.dev/slog v1.4.2-0.20230228204227-60d22dceaf04/go.mod h1:YPVZsUbRMaLaPgme0RzlPWlC7fI7YmDj/j/kZLuvICs=
+cdr.dev/slog v1.4.2 h1:fIfiqASYQFJBZiASwL825atyzeA96NsqSxx2aL61P8I=
+cdr.dev/slog v1.4.2/go.mod h1:0EkH+GkFNxizNR+GAXUEdUHanxUH5t9zqPILmPM/Vn8=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.38.0/go.mod h1:990N+gfupTy94rShfmMCWGDn0LpTmnzTp2qbd1dvSRU=
