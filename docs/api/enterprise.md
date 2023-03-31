@@ -738,6 +738,70 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get workspace proxies
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/workspaceproxies \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/workspaceproxies`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "string",
+    "deleted": true,
+    "icon": "string",
+    "id": "string",
+    "name": "string",
+    "organization_id": "string",
+    "updated_at": "string",
+    "url": "string",
+    "wildcard_url": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceProxy](schemas.md#codersdkworkspaceproxy) |
+
+<h3 id="get-workspace-proxies-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                | Type    | Required | Restrictions | Description                                                                               |
+| ------------------- | ------- | -------- | ------------ | ----------------------------------------------------------------------------------------- |
+| `[array item]`      | array   | false    |              |                                                                                           |
+| `» created_at`      | string  | false    |              |                                                                                           |
+| `» deleted`         | boolean | false    |              |                                                                                           |
+| `» icon`            | string  | false    |              |                                                                                           |
+| `» id`              | string  | false    |              |                                                                                           |
+| `» name`            | string  | false    |              |                                                                                           |
+| `» organization_id` | string  | false    |              |                                                                                           |
+| `» updated_at`      | string  | false    |              |                                                                                           |
+| `» url`             | string  | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                    |
+| `» wildcard_url`    | string  | false    |              | Wildcard URL with the wildcard for subdomain based app hosting: https://\*.us.example.com |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get active replicas
 
 ### Code samples

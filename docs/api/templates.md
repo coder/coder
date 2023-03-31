@@ -643,6 +643,65 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Create workspace proxy for organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/workspaceproxies \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /organizations/{organization}/workspaceproxies`
+
+> Body parameter
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "url": "string",
+  "wildcard_url": "string"
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                                   | Required | Description                    |
+| -------------- | ---- | -------------------------------------------------------------------------------------- | -------- | ------------------------------ |
+| `organization` | path | string                                                                                 | true     | Organization ID                |
+| `body`         | body | [codersdk.CreateWorkspaceProxyRequest](schemas.md#codersdkcreateworkspaceproxyrequest) | true     | Create workspace proxy request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "created_at": "string",
+  "deleted": true,
+  "icon": "string",
+  "id": "string",
+  "name": "string",
+  "organization_id": "string",
+  "updated_at": "string",
+  "url": "string",
+  "wildcard_url": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                       |
+| ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------------------------ |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.WorkspaceProxy](schemas.md#codersdkworkspaceproxy) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get template metadata by ID
 
 ### Code samples

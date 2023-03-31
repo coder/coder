@@ -254,6 +254,7 @@ export interface CreateWorkspaceBuildRequest {
 // From codersdk/workspaceproxy.go
 export interface CreateWorkspaceProxyRequest {
   readonly name: string
+  readonly display_name: string
   readonly icon: string
   readonly url: string
   readonly wildcard_url: string
@@ -1287,6 +1288,7 @@ export type FeatureName =
   | "scim"
   | "template_rbac"
   | "user_limit"
+  | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
   "advanced_template_scheduling",
   "appearance",
@@ -1298,6 +1300,7 @@ export const FeatureNames: FeatureName[] = [
   "scim",
   "template_rbac",
   "user_limit",
+  "workspace_proxy",
 ]
 
 // From codersdk/workspaceagents.go

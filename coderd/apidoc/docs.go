@@ -1537,6 +1537,88 @@ const docTemplate = `{
                 }
             }
         },
+        "/organizations/{organization}/workspaceproxies": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace proxies",
+                "operationId": "get-workspace-proxies",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Create workspace proxy for organization",
+                "operationId": "create-workspace-proxy-for-organization",
+                "parameters": [
+                    {
+                        "description": "Create workspace proxy request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateWorkspaceProxyRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                        }
+                    }
+                }
+            }
+        },
         "/parameters/{scope}/{id}": {
             "get": {
                 "security": [
@@ -6572,6 +6654,26 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateWorkspaceProxyRequest": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "wildcard_url": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -6955,10 +7057,12 @@ const docTemplate = `{
         "codersdk.Experiment": {
             "type": "string",
             "enum": [
-                "template_editor"
+                "template_editor",
+                "moons"
             ],
             "x-enum-varnames": [
-                "ExperimentTemplateEditor"
+                "ExperimentTemplateEditor",
+                "ExperimentMoons"
             ]
         },
         "codersdk.Feature": {
@@ -9191,6 +9295,40 @@ const docTemplate = `{
                 },
                 "tx_bytes": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.WorkspaceProxy": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted": {
+                    "type": "boolean"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "url": {
+                    "description": "Full url including scheme of the proxy api url: https://us.example.com",
+                    "type": "string"
+                },
+                "wildcard_url": {
+                    "description": "URL with the wildcard for subdomain based app hosting: https://*.us.example.com",
+                    "type": "string"
                 }
             }
         },

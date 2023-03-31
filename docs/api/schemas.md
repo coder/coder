@@ -1509,6 +1509,28 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `transition` | `stop`   |
 | `transition` | `delete` |
 
+## codersdk.CreateWorkspaceProxyRequest
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "url": "string",
+  "wildcard_url": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `display_name` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
+| `name`         | string | false    |              |             |
+| `url`          | string | false    |              |             |
+| `wildcard_url` | string | false    |              |             |
+
 ## codersdk.CreateWorkspaceRequest
 
 ```json
@@ -2399,6 +2421,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | Value             |
 | ----------------- |
 | `template_editor` |
+| `moons`           |
 
 ## codersdk.Feature
 
@@ -5025,6 +5048,36 @@ Parameter represents a set value for the scope.
 | `rx_bytes`              | integer                                                                        | false    |              |             |
 | `stopped`               | integer                                                                        | false    |              |             |
 | `tx_bytes`              | integer                                                                        | false    |              |             |
+
+## codersdk.WorkspaceProxy
+
+```json
+{
+  "created_at": "string",
+  "deleted": true,
+  "icon": "string",
+  "id": "string",
+  "name": "string",
+  "organization_id": "string",
+  "updated_at": "string",
+  "url": "string",
+  "wildcard_url": "string"
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description                                                                               |
+| ----------------- | ------- | -------- | ------------ | ----------------------------------------------------------------------------------------- |
+| `created_at`      | string  | false    |              |                                                                                           |
+| `deleted`         | boolean | false    |              |                                                                                           |
+| `icon`            | string  | false    |              |                                                                                           |
+| `id`              | string  | false    |              |                                                                                           |
+| `name`            | string  | false    |              |                                                                                           |
+| `organization_id` | string  | false    |              |                                                                                           |
+| `updated_at`      | string  | false    |              |                                                                                           |
+| `url`             | string  | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                    |
+| `wildcard_url`    | string  | false    |              | Wildcard URL with the wildcard for subdomain based app hosting: https://\*.us.example.com |
 
 ## codersdk.WorkspaceQuota
 
