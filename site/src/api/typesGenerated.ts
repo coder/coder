@@ -251,6 +251,14 @@ export interface CreateWorkspaceBuildRequest {
   readonly log_level?: ProvisionerLogLevel
 }
 
+// From codersdk/workspaceproxy.go
+export interface CreateWorkspaceProxyRequest {
+  readonly name: string
+  readonly icon: string
+  readonly url: string
+  readonly wildcard_url: string
+}
+
 // From codersdk/organizations.go
 export interface CreateWorkspaceRequest {
   readonly template_id: string
@@ -1172,6 +1180,19 @@ export interface WorkspaceOptions {
   readonly include_deleted?: boolean
 }
 
+// From codersdk/workspaceproxy.go
+export interface WorkspaceProxy {
+  readonly id: string
+  readonly organization_id: string
+  readonly name: string
+  readonly icon: string
+  readonly url: string
+  readonly wildcard_url: string
+  readonly created_at: string
+  readonly updated_at: string
+  readonly deleted: boolean
+}
+
 // From codersdk/workspaces.go
 export interface WorkspaceQuota {
   readonly credits_consumed: number
@@ -1251,8 +1272,8 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "template_editor"
-export const Experiments: Experiment[] = ["template_editor"]
+export type Experiment = "moons" | "template_editor"
+export const Experiments: Experiment[] = ["moons", "template_editor"]
 
 // From codersdk/deployment.go
 export type FeatureName =
