@@ -180,11 +180,7 @@ export const AgentRow: FC<AgentRowProps> = ({
         <div className={styles.agentStatusWrapper}>
           <AgentStatus agent={agent} />
         </div>
-        <Stack
-          direction="column"
-          alignItems="flex-start"
-          key={agent.id}
-          spacing={2}
+        <div
           style={{
             flex: 1,
           }}
@@ -364,7 +360,7 @@ export const AgentRow: FC<AgentRowProps> = ({
               </Popover>
             </Stack>
           )}
-        </Stack>
+        </div>
       </Stack>
       {showStartupLogs && (
         <AutoSizer disableHeight>

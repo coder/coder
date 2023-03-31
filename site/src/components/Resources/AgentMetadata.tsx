@@ -251,7 +251,16 @@ export const AgentMetadata: FC<{
   }, [agent.id, watchAgentMetadata])
 
   if (metadata === undefined) {
-    return <CircularProgress size={16} />
+    return (
+      <div
+        style={{
+          marginTop: 16,
+          marginBottom: 16,
+        }}
+      >
+        <CircularProgress size={16} />
+      </div>
+    )
   }
 
   return <AgentMetadataView metadata={metadata} />
@@ -264,6 +273,8 @@ const useStyles = makeStyles((theme) => ({
     border: `2px dashed ${theme.palette.divider}`,
     borderRadius: theme.shape.borderRadius,
     width: "100%",
+    marginTop: theme.spacing(2),
+    marginBottom: theme.spacing(2),
   },
   metadataHeader: {
     padding: "8px",
