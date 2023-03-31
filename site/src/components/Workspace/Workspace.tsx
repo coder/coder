@@ -10,6 +10,7 @@ import {
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
+import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { AlertBanner } from "../AlertBanner/AlertBanner"
@@ -93,6 +94,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const styles = useStyles()
   const navigate = useNavigate()
   const serverVersion = buildInfo?.version || ""
+  const { t } = useTranslation("workspacePage")
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
     <AlertBanner
@@ -210,7 +212,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                       size="small"
                       variant="outlined"
                     >
-                      Try again in debug mode
+                      {t("actionButton.retryDebugMode")}
                     </Button>
                   </div>
                 )}
