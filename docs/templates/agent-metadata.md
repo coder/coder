@@ -6,17 +6,17 @@ Agent metadata is in an alpha state and may break or disappear at any time.
 
 ![agent-metadata](../images/agent-metadata.png)
 
-With Agent Metadata, template admin can expose operational metrics from
-their workspaces to their users. It is a sibling of [Resource Metadata](./resource-metadata.md).
+With Agent Metadata, template admins can expose operational metrics from
+their workspaces to their users. It is the dynamic complement of [Resource Metadata](./resource-metadata.md).
 
 See the [Terraform reference](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#metadata).
 
 ## Examples
 
-All of these examples use [heredoc strings](https://developer.hashicorp.com/terraform/language/expressions/strings#heredoc-strings) for the script declaration. With heredoc strings you
+All of these examples use [heredoc strings](https://developer.hashicorp.com/terraform/language/expressions/strings#heredoc-strings) for the script declaration. With heredoc strings, you
 can script without messy escape codes, just as if you were working in your terminal.
 
-Here are useful agent metadata snippets for Linux agents:
+Here's a standard set of metadata snippets for Linux agents:
 
 ```hcl
 resource "coder_agent" "main" {
@@ -69,7 +69,7 @@ resource "coder_agent" "main" {
 ## Utilities
 
 [vmstat](https://linux.die.net/man/8/vmstat) is available in most Linux
-distributions and contains virtual memory, CPU and IO statistics. Running `vmstat`
+distributions and provides virtual memory, CPU and IO statistics. Running `vmstat`
 produces output that looks like:
 
 ```
