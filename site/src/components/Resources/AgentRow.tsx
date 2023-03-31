@@ -45,6 +45,7 @@ export interface AgentRowProps {
   applicationsHost: string | undefined
   showApps: boolean
   hideSSHButton?: boolean
+  sshPrefix?: string
   hideVSCodeDesktopButton?: boolean
   serverVersion: string
   onUpdateAgent: () => void
@@ -62,6 +63,7 @@ export const AgentRow: FC<AgentRowProps> = ({
   serverVersion,
   onUpdateAgent,
   storybookStartupLogs,
+  sshPrefix,
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("agent")
