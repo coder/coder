@@ -1792,6 +1792,7 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 		firstParameterValue       = "1"
 
 		secondParameterName                = "second_parameter"
+		secondParameterDisplayName         = "Second Parameter"
 		secondParameterType                = "number"
 		secondParameterDescription         = "_This_ is second *parameter*"
 		secondParameterValue               = "2"
@@ -1813,7 +1814,8 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 								Description: firstParameterDescription,
 							},
 							{
-								Name:                secondParameterName,
+								Name: secondParameterName,
+								// FIXME: DisplayName:         secondParameterDisplayName,
 								Type:                secondParameterType,
 								Description:         secondParameterDescription,
 								ValidationMin:       1,
@@ -1850,6 +1852,7 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	require.Equal(t, firstParameterDescriptionPlaintext, templateRichParameters[0].DescriptionPlaintext)
 	require.Equal(t, codersdk.ValidationMonotonicOrder(""), templateRichParameters[0].ValidationMonotonic) // no validation for string
 	require.Equal(t, secondParameterName, templateRichParameters[1].Name)
+	require.Equal(t, secondParameterDisplayName, templateRichParameters[1].DisplayName)
 	require.Equal(t, secondParameterType, templateRichParameters[1].Type)
 	require.Equal(t, secondParameterDescription, templateRichParameters[1].Description)
 	require.Equal(t, secondParameterDescriptionPlaintext, templateRichParameters[1].DescriptionPlaintext)
