@@ -4946,7 +4946,7 @@ func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 	return p, nil
 }
 
-func (q *fakeQuerier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+func (q *fakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

@@ -89,6 +89,7 @@ func (api *API) postWorkspaceProxyByOrganization(rw http.ResponseWriter, r *http
 	httpapi.Write(ctx, rw, http.StatusCreated, convertProxy(proxy))
 }
 
+// nolint:flag-parameter
 func validateProxyURL(u string, wildcard bool) error {
 	p, err := url.Parse(u)
 	if err != nil {
@@ -145,8 +146,8 @@ func convertProxy(p database.WorkspaceProxy) codersdk.WorkspaceProxy {
 		OrganizationID: p.OrganizationID,
 		Name:           p.Name,
 		Icon:           p.Icon,
-		Url:            p.Url,
-		WildcardUrl:    p.WildcardUrl,
+		URL:            p.Url,
+		WildcardURL:    p.WildcardUrl,
 		CreatedAt:      p.CreatedAt,
 		UpdatedAt:      p.UpdatedAt,
 		Deleted:        p.Deleted,
