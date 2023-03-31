@@ -1,8 +1,4 @@
-import {
-  MockUser,
-  MockWorkspace,
-  renderWithAuth,
-} from "testHelpers/renderHelpers"
+import { renderWithAuth } from "testHelpers/renderHelpers"
 import userEvent from "@testing-library/user-event"
 import { screen } from "@testing-library/react"
 import {
@@ -23,6 +19,7 @@ import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage"
 import i18next from "i18next"
 import { server } from "testHelpers/server"
 import { rest } from "msw"
+import { MockUser, MockWorkspace } from "testHelpers/entities"
 
 const { t } = i18next
 

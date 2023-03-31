@@ -276,10 +276,10 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		require.Eventually(t, func() bool {
-			if len(auditor.AuditLogs) < 6 {
+			if len(auditor.AuditLogs()) < 6 {
 				return false
 			}
-			return auditor.AuditLogs[4].Action == database.AuditActionCreate
+			return auditor.AuditLogs()[4].Action == database.AuditActionCreate
 		}, testutil.WaitMedium, testutil.IntervalFast)
 	})
 
@@ -1262,11 +1262,11 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			require.Equal(t, testCase.expectedInterval, interval, "unexpected interval")
 
 			require.Eventually(t, func() bool {
-				if len(auditor.AuditLogs) < 7 {
+				if len(auditor.AuditLogs()) < 7 {
 					return false
 				}
-				return auditor.AuditLogs[6].Action == database.AuditActionWrite ||
-					auditor.AuditLogs[5].Action == database.AuditActionWrite
+				return auditor.AuditLogs()[6].Action == database.AuditActionWrite ||
+					auditor.AuditLogs()[5].Action == database.AuditActionWrite
 			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
@@ -1382,11 +1382,11 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			require.Equal(t, testCase.ttlMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
 
 			require.Eventually(t, func() bool {
-				if len(auditor.AuditLogs) != 7 {
+				if len(auditor.AuditLogs()) != 7 {
 					return false
 				}
-				return auditor.AuditLogs[6].Action == database.AuditActionWrite ||
-					auditor.AuditLogs[5].Action == database.AuditActionWrite
+				return auditor.AuditLogs()[6].Action == database.AuditActionWrite ||
+					auditor.AuditLogs()[5].Action == database.AuditActionWrite
 			}, testutil.WaitMedium, testutil.IntervalFast, "expected audit log to be written")
 		})
 	}

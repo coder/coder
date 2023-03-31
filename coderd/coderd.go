@@ -23,7 +23,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
-	httpSwagger "github.com/swaggo/http-swagger"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
@@ -134,7 +134,6 @@ type Options struct {
 
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
-	Experimental                bool
 	DeploymentValues            *codersdk.DeploymentValues
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 
@@ -287,6 +286,7 @@ func New(options *Options) *API {
 			options.Database,
 			options.DeploymentValues,
 			oauthConfigs,
+			options.AgentInactiveDisconnectTimeout,
 			options.AppSigningKey,
 		),
 		metricsCache:          metricsCache,
@@ -301,6 +301,12 @@ func New(options *Options) *API {
 			*options.UpdateCheckOptions,
 		)
 	}
+
+	var oidcAuthURLParams map[string]string
+	if options.OIDCConfig != nil {
+		oidcAuthURLParams = options.OIDCConfig.AuthURLParams
+	}
+
 	api.Auditor.Store(&options.Auditor)
 	api.TemplateScheduleStore.Store(&options.TemplateScheduleStore)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
@@ -387,7 +393,7 @@ func New(options *Options) *API {
 		for _, gitAuthConfig := range options.GitAuthConfigs {
 			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
 				r.Use(
-					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient),
+					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
 					apiKeyMiddleware,
 				)
 				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
@@ -531,12 +537,12 @@ func New(options *Options) *API {
 				r.Post("/login", api.postLogin)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {
-						r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient))
+						r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil))
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
 				r.Route("/oidc/callback", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient))
+					r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams))
 					r.Get("/", api.userOIDC)
 				})
 			})
@@ -612,6 +618,9 @@ func New(options *Options) *API {
 				r.Post("/report-stats", api.workspaceAgentReportStats)
 				r.Post("/report-lifecycle", api.workspaceAgentReportLifecycle)
 			})
+			// No middleware on the PTY endpoint since it uses workspace
+			// application auth and tickets.
+			r.Get("/{workspaceagent}/pty", api.workspaceAgentPTY)
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
 					apiKeyMiddleware,
@@ -619,7 +628,6 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
-				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/startup-logs", api.workspaceAgentStartupLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)

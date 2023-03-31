@@ -273,6 +273,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 					TemplateName:                  template.Name,
 					TemplateVersion:               templateVersion.Name,
 				},
+				LogLevel: input.LogLevel,
 			},
 		}
 	case database.ProvisionerJobTypeTemplateVersionDryRun:
@@ -1550,6 +1551,7 @@ type TemplateVersionImportJob struct {
 type WorkspaceProvisionJob struct {
 	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
 	DryRun           bool      `json:"dry_run"`
+	LogLevel         string    `json:"log_level,omitempty"`
 }
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.

@@ -314,6 +314,38 @@ func (*fakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	return nil
 }
 
+func (q *fakeQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// Get latest build for workspace.
+	workspaceBuild, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspaceID)
+	if err != nil {
+		return nil, xerrors.Errorf("get latest workspace build: %w", err)
+	}
+
+	// Get resources for build.
+	resources, err := q.GetWorkspaceResourcesByJobID(ctx, workspaceBuild.JobID)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace resources: %w", err)
+	}
+	if len(resources) == 0 {
+		return []database.WorkspaceAgent{}, nil
+	}
+
+	resourceIDs := make([]uuid.UUID, len(resources))
+	for i, resource := range resources {
+		resourceIDs[i] = resource.ID
+	}
+
+	agents, err := q.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace agents: %w", err)
+	}
+
+	return agents, nil
+}
+
 func (q *fakeQuerier) GetDeploymentWorkspaceAgentStats(_ context.Context, createdAfter time.Time) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

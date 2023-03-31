@@ -335,7 +335,7 @@ export const getTemplateVersionGitAuth = async (
 
 export const getTemplateVersionParameters = async (
   versionId: string,
-): Promise<TypesGen.Parameter[]> => {
+): Promise<TypesGen.ComputedParameter[]> => {
   const response = await axios.get(
     `/api/v2/templateversions/${versionId}/parameters`,
   )
@@ -489,15 +489,29 @@ export const postWorkspaceBuild = async (
 export const startWorkspace = (
   workspaceId: string,
   templateVersionID: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "start",
     template_version_id: templateVersionID,
+    log_level: logLevel,
   })
-export const stopWorkspace = (workspaceId: string) =>
-  postWorkspaceBuild(workspaceId, { transition: "stop" })
-export const deleteWorkspace = (workspaceId: string) =>
-  postWorkspaceBuild(workspaceId, { transition: "delete" })
+export const stopWorkspace = (
+  workspaceId: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+) =>
+  postWorkspaceBuild(workspaceId, {
+    transition: "stop",
+    log_level: logLevel,
+  })
+export const deleteWorkspace = (
+  workspaceId: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+) =>
+  postWorkspaceBuild(workspaceId, {
+    transition: "delete",
+    log_level: logLevel,
+  })
 
 export const cancelWorkspaceBuild = async (
   workspaceBuildId: TypesGen.WorkspaceBuild["id"],

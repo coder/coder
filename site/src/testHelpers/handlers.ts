@@ -3,7 +3,7 @@ import { WorkspaceBuildTransition } from "../api/types"
 import { CreateWorkspaceBuildRequest } from "../api/typesGenerated"
 import { permissionsToCheck } from "../xServices/auth/authXService"
 import * as M from "./entities"
-import { MockGroup, MockWorkspaceQuota } from "./entities"
+import { MockGroup, mockParameterSchema, MockWorkspaceQuota } from "./entities"
 import fs from "fs"
 import path from "path"
 
@@ -79,7 +79,23 @@ export const handlers = [
   rest.get(
     "/api/v2/templateversions/:templateVersionId/schema",
     async (req, res, ctx) => {
-      return res(ctx.status(200), ctx.json([]))
+      return res(
+        ctx.status(200),
+        ctx.json([
+          mockParameterSchema({
+            id: "1",
+            name: M.MockTemplateVersionParameter1.name,
+          }),
+          mockParameterSchema({
+            id: "2",
+            name: M.MockTemplateVersionParameter2.name,
+          }),
+          mockParameterSchema({
+            id: "3",
+            name: M.MockTemplateVersionParameter3.name,
+          }),
+        ]),
+      )
     },
   ),
   rest.get(
@@ -321,7 +337,7 @@ export const handlers = [
     },
   ),
 
-  rest.get("api/v2/files/:fileId", (_, res, ctx) => {
+  rest.get("/api/v2/files/:fileId", (_, res, ctx) => {
     const fileBuffer = fs.readFileSync(
       path.resolve(__dirname, "./templateFiles.tar"),
     )
@@ -333,4 +349,32 @@ export const handlers = [
       ctx.body(fileBuffer),
     )
   }),
+
+  rest.get(
+    "/api/v2/templateversions/:templateVersionId/parameters",
+    (_, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json([
+          M.MockTemplateVersionParameter1,
+          M.MockTemplateVersionParameter2,
+          M.MockTemplateVersionParameter3,
+        ]),
+      )
+    },
+  ),
+
+  rest.get(
+    "/api/v2/templateversions/:templateVersionId/variables",
+    (_, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json([
+          M.MockTemplateVersionVariable1,
+          M.MockTemplateVersionVariable2,
+          M.MockTemplateVersionVariable3,
+        ]),
+      )
+    },
+  ),
 ]

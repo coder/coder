@@ -174,7 +174,7 @@ jobs:
 
       - name: Install sqlc
         run: |
-          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.16.0/sqlc_1.16.0_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
+          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.17.2/sqlc_1.17.2_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
       - name: Install protoc-gen-go
         run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
       - name: Install protoc-gen-go-drpc
@@ -254,14 +254,11 @@ jobs:
         with:
           go-version: "~1.20"
 
-      # Sadly the new "set output" syntax (of writing env vars to
-      # $GITHUB_OUTPUT) does not work on both powershell and bash so we use the
-      # deprecated syntax here.
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=GOCACHE::$(go env GOCACHE)"
-          echo "::set-output name=GOMODCACHE::$(go env GOMODCACHE)"
+          echo "GOCACHE=$(go env GOCACHE)" >> ${{ runner.os == 'Windows' && '$env:' || '$' }}GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> ${{ runner.os == 'Windows' && '$env:' || '$' }}GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
