@@ -11,6 +11,7 @@ import { useParams } from "react-router-dom"
 import { quotaMachine } from "xServices/quotas/quotasXService"
 import { workspaceMachine } from "xServices/workspace/workspaceXService"
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage"
+import { RequirePermission } from "components/RequirePermission/RequirePermission"
 
 const useFailedBuildLogs = (workspace: Workspace | undefined) => {
   const now = useRef(new Date())
@@ -53,47 +54,51 @@ export const WorkspacePage: FC = () => {
   const failedBuildLogs = useFailedBuildLogs(workspace)
 
   return (
-    <ChooseOne>
-      <Cond condition={workspaceState.matches("error")}>
-        <div className={styles.error}>
-          {Boolean(getWorkspaceError) && (
-            <AlertBanner severity="error" error={getWorkspaceError} />
-          )}
-          {Boolean(getTemplateWarning) && (
-            <AlertBanner severity="error" error={getTemplateWarning} />
-          )}
-          {Boolean(getTemplateParametersWarning) && (
-            <AlertBanner
-              severity="error"
-              error={getTemplateParametersWarning}
-            />
-          )}
-          {Boolean(checkPermissionsError) && (
-            <AlertBanner severity="error" error={checkPermissionsError} />
-          )}
-          {Boolean(getQuotaError) && (
-            <AlertBanner severity="error" error={getQuotaError} />
-          )}
-        </div>
-      </Cond>
-      <Cond
-        condition={
-          Boolean(workspace) &&
-          workspaceState.matches("ready") &&
-          quotaState.matches("success")
-        }
-      >
-        <WorkspaceReadyPage
-          workspaceState={workspaceState}
-          quotaState={quotaState}
-          workspaceSend={workspaceSend}
-          failedBuildLogs={failedBuildLogs.data}
-        />
-      </Cond>
-      <Cond>
-        <Loader />
-      </Cond>
-    </ChooseOne>
+    <RequirePermission
+      isFeatureVisible={getWorkspaceError?.response?.status !== 404}
+    >
+      <ChooseOne>
+        <Cond condition={workspaceState.matches("error")}>
+          <div className={styles.error}>
+            {Boolean(getWorkspaceError) && (
+              <AlertBanner severity="error" error={getWorkspaceError} />
+            )}
+            {Boolean(getTemplateWarning) && (
+              <AlertBanner severity="error" error={getTemplateWarning} />
+            )}
+            {Boolean(getTemplateParametersWarning) && (
+              <AlertBanner
+                severity="error"
+                error={getTemplateParametersWarning}
+              />
+            )}
+            {Boolean(checkPermissionsError) && (
+              <AlertBanner severity="error" error={checkPermissionsError} />
+            )}
+            {Boolean(getQuotaError) && (
+              <AlertBanner severity="error" error={getQuotaError} />
+            )}
+          </div>
+        </Cond>
+        <Cond
+          condition={
+            Boolean(workspace) &&
+            workspaceState.matches("ready") &&
+            quotaState.matches("success")
+          }
+        >
+          <WorkspaceReadyPage
+            failedBuildLogs={failedBuildLogs.data}
+            workspaceState={workspaceState}
+            quotaState={quotaState}
+            workspaceSend={workspaceSend}
+          />
+        </Cond>
+        <Cond>
+          <Loader />
+        </Cond>
+      </ChooseOne>
+    </RequirePermission>
   )
 }
 
