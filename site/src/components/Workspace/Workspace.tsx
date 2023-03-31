@@ -1,12 +1,16 @@
+import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
+import RefreshOutlined from "@material-ui/icons/RefreshOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 import { AgentRow } from "components/Resources/AgentRow"
+import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import {
   ActiveTransition,
   WorkspaceBuildProgress,
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { FC } from "react"
+import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
 import { AlertBanner } from "../AlertBanner/AlertBanner"
@@ -48,6 +52,7 @@ export interface WorkspaceProps {
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
   canUpdateWorkspace: boolean
+  canUpdateTemplate: boolean
   hideSSHButton?: boolean
   hideVSCodeDesktopButton?: boolean
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
@@ -56,6 +61,8 @@ export interface WorkspaceProps {
   sshPrefix?: string
   template?: TypesGen.Template
   quota_budget?: number
+  failedBuildLogs: TypesGen.ProvisionerJobLog[] | undefined
+  handleBuildRetry: () => void
 }
 
 /**
@@ -74,6 +81,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   resources,
   builds,
   canUpdateWorkspace,
+  canUpdateTemplate,
   workspaceErrors,
   hideSSHButton,
   hideVSCodeDesktopButton,
@@ -82,10 +90,13 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   sshPrefix,
   template,
   quota_budget,
+  failedBuildLogs,
+  handleBuildRetry,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
   const serverVersion = buildInfo?.version || ""
+  const { t } = useTranslation("workspacePage")
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
     <AlertBanner
@@ -179,6 +190,40 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           handleUpdate={handleUpdate}
         />
 
+        {failedBuildLogs && (
+          <Stack>
+            <AlertBanner severity="error">
+              <Stack
+                className={styles.fullWidth}
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+              >
+                <Stack spacing={0}>
+                  <span>Workspace build failed</span>
+                  <span className={styles.errorDetails}>
+                    {workspace.latest_build.job.error}
+                  </span>
+                </Stack>
+
+                {canUpdateTemplate && (
+                  <div>
+                    <Button
+                      onClick={handleBuildRetry}
+                      startIcon={<RefreshOutlined />}
+                      size="small"
+                      variant="outlined"
+                    >
+                      {t("actionButton.retryDebugMode")}
+                    </Button>
+                  </div>
+                )}
+              </Stack>
+            </AlertBanner>
+            <WorkspaceBuildLogs logs={failedBuildLogs} />
+          </Stack>
+        )}
+
         {transitionStats !== undefined && (
           <WorkspaceBuildProgress
             workspace={workspace}
@@ -254,6 +299,15 @@ export const useStyles = makeStyles((theme) => {
     },
     logs: {
       border: `1px solid ${theme.palette.divider}`,
+    },
+
+    errorDetails: {
+      color: theme.palette.text.secondary,
+      fontSize: 12,
+    },
+
+    fullWidth: {
+      width: "100%",
     },
   }
 })

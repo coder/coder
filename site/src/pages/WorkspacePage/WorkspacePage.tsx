@@ -1,22 +1,46 @@
 import { makeStyles } from "@material-ui/core/styles"
+import { useQuery } from "@tanstack/react-query"
 import { useMachine } from "@xstate/react"
+import { getWorkspaceBuildLogs } from "api/api"
+import { Workspace } from "api/typesGenerated"
 import { AlertBanner } from "components/AlertBanner/AlertBanner"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Loader } from "components/Loader/Loader"
-import { FC, useEffect } from "react"
+import { FC, useRef } from "react"
 import { useParams } from "react-router-dom"
-import { firstOrItem } from "util/array"
 import { quotaMachine } from "xServices/quotas/quotasXService"
 import { workspaceMachine } from "xServices/workspace/workspaceXService"
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage"
 import { RequirePermission } from "components/RequirePermission/RequirePermission"
 
+const useFailedBuildLogs = (workspace: Workspace | undefined) => {
+  const now = useRef(new Date())
+  return useQuery({
+    queryKey: ["logs", workspace?.latest_build.id],
+    queryFn: () => {
+      if (!workspace) {
+        throw new Error(
+          `Build log query being called before workspace is defined`,
+        )
+      }
+
+      return getWorkspaceBuildLogs(workspace.latest_build.id, now.current)
+    },
+    enabled: workspace?.latest_build.job.error !== undefined,
+  })
+}
+
 export const WorkspacePage: FC = () => {
-  const { username: usernameQueryParam, workspace: workspaceQueryParam } =
-    useParams()
-  const username = firstOrItem(usernameQueryParam, null)
-  const workspaceName = firstOrItem(workspaceQueryParam, null)
-  const [workspaceState, workspaceSend] = useMachine(workspaceMachine)
+  const { username, workspace: workspaceName } = useParams() as {
+    username: string
+    workspace: string
+  }
+  const [workspaceState, workspaceSend] = useMachine(workspaceMachine, {
+    context: {
+      workspaceName,
+      username,
+    },
+  })
   const {
     workspace,
     getWorkspaceError,
@@ -24,23 +48,10 @@ export const WorkspacePage: FC = () => {
     getTemplateParametersWarning,
     checkPermissionsError,
   } = workspaceState.context
-  const [quotaState, quotaSend] = useMachine(quotaMachine)
+  const [quotaState] = useMachine(quotaMachine, { context: { username } })
   const { getQuotaError } = quotaState.context
   const styles = useStyles()
-
-  /**
-   * Get workspace, template, and organization on mount and whenever workspaceId changes.
-   * workspaceSend should not change.
-   */
-  useEffect(() => {
-    username &&
-      workspaceName &&
-      workspaceSend({ type: "GET_WORKSPACE", username, workspaceName })
-  }, [username, workspaceName, workspaceSend])
-
-  useEffect(() => {
-    username && quotaSend({ type: "GET_QUOTA", username })
-  }, [username, quotaSend])
+  const failedBuildLogs = useFailedBuildLogs(workspace)
 
   return (
     <RequirePermission
@@ -77,6 +88,7 @@ export const WorkspacePage: FC = () => {
           }
         >
           <WorkspaceReadyPage
+            failedBuildLogs={failedBuildLogs.data}
             workspaceState={workspaceState}
             quotaState={quotaState}
             workspaceSend={workspaceSend}

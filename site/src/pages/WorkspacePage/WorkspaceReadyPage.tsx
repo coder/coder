@@ -1,4 +1,5 @@
 import { useActor } from "@xstate/react"
+import { ProvisionerJobLog } from "api/typesGenerated"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import dayjs from "dayjs"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
@@ -31,11 +32,13 @@ interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
   quotaState: StateFrom<typeof quotaMachine>
   workspaceSend: (event: WorkspaceEvent) => void
+  failedBuildLogs: ProvisionerJobLog[] | undefined
 }
 
 export const WorkspaceReadyPage = ({
   workspaceState,
   quotaState,
+  failedBuildLogs,
   workspaceSend,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const [_, bannerSend] = useActor(
@@ -60,6 +63,7 @@ export const WorkspaceReadyPage = ({
   }
   const deadline = getDeadline(workspace)
   const canUpdateWorkspace = Boolean(permissions?.updateWorkspace)
+  const canUpdateTemplate = Boolean(permissions?.updateTemplate)
   const { t } = useTranslation("workspacePage")
   const favicon = getFaviconByStatus(workspace.latest_build)
   const navigate = useNavigate()
@@ -86,6 +90,7 @@ export const WorkspaceReadyPage = ({
       </Helmet>
 
       <Workspace
+        failedBuildLogs={failedBuildLogs}
         scheduleProps={{
           onDeadlineMinus: (hours: number) => {
             bannerSend({
@@ -113,9 +118,11 @@ export const WorkspaceReadyPage = ({
         handleUpdate={() => workspaceSend({ type: "UPDATE" })}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
         handleSettings={() => navigate("settings")}
+        handleBuildRetry={() => workspaceSend({ type: "RETRY_BUILD" })}
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
+        canUpdateTemplate={canUpdateTemplate}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{
