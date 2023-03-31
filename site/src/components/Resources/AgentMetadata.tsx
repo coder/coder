@@ -228,7 +228,8 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
 
 export const AgentMetadata: FC<{
   agent: WorkspaceAgent
-}> = ({ agent }) => {
+  storybookMetadata?: WorkspaceAgentMetadata[]
+}> = ({ agent, storybookMetadata }) => {
   const [metadata, setMetadata] = useState<
     WorkspaceAgentMetadata[] | undefined
   >(undefined)
@@ -236,6 +237,10 @@ export const AgentMetadata: FC<{
   const watchAgentMetadata = useContext(WatchAgentMetadataContext)
 
   useEffect(() => {
+    if (storybookMetadata !== undefined) {
+      setMetadata(storybookMetadata)
+      return
+    }
     const source = watchAgentMetadata(agent.id)
 
     source.onerror = (e) => {
@@ -248,10 +253,19 @@ export const AgentMetadata: FC<{
     return () => {
       source.close()
     }
-  }, [agent.id, watchAgentMetadata])
+  }, [agent.id, watchAgentMetadata, storybookMetadata])
 
   if (metadata === undefined) {
-    return <CircularProgress size={16} />
+    return (
+      <div
+        style={{
+          marginTop: 16,
+          marginBottom: 16,
+        }}
+      >
+        <CircularProgress size={16} />
+      </div>
+    )
   }
 
   return <AgentMetadataView metadata={metadata} />
@@ -264,11 +278,12 @@ const useStyles = makeStyles((theme) => ({
     border: `2px dashed ${theme.palette.divider}`,
     borderRadius: theme.shape.borderRadius,
     width: "100%",
+    marginTop: theme.spacing(2),
+    marginBottom: theme.spacing(2),
   },
   metadataHeader: {
     padding: "8px",
-    display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    display: "flex",
     gap: theme.spacing(5),
     rowGap: theme.spacing(3),
   },
@@ -290,6 +305,7 @@ const useStyles = makeStyles((theme) => ({
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
+    maxWidth: "16em",
   },
 
   metadataValueSuccess: {

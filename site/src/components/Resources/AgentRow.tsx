@@ -29,7 +29,11 @@ import {
   LineWithID,
   workspaceAgentLogsMachine,
 } from "xServices/workspaceAgentLogs/workspaceAgentLogsXService"
-import { Workspace, WorkspaceAgent } from "../../api/typesGenerated"
+import {
+  Workspace,
+  WorkspaceAgent,
+  WorkspaceAgentMetadata,
+} from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
 import { Stack } from "../Stack/Stack"
@@ -51,6 +55,7 @@ export interface AgentRowProps {
   onUpdateAgent: () => void
 
   storybookStartupLogs?: LineWithID[]
+  storybookAgentMetadata?: WorkspaceAgentMetadata[]
 }
 
 export const AgentRow: FC<AgentRowProps> = ({
@@ -63,6 +68,7 @@ export const AgentRow: FC<AgentRowProps> = ({
   serverVersion,
   onUpdateAgent,
   storybookStartupLogs,
+  storybookAgentMetadata,
   sshPrefix,
 }) => {
   const styles = useStyles()
@@ -180,11 +186,7 @@ export const AgentRow: FC<AgentRowProps> = ({
         <div className={styles.agentStatusWrapper}>
           <AgentStatus agent={agent} />
         </div>
-        <Stack
-          direction="column"
-          alignItems="flex-start"
-          key={agent.id}
-          spacing={2}
+        <div
           style={{
             flex: 1,
           }}
@@ -291,7 +293,10 @@ export const AgentRow: FC<AgentRowProps> = ({
               )}
             </Stack>
           </Stack>
-          <AgentMetadata agent={agent} />
+          <AgentMetadata
+            storybookMetadata={storybookAgentMetadata}
+            agent={agent}
+          />
           {hasStartupFeatures && (
             <Stack
               direction="row"
@@ -364,7 +369,7 @@ export const AgentRow: FC<AgentRowProps> = ({
               </Popover>
             </Stack>
           )}
-        </Stack>
+        </div>
       </Stack>
       {showStartupLogs && (
         <AutoSizer disableHeight>
