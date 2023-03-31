@@ -2,8 +2,7 @@ terraform {
   required_providers {
     coder = {
       source = "coder/coder"
-      // TODO: update terraform-provider-coder before merge.
-      version = "= 0.7.0-rc0"
+      version = "0.7.0"
     }
   }
 }

@@ -1,5 +1,7 @@
 {
-  "versions": ["main"],
+  "versions": [
+    "main"
+  ],
   "routes": [
     {
       "title": "About",
@@ -139,7 +141,8 @@
           "title": "Agent Metadata",
           "description": "Learn how to expose live agent information to users",
           "path": "./templates/agent-metadata.md",
-          "icon_path": "./images/icons/table-rows.svg"
+          "icon_path": "./images/icons/table-rows.svg",
+          "state": "alpha"
         },
         {
           "title": "Docker in Docker",

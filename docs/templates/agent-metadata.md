@@ -1,4 +1,4 @@
-# Agent Metadata
+# Agent Metadata (alpha)
 
 <blockquote class="warning">
 Agent metadata is in an alpha state and may break or disappear at any time.
