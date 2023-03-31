@@ -63,7 +63,7 @@ const TemplateVersionsPage = () => {
         title="Promote version"
         confirmLoading={isPromoting}
         confirmText="Promote"
-        description="Are you sure you want to promote this version?"
+        description="Are you sure you want to promote this version? Workspaces will be prompted to “Update” to this version once promoted."
       />
     </>
   )
