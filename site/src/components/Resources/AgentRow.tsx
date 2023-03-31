@@ -33,7 +33,6 @@ import {
   Workspace,
   WorkspaceAgent,
   WorkspaceAgentMetadata,
-  WorkspaceAgentMetadataDescription,
 } from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
