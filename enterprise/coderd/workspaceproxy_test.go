@@ -17,6 +17,8 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 	t.Parallel()
 
 	t.Run("create", func(t *testing.T) {
+		t.Parallel()
+
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{
 			string(codersdk.ExperimentMoons),

@@ -4896,7 +4896,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentStartupLogOverflowByID(_ context.Conte
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceProxies(ctx context.Context, organizationID uuid.UUID) ([]database.WorkspaceProxy, error) {
+func (q *fakeQuerier) GetWorkspaceProxies(_ context.Context, organizationID uuid.UUID) ([]database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -4909,7 +4909,7 @@ func (q *fakeQuerier) GetWorkspaceProxies(ctx context.Context, organizationID uu
 	return cpy, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (database.WorkspaceProxy, error) {
+func (q *fakeQuerier) GetWorkspaceProxyByID(_ context.Context, id uuid.UUID) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -4921,7 +4921,7 @@ func (q *fakeQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) InsertWorkspaceProxy(ctx context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -4964,7 +4964,7 @@ func (q *fakeQuerier) UpdateWorkspaceProxy(ctx context.Context, arg database.Upd
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceProxyDeleted(ctx context.Context, arg database.UpdateWorkspaceProxyDeletedParams) error {
+func (q *fakeQuerier) UpdateWorkspaceProxyDeleted(_ context.Context, arg database.UpdateWorkspaceProxyDeletedParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
