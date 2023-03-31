@@ -228,7 +228,8 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
 
 export const AgentMetadata: FC<{
   agent: WorkspaceAgent
-}> = ({ agent }) => {
+  storybookMetadata?: WorkspaceAgentMetadata[]
+}> = ({ agent, storybookMetadata }) => {
   const [metadata, setMetadata] = useState<
     WorkspaceAgentMetadata[] | undefined
   >(undefined)
@@ -236,6 +237,10 @@ export const AgentMetadata: FC<{
   const watchAgentMetadata = useContext(WatchAgentMetadataContext)
 
   useEffect(() => {
+    if (storybookMetadata !== undefined) {
+      setMetadata(storybookMetadata)
+      return
+    }
     const source = watchAgentMetadata(agent.id)
 
     source.onerror = (e) => {
@@ -248,7 +253,7 @@ export const AgentMetadata: FC<{
     return () => {
       source.close()
     }
-  }, [agent.id, watchAgentMetadata])
+  }, [agent.id, watchAgentMetadata, storybookMetadata])
 
   if (metadata === undefined) {
     return (
