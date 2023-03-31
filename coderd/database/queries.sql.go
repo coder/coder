@@ -2810,10 +2810,11 @@ FROM
 	workspace_proxies
 WHERE
 	deleted = false
+    AND organization_id = $1
 `
 
-func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceProxies)
+func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context, organizationID uuid.UUID) ([]WorkspaceProxy, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceProxies, organizationID)
 	if err != nil {
 		return nil, err
 	}

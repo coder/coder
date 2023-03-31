@@ -160,6 +160,17 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"exp":         ActionTrack,
 		"uuid":        ActionTrack,
 	},
+	&database.WorkspaceProxy{}: {
+		"id":              ActionTrack,
+		"organization_id": ActionTrack,
+		"name":            ActionTrack,
+		"icon":            ActionTrack,
+		"url":             ActionTrack,
+		"wildcard_url":    ActionTrack,
+		"created_at":      ActionTrack,
+		"updated_at":      ActionTrack,
+		"deleted":         ActionTrack,
+	},
 }
 
 // auditMap converts a map of struct pointers to a map of struct names as

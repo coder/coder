@@ -1570,6 +1570,10 @@ const (
 	// for all users.
 	ExperimentTemplateEditor Experiment = "template_editor"
 
+	// ExperimentMoons enabled the workspace proxy endpoints and CRUD. This
+	// feature is not yet complete in functionality.
+	ExperimentMoons Experiment = "moons"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )

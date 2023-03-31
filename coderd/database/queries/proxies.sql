@@ -52,4 +52,5 @@ SELECT
 FROM
 	workspace_proxies
 WHERE
-	deleted = false;
+	deleted = false
+    AND organization_id = @organization_id;

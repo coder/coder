@@ -279,3 +279,13 @@ func (api *API) templateRBACEnabledMW(next http.Handler) http.Handler {
 		next.ServeHTTP(rw, r)
 	})
 }
+
+func (api *API) moonsEnabledMW(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if !api.AGPL.Experiments.Enabled(codersdk.ExperimentMoons) {
+			httpapi.RouteNotFound(rw)
+			return
+		}
+		next.ServeHTTP(rw, r)
+	})
+}

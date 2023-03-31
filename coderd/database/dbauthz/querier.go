@@ -1647,10 +1647,8 @@ func (q *querier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceApp
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
 }
 
-func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
-	return fetchWithPostFilter(q.auth, func(ctx context.Context, _ any) ([]database.WorkspaceProxy, error) {
-		return q.db.GetWorkspaceProxies(ctx)
-	})(ctx, nil)
+func (q *querier) GetWorkspaceProxies(ctx context.Context, organizationID uuid.UUID) ([]database.WorkspaceProxy, error) {
+	return fetchWithPostFilter(q.auth, q.GetWorkspaceProxies)(ctx, organizationID)
 }
 
 func (q *querier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (database.WorkspaceProxy, error) {
