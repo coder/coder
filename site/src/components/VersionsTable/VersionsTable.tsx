@@ -20,11 +20,13 @@ export const Language = {
 
 export interface VersionsTableProps {
   activeVersionId: string
+  onPromoteClick?: () => void
   versions?: TypesGen.TemplateVersion[]
 }
 
 export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({
   versions,
+  onPromoteClick,
   activeVersionId,
 }) => {
   return (
@@ -37,6 +39,7 @@ export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({
               getDate={(version) => new Date(version.created_at)}
               row={(version) => (
                 <VersionRow
+                  onPromoteClick={onPromoteClick}
                   version={version}
                   key={version.id}
                   isActive={activeVersionId === version.id}

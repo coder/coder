@@ -15,11 +15,13 @@ import { combineClasses } from "util/combineClasses"
 export interface VersionRowProps {
   version: TemplateVersion
   isActive: boolean
+  onPromoteClick?: () => void
 }
 
 export const VersionRow: React.FC<VersionRowProps> = ({
   version,
   isActive,
+  onPromoteClick,
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("templatePage")
@@ -69,13 +71,20 @@ export const VersionRow: React.FC<VersionRowProps> = ({
           {isActive ? (
             <Pill text="Active version" type="success" />
           ) : (
-            <Button
-              size="small"
-              variant="outlined"
-              className={styles.promoteButton}
-            >
-              Promote version
-            </Button>
+            onPromoteClick && (
+              <Button
+                size="small"
+                variant="outlined"
+                className={styles.promoteButton}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onPromoteClick()
+                }}
+              >
+                Promote version
+              </Button>
+            )
           )}
         </Stack>
       </TableCell>
