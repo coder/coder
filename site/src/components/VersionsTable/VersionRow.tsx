@@ -1,3 +1,4 @@
+import Button from "@material-ui/core/Button"
 import { makeStyles } from "@material-ui/core/styles"
 import TableCell from "@material-ui/core/TableCell"
 import { TemplateVersion } from "api/typesGenerated"
@@ -8,6 +9,7 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { useClickableTableRow } from "hooks/useClickableTableRow"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
+import { colors } from "theme/colors"
 import { combineClasses } from "util/combineClasses"
 
 export interface VersionRowProps {
@@ -32,6 +34,7 @@ export const VersionRow: React.FC<VersionRowProps> = ({
       {...clickableProps}
       className={combineClasses({
         [clickableProps.className]: true,
+        [styles.row]: true,
         [styles.active]: isActive,
       })}
     >
@@ -63,7 +66,17 @@ export const VersionRow: React.FC<VersionRowProps> = ({
               </span>
             </Stack>
           </Stack>
-          {isActive && <Pill text="Active version" type="success" />}
+          {isActive ? (
+            <Pill text="Active version" type="success" />
+          ) : (
+            <Button
+              size="small"
+              variant="outlined"
+              className={styles.promoteButton}
+            >
+              Promote version
+            </Button>
+          )}
         </Stack>
       </TableCell>
     </TimelineEntry>
@@ -71,6 +84,21 @@ export const VersionRow: React.FC<VersionRowProps> = ({
 }
 
 const useStyles = makeStyles((theme) => ({
+  row: {
+    "&:hover $promoteButton": {
+      color: theme.palette.text.primary,
+      borderColor: colors.gray[11],
+      "&:hover": {
+        borderColor: theme.palette.text.primary,
+      },
+    },
+  },
+
+  promoteButton: {
+    color: theme.palette.text.secondary,
+    transition: "none",
+  },
+
   versionWrapper: {
     padding: theme.spacing(2, 4),
   },
