@@ -2,8 +2,6 @@
 bazil.org/fuse v0.0.0-20160811212531-371fbbdaa898/go.mod h1:Xbm+BRKSBEpa4q4hTSxohYNQpsxXPbPry4JJWOB3LB8=
 bazil.org/fuse v0.0.0-20200407214033-5883e5a4b512/go.mod h1:FbcW6z/2VytnFDhZfumh8Ss8zxHE6qpMP5sHTRe0EaM=
 bitbucket.org/creachadair/shell v0.0.6/go.mod h1:8Qqi/cYk7vPnsOePHroKXDJYmb5x7ENhtiFtfZq8K+M=
-cdr.dev/slog v1.4.2-0.20230228204227-60d22dceaf04 h1:d5MQ+iI2zk7t0HrHwBP9p7k2XfRsXnRclSe8Kpp3xOo=
-cdr.dev/slog v1.4.2-0.20230228204227-60d22dceaf04/go.mod h1:YPVZsUbRMaLaPgme0RzlPWlC7fI7YmDj/j/kZLuvICs=
 cdr.dev/slog v1.4.2 h1:fIfiqASYQFJBZiASwL825atyzeA96NsqSxx2aL61P8I=
 cdr.dev/slog v1.4.2/go.mod h1:0EkH+GkFNxizNR+GAXUEdUHanxUH5t9zqPILmPM/Vn8=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
@@ -382,8 +380,8 @@ github.com/coder/ssh v0.0.0-20220811105153-fcea99919338 h1:tN5GKFT68YLVzJoA8AHui
 github.com/coder/ssh v0.0.0-20220811105153-fcea99919338/go.mod h1:ZSS+CUoKHDrqVakTfTWUlKSr9MtMFkC4UvtQKD7O914=
 github.com/coder/tailscale v1.1.1-0.20230327205451-058fa46a3723 h1:TIEdewTbti0kTXo6kgKpF1MD3w+RYH+BZfkD1BqVB8c=
 github.com/coder/tailscale v1.1.1-0.20230327205451-058fa46a3723/go.mod h1:jpg+77g19FpXL43U1VoIqoSg1K/Vh5CVxycGldQ8KhA=
-github.com/coder/terraform-provider-coder v0.6.21 h1:TIH6+/VQFreT8q/CkRvpHtbIeM5cOAhuDS5Sh1Nm21Q=
-github.com/coder/terraform-provider-coder v0.6.21/go.mod h1:UIfU3bYNeSzJJvHyJ30tEKjD6Z9utloI+HUM/7n94CY=
+github.com/coder/terraform-provider-coder v0.6.22 h1:aip6mHPagYY+5Ey7eKiOsbPrQDbEM1Q4ttXPqvpEezg=
+github.com/coder/terraform-provider-coder v0.6.22/go.mod h1:UIfU3bYNeSzJJvHyJ30tEKjD6Z9utloI+HUM/7n94CY=
 github.com/coder/wgtunnel v0.1.5 h1:WP3sCj/3iJ34eKvpMQEp1oJHvm24RYh0NHbj1kfUKfs=
 github.com/coder/wgtunnel v0.1.5/go.mod h1:bokoUrHnUFY4lu9KOeSYiIcHTI2MO1KwqumU4DPDyJI=
 github.com/containerd/aufs v0.0.0-20200908144142-dab0cbea06f4/go.mod h1:nukgQABAEopAHvB6j7cnP5zJ+/3aVcE7hCYqvIwAHyE=
