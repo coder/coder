@@ -51,6 +51,7 @@ export const WorkspaceReadyPage = ({
     buildError,
     cancellationError,
     applicationsHost,
+    sshPrefix,
     permissions,
     missedParameters,
   } = workspaceState.context
@@ -124,6 +125,7 @@ export const WorkspaceReadyPage = ({
         }}
         buildInfo={buildInfo}
         applicationsHost={applicationsHost}
+        sshPrefix={sshPrefix}
         template={template}
         quota_budget={quotaState.context.quota?.budget}
       />
