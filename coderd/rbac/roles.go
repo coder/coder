@@ -299,7 +299,6 @@ func (roles Roles) Names() []string {
 	return names
 }
 
-
 // CanAssignRole is a helper function that returns true if the user can assign
 // the specified role. This also can be used for removing a role.
 // This is a simple implementation for now.
