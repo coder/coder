@@ -137,6 +137,7 @@ func (m *Mesh) removeAddress(address string) bool {
 	cancelFunc, isActive := m.active[address]
 	if isActive {
 		cancelFunc()
+		delete(m.active, address)
 	}
 	return isActive
 }
