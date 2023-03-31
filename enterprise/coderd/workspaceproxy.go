@@ -89,7 +89,7 @@ func (api *API) postWorkspaceProxyByOrganization(rw http.ResponseWriter, r *http
 	httpapi.Write(ctx, rw, http.StatusCreated, convertProxy(proxy))
 }
 
-// nolint:flag-parameter
+// nolint:revive
 func validateProxyURL(u string, wildcard bool) error {
 	p, err := url.Parse(u)
 	if err != nil {

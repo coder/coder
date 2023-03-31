@@ -331,6 +331,7 @@ func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProx
 		ID:             takeFirst(orig.ID, uuid.New()),
 		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
 		Name:           takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		DisplayName:    takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
 		Icon:           takeFirst(orig.Icon, namesgenerator.GetRandomName(1)),
 		Url:            takeFirst(orig.Url, fmt.Sprintf("https://%s.com", namesgenerator.GetRandomName(1))),
 		WildcardUrl:    takeFirst(orig.WildcardUrl, fmt.Sprintf("https://*.%s.com", namesgenerator.GetRandomName(1))),
