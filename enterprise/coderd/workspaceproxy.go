@@ -24,7 +24,7 @@ import (
 // @Param request body codersdk.CreateWorkspaceProxyRequest true "Create workspace proxy request"
 // @Param organization path string true "Organization ID"
 // @Success 201 {object} codersdk.WorkspaceProxy
-// @Router /organizations/{organization}/workspaceproxys [post]
+// @Router /organizations/{organization}/workspaceproxies [post]
 func (api *API) postWorkspaceProxyByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -77,7 +77,7 @@ func (api *API) postWorkspaceProxyByOrganization(rw http.ResponseWriter, r *http
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} codersdk.WorkspaceProxy
-// @Router /organizations/{organization}/workspaceproxys [get]
+// @Router /organizations/{organization}/workspaceproxies [get]
 func (api *API) workspaceProxiesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx = r.Context()
@@ -92,8 +92,6 @@ func (api *API) workspaceProxiesByOrganization(rw http.ResponseWriter, r *http.R
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertProxies(proxies))
 }
-
-
 
 func convertProxies(p []database.WorkspaceProxy) []codersdk.WorkspaceProxy {
 	resp := make([]codersdk.WorkspaceProxy, 0, len(p))

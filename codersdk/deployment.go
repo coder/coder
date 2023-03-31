@@ -45,6 +45,7 @@ const (
 	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
 	FeatureAppearance                 FeatureName = "appearance"
 	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
+	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -59,6 +60,7 @@ var FeatureNames = []FeatureName{
 	FeatureExternalProvisionerDaemons,
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
+	FeatureWorkspaceProxy,
 }
 
 // Humanize returns the feature name in a human-readable format.

@@ -81,7 +81,7 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
 		})
-		r.Route("/organizations/{organization}/workspaceproxys", func(r chi.Router) {
+		r.Route("/organizations/{organization}/workspaceproxies", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				api.moonsEnabledMW,
@@ -271,6 +271,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
+			codersdk.FeatureWorkspaceProxy:             true,
 		})
 	if err != nil {
 		return err
