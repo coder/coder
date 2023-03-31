@@ -8313,6 +8313,9 @@ const docTemplate = `{
                 "description_plaintext": {
                     "type": "string"
                 },
+                "display_name": {
+                    "type": "string"
+                },
                 "icon": {
                     "type": "string"
                 },
