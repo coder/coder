@@ -305,6 +305,7 @@ const useStyles = makeStyles((theme) => ({
     textOverflow: "ellipsis",
     overflow: "hidden",
     whiteSpace: "nowrap",
+    maxWidth: "16em",
   },
 
   metadataValueSuccess: {
