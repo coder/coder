@@ -93,7 +93,7 @@ const useStyles = makeStyles<
     background: theme.palette.background.default,
   },
   scrollWrapper: {
-    width: "fit-content",
+    minWidth: "fit-content",
   },
   line: {
     wordBreak: "break-all",
@@ -109,7 +109,7 @@ const useStyles = makeStyles<
     },
 
     "&.debug": {
-      backgroundColor: theme.palette.grey[900],
+      backgroundColor: theme.palette.background.paperLight,
     },
 
     "&.warn": {
