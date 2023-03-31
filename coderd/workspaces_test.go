@@ -1814,8 +1814,8 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 								Description: firstParameterDescription,
 							},
 							{
-								Name: secondParameterName,
-								// FIXME: DisplayName:         secondParameterDisplayName,
+								Name:                secondParameterName,
+								DisplayName:         secondParameterDisplayName,
 								Type:                secondParameterType,
 								Description:         secondParameterDescription,
 								ValidationMin:       1,

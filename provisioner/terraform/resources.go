@@ -450,6 +450,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 		}
 		protoParam := &proto.RichParameter{
 			Name:               param.Name,
+			DisplayName:        "FIXME", // FIXME param.DisplayName,
 			Description:        param.Description,
 			Type:               param.Type,
 			Mutable:            param.Mutable,
