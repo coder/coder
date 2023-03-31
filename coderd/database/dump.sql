@@ -618,6 +618,7 @@ CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
     organization_id uuid NOT NULL,
     name text NOT NULL,
+    display_name text NOT NULL,
     icon text NOT NULL,
     url text NOT NULL,
     wildcard_url text NOT NULL,

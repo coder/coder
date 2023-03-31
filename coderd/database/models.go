@@ -1649,6 +1649,7 @@ type WorkspaceProxy struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	Name           string    `db:"name" json:"name"`
+	DisplayName    string    `db:"display_name" json:"display_name"`
 	Icon           string    `db:"icon" json:"icon"`
 	// Full url including scheme of the proxy api url: https://us.example.com
 	Url string `db:"url" json:"url"`

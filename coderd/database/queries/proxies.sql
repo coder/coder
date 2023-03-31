@@ -4,20 +4,23 @@ INSERT INTO
 		id,
 		organization_id,
 		name,
+		display_name,
 		icon,
 		url,
 		wildcard_url,
 		created_at,
-		updated_at
+		updated_at,
+		deleted
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, false) RETURNING *;
 
 -- name: UpdateWorkspaceProxy :one
 UPDATE
 	workspace_proxies
 SET
 	name = @name,
+	display_name = @display_name,
 	url = @url,
 	wildcard_url = @wildcard_url,
 	icon = @icon,

@@ -14,6 +14,7 @@ import (
 
 type CreateWorkspaceProxyRequest struct {
 	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
 	Icon        string `json:"icon"`
 	URL         string `json:"url"`
 	WildcardURL string `json:"wildcard_url"`

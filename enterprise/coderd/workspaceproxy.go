@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -44,10 +46,27 @@ func (api *API) postWorkspaceProxyByOrganization(rw http.ResponseWriter, r *http
 		return
 	}
 
+	if err := validateProxyURL(req.URL, false); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "URL is invalid.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if err := validateProxyURL(req.WildcardURL, true); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Wildcard URL is invalid.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	proxy, err := api.Database.InsertWorkspaceProxy(ctx, database.InsertWorkspaceProxyParams{
 		ID:             uuid.New(),
 		OrganizationID: org.ID,
 		Name:           req.Name,
+		DisplayName:    req.DisplayName,
 		Icon:           req.Icon,
 		// TODO: validate URLs
 		Url:         req.URL,
@@ -68,6 +87,25 @@ func (api *API) postWorkspaceProxyByOrganization(rw http.ResponseWriter, r *http
 
 	aReq.New = proxy
 	httpapi.Write(ctx, rw, http.StatusCreated, convertProxy(proxy))
+}
+
+func validateProxyURL(u string, wildcard bool) error {
+	p, err := url.Parse(u)
+	if err != nil {
+		return err
+	}
+	if p.Scheme != "http" && p.Scheme != "https" {
+		return xerrors.New("scheme must be http or https")
+	}
+	if !(p.Path == "/" || p.Path == "") {
+		return xerrors.New("path must be empty or /")
+	}
+	if wildcard {
+		if !strings.HasPrefix(p.Host, "*.") {
+			return xerrors.Errorf("wildcard URL must have a wildcard subdomain (e.g. *.example.com)")
+		}
+	}
+	return nil
 }
 
 // @Summary Get workspace proxies
