@@ -15,7 +15,7 @@ import { combineClasses } from "util/combineClasses"
 export interface VersionRowProps {
   version: TemplateVersion
   isActive: boolean
-  onPromoteClick?: () => void
+  onPromoteClick?: (templateVersionId: string) => void
 }
 
 export const VersionRow: React.FC<VersionRowProps> = ({
@@ -79,7 +79,7 @@ export const VersionRow: React.FC<VersionRowProps> = ({
                 onClick={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
-                  onPromoteClick()
+                  onPromoteClick(version.id)
                 }}
               >
                 Promote version

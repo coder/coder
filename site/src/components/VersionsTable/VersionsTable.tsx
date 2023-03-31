@@ -20,7 +20,7 @@ export const Language = {
 
 export interface VersionsTableProps {
   activeVersionId: string
-  onPromoteClick?: () => void
+  onPromoteClick?: (templateVersionId: string) => void
   versions?: TypesGen.TemplateVersion[]
 }
 

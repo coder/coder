@@ -1,6 +1,8 @@
-import { useQuery } from "@tanstack/react-query"
-import { getTemplateVersions } from "api/api"
+import { useMutation, useQuery } from "@tanstack/react-query"
+import { getTemplateVersions, updateActiveTemplateVersion } from "api/api"
+import { getErrorMessage } from "api/errors"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils"
 import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import { VersionsTable } from "components/VersionsTable/VersionsTable"
 import { useState } from "react"
@@ -13,9 +15,28 @@ const TemplateVersionsPage = () => {
     queryKey: ["template", "versions", template.id],
     queryFn: () => getTemplateVersions(template.id),
   })
-  const [promoteState, setPromoteState] = useState<
-    "idle" | "confirming" | "promoting"
-  >("idle")
+  // We use this to update the active version in the UI without having to refetch the template
+  const [latestActiveVersion, setLatestActiveVersion] = useState(
+    template.active_version_id,
+  )
+  const { mutate: promoteVersion, isLoading: isPromoting } = useMutation({
+    mutationFn: (templateVersionId: string) => {
+      return updateActiveTemplateVersion(template.id, {
+        id: templateVersionId,
+      })
+    },
+    onSuccess: async () => {
+      setLatestActiveVersion(selectedVersionIdToPromote as string)
+      setSelectedVersionIdToPromote(undefined)
+      displaySuccess("Version promoted successfully")
+    },
+    onError: (error) => {
+      displayError(getErrorMessage(error, "Failed to promote version"))
+    },
+  })
+  const [selectedVersionIdToPromote, setSelectedVersionIdToPromote] = useState<
+    string | undefined
+  >()
 
   return (
     <>
@@ -26,19 +47,21 @@ const TemplateVersionsPage = () => {
         versions={data}
         onPromoteClick={
           permissions.canUpdateTemplate
-            ? () => setPromoteState("confirming")
+            ? setSelectedVersionIdToPromote
             : undefined
         }
-        activeVersionId={template.active_version_id}
+        activeVersionId={latestActiveVersion}
       />
       <ConfirmDialog
         type="info"
         hideCancel={false}
-        open={promoteState !== "idle"}
-        onConfirm={() => {}}
-        onClose={() => setPromoteState("idle")}
+        open={selectedVersionIdToPromote !== undefined}
+        onConfirm={() => {
+          promoteVersion(selectedVersionIdToPromote as string)
+        }}
+        onClose={() => setSelectedVersionIdToPromote(undefined)}
         title="Promote version"
-        confirmLoading={promoteState === "promoting"}
+        confirmLoading={isPromoting}
         confirmText="Promote"
         description="Are you sure you want to promote this version?"
       />
