@@ -57,6 +57,13 @@ Clients include the coder cli, vs code extension, and the web UI.
       --ssh-hostname-prefix string, $CODER_SSH_HOSTNAME_PREFIX (default: coder.)
           The SSH deployment prefix is used in the Host of the ssh config.
 
+[1mConfig Options[0m 
+Use a YAML configuration file when your server launch become unwieldy.
+
+      --write-config bool, $CODER_WRITE_CONFIG
+          
+          Write out the current server as YAML to stdout.
+
 [1mIntrospection / Logging Options[0m 
       --log-human string, $CODER_LOGGING_HUMAN (default: /dev/stderr)
           Output human-readable logs to a given file.

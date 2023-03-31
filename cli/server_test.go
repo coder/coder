@@ -1412,16 +1412,34 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 
 		t.Run("WriteThenReadConfig", func(t *testing.T) {
-			const wantAccessURL = "http://most-wanted.com"
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// First, we get the base config as set via flags (like users before
+			// migrating).
 			inv, cfg := clitest.New(t,
 				"server",
-				"--access-url", wantAccessURL,
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--log-human", filepath.Join(t.TempDir(), "coder-logging-test-*"),
+				"--ssh-keygen-algorithm", "rsa4096",
+				"--cache-dir", t.TempDir(),
 			)
-
+			ptytest.New(t).Attach(inv)
+			inv = inv.WithContext(ctx)
 			w := clitest.StartWithWaiter(t, inv)
 			gotURL := waitAccessURL(t, cfg)
-			require.Equal(t, wantAccessURL, gotURL.String())
+			client := codersdk.New(gotURL)
+			_ = coderdtest.CreateFirstUser(t, client)
+			wantValues, err := client.DeploymentConfig(ctx)
+			require.NoError(t, err)
+			cancel()
 			w.RequireSuccess()
+
+			// Next, we write the config to a file.
 
 			configFile, err := os.OpenFile(
 				filepath.Join(t.TempDir(), "coder.yaml"), os.O_WRONLY|os.O_CREATE, 0o600)
@@ -1492,7 +1510,7 @@ func waitAccessURL(t *testing.T, cfg config.Root) *url.URL {
 	return accessURL
 }
 
-func TestServerConfig(t *testing.T) {
+func TestServerYAMLConfig(t *testing.T) {
 	t.Parallel()
 
 	var deployValues codersdk.DeploymentValues

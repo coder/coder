@@ -1352,11 +1352,9 @@ when required by your organization's security policy.`,
 			Flag:          "config",
 			Env:           "CODER_CONFIG_PATH",
 			FlagShorthand: "c",
-			// The config parameters are hidden until they are tested and
-			// documented.
-			Hidden: true,
-			Group:  &deploymentGroupConfig,
-			Value:  &c.Config,
+			Hidden:        false,
+			Group:         &deploymentGroupConfig,
+			Value:         &c.Config,
 		},
 		{
 			Name:        "SSH Host Prefix",
@@ -1384,9 +1382,8 @@ when required by your organization's security policy.`,
 		{
 			Name: "Write Config",
 			Description: `
-Write out the current server as YAML to stdout.`,
+Write out the current server config as YAML to stdout.`,
 			Flag:   "write-config",
-			Env:    "CODER_WRITE_CONFIG",
 			Group:  &deploymentGroupConfig,
 			Hidden: false,
 			Value:  &c.WriteConfig,
