@@ -4263,7 +4263,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/me/metadata": {
+        "/workspaceagents/me/manifest": {
             "get": {
                 "security": [
                     {
@@ -4276,15 +4276,59 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Get authorized workspace agent metadata",
-                "operationId": "get-authorized-workspace-agent-metadata",
+                "summary": "Get authorized workspace agent manifest",
+                "operationId": "get-authorized-workspace-agent-manifest",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/agentsdk.Metadata"
+                            "$ref": "#/definitions/agentsdk.Manifest"
                         }
                     }
+                }
+            }
+        },
+        "/workspaceagents/me/metadata/{key}": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Submit workspace agent metadata",
+                "operationId": "submit-workspace-agent-metadata",
+                "parameters": [
+                    {
+                        "description": "Workspace agent metadata request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.PostMetadataRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "metadata key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Success"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -4660,6 +4704,38 @@ const docTemplate = `{
                             }
                         }
                     }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/watch-metadata": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Watch for workspace agent metadata updates",
+                "operationId": "watch-for-workspace-agent-metadata-updates",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -5397,7 +5473,7 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.Metadata": {
+        "agentsdk.Manifest": {
             "type": "object",
             "properties": {
                 "apps": {
@@ -5421,6 +5497,12 @@ const docTemplate = `{
                 "git_auth_configs": {
                     "description": "GitAuthConfigs stores the number of Git configurations\nthe Coder deployment has. If this number is \u003e0, we\nset up special configuration in the workspace.",
                     "type": "integer"
+                },
+                "metadata": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentMetadataDescription"
+                    }
                 },
                 "motd_file": {
                     "type": "string"
@@ -5470,6 +5552,25 @@ const docTemplate = `{
             "properties": {
                 "state": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                }
+            }
+        },
+        "agentsdk.PostMetadataRequest": {
+            "type": "object",
+            "properties": {
+                "age": {
+                    "description": "Age is the number of seconds since the metadata was collected.\nIt is provided in addition to CollectedAt to protect against clock skew.",
+                    "type": "integer"
+                },
+                "collected_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },
@@ -8912,6 +9013,26 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPort"
                     }
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentMetadataDescription": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "interval": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "script": {
+                    "type": "string"
+                },
+                "timeout": {
+                    "type": "integer"
                 }
             }
         },

@@ -608,7 +608,10 @@ func New(options *Options) *API {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
-				r.Get("/metadata", api.workspaceAgentMetadata)
+				r.Get("/manifest", api.workspaceAgentManifest)
+				// This route is deprecated and will be removed in a future release.
+				// New agents will use /me/manifest instead.
+				r.Get("/metadata", api.workspaceAgentManifest)
 				r.Post("/startup", api.postWorkspaceAgentStartup)
 				r.Patch("/startup-logs", api.patchWorkspaceAgentStartupLogs)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
@@ -617,6 +620,7 @@ func New(options *Options) *API {
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Post("/report-stats", api.workspaceAgentReportStats)
 				r.Post("/report-lifecycle", api.workspaceAgentReportLifecycle)
+				r.Post("/metadata/{key}", api.workspaceAgentPostMetadata)
 			})
 			// No middleware on the PTY endpoint since it uses workspace
 			// application auth and tickets.
@@ -628,6 +632,8 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
+				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadata)
+				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/startup-logs", api.workspaceAgentStartupLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)

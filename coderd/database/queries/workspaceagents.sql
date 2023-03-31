@@ -94,6 +94,38 @@ SET
 WHERE
 	id = $1;
 
+-- name: InsertWorkspaceAgentMetadata :exec
+INSERT INTO
+	workspace_agent_metadata (
+		workspace_agent_id,
+		display_name,
+		key,
+		script,
+		timeout,
+		interval
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6);
+
+-- name: UpdateWorkspaceAgentMetadata :exec
+UPDATE
+	workspace_agent_metadata
+SET
+	value = $3,
+	error = $4,
+	collected_at = $5
+WHERE
+	workspace_agent_id = $1
+	AND key = $2;
+
+-- name: GetWorkspaceAgentMetadata :many
+SELECT
+	*
+FROM
+	workspace_agent_metadata
+WHERE
+	workspace_agent_id = $1;
+
 -- name: UpdateWorkspaceAgentStartupLogOverflowByID :exec
 UPDATE
 	workspace_agents

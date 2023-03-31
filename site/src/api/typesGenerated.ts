@@ -1087,6 +1087,29 @@ export interface WorkspaceAgentListeningPortsResponse {
 }
 
 // From codersdk/workspaceagents.go
+export interface WorkspaceAgentMetadata {
+  readonly result: WorkspaceAgentMetadataResult
+  readonly description: WorkspaceAgentMetadataDescription
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentMetadataDescription {
+  readonly display_name: string
+  readonly key: string
+  readonly script: string
+  readonly interval: number
+  readonly timeout: number
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentMetadataResult {
+  readonly collected_at: string
+  readonly age: number
+  readonly value: string
+  readonly error: string
+}
+
+// From codersdk/workspaceagents.go
 export interface WorkspaceAgentStartupLog {
   readonly id: number
   readonly created_at: string
