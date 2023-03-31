@@ -24,10 +24,9 @@ func (api *API) debugCoordinator(rw http.ResponseWriter, r *http.Request) {
 // @Summary Debug Info Deployment Health
 // @ID debug-info-deployment-health
 // @Security CoderSessionToken
-// @Produce text/html
 // @Produce json
 // @Tags Debug
-// @Success 200
+// @Success 200 {object} healthcheck.Report
 // @Router /debug/health [get]
 func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), api.HealthcheckTimeout)

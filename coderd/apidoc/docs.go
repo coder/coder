@@ -359,6 +359,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/health": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug Info Deployment Health",
+                "operationId": "debug-info-deployment-health",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/healthcheck.Report"
+                        }
+                    }
+                }
+            }
+        },
         "/deployment/config": {
             "get": {
                 "security": [
@@ -9486,6 +9511,189 @@ const docTemplate = `{
                 "ParameterSourceSchemeNone",
                 "ParameterSourceSchemeData"
             ]
+        },
+        "healthcheck.DERPNodeReport": {
+            "type": "object",
+            "properties": {
+                "can_exchange_messages": {
+                    "type": "boolean"
+                },
+                "client_errs": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {}
+                    }
+                },
+                "client_logs": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "node": {
+                    "$ref": "#/definitions/tailcfg.DERPNode"
+                },
+                "round_trip_ping": {
+                    "type": "integer"
+                },
+                "stun": {
+                    "$ref": "#/definitions/healthcheck.DERPStunReport"
+                },
+                "uses_websocket": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "healthcheck.DERPRegionReport": {
+            "type": "object",
+            "properties": {
+                "node_reports": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/healthcheck.DERPNodeReport"
+                    }
+                },
+                "region": {
+                    "$ref": "#/definitions/tailcfg.DERPRegion"
+                }
+            }
+        },
+        "healthcheck.DERPReport": {
+            "type": "object",
+            "properties": {
+                "netcheck": {
+                    "$ref": "#/definitions/netcheck.Report"
+                },
+                "netcheck_logs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "regions": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/healthcheck.DERPRegionReport"
+                    }
+                }
+            }
+        },
+        "healthcheck.DERPStunReport": {
+            "type": "object",
+            "properties": {
+                "canSTUN": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "error": {}
+            }
+        },
+        "healthcheck.Report": {
+            "type": "object",
+            "properties": {
+                "derp": {
+                    "$ref": "#/definitions/healthcheck.DERPReport"
+                },
+                "time": {
+                    "type": "string"
+                }
+            }
+        },
+        "netcheck.Report": {
+            "type": "object",
+            "properties": {
+                "captivePortal": {
+                    "description": "CaptivePortal is set when we think there's a captive portal that is\nintercepting HTTP traffic.",
+                    "type": "string"
+                },
+                "globalV4": {
+                    "description": "ip:port of global IPv4",
+                    "type": "string"
+                },
+                "globalV6": {
+                    "description": "[ip]:port of global IPv6",
+                    "type": "string"
+                },
+                "hairPinning": {
+                    "description": "HairPinning is whether the router supports communicating\nbetween two local devices through the NATted public IP address\n(on IPv4).",
+                    "type": "string"
+                },
+                "icmpv4": {
+                    "description": "an ICMPv4 round trip completed",
+                    "type": "boolean"
+                },
+                "ipv4": {
+                    "description": "an IPv4 STUN round trip completed",
+                    "type": "boolean"
+                },
+                "ipv4CanSend": {
+                    "description": "an IPv4 packet was able to be sent",
+                    "type": "boolean"
+                },
+                "ipv6": {
+                    "description": "an IPv6 STUN round trip completed",
+                    "type": "boolean"
+                },
+                "ipv6CanSend": {
+                    "description": "an IPv6 packet was able to be sent",
+                    "type": "boolean"
+                },
+                "mappingVariesByDestIP": {
+                    "description": "MappingVariesByDestIP is whether STUN results depend which\nSTUN server you're talking to (on IPv4).",
+                    "type": "string"
+                },
+                "oshasIPv6": {
+                    "description": "could bind a socket to ::1",
+                    "type": "boolean"
+                },
+                "pcp": {
+                    "description": "PCP is whether PCP appears present on the LAN.\nEmpty means not checked.",
+                    "type": "string"
+                },
+                "pmp": {
+                    "description": "PMP is whether NAT-PMP appears present on the LAN.\nEmpty means not checked.",
+                    "type": "string"
+                },
+                "preferredDERP": {
+                    "description": "or 0 for unknown",
+                    "type": "integer"
+                },
+                "regionLatency": {
+                    "description": "keyed by DERP Region ID",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "regionV4Latency": {
+                    "description": "keyed by DERP Region ID",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "regionV6Latency": {
+                    "description": "keyed by DERP Region ID",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "udp": {
+                    "description": "a UDP STUN round trip completed",
+                    "type": "boolean"
+                },
+                "upnP": {
+                    "description": "UPnP is whether UPnP appears present on the LAN.\nEmpty means not checked.",
+                    "type": "string"
+                }
+            }
         },
         "parameter.ComputedValue": {
             "type": "object",

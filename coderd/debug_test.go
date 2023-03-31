@@ -2,9 +2,8 @@ package coderd_test
 
 import (
 	"context"
-	"fmt"
+	"io"
 	"net/http"
-	"net/http/httputil"
 	"testing"
 	"time"
 
@@ -34,8 +33,8 @@ func TestDebug(t *testing.T) {
 		res, err := client.Request(ctx, "GET", "/debug/health", nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
+		_, _ = io.ReadAll(res.Body)
 		require.Equal(t, http.StatusOK, res.StatusCode)
-
 	})
 
 	t.Run("Health/Timeout", func(t *testing.T) {
@@ -64,8 +63,7 @@ func TestDebug(t *testing.T) {
 		res, err := client.Request(ctx, "GET", "/api/v2/debug/health", nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
-		dump, _ := httputil.DumpResponse(res, true)
-		fmt.Println(string(dump))
+		_, _ = io.ReadAll(res.Body)
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 }
