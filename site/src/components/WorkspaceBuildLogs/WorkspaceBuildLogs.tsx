@@ -104,6 +104,7 @@ const useStyles = makeStyles<
     padding: theme.spacing(2),
     paddingLeft: theme.spacing(3),
     paddingRight: theme.spacing(3),
+    borderTop: `1px solid ${theme.palette.divider}`,
     borderBottom: `1px solid ${theme.palette.divider}`,
     backgroundColor: theme.palette.background.paper,
     display: "flex",
@@ -113,6 +114,7 @@ const useStyles = makeStyles<
     "&:first-child": {
       borderTopLeftRadius: theme.shape.borderRadius,
       borderTopRightRadius: theme.shape.borderRadius,
+      borderTop: 0,
     },
 
     "&:last-child": {
@@ -120,6 +122,10 @@ const useStyles = makeStyles<
       borderTop: `1px solid ${theme.palette.divider}`,
       borderBottomLeftRadius: theme.shape.borderRadius,
       borderBottomRightRadius: theme.shape.borderRadius,
+    },
+
+    "& + $header": {
+      borderTop: 0,
     },
   },
 
