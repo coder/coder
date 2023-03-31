@@ -1407,6 +1407,31 @@ func TestServer(t *testing.T) {
 			waitFile(t, fi3, testutil.WaitSuperLong)
 		})
 	})
+
+	t.Run("YAML", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("WriteThenReadConfig", func(t *testing.T) {
+			const wantAccessURL = "http://most-wanted.com"
+			inv, cfg := clitest.New(t,
+				"server",
+				"--access-url", wantAccessURL,
+			)
+
+			w := clitest.StartWithWaiter(t, inv)
+			gotURL := waitAccessURL(t, cfg)
+			require.Equal(t, wantAccessURL, gotURL.String())
+			w.RequireSuccess()
+
+			configFile, err := os.OpenFile(
+				filepath.Join(t.TempDir(), "coder.yaml"), os.O_WRONLY|os.O_CREATE, 0o600)
+			require.NoError(t, err)
+			defer configFile.Close()
+
+			inv.Stdout = configFile
+			clitest.Run(t, inv)
+		})
+	})
 }
 
 func generateTLSCertificate(t testing.TB, commonName ...string) (certPath, keyPath string) {

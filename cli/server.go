@@ -173,12 +173,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer cancel()
 
 			if cfg.WriteConfig {
-				// TODO: this should output to a file.
 				n, err := opts.ToYAML()
 				if err != nil {
 					return xerrors.Errorf("generate yaml: %w", err)
 				}
-				enc := yaml.NewEncoder(inv.Stderr)
+				enc := yaml.NewEncoder(inv.Stdout)
 				err = enc.Encode(n)
 				if err != nil {
 					return xerrors.Errorf("encode yaml: %w", err)

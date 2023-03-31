@@ -376,7 +376,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
             "children": [],
             "description": "string",
             "name": "string",
-            "parent": {}
+            "parent": {},
+            "yaml_name": "string"
           }
         ],
         "description": "string",
@@ -385,13 +386,16 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "children": [{}],
           "description": "string",
           "name": "string",
-          "parent": {}
-        }
+          "parent": {},
+          "yaml_name": "string"
+        },
+        "yaml_name": "string"
       },
       "hidden": true,
       "name": "string",
       "use_instead": [{}],
       "value": null,
+      "valueSource": "",
       "yaml": "string"
     }
   ]

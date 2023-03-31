@@ -162,8 +162,8 @@ type DeploymentValues struct {
 	SSHConfig                       SSHConfig                       `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    clibase.String                  `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 
-	Config      clibase.String `json:"config,omitempty" typescript:",notnull"`
-	WriteConfig clibase.Bool   `json:"write_config,omitempty" typescript:",notnull"`
+	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
+	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 	Address clibase.HostPort `json:"address,omitempty" typescript:",notnull"`
@@ -1384,11 +1384,11 @@ when required by your organization's security policy.`,
 		{
 			Name: "Write Config",
 			Description: `
-Write out the current server configuration to the path specified by --config.`,
+Write out the current server as YAML to stdout.`,
 			Flag:   "write-config",
 			Env:    "CODER_WRITE_CONFIG",
 			Group:  &deploymentGroupConfig,
-			Hidden: true,
+			Hidden: false,
 			Value:  &c.WriteConfig,
 		},
 		{

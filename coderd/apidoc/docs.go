@@ -5579,6 +5579,9 @@ const docTemplate = `{
                 },
                 "parent": {
                     "$ref": "#/definitions/clibase.Group"
+                },
+                "yaml_name": {
+                    "type": "string"
                 }
             }
         },
@@ -5646,6 +5649,9 @@ const docTemplate = `{
                 },
                 "value": {
                     "description": "Value includes the types listed in values.go."
+                },
+                "valueSource": {
+                    "$ref": "#/definitions/clibase.ValueSource"
                 },
                 "yaml": {
                     "description": "YAML is the YAML key used to configure this option. If unset, YAML\nconfiguring is disabled.",
@@ -5726,6 +5732,23 @@ const docTemplate = `{
                     ]
                 }
             }
+        },
+        "clibase.ValueSource": {
+            "type": "string",
+            "enum": [
+                "",
+                "flag",
+                "env",
+                "yaml",
+                "default"
+            ],
+            "x-enum-varnames": [
+                "ValueSourceNone",
+                "ValueSourceFlag",
+                "ValueSourceEnv",
+                "ValueSourceYAML",
+                "ValueSourceDefault"
+            ]
         },
         "coderd.SCIMUser": {
             "type": "object",
