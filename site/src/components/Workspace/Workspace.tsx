@@ -200,16 +200,18 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                   </span>
                 </Stack>
 
-                <div>
-                  <Button
-                    onClick={handleBuildRetry}
-                    startIcon={<RefreshOutlined />}
-                    size="small"
-                    variant="outlined"
-                  >
-                    Try again in debug mode
-                  </Button>
-                </div>
+                {canUpdateWorkspace && (
+                  <div>
+                    <Button
+                      onClick={handleBuildRetry}
+                      startIcon={<RefreshOutlined />}
+                      size="small"
+                      variant="outlined"
+                    >
+                      Try again in debug mode
+                    </Button>
+                  </div>
+                )}
               </Stack>
             </AlertBanner>
             <WorkspaceBuildLogs logs={failedBuildLogs} />
