@@ -41,6 +41,19 @@ CODER_GITAUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize"
 CODER_GITAUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
 ```
 
+### Azure Devops
+Azure Devops requires the following environment variables:
+
+```console
+CODER_GITAUTH_0_ID="primary-azure-devops"
+CODER_GITAUTH_0_TYPE=azure-devops
+CODER_GITAUTH_0_CLIENT_ID=xxxxxx
+# ensure that this is the value for "Client Secret" and not "App Secret"
+CODER_GITAUTH_0_CLIENT_SECRET=xxxxxxx
+CODER_GITAUTH_0_AUTH_URL="https://app.vssps.visualstudio.com/oauth2/authorize"
+CODER_GITAUTH_0_TOKEN_URL="https://app.vssps.visualstudio.com/oauth2/token"
+```
+
 ### Self-managed git providers
 
 Custom authentication and token URLs should be
