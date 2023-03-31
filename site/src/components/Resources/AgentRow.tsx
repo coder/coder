@@ -260,6 +260,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                     <SSHButton
                       workspaceName={workspace.name}
                       agentName={agent.name}
+                      sshPrefix={sshPrefix}
                     />
                   )}
                   {!hideVSCodeDesktopButton && (
