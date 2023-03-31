@@ -16,7 +16,7 @@ INSERT INTO
         validation_monotonic,
         required,
         legacy_variable_name,
-		display_name
+        display_name
     )
 VALUES
     (
