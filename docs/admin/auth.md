@@ -262,8 +262,8 @@ Below are some details specific to individual OIDC providers.
    steps as described [here.](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/development/msal/adfs-msal-web-app-web-api#app-registration-in-ad-fs)
    - **Server Application**: Note the Client ID.
    - **Configure Application Credentials**: Note the Client Secret.
-   - **Configure Web API**: Ensure the Client ID is set as the relying party identifier.
-   - **Application Permissions**: Allow access to the claims `openid`, `email`, and `profile`.
+   - **Configure Web API**: Set the Client ID as the relying party identifier.
+   - **Application Permissions**: Allow access to the claims `openid`, `email`, `profile`, and `allatclaims`.
 1. Visit your ADFS server's `/.well-known/openid-configuration` URL and note
    the value for `issuer`.
    > **Note:** This is usually of the form `https://adfs.corp/adfs/.well-known/openid-configuration`
@@ -272,7 +272,22 @@ Below are some details specific to individual OIDC providers.
    - `CODER_OIDC_ISSUER_URL`: the `issuer` value from the previous step.
    - `CODER_OIDC_CLIENT_ID`: the Client ID from step 1.
    - `CODER_OIDC_CLIENT_SECRET`: the Client Secret from step 1.
-   - `CODER_OIDC_AUTH_URL_PARAMS`: set to `{"resource":"urn:microsoft:userinfo"}` ([see here](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-openid-connect-oauth-flows-scenarios#:~:text=scope%E2%80%AFopenid.-,resource,-optional)). OIDC logins will fail if this is not set.
-1. Ensure that Coder has the required OIDC claims by performing either of the below:
-   - Configure your federation server to reuturn both the `email` and `preferred_username` fields by [creating a custom claim rule](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/operations/create-a-rule-to-send-ldap-attributes-as-claims), or
-   - Set `CODER_OIDC_EMAIL_FIELD="upn"`. This will use the User Principal Name as the user email, which is [guaranteed to be unique in an Active Directory Forest](https://learn.microsoft.com/en-us/windows/win32/ad/naming-properties#upn-format).
+   - `CODER_OIDC_AUTH_URL_PARAMS`: set to
+
+      ```console
+      {"resource":"$CLIENT_ID"}
+      ```
+
+      where `$CLIENT_ID` is the Client ID from step 1 ([see here](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-openid-connect-oauth-flows-scenarios#:~:text=scope%E2%80%AFopenid.-,resource,-optional)).
+      This is required for the upstream OIDC provider to return the requested claims.
+1. Configure [Issuance Transform Rules](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/operations/create-a-rule-to-send-ldap-attributes-as-claims)
+   on your federation server to send the following claims:
+    - `preferred_username`: You can use e.g. "Display Name" as required.
+    - `email`: You can use e.g. the LDAP attribute "E-Mail-Addresses" as required.
+    - `email_verified`: Create a custom claim rule:
+
+      ```console
+      => issue(Type = "email_verified", Value = "true")
+      ```
+
+    - (Optional) If using Group Sync, send the required groups in the configured groups claim field. See [here](https://stackoverflow.com/a/55570286) for an example.
