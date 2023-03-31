@@ -278,8 +278,7 @@ const useStyles = makeStyles((theme) => ({
   },
   metadataHeader: {
     padding: "8px",
-    display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    display: "flex",
     gap: theme.spacing(5),
     rowGap: theme.spacing(3),
   },
