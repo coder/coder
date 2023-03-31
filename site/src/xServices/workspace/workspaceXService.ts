@@ -78,6 +78,8 @@ export interface WorkspaceContext {
   applicationsHost?: string
   // debug
   createBuildLogLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"]
+  // SSH Config
+  sshPrefix?: string
 }
 
 export type WorkspaceEvent =
@@ -178,6 +180,9 @@ export const workspaceMachine = createMachine(
         }
         getApplicationsHost: {
           data: TypesGen.AppHostResponse
+        }
+        getSSHPrefix: {
+          data: TypesGen.SSHConfigResponse
         }
       },
     },
@@ -481,6 +486,30 @@ export const workspaceMachine = createMachine(
               },
             },
           },
+          sshConfig: {
+            initial: "gettingSshConfig",
+            states: {
+              gettingSshConfig: {
+                invoke: {
+                  src: "getSSHPrefix",
+                  onDone: {
+                    target: "success",
+                    actions: ["assignSSHPrefix"],
+                  },
+                  onError: {
+                    target: "error",
+                    actions: ["displaySSHPrefixError"],
+                  },
+                },
+              },
+              error: {
+                type: "final",
+              },
+              success: {
+                type: "final",
+              },
+            },
+          },
           schedule: {
             invoke: {
               id: "scheduleBannerMachine",
@@ -597,6 +626,17 @@ export const workspaceMachine = createMachine(
         const message = getErrorMessage(
           data,
           "Error getting the applications host.",
+        )
+        displayError(message)
+      },
+      // SSH
+      assignSSHPrefix: assign({
+        sshPrefix: (_, { data }) => data.hostname_prefix,
+      }),
+      displaySSHPrefixError: (_, { data }) => {
+        const message = getErrorMessage(
+          data,
+          "Error getting the deployment ssh configuration.",
         )
         displayError(message)
       },
@@ -771,6 +811,9 @@ export const workspaceMachine = createMachine(
         return API.getApplicationsHost()
       },
       scheduleBannerMachine: workspaceScheduleBannerMachine,
+      getSSHPrefix: async () => {
+        return API.getDeploymentSSHConfig()
+      },
     },
   },
 )

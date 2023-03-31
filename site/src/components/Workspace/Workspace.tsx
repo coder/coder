@@ -58,6 +58,7 @@ export interface WorkspaceProps {
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
   buildInfo?: TypesGen.BuildInfoResponse
   applicationsHost?: string
+  sshPrefix?: string
   template?: TypesGen.Template
   quota_budget?: number
   failedBuildLogs: TypesGen.ProvisionerJobLog[] | undefined
@@ -86,6 +87,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   hideVSCodeDesktopButton,
   buildInfo,
   applicationsHost,
+  sshPrefix,
   template,
   quota_budget,
   failedBuildLogs,
@@ -238,6 +240,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                 agent={agent}
                 workspace={workspace}
                 applicationsHost={applicationsHost}
+                sshPrefix={sshPrefix}
                 showApps={canUpdateWorkspace}
                 hideSSHButton={hideSSHButton}
                 hideVSCodeDesktopButton={hideVSCodeDesktopButton}
