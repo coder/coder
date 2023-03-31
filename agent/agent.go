@@ -211,17 +211,7 @@ func (a *agent) runLoop(ctx context.Context) {
 }
 
 func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription) *codersdk.WorkspaceAgentMetadataResult {
-	timeout := md.Timeout
-	if timeout == 0 {
-		timeout = md.Interval
-	}
-	ctx, cancel := context.WithTimeout(ctx,
-		time.Duration(timeout)*time.Second,
-	)
-	defer cancel()
-
 	var out bytes.Buffer
-
 	result := &codersdk.WorkspaceAgentMetadataResult{
 		// CollectedAt is set here for testing purposes and overrode by
 		// the server to the time the server received the result to protect
@@ -359,6 +349,15 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			// sending the same result multiple times. So, we don't care about
 			// the return values.
 			flight.DoChan(md.Key, func() (interface{}, error) {
+				timeout := md.Timeout
+				if timeout == 0 {
+					timeout = md.Interval
+				}
+				ctx, cancel := context.WithTimeout(ctx,
+					time.Duration(timeout)*time.Second,
+				)
+				defer cancel()
+
 				select {
 				case <-ctx.Done():
 					return 0, nil
@@ -366,10 +365,6 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 					key:    md.Key,
 					result: a.collectMetadata(ctx, md),
 				}:
-				default:
-					// This should be impossible because the channel is confirmed
-					// to be empty before this goroutine is spawned.
-					a.logger.Error(ctx, "metadataResults channel full")
 				}
 				return 0, nil
 			})
