@@ -34,6 +34,8 @@ type Template struct {
 	CreatedByID   uuid.UUID `json:"created_by_id" format:"uuid"`
 	CreatedByName string    `json:"created_by_name"`
 
+	AllowUserAutoStart           bool `json:"allow_user_auto_start"`
+	AllowUserAutoStop            bool `json:"allow_user_auto_stop"`
 	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
 }
 
@@ -87,6 +89,8 @@ type UpdateTemplateMeta struct {
 	// template scheduling feature. If you attempt to set this value while
 	// unlicensed, it will be ignored.
 	MaxTTLMillis                 int64 `json:"max_ttl_ms,omitempty"`
+	AllowUserAutoStart           bool  `json:"allow_user_auto_start,omitempty"`
+	AllowUserAutoStop            bool  `json:"allow_user_auto_stop,omitempty"`
 	AllowUserCancelWorkspaceJobs bool  `json:"allow_user_cancel_workspace_jobs,omitempty"`
 }
 

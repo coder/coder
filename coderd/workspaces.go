@@ -735,6 +735,23 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if the template allows users to configure autostart.
+	templateSchedule, err := (*api.TemplateScheduleStore.Load()).GetTemplateScheduleOptions(ctx, api.Database, workspace.TemplateID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error getting template schedule options.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !templateSchedule.UserAutoStartEnabled {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Autostart is not allowed for workspaces using this template.",
+			Validations: []codersdk.ValidationError{{Field: "schedule", Detail: "Autostart is not allowed for workspaces using this template."}},
+		})
+		return
+	}
+
 	err = api.Database.UpdateWorkspaceAutostart(ctx, database.UpdateWorkspaceAutostartParams{
 		ID:                workspace.ID,
 		AutostartSchedule: dbSched,
@@ -789,6 +806,9 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		templateSchedule, err := (*api.TemplateScheduleStore.Load()).GetTemplateScheduleOptions(ctx, s, workspace.TemplateID)
 		if err != nil {
 			return xerrors.Errorf("get template schedule: %w", err)
+		}
+		if !templateSchedule.UserAutoStopEnabled {
+			return codersdk.ValidationError{Field: "ttl_ms", Detail: "Custom autostop TTL is not allowed for workspaces using this template."}
 		}
 
 		// don't override 0 ttl with template default here because it indicates

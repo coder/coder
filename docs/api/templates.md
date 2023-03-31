@@ -99,6 +99,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   {
     "active_user_count": 0,
     "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "allow_user_auto_start": true,
+    "allow_user_auto_stop": true,
     "allow_user_cancel_workspace_jobs": true,
     "build_time_stats": {
       "property1": {
@@ -142,6 +144,8 @@ Status Code **200**
 | `[array item]`                       | array                                                                        | false    |              |                                                                                                                                           |
 | `» active_user_count`                | integer                                                                      | false    |              | Active user count is set to -1 when loading.                                                                                              |
 | `» active_version_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                           |
+| `» allow_user_auto_start`            | boolean                                                                      | false    |              |                                                                                                                                           |
+| `» allow_user_auto_stop`             | boolean                                                                      | false    |              |                                                                                                                                           |
 | `» allow_user_cancel_workspace_jobs` | boolean                                                                      | false    |              |                                                                                                                                           |
 | `» build_time_stats`                 | [codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                           |
 | `»» [any property]`                  | [codersdk.TransitionStats](schemas.md#codersdktransitionstats)               | false    |              |                                                                                                                                           |
@@ -222,6 +226,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "allow_user_auto_start": true,
+  "allow_user_auto_stop": true,
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -345,6 +351,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "allow_user_auto_start": true,
+  "allow_user_auto_stop": true,
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -670,6 +678,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "allow_user_auto_start": true,
+  "allow_user_auto_stop": true,
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -776,6 +786,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "allow_user_auto_start": true,
+  "allow_user_auto_stop": true,
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {

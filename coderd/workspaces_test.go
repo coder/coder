@@ -1271,7 +1271,54 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		})
 	}
 
+	t.Run("CustomAutoStartDisabledByTemplate", func(t *testing.T) {
+		t.Parallel()
+		var (
+			tss = schedule.MockTemplateScheduleStore{
+				GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+					return schedule.TemplateScheduleOptions{
+						UserAutoStartEnabled: false,
+						UserAutoStopEnabled:  false,
+						DefaultTTL:           0,
+						MaxTTL:               0,
+					}, nil
+				},
+				SetFn: func(_ context.Context, _ database.Store, tpl database.Template, _ schedule.TemplateScheduleOptions) (database.Template, error) {
+					return tpl, nil
+				},
+			}
+
+			client = coderdtest.New(t, &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				TemplateScheduleStore:    tss,
+			})
+			user      = coderdtest.CreateFirstUser(t, client)
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.AutostartSchedule = nil
+				cwr.TTLMillis = nil
+			})
+		)
+
+		// await job to ensure audit logs for workspace_build start are created
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// ensure test invariant: new workspaces have no autostart schedule.
+		require.Empty(t, workspace.AutostartSchedule, "expected newly-minted workspace to have no autostart schedule")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
+			Schedule: ptr.Ref("CRON_TZ=Europe/Dublin 30 9 * * 1-5"),
+		})
+		require.ErrorContains(t, err, "Autostart is not allowed for workspaces using this template")
+	})
+
 	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
 		var (
 			client = coderdtest.New(t, nil)
 			_      = coderdtest.CreateFirstUser(t, client)
@@ -1391,7 +1438,54 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		})
 	}
 
+	t.Run("CustomAutoStopDisabledByTemplate", func(t *testing.T) {
+		t.Parallel()
+		var (
+			tss = schedule.MockTemplateScheduleStore{
+				GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+					return schedule.TemplateScheduleOptions{
+						UserAutoStartEnabled: false,
+						UserAutoStopEnabled:  false,
+						DefaultTTL:           0,
+						MaxTTL:               0,
+					}, nil
+				},
+				SetFn: func(_ context.Context, _ database.Store, tpl database.Template, _ schedule.TemplateScheduleOptions) (database.Template, error) {
+					return tpl, nil
+				},
+			}
+
+			client = coderdtest.New(t, &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				TemplateScheduleStore:    tss,
+			})
+			user      = coderdtest.CreateFirstUser(t, client)
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.AutostartSchedule = nil
+				cwr.TTLMillis = nil
+			})
+		)
+
+		// await job to ensure audit logs for workspace_build start are created
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// ensure test invariant: new workspaces have no autostart schedule.
+		require.Empty(t, workspace.AutostartSchedule, "expected newly-minted workspace to have no autostart schedule")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{
+			TTLMillis: ptr.Ref(time.Hour.Milliseconds()),
+		})
+		require.ErrorContains(t, err, "Custom autostop TTL is not allowed for workspaces using this template")
+	})
+
 	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
 		var (
 			client = coderdtest.New(t, nil)
 			_      = coderdtest.CreateFirstUser(t, client)

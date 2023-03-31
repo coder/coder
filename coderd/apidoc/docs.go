@@ -8062,6 +8062,12 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "allow_user_auto_start": {
+                    "type": "boolean"
+                },
+                "allow_user_auto_stop": {
+                    "type": "boolean"
+                },
                 "allow_user_cancel_workspace_jobs": {
                     "type": "boolean"
                 },

@@ -3588,6 +3588,8 @@ Parameter represents a set value for the scope.
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "allow_user_auto_start": true,
+  "allow_user_auto_stop": true,
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -3621,6 +3623,8 @@ Parameter represents a set value for the scope.
 | ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading.                                                                                              |
 | `active_version_id`                | string                                                             | false    |              |                                                                                                                                           |
+| `allow_user_auto_start`            | boolean                                                            | false    |              |                                                                                                                                           |
+| `allow_user_auto_stop`             | boolean                                                            | false    |              |                                                                                                                                           |
 | `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                                                                                                                           |
 | `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                           |
 | `created_at`                       | string                                                             | false    |              |                                                                                                                                           |

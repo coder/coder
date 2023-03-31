@@ -30,6 +30,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -61,7 +62,6 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbpurge"
@@ -72,6 +72,7 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/prometheusmetrics"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/updatecheck"
@@ -632,6 +633,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				LoginRateLimit:              loginRateLimit,
 				FilesRateLimit:              filesRateLimit,
 				HTTPClient:                  httpClient,
+				TemplateScheduleStore:       &atomic.Pointer[schedule.TemplateScheduleStore]{},
 				SSHConfig: codersdk.SSHConfigResponse{
 					HostnamePrefix:   cfg.SSHConfig.DeploymentName.String(),
 					SSHConfigOptions: configSSHOptions,
@@ -1016,11 +1018,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
-
-			autobuildPoller := time.NewTicker(cfg.AutobuildPollInterval.Value())
-			defer autobuildPoller.Stop()
-			autobuildExecutor := executor.New(ctx, options.Database, logger, autobuildPoller.C)
-			autobuildExecutor.Run()
 
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero

@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -209,10 +210,17 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 		options.FilesRateLimit = -1
 	}
 
+	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
+	if options.TemplateScheduleStore == nil {
+		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
+	}
+	templateScheduleStore.Store(&options.TemplateScheduleStore)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := executor.New(
 		ctx,
 		options.Database,
+		&templateScheduleStore,
 		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
@@ -306,7 +314,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			FilesRateLimit:        options.FilesRateLimit,
 			Authorizer:            options.Authorizer,
 			Telemetry:             telemetry.NewNoop(),
-			TemplateScheduleStore: options.TemplateScheduleStore,
+			TemplateScheduleStore: &templateScheduleStore,
 			TLSCertificates:       options.TLSCertificates,
 			TrialGenerator:        options.TrialGenerator,
 			DERPMap: &tailcfg.DERPMap{

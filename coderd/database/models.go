@@ -1426,6 +1426,10 @@ type Template struct {
 	// Allow users to cancel in-progress workspace jobs.
 	AllowUserCancelWorkspaceJobs bool  `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 	MaxTTL                       int64 `db:"max_ttl" json:"max_ttl"`
+	// Allow users to specify an auto-start schedule for workspaces (enterprise).
+	AllowUserAutoStart bool `db:"allow_user_auto_start" json:"allow_user_auto_start"`
+	// Allow users to specify custom auto-stop values for workspaces (enterprise).
+	AllowUserAutoStop bool `db:"allow_user_auto_stop" json:"allow_user_auto_stop"`
 }
 
 type TemplateVersion struct {
