@@ -51,6 +51,7 @@ export interface WorkspaceProps {
   resources?: TypesGen.WorkspaceResource[]
   builds?: TypesGen.WorkspaceBuild[]
   canUpdateWorkspace: boolean
+  canUpdateTemplate: boolean
   hideSSHButton?: boolean
   hideVSCodeDesktopButton?: boolean
   workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
@@ -78,6 +79,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   resources,
   builds,
   canUpdateWorkspace,
+  canUpdateTemplate,
   workspaceErrors,
   hideSSHButton,
   hideVSCodeDesktopButton,
@@ -200,7 +202,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                   </span>
                 </Stack>
 
-                {canUpdateWorkspace && (
+                {canUpdateTemplate && (
                   <div>
                     <Button
                       onClick={handleBuildRetry}

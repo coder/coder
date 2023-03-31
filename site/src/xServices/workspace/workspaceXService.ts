@@ -101,9 +101,13 @@ export type WorkspaceEvent =
 export const checks = {
   readWorkspace: "readWorkspace",
   updateWorkspace: "updateWorkspace",
+  updateTemplate: "updateTemplate",
 } as const
 
-const permissionsToCheck = (workspace: TypesGen.Workspace) => ({
+const permissionsToCheck = (
+  workspace: TypesGen.Workspace,
+  template: TypesGen.Template,
+) => ({
   [checks.readWorkspace]: {
     object: {
       resource_type: "workspace",
@@ -117,6 +121,13 @@ const permissionsToCheck = (workspace: TypesGen.Workspace) => ({
       resource_type: "workspace",
       resource_id: workspace.id,
       owner_id: workspace.owner_id,
+    },
+    action: "update",
+  },
+  [checks.updateTemplate]: {
+    object: {
+      resource_type: "template",
+      resource_id: template.id,
     },
     action: "update",
   },
@@ -744,14 +755,16 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot get builds without id")
         }
       },
-      checkPermissions: async (context) => {
-        if (context.workspace) {
-          return await API.checkAuthorization({
-            checks: permissionsToCheck(context.workspace),
-          })
-        } else {
-          throw Error("Cannot check permissions workspace id")
+      checkPermissions: async ({ workspace, template }) => {
+        if (!workspace) {
+          throw new Error("Workspace is not set")
         }
+        if (!template) {
+          throw new Error("Template is not set")
+        }
+        return await API.checkAuthorization({
+          checks: permissionsToCheck(workspace, template),
+        })
       },
       getApplicationsHost: async () => {
         return API.getApplicationsHost()
