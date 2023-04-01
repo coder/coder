@@ -133,7 +133,7 @@
     "jest-runner-eslint": "1.1.0",
     "jest-websocket-mock": "2.4.0",
     "jest_workaround": "0.1.14",
-    "monaco-editor": "0.34.1",
+    "monaco-editor": "0.36.1",
     "msw": "1.1.0",
     "prettier": "2.8.1",
     "resize-observer": "1.0.4",
