@@ -35,7 +35,6 @@ import (
 	"go.uber.org/atomic"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
-	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -264,6 +263,21 @@ type metadataResultAndKey struct {
 	key    string
 }
 
+type trySingleflight struct {
+	m sync.Map
+}
+
+func (t *trySingleflight) Do(key string, fn func()) {
+	_, loaded := t.m.LoadOrStore(key, struct{}{})
+	if !loaded {
+		// There is already a goroutine running for this key.
+		return
+	}
+
+	defer t.m.Delete(key)
+	fn()
+}
+
 func (a *agent) reportMetadataLoop(ctx context.Context) {
 	baseInterval := adjustIntervalForTests(1)
 
@@ -276,7 +290,11 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	)
 	defer baseTicker.Stop()
 
-	var flight singleflight.Group
+	// We use a custom singleflight that immediately returns if there is already
+	// a goroutine running for a given key. This is to prevent a build-up of
+	// goroutines waiting on Do when the script takes many multiples of
+	// baseInterval to run.
+	var flight trySingleflight
 
 	for {
 		select {
@@ -348,7 +366,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			// We send the result to the channel in the goroutine to avoid
 			// sending the same result multiple times. So, we don't care about
 			// the return values.
-			flight.DoChan(md.Key, func() (interface{}, error) {
+			go flight.Do(md.Key, func() {
 				timeout := md.Timeout
 				if timeout == 0 {
 					timeout = md.Interval
@@ -360,13 +378,11 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 
 				select {
 				case <-ctx.Done():
-					return 0, nil
 				case metadataResults <- metadataResultAndKey{
 					key:    md.Key,
 					result: a.collectMetadata(ctx, md),
 				}:
 				}
-				return 0, nil
 			})
 		}
 	}
