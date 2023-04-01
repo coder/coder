@@ -36,7 +36,7 @@
     "@material-ui/icons": "4.5.1",
     "@material-ui/lab": "4.0.0-alpha.42",
     "@monaco-editor/react": "4.4.6",
-    "@tanstack/react-query": "4.22.4",
+    "@tanstack/react-query": "4.28.0",
     "@testing-library/react-hooks": "8.0.1",
     "@types/color-convert": "2.0.0",
     "@types/react-color": "3.0.6",
