@@ -1417,9 +1417,7 @@ func TestServer(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// First, we get the base config as set via flags (like users before
-			// migrating).
-			inv, cfg := clitest.New(t,
+			args := []string{
 				"server",
 				"--in-memory",
 				"--http-address", ":0",
@@ -1427,27 +1425,45 @@ func TestServer(t *testing.T) {
 				"--log-human", filepath.Join(t.TempDir(), "coder-logging-test-*"),
 				"--ssh-keygen-algorithm", "rsa4096",
 				"--cache-dir", t.TempDir(),
+			}
+
+			// First, we get the base config as set via flags (like users before
+			// migrating).
+			inv, cfg := clitest.New(t,
+				args...,
 			)
 			ptytest.New(t).Attach(inv)
 			inv = inv.WithContext(ctx)
 			w := clitest.StartWithWaiter(t, inv)
 			gotURL := waitAccessURL(t, cfg)
 			client := codersdk.New(gotURL)
+
 			_ = coderdtest.CreateFirstUser(t, client)
 			wantValues, err := client.DeploymentConfig(ctx)
 			require.NoError(t, err)
 			cancel()
 			w.RequireSuccess()
 
-			// Next, we write the config to a file.
-
-			configFile, err := os.OpenFile(
-				filepath.Join(t.TempDir(), "coder.yaml"), os.O_WRONLY|os.O_CREATE, 0o600)
+			// Next, we instruct the same server to display config.
+			inv = inv.WithContext(testutil.Context(t, testutil.WaitMedium))
+			inv.Args = append(args, "--write-config")
+			fi, err := os.OpenFile(testutil.TempFile(t, "", "coder-config-test-*"), os.O_WRONLY|os.O_CREATE, 0o600)
 			require.NoError(t, err)
-			defer configFile.Close()
+			defer fi.Close()
+			inv.Stdout = fi
+			t.Logf("%+v", inv.Args)
+			err = inv.Run()
+			require.NoError(t, err)
 
-			inv.Stdout = configFile
-			clitest.Run(t, inv)
+			// Finally, we read the config back in and ensure it matches the
+			// original.
+			inv.Args = append(args, "--config="+fi.Name())
+			w = clitest.StartWithWaiter(t, inv)
+			// The same client should work.
+			gotValues, err := client.DeploymentConfig(ctx)
+			require.NoError(t, err)
+			require.Equal(t, wantValues, gotValues)
+			w.RequireSuccess()
 		})
 	})
 }
