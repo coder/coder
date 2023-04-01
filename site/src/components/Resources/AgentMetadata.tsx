@@ -242,6 +242,8 @@ export const AgentMetadata: FC<{
       return
     }
 
+    var timeout: NodeJS.Timeout | undefined = undefined
+
     const connect = (): (() => void) => {
       const source = watchAgentMetadata(agent.id)
 
@@ -250,7 +252,7 @@ export const AgentMetadata: FC<{
         setMetadata(undefined)
         source.close()
 
-        setTimeout(() => {
+        timeout = setTimeout(() => {
           connect()
         }, 3000)
       }
@@ -260,6 +262,9 @@ export const AgentMetadata: FC<{
         setMetadata(data)
       })
       return () => {
+        if (timeout !== undefined) {
+          clearTimeout(timeout)
+        }
         source.close()
       }
     }
