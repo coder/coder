@@ -148,7 +148,7 @@ require (
 	go.uber.org/atomic v1.10.0
 	go.uber.org/goleak v1.2.1
 	go4.org/netipx v0.0.0-20220725152314-7e7bdc8411bf
-	golang.org/x/crypto v0.6.0
+	golang.org/x/crypto v0.7.0
 	golang.org/x/exp v0.0.0-20221205204356-47842c84f3db
 	golang.org/x/mod v0.8.0
 	golang.org/x/oauth2 v0.5.0
@@ -173,6 +173,7 @@ require (
 
 require (
 	cloud.google.com/go/logging v1.6.1 // indirect
+	github.com/bep/debounce v1.2.1 // indirect
 	github.com/dgraph-io/badger/v3 v3.2103.5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/golang/glog v1.0.0 // indirect
