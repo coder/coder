@@ -95,6 +95,17 @@ type CreateTemplateRequest struct {
 	// Allow users to cancel in-progress workspace jobs.
 	// *bool as the default value is "true".
 	AllowUserCancelWorkspaceJobs *bool `json:"allow_user_cancel_workspace_jobs"`
+
+	// AllowUserAutoStart allows users to set a schedule for autostarting their
+	// workspace. By default this is true. This can only be disabled when using
+	// an enterprise license.
+	AllowUserAutoStart *bool `json:"allow_user_auto_start"`
+
+	// AllowUserAutoStop allows users to set a custom workspace TTL to use in
+	// place of the template's DefaultTTL field. By default this is true. If
+	// false, the DefaultTTL will always be used. This can only be disabled when
+	// using an enterprise license.
+	AllowUserAutoStop *bool `json:"allow_user_auto_stop"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.

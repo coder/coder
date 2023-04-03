@@ -54,6 +54,11 @@ func (*agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context
 }
 
 func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts TemplateScheduleOptions) (database.Template, error) {
+	if int64(opts.DefaultTTL) == tpl.DefaultTTL {
+		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
+		return tpl, nil
+	}
+
 	return db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 		ID:         tpl.ID,
 		UpdatedAt:  database.Now(),

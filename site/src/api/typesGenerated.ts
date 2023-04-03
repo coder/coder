@@ -190,6 +190,8 @@ export interface CreateTemplateRequest {
   readonly default_ttl_ms?: number
   readonly max_ttl_ms?: number
   readonly allow_user_cancel_workspace_jobs?: boolean
+  readonly allow_user_auto_start?: boolean
+  readonly allow_user_auto_stop?: boolean
 }
 
 // From codersdk/templateversions.go

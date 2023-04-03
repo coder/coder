@@ -2850,6 +2850,8 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		DisplayName:                  arg.DisplayName,
 		Icon:                         arg.Icon,
 		AllowUserCancelWorkspaceJobs: arg.AllowUserCancelWorkspaceJobs,
+		AllowUserAutoStart:           true,
+		AllowUserAutoStop:            true,
 	}
 	q.templates = append(q.templates, template)
 	return template.DeepCopy(), nil

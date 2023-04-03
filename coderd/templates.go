@@ -227,9 +227,19 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var allowUserCancelWorkspaceJobs bool
+	var (
+		allowUserCancelWorkspaceJobs bool
+		allowUserAutoStart           = true
+		allowUserAutoStop            = true
+	)
 	if createTemplate.AllowUserCancelWorkspaceJobs != nil {
 		allowUserCancelWorkspaceJobs = *createTemplate.AllowUserCancelWorkspaceJobs
+	}
+	if createTemplate.AllowUserAutoStart != nil {
+		allowUserAutoStart = *createTemplate.AllowUserAutoStart
+	}
+	if createTemplate.AllowUserAutoStop != nil {
+		allowUserAutoStop = *createTemplate.AllowUserAutoStop
 	}
 
 	var dbTemplate database.Template
@@ -259,8 +269,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		}
 
 		dbTemplate, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
-			UserAutoStartEnabled: true,
-			UserAutoStopEnabled:  true,
+			UserAutoStartEnabled: allowUserAutoStart,
+			UserAutoStopEnabled:  allowUserAutoStop,
 			DefaultTTL:           defaultTTL,
 			MaxTTL:               maxTTL,
 		})

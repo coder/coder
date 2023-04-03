@@ -5587,6 +5587,14 @@
       "type": "object",
       "required": ["name", "template_version_id"],
       "properties": {
+        "allow_user_auto_start": {
+          "description": "AllowUserAutoStart allows users to set a schedule for autostarting their\nworkspace. By default this is true. This can only be disabled when using\nan enterprise license.",
+          "type": "boolean"
+        },
+        "allow_user_auto_stop": {
+          "description": "AllowUserAutoStop allows users to set a custom workspace TTL to use in\nplace of the template's DefaultTTL field. By default this is true. If\nfalse, the DefaultTTL will always be used. This can only be disabled when\nusing an enterprise license.",
+          "type": "boolean"
+        },
         "allow_user_cancel_workspace_jobs": {
           "description": "Allow users to cancel in-progress workspace jobs.\n*bool as the default value is \"true\".",
           "type": "boolean"

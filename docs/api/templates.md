@@ -191,6 +191,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 ```json
 {
+  "allow_user_auto_start": true,
+  "allow_user_auto_stop": true,
   "allow_user_cancel_workspace_jobs": true,
   "default_ttl_ms": 0,
   "description": "string",

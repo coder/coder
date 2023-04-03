@@ -326,6 +326,14 @@ func (*enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.C
 }
 
 func (*enterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts schedule.TemplateScheduleOptions) (database.Template, error) {
+	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
+		int64(opts.MaxTTL) == tpl.MaxTTL &&
+		opts.UserAutoStartEnabled == tpl.AllowUserAutoStart &&
+		opts.UserAutoStopEnabled == tpl.AllowUserAutoStop {
+		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
+		return tpl, nil
+	}
+
 	template, err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 		ID:                 tpl.ID,
 		UpdatedAt:          database.Now(),
