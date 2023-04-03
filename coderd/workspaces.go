@@ -480,6 +480,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Name:              createWorkspace.Name,
 			AutostartSchedule: dbAutostartSchedule,
 			Ttl:               dbTTL,
+			// The workspaces page will sort by last used at, and it's useful to
+			// have the newly created workspace at the top of the list!
+			LastUsedAt: database.Now(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace: %w", err)

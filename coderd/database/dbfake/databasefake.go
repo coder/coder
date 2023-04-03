@@ -3357,6 +3357,7 @@ func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWork
 		Name:              arg.Name,
 		AutostartSchedule: arg.AutostartSchedule,
 		Ttl:               arg.Ttl,
+		LastUsedAt:        arg.LastUsedAt,
 	}
 	q.workspaces = append(q.workspaces, workspace)
 	return workspace, nil
