@@ -183,6 +183,7 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	}
 
 	span.SetAttributes(httpconv.ClientResponse(resp)...)
+	span.SetStatus(httpconv.ClientStatus(resp.StatusCode))
 
 	// Copy the response body so we can log it if it's a loggable mime type.
 	var respBody []byte
