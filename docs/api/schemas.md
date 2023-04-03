@@ -5456,6 +5456,523 @@ Parameter represents a set value for the scope.
 | `none` |
 | `data` |
 
+## healthcheck.DERPNodeReport
+
+```json
+{
+  "can_exchange_messages": true,
+  "client_errs": [[null]],
+  "client_logs": [["string"]],
+  "healthy": true,
+  "node": {
+    "certName": "string",
+    "derpport": 0,
+    "forceHTTP": true,
+    "hostName": "string",
+    "insecureForTests": true,
+    "ipv4": "string",
+    "ipv6": "string",
+    "name": "string",
+    "regionID": 0,
+    "stunonly": true,
+    "stunport": 0,
+    "stuntestIP": "string"
+  },
+  "round_trip_ping": 0,
+  "stun": {
+    "canSTUN": true,
+    "enabled": true,
+    "error": null
+  },
+  "uses_websocket": true
+}
+```
+
+### Properties
+
+| Name                    | Type                                                     | Required | Restrictions | Description |
+| ----------------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
+| `can_exchange_messages` | boolean                                                  | false    |              |             |
+| `client_errs`           | array of array                                           | false    |              |             |
+| `client_logs`           | array of array                                           | false    |              |             |
+| `healthy`               | boolean                                                  | false    |              |             |
+| `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
+| `round_trip_ping`       | integer                                                  | false    |              |             |
+| `stun`                  | [healthcheck.DERPStunReport](#healthcheckderpstunreport) | false    |              |             |
+| `uses_websocket`        | boolean                                                  | false    |              |             |
+
+## healthcheck.DERPRegionReport
+
+```json
+{
+  "healthy": true,
+  "node_reports": [
+    {
+      "can_exchange_messages": true,
+      "client_errs": [[null]],
+      "client_logs": [["string"]],
+      "healthy": true,
+      "node": {
+        "certName": "string",
+        "derpport": 0,
+        "forceHTTP": true,
+        "hostName": "string",
+        "insecureForTests": true,
+        "ipv4": "string",
+        "ipv6": "string",
+        "name": "string",
+        "regionID": 0,
+        "stunonly": true,
+        "stunport": 0,
+        "stuntestIP": "string"
+      },
+      "round_trip_ping": 0,
+      "stun": {
+        "canSTUN": true,
+        "enabled": true,
+        "error": null
+      },
+      "uses_websocket": true
+    }
+  ],
+  "region": {
+    "avoid": true,
+    "embeddedRelay": true,
+    "nodes": [
+      {
+        "certName": "string",
+        "derpport": 0,
+        "forceHTTP": true,
+        "hostName": "string",
+        "insecureForTests": true,
+        "ipv4": "string",
+        "ipv6": "string",
+        "name": "string",
+        "regionID": 0,
+        "stunonly": true,
+        "stunport": 0,
+        "stuntestIP": "string"
+      }
+    ],
+    "regionCode": "string",
+    "regionID": 0,
+    "regionName": "string"
+  }
+}
+```
+
+### Properties
+
+| Name           | Type                                                              | Required | Restrictions | Description |
+| -------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `healthy`      | boolean                                                           | false    |              |             |
+| `node_reports` | array of [healthcheck.DERPNodeReport](#healthcheckderpnodereport) | false    |              |             |
+| `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                          | false    |              |             |
+
+## healthcheck.DERPReport
+
+```json
+{
+  "healthy": true,
+  "netcheck": {
+    "captivePortal": "string",
+    "globalV4": "string",
+    "globalV6": "string",
+    "hairPinning": "string",
+    "icmpv4": true,
+    "ipv4": true,
+    "ipv4CanSend": true,
+    "ipv6": true,
+    "ipv6CanSend": true,
+    "mappingVariesByDestIP": "string",
+    "oshasIPv6": true,
+    "pcp": "string",
+    "pmp": "string",
+    "preferredDERP": 0,
+    "regionLatency": {
+      "property1": 0,
+      "property2": 0
+    },
+    "regionV4Latency": {
+      "property1": 0,
+      "property2": 0
+    },
+    "regionV6Latency": {
+      "property1": 0,
+      "property2": 0
+    },
+    "udp": true,
+    "upnP": "string"
+  },
+  "netcheck_logs": ["string"],
+  "regions": {
+    "property1": {
+      "healthy": true,
+      "node_reports": [
+        {
+          "can_exchange_messages": true,
+          "client_errs": [[null]],
+          "client_logs": [["string"]],
+          "healthy": true,
+          "node": {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          },
+          "round_trip_ping": 0,
+          "stun": {
+            "canSTUN": true,
+            "enabled": true,
+            "error": null
+          },
+          "uses_websocket": true
+        }
+      ],
+      "region": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      }
+    },
+    "property2": {
+      "healthy": true,
+      "node_reports": [
+        {
+          "can_exchange_messages": true,
+          "client_errs": [[null]],
+          "client_logs": [["string"]],
+          "healthy": true,
+          "node": {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          },
+          "round_trip_ping": 0,
+          "stun": {
+            "canSTUN": true,
+            "enabled": true,
+            "error": null
+          },
+          "uses_websocket": true
+        }
+      ],
+      "region": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      }
+    }
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                         | Required | Restrictions | Description |
+| ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `healthy`          | boolean                                                      | false    |              |             |
+| `netcheck`         | [netcheck.Report](#netcheckreport)                           | false    |              |             |
+| `netcheck_logs`    | array of string                                              | false    |              |             |
+| `regions`          | object                                                       | false    |              |             |
+| » `[any property]` | [healthcheck.DERPRegionReport](#healthcheckderpregionreport) | false    |              |             |
+
+## healthcheck.DERPStunReport
+
+```json
+{
+  "canSTUN": true,
+  "enabled": true,
+  "error": null
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+| --------- | ------- | -------- | ------------ | ----------- |
+| `canSTUN` | boolean | false    |              |             |
+| `enabled` | boolean | false    |              |             |
+| `error`   | any     | false    |              |             |
+
+## healthcheck.Report
+
+```json
+{
+  "derp": {
+    "healthy": true,
+    "netcheck": {
+      "captivePortal": "string",
+      "globalV4": "string",
+      "globalV6": "string",
+      "hairPinning": "string",
+      "icmpv4": true,
+      "ipv4": true,
+      "ipv4CanSend": true,
+      "ipv6": true,
+      "ipv6CanSend": true,
+      "mappingVariesByDestIP": "string",
+      "oshasIPv6": true,
+      "pcp": "string",
+      "pmp": "string",
+      "preferredDERP": 0,
+      "regionLatency": {
+        "property1": 0,
+        "property2": 0
+      },
+      "regionV4Latency": {
+        "property1": 0,
+        "property2": 0
+      },
+      "regionV6Latency": {
+        "property1": 0,
+        "property2": 0
+      },
+      "udp": true,
+      "upnP": "string"
+    },
+    "netcheck_logs": ["string"],
+    "regions": {
+      "property1": {
+        "healthy": true,
+        "node_reports": [
+          {
+            "can_exchange_messages": true,
+            "client_errs": [[null]],
+            "client_logs": [["string"]],
+            "healthy": true,
+            "node": {
+              "certName": "string",
+              "derpport": 0,
+              "forceHTTP": true,
+              "hostName": "string",
+              "insecureForTests": true,
+              "ipv4": "string",
+              "ipv6": "string",
+              "name": "string",
+              "regionID": 0,
+              "stunonly": true,
+              "stunport": 0,
+              "stuntestIP": "string"
+            },
+            "round_trip_ping": 0,
+            "stun": {
+              "canSTUN": true,
+              "enabled": true,
+              "error": null
+            },
+            "uses_websocket": true
+          }
+        ],
+        "region": {
+          "avoid": true,
+          "embeddedRelay": true,
+          "nodes": [
+            {
+              "certName": "string",
+              "derpport": 0,
+              "forceHTTP": true,
+              "hostName": "string",
+              "insecureForTests": true,
+              "ipv4": "string",
+              "ipv6": "string",
+              "name": "string",
+              "regionID": 0,
+              "stunonly": true,
+              "stunport": 0,
+              "stuntestIP": "string"
+            }
+          ],
+          "regionCode": "string",
+          "regionID": 0,
+          "regionName": "string"
+        }
+      },
+      "property2": {
+        "healthy": true,
+        "node_reports": [
+          {
+            "can_exchange_messages": true,
+            "client_errs": [[null]],
+            "client_logs": [["string"]],
+            "healthy": true,
+            "node": {
+              "certName": "string",
+              "derpport": 0,
+              "forceHTTP": true,
+              "hostName": "string",
+              "insecureForTests": true,
+              "ipv4": "string",
+              "ipv6": "string",
+              "name": "string",
+              "regionID": 0,
+              "stunonly": true,
+              "stunport": 0,
+              "stuntestIP": "string"
+            },
+            "round_trip_ping": 0,
+            "stun": {
+              "canSTUN": true,
+              "enabled": true,
+              "error": null
+            },
+            "uses_websocket": true
+          }
+        ],
+        "region": {
+          "avoid": true,
+          "embeddedRelay": true,
+          "nodes": [
+            {
+              "certName": "string",
+              "derpport": 0,
+              "forceHTTP": true,
+              "hostName": "string",
+              "insecureForTests": true,
+              "ipv4": "string",
+              "ipv6": "string",
+              "name": "string",
+              "regionID": 0,
+              "stunonly": true,
+              "stunport": 0,
+              "stuntestIP": "string"
+            }
+          ],
+          "regionCode": "string",
+          "regionID": 0,
+          "regionName": "string"
+        }
+      }
+    }
+  },
+  "pass": true,
+  "time": "string"
+}
+```
+
+### Properties
+
+| Name   | Type                                             | Required | Restrictions | Description                                      |
+| ------ | ------------------------------------------------ | -------- | ------------ | ------------------------------------------------ |
+| `derp` | [healthcheck.DERPReport](#healthcheckderpreport) | false    |              |                                                  |
+| `pass` | boolean                                          | false    |              | Healthy is true if the report returns no errors. |
+| `time` | string                                           | false    |              | Time is the time the report was generated at.    |
+
+## netcheck.Report
+
+```json
+{
+  "captivePortal": "string",
+  "globalV4": "string",
+  "globalV6": "string",
+  "hairPinning": "string",
+  "icmpv4": true,
+  "ipv4": true,
+  "ipv4CanSend": true,
+  "ipv6": true,
+  "ipv6CanSend": true,
+  "mappingVariesByDestIP": "string",
+  "oshasIPv6": true,
+  "pcp": "string",
+  "pmp": "string",
+  "preferredDERP": 0,
+  "regionLatency": {
+    "property1": 0,
+    "property2": 0
+  },
+  "regionV4Latency": {
+    "property1": 0,
+    "property2": 0
+  },
+  "regionV6Latency": {
+    "property1": 0,
+    "property2": 0
+  },
+  "udp": true,
+  "upnP": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description                                                                                                                        |
+| ----------------------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `captivePortal`         | string  | false    |              | Captiveportal is set when we think there's a captive portal that is intercepting HTTP traffic.                                     |
+| `globalV4`              | string  | false    |              | ip:port of global IPv4                                                                                                             |
+| `globalV6`              | string  | false    |              | [ip]:port of global IPv6                                                                                                           |
+| `hairPinning`           | string  | false    |              | Hairpinning is whether the router supports communicating between two local devices through the NATted public IP address (on IPv4). |
+| `icmpv4`                | boolean | false    |              | an ICMPv4 round trip completed                                                                                                     |
+| `ipv4`                  | boolean | false    |              | an IPv4 STUN round trip completed                                                                                                  |
+| `ipv4CanSend`           | boolean | false    |              | an IPv4 packet was able to be sent                                                                                                 |
+| `ipv6`                  | boolean | false    |              | an IPv6 STUN round trip completed                                                                                                  |
+| `ipv6CanSend`           | boolean | false    |              | an IPv6 packet was able to be sent                                                                                                 |
+| `mappingVariesByDestIP` | string  | false    |              | Mappingvariesbydestip is whether STUN results depend which STUN server you're talking to (on IPv4).                                |
+| `oshasIPv6`             | boolean | false    |              | could bind a socket to ::1                                                                                                         |
+| `pcp`                   | string  | false    |              | Pcp is whether PCP appears present on the LAN. Empty means not checked.                                                            |
+| `pmp`                   | string  | false    |              | Pmp is whether NAT-PMP appears present on the LAN. Empty means not checked.                                                        |
+| `preferredDERP`         | integer | false    |              | or 0 for unknown                                                                                                                   |
+| `regionLatency`         | object  | false    |              | keyed by DERP Region ID                                                                                                            |
+| » `[any property]`      | integer | false    |              |                                                                                                                                    |
+| `regionV4Latency`       | object  | false    |              | keyed by DERP Region ID                                                                                                            |
+| » `[any property]`      | integer | false    |              |                                                                                                                                    |
+| `regionV6Latency`       | object  | false    |              | keyed by DERP Region ID                                                                                                            |
+| » `[any property]`      | integer | false    |              |                                                                                                                                    |
+| `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                                                    |
+| `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                                                          |
+
 ## parameter.ComputedValue
 
 ```json
