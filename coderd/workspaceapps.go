@@ -124,7 +124,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		chiPath = "/" + chiPath
 	}
 
-	ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, workspaceapps.Request{
+	ticket, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, workspaceapps.Request{
 		AccessMethod:      workspaceapps.AccessMethodPath,
 		BasePath:          basePath,
 		UsernameOrID:      chi.URLParam(r, "user"),
@@ -247,7 +247,7 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				return
 			}
 
-			ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, workspaceapps.Request{
+			ticket, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodSubdomain,
 				BasePath:          "/",
 				UsernameOrID:      app.Username,

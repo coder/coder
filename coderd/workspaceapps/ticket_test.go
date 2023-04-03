@@ -9,8 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/square/go-jose.v2"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/workspaceapps"
 )
@@ -163,12 +161,10 @@ func Test_TicketMatchesRequest(t *testing.T) {
 func Test_GenerateTicket(t *testing.T) {
 	t.Parallel()
 
-	provider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, time.Minute, coderdtest.AppSigningKey)
-
 	t.Run("SetExpiry", func(t *testing.T) {
 		t.Parallel()
 
-		ticketStr, err := provider.GenerateTicket(workspaceapps.Ticket{
+		ticketStr, err := workspaceapps.GenerateTicket(coderdtest.AppSigningKey, workspaceapps.Ticket{
 			Request: workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/app",
@@ -186,7 +182,7 @@ func Test_GenerateTicket(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		ticket, err := provider.ParseTicket(ticketStr)
+		ticket, err := workspaceapps.ParseTicket(coderdtest.AppSigningKey, ticketStr)
 		require.NoError(t, err)
 
 		require.WithinDuration(t, time.Now().Add(time.Minute), ticket.Expiry, 15*time.Second)
@@ -264,13 +260,13 @@ func Test_GenerateTicket(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			str, err := provider.GenerateTicket(c.ticket)
+			str, err := workspaceapps.GenerateTicket(coderdtest.AppSigningKey, c.ticket)
 			require.NoError(t, err)
 
 			// Tickets aren't deterministic as they have a random nonce, so we
 			// can't compare them directly.
 
-			ticket, err := provider.ParseTicket(str)
+			ticket, err := workspaceapps.ParseTicket(coderdtest.AppSigningKey, str)
 			if c.parseErrContains != "" {
 				require.Error(t, err)
 				require.ErrorContains(t, err, c.parseErrContains)
@@ -289,12 +285,10 @@ func Test_GenerateTicket(t *testing.T) {
 func Test_ParseTicket(t *testing.T) {
 	t.Parallel()
 
-	provider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, time.Minute, coderdtest.AppSigningKey)
-
 	t.Run("InvalidJWS", func(t *testing.T) {
 		t.Parallel()
 
-		ticket, err := provider.ParseTicket("invalid")
+		ticket, err := workspaceapps.ParseTicket(coderdtest.AppSigningKey, "invalid")
 		require.Error(t, err)
 		require.ErrorContains(t, err, "parse JWS")
 		require.Equal(t, workspaceapps.Ticket{}, ticket)
@@ -309,9 +303,7 @@ func Test_ParseTicket(t *testing.T) {
 		require.NotEqual(t, coderdtest.AppSigningKey, otherKey)
 		require.Len(t, otherKey, 64)
 
-		otherProvider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, time.Minute, otherKey)
-
-		ticketStr, err := otherProvider.GenerateTicket(workspaceapps.Ticket{
+		ticketStr, err := workspaceapps.GenerateTicket(otherKey, workspaceapps.Ticket{
 			Request: workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/app",
@@ -330,7 +322,7 @@ func Test_ParseTicket(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify the ticket is invalid.
-		ticket, err := provider.ParseTicket(ticketStr)
+		ticket, err := workspaceapps.ParseTicket(coderdtest.AppSigningKey, ticketStr)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "verify JWS")
 		require.Equal(t, workspaceapps.Ticket{}, ticket)
@@ -340,14 +332,14 @@ func Test_ParseTicket(t *testing.T) {
 		t.Parallel()
 
 		// Create a signature for an invalid body.
-		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS512, Key: provider.TicketSigningKey}, nil)
+		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS512, Key: coderdtest.AppSigningKey}, nil)
 		require.NoError(t, err)
 		signedObject, err := signer.Sign([]byte("hi"))
 		require.NoError(t, err)
 		serialized, err := signedObject.CompactSerialize()
 		require.NoError(t, err)
 
-		ticket, err := provider.ParseTicket(serialized)
+		ticket, err := workspaceapps.ParseTicket(coderdtest.AppSigningKey, serialized)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "unmarshal payload")
 		require.Equal(t, workspaceapps.Ticket{}, ticket)

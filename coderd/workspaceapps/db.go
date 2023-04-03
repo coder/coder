@@ -5,81 +5,66 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"strings"
+	"net/url"
 	"time"
 
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/site"
 )
 
-const (
-	// TODO(@deansheather): configurable expiry
-	TicketExpiry = time.Minute
+// DBTicketProvider provides authentication and authorization for workspace apps
+// by querying the database if the request is missing a valid ticket.
+type DBTicketProvider struct {
+	Logger slog.Logger
 
-	// RedirectURIQueryParam is the query param for the app URL to be passed
-	// back to the API auth endpoint on the main access URL.
-	RedirectURIQueryParam = "redirect_uri"
-)
+	AccessURL                     *url.URL
+	Authorizer                    rbac.Authorizer
+	Database                      database.Store
+	DeploymentValues              *codersdk.DeploymentValues
+	OAuth2Configs                 *httpmw.OAuth2Configs
+	WorkspaceAgentInactiveTimeout time.Duration
+	TicketSigningKey              []byte
+}
 
-// TODO: remove this temporary shim
-func (p *DBTicketProvider) ResolveRequest(rw http.ResponseWriter, r *http.Request, appReq Request) (*Ticket, bool) {
-	// TODO: this needs to be some sort of normalize function or something
-	if appReq.WorkspaceAndAgent != "" {
-		// workspace.agent
-		workspaceAndAgent := strings.SplitN(appReq.WorkspaceAndAgent, ".", 2)
-		appReq.WorkspaceAndAgent = ""
-		appReq.WorkspaceNameOrID = workspaceAndAgent[0]
-		if len(workspaceAndAgent) > 1 {
-			appReq.AgentNameOrID = workspaceAndAgent[1]
-		}
+var _ TicketProvider = &DBTicketProvider{}
 
-		// Sanity check.
-		err := appReq.Validate()
-		if err != nil {
-			p.writeWorkspaceApp500(rw, r, &appReq, err, "invalid app request")
-			return nil, false
-		}
+func NewDBTicketProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, workspaceAgentInactiveTimeout time.Duration, ticketSigningKey []byte) TicketProvider {
+	if len(ticketSigningKey) != 64 {
+		panic("ticket signing key must be 64 bytes")
 	}
 
-	ticket, ok := p.TicketFromRequest(r)
-	if ok && ticket.MatchesRequest(appReq) {
-		// The request has a valid ticket and it matches the request.
-		return ticket, true
+	if workspaceAgentInactiveTimeout == 0 {
+		workspaceAgentInactiveTimeout = 1 * time.Minute
 	}
 
-	ticket, ticketStr, ok := p.CreateTicket(r.Context(), rw, r, appReq)
-	if !ok {
-		return nil, false
+	return &DBTicketProvider{
+		Logger:                        log,
+		AccessURL:                     accessURL,
+		Authorizer:                    authz,
+		Database:                      db,
+		DeploymentValues:              cfg,
+		OAuth2Configs:                 oauth2Cfgs,
+		WorkspaceAgentInactiveTimeout: workspaceAgentInactiveTimeout,
+		TicketSigningKey:              ticketSigningKey,
 	}
-
-	// Write the ticket cookie. We always want this to apply to the current
-	// hostname (even for subdomain apps, without any wildcard shenanigans,
-	// because the ticket is only valid for a single app).
-	http.SetCookie(rw, &http.Cookie{
-		Name:    codersdk.DevURLSessionTicketCookie,
-		Value:   ticketStr,
-		Path:    appReq.BasePath,
-		Expires: ticket.Expiry,
-	})
-
-	return ticket, true
 }
 
 func (p *DBTicketProvider) TicketFromRequest(r *http.Request) (*Ticket, bool) {
 	// Get the existing ticket from the request.
 	ticketCookie, err := r.Cookie(codersdk.DevURLSessionTicketCookie)
 	if err == nil {
-		ticket, err := p.ParseTicket(ticketCookie.Value)
+		ticket, err := ParseTicket(p.TicketSigningKey, ticketCookie.Value)
 		if err == nil {
-			err := ticket.Request.Validate()
+			req := ticket.Request.Normalize()
+			err := req.Validate()
 			if err == nil {
 				// The request has a ticket, which is a valid ticket signed by
 				// us. The caller must check that it matches the request.
@@ -105,9 +90,11 @@ func (p *DBTicketProvider) CreateTicket(ctx context.Context, rw http.ResponseWri
 	//                 // logic is handled in Provider.authorizeWorkspaceApp which directly checks the actor's
 	//                 // permissions.
 	dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
+
+	appReq = appReq.Normalize()
 	err := appReq.Validate()
 	if err != nil {
-		p.writeWorkspaceApp500(rw, r, &appReq, err, "invalid app request")
+		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, err, "invalid app request")
 		return nil, "", false
 	}
 
@@ -135,10 +122,10 @@ func (p *DBTicketProvider) CreateTicket(ctx context.Context, rw http.ResponseWri
 	// Lookup workspace app details from DB.
 	dbReq, err := appReq.getDatabase(dangerousSystemCtx, p.Database)
 	if xerrors.Is(err, sql.ErrNoRows) {
-		p.writeWorkspaceApp404(rw, r, &appReq, err.Error())
+		WriteWorkspaceApp404(p.Logger, p.AccessURL, rw, r, &appReq, err.Error())
 		return nil, "", false
 	} else if err != nil {
-		p.writeWorkspaceApp500(rw, r, &appReq, err, "get app details from database")
+		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, err, "get app details from database")
 		return nil, "", false
 	}
 	ticket.UserID = dbReq.User.ID
@@ -150,14 +137,15 @@ func (p *DBTicketProvider) CreateTicket(ctx context.Context, rw http.ResponseWri
 	// is not running.
 
 	// Verify the user has access to the app.
-	authed, ok := p.verifyAuthz(rw, r, authz, dbReq)
-	if !ok {
+	authed, err := p.authorizeRequest(r.Context(), authz, dbReq)
+	if err != nil {
+		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, err, "verify authz")
 		return nil, "", false
 	}
 	if !authed {
 		if apiKey != nil {
 			// The request has a valid API key but insufficient permissions.
-			p.writeWorkspaceApp404(rw, r, &appReq, "insufficient permissions")
+			WriteWorkspaceApp404(p.Logger, p.AccessURL, rw, r, &appReq, "insufficient permissions")
 			return nil, "", false
 		}
 
@@ -191,28 +179,28 @@ func (p *DBTicketProvider) CreateTicket(ctx context.Context, rw http.ResponseWri
 	// Check that the agent is online.
 	agentStatus := dbReq.Agent.Status(p.WorkspaceAgentInactiveTimeout)
 	if agentStatus.Status != database.WorkspaceAgentStatusConnected {
-		p.writeWorkspaceAppOffline(rw, r, &appReq, fmt.Sprintf("Agent state is %q, not %q", agentStatus.Status, database.WorkspaceAgentStatusConnected))
+		WriteWorkspaceAppOffline(p.Logger, p.AccessURL, rw, r, &appReq, fmt.Sprintf("Agent state is %q, not %q", agentStatus.Status, database.WorkspaceAgentStatusConnected))
 		return nil, "", false
 	}
 
 	// Check that the app is healthy.
 	if dbReq.AppHealth != "" && dbReq.AppHealth != database.WorkspaceAppHealthDisabled && dbReq.AppHealth != database.WorkspaceAppHealthHealthy {
-		p.writeWorkspaceAppOffline(rw, r, &appReq, fmt.Sprintf("App health is %q, not %q", dbReq.AppHealth, database.WorkspaceAppHealthHealthy))
+		WriteWorkspaceAppOffline(p.Logger, p.AccessURL, rw, r, &appReq, fmt.Sprintf("App health is %q, not %q", dbReq.AppHealth, database.WorkspaceAppHealthHealthy))
 		return nil, "", false
 	}
 
 	// As a sanity check, ensure the ticket we just made is valid for this
 	// request.
 	if !ticket.MatchesRequest(appReq) {
-		p.writeWorkspaceApp500(rw, r, &appReq, nil, "fresh ticket does not match request")
+		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, nil, "fresh ticket does not match request")
 		return nil, "", false
 	}
 
 	// Sign the ticket.
 	ticket.Expiry = time.Now().Add(TicketExpiry)
-	ticketStr, err := p.GenerateTicket(ticket)
+	ticketStr, err := GenerateTicket(p.TicketSigningKey, ticket)
 	if err != nil {
-		p.writeWorkspaceApp500(rw, r, &appReq, err, "generate ticket")
+		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, err, "generate ticket")
 		return nil, "", false
 	}
 
@@ -305,101 +293,4 @@ func (p *DBTicketProvider) authorizeRequest(ctx context.Context, roles *httpmw.A
 
 	// No checks were successful.
 	return false, nil
-}
-
-// verifyAuthz authorizes the user using api.Authorizer for a
-// given app share level in the given workspace. The user's authorization status
-// is returned. If a server error occurs, a HTML error page is rendered and
-// false is returned so the caller can return early.
-func (p *DBTicketProvider) verifyAuthz(rw http.ResponseWriter, r *http.Request, authz *httpmw.Authorization, dbReq *databaseRequest) (authed bool, ok bool) {
-	ok, err := p.authorizeRequest(r.Context(), authz, dbReq)
-	if err != nil {
-		p.Logger.Error(r.Context(), "authorize workspace app", slog.Error(err))
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusInternalServerError,
-			Title:        "Internal Server Error",
-			Description:  "Could not verify authorization. Please try again or contact an administrator.",
-			RetryEnabled: true,
-			DashboardURL: p.AccessURL.String(),
-		})
-		return false, false
-	}
-
-	return ok, true
-}
-
-// writeWorkspaceApp404 writes a HTML 404 error page for a workspace app. If
-// appReq is not nil, it will be used to log the request details at debug level.
-func (p *DBTicketProvider) writeWorkspaceApp404(rw http.ResponseWriter, r *http.Request, appReq *Request, msg string) {
-	if appReq != nil {
-		slog.Helper()
-		p.Logger.Debug(r.Context(),
-			"workspace app 404: "+msg,
-			slog.F("username_or_id", appReq.UsernameOrID),
-			slog.F("workspace_and_agent", appReq.WorkspaceAndAgent),
-			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),
-			slog.F("agent_name_or_id", appReq.AgentNameOrID),
-			slog.F("app_slug_or_port", appReq.AppSlugOrPort),
-		)
-	}
-
-	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-		Status:       http.StatusNotFound,
-		Title:        "Application Not Found",
-		Description:  "The application or workspace you are trying to access does not exist or you do not have permission to access it.",
-		RetryEnabled: false,
-		DashboardURL: p.AccessURL.String(),
-	})
-}
-
-// writeWorkspaceApp500 writes a HTML 500 error page for a workspace app. If
-// appReq is not nil, it's fields will be added to the logged error message.
-func (p *DBTicketProvider) writeWorkspaceApp500(rw http.ResponseWriter, r *http.Request, appReq *Request, err error, msg string) {
-	slog.Helper()
-	ctx := r.Context()
-	if appReq != nil {
-		slog.With(ctx,
-			slog.F("username_or_id", appReq.UsernameOrID),
-			slog.F("workspace_and_agent", appReq.WorkspaceAndAgent),
-			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),
-			slog.F("agent_name_or_id", appReq.AgentNameOrID),
-			slog.F("app_name_or_port", appReq.AppSlugOrPort),
-		)
-	}
-	p.Logger.Warn(ctx,
-		"workspace app auth server error: "+msg,
-		slog.Error(err),
-	)
-
-	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-		Status:       http.StatusInternalServerError,
-		Title:        "Internal Server Error",
-		Description:  "An internal server error occurred.",
-		RetryEnabled: false,
-		DashboardURL: p.AccessURL.String(),
-	})
-}
-
-// writeWorkspaceAppOffline writes a HTML 502 error page for a workspace app. If
-// appReq is not nil, it will be used to log the request details at debug level.
-func (p *DBTicketProvider) writeWorkspaceAppOffline(rw http.ResponseWriter, r *http.Request, appReq *Request, msg string) {
-	if appReq != nil {
-		slog.Helper()
-		p.Logger.Debug(r.Context(),
-			"workspace app unavailable: "+msg,
-			slog.F("username_or_id", appReq.UsernameOrID),
-			slog.F("workspace_and_agent", appReq.WorkspaceAndAgent),
-			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),
-			slog.F("agent_name_or_id", appReq.AgentNameOrID),
-			slog.F("app_slug_or_port", appReq.AppSlugOrPort),
-		)
-	}
-
-	site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-		Status:       http.StatusBadGateway,
-		Title:        "Application Unavailable",
-		Description:  msg,
-		RetryEnabled: true,
-		DashboardURL: p.AccessURL.String(),
-	})
 }

@@ -550,7 +550,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
 
-	ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, workspaceapps.Request{
+	ticket, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, workspaceapps.Request{
 		AccessMethod:  workspaceapps.AccessMethodTerminal,
 		BasePath:      r.URL.Path,
 		AgentNameOrID: chi.URLParam(r, "workspaceagent"),

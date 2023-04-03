@@ -280,7 +280,7 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		WorkspaceAppsProvider: workspaceapps.New(
+		WorkspaceAppsProvider: workspaceapps.NewDBTicketProvider(
 			options.Logger.Named("workspaceapps"),
 			options.AccessURL,
 			options.Authorizer,
@@ -763,7 +763,7 @@ type API struct {
 	metricsCache          *metricscache.Cache
 	workspaceAgentCache   *wsconncache.Cache
 	updateChecker         *updatecheck.Checker
-	WorkspaceAppsProvider *workspaceapps.DBTicketProvider
+	WorkspaceAppsProvider workspaceapps.TicketProvider
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.

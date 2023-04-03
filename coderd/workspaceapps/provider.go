@@ -7,32 +7,58 @@ import (
 	"time"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
 
-/*
-POST /api/v2/moons/app-auth-ticket
+const (
+	// TODO(@deansheather): configurable expiry
+	TicketExpiry = time.Minute
 
-{
-	"session_token": "xxxx",
-	"request": { ... }
-}
+	// RedirectURIQueryParam is the query param for the app URL to be passed
+	// back to the API auth endpoint on the main access URL.
+	RedirectURIQueryParam = "redirect_uri"
+)
 
-type moonRes struct {
-	Ticket *Ticket
-	TicketStr string
+// ResolveRequest calls TicketProvider to use an existing ticket in the request
+// or issue a new one. If it returns a ticket, it sets the cookie and returns
+// it.
+func ResolveRequest(log slog.Logger, accessURL *url.URL, p TicketProvider, rw http.ResponseWriter, r *http.Request, appReq Request) (*Ticket, bool) {
+	appReq = appReq.Normalize()
+	err := appReq.Validate()
+	if err != nil {
+		WriteWorkspaceApp500(log, accessURL, rw, r, &appReq, err, "invalid app request")
+		return nil, false
+	}
+
+	ticket, ok := p.TicketFromRequest(r)
+	if ok && ticket.MatchesRequest(appReq) {
+		// The request has a valid ticket and it matches the request.
+		return ticket, true
+	}
+
+	ticket, ticketStr, ok := p.CreateTicket(r.Context(), rw, r, appReq)
+	if !ok {
+		return nil, false
+	}
+
+	// Write the ticket cookie. We always want this to apply to the current
+	// hostname (even for subdomain apps, without any wildcard shenanigans,
+	// because the ticket is only valid for a single app).
+	http.SetCookie(rw, &http.Cookie{
+		Name:    codersdk.DevURLSessionTicketCookie,
+		Value:   ticketStr,
+		Path:    appReq.BasePath,
+		Expires: ticket.Expiry,
+	})
+
+	return ticket, true
 }
-*/
 
 // TicketProvider provides workspace app tickets.
 //
-// write a funny comment that says a ridiculous amount of fees will be incurred:
-//
 // Please keep in mind that all transactions incur a service fee, handling fee,
-// order processing fee, delivery fee,
+// order processing fee, delivery fee, insurance charge, convenience fee,
+// inconvenience fee, seat selection fee, and levity levy. :^)
 type TicketProvider interface {
 	// TicketFromRequest returns a ticket from the request. If the request does
 	// not contain a ticket or the ticket is invalid (expired, invalid
@@ -47,41 +73,4 @@ type TicketProvider interface {
 	// app, false is returned. An error page is written to the response writer
 	// in this case.
 	CreateTicket(ctx context.Context, rw http.ResponseWriter, r *http.Request, appReq Request) (*Ticket, string, bool)
-}
-
-// DBTicketProvider provides authentication and authorization for workspace apps
-// by querying the database if the request is missing a valid ticket.
-type DBTicketProvider struct {
-	Logger slog.Logger
-
-	AccessURL                     *url.URL
-	Authorizer                    rbac.Authorizer
-	Database                      database.Store
-	DeploymentValues              *codersdk.DeploymentValues
-	OAuth2Configs                 *httpmw.OAuth2Configs
-	WorkspaceAgentInactiveTimeout time.Duration
-	TicketSigningKey              []byte
-}
-
-var _ TicketProvider = &DBTicketProvider{}
-
-func New(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, workspaceAgentInactiveTimeout time.Duration, ticketSigningKey []byte) *DBTicketProvider {
-	if len(ticketSigningKey) != 64 {
-		panic("ticket signing key must be 64 bytes")
-	}
-
-	if workspaceAgentInactiveTimeout == 0 {
-		workspaceAgentInactiveTimeout = 1 * time.Minute
-	}
-
-	return &DBTicketProvider{
-		Logger:                        log,
-		AccessURL:                     accessURL,
-		Authorizer:                    authz,
-		Database:                      db,
-		DeploymentValues:              cfg,
-		OAuth2Configs:                 oauth2Cfgs,
-		WorkspaceAgentInactiveTimeout: workspaceAgentInactiveTimeout,
-		TicketSigningKey:              ticketSigningKey,
-	}
 }

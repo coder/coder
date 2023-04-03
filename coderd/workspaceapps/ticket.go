@@ -14,8 +14,6 @@ const ticketSigningAlgorithm = jose.HS512
 // Ticket is the struct data contained inside a workspace app ticket JWE. It
 // contains the details of the workspace app that the ticket is valid for to
 // avoid database queries.
-//
-// The JSON field names are short to reduce the size of the ticket.
 type Ticket struct {
 	// Request details.
 	Request `json:"request"`
@@ -28,6 +26,8 @@ type Ticket struct {
 	AppURL      string    `json:"app_url"`
 }
 
+// MatchesRequest returns true if the ticket matches the request. Any ticket
+// that does not match the request should be considered invalid.
 func (t Ticket) MatchesRequest(req Request) bool {
 	return t.AccessMethod == req.AccessMethod &&
 		t.BasePath == req.BasePath &&
@@ -37,7 +37,10 @@ func (t Ticket) MatchesRequest(req Request) bool {
 		t.AppSlugOrPort == req.AppSlugOrPort
 }
 
-func (p *DBTicketProvider) GenerateTicket(payload Ticket) (string, error) {
+// GenerateTicket generates a workspace app ticket with the given key and
+// payload. If the ticket doesn't have an expiry, it will be set to the current
+// time plus the default expiry.
+func GenerateTicket(key []byte, payload Ticket) (string, error) {
 	if payload.Expiry.IsZero() {
 		payload.Expiry = time.Now().Add(TicketExpiry)
 	}
@@ -50,7 +53,7 @@ func (p *DBTicketProvider) GenerateTicket(payload Ticket) (string, error) {
 	// future.
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: ticketSigningAlgorithm,
-		Key:       p.TicketSigningKey,
+		Key:       key,
 	}, nil)
 	if err != nil {
 		return "", xerrors.Errorf("create signer: %w", err)
@@ -69,7 +72,9 @@ func (p *DBTicketProvider) GenerateTicket(payload Ticket) (string, error) {
 	return serialized, nil
 }
 
-func (p *DBTicketProvider) ParseTicket(ticketStr string) (Ticket, error) {
+// ParseTicket parses a workspace app ticket with the given key and returns the
+// payload. If the ticket is invalid, an error is returned.
+func ParseTicket(key []byte, ticketStr string) (Ticket, error) {
 	object, err := jose.ParseSigned(ticketStr)
 	if err != nil {
 		return Ticket{}, xerrors.Errorf("parse JWS: %w", err)
@@ -81,7 +86,7 @@ func (p *DBTicketProvider) ParseTicket(ticketStr string) (Ticket, error) {
 		return Ticket{}, xerrors.Errorf("expected ticket signing algorithm to be %q, got %q", ticketSigningAlgorithm, object.Signatures[0].Header.Algorithm)
 	}
 
-	output, err := object.Verify(p.TicketSigningKey)
+	output, err := object.Verify(key)
 	if err != nil {
 		return Ticket{}, xerrors.Errorf("verify JWS: %w", err)
 	}
