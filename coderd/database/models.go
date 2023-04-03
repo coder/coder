@@ -1472,6 +1472,8 @@ type TemplateVersionParameter struct {
 	Required bool `db:"required" json:"required"`
 	// Name of the legacy variable for migration purposes
 	LegacyVariableName string `db:"legacy_variable_name" json:"legacy_variable_name"`
+	// Display name of the rich parameter
+	DisplayName string `db:"display_name" json:"display_name"`
 }
 
 type TemplateVersionVariable struct {
@@ -1573,6 +1575,18 @@ type WorkspaceAgent struct {
 	StartupLogsLength int32 `db:"startup_logs_length" json:"startup_logs_length"`
 	// Whether the startup logs overflowed in length
 	StartupLogsOverflowed bool `db:"startup_logs_overflowed" json:"startup_logs_overflowed"`
+}
+
+type WorkspaceAgentMetadatum struct {
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	DisplayName      string    `db:"display_name" json:"display_name"`
+	Key              string    `db:"key" json:"key"`
+	Script           string    `db:"script" json:"script"`
+	Value            string    `db:"value" json:"value"`
+	Error            string    `db:"error" json:"error"`
+	Timeout          int64     `db:"timeout" json:"timeout"`
+	Interval         int64     `db:"interval" json:"interval"`
+	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
 }
 
 type WorkspaceAgentStartupLog struct {
