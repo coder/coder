@@ -23,8 +23,6 @@ const renderPage = () =>
     },
   )
 
-const README_FILENAME = "readme.md"
-
 describe("TemplateSummaryPage", () => {
   it("shows the template readme", async () => {
     renderPage()

@@ -4,7 +4,6 @@ import { rest } from "msw"
 import { ResizeObserver } from "resize-observer"
 import {
   MockTemplate,
-  MockWorkspaceResource,
   MockTemplateVersion,
   MockMemberPermissions,
 } from "testHelpers/entities"
