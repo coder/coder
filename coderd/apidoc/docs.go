@@ -9302,7 +9302,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "deleted": {
                     "type": "boolean"
@@ -9311,16 +9312,19 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "name": {
                     "type": "string"
                 },
                 "organization_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "updated_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "url": {
                     "description": "Full url including scheme of the proxy api url: https://us.example.com",

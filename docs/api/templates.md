@@ -682,13 +682,13 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/worksp
 
 ```json
 {
-  "created_at": "string",
+  "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
   "icon": "string",
-  "id": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
-  "organization_id": "string",
-  "updated_at": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
   "wildcard_url": "string"
 }
