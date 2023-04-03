@@ -142,7 +142,7 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 		case "REGEX":
 			provider.Regex = v.Value
 		case "NO_REFRESH":
-			b, err := strconv.ParseBool(key)
+			b, err := strconv.ParseBool(v.Value)
 			if err != nil {
 				return nil, xerrors.Errorf("parse bool: %s", v.Value)
 			}
