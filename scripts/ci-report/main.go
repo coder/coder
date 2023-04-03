@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -73,6 +74,8 @@ func parseCIReport(report GotestsumReport) (CIReport, error) {
 	testSkip := map[string]bool{}
 	testOutput := map[string]string{}
 	testSortedByName := []string{}
+	timeouts := map[string]string{}
+	timeoutRunningTests := map[string]bool{}
 	for i, e := range report {
 		switch e.Action {
 		// A package/test may fail or pass.
@@ -95,6 +98,11 @@ func parseCIReport(report GotestsumReport) (CIReport, error) {
 
 		// Gather all output (deleted when irrelevant).
 		case Output:
+			name := e.Package + "." + e.Test // May be pkg.Test or pkg.
+			if _, ok := timeouts[name]; ok || strings.HasPrefix(e.Output, "panic: test timed out") {
+				timeouts[name] += e.Output
+				continue
+			}
 			if e.Test != "" {
 				name := e.Package + "." + e.Test
 				testOutput[name] += e.Output
@@ -124,6 +132,34 @@ func parseCIReport(report GotestsumReport) (CIReport, error) {
 		}
 	}
 
+	// Normalize timeout from "pkg." or "pkg.Test" to "pkg".
+	timeoutsNorm := make(map[string]string)
+	for k, v := range timeouts {
+		names := strings.SplitN(k, ".", 2)
+		pkg := names[0]
+		if _, ok := timeoutsNorm[pkg]; ok {
+			panic("multiple timeouts for package: " + pkg)
+		}
+		timeoutsNorm[pkg] = v
+
+		// Mark all running tests as timed out.
+		// panic: test timed out after 2s\nrunning tests:\n\tTestAgent_Session_TTY_Hushlogin (0s)\n\n ...
+		parts := strings.SplitN(v, "\n", 3)
+		if len(parts) == 3 && strings.HasPrefix(parts[1], "running tests:") {
+			s := bufio.NewScanner(strings.NewReader(parts[2]))
+			for s.Scan() {
+				name := s.Text()
+				if !strings.HasPrefix(name, "\tTest") {
+					break
+				}
+				name = strings.TrimPrefix(name, "\t")
+				name = strings.SplitN(name, " ", 2)[0]
+				timeoutRunningTests[pkg+"."+name] = true
+			}
+		}
+	}
+	timeouts = timeoutsNorm
+
 	sortAZ := func(a, b string) bool { return a < b }
 	slices.SortFunc(packagesSortedByName, sortAZ)
 	slices.SortFunc(testSortedByName, sortAZ)
@@ -131,11 +167,14 @@ func parseCIReport(report GotestsumReport) (CIReport, error) {
 	var rep CIReport
 
 	for _, pkg := range packagesSortedByName {
+		output, timeout := timeouts[pkg]
 		rep.Packages = append(rep.Packages, PackageReport{
 			Name:      pkg,
 			Time:      packageTimes[pkg],
 			Skip:      packageSkip[pkg],
 			Fail:      packageFail[pkg] > 0,
+			Timeout:   timeout,
+			Output:    output,
 			NumFailed: packageFail[pkg],
 		})
 	}
@@ -150,6 +189,7 @@ func parseCIReport(report GotestsumReport) (CIReport, error) {
 			Time:    testTimes[test],
 			Skip:    skip,
 			Fail:    fail,
+			Timeout: timeoutRunningTests[test],
 			Output:  out,
 		})
 	}
@@ -178,6 +218,8 @@ type PackageReport struct {
 	Skip      bool    `json:"skip,omitempty"`
 	Fail      bool    `json:"fail,omitempty"`
 	NumFailed int     `json:"num_failed,omitempty"`
+	Timeout   bool    `json:"timeout,omitempty"`
+	Output    string  `json:"output,omitempty"` // Output present e.g. for timeout.
 }
 
 type TestReport struct {
@@ -186,6 +228,7 @@ type TestReport struct {
 	Time    float64 `json:"time"`
 	Skip    bool    `json:"skip,omitempty"`
 	Fail    bool    `json:"fail,omitempty"`
+	Timeout bool    `json:"timeout,omitempty"`
 	Output  string  `json:"output,omitempty"`
 }
 

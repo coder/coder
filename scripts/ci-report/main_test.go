@@ -17,38 +17,50 @@ var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 func TestOutputMatchesGoldenFile(t *testing.T) {
 	t.Parallel()
 
-	// Sample created via:
-	//	gotestsum --jsonfile ./scripts/ci-report/testdata/gotests.json.sample \
-	//	-- \
-	//	./agent ./cli ./cli/cliui \
-	//	-count=1 \
-	//	-timeout=5m \
-	//	-parallel=24 \
-	//	-run='^(TestServer|TestAgent_Session|TestGitAuth$|TestPrompt$)'
-	goTests, err := parseGoTestJSON(filepath.Join("testdata", "gotests.json.sample"))
-	if err != nil {
-		t.Fatalf("error parsing gotestsum report: %v", err)
-	}
+	for _, name := range []string{
+		// Sample created via:
+		//	gotestsum --jsonfile ./scripts/ci-report/testdata/gotests.json.sample -- \
+		//	./agent ./cli ./cli/cliui \
+		//	-count=1 \
+		//	-timeout=5m \
+		//	-parallel=24 \
+		//	-run='^(TestServer|TestAgent_Session|TestGitAuth$|TestPrompt$)'
+		filepath.Join("testdata", "gotests.json.sample"),
+		// Sample created via:
+		//	gotestsum --jsonfile ./scripts/ci-report/testdata/gotests-timeout.json.sample -- \
+		//	./agent -run='^TestAgent_Session' -count=1 -timeout=5m -parallel=24 -timeout=2s
+		filepath.Join("testdata", "gotests-timeout.json.sample"),
+	} {
+		name := name
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-	rep, err := parseCIReport(goTests)
-	if err != nil {
-		t.Fatalf("error parsing ci report: %v", err)
-	}
+			goTests, err := parseGoTestJSON(name)
+			if err != nil {
+				t.Fatalf("error parsing gotestsum report: %v", err)
+			}
 
-	var b bytes.Buffer
-	err = printCIReport(&b, rep)
-	if err != nil {
-		t.Fatalf("error printing report: %v", err)
-	}
+			rep, err := parseCIReport(goTests)
+			if err != nil {
+				t.Fatalf("error parsing ci report: %v", err)
+			}
 
-	goldenFile := filepath.Join("testdata", "ci-report.golden")
-	got := b.Bytes()
-	if updateGoldenFile(t, goldenFile, got) {
-		return
-	}
+			var b bytes.Buffer
+			err = printCIReport(&b, rep)
+			if err != nil {
+				t.Fatalf("error printing report: %v", err)
+			}
 
-	want := readGoldenFile(t, goldenFile)
-	require.Equal(t, string(want), string(got))
+			goldenFile := filepath.Join("testdata", "ci-report_"+filepath.Base(name)+".golden")
+			got := b.Bytes()
+			if updateGoldenFile(t, goldenFile, got) {
+				return
+			}
+
+			want := readGoldenFile(t, goldenFile)
+			require.Equal(t, string(want), string(got))
+		})
+	}
 }
 
 func readGoldenFile(t *testing.T, name string) []byte {
