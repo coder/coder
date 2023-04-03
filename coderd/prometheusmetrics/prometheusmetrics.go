@@ -106,3 +106,78 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 	}()
 	return cancelFunc, nil
 }
+
+// Agents tracks the total number of workspaces with labels on status.
+func Agents(ctx context.Context, registerer prometheus.Registerer, db database.Store, duration time.Duration) (context.CancelFunc, error) {
+	if duration == 0 {
+		duration = 15 * time.Second // TODO 5 * time.Minute
+	}
+
+	agentsConnectionGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agents",
+		Name:      "connection",
+		Help:      "The agent connection with a status.",
+	}, []string{"agent_name", "workspace_name", "status"})
+	err := registerer.Register(agentsConnectionGauge)
+	if err != nil {
+		return nil, err
+	}
+
+	agentsUserLatenciesHistogram := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "coderd",
+		Subsystem: "agents",
+		Name:      "user_latencies_seconds",
+		Help:      "The user's agent latency in seconds.",
+		Buckets:   []float64{0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.500, 1, 5, 10, 30},
+	}, []string{"agent_id", "workspace", "connection_type", "ide"})
+	err = registerer.Register(agentsUserLatenciesHistogram)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancelFunc := context.WithCancel(ctx)
+	ticker := time.NewTicker(duration)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+
+			// FIXME Optimize this routine: SQL db calls
+
+			builds, err := db.GetLatestWorkspaceBuilds(ctx)
+			if err != nil {
+				continue
+			}
+
+			agentsConnectionGauge.Reset()
+			for _, build := range builds {
+				workspace, err := db.GetWorkspaceByID(ctx, build.WorkspaceID)
+				if err != nil {
+					continue
+				}
+
+				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, build.WorkspaceID)
+				if err != nil {
+					continue
+				}
+
+				if len(agents) == 0 {
+					continue
+				}
+
+				for _, agent := range agents {
+					connectionStatus := agent.Status(6 * time.Second)
+
+					// FIXME AgentInactiveDisconnectTimeout
+					agentsConnectionGauge.WithLabelValues(agent.Name, workspace.Name, string(connectionStatus.Status)).Set(1)
+				}
+			}
+		}
+	}()
+	return cancelFunc, nil
+}
