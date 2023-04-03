@@ -273,6 +273,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 					TemplateName:                  template.Name,
 					TemplateVersion:               templateVersion.Name,
 				},
+				LogLevel: input.LogLevel,
 			},
 		}
 	case database.ProvisionerJobTypeTemplateVersionDryRun:
@@ -1276,6 +1277,21 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		}
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
 
+		for _, md := range prAgent.Metadata {
+			p := database.InsertWorkspaceAgentMetadataParams{
+				WorkspaceAgentID: agentID,
+				DisplayName:      md.DisplayName,
+				Script:           md.Script,
+				Key:              md.Key,
+				Timeout:          md.Timeout,
+				Interval:         md.Interval,
+			}
+			err := db.InsertWorkspaceAgentMetadata(ctx, p)
+			if err != nil {
+				return xerrors.Errorf("insert agent metadata: %w, params: %+v", err, p)
+			}
+		}
+
 		for _, app := range prAgent.Apps {
 			slug := app.Slug
 			if slug == "" {
@@ -1550,6 +1566,7 @@ type TemplateVersionImportJob struct {
 type WorkspaceProvisionJob struct {
 	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
 	DryRun           bool      `json:"dry_run"`
+	LogLevel         string    `json:"log_level,omitempty"`
 }
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.

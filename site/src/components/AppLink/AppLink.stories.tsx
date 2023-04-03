@@ -3,7 +3,7 @@ import {
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceApp,
-} from "testHelpers/renderHelpers"
+} from "testHelpers/entities"
 import { AppLink, AppLinkProps } from "./AppLink"
 
 export default {
@@ -25,8 +25,8 @@ WithIcon.args = {
   agent: MockWorkspaceAgent,
 }
 
-export const WithIconExternal = Template.bind({})
-WithIconExternal.args = {
+export const ExternalApp = Template.bind({})
+ExternalApp.args = {
   workspace: MockWorkspace,
   app: {
     ...MockWorkspaceApp,
@@ -35,13 +35,32 @@ WithIconExternal.args = {
   agent: MockWorkspaceAgent,
 }
 
-export const WithoutIcon = Template.bind({})
-WithoutIcon.args = {
+export const SharingLevelOwner = Template.bind({})
+SharingLevelOwner.args = {
   workspace: MockWorkspace,
   app: {
     ...MockWorkspaceApp,
     sharing_level: "owner",
-    health: "healthy",
+  },
+  agent: MockWorkspaceAgent,
+}
+
+export const SharingLevelAuthenticated = Template.bind({})
+SharingLevelAuthenticated.args = {
+  workspace: MockWorkspace,
+  app: {
+    ...MockWorkspaceApp,
+    sharing_level: "authenticated",
+  },
+  agent: MockWorkspaceAgent,
+}
+
+export const SharingLevelPublic = Template.bind({})
+SharingLevelPublic.args = {
+  workspace: MockWorkspace,
+  app: {
+    ...MockWorkspaceApp,
+    sharing_level: "public",
   },
   agent: MockWorkspaceAgent,
 }

@@ -1,6 +1,7 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
-import { MockUser } from "../../../testHelpers/renderHelpers"
+import { MockUser } from "testHelpers/entities"
+
 import {
   ResetPasswordDialog,
   ResetPasswordDialogProps,

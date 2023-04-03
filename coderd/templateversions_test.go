@@ -135,8 +135,8 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.Equal(t, "bananas", version.Name)
 		require.Equal(t, provisionerdserver.ScopeOrganization, version.Job.Tags[provisionerdserver.TagScope])
 
-		require.Len(t, auditor.AuditLogs, 2)
-		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs[1].Action)
+		require.Len(t, auditor.AuditLogs(), 2)
+		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[1].Action)
 	})
 	t.Run("Example", func(t *testing.T) {
 		t.Parallel()
@@ -715,8 +715,8 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, auditor.AuditLogs, 5)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[4].Action)
+		require.Len(t, auditor.AuditLogs(), 5)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
 	})
 }
 
@@ -1347,7 +1347,7 @@ func TestTemplateVersionPatch(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		const newName = "new_name"
+		const newName = "new-name"
 		updatedVersion, err := client.UpdateTemplateVersion(ctx, version.ID, codersdk.PatchTemplateVersionRequest{
 			Name: newName,
 		})
@@ -1376,6 +1376,7 @@ func TestTemplateVersionPatch(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
+
 		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
 		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -1397,5 +1398,57 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 		assert.NotEqual(t, updatedVersion1.ID, updatedVersion2.ID)
 		assert.Equal(t, updatedVersion1.Name, updatedVersion2.Name)
+	})
+
+	t.Run("Use the same name for two versions for the same templates", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.TemplateID = template.ID
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		_, err := client.UpdateTemplateVersion(ctx, version2.ID, codersdk.PatchTemplateVersionRequest{
+			Name: version1.Name,
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("Rename the unassigned template", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		const commonTemplateVersionName = "common-template-version-name"
+		updatedVersion1, err := client.UpdateTemplateVersion(ctx, version1.ID, codersdk.PatchTemplateVersionRequest{
+			Name: commonTemplateVersionName,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, commonTemplateVersionName, updatedVersion1.Name)
+	})
+
+	t.Run("Use incorrect template version name", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		const incorrectTemplateVersionName = "incorrect/name"
+		_, err := client.UpdateTemplateVersion(ctx, version1.ID, codersdk.PatchTemplateVersionRequest{
+			Name: incorrectTemplateVersionName,
+		})
+		require.Error(t, err)
 	})
 }

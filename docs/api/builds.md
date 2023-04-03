@@ -1166,6 +1166,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 ```json
 {
   "dry_run": true,
+  "log_level": "debug",
   "orphan": true,
   "parameter_values": [
     {

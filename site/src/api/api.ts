@@ -335,7 +335,7 @@ export const getTemplateVersionGitAuth = async (
 
 export const getTemplateVersionParameters = async (
   versionId: string,
-): Promise<TypesGen.Parameter[]> => {
+): Promise<TypesGen.ComputedParameter[]> => {
   const response = await axios.get(
     `/api/v2/templateversions/${versionId}/parameters`,
   )
@@ -368,6 +368,17 @@ export const updateActiveTemplateVersion = async (
 ): Promise<Types.Message> => {
   const response = await axios.patch<Types.Message>(
     `/api/v2/templates/${templateId}/versions`,
+    data,
+  )
+  return response.data
+}
+
+export const patchTemplateVersion = async (
+  templateVersionId: string,
+  data: TypesGen.PatchTemplateVersionRequest,
+) => {
+  const response = await axios.patch<TypesGen.TemplateVersion>(
+    `/api/v2/templateversions/${templateVersionId}`,
     data,
   )
   return response.data
@@ -478,15 +489,29 @@ export const postWorkspaceBuild = async (
 export const startWorkspace = (
   workspaceId: string,
   templateVersionID: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "start",
     template_version_id: templateVersionID,
+    log_level: logLevel,
   })
-export const stopWorkspace = (workspaceId: string) =>
-  postWorkspaceBuild(workspaceId, { transition: "stop" })
-export const deleteWorkspace = (workspaceId: string) =>
-  postWorkspaceBuild(workspaceId, { transition: "delete" })
+export const stopWorkspace = (
+  workspaceId: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+) =>
+  postWorkspaceBuild(workspaceId, {
+    transition: "stop",
+    log_level: logLevel,
+  })
+export const deleteWorkspace = (
+  workspaceId: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+) =>
+  postWorkspaceBuild(workspaceId, {
+    transition: "delete",
+    log_level: logLevel,
+  })
 
 export const cancelWorkspaceBuild = async (
   workspaceBuildId: TypesGen.WorkspaceBuild["id"],
@@ -1019,4 +1044,39 @@ const getMissingParameters = (
   }
 
   return missingParameters
+}
+
+/**
+ *
+ * @param agentId
+ * @returns An EventSource that emits agent metadata event objects (ServerSentEvent)
+ */
+export const watchAgentMetadata = (agentId: string): EventSource => {
+  return new EventSource(
+    `${location.protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
+    { withCredentials: true },
+  )
+}
+
+export const watchBuildLogs = (
+  versionId: string,
+  onMessage: (log: TypesGen.ProvisionerJobLog) => void,
+) => {
+  return new Promise<void>((resolve, reject) => {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:"
+    const socket = new WebSocket(
+      `${proto}//${location.host}/api/v2/templateversions/${versionId}/logs?follow=true`,
+    )
+    socket.binaryType = "blob"
+    socket.addEventListener("message", (event) =>
+      onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
+    )
+    socket.addEventListener("error", () => {
+      reject(new Error("Connection for logs failed."))
+    })
+    socket.addEventListener("close", () => {
+      // When the socket closes, logs have finished streaming!
+      resolve()
+    })
+  })
 }

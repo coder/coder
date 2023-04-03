@@ -10,6 +10,13 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
+func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]database.GetFileTemplatesRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetFileTemplates(ctx, fileID)
+}
+
 // GetWorkspaceAppsByAgentIDs
 // The workspace/job is already fetched.
 func (q *querier) GetWorkspaceAppsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {
@@ -221,11 +228,11 @@ func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database
 	return q.db.UpdateWorkspaceBuildCostByID(ctx, arg)
 }
 
-func (q *querier) InsertOrUpdateLastUpdateCheck(ctx context.Context, value string) error {
+func (q *querier) UpsertLastUpdateCheck(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.InsertOrUpdateLastUpdateCheck(ctx, value)
+	return q.db.UpsertLastUpdateCheck(ctx, value)
 }
 
 func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {

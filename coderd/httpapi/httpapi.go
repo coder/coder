@@ -64,6 +64,20 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
+	templateVersionNameValidator := func(fl validator.FieldLevel) bool {
+		f := fl.Field().Interface()
+		str, ok := f.(string)
+		if !ok {
+			return false
+		}
+		valid := TemplateVersionNameValid(str)
+		return valid == nil
+	}
+	err = Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Convenience error functions don't take contexts since their responses are

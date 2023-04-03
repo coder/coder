@@ -23,7 +23,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
-	httpSwagger "github.com/swaggo/http-swagger"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"google.golang.org/api/idtoken"
@@ -33,6 +33,7 @@ import (
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
+	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
@@ -46,6 +47,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/healthcheck"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/metricscache"
@@ -123,7 +125,10 @@ type Options struct {
 	TemplateScheduleStore schedule.TemplateScheduleStore
 	// AppSigningKey denotes the symmetric key to use for signing app tickets.
 	// The key must be 64 bytes long.
-	AppSigningKey []byte
+	AppSigningKey      []byte
+	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
+	HealthcheckTimeout time.Duration
+	HealthcheckRefresh time.Duration
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
@@ -134,7 +139,6 @@ type Options struct {
 
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
-	Experimental                bool
 	DeploymentValues            *codersdk.DeploymentValues
 	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
 
@@ -236,6 +240,19 @@ func New(options *Options) *API {
 	if len(options.AppSigningKey) != 64 {
 		panic("coderd: AppSigningKey must be 64 bytes long")
 	}
+	if options.HealthcheckFunc == nil {
+		options.HealthcheckFunc = func(ctx context.Context) (*healthcheck.Report, error) {
+			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
+				DERPMap: options.DERPMap.Clone(),
+			})
+		}
+	}
+	if options.HealthcheckTimeout == 0 {
+		options.HealthcheckTimeout = 30 * time.Second
+	}
+	if options.HealthcheckRefresh == 0 {
+		options.HealthcheckRefresh = 10 * time.Minute
+	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -287,12 +304,14 @@ func New(options *Options) *API {
 			options.Database,
 			options.DeploymentValues,
 			oauthConfigs,
+			options.AgentInactiveDisconnectTimeout,
 			options.AppSigningKey,
 		),
 		metricsCache:          metricsCache,
 		Auditor:               atomic.Pointer[audit.Auditor]{},
 		TemplateScheduleStore: atomic.Pointer[schedule.TemplateScheduleStore]{},
 		Experiments:           experiments,
+		healthCheckGroup:      &singleflight.Group[string, *healthcheck.Report]{},
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -301,6 +320,12 @@ func New(options *Options) *API {
 			*options.UpdateCheckOptions,
 		)
 	}
+
+	var oidcAuthURLParams map[string]string
+	if options.OIDCConfig != nil {
+		oidcAuthURLParams = options.OIDCConfig.AuthURLParams
+	}
+
 	api.Auditor.Store(&options.Auditor)
 	api.TemplateScheduleStore.Store(&options.TemplateScheduleStore)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
@@ -387,7 +412,7 @@ func New(options *Options) *API {
 		for _, gitAuthConfig := range options.GitAuthConfigs {
 			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
 				r.Use(
-					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient),
+					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
 					apiKeyMiddleware,
 				)
 				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
@@ -531,12 +556,12 @@ func New(options *Options) *API {
 				r.Post("/login", api.postLogin)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {
-						r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient))
+						r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil))
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
 				r.Route("/oidc/callback", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient))
+					r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams))
 					r.Get("/", api.userOIDC)
 				})
 			})
@@ -602,7 +627,10 @@ func New(options *Options) *API {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
-				r.Get("/metadata", api.workspaceAgentMetadata)
+				r.Get("/manifest", api.workspaceAgentManifest)
+				// This route is deprecated and will be removed in a future release.
+				// New agents will use /me/manifest instead.
+				r.Get("/metadata", api.workspaceAgentManifest)
 				r.Post("/startup", api.postWorkspaceAgentStartup)
 				r.Patch("/startup-logs", api.patchWorkspaceAgentStartupLogs)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
@@ -611,7 +639,11 @@ func New(options *Options) *API {
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Post("/report-stats", api.workspaceAgentReportStats)
 				r.Post("/report-lifecycle", api.workspaceAgentReportLifecycle)
+				r.Post("/metadata/{key}", api.workspaceAgentPostMetadata)
 			})
+			// No middleware on the PTY endpoint since it uses workspace
+			// application auth and tickets.
+			r.Get("/{workspaceagent}/pty", api.workspaceAgentPTY)
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
 					apiKeyMiddleware,
@@ -619,6 +651,7 @@ func New(options *Options) *API {
 					httpmw.ExtractWorkspaceParam(options.Database),
 				)
 				r.Get("/", api.workspaceAgent)
+				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadata)
 				r.Get("/pty", api.workspaceAgentPTY)
 				r.Get("/startup-logs", api.workspaceAgentStartupLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
@@ -704,6 +737,7 @@ func New(options *Options) *API {
 			)
 
 			r.Get("/coordinator", api.debugCoordinator)
+			r.Get("/health", api.debugDeploymentHealth)
 		})
 	})
 
@@ -759,6 +793,8 @@ type API struct {
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
+
+	healthCheckGroup *singleflight.Group[string, *healthcheck.Report]
 }
 
 // Close waits for all WebSocket connections to drain before returning.

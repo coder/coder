@@ -3,11 +3,13 @@ import userEvent from "@testing-library/user-event"
 import * as API from "api/api"
 import { rest } from "msw"
 import {
-  renderWithAuth,
   MockAuditLog,
   MockAuditLog2,
-  waitForLoaderToBeRemoved,
   MockEntitlementsWithAuditLog,
+} from "testHelpers/entities"
+import {
+  renderWithAuth,
+  waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
 

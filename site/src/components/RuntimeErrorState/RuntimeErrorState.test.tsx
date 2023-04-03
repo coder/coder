@@ -6,19 +6,21 @@ import {
   RuntimeErrorState,
 } from "./RuntimeErrorState"
 
+const renderComponent = () => {
+  // Given
+  const errorText = "broken!"
+  const errorStateProps = {
+    error: new Error(errorText),
+  }
+
+  // When
+  return render(<RuntimeErrorState {...errorStateProps} />)
+}
+
 describe("RuntimeErrorState", () => {
-  beforeEach(() => {
-    // Given
-    const errorText = "broken!"
-    const errorStateProps = {
-      error: new Error(errorText),
-    }
-
-    // When
-    render(<RuntimeErrorState {...errorStateProps} />)
-  })
-
   it("should show stack when encountering runtime error", () => {
+    renderComponent()
+
     // Then
     const reportError = screen.getByText("broken!")
     expect(reportError).toBeDefined()
@@ -29,6 +31,8 @@ describe("RuntimeErrorState", () => {
   })
 
   it("should have a button bar", () => {
+    renderComponent()
+
     // Then
     const copyCta = screen.getByText(ButtonLanguage.copyReport)
     expect(copyCta).toBeDefined()
@@ -38,6 +42,8 @@ describe("RuntimeErrorState", () => {
   })
 
   it("should have an email link", () => {
+    renderComponent()
+
     // Then
     const emailLink = screen.getByText(RuntimeErrorStateLanguage.link)
     expect(emailLink.closest("a")).toHaveAttribute(

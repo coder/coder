@@ -5,6 +5,7 @@ import { makeStyles } from "@material-ui/core/styles"
 import Tooltip from "@material-ui/core/Tooltip"
 import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline"
 import { FC } from "react"
+import { combineClasses } from "util/combineClasses"
 import * as TypesGen from "../../api/typesGenerated"
 import { generateRandomString } from "../../util/random"
 import { BaseIcon } from "./BaseIcon"
@@ -79,15 +80,19 @@ export const AppLink: FC<AppLinkProps> = ({
       "Your admin has not configured subdomain application access"
   }
 
+  const isPrivateApp = app.sharing_level === "owner"
+
   const button = (
     <Button
       size="small"
       startIcon={icon}
-      endIcon={<ShareIcon app={app} />}
+      endIcon={isPrivateApp ? undefined : <ShareIcon app={app} />}
       className={styles.button}
       disabled={!canClick}
     >
-      <span className={styles.appName}>{appDisplayName}</span>
+      <span className={combineClasses({ [styles.appName]: !isPrivateApp })}>
+        {appDisplayName}
+      </span>
     </Button>
   )
 

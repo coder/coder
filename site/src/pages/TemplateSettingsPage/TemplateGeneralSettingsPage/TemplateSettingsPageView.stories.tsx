@@ -1,7 +1,6 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
-import * as Mocks from "../../../testHelpers/renderHelpers"
-import { makeMockApiError } from "../../../testHelpers/renderHelpers"
+import { makeMockApiError, MockTemplate } from "testHelpers/entities"
 import {
   TemplateSettingsPageView,
   TemplateSettingsPageViewProps,
@@ -11,7 +10,7 @@ export default {
   title: "pages/TemplateSettingsPageView",
   component: TemplateSettingsPageView,
   args: {
-    template: Mocks.MockTemplate,
+    template: MockTemplate,
     onSubmit: action("onSubmit"),
     onCancel: action("cancel"),
   },
