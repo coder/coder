@@ -1,5 +1,5 @@
 import { Story } from "@storybook/react"
-import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/renderHelpers"
+import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities"
 import {
   VSCodeDesktopButton,
   VSCodeDesktopButtonProps,

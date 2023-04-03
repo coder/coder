@@ -35,13 +35,13 @@ jobs:
         uses: actions/checkout@v3
 
       # Install Go!
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: "~1.20"
 
       # Check for any typos!
       - name: Check for typos
-        uses: crate-ci/typos@v1.13.14
+        uses: crate-ci/typos@v1.14.3
         with:
           config: .github/workflows/typos.toml
       - name: Fix the typos
@@ -150,7 +150,7 @@ jobs:
       - name: Install node_modules
         run: ./scripts/yarn_install.sh
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: "~1.20"
 
@@ -174,7 +174,7 @@ jobs:
 
       - name: Install sqlc
         run: |
-          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.16.0/sqlc_1.16.0_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
+          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.17.2/sqlc_1.17.2_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
       - name: Install protoc-gen-go
         run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.26
       - name: Install protoc-gen-go-drpc
@@ -250,18 +250,15 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: "~1.20"
 
-      # Sadly the new "set output" syntax (of writing env vars to
-      # $GITHUB_OUTPUT) does not work on both powershell and bash so we use the
-      # deprecated syntax here.
       - name: Echo Go Cache Paths
         id: go-cache-paths
         run: |
-          echo "::set-output name=GOCACHE::$(go env GOCACHE)"
-          echo "::set-output name=GOMODCACHE::$(go env GOMODCACHE)"
+          echo "GOCACHE=$(go env GOCACHE)" >> ${{ runner.os == 'Windows' && '$env:' || '$' }}GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> ${{ runner.os == 'Windows' && '$env:' || '$' }}GITHUB_OUTPUT
 
       - name: Go Build Cache
         uses: actions/cache@v3
@@ -276,7 +273,7 @@ jobs:
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install gotestsum
-        uses: jaxxstorm/action-install-gh-release@v1.9.0
+        uses: jaxxstorm/action-install-gh-release@v1.10.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -340,7 +337,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: "~1.20"
 
@@ -363,7 +360,7 @@ jobs:
           key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
 
       - name: Install gotestsum
-        uses: jaxxstorm/action-install-gh-release@v1.9.0
+        uses: jaxxstorm/action-install-gh-release@v1.10.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -430,7 +427,7 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: "~1.20"
 
@@ -559,7 +556,7 @@ jobs:
             .eslintcache
           key: js-${{ runner.os }}-e2e-${{ hashFiles('**/yarn.lock') }}
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: "~1.20"
 

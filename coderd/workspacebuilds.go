@@ -545,6 +545,13 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if createBuild.LogLevel != "" && !api.Authorize(r, rbac.ActionUpdate, template) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Workspace builds with a custom log level are restricted to template authors only.",
+		})
+		return
+	}
+
 	var workspaceBuild database.WorkspaceBuild
 	var provisionerJob database.ProvisionerJob
 	// This must happen in a transaction to ensure history can be inserted, and
@@ -582,6 +589,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		workspaceBuildID := uuid.New()
 		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 			WorkspaceBuildID: workspaceBuildID,
+			LogLevel:         string(createBuild.LogLevel),
 		})
 		if err != nil {
 			return xerrors.Errorf("marshal provision job: %w", err)

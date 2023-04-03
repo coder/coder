@@ -170,7 +170,7 @@ backed by Tailscale and WireGuard.
       --http-address string, $CODER_HTTP_ADDRESS (default: 127.0.0.1:3000)
           HTTP bind address of the server. Unset to disable the HTTP endpoint.
 
-      --max-token-lifetime duration, $CODER_MAX_TOKEN_LIFETIME (default: 2562047h47m16.854775807s)
+      --max-token-lifetime duration, $CODER_MAX_TOKEN_LIFETIME (default: 876600h0m0s)
           The maximum lifetime duration users can specify when creating an API
           token.
 
@@ -261,6 +261,9 @@ can safely ignore these settings.
       --oidc-allow-signups bool, $CODER_OIDC_ALLOW_SIGNUPS (default: true)
           Whether new users can sign up with OIDC.
 
+      --oidc-auth-url-params struct[map[string]string], $CODER_OIDC_AUTH_URL_PARAMS (default: {"access_type": "offline"})
+          OIDC auth URL parameters to pass to the upstream provider.
+
       --oidc-client-id string, $CODER_OIDC_CLIENT_ID
           Client ID to use for Login with OIDC.
 
@@ -269,6 +272,9 @@ can safely ignore these settings.
 
       --oidc-email-domain string-array, $CODER_OIDC_EMAIL_DOMAIN
           Email domains that clients logging in with OIDC must match.
+
+      --oidc-email-field string, $CODER_OIDC_EMAIL_FIELD (default: email)
+          OIDC claim field to use as the email.
 
       --oidc-group-field string, $CODER_OIDC_GROUP_FIELD
           Change the OIDC default 'groups' claim field. By default, will be

@@ -236,7 +236,12 @@ func provisionEnv(config *proto.Provision_Config, params []*proto.ParameterValue
 	for _, gitAuth := range gitAuth {
 		env = append(env, provider.GitAuthAccessTokenEnvironmentVariable(gitAuth.Id)+"="+gitAuth.AccessToken)
 	}
-	// FIXME env = append(env, "TF_LOG=JSON")
+
+	if config.ProvisionerLogLevel != "" {
+		// TF_LOG=JSON enables all kind of logging: trace-debug-info-warn-error.
+		// The idea behind using TF_LOG=JSON instead of TF_LOG=debug is ensuring the proper log format.
+		env = append(env, "TF_LOG=JSON")
+	}
 	return env, nil
 }
 

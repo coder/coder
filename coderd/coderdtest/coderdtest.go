@@ -60,6 +60,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/healthcheck"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -104,6 +105,10 @@ type Options struct {
 	GitAuthConfigs        []*gitauth.Config
 	TrialGenerator        func(context.Context, string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
+
+	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
+	HealthcheckTimeout time.Duration
+	HealthcheckRefresh time.Duration
 
 	// All rate limits default to -1 (unlimited) in tests if not set.
 	APIRateLimit   int
@@ -335,6 +340,9 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			SwaggerEndpoint:             options.SwaggerEndpoint,
 			AppSigningKey:               AppSigningKey,
 			SSHConfig:                   options.ConfigSSH,
+			HealthcheckFunc:             options.HealthcheckFunc,
+			HealthcheckTimeout:          options.HealthcheckTimeout,
+			HealthcheckRefresh:          options.HealthcheckRefresh,
 		}
 }
 
@@ -638,9 +646,16 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 	return workspaceBuild
 }
 
-// AwaitWorkspaceAgents waits for all resources with agents to be connected.
-func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) []codersdk.WorkspaceResource {
+// AwaitWorkspaceAgents waits for all resources with agents to be connected. If
+// specific agents are provided, it will wait for those agents to be connected
+// but will not fail if other agents are not connected.
+func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID, agentNames ...string) []codersdk.WorkspaceResource {
 	t.Helper()
+
+	agentNamesMap := make(map[string]struct{}, len(agentNames))
+	for _, name := range agentNames {
+		agentNamesMap[name] = struct{}{}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -659,6 +674,12 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uui
 
 		for _, resource := range workspace.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
+				if len(agentNames) > 0 {
+					if _, ok := agentNamesMap[agent.Name]; !ok {
+						continue
+					}
+				}
+
 				if agent.Status != codersdk.WorkspaceAgentConnected {
 					t.Logf("agent %s not connected yet", agent.Name)
 					return false
@@ -967,6 +988,8 @@ func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims, opts
 		}),
 		Provider:      provider,
 		UsernameField: "preferred_username",
+		EmailField:    "email",
+		AuthURLParams: map[string]string{"access_type": "offline"},
 		GroupField:    "groups",
 	}
 	for _, opt := range opts {
@@ -1075,7 +1098,7 @@ QastnN77KfUwdj3SJt44U/uh1jAIv4oSLBr8HYUkbnI8
 func DeploymentValues(t *testing.T) *codersdk.DeploymentValues {
 	var cfg codersdk.DeploymentValues
 	opts := cfg.Options()
-	err := opts.SetDefaults()
+	err := opts.SetDefaults(nil)
 	require.NoError(t, err)
 	return &cfg
 }
