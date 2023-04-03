@@ -1030,7 +1030,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Transfer workspace owner by ID
-// @ID update-workspace-owner-by-id
+// @ID transfer-workspace-owner-by-id
 // @Security CoderSessionToken
 // @Accept json
 // @Tags Workspaces
