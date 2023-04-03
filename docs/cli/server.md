@@ -54,7 +54,7 @@ Whether Coder only allows connections to workspaces via the browser.
 | ----------- | ----------------------------------- |
 | Type        | <code>string</code>                 |
 | Environment | <code>$CODER_CACHE_DIRECTORY</code> |
-| Default     | <code>~/Library/Caches/coder</code> |
+| Default     | <code>~/.cache/coder</code>         |
 
 The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.
 

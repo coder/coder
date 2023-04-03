@@ -61,11 +61,11 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 
 ### --global-config
 
-|             |                                                    |
-| ----------- | -------------------------------------------------- |
-| Type        | <code>string</code>                                |
-| Environment | <code>$CODER_CONFIG_DIR</code>                     |
-| Default     | <code>~/Library/Application Support/coderv2</code> |
+|             |                                |
+| ----------- | ------------------------------ |
+| Type        | <code>string</code>            |
+| Environment | <code>$CODER_CONFIG_DIR</code> |
+| Default     | <code>~/.config/coderv2</code> |
 
 Path to the global `coder` config directory.
 

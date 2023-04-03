@@ -18,7 +18,7 @@ coder provisionerd start [flags]
 | ----------- | ----------------------------------- |
 | Type        | <code>string</code>                 |
 | Environment | <code>$CODER_CACHE_DIRECTORY</code> |
-| Default     | <code>~/Library/Caches/coder</code> |
+| Default     | <code>~/.cache/coder</code>         |
 
 Directory to store cached data.
 
