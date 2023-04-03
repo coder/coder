@@ -384,3 +384,22 @@ func (c *Client) WorkspaceQuota(ctx context.Context, userID string) (WorkspaceQu
 func WorkspaceNotifyChannel(id uuid.UUID) string {
 	return fmt.Sprintf("workspace:%s", id)
 }
+
+// TransferWorkspaceOwnerRequest is a request to update a workspace's owner.
+type TransferWorkspaceOwnerRequest struct {
+	OwnerID uuid.UUID `json:"owner_id" format:"uuid"`
+}
+
+// UpdateWorkspaceOwnerByID sets the owner for workspace by id.
+func (c *Client) UpdateWorkspaceOwnerByID(ctx context.Context, id uuid.UUID, req TransferWorkspaceOwnerRequest) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/transfer", id.String())
+	res, err := c.Request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return xerrors.Errorf("updating workspace owner: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
