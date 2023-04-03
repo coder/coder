@@ -9,7 +9,6 @@ import { MemoizedMarkdown } from "components/Markdown/Markdown"
 import { Stack } from "components/Stack/Stack"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { TemplateStats } from "components/TemplateStats/TemplateStats"
-import { VersionsTable } from "components/VersionsTable/VersionsTable"
 import frontMatter from "front-matter"
 import { FC } from "react"
 import { DAUChart } from "../../../components/DAUChart/DAUChart"
@@ -32,7 +31,7 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
     return <Loader />
   }
 
-  const { daus, resources, versions } = data
+  const { daus, resources } = data
   const readme = frontMatter(activeVersion.readme)
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
@@ -53,8 +52,6 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
           <MemoizedMarkdown>{readme.body}</MemoizedMarkdown>
         </div>
       </div>
-
-      <VersionsTable versions={versions} />
     </Stack>
   )
 }
