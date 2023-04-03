@@ -1,6 +1,6 @@
 {
   "format_version": "1.1",
-  "terraform_version": "1.4.0",
+  "terraform_version": "1.3.7",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -105,7 +105,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.4.0",
+    "terraform_version": "1.3.7",
     "values": {
       "root_module": {
         "resources": [
@@ -120,7 +120,7 @@
               "default": null,
               "description": null,
               "icon": null,
-              "id": "5820e575-2637-4830-b6a3-75f4c664b447",
+              "id": "857b1591-ee42-4ded-9804-783ffd1eb180",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -162,7 +162,7 @@
               "default": "ok",
               "description": "blah blah",
               "icon": null,
-              "id": "9cac2300-0618-45f6-97d9-2f0395b1a0b4",
+              "id": "1477c44d-b36a-48cd-9942-0b532f1791db",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,

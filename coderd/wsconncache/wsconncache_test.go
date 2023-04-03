@@ -41,7 +41,7 @@ func TestCache(t *testing.T) {
 	t.Run("Same", func(t *testing.T) {
 		t.Parallel()
 		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-			return setupAgent(t, agentsdk.Metadata{}, 0), nil
+			return setupAgent(t, agentsdk.Manifest{}, 0), nil
 		}, 0)
 		defer func() {
 			_ = cache.Close()
@@ -57,7 +57,7 @@ func TestCache(t *testing.T) {
 		called := atomic.NewInt32(0)
 		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 			called.Add(1)
-			return setupAgent(t, agentsdk.Metadata{}, 0), nil
+			return setupAgent(t, agentsdk.Manifest{}, 0), nil
 		}, time.Microsecond)
 		defer func() {
 			_ = cache.Close()
@@ -75,7 +75,7 @@ func TestCache(t *testing.T) {
 	t.Run("NoExpireWhenLocked", func(t *testing.T) {
 		t.Parallel()
 		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-			return setupAgent(t, agentsdk.Metadata{}, 0), nil
+			return setupAgent(t, agentsdk.Manifest{}, 0), nil
 		}, time.Microsecond)
 		defer func() {
 			_ = cache.Close()
@@ -108,7 +108,7 @@ func TestCache(t *testing.T) {
 		go server.Serve(random)
 
 		cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-			return setupAgent(t, agentsdk.Metadata{}, 0), nil
+			return setupAgent(t, agentsdk.Manifest{}, 0), nil
 		}, time.Microsecond)
 		defer func() {
 			_ = cache.Close()
@@ -154,10 +154,10 @@ func TestCache(t *testing.T) {
 	})
 }
 
-func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Duration) *codersdk.WorkspaceAgentConn {
+func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Duration) *codersdk.WorkspaceAgentConn {
 	t.Helper()
 
-	metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
+	manifest.DERPMap = tailnettest.RunDERPAndSTUN(t)
 
 	coordinator := tailnet.NewCoordinator()
 	t.Cleanup(func() {
@@ -168,7 +168,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 		Client: &client{
 			t:           t,
 			agentID:     agentID,
-			metadata:    metadata,
+			manifest:    manifest,
 			coordinator: coordinator,
 		},
 		Logger:                 slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelInfo),
@@ -179,7 +179,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 	})
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:   metadata.DERPMap,
+		DERPMap:   manifest.DERPMap,
 		Logger:    slogtest.Make(t, nil).Named("tailnet").Leveled(slog.LevelDebug),
 	})
 	require.NoError(t, err)
@@ -211,12 +211,12 @@ func setupAgent(t *testing.T, metadata agentsdk.Metadata, ptyTimeout time.Durati
 type client struct {
 	t           *testing.T
 	agentID     uuid.UUID
-	metadata    agentsdk.Metadata
+	manifest    agentsdk.Manifest
 	coordinator tailnet.Coordinator
 }
 
-func (c *client) Metadata(_ context.Context) (agentsdk.Metadata, error) {
-	return c.metadata, nil
+func (c *client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
+	return c.manifest, nil
 }
 
 func (c *client) Listen(_ context.Context) (net.Conn, error) {
@@ -243,6 +243,10 @@ func (*client) PostLifecycle(_ context.Context, _ agentsdk.PostLifecycleRequest)
 }
 
 func (*client) PostAppHealth(_ context.Context, _ agentsdk.PostAppHealthsRequest) error {
+	return nil
+}
+
+func (*client) PostMetadata(_ context.Context, _ string, _ agentsdk.PostMetadataRequest) error {
 	return nil
 }
 

@@ -5303,6 +5303,48 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 	return i, err
 }
 
+const getWorkspaceAgentMetadata = `-- name: GetWorkspaceAgentMetadata :many
+SELECT
+	workspace_agent_id, display_name, key, script, value, error, timeout, interval, collected_at
+FROM
+	workspace_agent_metadata
+WHERE
+	workspace_agent_id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentMetadatum, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentMetadata, workspaceAgentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentMetadatum
+	for rows.Next() {
+		var i WorkspaceAgentMetadatum
+		if err := rows.Scan(
+			&i.WorkspaceAgentID,
+			&i.DisplayName,
+			&i.Key,
+			&i.Script,
+			&i.Value,
+			&i.Error,
+			&i.Timeout,
+			&i.Interval,
+			&i.CollectedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAgentStartupLogsAfter = `-- name: GetWorkspaceAgentStartupLogsAfter :many
 SELECT
 	agent_id, created_at, output, id
@@ -5657,6 +5699,41 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 	return i, err
 }
 
+const insertWorkspaceAgentMetadata = `-- name: InsertWorkspaceAgentMetadata :exec
+INSERT INTO
+	workspace_agent_metadata (
+		workspace_agent_id,
+		display_name,
+		key,
+		script,
+		timeout,
+		interval
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6)
+`
+
+type InsertWorkspaceAgentMetadataParams struct {
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	DisplayName      string    `db:"display_name" json:"display_name"`
+	Key              string    `db:"key" json:"key"`
+	Script           string    `db:"script" json:"script"`
+	Timeout          int64     `db:"timeout" json:"timeout"`
+	Interval         int64     `db:"interval" json:"interval"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentMetadata(ctx context.Context, arg InsertWorkspaceAgentMetadataParams) error {
+	_, err := q.db.ExecContext(ctx, insertWorkspaceAgentMetadata,
+		arg.WorkspaceAgentID,
+		arg.DisplayName,
+		arg.Key,
+		arg.Script,
+		arg.Timeout,
+		arg.Interval,
+	)
+	return err
+}
+
 const insertWorkspaceAgentStartupLogs = `-- name: InsertWorkspaceAgentStartupLogs :many
 WITH new_length AS (
 	UPDATE workspace_agents SET
@@ -5761,6 +5838,37 @@ type UpdateWorkspaceAgentLifecycleStateByIDParams struct {
 
 func (q *sqlQuerier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentLifecycleStateByID, arg.ID, arg.LifecycleState)
+	return err
+}
+
+const updateWorkspaceAgentMetadata = `-- name: UpdateWorkspaceAgentMetadata :exec
+UPDATE
+	workspace_agent_metadata
+SET
+	value = $3,
+	error = $4,
+	collected_at = $5
+WHERE
+	workspace_agent_id = $1
+	AND key = $2
+`
+
+type UpdateWorkspaceAgentMetadataParams struct {
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	Key              string    `db:"key" json:"key"`
+	Value            string    `db:"value" json:"value"`
+	Error            string    `db:"error" json:"error"`
+	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg UpdateWorkspaceAgentMetadataParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentMetadata,
+		arg.WorkspaceAgentID,
+		arg.Key,
+		arg.Value,
+		arg.Error,
+		arg.CollectedAt,
+	)
 	return err
 }
 
