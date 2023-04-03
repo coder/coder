@@ -34,6 +34,9 @@ type Template struct {
 	CreatedByID   uuid.UUID `json:"created_by_id" format:"uuid"`
 	CreatedByName string    `json:"created_by_name"`
 
+	// AllowUserAutoStart and AllowUserAutoStop are enterprise-only. Their
+	// values are only used if your license is entitled to use the advanced
+	// template scheduling feature.
 	AllowUserAutoStart           bool `json:"allow_user_auto_start"`
 	AllowUserAutoStop            bool `json:"allow_user_auto_stop"`
 	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
