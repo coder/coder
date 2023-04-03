@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -61,6 +62,10 @@ func TestOutputMatchesGoldenFile(t *testing.T) {
 			}
 
 			want := readGoldenFile(t, goldenFile)
+			if runtime.GOOS == "windows" {
+				want = bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n"))
+				got = bytes.ReplaceAll(got, []byte("\r\n"), []byte("\n"))
+			}
 			require.Equal(t, string(want), string(got))
 		})
 	}
