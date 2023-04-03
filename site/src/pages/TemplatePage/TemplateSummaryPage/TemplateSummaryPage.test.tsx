@@ -3,12 +3,12 @@ import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
 import { rest } from "msw"
 import { ResizeObserver } from "resize-observer"
 import {
-  MockMemberPermissions,
   MockTemplate,
-  MockTemplateVersion,
   MockWorkspaceResource,
-  renderWithAuth,
-} from "testHelpers/renderHelpers"
+  MockTemplateVersion,
+  MockMemberPermissions,
+} from "testHelpers/entities"
+import { renderWithAuth } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
 import * as CreateDayString from "util/createDayString"
 import { TemplateSummaryPage } from "./TemplateSummaryPage"

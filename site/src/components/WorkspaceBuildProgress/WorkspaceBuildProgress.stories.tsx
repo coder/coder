@@ -1,10 +1,10 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import dayjs from "dayjs"
 import {
-  MockProvisionerJob,
   MockStartingWorkspace,
   MockWorkspaceBuild,
-} from "../../testHelpers/renderHelpers"
+  MockProvisionerJob,
+} from "testHelpers/entities"
 import {
   WorkspaceBuildProgress,
   WorkspaceBuildProgressProps,

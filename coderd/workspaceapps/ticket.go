@@ -18,11 +18,7 @@ const ticketSigningAlgorithm = jose.HS512
 // The JSON field names are short to reduce the size of the ticket.
 type Ticket struct {
 	// Request details.
-	AccessMethod      AccessMethod `json:"access_method"`
-	UsernameOrID      string       `json:"username_or_id"`
-	WorkspaceNameOrID string       `json:"workspace_name_or_id"`
-	AgentNameOrID     string       `json:"agent_name_or_id"`
-	AppSlugOrPort     string       `json:"app_slug_or_port"`
+	Request `json:"request"`
 
 	// Trusted resolved details.
 	Expiry      int64     `json:"expiry"` // set by GenerateTicket if unset
@@ -34,6 +30,7 @@ type Ticket struct {
 
 func (t Ticket) MatchesRequest(req Request) bool {
 	return t.AccessMethod == req.AccessMethod &&
+		t.BasePath == req.BasePath &&
 		t.UsernameOrID == req.UsernameOrID &&
 		t.WorkspaceNameOrID == req.WorkspaceNameOrID &&
 		t.AgentNameOrID == req.AgentNameOrID &&

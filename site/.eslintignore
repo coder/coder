@@ -9,7 +9,8 @@
 **/*.swp
 gotests.coverage
 gotests.xml
-gotestsum.json
+gotests_stats.json
+gotests.json
 node_modules/
 vendor/
 yarn-error.log
@@ -32,9 +33,8 @@ e2e/states/*.json
 playwright-report/*
 .swc
 
-# Make target for updating golden files.
-../cli/testdata/.gen-golden
-../helm/tests/testdata/.gen-golden
+# Make target for updating golden files (any dir).
+.gen-golden
 
 # Build
 ../build/

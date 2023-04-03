@@ -3,6 +3,7 @@ package workspaceapps_test
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/workspaceapps"
@@ -39,6 +40,14 @@ func Test_RequestValidate(t *testing.T) {
 		},
 		{
 			name: "OK3",
+			req: workspaceapps.Request{
+				AccessMethod:  workspaceapps.AccessMethodTerminal,
+				BasePath:      "/",
+				AgentNameOrID: uuid.New().String(),
+			},
+		},
+		{
+			name: "OK4",
 			req: workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/",
@@ -188,6 +197,64 @@ func Test_RequestValidate(t *testing.T) {
 			},
 			errContains: "app slug or port is required",
 		},
+		{
+			name: "Terminal/OtherFields/UsernameOrID",
+			req: workspaceapps.Request{
+				AccessMethod:  workspaceapps.AccessMethodTerminal,
+				BasePath:      "/",
+				UsernameOrID:  "foo",
+				AgentNameOrID: uuid.New().String(),
+			},
+			errContains: "cannot specify any fields other than",
+		},
+		{
+			name: "Terminal/OtherFields/WorkspaceAndAgent",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodTerminal,
+				BasePath:          "/",
+				WorkspaceAndAgent: "bar.baz",
+				AgentNameOrID:     uuid.New().String(),
+			},
+			errContains: "cannot specify any fields other than",
+		},
+		{
+			name: "Terminal/OtherFields/WorkspaceNameOrID",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodTerminal,
+				BasePath:          "/",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     uuid.New().String(),
+			},
+			errContains: "cannot specify any fields other than",
+		},
+		{
+			name: "Terminal/OtherFields/AppSlugOrPort",
+			req: workspaceapps.Request{
+				AccessMethod:  workspaceapps.AccessMethodTerminal,
+				BasePath:      "/",
+				AgentNameOrID: uuid.New().String(),
+				AppSlugOrPort: "baz",
+			},
+			errContains: "cannot specify any fields other than",
+		},
+		{
+			name: "Terminal/AgentNameOrID/Empty",
+			req: workspaceapps.Request{
+				AccessMethod:  workspaceapps.AccessMethodTerminal,
+				BasePath:      "/",
+				AgentNameOrID: "",
+			},
+			errContains: "agent name or ID is required",
+		},
+		{
+			name: "Terminal/AgentNameOrID/NotUUID",
+			req: workspaceapps.Request{
+				AccessMethod:  workspaceapps.AccessMethodTerminal,
+				BasePath:      "/",
+				AgentNameOrID: "baz",
+			},
+			errContains: `invalid agent name or ID "baz", must be a UUID`,
+		},
 	}
 
 	for _, c := range cases {
@@ -204,3 +271,6 @@ func Test_RequestValidate(t *testing.T) {
 		})
 	}
 }
+
+// getDatabase is tested heavily in auth_test.go, so we don't have specific
+// tests for it here.

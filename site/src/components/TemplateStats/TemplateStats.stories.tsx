@@ -1,5 +1,5 @@
 import { Story } from "@storybook/react"
-import * as Mocks from "../../testHelpers/renderHelpers"
+import { MockTemplate, MockTemplateVersion } from "testHelpers/entities"
 import {
   TemplateStats,
   TemplateStatsProps,
@@ -16,33 +16,33 @@ const Template: Story<TemplateStatsProps> = (args) => (
 
 export const Example = Template.bind({})
 Example.args = {
-  template: Mocks.MockTemplate,
-  activeVersion: Mocks.MockTemplateVersion,
+  template: MockTemplate,
+  activeVersion: MockTemplateVersion,
 }
 
 export const UsedByMany = Template.bind({})
 UsedByMany.args = {
   template: {
-    ...Mocks.MockTemplate,
+    ...MockTemplate,
     active_user_count: 15,
   },
-  activeVersion: Mocks.MockTemplateVersion,
+  activeVersion: MockTemplateVersion,
 }
 
 export const ActiveUsersNotLoaded = Template.bind({})
 ActiveUsersNotLoaded.args = {
   template: {
-    ...Mocks.MockTemplate,
+    ...MockTemplate,
     active_user_count: -1,
   },
-  activeVersion: Mocks.MockTemplateVersion,
+  activeVersion: MockTemplateVersion,
 }
 
 export const LongTemplateVersion = Template.bind({})
 LongTemplateVersion.args = {
-  template: Mocks.MockTemplate,
+  template: MockTemplate,
   activeVersion: {
-    ...Mocks.MockTemplateVersion,
+    ...MockTemplateVersion,
     name: "thisisareallyreallylongnamefortesting",
   },
 }
@@ -52,8 +52,8 @@ LongTemplateVersion.parameters = {
 
 export const SmallViewport = Template.bind({})
 SmallViewport.args = {
-  template: Mocks.MockTemplate,
-  activeVersion: Mocks.MockTemplateVersion,
+  template: MockTemplate,
+  activeVersion: MockTemplateVersion,
 }
 SmallViewport.parameters = {
   chromatic: { viewports: [600] },

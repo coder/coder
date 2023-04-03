@@ -135,6 +135,17 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
                 Source Code
               </NavLink>
             )}
+            <NavLink
+              to={`/templates/${templateName}/versions`}
+              className={({ isActive }) =>
+                combineClasses([
+                  styles.tabItem,
+                  isActive ? styles.tabItemActive : undefined,
+                ])
+              }
+            >
+              Versions
+            </NavLink>
           </Stack>
         </Margins>
       </div>

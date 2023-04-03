@@ -124,6 +124,7 @@ type data struct {
 	templateVersionVariables  []database.TemplateVersionVariable
 	templates                 []database.Template
 	workspaceAgents           []database.WorkspaceAgent
+	workspaceAgentMetadata    []database.WorkspaceAgentMetadatum
 	workspaceAgentLogs        []database.WorkspaceAgentStartupLog
 	workspaceApps             []database.WorkspaceApp
 	workspaceBuilds           []database.WorkspaceBuild
@@ -312,6 +313,38 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 func (*fakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	// no-op
 	return nil
+}
+
+func (q *fakeQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// Get latest build for workspace.
+	workspaceBuild, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspaceID)
+	if err != nil {
+		return nil, xerrors.Errorf("get latest workspace build: %w", err)
+	}
+
+	// Get resources for build.
+	resources, err := q.GetWorkspaceResourcesByJobID(ctx, workspaceBuild.JobID)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace resources: %w", err)
+	}
+	if len(resources) == 0 {
+		return []database.WorkspaceAgent{}, nil
+	}
+
+	resourceIDs := make([]uuid.UUID, len(resources))
+	for i, resource := range resources {
+		resourceIDs[i] = resource.ID
+	}
+
+	agents, err := q.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace agents: %w", err)
+	}
+
+	return agents, nil
 }
 
 func (q *fakeQuerier) GetDeploymentWorkspaceAgentStats(_ context.Context, createdAfter time.Time) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
@@ -2709,6 +2742,60 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 	return key, nil
 }
 
+func (q *fakeQuerier) UpdateWorkspaceAgentMetadata(_ context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	//nolint:gosimple
+	updated := database.WorkspaceAgentMetadatum{
+		WorkspaceAgentID: arg.WorkspaceAgentID,
+		Key:              arg.Key,
+		Value:            arg.Value,
+		Error:            arg.Error,
+		CollectedAt:      arg.CollectedAt,
+	}
+
+	for i, m := range q.workspaceAgentMetadata {
+		if m.WorkspaceAgentID == arg.WorkspaceAgentID && m.Key == arg.Key {
+			q.workspaceAgentMetadata[i] = updated
+			return nil
+		}
+	}
+
+	return nil
+}
+
+func (q *fakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	//nolint:gosimple
+	metadatum := database.WorkspaceAgentMetadatum{
+		WorkspaceAgentID: arg.WorkspaceAgentID,
+		Script:           arg.Script,
+		DisplayName:      arg.DisplayName,
+		Key:              arg.Key,
+		Timeout:          arg.Timeout,
+		Interval:         arg.Interval,
+	}
+
+	q.workspaceAgentMetadata = append(q.workspaceAgentMetadata, metadatum)
+	return nil
+}
+
+func (q *fakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	metadata := make([]database.WorkspaceAgentMetadatum, 0)
+	for _, m := range q.workspaceAgentMetadata {
+		if m.WorkspaceAgentID == workspaceAgentID {
+			metadata = append(metadata, m)
+		}
+	}
+	return metadata, nil
+}
+
 func (q *fakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParams) (database.File, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.File{}, err
@@ -2857,6 +2944,7 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 	param := database.TemplateVersionParameter{
 		TemplateVersionID:   arg.TemplateVersionID,
 		Name:                arg.Name,
+		DisplayName:         arg.DisplayName,
 		Description:         arg.Description,
 		Type:                arg.Type,
 		Mutable:             arg.Mutable,

@@ -8,7 +8,6 @@ import { Loader } from "components/Loader/Loader"
 import { Stack } from "components/Stack/Stack"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { TemplateStats } from "components/TemplateStats/TemplateStats"
-import { VersionsTable } from "components/VersionsTable/VersionsTable"
 import { FC, useEffect } from "react"
 import { DAUChart } from "../../../components/DAUChart/DAUChart"
 import { TemplateSummaryData } from "./data"
@@ -40,7 +39,7 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
     return <Loader />
   }
 
-  const { daus, resources, versions } = data
+  const { daus, resources } = data
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
     return resources.filter(
@@ -51,12 +50,8 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
   return (
     <Stack spacing={4}>
       <TemplateStats template={template} activeVersion={activeVersion} />
-
       {daus && <DAUChart daus={daus} />}
-
       <TemplateResourcesTable resources={getStartedResources(resources)} />
-
-      <VersionsTable versions={versions} />
     </Stack>
   )
 }
