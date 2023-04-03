@@ -8050,6 +8050,27 @@ func (q *sqlQuerier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg UpdateWo
 	return err
 }
 
+const updateWorkspaceOwnerByID = `-- name: UpdateWorkspaceOwnerByID :exec
+UPDATE
+	workspaces
+SET
+	owner_id = $2,
+	updated_at = $3
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceOwnerByIDParams struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceOwnerByID(ctx context.Context, arg UpdateWorkspaceOwnerByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceOwnerByID, arg.ID, arg.OwnerID, arg.UpdatedAt)
+	return err
+}
+
 const updateWorkspaceTTL = `-- name: UpdateWorkspaceTTL :exec
 UPDATE
 	workspaces

@@ -331,6 +331,15 @@ WHERE
 	-- workspace TTL is NULL.
 	AND ttl IS NOT NULL;
 
+-- name: UpdateWorkspaceOwnerByID :exec
+UPDATE
+	workspaces
+SET
+	owner_id = $2,
+	updated_at = $3
+WHERE
+	id = $1;
+
 -- name: GetDeploymentWorkspaceStats :one
 WITH workspaces_with_jobs AS (
 	SELECT
