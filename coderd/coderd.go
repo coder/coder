@@ -121,8 +121,8 @@ type Options struct {
 	SwaggerEndpoint       bool
 	SetUserGroups         func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
-	// AppSigningKey denotes the symmetric key to use for signing app tickets.
-	// The key must be 64 bytes long.
+	// AppSigningKey denotes the symmetric key to use for signing temporary app
+	// tokens. The key must be 64 bytes long.
 	AppSigningKey []byte
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
@@ -280,7 +280,7 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		WorkspaceAppsProvider: workspaceapps.NewDBTicketProvider(
+		WorkspaceAppsProvider: workspaceapps.NewDBTokenProvider(
 			options.Logger.Named("workspaceapps"),
 			options.AccessURL,
 			options.Authorizer,
@@ -620,7 +620,7 @@ func New(options *Options) *API {
 				r.Post("/report-lifecycle", api.workspaceAgentReportLifecycle)
 			})
 			// No middleware on the PTY endpoint since it uses workspace
-			// application auth and tickets.
+			// application auth and signed app tokens.
 			r.Get("/{workspaceagent}/pty", api.workspaceAgentPTY)
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -763,7 +763,7 @@ type API struct {
 	metricsCache          *metricscache.Cache
 	workspaceAgentCache   *wsconncache.Cache
 	updateChecker         *updatecheck.Checker
-	WorkspaceAppsProvider workspaceapps.TicketProvider
+	WorkspaceAppsProvider workspaceapps.SignedTokenProvider
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.

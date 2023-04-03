@@ -20,9 +20,9 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// DBTicketProvider provides authentication and authorization for workspace apps
-// by querying the database if the request is missing a valid ticket.
-type DBTicketProvider struct {
+// DBTokenProvider provides authentication and authorization for workspace apps
+// by querying the database if the request is missing a valid token.
+type DBTokenProvider struct {
 	Logger slog.Logger
 
 	AccessURL                     *url.URL
@@ -31,21 +31,21 @@ type DBTicketProvider struct {
 	DeploymentValues              *codersdk.DeploymentValues
 	OAuth2Configs                 *httpmw.OAuth2Configs
 	WorkspaceAgentInactiveTimeout time.Duration
-	TicketSigningKey              []byte
+	TokenSigningKey               []byte
 }
 
-var _ TicketProvider = &DBTicketProvider{}
+var _ SignedTokenProvider = &DBTokenProvider{}
 
-func NewDBTicketProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, workspaceAgentInactiveTimeout time.Duration, ticketSigningKey []byte) TicketProvider {
-	if len(ticketSigningKey) != 64 {
-		panic("ticket signing key must be 64 bytes")
+func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, workspaceAgentInactiveTimeout time.Duration, tokenSigningKey []byte) SignedTokenProvider {
+	if len(tokenSigningKey) != 64 {
+		panic("token signing key must be 64 bytes")
 	}
 
 	if workspaceAgentInactiveTimeout == 0 {
 		workspaceAgentInactiveTimeout = 1 * time.Minute
 	}
 
-	return &DBTicketProvider{
+	return &DBTokenProvider{
 		Logger:                        log,
 		AccessURL:                     accessURL,
 		Authorizer:                    authz,
@@ -53,22 +53,23 @@ func NewDBTicketProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authori
 		DeploymentValues:              cfg,
 		OAuth2Configs:                 oauth2Cfgs,
 		WorkspaceAgentInactiveTimeout: workspaceAgentInactiveTimeout,
-		TicketSigningKey:              ticketSigningKey,
+		TokenSigningKey:               tokenSigningKey,
 	}
 }
 
-func (p *DBTicketProvider) TicketFromRequest(r *http.Request) (*Ticket, bool) {
-	// Get the existing ticket from the request.
-	ticketCookie, err := r.Cookie(codersdk.DevURLSessionTicketCookie)
+func (p *DBTokenProvider) TokenFromRequest(r *http.Request) (*SignedToken, bool) {
+	// Get the existing token from the request.
+	tokenCookie, err := r.Cookie(codersdk.DevURLSignedAppTokenCookie)
 	if err == nil {
-		ticket, err := ParseTicket(p.TicketSigningKey, ticketCookie.Value)
+		token, err := ParseToken(p.TokenSigningKey, tokenCookie.Value)
 		if err == nil {
-			req := ticket.Request.Normalize()
+			req := token.Request.Normalize()
 			err := req.Validate()
 			if err == nil {
-				// The request has a ticket, which is a valid ticket signed by
-				// us. The caller must check that it matches the request.
-				return &ticket, true
+				// The request has a valid signed app token, which is a valid
+				// token signed by us. The caller must check that it matches
+				// the request.
+				return &token, true
 			}
 		}
 	}
@@ -77,13 +78,8 @@ func (p *DBTicketProvider) TicketFromRequest(r *http.Request) (*Ticket, bool) {
 }
 
 // ResolveRequest takes an app request, checks if it's valid and authenticated,
-// and returns a ticket with details about the app.
-//
-// The ticket is written as a signed JWT into a cookie and will be automatically
-// used in the next request to the same app to avoid database calls.
-//
-// Upstream code should avoid any database calls ever.
-func (p *DBTicketProvider) CreateTicket(ctx context.Context, rw http.ResponseWriter, r *http.Request, appReq Request) (*Ticket, string, bool) {
+// and returns a token with details about the app.
+func (p *DBTokenProvider) CreateToken(ctx context.Context, rw http.ResponseWriter, r *http.Request, appReq Request) (*SignedToken, string, bool) {
 	// nolint:gocritic // We need to make a number of database calls. Setting a system context here
 	//                 // is simpler than calling dbauthz.AsSystemRestricted on every call.
 	//                 // dangerousSystemCtx is only used for database calls. The actual authentication
@@ -98,7 +94,7 @@ func (p *DBTicketProvider) CreateTicket(ctx context.Context, rw http.ResponseWri
 		return nil, "", false
 	}
 
-	ticket := Ticket{
+	token := SignedToken{
 		Request: appReq,
 	}
 
@@ -128,10 +124,10 @@ func (p *DBTicketProvider) CreateTicket(ctx context.Context, rw http.ResponseWri
 		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, err, "get app details from database")
 		return nil, "", false
 	}
-	ticket.UserID = dbReq.User.ID
-	ticket.WorkspaceID = dbReq.Workspace.ID
-	ticket.AgentID = dbReq.Agent.ID
-	ticket.AppURL = dbReq.AppURL
+	token.UserID = dbReq.User.ID
+	token.WorkspaceID = dbReq.Workspace.ID
+	token.AgentID = dbReq.Agent.ID
+	token.AppURL = dbReq.AppURL
 
 	// TODO(@deansheather): return an error if the agent is offline or the app
 	// is not running.
@@ -189,25 +185,25 @@ func (p *DBTicketProvider) CreateTicket(ctx context.Context, rw http.ResponseWri
 		return nil, "", false
 	}
 
-	// As a sanity check, ensure the ticket we just made is valid for this
+	// As a sanity check, ensure the token we just made is valid for this
 	// request.
-	if !ticket.MatchesRequest(appReq) {
-		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, nil, "fresh ticket does not match request")
+	if !token.MatchesRequest(appReq) {
+		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, nil, "fresh token does not match request")
 		return nil, "", false
 	}
 
-	// Sign the ticket.
-	ticket.Expiry = time.Now().Add(TicketExpiry)
-	ticketStr, err := GenerateTicket(p.TicketSigningKey, ticket)
+	// Sign the token.
+	token.Expiry = time.Now().Add(DefaultTokenExpiry)
+	tokenStr, err := GenerateToken(p.TokenSigningKey, token)
 	if err != nil {
-		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, err, "generate ticket")
+		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, err, "generate token")
 		return nil, "", false
 	}
 
-	return &ticket, ticketStr, true
+	return &token, tokenStr, true
 }
 
-func (p *DBTicketProvider) authorizeRequest(ctx context.Context, roles *httpmw.Authorization, dbReq *databaseRequest) (bool, error) {
+func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *httpmw.Authorization, dbReq *databaseRequest) (bool, error) {
 	accessMethod := dbReq.AccessMethod
 	if accessMethod == "" {
 		accessMethod = AccessMethodPath

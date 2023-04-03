@@ -550,7 +550,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
 
-	ticket, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, workspaceapps.Request{
+	appToken, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, workspaceapps.Request{
 		AccessMethod:  workspaceapps.AccessMethodTerminal,
 		BasePath:      r.URL.Path,
 		AgentNameOrID: chi.URLParam(r, "workspaceagent"),
@@ -594,7 +594,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	go httpapi.Heartbeat(ctx, conn)
 
-	agentConn, release, err := api.workspaceAgentCache.Acquire(ticket.AgentID)
+	agentConn, release, err := api.workspaceAgentCache.Acquire(appToken.AgentID)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return

@@ -98,10 +98,10 @@ func (r Request) Validate() error {
 	if r.UsernameOrID == codersdk.Me {
 		// We block "me" for workspace app auth to avoid any security issues
 		// caused by having an identical workspace name on yourself and a
-		// different user and potentially reusing a ticket.
+		// different user and potentially reusing a token.
 		//
 		// This is also mitigated by storing the workspace/agent ID in the
-		// ticket, but we block it here to be double safe.
+		// token, but we block it here to be double safe.
 		//
 		// Subdomain apps have never been used with "me" from our code, and path
 		// apps now have a redirect to remove the "me" from the URL.

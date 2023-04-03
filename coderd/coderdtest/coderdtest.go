@@ -79,7 +79,7 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-// AppSigningKey is a 64-byte key used to sign JWTs for workspace app tickets in
+// AppSigningKey is a 64-byte key used to sign JWTs for workspace app tokens in
 // tests.
 var AppSigningKey = must(hex.DecodeString("64656164626565666465616462656566646561646265656664656164626565666465616462656566646561646265656664656164626565666465616462656566"))
 
