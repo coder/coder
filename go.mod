@@ -127,6 +127,7 @@ require (
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
 	github.com/pkg/sftp v1.13.6-0.20221018182125-7da137aa03f0
 	github.com/prometheus/client_golang v1.14.0
+	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/common v0.40.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.21
 	github.com/robfig/cron/v3 v3.0.1
@@ -299,7 +300,6 @@ require (
 	github.com/pion/transport v0.14.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/procfs v0.9.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
