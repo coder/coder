@@ -1412,6 +1412,37 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 	})
 }
 
+func TestWorkspaceUpdateOwner(t *testing.T) {
+	t.Parallel()
+
+	var (
+		auditor   = audit.NewMock()
+		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
+		user1     = coderdtest.CreateFirstUser(t, client)
+		_, user2  = coderdtest.CreateAnotherUser(t, client, user1.OrganizationID)
+		version   = coderdtest.CreateTemplateVersion(t, client, user1.OrganizationID, nil)
+		_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		project   = coderdtest.CreateTemplate(t, client, user1.OrganizationID, version.ID)
+		workspace = coderdtest.CreateWorkspace(t, client, user1.OrganizationID, project.ID)
+		_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		req = codersdk.TransferWorkspaceOwnerRequest{
+			OwnerID: user2.ID,
+		}
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	if err := client.UpdateWorkspaceOwnerByID(ctx, workspace.ID, req); err != nil {
+		t.Fatal(err)
+	}
+
+	updatedWorkspace, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err, "fetch updated workspace")
+	require.Equal(t, user2.ID, updatedWorkspace.OwnerID, "expected owner id to equal requested")
+}
+
 func TestWorkspaceExtend(t *testing.T) {
 	t.Parallel()
 	var (
