@@ -1,0 +1,13 @@
+Usage: coder transfer [flags] --workspace <workspaceId> --owner <userId>
+
+Will transfer ownership of a workspace to a different user.
+
+[1mOptions[0m
+  -o, --owner string
+          Specifies the new user to own this workspace.
+
+  -w, --workspace string
+          Specifies the workspace to move.
+
+---
+Run `coder --help` for a list of global options.

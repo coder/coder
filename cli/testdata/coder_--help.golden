@@ -38,6 +38,8 @@ Coder v0.0.0-devel — A tool for provisioning self-hosted development environme
     stop              Stop a workspace
     templates         Manage templates
     tokens            Manage personal access tokens
+    transfer          Will transfer ownership of a workspace to a different
+                      user.
     update            Will update and start a given workspace if it is out of
                       date
     users             Manage users
