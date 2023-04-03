@@ -1,24 +1,24 @@
 # Google Cloud Platform
 
-In this quickstart, you will learn how to deploy the Coder control plane instance and your first template.
+In this guide, you will learn how to deploy the Coder control plane instance and your first template.
 
 ## Requirements
 
-This quickstart assumes you have `roles/compute.instanceAdmin.v1` access to your Google Cloud Platform project.
+This guide assumes you have `roles/compute.instanceAdmin.v1` access to your Google Cloud Platform project.
 
 ## Setting Up your VM
 
 If this is the first time you’re creating a VM on this project, you will need to enable the `Compute Engine API`. On the Compute Engine API page, click `enable` and wait for the service to finish connecting.
 
-<img src="../images/quickstart/google-cloud-platform/gcp0.png">
+<img src="../images/platforms/google-cloud-platform/gcp0.png">
 
 This will pull up the `Create an Instance` page - name the instance something relevant to this project, following your naming convention of choice. In addition, select a region and zone that is close to your physical location. For this instance, we will use the base suggested image.
 
-<img src="../images/quickstart/google-cloud-platform/gcp1.png">
+<img src="../images/platforms/google-cloud-platform/gcp1.png">
 
 Under `Identity and API Access`, click `Allow full access to all Cloud APIs`. Scroll down to `Firewall` and click `Allow HTTPS traffic` and `Allow HTTP traffic`.
 
-<img src="../images/quickstart/google-cloud-platform/gcp2.png">
+<img src="../images/platforms/google-cloud-platform/gcp2.png">
 
 Scroll down to the bottom and click `Create` to create and deploy the VM.
 
@@ -28,7 +28,7 @@ Congrats you’ve created your VM instance!
 
 On the Compute Engine Dashboard, click on the VM for this project. Under `Details`, click `SSH` and select `Open in browser window`.
 
-<img src="../images/quickstart/google-cloud-platform/gcp3.png">
+<img src="../images/platforms/google-cloud-platform/gcp3.png">
 
 This will give you a terminal into the VM that we will use to install Coder.
 
@@ -50,7 +50,7 @@ First, edit the `coder.env` file to enable `CODER_TUNNEL` by setting the value t
 sudo vim /etc/coder.d/coder.env
 ```
 
-<img src="../images/quickstart/google-cloud-platform/gcp4.png">
+<img src="../images/platforms/google-cloud-platform/gcp4.png">
 
 Exit vim and run the following command to start Coder as a system service:
 
@@ -64,7 +64,7 @@ The following command shows the Coder service's logs, including the Access URL. 
 journalctl -u coder.service -b
 ```
 
-<img src="../images/quickstart/google-cloud-platform/gcp5.png">
+<img src="../images/platforms/google-cloud-platform/gcp5.png">
 
 In this instance, Coder can be accessed at the URL `https://fcca2f3bfc9d2e3bf1b9feb50e723448.pit-1.try.coder.app`.
 
@@ -80,7 +80,7 @@ Fill out the prompts and be sure to save use email and password. This is your ad
 
 First, run `coder template init` to create your first template. You’ll be given a list of prefabricated templates. This tutorial shows you how to create a Linux based template on GCP.
 
-<img src="../images/quickstart/google-cloud-platform/gcp6.png">
+<img src="../images/platforms/google-cloud-platform/gcp6.png">
 
 Select the `Develop in Linux on Google Cloud`, then `cd ./gcp-linux`.
 
@@ -94,7 +94,7 @@ It will ask for your `project-id`, which you can find on the home page of your G
 
 Given it’s your first time setting up Coder, it may give an error that will look like the following:
 
-<img src="../images/quickstart/google-cloud-platform/gcp7.png">
+<img src="../images/platforms/google-cloud-platform/gcp7.png">
 
 In the error message will be a link. In this case, the URL is `https://console.developes.google.com/apis/api/iam.googles.com/overview:?project=1073148106645`. Copy the respective URL from your error message, and visit it via your browser. It may ask you to enable `Identity and Access Management (IAM) API`.
 
@@ -102,7 +102,7 @@ Click `enable` and wait as the API initializes for your account.
 
 Once initialized, click create credentials in the upper right-hand corner. Select the `Compute Engine API` from the dropdown, and select `Application Data` under `What data will you be accessing?`. In addition, select `Yes, I’m using one or more` under `Are you planning on using this API with Compute Engine, Kubernetes Engine, App Engine, or Cloud Functions?`.
 
-<img src="../images/quickstart/google-cloud-platform/gcp8.png">
+<img src="../images/platforms/google-cloud-platform/gcp8.png">
 
 Back in your GCP terminal, run the `coder templates create` one more time.
 
