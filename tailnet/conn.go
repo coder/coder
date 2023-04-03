@@ -59,6 +59,7 @@ type Options struct {
 	// If so, only DERPs can establish connections.
 	BlockEndpoints bool
 	Logger         slog.Logger
+	ListenPort     uint16
 }
 
 // NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
@@ -137,6 +138,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(options.Logger.Named("wgengine")), wgengine.Config{
 		LinkMonitor: wireguardMonitor,
 		Dialer:      dialer,
+		ListenPort:  options.ListenPort,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)

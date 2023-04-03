@@ -5,15 +5,13 @@ import {
   WorkspaceResource,
 } from "api/typesGenerated"
 import { Loader } from "components/Loader/Loader"
-import { MemoizedMarkdown } from "components/Markdown/Markdown"
 import { Stack } from "components/Stack/Stack"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { TemplateStats } from "components/TemplateStats/TemplateStats"
-import { VersionsTable } from "components/VersionsTable/VersionsTable"
-import frontMatter from "front-matter"
-import { FC } from "react"
+import { FC, useEffect } from "react"
 import { DAUChart } from "../../../components/DAUChart/DAUChart"
 import { TemplateSummaryData } from "./data"
+import { useLocation, useNavigate } from "react-router-dom"
 
 export interface TemplateSummaryPageViewProps {
   data?: TemplateSummaryData
@@ -26,14 +24,22 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
   template,
   activeVersion,
 }) => {
-  const styles = useStyles()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  useEffect(() => {
+    if (location.hash === "#readme") {
+      // We moved the readme to the docs page, but we known that some users
+      // have bookmarked the readme or linked it elsewhere. Redirect them to the docs page.
+      navigate(`/templates/${template.name}/docs`, { replace: true })
+    }
+  }, [template, navigate, location])
 
   if (!data) {
     return <Loader />
   }
 
-  const { daus, resources, versions } = data
-  const readme = frontMatter(activeVersion.readme)
+  const { daus, resources } = data
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
     return resources.filter(
@@ -46,15 +52,6 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
       <TemplateStats template={template} activeVersion={activeVersion} />
       {daus && <DAUChart daus={daus} />}
       <TemplateResourcesTable resources={getStartedResources(resources)} />
-
-      <div className={styles.markdownSection} id="readme">
-        <div className={styles.readmeLabel}>README.md</div>
-        <div className={styles.markdownWrapper}>
-          <MemoizedMarkdown>{readme.body}</MemoizedMarkdown>
-        </div>
-      </div>
-
-      <VersionsTable versions={versions} />
     </Stack>
   )
 }

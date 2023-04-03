@@ -94,8 +94,8 @@ func TestGitSSHKey(t *testing.T) {
 		require.NotEmpty(t, key2.PublicKey)
 		require.NotEqual(t, key2.PublicKey, key1.PublicKey)
 
-		require.Len(t, auditor.AuditLogs, 2)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs[1].Action)
+		require.Len(t, auditor.AuditLogs(), 2)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[1].Action)
 	})
 }
 

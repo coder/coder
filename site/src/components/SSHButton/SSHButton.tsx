@@ -15,12 +15,14 @@ export interface SSHButtonProps {
   workspaceName: string
   agentName: string
   defaultIsOpen?: boolean
+  sshPrefix?: string
 }
 
 export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
   workspaceName,
   agentName,
   defaultIsOpen = false,
+  sshPrefix,
 }) => {
   const anchorRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(defaultIsOpen)
@@ -79,7 +81,9 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
                 Connect to the agent:
               </strong>
             </HelpTooltipText>
-            <CodeExample code={`ssh coder.${workspaceName}.${agentName}`} />
+            <CodeExample
+              code={`ssh ${sshPrefix}${workspaceName}.${agentName}`}
+            />
           </div>
         </Stack>
 

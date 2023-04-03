@@ -276,10 +276,10 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		require.Eventually(t, func() bool {
-			if len(auditor.AuditLogs) < 6 {
+			if len(auditor.AuditLogs()) < 6 {
 				return false
 			}
-			return auditor.AuditLogs[4].Action == database.AuditActionCreate
+			return auditor.AuditLogs()[4].Action == database.AuditActionCreate
 		}, testutil.WaitMedium, testutil.IntervalFast)
 	})
 
@@ -1262,11 +1262,11 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 			require.Equal(t, testCase.expectedInterval, interval, "unexpected interval")
 
 			require.Eventually(t, func() bool {
-				if len(auditor.AuditLogs) < 7 {
+				if len(auditor.AuditLogs()) < 7 {
 					return false
 				}
-				return auditor.AuditLogs[6].Action == database.AuditActionWrite ||
-					auditor.AuditLogs[5].Action == database.AuditActionWrite
+				return auditor.AuditLogs()[6].Action == database.AuditActionWrite ||
+					auditor.AuditLogs()[5].Action == database.AuditActionWrite
 			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
@@ -1382,11 +1382,11 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			require.Equal(t, testCase.ttlMillis, updated.TTLMillis, "expected autostop ttl to equal requested")
 
 			require.Eventually(t, func() bool {
-				if len(auditor.AuditLogs) != 7 {
+				if len(auditor.AuditLogs()) != 7 {
 					return false
 				}
-				return auditor.AuditLogs[6].Action == database.AuditActionWrite ||
-					auditor.AuditLogs[5].Action == database.AuditActionWrite
+				return auditor.AuditLogs()[6].Action == database.AuditActionWrite ||
+					auditor.AuditLogs()[5].Action == database.AuditActionWrite
 			}, testutil.WaitMedium, testutil.IntervalFast, "expected audit log to be written")
 		})
 	}
@@ -1792,6 +1792,7 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 		firstParameterValue       = "1"
 
 		secondParameterName                = "second_parameter"
+		secondParameterDisplayName         = "Second Parameter"
 		secondParameterType                = "number"
 		secondParameterDescription         = "_This_ is second *parameter*"
 		secondParameterValue               = "2"
@@ -1814,6 +1815,7 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 							},
 							{
 								Name:                secondParameterName,
+								DisplayName:         secondParameterDisplayName,
 								Type:                secondParameterType,
 								Description:         secondParameterDescription,
 								ValidationMin:       1,
@@ -1850,6 +1852,7 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	require.Equal(t, firstParameterDescriptionPlaintext, templateRichParameters[0].DescriptionPlaintext)
 	require.Equal(t, codersdk.ValidationMonotonicOrder(""), templateRichParameters[0].ValidationMonotonic) // no validation for string
 	require.Equal(t, secondParameterName, templateRichParameters[1].Name)
+	require.Equal(t, secondParameterDisplayName, templateRichParameters[1].DisplayName)
 	require.Equal(t, secondParameterType, templateRichParameters[1].Type)
 	require.Equal(t, secondParameterDescription, templateRichParameters[1].Description)
 	require.Equal(t, secondParameterDescriptionPlaintext, templateRichParameters[1].DescriptionPlaintext)
