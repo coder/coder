@@ -1029,6 +1029,62 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// @Summary Update workspace owner by ID
+// @ID transfer-workspace-owner-by-id
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.TransferWorkspaceOwnerRequest
+// @Success 204
+// @Router /workspaces/{workspace}/transfer [put]
+func (api *API) putTransferWorkspace(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		workspace         = httpmw.WorkspaceParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+
+	defer commitAudit()
+	aReq.Old = workspace
+
+	var req codersdk.TransferWorkspaceOwnerRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	err := api.Database.InTx(func(s database.Store) error {
+		now := database.Now()
+		if err := s.UpdateWorkspaceOwnerByID(ctx, database.UpdateWorkspaceOwnerByIDParams{
+			ID:        workspace.ID,
+			OwnerID:   req.OwnerID,
+			UpdatedAt: now,
+		}); err != nil {
+			return xerrors.Errorf("transfer workspace owner: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating workspace owner.",
+		})
+		return
+	}
+
+	newWorkspace := workspace
+	newWorkspace.OwnerID = req.OwnerID
+	aReq.New = newWorkspace
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 type workspaceData struct {
 	templates []database.Template
 	builds    []codersdk.WorkspaceBuild
