@@ -182,9 +182,12 @@ export const WorkspaceReadyPage = ({
         onClose={() => {
           setChangeVersionDialogOpen(false)
         }}
-        onConfirm={() => {
+        onConfirm={(templateVersion) => {
           setChangeVersionDialogOpen(false)
-          workspaceSend({ type: "CHANGE_VERSION" })
+          workspaceSend({
+            type: "CHANGE_VERSION",
+            templateVersionId: templateVersion.id,
+          })
         }}
       />
     </>
