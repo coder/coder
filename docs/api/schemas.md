@@ -5463,6 +5463,7 @@ Parameter represents a set value for the scope.
   "can_exchange_messages": true,
   "client_errs": [[null]],
   "client_logs": [["string"]],
+  "healthy": true,
   "node": {
     "certName": "string",
     "derpport": 0,
@@ -5494,6 +5495,7 @@ Parameter represents a set value for the scope.
 | `can_exchange_messages` | boolean                                                  | false    |              |             |
 | `client_errs`           | array of array                                           | false    |              |             |
 | `client_logs`           | array of array                                           | false    |              |             |
+| `healthy`               | boolean                                                  | false    |              |             |
 | `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
 | `round_trip_ping`       | integer                                                  | false    |              |             |
 | `stun`                  | [healthcheck.DERPStunReport](#healthcheckderpstunreport) | false    |              |             |
@@ -5503,11 +5505,13 @@ Parameter represents a set value for the scope.
 
 ```json
 {
+  "healthy": true,
   "node_reports": [
     {
       "can_exchange_messages": true,
       "client_errs": [[null]],
       "client_logs": [["string"]],
+      "healthy": true,
       "node": {
         "certName": "string",
         "derpport": 0,
@@ -5561,6 +5565,7 @@ Parameter represents a set value for the scope.
 
 | Name           | Type                                                              | Required | Restrictions | Description |
 | -------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `healthy`      | boolean                                                           | false    |              |             |
 | `node_reports` | array of [healthcheck.DERPNodeReport](#healthcheckderpnodereport) | false    |              |             |
 | `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                          | false    |              |             |
 
@@ -5568,6 +5573,7 @@ Parameter represents a set value for the scope.
 
 ```json
 {
+  "healthy": true,
   "netcheck": {
     "captivePortal": "string",
     "globalV4": "string",
@@ -5601,11 +5607,13 @@ Parameter represents a set value for the scope.
   "netcheck_logs": ["string"],
   "regions": {
     "property1": {
+      "healthy": true,
       "node_reports": [
         {
           "can_exchange_messages": true,
           "client_errs": [[null]],
           "client_logs": [["string"]],
+          "healthy": true,
           "node": {
             "certName": "string",
             "derpport": 0,
@@ -5654,11 +5662,13 @@ Parameter represents a set value for the scope.
       }
     },
     "property2": {
+      "healthy": true,
       "node_reports": [
         {
           "can_exchange_messages": true,
           "client_errs": [[null]],
           "client_logs": [["string"]],
+          "healthy": true,
           "node": {
             "certName": "string",
             "derpport": 0,
@@ -5714,6 +5724,7 @@ Parameter represents a set value for the scope.
 
 | Name               | Type                                                         | Required | Restrictions | Description |
 | ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `healthy`          | boolean                                                      | false    |              |             |
 | `netcheck`         | [netcheck.Report](#netcheckreport)                           | false    |              |             |
 | `netcheck_logs`    | array of string                                              | false    |              |             |
 | `regions`          | object                                                       | false    |              |             |
@@ -5742,6 +5753,7 @@ Parameter represents a set value for the scope.
 ```json
 {
   "derp": {
+    "healthy": true,
     "netcheck": {
       "captivePortal": "string",
       "globalV4": "string",
@@ -5775,11 +5787,13 @@ Parameter represents a set value for the scope.
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {
+        "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
             "client_errs": [[null]],
             "client_logs": [["string"]],
+            "healthy": true,
             "node": {
               "certName": "string",
               "derpport": 0,
@@ -5828,11 +5842,13 @@ Parameter represents a set value for the scope.
         }
       },
       "property2": {
+        "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
             "client_errs": [[null]],
             "client_logs": [["string"]],
+            "healthy": true,
             "node": {
               "certName": "string",
               "derpport": 0,
@@ -5882,16 +5898,18 @@ Parameter represents a set value for the scope.
       }
     }
   },
+  "pass": true,
   "time": "string"
 }
 ```
 
 ### Properties
 
-| Name   | Type                                             | Required | Restrictions | Description |
-| ------ | ------------------------------------------------ | -------- | ------------ | ----------- |
-| `derp` | [healthcheck.DERPReport](#healthcheckderpreport) | false    |              |             |
-| `time` | string                                           | false    |              |             |
+| Name   | Type                                             | Required | Restrictions | Description                                      |
+| ------ | ------------------------------------------------ | -------- | ------------ | ------------------------------------------------ |
+| `derp` | [healthcheck.DERPReport](#healthcheckderpreport) | false    |              |                                                  |
+| `pass` | boolean                                          | false    |              | Healthy is true if the report returns no errors. |
+| `time` | string                                           | false    |              | Time is the time the report was generated at.    |
 
 ## netcheck.Report
 

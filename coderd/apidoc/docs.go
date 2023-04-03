@@ -9534,6 +9534,9 @@ const docTemplate = `{
                         }
                     }
                 },
+                "healthy": {
+                    "type": "boolean"
+                },
                 "node": {
                     "$ref": "#/definitions/tailcfg.DERPNode"
                 },
@@ -9551,6 +9554,9 @@ const docTemplate = `{
         "healthcheck.DERPRegionReport": {
             "type": "object",
             "properties": {
+                "healthy": {
+                    "type": "boolean"
+                },
                 "node_reports": {
                     "type": "array",
                     "items": {
@@ -9565,6 +9571,9 @@ const docTemplate = `{
         "healthcheck.DERPReport": {
             "type": "object",
             "properties": {
+                "healthy": {
+                    "type": "boolean"
+                },
                 "netcheck": {
                     "$ref": "#/definitions/netcheck.Report"
                 },
@@ -9600,7 +9609,12 @@ const docTemplate = `{
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"
                 },
+                "pass": {
+                    "description": "Healthy is true if the report returns no errors.",
+                    "type": "boolean"
+                },
                 "time": {
+                    "description": "Time is the time the report was generated at.",
                     "type": "string"
                 }
             }

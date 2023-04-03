@@ -40,6 +40,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 ```json
 {
   "derp": {
+    "healthy": true,
     "netcheck": {
       "captivePortal": "string",
       "globalV4": "string",
@@ -73,11 +74,13 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {
+        "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
             "client_errs": [[null]],
             "client_logs": [["string"]],
+            "healthy": true,
             "node": {
               "certName": "string",
               "derpport": 0,
@@ -126,11 +129,13 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
         }
       },
       "property2": {
+        "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
             "client_errs": [[null]],
             "client_logs": [["string"]],
+            "healthy": true,
             "node": {
               "certName": "string",
               "derpport": 0,
@@ -180,6 +185,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
       }
     }
   },
+  "pass": true,
   "time": "string"
 }
 ```
