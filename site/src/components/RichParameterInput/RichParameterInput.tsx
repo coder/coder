@@ -22,7 +22,9 @@ export interface ParameterLabelProps {
 const ParameterLabel: FC<ParameterLabelProps> = ({ id, parameter }) => {
   const styles = useStyles()
   const hasDescription = parameter.description && parameter.description !== ""
-  const displayName = parameter.display_name ? parameter.display_name : parameter.name
+  const displayName = parameter.display_name
+    ? parameter.display_name
+    : parameter.name
 
   return (
     <label htmlFor={id}>
