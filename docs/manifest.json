@@ -136,6 +136,13 @@
           "icon_path": "./images/icons/table-rows.svg"
         },
         {
+          "title": "Agent Metadata",
+          "description": "Learn how to expose live agent information to users",
+          "path": "./templates/agent-metadata.md",
+          "icon_path": "./images/icons/table-rows.svg",
+          "state": "alpha"
+        },
+        {
           "title": "Docker in Docker",
           "description": "Use docker inside containerized templates",
           "path": "./templates/docker-in-docker.md",
@@ -146,6 +153,12 @@
           "description": "Use parameters to customize templates",
           "path": "./templates/parameters.md",
           "icon_path": "./images/icons/code.svg"
+        },
+        {
+          "title": "Open in Coder",
+          "description": "Learn how to add an \"Open in Coder\" button to your repos",
+          "path": "./templates/open-in-coder.md",
+          "icon_path": "./images/icons/key.svg"
         }
       ]
     },
@@ -316,13 +329,6 @@
           "description": "Learn what usage telemetry Coder collects",
           "path": "./admin/telemetry.md",
           "icon_path": "./images/icons/science.svg"
-        },
-        {
-          "title": "Support Links",
-          "description": "Learn how to configure Support Links",
-          "path": "./admin/support-links.md",
-          "icon_path": "./images/icons/link.svg",
-          "state": "enterprise"
         }
       ]
     },

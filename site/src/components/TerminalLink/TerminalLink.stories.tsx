@@ -1,5 +1,5 @@
 import { Story } from "@storybook/react"
-import { MockWorkspace } from "../../testHelpers/renderHelpers"
+import { MockWorkspace } from "testHelpers/entities"
 import { TerminalLink, TerminalLinkProps } from "./TerminalLink"
 
 export default {

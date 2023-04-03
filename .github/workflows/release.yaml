@@ -90,7 +90,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: "~1.20"
 

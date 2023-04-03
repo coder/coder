@@ -54,6 +54,47 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		}
 	}
 
+	if !follow {
+		logs, err := api.Database.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
+			JobID:        job.ID,
+			CreatedAfter: after,
+		})
+		if errors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching provisioner logs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if logs == nil {
+			logs = []database.ProvisionerJobLog{}
+		}
+
+		logger.Debug(ctx, "Finished non-follow job logs")
+		httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJobLogs(logs))
+		return
+	}
+
+	// if we are following logs, start the subscription before we query the database, so that we don't miss any logs
+	// between the end of our query and the start of the subscription.  We might get duplicates, so we'll keep track
+	// of processed IDs.
+	var bufferedLogs <-chan *database.ProvisionerJobLog
+	if follow {
+		bl, closeFollow, err := api.followProvisionerJobLogs(actor, job.ID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error watching provisioner logs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		defer closeFollow()
+		bufferedLogs = bl
+	}
+
 	logs, err := api.Database.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
 		JobID:        job.ID,
 		CreatedAfter: after,
@@ -70,12 +111,6 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	}
 	if logs == nil {
 		logs = []database.ProvisionerJobLog{}
-	}
-
-	if !follow {
-		logger.Debug(ctx, "Finished non-follow job logs")
-		httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJobLogs(logs))
-		return
 	}
 
 	api.WebsocketWaitMutex.Lock()
@@ -106,26 +141,17 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 			return
 		}
 	}
+	job, err = api.Database.GetProvisionerJobByID(ctx, job.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	if job.CompletedAt.Valid {
 		// job was complete before we queried the database for historical logs
 		return
-	}
-
-	// if we are following logs, start the subscription before we query the database, so that we don't miss any logs
-	// between the end of our query and the start of the subscription.  We might get duplicates, so we'll keep track
-	// of processed IDs.
-	var bufferedLogs <-chan *database.ProvisionerJobLog
-	if follow {
-		bl, closeFollow, err := api.followProvisionerJobLogs(actor, job.ID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error watching provisioner logs.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		defer closeFollow()
-		bufferedLogs = bl
 	}
 
 	for {

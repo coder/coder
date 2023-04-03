@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -256,6 +255,8 @@ type OIDCConfig struct {
 	Scopes              clibase.StringArray               `json:"scopes" typescript:",notnull"`
 	IgnoreEmailVerified clibase.Bool                      `json:"ignore_email_verified" typescript:",notnull"`
 	UsernameField       clibase.String                    `json:"username_field" typescript:",notnull"`
+	EmailField          clibase.String                    `json:"email_field" typescript:",notnull"`
+	AuthURLParams       clibase.Struct[map[string]string] `json:"auth_url_params" typescript:",notnull"`
 	GroupField          clibase.String                    `json:"groups_field" typescript:",notnull"`
 	GroupMapping        clibase.Struct[map[string]string] `json:"group_mapping" typescript:",notnull"`
 	SignInText          clibase.String                    `json:"sign_in_text" typescript:",notnull"`
@@ -846,10 +847,9 @@ when required by your organization's security policy.`,
 			Description: "Ignore the email_verified claim from the upstream provider.",
 			Flag:        "oidc-ignore-email-verified",
 			Env:         "CODER_OIDC_IGNORE_EMAIL_VERIFIED",
-
-			Value: &c.OIDC.IgnoreEmailVerified,
-			Group: &deploymentGroupOIDC,
-			YAML:  "ignoreEmailVerified",
+			Value:       &c.OIDC.IgnoreEmailVerified,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "ignoreEmailVerified",
 		},
 		{
 			Name:        "OIDC Username Field",
@@ -860,6 +860,26 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.UsernameField,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "usernameField",
+		},
+		{
+			Name:        "OIDC Email Field",
+			Description: "OIDC claim field to use as the email.",
+			Flag:        "oidc-email-field",
+			Env:         "CODER_OIDC_EMAIL_FIELD",
+			Default:     "email",
+			Value:       &c.OIDC.EmailField,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "emailField",
+		},
+		{
+			Name:        "OIDC Auth URL Parameters",
+			Description: "OIDC auth URL parameters to pass to the upstream provider.",
+			Flag:        "oidc-auth-url-params",
+			Env:         "CODER_OIDC_AUTH_URL_PARAMS",
+			Default:     `{"access_type": "offline"}`,
+			Value:       &c.OIDC.AuthURLParams,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "authURLParams",
 		},
 		{
 			Name:        "OIDC Group Field",
@@ -1113,10 +1133,13 @@ when required by your organization's security policy.`,
 			Description: "The maximum lifetime duration users can specify when creating an API token.",
 			Flag:        "max-token-lifetime",
 			Env:         "CODER_MAX_TOKEN_LIFETIME",
-			Default:     time.Duration(math.MaxInt64).String(),
-			Value:       &c.MaxTokenLifetime,
-			Group:       &deploymentGroupNetworkingHTTP,
-			YAML:        "maxTokenLifetime",
+			// The default value is essentially "forever", so just use 100 years.
+			// We have to add in the 25 leap days for the frontend to show the
+			// "100 years" correctly.
+			Default: ((100 * 365 * time.Hour * 24) + (25 * time.Hour * 24)).String(),
+			Value:   &c.MaxTokenLifetime,
+			Group:   &deploymentGroupNetworkingHTTP,
+			YAML:    "maxTokenLifetime",
 		},
 		{
 			Name:        "Enable swagger endpoint",

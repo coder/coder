@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/coderd/database/postgres"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
@@ -1014,6 +1015,166 @@ func TestServer(t *testing.T) {
 		fakeURL, err := res.Location()
 		require.NoError(t, err)
 		require.True(t, strings.HasPrefix(fakeURL.String(), fakeRedirect), fakeURL.String())
+	})
+
+	t.Run("OIDC", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Defaults", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+			defer cancel()
+
+			// Startup a fake server that just responds to .well-known/openid-configuration
+			// This is just needed to get Coder to start up.
+			oidcServer := httptest.NewServer(nil)
+			fakeWellKnownHandler := func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				payload := fmt.Sprintf("{\"issuer\": %q}", oidcServer.URL)
+				_, _ = w.Write([]byte(payload))
+			}
+			oidcServer.Config.Handler = http.HandlerFunc(fakeWellKnownHandler)
+			t.Cleanup(oidcServer.Close)
+
+			inv, cfg := clitest.New(t,
+				"server",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--oidc-client-id", "fake",
+				"--oidc-client-secret", "fake",
+				"--oidc-issuer-url", oidcServer.URL,
+				// Leaving the rest of the flags as defaults.
+			)
+
+			// Ensure that the server starts up without error.
+			clitest.Start(t, inv)
+			accessURL := waitAccessURL(t, cfg)
+			client := codersdk.New(accessURL)
+
+			randPassword, err := cryptorand.String(24)
+			require.NoError(t, err)
+
+			_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+				Username: "admin",
+				Trial:    true,
+			})
+			require.NoError(t, err)
+
+			loginResp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+			})
+			require.NoError(t, err)
+			client.SetSessionToken(loginResp.SessionToken)
+
+			deploymentConfig, err := client.DeploymentConfig(ctx)
+			require.NoError(t, err)
+
+			// Ensure that the OIDC provider is configured correctly.
+			require.Equal(t, "fake", deploymentConfig.Values.OIDC.ClientID.Value())
+			// The client secret is not returned from the API.
+			require.Empty(t, deploymentConfig.Values.OIDC.ClientSecret.Value())
+			require.Equal(t, oidcServer.URL, deploymentConfig.Values.OIDC.IssuerURL.Value())
+			// These are the default values returned from the API. See codersdk/deployment.go for the default values.
+			require.True(t, deploymentConfig.Values.OIDC.AllowSignups.Value())
+			require.Empty(t, deploymentConfig.Values.OIDC.EmailDomain.Value())
+			require.Equal(t, []string{"openid", "profile", "email"}, deploymentConfig.Values.OIDC.Scopes.Value())
+			require.False(t, deploymentConfig.Values.OIDC.IgnoreEmailVerified.Value())
+			require.Equal(t, "preferred_username", deploymentConfig.Values.OIDC.UsernameField.Value())
+			require.Equal(t, "email", deploymentConfig.Values.OIDC.EmailField.Value())
+			require.Equal(t, map[string]string{"access_type": "offline"}, deploymentConfig.Values.OIDC.AuthURLParams.Value)
+			require.Empty(t, deploymentConfig.Values.OIDC.GroupField.Value())
+			require.Empty(t, deploymentConfig.Values.OIDC.GroupMapping.Value)
+			require.Equal(t, "OpenID Connect", deploymentConfig.Values.OIDC.SignInText.Value())
+			require.Empty(t, deploymentConfig.Values.OIDC.IconURL.Value())
+		})
+
+		t.Run("Overrides", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+			defer cancel()
+
+			// Startup a fake server that just responds to .well-known/openid-configuration
+			// This is just needed to get Coder to start up.
+			oidcServer := httptest.NewServer(nil)
+			fakeWellKnownHandler := func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				payload := fmt.Sprintf("{\"issuer\": %q}", oidcServer.URL)
+				_, _ = w.Write([]byte(payload))
+			}
+			oidcServer.Config.Handler = http.HandlerFunc(fakeWellKnownHandler)
+			t.Cleanup(oidcServer.Close)
+
+			inv, cfg := clitest.New(t,
+				"server",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", "http://example.com",
+				"--oidc-client-id", "fake",
+				"--oidc-client-secret", "fake",
+				"--oidc-issuer-url", oidcServer.URL,
+				// The following values have defaults that we want to override.
+				"--oidc-allow-signups=false",
+				"--oidc-email-domain", "example.com",
+				"--oidc-scopes", "360noscope",
+				"--oidc-ignore-email-verified",
+				"--oidc-username-field", "not_preferred_username",
+				"--oidc-email-field", "not_email",
+				"--oidc-auth-url-params", `{"prompt":"consent"}`,
+				"--oidc-group-field", "serious_business_unit",
+				"--oidc-group-mapping", `{"serious_business_unit": "serious_business_unit"}`,
+				"--oidc-sign-in-text", "Sign In With Coder",
+				"--oidc-icon-url", "https://example.com/icon.png",
+			)
+
+			// Ensure that the server starts up without error.
+			clitest.Start(t, inv)
+			accessURL := waitAccessURL(t, cfg)
+			client := codersdk.New(accessURL)
+
+			randPassword, err := cryptorand.String(24)
+			require.NoError(t, err)
+
+			_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+				Username: "admin",
+				Trial:    true,
+			})
+			require.NoError(t, err)
+
+			loginResp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+			})
+			require.NoError(t, err)
+			client.SetSessionToken(loginResp.SessionToken)
+
+			deploymentConfig, err := client.DeploymentConfig(ctx)
+			require.NoError(t, err)
+
+			// Ensure that the OIDC provider is configured correctly.
+			require.Equal(t, "fake", deploymentConfig.Values.OIDC.ClientID.Value())
+			// The client secret is not returned from the API.
+			require.Empty(t, deploymentConfig.Values.OIDC.ClientSecret.Value())
+			require.Equal(t, oidcServer.URL, deploymentConfig.Values.OIDC.IssuerURL.Value())
+			// These are values that we want to make sure were overridden.
+			require.False(t, deploymentConfig.Values.OIDC.AllowSignups.Value())
+			require.Equal(t, []string{"example.com"}, deploymentConfig.Values.OIDC.EmailDomain.Value())
+			require.Equal(t, []string{"360noscope"}, deploymentConfig.Values.OIDC.Scopes.Value())
+			require.True(t, deploymentConfig.Values.OIDC.IgnoreEmailVerified.Value())
+			require.Equal(t, "not_preferred_username", deploymentConfig.Values.OIDC.UsernameField.Value())
+			require.Equal(t, "not_email", deploymentConfig.Values.OIDC.EmailField.Value())
+			require.Equal(t, map[string]string{"prompt": "consent"}, deploymentConfig.Values.OIDC.AuthURLParams.Value)
+			require.Equal(t, "serious_business_unit", deploymentConfig.Values.OIDC.GroupField.Value())
+			require.Equal(t, map[string]string{"serious_business_unit": "serious_business_unit"}, deploymentConfig.Values.OIDC.GroupMapping.Value)
+			require.Equal(t, "Sign In With Coder", deploymentConfig.Values.OIDC.SignInText.Value())
+			require.Equal(t, "https://example.com/icon.png", deploymentConfig.Values.OIDC.IconURL.Value().String())
+		})
 	})
 
 	t.Run("RateLimit", func(t *testing.T) {

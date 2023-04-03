@@ -484,7 +484,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				tunnelDone <-chan struct{} = make(chan struct{}, 1)
 			)
 			if cfg.AccessURL.String() == "" {
-				cliui.Infof(inv.Stderr, "Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL\n")
+				cliui.Infof(inv.Stderr, "Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL")
 				tunnel, err = devtunnel.New(ctx, logger.Named("devtunnel"), cfg.WgtunnelHost.String())
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
@@ -531,7 +531,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			// A newline is added before for visibility in terminal output.
-			cliui.Infof(inv.Stdout, "\nView the Web UI: %s\n", cfg.AccessURL.String())
+			cliui.Infof(inv.Stdout, "\nView the Web UI: %s", cfg.AccessURL.String())
 
 			// Used for zero-trust instance identity with Google Cloud.
 			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
@@ -726,6 +726,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					EmailDomain:         cfg.OIDC.EmailDomain,
 					AllowSignups:        cfg.OIDC.AllowSignups.Value(),
 					UsernameField:       cfg.OIDC.UsernameField.String(),
+					EmailField:          cfg.OIDC.EmailField.String(),
+					AuthURLParams:       cfg.OIDC.AuthURLParams.Value,
 					GroupField:          cfg.OIDC.GroupField.String(),
 					GroupMapping:        cfg.OIDC.GroupMapping.Value,
 					SignInText:          cfg.OIDC.SignInText.String(),
@@ -1390,6 +1392,7 @@ func generateSelfSignedCertificate() (*tls.Certificate, error) {
 func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles []string, tlsClientCAFile string) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
+		NextProtos: []string{"h2", "http/1.1"},
 	}
 	switch tlsMinVersion {
 	case "tls10":
@@ -1679,6 +1682,7 @@ func configureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile stri
 
 		tlsClientConfig := &tls.Config{ //nolint:gosec
 			Certificates: certificates,
+			NextProtos:   []string{"h2", "http/1.1"},
 		}
 		err = configureCAPool(tlsClientCAFile, tlsClientConfig)
 		if err != nil {
