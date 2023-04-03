@@ -171,7 +171,14 @@ func (r *DERPNodeReport) Run(ctx context.Context) error {
 	r.doExchangeMessage(ctx)
 	r.doSTUNTest(ctx)
 
-	if !r.CanExchangeMessages || r.UsesWebsocket || r.STUN.Error != nil {
+	// We can't exchange messages with the node,
+	if (!r.CanExchangeMessages && !r.Node.STUNOnly) ||
+		// A node may use websockets because `Upgrade: DERP` may be blocked on
+		// the load balancer. This is unhealthy because websockets are slower
+		// than the regular DERP protocol.
+		r.UsesWebsocket ||
+		// The node was marked as STUN compatible but the STUN test failed.
+		r.STUN.Error != nil {
 		r.Healthy = false
 	}
 	return nil
