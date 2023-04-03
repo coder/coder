@@ -1,10 +1,7 @@
 import { screen } from "@testing-library/react"
 import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
 import { ResizeObserver } from "resize-observer"
-import {
-  MockTemplate,
-  renderWithAuth,
-} from "testHelpers/renderHelpers"
+import { MockTemplate, renderWithAuth } from "testHelpers/renderHelpers"
 import TemplateDocsPage from "./TemplateDocsPage"
 
 jest.mock("remark-gfm", () => jest.fn())
