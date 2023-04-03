@@ -1059,19 +1059,12 @@ func (api *API) putTransferWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := api.Database.InTx(func(s database.Store) error {
-		now := database.Now()
-		if err := s.UpdateWorkspaceOwnerByID(ctx, database.UpdateWorkspaceOwnerByIDParams{
-			ID:        workspace.ID,
-			OwnerID:   req.OwnerID,
-			UpdatedAt: now,
-		}); err != nil {
-			return xerrors.Errorf("transfer workspace owner: %w", err)
-		}
-
-		return nil
-	}, nil)
-	if err != nil {
+	now := database.Now()
+	if err := api.Database.UpdateWorkspaceOwnerByID(ctx, database.UpdateWorkspaceOwnerByIDParams{
+		ID:        workspace.ID,
+		OwnerID:   req.OwnerID,
+		UpdatedAt: now,
+	}); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating workspace owner.",
 		})
