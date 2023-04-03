@@ -2944,6 +2944,7 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 	param := database.TemplateVersionParameter{
 		TemplateVersionID:   arg.TemplateVersionID,
 		Name:                arg.Name,
+		DisplayName:         arg.DisplayName,
 		Description:         arg.Description,
 		Type:                arg.Type,
 		Mutable:             arg.Mutable,

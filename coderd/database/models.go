@@ -1472,6 +1472,8 @@ type TemplateVersionParameter struct {
 	Required bool `db:"required" json:"required"`
 	// Name of the legacy variable for migration purposes
 	LegacyVariableName string `db:"legacy_variable_name" json:"legacy_variable_name"`
+	// Display name of the rich parameter
+	DisplayName string `db:"display_name" json:"display_name"`
 }
 
 type TemplateVersionVariable struct {

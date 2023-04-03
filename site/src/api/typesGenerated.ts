@@ -850,6 +850,7 @@ export interface TemplateVersionGitAuth {
 // From codersdk/templateversions.go
 export interface TemplateVersionParameter {
   readonly name: string
+  readonly display_name?: string
   readonly description: string
   readonly description_plaintext: string
   readonly type: string
