@@ -119,6 +119,9 @@ export const WorkspaceReadyPage = ({
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
         handleSettings={() => navigate("settings")}
         handleBuildRetry={() => workspaceSend({ type: "RETRY_BUILD" })}
+        handleChangeVersion={() => {
+          console.log("HAHA")
+        }}
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
