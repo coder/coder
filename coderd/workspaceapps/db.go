@@ -25,6 +25,7 @@ import (
 type DBTokenProvider struct {
 	Logger slog.Logger
 
+	// AccessURL is the main dashboard access URL for error pages.
 	AccessURL                     *url.URL
 	Authorizer                    rbac.Authorizer
 	Database                      database.Store
