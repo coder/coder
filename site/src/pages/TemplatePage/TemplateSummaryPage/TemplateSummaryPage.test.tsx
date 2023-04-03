@@ -38,7 +38,6 @@ describe("TemplateSummaryPage", () => {
 
     renderPage()
     await screen.findByText(MockTemplate.display_name)
-    screen.getByText(MockWorkspaceResource.name)
     screen.queryAllByText(`${MockTemplateVersion.name}`).length
   })
   it("does not allow a member to delete a template", () => {

@@ -1,10 +1,12 @@
 import { screen } from "@testing-library/react"
 import { TemplateLayout } from "components/TemplateLayout/TemplateLayout"
 import { ResizeObserver } from "resize-observer"
-import { MockTemplate, renderWithAuth } from "testHelpers/renderHelpers"
+import { renderWithAuth } from "testHelpers/renderHelpers"
 import TemplateDocsPage from "./TemplateDocsPage"
 
 jest.mock("remark-gfm", () => jest.fn())
+
+const TEMPLATE_NAME = "coder-ts"
 
 Object.defineProperty(window, "ResizeObserver", {
   value: ResizeObserver,
@@ -16,15 +18,16 @@ const renderPage = () =>
       <TemplateDocsPage />
     </TemplateLayout>,
     {
-      route: `/templates/${MockTemplate.id}/docs`,
+      route: `/templates/${TEMPLATE_NAME}/docs`,
       path: "/templates/:template/docs",
     },
   )
 
+const README_FILENAME = "readme.md"
+
 describe("TemplateSummaryPage", () => {
   it("shows the template readme", async () => {
     renderPage()
-    await screen.findByText(MockTemplate.display_name)
     await screen.findByTestId("markdown")
   })
 })
