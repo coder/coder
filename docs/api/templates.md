@@ -2360,6 +2360,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
     "default_value": "string",
     "description": "string",
     "description_plaintext": "string",
+    "display_name": "string",
     "icon": "string",
     "legacy_variable_name": "string",
     "mutable": true,
@@ -2399,6 +2400,7 @@ Status Code **200**
 | `» default_value`         | string                                                                           | false    |              |             |
 | `» description`           | string                                                                           | false    |              |             |
 | `» description_plaintext` | string                                                                           | false    |              |             |
+| `» display_name`          | string                                                                           | false    |              |             |
 | `» icon`                  | string                                                                           | false    |              |             |
 | `» legacy_variable_name`  | string                                                                           | false    |              |             |
 | `» mutable`               | boolean                                                                          | false    |              |             |

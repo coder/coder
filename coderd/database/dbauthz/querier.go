@@ -1564,6 +1564,44 @@ func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.Ins
 	return q.db.InsertWorkspaceAgentStat(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
+	// We don't check for workspace ownership here since the agent metadata may
+	// be associated with an orphaned agent used by a dry run build.
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+
+	return q.db.InsertWorkspaceAgentMetadata(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.WorkspaceAgentID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace)
+	if err != nil {
+		return err
+	}
+
+	return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
+}
+
+func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, workspaceAgentID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = q.authorizeContext(ctx, rbac.ActionRead, workspace)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.db.GetWorkspaceAgentMetadata(ctx, workspaceAgentID)
+}
+
 func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
 	// TODO: This is a workspace agent operation. Should users be able to query this?
 	workspace, err := q.db.GetWorkspaceByWorkspaceAppID(ctx, arg.ID)

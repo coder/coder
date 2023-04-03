@@ -489,15 +489,29 @@ export const postWorkspaceBuild = async (
 export const startWorkspace = (
   workspaceId: string,
   templateVersionID: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "start",
     template_version_id: templateVersionID,
+    log_level: logLevel,
   })
-export const stopWorkspace = (workspaceId: string) =>
-  postWorkspaceBuild(workspaceId, { transition: "stop" })
-export const deleteWorkspace = (workspaceId: string) =>
-  postWorkspaceBuild(workspaceId, { transition: "delete" })
+export const stopWorkspace = (
+  workspaceId: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+) =>
+  postWorkspaceBuild(workspaceId, {
+    transition: "stop",
+    log_level: logLevel,
+  })
+export const deleteWorkspace = (
+  workspaceId: string,
+  logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+) =>
+  postWorkspaceBuild(workspaceId, {
+    transition: "delete",
+    log_level: logLevel,
+  })
 
 export const cancelWorkspaceBuild = async (
   workspaceBuildId: TypesGen.WorkspaceBuild["id"],
@@ -1030,6 +1044,18 @@ const getMissingParameters = (
   }
 
   return missingParameters
+}
+
+/**
+ *
+ * @param agentId
+ * @returns An EventSource that emits agent metadata event objects (ServerSentEvent)
+ */
+export const watchAgentMetadata = (agentId: string): EventSource => {
+  return new EventSource(
+    `${location.protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
+    { withCredentials: true },
+  )
 }
 
 export const watchBuildLogs = (

@@ -29,12 +29,17 @@ import {
   LineWithID,
   workspaceAgentLogsMachine,
 } from "xServices/workspaceAgentLogs/workspaceAgentLogsXService"
-import { Workspace, WorkspaceAgent } from "../../api/typesGenerated"
+import {
+  Workspace,
+  WorkspaceAgent,
+  WorkspaceAgentMetadata,
+} from "../../api/typesGenerated"
 import { AppLink } from "../AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
 import { Stack } from "../Stack/Stack"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { AgentLatency } from "./AgentLatency"
+import { AgentMetadata } from "./AgentMetadata"
 import { AgentStatus } from "./AgentStatus"
 import { AgentVersion } from "./AgentVersion"
 
@@ -44,11 +49,13 @@ export interface AgentRowProps {
   applicationsHost: string | undefined
   showApps: boolean
   hideSSHButton?: boolean
+  sshPrefix?: string
   hideVSCodeDesktopButton?: boolean
   serverVersion: string
   onUpdateAgent: () => void
 
   storybookStartupLogs?: LineWithID[]
+  storybookAgentMetadata?: WorkspaceAgentMetadata[]
 }
 
 export const AgentRow: FC<AgentRowProps> = ({
@@ -61,6 +68,8 @@ export const AgentRow: FC<AgentRowProps> = ({
   serverVersion,
   onUpdateAgent,
   storybookStartupLogs,
+  storybookAgentMetadata,
+  sshPrefix,
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("agent")
@@ -167,177 +176,201 @@ export const AgentRow: FC<AgentRowProps> = ({
       <Stack
         direction="row"
         alignItems="center"
-        justifyContent="space-between"
         className={styles.agentRow}
         spacing={4}
+        style={{
+          justifyContent: "none",
+          alignItems: "center",
+        }}
       >
-        <Stack direction="row" alignItems="baseline">
-          <div className={styles.agentStatusWrapper}>
-            <AgentStatus agent={agent} />
-          </div>
-          <div>
-            <div className={styles.agentName}>{agent.name}</div>
+        <div className={styles.agentStatusWrapper}>
+          <AgentStatus agent={agent} />
+        </div>
+        <div
+          style={{
+            flex: 1,
+          }}
+        >
+          <Stack
+            direction="row"
+            alignItems="center"
+            style={{
+              width: "100%",
+              justifyContent: "space-between",
+            }}
+          >
+            <Stack direction="row" alignItems="baseline">
+              <div>
+                <div className={styles.agentName}>{agent.name}</div>
+                <Stack
+                  direction="row"
+                  alignItems="baseline"
+                  className={styles.agentData}
+                  spacing={1}
+                >
+                  <span className={styles.agentOS}>
+                    {agent.operating_system}
+                  </span>
+
+                  <Maybe condition={agent.status === "connected"}>
+                    <AgentVersion
+                      agent={agent}
+                      serverVersion={serverVersion}
+                      onUpdate={onUpdateAgent}
+                    />
+                  </Maybe>
+
+                  <AgentLatency agent={agent} />
+
+                  <Maybe condition={agent.status === "connecting"}>
+                    <Skeleton width={160} variant="text" />
+                    <Skeleton width={36} variant="text" />
+                  </Maybe>
+
+                  <Maybe condition={agent.status === "timeout"}>
+                    {t("unableToConnect")}
+                  </Maybe>
+                </Stack>
+              </div>
+            </Stack>
+
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={0.5}
+              wrap="wrap"
+              maxWidth="750px"
+            >
+              {showApps && agent.status === "connected" && (
+                <>
+                  {agent.apps.map((app) => (
+                    <AppLink
+                      key={app.slug}
+                      appsHost={applicationsHost}
+                      app={app}
+                      agent={agent}
+                      workspace={workspace}
+                    />
+                  ))}
+
+                  <TerminalLink
+                    workspaceName={workspace.name}
+                    agentName={agent.name}
+                    userName={workspace.owner_name}
+                  />
+                  {!hideSSHButton && (
+                    <SSHButton
+                      workspaceName={workspace.name}
+                      agentName={agent.name}
+                      sshPrefix={sshPrefix}
+                    />
+                  )}
+                  {!hideVSCodeDesktopButton && (
+                    <VSCodeDesktopButton
+                      userName={workspace.owner_name}
+                      workspaceName={workspace.name}
+                      agentName={agent.name}
+                      folderPath={agent.expanded_directory}
+                    />
+                  )}
+                  {applicationsHost !== undefined &&
+                    applicationsHost !== "" && (
+                      <PortForwardButton
+                        host={applicationsHost}
+                        workspaceName={workspace.name}
+                        agentId={agent.id}
+                        agentName={agent.name}
+                        username={workspace.owner_name}
+                      />
+                    )}
+                </>
+              )}
+              {showApps && agent.status === "connecting" && (
+                <>
+                  <AppLinkSkeleton width={84} />
+                  <AppLinkSkeleton width={112} />
+                </>
+              )}
+            </Stack>
+          </Stack>
+          <AgentMetadata
+            storybookMetadata={storybookAgentMetadata}
+            agent={agent}
+          />
+          {hasStartupFeatures && (
             <Stack
               direction="row"
               alignItems="baseline"
-              className={styles.agentData}
               spacing={1}
+              className={styles.startupLinks}
             >
-              <span className={styles.agentOS}>{agent.operating_system}</span>
-
-              <Maybe condition={agent.status === "connected"}>
-                <AgentVersion
-                  agent={agent}
-                  serverVersion={serverVersion}
-                  onUpdate={onUpdateAgent}
-                />
-              </Maybe>
-
-              <AgentLatency agent={agent} />
-
-              <Maybe condition={agent.status === "connecting"}>
-                <Skeleton width={160} variant="text" />
-                <Skeleton width={36} variant="text" />
-              </Maybe>
-
-              <Maybe condition={agent.status === "timeout"}>
-                {t("unableToConnect")}
-              </Maybe>
-            </Stack>
-
-            {hasStartupFeatures && (
-              <Stack
-                direction="row"
-                alignItems="baseline"
-                spacing={1}
-                className={styles.startupLinks}
+              <Link
+                className={styles.startupLink}
+                variant="body2"
+                onClick={() => {
+                  setShowStartupLogs(!showStartupLogs)
+                }}
               >
+                {showStartupLogs ? (
+                  <VisibilityOffOutlined />
+                ) : (
+                  <VisibilityOutlined />
+                )}
+                {showStartupLogs ? "Hide" : "Show"} Startup Logs
+              </Link>
+
+              {agent.startup_script && (
                 <Link
                   className={styles.startupLink}
                   variant="body2"
+                  ref={startupScriptAnchorRef}
                   onClick={() => {
-                    setShowStartupLogs(!showStartupLogs)
+                    setStartupScriptOpen(!startupScriptOpen)
                   }}
                 >
-                  {showStartupLogs ? (
-                    <VisibilityOffOutlined />
-                  ) : (
-                    <VisibilityOutlined />
-                  )}
-                  {showStartupLogs ? "Hide" : "Show"} Startup Logs
+                  <PlayCircleOutlined />
+                  View Startup Script
                 </Link>
+              )}
 
-                {agent.startup_script && (
-                  <Link
-                    className={styles.startupLink}
-                    variant="body2"
-                    ref={startupScriptAnchorRef}
-                    onClick={() => {
-                      setStartupScriptOpen(!startupScriptOpen)
+              <Popover
+                classes={{
+                  paper: styles.startupScriptPopover,
+                }}
+                open={startupScriptOpen}
+                onClose={() => setStartupScriptOpen(false)}
+                anchorEl={startupScriptAnchorRef.current}
+                anchorOrigin={{
+                  vertical: "bottom",
+                  horizontal: "left",
+                }}
+                transformOrigin={{
+                  vertical: "top",
+                  horizontal: "left",
+                }}
+              >
+                <div>
+                  <SyntaxHighlighter
+                    style={darcula}
+                    language="shell"
+                    showLineNumbers
+                    // Use inline styles does not work correctly
+                    // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/329
+                    codeTagProps={{ style: {} }}
+                    customStyle={{
+                      background: theme.palette.background.default,
+                      maxWidth: 600,
+                      margin: 0,
                     }}
                   >
-                    <PlayCircleOutlined />
-                    View Startup Script
-                  </Link>
-                )}
-
-                <Popover
-                  classes={{
-                    paper: styles.startupScriptPopover,
-                  }}
-                  open={startupScriptOpen}
-                  onClose={() => setStartupScriptOpen(false)}
-                  anchorEl={startupScriptAnchorRef.current}
-                  anchorOrigin={{
-                    vertical: "bottom",
-                    horizontal: "left",
-                  }}
-                  transformOrigin={{
-                    vertical: "top",
-                    horizontal: "left",
-                  }}
-                >
-                  <div>
-                    <SyntaxHighlighter
-                      style={darcula}
-                      language="shell"
-                      showLineNumbers
-                      // Use inline styles does not work correctly
-                      // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/329
-                      codeTagProps={{ style: {} }}
-                      customStyle={{
-                        background: theme.palette.background.default,
-                        maxWidth: 600,
-                        margin: 0,
-                      }}
-                    >
-                      {agent.startup_script || ""}
-                    </SyntaxHighlighter>
-                  </div>
-                </Popover>
-              </Stack>
-            )}
-          </div>
-        </Stack>
-
-        <Stack
-          direction="row"
-          alignItems="center"
-          spacing={0.5}
-          wrap="wrap"
-          maxWidth="750px"
-        >
-          {showApps && agent.status === "connected" && (
-            <>
-              {agent.apps.map((app) => (
-                <AppLink
-                  key={app.slug}
-                  appsHost={applicationsHost}
-                  app={app}
-                  agent={agent}
-                  workspace={workspace}
-                />
-              ))}
-
-              <TerminalLink
-                workspaceName={workspace.name}
-                agentName={agent.name}
-                userName={workspace.owner_name}
-              />
-              {!hideSSHButton && (
-                <SSHButton
-                  workspaceName={workspace.name}
-                  agentName={agent.name}
-                />
-              )}
-              {!hideVSCodeDesktopButton && (
-                <VSCodeDesktopButton
-                  userName={workspace.owner_name}
-                  workspaceName={workspace.name}
-                  agentName={agent.name}
-                  folderPath={agent.expanded_directory}
-                />
-              )}
-              {applicationsHost !== undefined && applicationsHost !== "" && (
-                <PortForwardButton
-                  host={applicationsHost}
-                  workspaceName={workspace.name}
-                  agentId={agent.id}
-                  agentName={agent.name}
-                  username={workspace.owner_name}
-                />
-              )}
-            </>
+                    {agent.startup_script || ""}
+                  </SyntaxHighlighter>
+                </div>
+              </Popover>
+            </Stack>
           )}
-          {showApps && agent.status === "connecting" && (
-            <>
-              <AppLinkSkeleton width={84} />
-              <AppLinkSkeleton width={112} />
-            </>
-          )}
-        </Stack>
+        </div>
       </Stack>
-
       {showStartupLogs && (
         <AutoSizer disableHeight>
           {({ width }) => (
