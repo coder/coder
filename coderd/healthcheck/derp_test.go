@@ -58,8 +58,11 @@ func TestDERP(t *testing.T) {
 		err := report.Run(ctx, opts)
 		require.NoError(t, err)
 
+		assert.True(t, report.Healthy)
 		for _, region := range report.Regions {
+			assert.True(t, region.Healthy)
 			for _, node := range region.NodeReports {
+				assert.True(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
 				assert.Positive(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
@@ -96,8 +99,11 @@ func TestDERP(t *testing.T) {
 		err := report.Run(ctx, opts)
 		require.NoError(t, err)
 
+		assert.True(t, report.Healthy)
 		for _, region := range report.Regions {
+			assert.True(t, region.Healthy)
 			for _, node := range region.NodeReports {
+				assert.True(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
 				assert.Positive(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
@@ -156,8 +162,11 @@ func TestDERP(t *testing.T) {
 
 		report.Run(ctx, opts)
 
+		assert.False(t, report.Healthy)
 		for _, region := range report.Regions {
+			assert.False(t, region.Healthy)
 			for _, node := range region.NodeReports {
+				assert.False(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
 				assert.Positive(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)

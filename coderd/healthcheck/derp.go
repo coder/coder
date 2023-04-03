@@ -26,7 +26,8 @@ import (
 )
 
 type DERPReport struct {
-	mu sync.Mutex
+	mu      sync.Mutex
+	Healthy bool `json:"healthy"`
 
 	Regions map[int]*DERPRegionReport `json:"regions"`
 
@@ -35,16 +36,18 @@ type DERPReport struct {
 }
 
 type DERPRegionReport struct {
-	mu     sync.Mutex
-	Region *tailcfg.DERPRegion `json:"region"`
+	mu      sync.Mutex
+	Healthy bool `json:"healthy"`
 
-	NodeReports []*DERPNodeReport `json:"node_reports"`
+	Region      *tailcfg.DERPRegion `json:"region"`
+	NodeReports []*DERPNodeReport   `json:"node_reports"`
 }
 type DERPNodeReport struct {
-	Node *tailcfg.DERPNode `json:"node"`
-
 	mu            sync.Mutex
 	clientCounter int
+
+	Healthy bool              `json:"healthy"`
+	Node    *tailcfg.DERPNode `json:"node"`
 
 	CanExchangeMessages bool          `json:"can_exchange_messages"`
 	RoundTripPing       time.Duration `json:"round_trip_ping"`
@@ -66,6 +69,7 @@ type DERPReportOptions struct {
 }
 
 func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) error {
+	r.Healthy = true
 	r.Regions = map[int]*DERPRegionReport{}
 
 	eg, ctx := errgroup.WithContext(ctx)
@@ -84,6 +88,9 @@ func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) error {
 
 			r.mu.Lock()
 			r.Regions[region.RegionID] = &regionReport
+			if !regionReport.Healthy {
+				r.Healthy = false
+			}
 			r.mu.Unlock()
 			return nil
 		})
@@ -108,6 +115,7 @@ func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) error {
 }
 
 func (r *DERPRegionReport) Run(ctx context.Context) error {
+	r.Healthy = true
 	r.NodeReports = []*DERPNodeReport{}
 	eg, ctx := errgroup.WithContext(ctx)
 
@@ -115,7 +123,8 @@ func (r *DERPRegionReport) Run(ctx context.Context) error {
 		node := node
 		eg.Go(func() error {
 			nodeReport := DERPNodeReport{
-				Node: node,
+				Node:    node,
+				Healthy: true,
 			}
 
 			err := nodeReport.Run(ctx)
@@ -125,6 +134,9 @@ func (r *DERPRegionReport) Run(ctx context.Context) error {
 
 			r.mu.Lock()
 			r.NodeReports = append(r.NodeReports, &nodeReport)
+			if !nodeReport.Healthy {
+				r.Healthy = false
+			}
 			r.mu.Unlock()
 			return nil
 		})
@@ -159,6 +171,9 @@ func (r *DERPNodeReport) Run(ctx context.Context) error {
 	r.doExchangeMessage(ctx)
 	r.doSTUNTest(ctx)
 
+	if !r.CanExchangeMessages || r.UsesWebsocket || r.STUN.Error != nil {
+		r.Healthy = false
+	}
 	return nil
 }
 

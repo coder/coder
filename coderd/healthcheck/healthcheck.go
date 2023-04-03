@@ -9,7 +9,11 @@ import (
 )
 
 type Report struct {
-	Time time.Time  `json:"time"`
+	// Time is the time the report was generated at.
+	Time time.Time `json:"time"`
+	// Healthy is true if the report returns no errors.
+	Healthy bool `json:"pass"`
+
 	DERP DERPReport `json:"derp"`
 
 	// TODO
@@ -33,5 +37,6 @@ func Run(ctx context.Context, opts *ReportOptions) (*Report, error) {
 	}
 
 	report.Time = time.Now()
+	report.Healthy = report.DERP.Healthy
 	return &report, nil
 }
