@@ -3839,6 +3839,28 @@ func (q *fakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateW
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateWorkspaceOwnerByID(_ context.Context, arg database.UpdateWorkspaceOwnerByIDParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspace := range q.workspaces {
+		if workspace.ID != arg.ID {
+			continue
+		}
+		workspace.OwnerID = arg.OwnerID
+		workspace.UpdatedAt = database.Now()
+
+		q.workspaces[index] = workspace
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
