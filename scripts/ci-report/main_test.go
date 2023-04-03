@@ -30,6 +30,9 @@ func TestOutputMatchesGoldenFile(t *testing.T) {
 		//	gotestsum --jsonfile ./scripts/ci-report/testdata/gotests-timeout.json.sample -- \
 		//	./agent -run='^TestAgent_Session' -count=1 -timeout=5m -parallel=24 -timeout=2s
 		filepath.Join("testdata", "gotests-timeout.json.sample"),
+		// https://github.com/golang/go/issues/57305
+		filepath.Join("testdata", "gotests-go-issue-57305.json.sample"),
+		filepath.Join("testdata", "gotests-go-issue-57305-parallel.json.sample"),
 	} {
 		name := name
 		t.Run(name, func(t *testing.T) {

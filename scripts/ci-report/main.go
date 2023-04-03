@@ -155,6 +155,7 @@ func parseCIReport(report GotestsumReport) (CIReport, error) {
 				name = strings.TrimPrefix(name, "\t")
 				name = strings.SplitN(name, " ", 2)[0]
 				timeoutRunningTests[pkg+"."+name] = true
+				packageFail[pkg]++
 			}
 		}
 	}
