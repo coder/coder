@@ -76,6 +76,7 @@ export const WorkspaceReadyPage = ({
     queryFn: () => getTemplateVersions(workspace.template_id),
     enabled: changeVersionDialogOpen,
   })
+  const dashboard = useDashboard()
 
   // keep banner machine in sync with workspace
   useEffect(() => {
@@ -135,6 +136,9 @@ export const WorkspaceReadyPage = ({
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
         canUpdateTemplate={canUpdateTemplate}
+        canChangeVersions={
+          canUpdateTemplate && dashboard.experiments.includes("template_editor")
+        }
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{

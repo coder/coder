@@ -1,5 +1,5 @@
 import { DialogProps } from "components/Dialogs/Dialog"
-import { FC, useState } from "react"
+import { FC, useRef, useState } from "react"
 import { FormFields } from "components/Form/Form"
 import TextField from "@material-ui/core/TextField"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
@@ -30,17 +30,15 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
   ...dialogProps
 }) => {
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
-  const [selectedTemplateVersion, setSelectedTemplateVersion] = useState<
-    TemplateVersion | undefined
-  >(defaultTemplateVersion)
+  const selectedTemplateVersion = useRef<TemplateVersion | undefined>()
 
   return (
     <ConfirmDialog
       {...dialogProps}
       onClose={onClose}
       onConfirm={() => {
-        if (selectedTemplateVersion) {
-          onConfirm(selectedTemplateVersion)
+        if (selectedTemplateVersion.current) {
+          onConfirm(selectedTemplateVersion.current)
         }
       }}
       hideCancel={false}
@@ -56,12 +54,13 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
               <Autocomplete
                 disableClearable
                 options={templateVersions}
-                value={selectedTemplateVersion}
+                defaultValue={defaultTemplateVersion}
                 id="template-version-autocomplete"
                 open={isAutocompleteOpen}
-                onChange={(_, newTemplateVersion) =>
-                  setSelectedTemplateVersion(newTemplateVersion ?? undefined)
-                }
+                onChange={(_, newTemplateVersion) => {
+                  selectedTemplateVersion.current =
+                    newTemplateVersion ?? undefined
+                }}
                 onOpen={() => {
                   setIsAutocompleteOpen(true)
                 }}

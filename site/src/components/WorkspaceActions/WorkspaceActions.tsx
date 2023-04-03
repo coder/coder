@@ -26,7 +26,7 @@ export interface WorkspaceActionsProps {
   handleChangeVersion: () => void
   isUpdating: boolean
   children?: ReactNode
-  canUpdateTemplate: boolean
+  canChangeVersions: boolean
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
@@ -40,7 +40,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleSettings,
   handleChangeVersion,
   isUpdating,
-  canUpdateTemplate,
+  canChangeVersions,
 }) => {
   const { t } = useTranslation("workspacePage")
   const { canCancel, canAcceptJobs, actions } = buttonAbilities(workspaceStatus)
@@ -55,7 +55,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     [ButtonTypesEnum.settings]: (
       <SettingsButton handleAction={handleSettings} />
     ),
-    [ButtonTypesEnum.changeVersion]: canUpdateTemplate ? (
+    [ButtonTypesEnum.changeVersion]: canChangeVersions ? (
       <ChangeVersionButton handleAction={handleChangeVersion} />
     ) : (
       <></>
