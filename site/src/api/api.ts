@@ -1046,6 +1046,18 @@ const getMissingParameters = (
   return missingParameters
 }
 
+/**
+ *
+ * @param agentId
+ * @returns An EventSource that emits agent metadata event objects (ServerSentEvent)
+ */
+export const watchAgentMetadata = (agentId: string): EventSource => {
+  return new EventSource(
+    `${location.protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
+    { withCredentials: true },
+  )
+}
+
 export const watchBuildLogs = (
   versionId: string,
   onMessage: (log: TypesGen.ProvisionerJobLog) => void,

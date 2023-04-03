@@ -481,6 +481,18 @@ CREATE TABLE users (
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL
 );
 
+CREATE UNLOGGED TABLE workspace_agent_metadata (
+    workspace_agent_id uuid NOT NULL,
+    display_name character varying(127) NOT NULL,
+    key character varying(127) NOT NULL,
+    script character varying(65535) NOT NULL,
+    value character varying(65535) DEFAULT ''::character varying NOT NULL,
+    error character varying(65535) DEFAULT ''::character varying NOT NULL,
+    timeout bigint NOT NULL,
+    "interval" bigint NOT NULL,
+    collected_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+);
+
 CREATE TABLE workspace_agent_startup_logs (
     agent_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -762,6 +774,9 @@ ALTER TABLE ONLY user_links
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_agent_metadata
+    ADD CONSTRAINT workspace_agent_metadata_pkey PRIMARY KEY (workspace_agent_id, key);
+
 ALTER TABLE ONLY workspace_agent_startup_logs
     ADD CONSTRAINT workspace_agent_startup_logs_pkey PRIMARY KEY (id);
 
@@ -899,6 +914,9 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_metadata
+    ADD CONSTRAINT workspace_agent_metadata_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_startup_logs
     ADD CONSTRAINT workspace_agent_startup_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
