@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"net"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bep/debounce"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
@@ -1484,9 +1486,18 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	// Send initial metadata.
 	sendMetadata(true)
 
+	// We debounce metadata updates to avoid overloading the frontend when
+	// an agent is sending a lot of updates.
+	pubsubDebounce := debounce.New(time.Second)
+	if flag.Lookup("test.v") != nil {
+		pubsubDebounce = debounce.New(time.Millisecond * 100)
+	}
+
 	// Send metadata on updates.
 	cancelSub, err := api.Pubsub.Subscribe(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
-		sendMetadata(true)
+		pubsubDebounce(func() {
+			sendMetadata(true)
+		})
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

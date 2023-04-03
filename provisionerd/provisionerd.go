@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/valyala/fasthttp/fasthttputil"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 	"golang.org/x/xerrors"

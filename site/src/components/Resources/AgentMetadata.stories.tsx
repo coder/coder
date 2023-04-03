@@ -103,5 +103,16 @@ Example.args = {
         key: "nloads",
       },
     },
+    {
+      result: {
+        ...resultDefaults,
+        value: "r".repeat(1000),
+      },
+      description: {
+        ...descriptionDefaults,
+        display_name: "Really, really big",
+        key: "big",
+      },
+    },
   ],
 }
