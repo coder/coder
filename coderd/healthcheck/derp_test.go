@@ -186,6 +186,49 @@ func TestDERP(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("OK/STUNOnly", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx    = context.Background()
+			report = healthcheck.DERPReport{}
+			opts   = &healthcheck.DERPReportOptions{
+				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
+					1: {
+						EmbeddedRelay: true,
+						RegionID:      999,
+						Nodes: []*tailcfg.DERPNode{{
+							Name:             "999stun0",
+							RegionID:         999,
+							HostName:         "stun.l.google.com",
+							STUNPort:         19302,
+							STUNOnly:         true,
+							InsecureForTests: true,
+							ForceHTTP:        true,
+						}},
+					},
+				}},
+			}
+		)
+
+		err := report.Run(ctx, opts)
+		require.NoError(t, err)
+
+		assert.True(t, report.Healthy)
+		for _, region := range report.Regions {
+			assert.True(t, region.Healthy)
+			for _, node := range region.NodeReports {
+				assert.True(t, node.Healthy)
+				assert.False(t, node.CanExchangeMessages)
+				assert.Len(t, node.ClientLogs, 0)
+
+				assert.True(t, node.STUN.Enabled)
+				assert.True(t, node.STUN.CanSTUN)
+				assert.NoError(t, node.STUN.Error)
+			}
+		}
+	})
 }
 
 func tsDERPMap(ctx context.Context, t testing.TB) *tailcfg.DERPMap {
