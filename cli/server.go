@@ -76,6 +76,7 @@ import (
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/provisioner/echo"
@@ -799,12 +800,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					}
 				}
 
-				appSigningKey, err := hex.DecodeString(appSigningKeyStr)
+				appSigningKey, err := workspaceapps.KeyFromString(appSigningKeyStr)
 				if err != nil {
-					return xerrors.Errorf("decode app signing key from database as hex: %w", err)
-				}
-				if len(appSigningKey) != 64 {
-					return xerrors.Errorf("app signing key must be 64 bytes, key in database is %d bytes", len(appSigningKey))
+					return xerrors.Errorf("decode app signing key from database: %w", err)
 				}
 
 				options.AppSigningKey = appSigningKey

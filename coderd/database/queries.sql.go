@@ -17,8 +17,7 @@ import (
 )
 
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
-DELETE
-FROM
+DELETE FROM
 	api_keys
 WHERE
 	id = $1
@@ -38,6 +37,19 @@ WHERE
 
 func (q *sqlQuerier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteAPIKeysByUserID, userID)
+	return err
+}
+
+const deleteApplicationConnectAPIKeysByUserID = `-- name: DeleteApplicationConnectAPIKeysByUserID :exec
+DELETE FROM
+	api_keys
+WHERE
+	user_id = $1 AND
+	scope = 'application_connect'::api_key_scope
+`
+
+func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteApplicationConnectAPIKeysByUserID, userID)
 	return err
 }
 

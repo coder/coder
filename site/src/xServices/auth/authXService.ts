@@ -150,22 +150,6 @@ const signOut = async () => {
     API.logout(),
   ])
 
-  // Logout the app URLs
-  if (appHost.host !== "") {
-    const { protocol, host } = window.location
-    const redirect_uri = encodeURIComponent(`${protocol}//${host}/login`)
-    // The path doesn't matter but we use /api because the dev server
-    // proxies /api to the backend.
-    const uri = `${protocol}//${appHost.host.replace(
-      "*",
-      "coder-logout",
-    )}/api/logout?redirect_uri=${redirect_uri}`
-
-    return {
-      redirectUrl: uri,
-    }
-  }
-
   return {
     hasFirstUser: true,
     authMethods,
@@ -388,11 +372,7 @@ export const authMachine =
           updateProfileError: (_) => undefined,
         }),
         redirect: (_, { data }) => {
-          if (!("redirectUrl" in data)) {
             window.location.href = location.origin
-          } else {
-            window.location.replace(data.redirectUrl)
-          }
         },
       },
       guards: {

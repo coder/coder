@@ -32,12 +32,12 @@ type DBTokenProvider struct {
 	DeploymentValues              *codersdk.DeploymentValues
 	OAuth2Configs                 *httpmw.OAuth2Configs
 	WorkspaceAgentInactiveTimeout time.Duration
-	TokenSigningKey               []byte
+	TokenSigningKey               AppSigningKey
 }
 
 var _ SignedTokenProvider = &DBTokenProvider{}
 
-func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, workspaceAgentInactiveTimeout time.Duration, tokenSigningKey []byte) SignedTokenProvider {
+func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, workspaceAgentInactiveTimeout time.Duration, tokenSigningKey AppSigningKey) SignedTokenProvider {
 	if len(tokenSigningKey) != 64 {
 		panic("token signing key must be 64 bytes")
 	}
@@ -62,7 +62,7 @@ func (p *DBTokenProvider) TokenFromRequest(r *http.Request) (*SignedToken, bool)
 	// Get the existing token from the request.
 	tokenCookie, err := r.Cookie(codersdk.DevURLSignedAppTokenCookie)
 	if err == nil {
-		token, err := ParseToken(p.TokenSigningKey, tokenCookie.Value)
+		token, err := p.TokenSigningKey.VerifySignedToken(tokenCookie.Value)
 		if err == nil {
 			req := token.Request.Normalize()
 			err := req.Validate()
@@ -150,7 +150,8 @@ func (p *DBTokenProvider) CreateToken(ctx context.Context, rw http.ResponseWrite
 		// and they aren't signed in.
 		switch appReq.AccessMethod {
 		case AccessMethodPath:
-			// TODO(@deansheather): this doesn't work on moons
+			// TODO(@deansheather): this doesn't work on moons so will need to
+			// be updated to include the access URL as a param
 			httpmw.RedirectToLogin(rw, r, httpmw.SignedOutErrorMessage)
 		case AccessMethodSubdomain:
 			// Redirect to the app auth redirect endpoint with a valid redirect
@@ -195,7 +196,7 @@ func (p *DBTokenProvider) CreateToken(ctx context.Context, rw http.ResponseWrite
 
 	// Sign the token.
 	token.Expiry = time.Now().Add(DefaultTokenExpiry)
-	tokenStr, err := GenerateToken(p.TokenSigningKey, token)
+	tokenStr, err := p.TokenSigningKey.SignToken(token)
 	if err != nil {
 		WriteWorkspaceApp500(p.Logger, p.AccessURL, rw, r, &appReq, err, "generate token")
 		return nil, "", false
