@@ -285,6 +285,7 @@ Below are some details specific to individual OIDC providers.
 
      where `$CLIENT_ID` is the Client ID from step 1 ([see here](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-openid-connect-oauth-flows-scenarios#:~:text=scope%E2%80%AFopenid.-,resource,-optional)).
      This is required for the upstream OIDC provider to return the requested claims.
+
    - `CODER_OIDC_IGNORE_USERINFO`: Set to `true`.
 
 1. Configure [Issuance Transform Rules](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/operations/create-a-rule-to-send-ldap-attributes-as-claims)
