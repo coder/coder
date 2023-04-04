@@ -151,12 +151,12 @@ data "coder_parameter" "location" {
 }
 
 data "coder_parameter" "instance_type" {
-  name        = "instance_type"
-  display     = "Instance Type"
-  description = "What instance type should your workspace use?"
-  default     = "Standard_B4ms"
-  icon        = "/icon/azure.png"
-  mutable     = false
+  name         = "instance_type"
+  display_name = "Instance Type"
+  description  = "What instance type should your workspace use?"
+  default      = "Standard_B4ms"
+  icon         = "/icon/azure.png"
+  mutable      = false
   option {
     name  = "Standard_B1ms (1 vCPU, 2 GiB RAM)"
     value = "Standard_B1ms"
@@ -204,13 +204,13 @@ data "coder_parameter" "instance_type" {
 }
 
 data "coder_parameter" "home_size" {
-  name        = "home_size"
-  display     = "Home Volume Size"
-  description = "How large would you like your home volume to be (in GB)?"
-  default     = 20
-  type        = "number"
-  icon        = "/icon/azure.png"
-  mutable     = false
+  name         = "home_size"
+  display_name = "Home Volume Size"
+  description  = "How large would you like your home volume to be (in GB)?"
+  default      = 20
+  type         = "number"
+  icon         = "/icon/azure.png"
+  mutable      = false
   validation {
     min = 1
     max = 1024
