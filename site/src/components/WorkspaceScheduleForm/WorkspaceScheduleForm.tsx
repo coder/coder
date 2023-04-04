@@ -39,12 +39,12 @@ dayjs.extend(timezone)
 
 export const Language = {
   errorNoDayOfWeek:
-    "Must set at least one day of week if auto-start is enabled.",
-  errorNoTime: "Start time is required when auto-start is enabled.",
+    "Must set at least one day of week if autostart is enabled.",
+  errorNoTime: "Start time is required when autostart is enabled.",
   errorTime: "Time must be in HH:mm format (24 hours).",
   errorTimezone: "Invalid timezone.",
   errorNoStop:
-    "Time until shutdown must be greater than zero when auto-stop is enabled.",
+    "Time until shutdown must be greater than zero when autostop is enabled.",
   errorTtlMax:
     "Please enter a limit that is less than or equal to 168 hours (7 days).",
   daysOfWeekLabel: "Days of Week",
@@ -67,9 +67,9 @@ export const Language = {
     "Your workspace will not automatically shut down.",
   formTitle: "Workspace schedule",
   startSection: "Start",
-  startSwitch: "Auto-start",
+  startSwitch: "Autostart",
   stopSection: "Stop",
-  stopSwitch: "Auto-stop",
+  stopSwitch: "Autostop",
 }
 
 export interface WorkspaceScheduleFormProps {
@@ -84,7 +84,7 @@ export interface WorkspaceScheduleFormProps {
 }
 
 export interface WorkspaceScheduleFormValues {
-  autoStartEnabled: boolean
+  autostartEnabled: boolean
   sunday: boolean
   monday: boolean
   tuesday: boolean
@@ -95,7 +95,7 @@ export interface WorkspaceScheduleFormValues {
   startTime: string
   timezone: string
 
-  autoStopEnabled: boolean
+  autostopEnabled: boolean
   ttl: number
 }
 
@@ -107,7 +107,7 @@ export const validationSchema = Yup.object({
     function (value) {
       const parent = this.parent as WorkspaceScheduleFormValues
 
-      if (!parent.autoStartEnabled) {
+      if (!parent.autostartEnabled) {
         return true
       } else {
         return ![
@@ -130,9 +130,9 @@ export const validationSchema = Yup.object({
 
   startTime: Yup.string()
     .ensure()
-    .test("required-if-auto-start", Language.errorNoTime, function (value) {
+    .test("required-if-autostart", Language.errorNoTime, function (value) {
       const parent = this.parent as WorkspaceScheduleFormValues
-      if (parent.autoStartEnabled) {
+      if (parent.autostartEnabled) {
         return value !== ""
       } else {
         return true
@@ -173,9 +173,9 @@ export const validationSchema = Yup.object({
     .integer()
     .min(0)
     .max(24 * 7 /* 7 days */, Language.errorTtlMax)
-    .test("positive-if-auto-stop", Language.errorNoStop, function (value) {
+    .test("positive-if-autostop", Language.errorNoStop, function (value) {
       const parent = this.parent as WorkspaceScheduleFormValues
-      if (parent.autoStopEnabled) {
+      if (parent.autostopEnabled) {
         return Boolean(value)
       } else {
         return true
@@ -245,35 +245,35 @@ export const WorkspaceScheduleForm: FC<
     },
   ]
 
-  const handleToggleAutoStart = async (e: ChangeEvent) => {
+  const handleToggleAutostart = async (e: ChangeEvent) => {
     form.handleChange(e)
-    if (form.values.autoStartEnabled) {
+    if (form.values.autostartEnabled) {
       // disable autostart, clear values
       await form.setValues({
         ...form.values,
-        autoStartEnabled: false,
+        autostartEnabled: false,
         ...emptySchedule,
       })
     } else {
       // enable autostart, fill with defaults
       await form.setValues({
         ...form.values,
-        autoStartEnabled: true,
+        autostartEnabled: true,
         ...defaultSchedule(),
       })
     }
   }
 
-  const handleToggleAutoStop = async (e: ChangeEvent) => {
+  const handleToggleAutostop = async (e: ChangeEvent) => {
     form.handleChange(e)
-    if (form.values.autoStopEnabled) {
+    if (form.values.autostopEnabled) {
       // disable autostop, set TTL 0
-      await form.setValues({ ...form.values, autoStopEnabled: false, ttl: 0 })
+      await form.setValues({ ...form.values, autostopEnabled: false, ttl: 0 })
     } else {
       // enable autostop, fill with default TTL
       await form.setValues({
         ...form.values,
-        autoStopEnabled: true,
+        autostopEnabled: true,
         ttl: defaultTTL,
       })
     }
@@ -290,9 +290,9 @@ export const WorkspaceScheduleForm: FC<
             <FormControlLabel
               control={
                 <Switch
-                  name="autoStartEnabled"
-                  checked={form.values.autoStartEnabled}
-                  onChange={handleToggleAutoStart}
+                  name="autostartEnabled"
+                  checked={form.values.autostartEnabled}
+                  onChange={handleToggleAutostart}
                   color="primary"
                 />
               }
@@ -301,11 +301,11 @@ export const WorkspaceScheduleForm: FC<
             <TextField
               {...formHelpers(
                 "startTime",
-                form.values.autoStartEnabled
+                form.values.autostartEnabled
                   ? Language.startTimeHelperText
                   : Language.noStartTimeHelperText,
               )}
-              disabled={isLoading || !form.values.autoStartEnabled}
+              disabled={isLoading || !form.values.autostartEnabled}
               InputLabelProps={{
                 shrink: true,
               }}
@@ -316,7 +316,7 @@ export const WorkspaceScheduleForm: FC<
 
             <TextField
               {...formHelpers("timezone")}
-              disabled={isLoading || !form.values.autoStartEnabled}
+              disabled={isLoading || !form.values.autostartEnabled}
               InputLabelProps={{
                 shrink: true,
               }}
@@ -345,7 +345,7 @@ export const WorkspaceScheduleForm: FC<
                     control={
                       <Checkbox
                         checked={checkbox.value}
-                        disabled={isLoading || !form.values.autoStartEnabled}
+                        disabled={isLoading || !form.values.autostartEnabled}
                         onChange={form.handleChange}
                         name={checkbox.name}
                         color="primary"
@@ -369,9 +369,9 @@ export const WorkspaceScheduleForm: FC<
             <FormControlLabel
               control={
                 <Switch
-                  name="autoStopEnabled"
-                  checked={form.values.autoStopEnabled}
-                  onChange={handleToggleAutoStop}
+                  name="autostopEnabled"
+                  checked={form.values.autostopEnabled}
+                  onChange={handleToggleAutostop}
                   color="primary"
                 />
               }
@@ -379,7 +379,7 @@ export const WorkspaceScheduleForm: FC<
             />
             <TextField
               {...formHelpers("ttl", ttlShutdownAt(form.values.ttl), "ttl_ms")}
-              disabled={isLoading || !form.values.autoStopEnabled}
+              disabled={isLoading || !form.values.autostopEnabled}
               inputProps={{ min: 0, step: 1 }}
               label={Language.ttlLabel}
               type="number"

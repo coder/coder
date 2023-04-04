@@ -445,14 +445,20 @@ CREATE TABLE templates (
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     display_name character varying(64) DEFAULT ''::character varying NOT NULL,
     allow_user_cancel_workspace_jobs boolean DEFAULT true NOT NULL,
-    max_ttl bigint DEFAULT '0'::bigint NOT NULL
+    max_ttl bigint DEFAULT '0'::bigint NOT NULL,
+    allow_user_autostart boolean DEFAULT true NOT NULL,
+    allow_user_autostop boolean DEFAULT true NOT NULL
 );
 
-COMMENT ON COLUMN templates.default_ttl IS 'The default duration for auto-stop for workspaces created from this template.';
+COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
 
 COMMENT ON COLUMN templates.display_name IS 'Display name is a custom, human-friendly template name that user can set.';
 
 COMMENT ON COLUMN templates.allow_user_cancel_workspace_jobs IS 'Allow users to cancel in-progress workspace jobs.';
+
+COMMENT ON COLUMN templates.allow_user_autostart IS 'Allow users to specify an autostart schedule for workspaces (enterprise).';
+
+COMMENT ON COLUMN templates.allow_user_autostop IS 'Allow users to specify custom autostop values for workspaces (enterprise).';
 
 CREATE TABLE user_links (
     user_id uuid NOT NULL,

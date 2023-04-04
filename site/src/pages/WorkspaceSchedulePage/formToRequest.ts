@@ -1,10 +1,10 @@
 import * as TypesGen from "api/typesGenerated"
 import { WorkspaceScheduleFormValues } from "components/WorkspaceScheduleForm/WorkspaceScheduleForm"
 
-export const formValuesToAutoStartRequest = (
+export const formValuesToAutostartRequest = (
   values: WorkspaceScheduleFormValues,
 ): TypesGen.UpdateWorkspaceAutostartRequest => {
-  if (!values.autoStartEnabled || !values.startTime) {
+  if (!values.autostartEnabled || !values.startTime) {
     return {
       schedule: "",
     }
@@ -70,7 +70,7 @@ export const formValuesToTTLRequest = (
   return {
     // minutes to nanoseconds
     ttl_ms:
-      values.autoStopEnabled && values.ttl
+      values.autostopEnabled && values.ttl
         ? values.ttl * 60 * 60 * 1000
         : undefined,
   }

@@ -392,3 +392,42 @@ SELECT
 	failed_workspaces.count AS failed_workspaces,
 	stopped_workspaces.count AS stopped_workspaces
 FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspaces, stopped_workspaces;
+
+-- name: GetWorkspacesEligibleForAutoStartStop :many
+SELECT
+	workspaces.*
+FROM
+	workspaces
+LEFT JOIN
+	workspace_builds ON workspace_builds.workspace_id = workspaces.id
+WHERE
+	workspace_builds.build_number = (
+		SELECT
+			MAX(build_number)
+		FROM
+			workspace_builds
+		WHERE
+			workspace_builds.workspace_id = workspaces.id
+	) AND
+
+	(
+		-- If the workspace build was a start transition, the workspace is
+		-- potentially eligible for autostop if it's past the deadline. The
+		-- deadline is computed at build time upon success and is bumped based
+		-- on activity (up the max deadline if set). We don't need to check
+		-- license here since that's done when the values are written to the build.
+		(
+			workspace_builds.transition = 'start'::workspace_transition AND
+			workspace_builds.deadline IS NOT NULL AND
+			workspace_builds.deadline < @now :: timestamptz
+		) OR
+
+		-- If the workspace build was a stop transition, the workspace is
+		-- potentially eligible for autostart if it has a schedule set. The
+		-- caller must check if the template allows autostart in a license-aware
+		-- fashion as we cannot check it here.
+		(
+			workspace_builds.transition = 'stop'::workspace_transition AND
+			workspaces.autostart_schedule IS NOT NULL
+		)
+	);

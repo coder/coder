@@ -2,14 +2,14 @@ import { renderWithAuth } from "testHelpers/renderHelpers"
 import userEvent from "@testing-library/user-event"
 import { screen } from "@testing-library/react"
 import {
-  formValuesToAutoStartRequest,
+  formValuesToAutostartRequest,
   formValuesToTTLRequest,
 } from "pages/WorkspaceSchedulePage/formToRequest"
 import {
-  AutoStart,
-  scheduleToAutoStart,
+  Autostart,
+  scheduleToAutostart,
 } from "pages/WorkspaceSchedulePage/schedule"
-import { AutoStop, ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
+import { Autostop, ttlMsToAutostop } from "pages/WorkspaceSchedulePage/ttl"
 import * as TypesGen from "../../api/typesGenerated"
 import {
   WorkspaceScheduleFormValues,
@@ -24,7 +24,7 @@ import { MockUser, MockWorkspace } from "testHelpers/entities"
 const { t } = i18next
 
 const validValues: WorkspaceScheduleFormValues = {
-  autoStartEnabled: true,
+  autostartEnabled: true,
   sunday: false,
   monday: true,
   tuesday: true,
@@ -34,19 +34,19 @@ const validValues: WorkspaceScheduleFormValues = {
   saturday: false,
   startTime: "09:30",
   timezone: "Canada/Eastern",
-  autoStopEnabled: true,
+  autostopEnabled: true,
   ttl: 120,
 }
 
 describe("WorkspaceSchedulePage", () => {
-  describe("formValuesToAutoStartRequest", () => {
+  describe("formValuesToAutostartRequest", () => {
     it.each<
       [WorkspaceScheduleFormValues, TypesGen.UpdateWorkspaceAutostartRequest]
     >([
       [
         // Empty case
         {
-          autoStartEnabled: false,
+          autostartEnabled: false,
           sunday: false,
           monday: false,
           tuesday: false,
@@ -56,7 +56,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: false,
           startTime: "",
           timezone: "",
-          autoStopEnabled: false,
+          autostopEnabled: false,
           ttl: 0,
         },
         {
@@ -66,7 +66,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         // Single day
         {
-          autoStartEnabled: true,
+          autostartEnabled: true,
           sunday: true,
           monday: false,
           tuesday: false,
@@ -76,7 +76,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: false,
           startTime: "16:20",
           timezone: "Canada/Eastern",
-          autoStopEnabled: true,
+          autostopEnabled: true,
           ttl: 120,
         },
         {
@@ -86,7 +86,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         // Standard 1-5 case
         {
-          autoStartEnabled: true,
+          autostartEnabled: true,
           sunday: false,
           monday: true,
           tuesday: true,
@@ -96,7 +96,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: false,
           startTime: "09:30",
           timezone: "America/Central",
-          autoStopEnabled: true,
+          autostopEnabled: true,
           ttl: 120,
         },
         {
@@ -106,7 +106,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         // Everyday
         {
-          autoStartEnabled: true,
+          autostartEnabled: true,
           sunday: true,
           monday: true,
           tuesday: true,
@@ -116,7 +116,7 @@ describe("WorkspaceSchedulePage", () => {
           saturday: true,
           startTime: "09:00",
           timezone: "",
-          autoStopEnabled: true,
+          autostopEnabled: true,
           ttl: 60 * 8,
         },
         {
@@ -126,7 +126,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         // Mon, Wed, Fri Evenings
         {
-          autoStartEnabled: true,
+          autostartEnabled: true,
           sunday: false,
           monday: true,
           tuesday: false,
@@ -136,15 +136,15 @@ describe("WorkspaceSchedulePage", () => {
           saturday: false,
           startTime: "16:20",
           timezone: "",
-          autoStopEnabled: true,
+          autostopEnabled: true,
           ttl: 60 * 3,
         },
         {
           schedule: "20 16 * * 1,3,5",
         },
       ],
-    ])(`formValuesToAutoStartRequest(%p) return %p`, (values, request) => {
-      expect(formValuesToAutoStartRequest(values)).toEqual(request)
+    ])(`formValuesToAutostartRequest(%p) return %p`, (values, request) => {
+      expect(formValuesToAutostartRequest(values)).toEqual(request)
     })
   })
 
@@ -185,13 +185,13 @@ describe("WorkspaceSchedulePage", () => {
     })
   })
 
-  describe("scheduleToAutoStart", () => {
-    it.each<[string | undefined, AutoStart]>([
+  describe("scheduleToAutostart", () => {
+    it.each<[string | undefined, Autostart]>([
       // Empty case
       [
         undefined,
         {
-          autoStartEnabled: false,
+          autostartEnabled: false,
           sunday: false,
           monday: false,
           tuesday: false,
@@ -208,7 +208,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         "CRON_TZ=UTC 30 9 * * 1-5",
         {
-          autoStartEnabled: true,
+          autostartEnabled: true,
           sunday: false,
           monday: true,
           tuesday: true,
@@ -225,7 +225,7 @@ describe("WorkspaceSchedulePage", () => {
       [
         "CRON_TZ=Canada/Eastern 20 16 * * 1,3-4,6",
         {
-          autoStartEnabled: true,
+          autostartEnabled: true,
           sunday: false,
           monday: true,
           tuesday: false,
@@ -237,35 +237,35 @@ describe("WorkspaceSchedulePage", () => {
           timezone: "Canada/Eastern",
         },
       ],
-    ])(`scheduleToAutoStart(%p) returns %p`, (schedule, autoStart) => {
-      expect(scheduleToAutoStart(schedule)).toEqual(autoStart)
+    ])(`scheduleToAutostart(%p) returns %p`, (schedule, autostart) => {
+      expect(scheduleToAutostart(schedule)).toEqual(autostart)
     })
   })
 
-  describe("ttlMsToAutoStop", () => {
-    it.each<[number | undefined, AutoStop]>([
+  describe("ttlMsToAutostop", () => {
+    it.each<[number | undefined, Autostop]>([
       // empty case
-      [undefined, { autoStopEnabled: false, ttl: 0 }],
+      [undefined, { autostopEnabled: false, ttl: 0 }],
       // zero
-      [0, { autoStopEnabled: false, ttl: 0 }],
+      [0, { autostopEnabled: false, ttl: 0 }],
       // basic case
-      [28_800_000, { autoStopEnabled: true, ttl: 8 }],
-    ])(`ttlMsToAutoStop(%p) returns %p`, (ttlMs, autoStop) => {
-      expect(ttlMsToAutoStop(ttlMs)).toEqual(autoStop)
+      [28_800_000, { autostopEnabled: true, ttl: 8 }],
+    ])(`ttlMsToAutostop(%p) returns %p`, (ttlMs, autostop) => {
+      expect(ttlMsToAutostop(ttlMs)).toEqual(autostop)
     })
   })
 
-  describe("autoStop change dialog", () => {
-    it("shows if autoStop is changed", async () => {
+  describe("autostop change dialog", () => {
+    it("shows if autostop is changed", async () => {
       renderWithAuth(<WorkspaceSchedulePage />, {
         route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
         path: "/@:username/:workspace/schedule",
       })
       const user = userEvent.setup()
-      const autoStopToggle = await screen.findByLabelText(
+      const autostopToggle = await screen.findByLabelText(
         FormLanguage.stopSwitch,
       )
-      await user.click(autoStopToggle)
+      await user.click(autostopToggle)
       const submitButton = await screen.findByRole("button", {
         name: /submit/i,
       })
@@ -275,16 +275,16 @@ describe("WorkspaceSchedulePage", () => {
       expect(dialog).toBeInTheDocument()
     })
 
-    it("doesn't show if autoStop is not changed", async () => {
+    it("doesn't show if autostop is not changed", async () => {
       renderWithAuth(<WorkspaceSchedulePage />, {
         route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
         path: "/@:username/:workspace/schedule",
       })
       const user = userEvent.setup()
-      const autoStartToggle = await screen.findByLabelText(
+      const autostartToggle = await screen.findByLabelText(
         FormLanguage.startSwitch,
       )
-      await user.click(autoStartToggle)
+      await user.click(autostartToggle)
       const submitButton = await screen.findByRole("button", {
         name: /submit/i,
       })
@@ -297,7 +297,7 @@ describe("WorkspaceSchedulePage", () => {
 
   describe("autostop", () => {
     it("uses template default ttl when first enabled", async () => {
-      // have auto-stop disabled
+      // have autostop disabled
       server.use(
         rest.get(
           "/api/v2/users/:userId/workspace/:workspaceName",
@@ -314,17 +314,17 @@ describe("WorkspaceSchedulePage", () => {
         path: "/@:username/:workspace/schedule",
       })
       const user = userEvent.setup()
-      const autoStopToggle = await screen.findByLabelText(
+      const autostopToggle = await screen.findByLabelText(
         FormLanguage.stopSwitch,
       )
-      // enable auto-stop
-      await user.click(autoStopToggle)
+      // enable autostop
+      await user.click(autostopToggle)
       // find helper text that describes the mock template's 24 hour default
-      const autoStopHelperText = await screen.findByText(
+      const autostopHelperText = await screen.findByText(
         "Your workspace will shut down a day after",
         { exact: false },
       )
-      expect(autoStopHelperText).toBeDefined()
+      expect(autostopHelperText).toBeDefined()
     })
   })
 })

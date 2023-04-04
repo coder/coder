@@ -12,6 +12,24 @@ coder templates edit [flags] <template>
 
 ## Options
 
+### --allow-user-autostart
+
+|         |                   |
+| ------- | ----------------- |
+| Type    | <code>bool</code> |
+| Default | <code>true</code> |
+
+Allow users to configure autostart for workspaces on this template. This can only be disabled in enterprise.
+
+### --allow-user-autostop
+
+|         |                   |
+| ------- | ----------------- |
+| Type    | <code>bool</code> |
+| Default | <code>true</code> |
+
+Allow users to customize the autostop TTL for workspaces on this template. This can only be disabled in enterprise.
+
 ### --allow-user-cancel-workspace-jobs
 
 |         |                   |

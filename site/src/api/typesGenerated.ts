@@ -190,6 +190,8 @@ export interface CreateTemplateRequest {
   readonly default_ttl_ms?: number
   readonly max_ttl_ms?: number
   readonly allow_user_cancel_workspace_jobs?: boolean
+  readonly allow_user_autostart?: boolean
+  readonly allow_user_autostop?: boolean
 }
 
 // From codersdk/templateversions.go
@@ -785,6 +787,8 @@ export interface Template {
   readonly max_ttl_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
+  readonly allow_user_autostart: boolean
+  readonly allow_user_autostop: boolean
   readonly allow_user_cancel_workspace_jobs: boolean
 }
 
@@ -952,6 +956,8 @@ export interface UpdateTemplateMeta {
   readonly icon?: string
   readonly default_ttl_ms?: number
   readonly max_ttl_ms?: number
+  readonly allow_user_autostart?: boolean
+  readonly allow_user_autostop?: boolean
   readonly allow_user_cancel_workspace_jobs?: boolean
 }
 
