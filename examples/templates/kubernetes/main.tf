@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.17"
+      version = "~> 0.7.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -35,10 +35,11 @@ variable "namespace" {
 }
 
 data "coder_parameter" "cpu" {
-  name    = "CPU (cores)"
-  default = "2"
-  icon    = "/icon/memory.svg"
-  mutable = true
+  name         = "cpu"
+  display_name = "CPU (cores)"
+  default      = "2"
+  icon         = "/icon/memory.svg"
+  mutable      = true
   option {
     name  = "2 Cores"
     value = "2"
@@ -58,10 +59,11 @@ data "coder_parameter" "cpu" {
 }
 
 data "coder_parameter" "memory" {
-  name    = "Memory (GB)"
-  default = "2"
-  icon    = "/icon/memory.svg"
-  mutable = true
+  name         = "memory"
+  display_name = "Memory (GB)"
+  default      = "2"
+  icon         = "/icon/memory.svg"
+  mutable      = true
   option {
     name  = "2 GB"
     value = "2"
@@ -81,11 +83,12 @@ data "coder_parameter" "memory" {
 }
 
 data "coder_parameter" "home_disk_size" {
-  name    = "Home Disk Size (GB)"
-  default = "10"
-  type    = "number"
-  icon    = "/emojis/1f4be.png"
-  mutable = false
+  name         = "home_disk_size"
+  display_name = "Home Disk Size (GB)"
+  default      = "10"
+  type         = "number"
+  icon         = "/emojis/1f4be.png"
+  mutable      = false
   validation {
     min = 1
     max = 99999

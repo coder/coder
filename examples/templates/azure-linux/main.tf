@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.17"
+      version = "~> 0.7.0"
     }
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -12,11 +12,12 @@ terraform {
 }
 
 data "coder_parameter" "location" {
-  name        = "Location"
-  description = "What location should your workspace live in?"
-  default     = "eastus"
-  icon        = "/emojis/1f310.png"
-  mutable     = false
+  name         = "location"
+  display_name = "Location"
+  description  = "What location should your workspace live in?"
+  default      = "eastus"
+  icon         = "/emojis/1f310.png"
+  mutable      = false
   option {
     name  = "US (Virginia)"
     value = "eastus"
@@ -150,7 +151,8 @@ data "coder_parameter" "location" {
 }
 
 data "coder_parameter" "instance_type" {
-  name        = "Instance Type"
+  name        = "instance_type"
+  display     = "Instance Type"
   description = "What instance type should your workspace use?"
   default     = "Standard_B4ms"
   icon        = "/icon/azure.png"
@@ -202,7 +204,8 @@ data "coder_parameter" "instance_type" {
 }
 
 data "coder_parameter" "home_size" {
-  name        = "Home Volume Size"
+  name        = "home_size"
+  display     = "Home Volume Size"
   description = "How large would you like your home volume to be (in GB)?"
   default     = 20
   type        = "number"

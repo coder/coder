@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.17"
+      version = "~> 0.7.0"
     }
     aws = {
       source  = "hashicorp/aws"
@@ -14,10 +14,11 @@ terraform {
 # Last updated 2023-03-14
 # aws ec2 describe-regions | jq -r '[.Regions[].RegionName] | sort'
 data "coder_parameter" "region" {
-  name        = "Region"
-  description = "The region to deploy the workspace in."
-  default     = "us-east-1"
-  mutable     = false
+  name         = "region"
+  display_name = "Region"
+  description  = "The region to deploy the workspace in."
+  default      = "us-east-1"
+  mutable      = false
   option {
     name  = "Asia Pacific (Tokyo)"
     value = "ap-northeast-1"
@@ -106,10 +107,11 @@ data "coder_parameter" "region" {
 }
 
 data "coder_parameter" "instance_type" {
-  name        = "Instance Type"
-  description = "What instance type should your workspace use?"
-  default     = "t3.micro"
-  mutable     = false
+  name         = "instance_type"
+  display_name = "Instance Type"
+  description  = "What instance type should your workspace use?"
+  default      = "t3.micro"
+  mutable      = false
   option {
     name  = "2 vCPU, 1 GiB RAM"
     value = "t3.micro"

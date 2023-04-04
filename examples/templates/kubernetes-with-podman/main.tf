@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.17"
+      version = "~> 0.7.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -18,8 +18,9 @@ provider "kubernetes" {
 data "coder_workspace" "me" {}
 
 data "coder_parameter" "os" {
-  name    = "Operating system"
-  default = "ubuntu"
+  name         = "os"
+  display_name = "Operating system"
+  default      = "ubuntu"
   option {
     name  = "Ubuntu"
     value = "ubuntu"
@@ -33,8 +34,9 @@ data "coder_parameter" "os" {
 }
 
 data "coder_parameter" "cpu" {
-  name    = "CPU (cores)"
-  default = "2"
+  name         = "cpu"
+  display_name = "CPU (cores)"
+  default      = "2"
   option {
     name  = "2 Cores"
     value = "2"
@@ -54,8 +56,9 @@ data "coder_parameter" "cpu" {
 }
 
 data "coder_parameter" "memory" {
-  name    = "Memory (GB)"
-  default = "2"
+  name         = "memory"
+  display_name = "Memory (GB)"
+  default      = "2"
   option {
     name  = "2 GB"
     value = "2"

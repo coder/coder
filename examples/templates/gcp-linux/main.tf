@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.6.17"
+      version = "~> 0.7.0"
     }
     google = {
       source  = "hashicorp/google"
@@ -20,11 +20,12 @@ variable "project_id" {
 }
 
 data "coder_parameter" "zone" {
-  name    = "What region should your workspace live in?"
-  type    = "string"
-  icon    = "/emojis/1f30e.png"
-  default = "us-central1-a"
-  mutable = false
+  name         = "zone"
+  display_name = "What region should your workspace live in?"
+  type         = "string"
+  icon         = "/emojis/1f30e.png"
+  default      = "us-central1-a"
+  mutable      = false
   option {
     name  = "North America (Northeast)"
     value = "northamerica-northeast1-a"
