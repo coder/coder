@@ -23,7 +23,7 @@ import (
 // @Tags Templates
 // @Param request body codersdk.CreateWorkspaceProxyRequest true "Create workspace proxy request"
 // @Success 201 {object} codersdk.WorkspaceProxy
-// @Router /organizations/workspaceproxies [post]
+// @Router /workspaceproxies [post]
 func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
