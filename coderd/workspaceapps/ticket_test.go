@@ -9,20 +9,18 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/square/go-jose.v2"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/workspaceapps"
 )
 
-func Test_TicketMatchesRequest(t *testing.T) {
+func Test_TokenMatchesRequest(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name   string
-		req    workspaceapps.Request
-		ticket workspaceapps.Ticket
-		want   bool
+		name  string
+		req   workspaceapps.Request
+		token workspaceapps.SignedToken
+		want  bool
 	}{
 		{
 			name: "OK",
@@ -34,7 +32,7 @@ func Test_TicketMatchesRequest(t *testing.T) {
 				AgentNameOrID:     "baz",
 				AppSlugOrPort:     "qux",
 			},
-			ticket: workspaceapps.Ticket{
+			token: workspaceapps.SignedToken{
 				Request: workspaceapps.Request{
 					AccessMethod:      workspaceapps.AccessMethodPath,
 					BasePath:          "/app",
@@ -51,7 +49,7 @@ func Test_TicketMatchesRequest(t *testing.T) {
 			req: workspaceapps.Request{
 				AccessMethod: workspaceapps.AccessMethodPath,
 			},
-			ticket: workspaceapps.Ticket{
+			token: workspaceapps.SignedToken{
 				Request: workspaceapps.Request{
 					AccessMethod: workspaceapps.AccessMethodSubdomain,
 				},
@@ -63,7 +61,7 @@ func Test_TicketMatchesRequest(t *testing.T) {
 			req: workspaceapps.Request{
 				AccessMethod: workspaceapps.AccessMethodPath,
 			},
-			ticket: workspaceapps.Ticket{
+			token: workspaceapps.SignedToken{
 				Request: workspaceapps.Request{
 					AccessMethod: workspaceapps.AccessMethodPath,
 					BasePath:     "/app",
@@ -78,7 +76,7 @@ func Test_TicketMatchesRequest(t *testing.T) {
 				BasePath:     "/app",
 				UsernameOrID: "foo",
 			},
-			ticket: workspaceapps.Ticket{
+			token: workspaceapps.SignedToken{
 				Request: workspaceapps.Request{
 					AccessMethod: workspaceapps.AccessMethodPath,
 					BasePath:     "/app",
@@ -95,7 +93,7 @@ func Test_TicketMatchesRequest(t *testing.T) {
 				UsernameOrID:      "foo",
 				WorkspaceNameOrID: "bar",
 			},
-			ticket: workspaceapps.Ticket{
+			token: workspaceapps.SignedToken{
 				Request: workspaceapps.Request{
 					AccessMethod:      workspaceapps.AccessMethodPath,
 					BasePath:          "/app",
@@ -114,7 +112,7 @@ func Test_TicketMatchesRequest(t *testing.T) {
 				WorkspaceNameOrID: "bar",
 				AgentNameOrID:     "baz",
 			},
-			ticket: workspaceapps.Ticket{
+			token: workspaceapps.SignedToken{
 				Request: workspaceapps.Request{
 					AccessMethod:      workspaceapps.AccessMethodPath,
 					BasePath:          "/app",
@@ -135,7 +133,7 @@ func Test_TicketMatchesRequest(t *testing.T) {
 				AgentNameOrID:     "baz",
 				AppSlugOrPort:     "qux",
 			},
-			ticket: workspaceapps.Ticket{
+			token: workspaceapps.SignedToken{
 				Request: workspaceapps.Request{
 					AccessMethod:      workspaceapps.AccessMethodPath,
 					BasePath:          "/app",
@@ -155,20 +153,18 @@ func Test_TicketMatchesRequest(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, c.want, c.ticket.MatchesRequest(c.req))
+			require.Equal(t, c.want, c.token.MatchesRequest(c.req))
 		})
 	}
 }
 
-func Test_GenerateTicket(t *testing.T) {
+func Test_GenerateToken(t *testing.T) {
 	t.Parallel()
-
-	provider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, time.Minute, coderdtest.AppSigningKey)
 
 	t.Run("SetExpiry", func(t *testing.T) {
 		t.Parallel()
 
-		ticketStr, err := provider.GenerateTicket(workspaceapps.Ticket{
+		tokenStr, err := workspaceapps.GenerateToken(coderdtest.AppSigningKey, workspaceapps.SignedToken{
 			Request: workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/app",
@@ -178,7 +174,7 @@ func Test_GenerateTicket(t *testing.T) {
 				AppSlugOrPort:     "qux",
 			},
 
-			Expiry:      0,
+			Expiry:      time.Time{},
 			UserID:      uuid.MustParse("b1530ba9-76f3-415e-b597-4ddd7cd466a4"),
 			WorkspaceID: uuid.MustParse("1e6802d3-963e-45ac-9d8c-bf997016ffed"),
 			AgentID:     uuid.MustParse("9ec18681-d2c9-4c9e-9186-f136efb4edbe"),
@@ -186,21 +182,21 @@ func Test_GenerateTicket(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		ticket, err := provider.ParseTicket(ticketStr)
+		token, err := workspaceapps.ParseToken(coderdtest.AppSigningKey, tokenStr)
 		require.NoError(t, err)
 
-		require.InDelta(t, time.Now().Unix(), ticket.Expiry, time.Minute.Seconds())
+		require.WithinDuration(t, time.Now().Add(time.Minute), token.Expiry, 15*time.Second)
 	})
 
-	future := time.Now().Add(time.Hour).Unix()
+	future := time.Now().Add(time.Hour)
 	cases := []struct {
 		name             string
-		ticket           workspaceapps.Ticket
+		token            workspaceapps.SignedToken
 		parseErrContains string
 	}{
 		{
 			name: "OK1",
-			ticket: workspaceapps.Ticket{
+			token: workspaceapps.SignedToken{
 				Request: workspaceapps.Request{
 					AccessMethod:      workspaceapps.AccessMethodPath,
 					BasePath:          "/app",
@@ -219,7 +215,7 @@ func Test_GenerateTicket(t *testing.T) {
 		},
 		{
 			name: "OK2",
-			ticket: workspaceapps.Ticket{
+			token: workspaceapps.SignedToken{
 				Request: workspaceapps.Request{
 					AccessMethod:      workspaceapps.AccessMethodSubdomain,
 					BasePath:          "/",
@@ -238,7 +234,7 @@ func Test_GenerateTicket(t *testing.T) {
 		},
 		{
 			name: "Expired",
-			ticket: workspaceapps.Ticket{
+			token: workspaceapps.SignedToken{
 				Request: workspaceapps.Request{
 					AccessMethod:      workspaceapps.AccessMethodSubdomain,
 					BasePath:          "/",
@@ -248,13 +244,13 @@ func Test_GenerateTicket(t *testing.T) {
 					AppSlugOrPort:     "qux",
 				},
 
-				Expiry:      time.Now().Add(-time.Hour).Unix(),
+				Expiry:      time.Now().Add(-time.Hour),
 				UserID:      uuid.MustParse("b1530ba9-76f3-415e-b597-4ddd7cd466a4"),
 				WorkspaceID: uuid.MustParse("1e6802d3-963e-45ac-9d8c-bf997016ffed"),
 				AgentID:     uuid.MustParse("9ec18681-d2c9-4c9e-9186-f136efb4edbe"),
 				AppURL:      "http://127.0.0.1:8080",
 			},
-			parseErrContains: "ticket expired",
+			parseErrContains: "token expired",
 		},
 	}
 
@@ -264,51 +260,51 @@ func Test_GenerateTicket(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			str, err := provider.GenerateTicket(c.ticket)
+			str, err := workspaceapps.GenerateToken(coderdtest.AppSigningKey, c.token)
 			require.NoError(t, err)
 
-			// Tickets aren't deterministic as they have a random nonce, so we
+			// Tokens aren't deterministic as they have a random nonce, so we
 			// can't compare them directly.
 
-			ticket, err := provider.ParseTicket(str)
+			token, err := workspaceapps.ParseToken(coderdtest.AppSigningKey, str)
 			if c.parseErrContains != "" {
 				require.Error(t, err)
 				require.ErrorContains(t, err, c.parseErrContains)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, c.ticket, ticket)
+				// normalize the expiry
+				require.WithinDuration(t, c.token.Expiry, token.Expiry, 10*time.Second)
+				c.token.Expiry = token.Expiry
+				require.Equal(t, c.token, token)
 			}
 		})
 	}
 }
 
-// The ParseTicket fn is tested quite thoroughly in the GenerateTicket test.
-func Test_ParseTicket(t *testing.T) {
+// The ParseToken fn is tested quite thoroughly in the GenerateToken test as
+// well.
+func Test_ParseToken(t *testing.T) {
 	t.Parallel()
-
-	provider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, time.Minute, coderdtest.AppSigningKey)
 
 	t.Run("InvalidJWS", func(t *testing.T) {
 		t.Parallel()
 
-		ticket, err := provider.ParseTicket("invalid")
+		token, err := workspaceapps.ParseToken(coderdtest.AppSigningKey, "invalid")
 		require.Error(t, err)
 		require.ErrorContains(t, err, "parse JWS")
-		require.Equal(t, workspaceapps.Ticket{}, ticket)
+		require.Equal(t, workspaceapps.SignedToken{}, token)
 	})
 
 	t.Run("VerifySignature", func(t *testing.T) {
 		t.Parallel()
 
-		// Create a valid ticket using a different key.
+		// Create a valid token using a different key.
 		otherKey, err := hex.DecodeString("62656566646561646265656664656164626565666465616462656566646561646265656664656164626565666465616462656566646561646265656664656164")
 		require.NoError(t, err)
 		require.NotEqual(t, coderdtest.AppSigningKey, otherKey)
 		require.Len(t, otherKey, 64)
 
-		otherProvider := workspaceapps.New(slogtest.Make(t, nil), nil, nil, nil, nil, nil, time.Minute, otherKey)
-
-		ticketStr, err := otherProvider.GenerateTicket(workspaceapps.Ticket{
+		tokenStr, err := workspaceapps.GenerateToken(otherKey, workspaceapps.SignedToken{
 			Request: workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/app",
@@ -318,7 +314,7 @@ func Test_ParseTicket(t *testing.T) {
 				AppSlugOrPort:     "qux",
 			},
 
-			Expiry:      time.Now().Add(time.Hour).Unix(),
+			Expiry:      time.Now().Add(time.Hour),
 			UserID:      uuid.MustParse("b1530ba9-76f3-415e-b597-4ddd7cd466a4"),
 			WorkspaceID: uuid.MustParse("1e6802d3-963e-45ac-9d8c-bf997016ffed"),
 			AgentID:     uuid.MustParse("9ec18681-d2c9-4c9e-9186-f136efb4edbe"),
@@ -326,27 +322,27 @@ func Test_ParseTicket(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Verify the ticket is invalid.
-		ticket, err := provider.ParseTicket(ticketStr)
+		// Verify the token is invalid.
+		token, err := workspaceapps.ParseToken(coderdtest.AppSigningKey, tokenStr)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "verify JWS")
-		require.Equal(t, workspaceapps.Ticket{}, ticket)
+		require.Equal(t, workspaceapps.SignedToken{}, token)
 	})
 
 	t.Run("InvalidBody", func(t *testing.T) {
 		t.Parallel()
 
 		// Create a signature for an invalid body.
-		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS512, Key: provider.TicketSigningKey}, nil)
+		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS512, Key: coderdtest.AppSigningKey}, nil)
 		require.NoError(t, err)
 		signedObject, err := signer.Sign([]byte("hi"))
 		require.NoError(t, err)
 		serialized, err := signedObject.CompactSerialize()
 		require.NoError(t, err)
 
-		ticket, err := provider.ParseTicket(serialized)
+		token, err := workspaceapps.ParseToken(coderdtest.AppSigningKey, serialized)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "unmarshal payload")
-		require.Equal(t, workspaceapps.Ticket{}, ticket)
+		require.Equal(t, workspaceapps.SignedToken{}, token)
 	})
 }

@@ -44,6 +44,25 @@ type Request struct {
 	AppSlugOrPort string `json:"app_slug_or_port"`
 }
 
+// Normalize replaces WorkspaceAndAgent with WorkspaceNameOrID and
+// AgentNameOrID. This must be called before Validate.
+func (r Request) Normalize() Request {
+	req := r
+	if req.WorkspaceAndAgent != "" {
+		// workspace.agent
+		workspaceAndAgent := strings.SplitN(req.WorkspaceAndAgent, ".", 2)
+		req.WorkspaceAndAgent = ""
+		req.WorkspaceNameOrID = workspaceAndAgent[0]
+		if len(workspaceAndAgent) > 1 {
+			req.AgentNameOrID = workspaceAndAgent[1]
+		}
+	}
+
+	return req
+}
+
+// Validate ensures the request is correct and contains the necessary
+// parameters.
 func (r Request) Validate() error {
 	switch r.AccessMethod {
 	case AccessMethodPath, AccessMethodSubdomain, AccessMethodTerminal:
@@ -54,8 +73,12 @@ func (r Request) Validate() error {
 		return xerrors.New("base path is required")
 	}
 
+	if r.WorkspaceAndAgent != "" {
+		return xerrors.New("dev error: appReq.Validate() called before appReq.Normalize()")
+	}
+
 	if r.AccessMethod == AccessMethodTerminal {
-		if r.UsernameOrID != "" || r.WorkspaceAndAgent != "" || r.WorkspaceNameOrID != "" || r.AppSlugOrPort != "" {
+		if r.UsernameOrID != "" || r.WorkspaceNameOrID != "" || r.AppSlugOrPort != "" {
 			return xerrors.New("dev error: cannot specify any fields other than r.AccessMethod, r.BasePath and r.AgentNameOrID for terminal access method")
 		}
 
@@ -75,25 +98,16 @@ func (r Request) Validate() error {
 	if r.UsernameOrID == codersdk.Me {
 		// We block "me" for workspace app auth to avoid any security issues
 		// caused by having an identical workspace name on yourself and a
-		// different user and potentially reusing a ticket.
+		// different user and potentially reusing a token.
 		//
 		// This is also mitigated by storing the workspace/agent ID in the
-		// ticket, but we block it here to be double safe.
+		// token, but we block it here to be double safe.
 		//
 		// Subdomain apps have never been used with "me" from our code, and path
 		// apps now have a redirect to remove the "me" from the URL.
 		return xerrors.New(`username cannot be "me" in app requests`)
 	}
-	if r.WorkspaceAndAgent != "" {
-		split := strings.Split(r.WorkspaceAndAgent, ".")
-		if split[0] == "" || (len(split) == 2 && split[1] == "") || len(split) > 2 {
-			return xerrors.Errorf("invalid workspace and agent: %q", r.WorkspaceAndAgent)
-		}
-		if r.WorkspaceNameOrID != "" || r.AgentNameOrID != "" {
-			return xerrors.New("dev error: cannot specify both WorkspaceAndAgent and (WorkspaceNameOrID and AgentNameOrID)")
-		}
-	}
-	if r.WorkspaceAndAgent == "" && r.WorkspaceNameOrID == "" {
+	if r.WorkspaceNameOrID == "" {
 		return xerrors.New("workspace name or ID is required")
 	}
 	if r.AppSlugOrPort == "" {

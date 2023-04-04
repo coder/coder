@@ -6401,6 +6401,14 @@ const docTemplate = `{
                 "template_version_id"
             ],
             "properties": {
+                "allow_user_autostart": {
+                    "description": "AllowUserAutostart allows users to set a schedule for autostarting their\nworkspace. By default this is true. This can only be disabled when using\nan enterprise license.",
+                    "type": "boolean"
+                },
+                "allow_user_autostop": {
+                    "description": "AllowUserAutostop allows users to set a custom workspace TTL to use in\nplace of the template's DefaultTTL field. By default this is true. If\nfalse, the DefaultTTL will always be used. This can only be disabled when\nusing an enterprise license.",
+                    "type": "boolean"
+                },
                 "allow_user_cancel_workspace_jobs": {
                     "description": "Allow users to cancel in-progress workspace jobs.\n*bool as the default value is \"true\".",
                     "type": "boolean"
@@ -8188,6 +8196,13 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "allow_user_autostart": {
+                    "description": "AllowUserAutostart and AllowUserAutostop are enterprise-only. Their\nvalues are only used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "type": "boolean"
+                },
+                "allow_user_autostop": {
+                    "type": "boolean"
+                },
                 "allow_user_cancel_workspace_jobs": {
                     "type": "boolean"
                 },
@@ -8437,6 +8452,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "description_plaintext": {
+                    "type": "string"
+                },
+                "display_name": {
                     "type": "string"
                 },
                 "icon": {

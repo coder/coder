@@ -1,7 +1,7 @@
 import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { pageTitle } from "util/page"
+import { getTemplatePageTitle } from "../utils"
 import { useTemplateSummaryData } from "./data"
 import { TemplateSummaryPageView } from "./TemplateSummaryPageView"
 
@@ -15,15 +15,7 @@ export const TemplateSummaryPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>
-          {pageTitle(
-            `${
-              template.display_name.length > 0
-                ? template.display_name
-                : template.name
-            } · Template`,
-          )}
-        </title>
+        <title>{getTemplatePageTitle("Template", template)}</title>
       </Helmet>
       <TemplateSummaryPageView
         data={data}

@@ -311,7 +311,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
               disabled={isSubmitting}
               onChange={onChangeTrimmed(form)}
               fullWidth
-              label={t("form.fields.autoStop")}
+              label={t("form.fields.autostop")}
               variant="outlined"
               type="number"
             />

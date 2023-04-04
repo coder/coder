@@ -366,6 +366,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 		firstParameterValue       = "1"
 
 		secondParameterName        = "second_parameter"
+		secondParameterDisplayName = "Second Parameter"
 		secondParameterDescription = "This is second parameter"
 		secondParameterValue       = "2"
 
@@ -382,7 +383,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 					Complete: &proto.Provision_Complete{
 						Parameters: []*proto.RichParameter{
 							{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
-							{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
+							{Name: secondParameterName, DisplayName: secondParameterDisplayName, Description: secondParameterDescription, Mutable: true},
 							{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
 						},
 					},
@@ -418,6 +419,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 
 		matches := []string{
 			firstParameterDescription, firstParameterValue,
+			secondParameterDisplayName, "",
 			secondParameterDescription, secondParameterValue,
 			immutableParameterDescription, immutableParameterValue,
 			"Confirm create?", "yes",
@@ -426,7 +428,10 @@ func TestCreateWithRichParameters(t *testing.T) {
 			match := matches[i]
 			value := matches[i+1]
 			pty.ExpectMatch(match)
-			pty.WriteLine(value)
+
+			if value != "" {
+				pty.WriteLine(value)
+			}
 		}
 		<-doneChan
 	})

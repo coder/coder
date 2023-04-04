@@ -157,8 +157,8 @@ func TestPostTemplateByOrganization(t *testing.T) {
 
 			var setCalled int64
 			client := coderdtest.New(t, &coderdtest.Options{
-				TemplateScheduleStore: mockTemplateScheduleStore{
-					setFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 						atomic.AddInt64(&setCalled, 1)
 						require.Equal(t, maxTTL, options.MaxTTL)
 						template.DefaultTTL = int64(options.DefaultTTL)
@@ -230,6 +230,67 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, defaultTTL.Milliseconds(), got.DefaultTTLMillis)
 			require.Zero(t, got.MaxTTLMillis)
+		})
+	})
+
+	t.Run("AllowUserScheduling", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+
+			var setCalled int64
+			client := coderdtest.New(t, &coderdtest.Options{
+				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+						atomic.AddInt64(&setCalled, 1)
+						require.False(t, options.UserAutostartEnabled)
+						require.False(t, options.UserAutostopEnabled)
+						template.AllowUserAutostart = options.UserAutostartEnabled
+						template.AllowUserAutostop = options.UserAutostopEnabled
+						return template, nil
+					},
+				},
+			})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+				Name:               "testing",
+				VersionID:          version.ID,
+				AllowUserAutostart: ptr.Ref(false),
+				AllowUserAutostop:  ptr.Ref(false),
+			})
+			require.NoError(t, err)
+
+			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
+			require.False(t, got.AllowUserAutostart)
+			require.False(t, got.AllowUserAutostop)
+		})
+
+		t.Run("IgnoredUnlicensed", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+				Name:               "testing",
+				VersionID:          version.ID,
+				AllowUserAutostart: ptr.Ref(false),
+				AllowUserAutostop:  ptr.Ref(false),
+			})
+			require.NoError(t, err)
+			// ignored and use AGPL defaults
+			require.True(t, got.AllowUserAutostart)
+			require.True(t, got.AllowUserAutostop)
 		})
 	})
 
@@ -448,8 +509,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 			var setCalled int64
 			client := coderdtest.New(t, &coderdtest.Options{
-				TemplateScheduleStore: mockTemplateScheduleStore{
-					setFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 						if atomic.AddInt64(&setCalled, 1) == 2 {
 							require.Equal(t, maxTTL, options.MaxTTL)
 						}
@@ -543,6 +604,96 @@ func TestPatchTemplateMeta(t *testing.T) {
 		})
 	})
 
+	t.Run("AllowUserScheduling", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				setCalled      int64
+				allowAutostart atomic.Bool
+				allowAutostop  atomic.Bool
+			)
+			allowAutostart.Store(true)
+			allowAutostop.Store(true)
+			client := coderdtest.New(t, &coderdtest.Options{
+				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+						atomic.AddInt64(&setCalled, 1)
+						assert.Equal(t, allowAutostart.Load(), options.UserAutostartEnabled)
+						assert.Equal(t, allowAutostop.Load(), options.UserAutostopEnabled)
+
+						template.DefaultTTL = int64(options.DefaultTTL)
+						template.MaxTTL = int64(options.MaxTTL)
+						template.AllowUserAutostart = options.UserAutostartEnabled
+						template.AllowUserAutostop = options.UserAutostopEnabled
+						return template, nil
+					},
+				},
+			})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+			})
+			require.Equal(t, allowAutostart.Load(), template.AllowUserAutostart)
+			require.Equal(t, allowAutostop.Load(), template.AllowUserAutostop)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			allowAutostart.Store(false)
+			allowAutostop.Store(false)
+			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+				Name:                         template.Name,
+				DisplayName:                  template.DisplayName,
+				Description:                  template.Description,
+				Icon:                         template.Icon,
+				DefaultTTLMillis:             template.DefaultTTLMillis,
+				MaxTTLMillis:                 template.MaxTTLMillis,
+				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+				AllowUserAutostart:           allowAutostart.Load(),
+				AllowUserAutostop:            allowAutostop.Load(),
+			})
+			require.NoError(t, err)
+
+			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
+			require.Equal(t, allowAutostart.Load(), got.AllowUserAutostart)
+			require.Equal(t, allowAutostop.Load(), got.AllowUserAutostop)
+		})
+
+		t.Run("IgnoredUnlicensed", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
+			})
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+				Name:        template.Name,
+				DisplayName: template.DisplayName,
+				Description: template.Description,
+				Icon:        template.Icon,
+				// Increase the default TTL to avoid error "not modified".
+				DefaultTTLMillis:             template.DefaultTTLMillis + 1,
+				MaxTTLMillis:                 template.MaxTTLMillis,
+				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+				AllowUserAutostart:           false,
+				AllowUserAutostop:            false,
+			})
+			require.NoError(t, err)
+			require.True(t, got.AllowUserAutostart)
+			require.True(t, got.AllowUserAutostop)
+		})
+	})
+
 	t.Run("NotModified", func(t *testing.T) {
 		t.Parallel()
 
@@ -559,10 +710,12 @@ func TestPatchTemplateMeta(t *testing.T) {
 		defer cancel()
 
 		req := codersdk.UpdateTemplateMeta{
-			Name:             template.Name,
-			Description:      template.Description,
-			Icon:             template.Icon,
-			DefaultTTLMillis: template.DefaultTTLMillis,
+			Name:               template.Name,
+			Description:        template.Description,
+			Icon:               template.Icon,
+			DefaultTTLMillis:   template.DefaultTTLMillis,
+			AllowUserAutostart: template.AllowUserAutostart,
+			AllowUserAutostop:  template.AllowUserAutostop,
 		}
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.ErrorContains(t, err, "not modified")

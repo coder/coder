@@ -20,7 +20,22 @@ if [[ "${CODER_FORCE_VERSION:-}" != "" ]]; then
 	exit 0
 fi
 
-last_tag="$(git describe --tags --abbrev=0)"
+# To make contributing easier, if the upstream isn't coder/coder and there are
+# no tags we will fall back to 0.1.0 with devel suffix.
+if [[ "$(git remote get-url origin)" != *coder/coder* ]] && [[ "$(git tag)" == "" ]]; then
+	log
+	log "INFO(version.sh): It appears you've checked out a fork of Coder."
+	log "INFO(version.sh): By default GitHub does not include tags when forking."
+	log "INFO(version.sh): We will use the default version 0.1.0 for this build."
+	log "INFO(version.sh): To pull tags from upstream, use the following commands:"
+	log "INFO(version.sh):   - git remote add upstream https://github.com/coder/coder.git"
+	log "INFO(version.sh):   - git fetch upstream"
+	log
+	last_tag="v0.1.0"
+else
+	last_tag="$(git describe --tags --abbrev=0)"
+fi
+
 version="$last_tag"
 
 # If the HEAD has extra commits since the last tag then we are in a dev version.

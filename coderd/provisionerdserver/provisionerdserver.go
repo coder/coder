@@ -879,6 +879,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			_, err = server.Database.InsertTemplateVersionParameter(ctx, database.InsertTemplateVersionParameterParams{
 				TemplateVersionID:   input.TemplateVersionID,
 				Name:                richParameter.Name,
+				DisplayName:         richParameter.DisplayName,
 				Description:         richParameter.Description,
 				Type:                richParameter.Type,
 				Mutable:             richParameter.Mutable,
@@ -985,9 +986,13 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			if err != nil {
 				return xerrors.Errorf("get template schedule options: %w", err)
 			}
-			if !templateSchedule.UserSchedulingEnabled {
-				// The user is not permitted to set their own TTL.
+			if !templateSchedule.UserAutostopEnabled {
+				// The user is not permitted to set their own TTL, so use the
+				// template default.
 				deadline = time.Time{}
+				if templateSchedule.DefaultTTL > 0 {
+					deadline = now.Add(templateSchedule.DefaultTTL)
+				}
 			}
 			if templateSchedule.MaxTTL > 0 {
 				maxDeadline = now.Add(templateSchedule.MaxTTL)

@@ -132,8 +132,18 @@ const WorkspaceSettingsPage = lazy(
 const CreateTokenPage = lazy(
   () => import("./pages/CreateTokenPage/CreateTokenPage"),
 )
+
+const TemplateDocsPage = lazy(
+  () => import("./pages/TemplatePage/TemplateDocsPage/TemplateDocsPage"),
+)
+
 const TemplateFilesPage = lazy(
   () => import("./pages/TemplatePage/TemplateFilesPage/TemplateFilesPage"),
+)
+
+const TemplateVersionsPage = lazy(
+  () =>
+    import("./pages/TemplatePage/TemplateVersionsPage/TemplateVersionsPage"),
 )
 const TemplateSchedulePage = lazy(
   () =>
@@ -170,8 +180,9 @@ export const AppRouter: FC = () => {
                 <Route path=":template">
                   <Route element={<TemplateLayout />}>
                     <Route index element={<TemplateSummaryPage />} />
-
+                    <Route path="docs" element={<TemplateDocsPage />} />
                     <Route path="files" element={<TemplateFilesPage />} />
+                    <Route path="versions" element={<TemplateVersionsPage />} />
                   </Route>
 
                   <Route path="workspace" element={<CreateWorkspacePage />} />
