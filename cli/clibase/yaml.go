@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/go-wordwrap"
+	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 )
@@ -45,12 +46,12 @@ func deepMapNode(n *yaml.Node, path []string, headComment string) *yaml.Node {
 // the stack.
 //
 // It is isomorphic with FromYAML.
-func (s OptionSet) ToYAML() (*yaml.Node, error) {
+func (s *OptionSet) ToYAML() (*yaml.Node, error) {
 	root := yaml.Node{
 		Kind: yaml.MappingNode,
 	}
 
-	for _, opt := range s {
+	for _, opt := range *s {
 		if opt.YAML == "" {
 			continue
 		}
@@ -141,9 +142,59 @@ func (s OptionSet) ToYAML() (*yaml.Node, error) {
 
 // FromYAML converts the given YAML node into the option set.
 // It is isomorphic with ToYAML.
-
 func (s *OptionSet) FromYAML(n *yaml.Node) error {
 	return fromYAML(*s, nil, n)
+}
+
+func (s *OptionSet) groupMembers(wantGroup *Group) ([]*Option, []*Group) {
+	var (
+		opts      map[*Option]struct{}
+		subgroups map[*Group]struct{}
+	)
+
+	// HACK: If the parent group has no options, its sole purpose is to contain
+	// other groups, so we will not find it by looking at the options.
+	allSubGroups := make(map[*Group]struct{})
+	for _, opt := range *s {
+		allSubGroups[opt.Group] = struct{}{}
+	}
+	for g := range allSubGroups {
+		if g.Parent == nil {
+			continue
+		}
+
+		if g.Parent != wantGroup {
+			continue
+		}
+
+		_, parentGroupOpts := s.groupMembers(g.Parent)
+		if len(parentGroupOpts) > 0 {
+			continue
+		}
+
+		subgroups[g.Parent] = struct{}{}
+	}
+
+	for i := range *s {
+		opt := &(*s)[i]
+		if opt.Group == wantGroup {
+			opts[opt] = struct{}{}
+		}
+
+		if opt.Group.Parent != wantGroup {
+			continue
+		}
+
+		subgroups[opt.Group] = struct{}{}
+
+	}
+
+	for _, g := range subgroups {
+		if g.Parent != nil {
+			o, sgs := s.groupMembers(g.Parent)
+		}
+	}
+	return maps.Keys(opts), maps.Keys(subgroups)
 }
 
 func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
@@ -160,29 +211,20 @@ func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
 		return xerrors.Errorf("expected mapping node, got type %v, contents:\n%v", n.Kind, string(byt))
 	}
 
+	options, subgroups := os.groupMembers(ofGroup)
 	var (
 		subGroupsByName = make(map[string]*Group)
 		optionsByName   = make(map[string]*Option)
 	)
-	for i, opt := range os {
+	for _, g := range subgroups {
+		if g.YAML == "" {
+			return xerrors.Errorf("group yaml name is empty for %q", g.Name)
+		}
+		subGroupsByName[g.YAML] = g
+	}
+	for i, opt := range options {
 		if opt.YAML == "" {
 			continue
-		}
-
-		// We only want to process options that are of the identified group,
-		// even if that group is nil.
-		if opt.Group != ofGroup {
-			if opt.Group != nil && opt.Group.Parent == ofGroup {
-				if opt.Group.YAML == "" {
-					return xerrors.Errorf("group yaml name is empty for %q, groups: %+v", opt.Name, opt.Group)
-				}
-				subGroupsByName[opt.Group.YAML] = opt.Group
-			}
-			continue
-		}
-
-		if opt.Group != nil && opt.Group.YAML == "" {
-			return xerrors.Errorf("group yaml name is empty for %q", opt.Name)
 		}
 
 		if _, ok := optionsByName[opt.YAML]; ok {
@@ -243,7 +285,7 @@ func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
 				}
 				continue
 			}
-			merr = errors.Join(merr, xerrors.Errorf("unknown option or subgroup %q", name))
+			merr = errors.Join(merr, xerrors.Errorf("unknown option or subgroup %q in group %v", name, ofGroup))
 		case yaml.ScalarNode, yaml.SequenceNode:
 			if !foundOpt {
 				merr = errors.Join(merr, xerrors.Errorf("unknown option %q", name))

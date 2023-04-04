@@ -113,6 +113,19 @@ func TestOptionSet_YAMLIsomorphism(t *testing.T) {
 				return &clibase.Struct[[]kid]{}
 			},
 		},
+		{
+			name: "DeepGroup",
+			os: clibase.OptionSet{
+				{
+					YAML:    "names",
+					Default: "jill,jack,joan",
+					Group:   &clibase.Group{YAML: "kids", Parent: &clibase.Group{YAML: "family"}},
+				},
+			},
+			zeroValue: func() pflag.Value {
+				return clibase.StringArrayOf(&[]string{})
+			},
+		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {

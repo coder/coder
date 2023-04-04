@@ -133,7 +133,7 @@ func TestOptionSet_ParseEnv(t *testing.T) {
 			},
 		}
 
-		err := os.SetDefaults(nil)
+		err := os.SetDefaults()
 		require.NoError(t, err)
 
 		err = os.ParseEnv([]clibase.EnvVar{
@@ -157,7 +157,7 @@ func TestOptionSet_ParseEnv(t *testing.T) {
 			},
 		}
 
-		err := os.SetDefaults(nil)
+		err := os.SetDefaults()
 		require.NoError(t, err)
 
 		err = os.ParseEnv([]clibase.EnvVar{

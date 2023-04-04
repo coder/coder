@@ -173,7 +173,7 @@ require (
 
 require (
 	cloud.google.com/go/logging v1.6.1 // indirect
-	github.com/bep/debounce v1.2.1 // indirect
+	github.com/bep/debounce v1.2.1
 	github.com/dgraph-io/badger/v3 v3.2103.5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/golang/glog v1.0.0 // indirect
