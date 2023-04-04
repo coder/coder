@@ -106,9 +106,7 @@ func validateProxyURL(u string) error {
 // @Success 200 {array} codersdk.WorkspaceProxy
 // @Router /workspaceproxies [get]
 func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
-	)
+	ctx := r.Context()
 
 	proxies, err := api.Database.GetWorkspaceProxies(ctx)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
