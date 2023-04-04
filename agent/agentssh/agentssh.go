@@ -493,7 +493,7 @@ func (s *Server) Close() error {
 // accepting new connections.
 //
 // Shutdown is not implemented.
-func (*Server) Shutdown(ctx context.Context) error {
+func (*Server) Shutdown(_ context.Context) error {
 	// TODO(mafredri): Implement shutdown, SIGHUP running commands, etc.
 	return nil
 }
