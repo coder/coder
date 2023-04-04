@@ -29,14 +29,14 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 				DeploymentValues: dv,
 			},
 		})
-		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client)
 		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureWorkspaceProxy: 1,
 			},
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
-		proxy, err := client.CreateWorkspaceProxy(ctx, user.OrganizationID, codersdk.CreateWorkspaceProxyRequest{
+		proxy, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
 			Name:             namesgenerator.GetRandomName(1),
 			Icon:             "/emojis/flag.png",
 			URL:              "https://" + namesgenerator.GetRandomName(1) + ".com",
@@ -44,7 +44,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		proxies, err := client.WorkspaceProxiesByOrganization(ctx, user.OrganizationID)
+		proxies, err := client.WorkspaceProxiesByOrganization(ctx)
 		require.NoError(t, err)
 		require.Len(t, proxies, 1)
 		require.Equal(t, proxy, proxies[0])

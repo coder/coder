@@ -34,9 +34,9 @@ type WorkspaceProxy struct {
 	Deleted          bool      `db:"deleted" json:"deleted"`
 }
 
-func (c *Client) CreateWorkspaceProxy(ctx context.Context, orgID uuid.UUID, req CreateWorkspaceProxyRequest) (WorkspaceProxy, error) {
+func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspaceProxyRequest) (WorkspaceProxy, error) {
 	res, err := c.Request(ctx, http.MethodPost,
-		fmt.Sprintf("/api/v2/organizations/%s/workspaceproxies", orgID.String()),
+		fmt.Sprintf("/api/v2/workspaceproxies"),
 		req,
 	)
 	if err != nil {
@@ -51,9 +51,9 @@ func (c *Client) CreateWorkspaceProxy(ctx context.Context, orgID uuid.UUID, req 
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-func (c *Client) WorkspaceProxiesByOrganization(ctx context.Context, orgID uuid.UUID) ([]WorkspaceProxy, error) {
+func (c *Client) WorkspaceProxiesByOrganization(ctx context.Context) ([]WorkspaceProxy, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/organizations/%s/workspaceproxies", orgID.String()),
+		fmt.Sprintf("/api/v2/workspaceproxies"),
 		nil,
 	)
 	if err != nil {
