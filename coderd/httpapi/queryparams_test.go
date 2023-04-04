@@ -195,6 +195,43 @@ func TestParseQueryParams(t *testing.T) {
 		testQueryParams(t, expParams, parser, parser.Int)
 	})
 
+	t.Run("UInt", func(t *testing.T) {
+		t.Parallel()
+		expParams := []queryParamTestCase[uint64]{
+			{
+				QueryParam: "valid_integer",
+				Value:      "100",
+				Expected:   100,
+			},
+			{
+				QueryParam: "empty",
+				Value:      "",
+				Expected:   0,
+			},
+			{
+				QueryParam: "no_value",
+				NoSet:      true,
+				Default:    5,
+				Expected:   5,
+			},
+			{
+				QueryParam:            "negative",
+				Value:                 "-10",
+				Default:               5,
+				ExpectedErrorContains: "must be a valid positive integer",
+			},
+			{
+				QueryParam:            "invalid_integer",
+				Value:                 "bogus",
+				Expected:              0,
+				ExpectedErrorContains: "must be a valid positive integer",
+			},
+		}
+
+		parser := httpapi.NewQueryParamParser()
+		testQueryParams(t, expParams, parser, parser.UInt)
+	})
+
 	t.Run("UUIDs", func(t *testing.T) {
 		t.Parallel()
 		expParams := []queryParamTestCase[[]uuid.UUID]{
@@ -236,6 +273,15 @@ func TestParseQueryParams(t *testing.T) {
 
 		parser := httpapi.NewQueryParamParser()
 		testQueryParams(t, expParams, parser, parser.UUIDs)
+	})
+
+	t.Run("Required", func(t *testing.T) {
+		t.Parallel()
+
+		parser := httpapi.NewQueryParamParser()
+		parser.Required("test_value")
+		parser.UUID(url.Values{}, uuid.New(), "test_value")
+		require.Len(t, parser.Errors, 1)
 	})
 }
 

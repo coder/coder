@@ -7423,7 +7423,7 @@ WITH workspaces_with_jobs AS (
 			build_number DESC
 		LIMIT
 			1
-	) latest_build ON TRUE
+	) latest_build ON TRUE WHERE deleted = false
 ), pending_workspaces AS (
 	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
 		started_at IS NULL
@@ -7431,8 +7431,8 @@ WITH workspaces_with_jobs AS (
 	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
 		started_at IS NOT NULL AND
 		canceled_at IS NULL AND
-		updated_at - INTERVAL '30 seconds' < NOW() AND
-		completed_at IS NULL
+		completed_at IS NULL AND
+		updated_at - INTERVAL '30 seconds' < NOW()
 ), running_workspaces AS (
 	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
 		completed_at IS NOT NULL AND
