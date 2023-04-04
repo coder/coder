@@ -144,6 +144,10 @@ while signing in via OIDC as a new user. Coder will log the claim fields
 returned by the upstream identity provider in a message containing the
 string `got oidc claims`, as well as the user info returned.
 
+> **Note:** If you need to ensure that Coder only uses information from
+> the ID token and does not hit the UserInfo endpoint, you can set the
+> configuration option `CODER_OIDC_IGNORE_USERINFO=true`.
+
 ### Email Addresses
 
 By default, Coder will look for the OIDC claim named `email` and use that
@@ -281,6 +285,7 @@ Below are some details specific to individual OIDC providers.
 
      where `$CLIENT_ID` is the Client ID from step 1 ([see here](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-openid-connect-oauth-flows-scenarios#:~:text=scope%E2%80%AFopenid.-,resource,-optional)).
      This is required for the upstream OIDC provider to return the requested claims.
+   - `CODER_OIDC_IGNORE_USERINFO`: Set to `true`.
 
 1. Configure [Issuance Transform Rules](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/operations/create-a-rule-to-send-ldap-attributes-as-claims)
    on your federation server to send the following claims:
