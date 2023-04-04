@@ -4987,8 +4987,11 @@ func (q *fakeQuerier) GetWorkspaceProxies(_ context.Context) ([]database.Workspa
 	defer q.mutex.Unlock()
 
 	cpy := make([]database.WorkspaceProxy, 0, len(q.workspaceProxies))
+
 	for _, p := range q.workspaceProxies {
-		cpy = append(cpy, p)
+		if !p.Deleted {
+			cpy = append(cpy, p)
+		}
 	}
 	return cpy, nil
 }

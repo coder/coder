@@ -3,7 +3,6 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -36,7 +35,7 @@ type WorkspaceProxy struct {
 
 func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspaceProxyRequest) (WorkspaceProxy, error) {
 	res, err := c.Request(ctx, http.MethodPost,
-		fmt.Sprintf("/api/v2/workspaceproxies"),
+		"/api/v2/workspaceproxies",
 		req,
 	)
 	if err != nil {
@@ -53,7 +52,7 @@ func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspacePr
 
 func (c *Client) WorkspaceProxiesByOrganization(ctx context.Context) ([]WorkspaceProxy, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/workspaceproxies"),
+		"/api/v2/workspaceproxies",
 		nil,
 	)
 	if err != nil {
