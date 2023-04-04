@@ -89,13 +89,13 @@ func NewServer(ctx context.Context, logger slog.Logger, maxTimeout time.Duration
 			"session":                        ssh.DefaultSessionHandler,
 		},
 		ConnectionFailedCallback: func(_ net.Conn, err error) {
-			logger.Info(ctx, "ssh connection ended", slog.Error(err))
+			s.logger.Info(ctx, "ssh connection ended", slog.Error(err))
 		},
 		Handler:     s.sessionHandler,
 		HostSigners: []ssh.Signer{randomSigner},
 		LocalPortForwardingCallback: func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
 			// Allow local port forwarding all!
-			logger.Debug(ctx, "local port forward",
+			s.logger.Debug(ctx, "local port forward",
 				slog.F("destination-host", destinationHost),
 				slog.F("destination-port", destinationPort))
 			return true
@@ -105,7 +105,7 @@ func NewServer(ctx context.Context, logger slog.Logger, maxTimeout time.Duration
 		},
 		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
 			// Allow reverse port forwarding all!
-			logger.Debug(ctx, "local port forward",
+			s.logger.Debug(ctx, "local port forward",
 				slog.F("bind-host", bindHost),
 				slog.F("bind-port", bindPort))
 			return true
