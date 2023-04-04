@@ -41,10 +41,11 @@ const (
 	// token on app domains.
 	//nolint:gosec
 	DevURLSessionTokenCookie = "coder_devurl_session_token"
-	// DevURLSessionTicketCookie is the name of the cookie that stores a
+	// DevURLSignedAppTokenCookie is the name of the cookie that stores a
 	// temporary JWT that can be used to authenticate instead of the session
 	// token.
-	DevURLSessionTicketCookie = "coder_devurl_session_ticket"
+	//nolint:gosec
+	DevURLSignedAppTokenCookie = "coder_devurl_signed_app_token"
 
 	// BypassRatelimitHeader is the custom header to use to bypass ratelimits.
 	// Only owners can bypass rate limits. This is typically used for scale testing.

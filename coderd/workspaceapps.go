@@ -124,7 +124,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		chiPath = "/" + chiPath
 	}
 
-	ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, workspaceapps.Request{
+	token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, workspaceapps.Request{
 		AccessMethod:      workspaceapps.AccessMethodPath,
 		BasePath:          basePath,
 		UsernameOrID:      chi.URLParam(r, "user"),
@@ -137,7 +137,7 @@ func (api *API) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	api.proxyWorkspaceApplication(rw, r, *ticket, chiPath)
+	api.proxyWorkspaceApplication(rw, r, *token, chiPath)
 }
 
 // handleSubdomainApplications handles subdomain-based application proxy
@@ -247,7 +247,7 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 				return
 			}
 
-			ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, workspaceapps.Request{
+			token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodSubdomain,
 				BasePath:          "/",
 				UsernameOrID:      app.Username,
@@ -263,7 +263,7 @@ func (api *API) handleSubdomainApplications(middlewares ...func(http.Handler) ht
 			// app.
 			mws := chi.Middlewares(middlewares)
 			mws.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-				api.proxyWorkspaceApplication(rw, r, *ticket, r.URL.Path)
+				api.proxyWorkspaceApplication(rw, r, *token, r.URL.Path)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
@@ -561,7 +561,7 @@ func (api *API) setWorkspaceAppCookie(rw http.ResponseWriter, r *http.Request, t
 	return true
 }
 
-func (api *API) proxyWorkspaceApplication(rw http.ResponseWriter, r *http.Request, ticket workspaceapps.Ticket, path string) {
+func (api *API) proxyWorkspaceApplication(rw http.ResponseWriter, r *http.Request, appToken workspaceapps.SignedToken, path string) {
 	ctx := r.Context()
 
 	// Filter IP headers from untrusted origins.
@@ -573,12 +573,12 @@ func (api *API) proxyWorkspaceApplication(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	appURL, err := url.Parse(ticket.AppURL)
+	appURL, err := url.Parse(appToken.AppURL)
 	if err != nil {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusBadRequest,
 			Title:        "Bad Request",
-			Description:  fmt.Sprintf("Application has an invalid URL %q: %s", ticket.AppURL, err.Error()),
+			Description:  fmt.Sprintf("Application has an invalid URL %q: %s", appToken.AppURL, err.Error()),
 			RetryEnabled: true,
 			DashboardURL: api.AccessURL.String(),
 		})
@@ -592,7 +592,7 @@ func (api *API) proxyWorkspaceApplication(rw http.ResponseWriter, r *http.Reques
 		portInt, err := strconv.Atoi(port)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("App URL %q has an invalid port %q.", ticket.AppURL, port),
+				Message: fmt.Sprintf("App URL %q has an invalid port %q.", appToken.AppURL, port),
 				Detail:  err.Error(),
 			})
 			return
@@ -639,7 +639,7 @@ func (api *API) proxyWorkspaceApplication(rw http.ResponseWriter, r *http.Reques
 		})
 	}
 
-	conn, release, err := api.workspaceAgentCache.Acquire(ticket.AgentID)
+	conn, release, err := api.workspaceAgentCache.Acquire(appToken.AgentID)
 	if err != nil {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusBadGateway,
