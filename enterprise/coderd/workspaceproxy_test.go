@@ -40,7 +40,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 			Name:             namesgenerator.GetRandomName(1),
 			Icon:             "/emojis/flag.png",
 			URL:              "https://" + namesgenerator.GetRandomName(1) + ".com",
-			WildcardHostname: "*." + namesgenerator.GetRandomName(1) + ".com",
+			WildcardHostname: "*.sub.example.com",
 		})
 		require.NoError(t, err)
 
