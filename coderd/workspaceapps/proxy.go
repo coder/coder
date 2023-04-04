@@ -86,9 +86,8 @@ type Server struct {
 	AppSigningKey       SigningKey
 }
 
-func (s *Server) Attach(r chi.Router, pathAppRateLimiter func(http.Handler) http.Handler) {
+func (s *Server) Attach(r chi.Router) {
 	servePathApps := func(r chi.Router) {
-		r.Use(pathAppRateLimiter)
 		r.HandleFunc("/*", s.workspaceAppsProxyPath)
 	}
 

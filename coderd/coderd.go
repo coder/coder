@@ -404,7 +404,10 @@ func New(options *Options) *API {
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
 
 	// Attach workspace apps routes.
-	workspaceAppServer.Attach(r, apiRateLimiter)
+	r.Group(func(r chi.Router) {
+		r.Use(apiKeyMiddleware)
+		workspaceAppServer.Attach(r)
+	})
 
 	r.Route("/derp", func(r chi.Router) {
 		r.Get("/", derpHandler.ServeHTTP)
