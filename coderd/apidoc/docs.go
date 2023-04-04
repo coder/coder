@@ -6894,9 +6894,6 @@ const docTemplate = `{
                 "agent_stat_refresh_interval": {
                     "type": "integer"
                 },
-                "audit_logging": {
-                    "type": "boolean"
-                },
                 "autobuild_poll_interval": {
                     "type": "integer"
                 },

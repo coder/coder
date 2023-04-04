@@ -349,7 +349,6 @@ export interface DeploymentValues {
   readonly metrics_cache_refresh_interval?: number
   readonly agent_stat_refresh_interval?: number
   readonly agent_fallback_troubleshooting_url?: string
-  readonly audit_logging?: boolean
   readonly browser_only?: boolean
   readonly scim_api_key?: string
   readonly provisioner?: ProvisionerConfig

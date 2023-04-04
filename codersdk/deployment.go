@@ -142,7 +142,6 @@ type DeploymentValues struct {
 	MetricsCacheRefreshInterval     clibase.Duration                `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
 	AgentStatRefreshInterval        clibase.Duration                `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
 	AgentFallbackTroubleshootingURL clibase.URL                     `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
-	AuditLogging                    clibase.Bool                    `json:"audit_logging,omitempty" typescript:",notnull"`
 	BrowserOnly                     clibase.Bool                    `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                      clibase.String                  `json:"scim_api_key,omitempty" typescript:",notnull"`
 	Provisioner                     ProvisionerConfig               `json:"provisioner,omitempty" typescript:",notnull"`
@@ -1261,16 +1260,6 @@ when required by your organization's security policy.`,
 			Default:     "https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates",
 			Value:       &c.AgentFallbackTroubleshootingURL,
 			YAML:        "agentFallbackTroubleshootingURL",
-		},
-		{
-			Name:        "Audit Logging",
-			Description: "Specifies whether audit logging is enabled.",
-			Flag:        "audit-logging",
-			Env:         "CODER_AUDIT_LOGGING",
-			Default:     "true",
-			Annotations: clibase.Annotations{}.Mark(flagEnterpriseKey, "true"),
-			Value:       &c.AuditLogging,
-			YAML:        "auditLogging",
 		},
 		{
 			Name:        "Browser Only",
