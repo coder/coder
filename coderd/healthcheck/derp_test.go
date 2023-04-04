@@ -17,6 +17,7 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
+	"github.com/coder/coder/coderd/activewebsockets"
 	"github.com/coder/coder/coderd/healthcheck"
 	"github.com/coder/coder/tailnet"
 )
@@ -124,10 +125,15 @@ func TestDERP(t *testing.T) {
 	t.Run("ForceWebsockets", func(t *testing.T) {
 		t.Parallel()
 
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		derpSrv := derp.NewServer(key.NewNode(), func(format string, args ...any) { t.Logf(format, args...) })
 		defer derpSrv.Close()
-		handler, closeHandler := tailnet.WithWebsocketSupport(derpSrv, derphttp.Handler(derpSrv))
-		defer closeHandler()
+
+		sockets := activewebsockets.New(ctx)
+		handler := tailnet.WithWebsocketSupport(sockets, derpSrv, derphttp.Handler(derpSrv))
+		defer sockets.Close()
 
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("Upgrade") == "DERP" {
@@ -140,7 +146,6 @@ func TestDERP(t *testing.T) {
 		}))
 
 		var (
-			ctx        = context.Background()
 			report     = healthcheck.DERPReport{}
 			derpURL, _ = url.Parse(srv.URL)
 			opts       = &healthcheck.DERPReportOptions{

@@ -1,6 +1,7 @@
 package tailnettest
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"html"
@@ -18,6 +19,7 @@ import (
 	"tailscale.com/types/nettype"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/coderd/activewebsockets"
 	"github.com/coder/coder/tailnet"
 )
 
@@ -71,8 +73,12 @@ func RunDERPOnlyWebSockets(t *testing.T) *tailcfg.DERPMap {
 	logf := tailnet.Logger(slogtest.Make(t, nil))
 	d := derp.NewServer(key.NewNode(), logf)
 	handler := derphttp.Handler(d)
-	var closeFunc func()
-	handler, closeFunc = tailnet.WithWebsocketSupport(d, handler)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sockets := activewebsockets.New(ctx)
+
+	handler = tailnet.WithWebsocketSupport(sockets, d, handler)
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/derp" {
 			handler.ServeHTTP(w, r)
@@ -91,7 +97,7 @@ func RunDERPOnlyWebSockets(t *testing.T) *tailcfg.DERPMap {
 	t.Cleanup(func() {
 		server.CloseClientConnections()
 		server.Close()
-		closeFunc()
+		sockets.Close()
 		d.Close()
 	})
 

@@ -1,4 +1,4 @@
-package coderd
+package activewebsockets
 
 import (
 	"context"
@@ -12,26 +12,26 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// ActiveWebsockets is a helper struct that can be used to track active
+// Active is a helper struct that can be used to track active
 // websocket connections. All connections will be closed when the parent
 // context is canceled.
-type ActiveWebsockets struct {
+type Active struct {
 	ctx    context.Context
 	cancel func()
 
 	wg sync.WaitGroup
 }
 
-func NewActiveWebsockets(ctx context.Context) *ActiveWebsockets {
+func New(ctx context.Context) *Active {
 	ctx, cancel := context.WithCancel(ctx)
-	return &ActiveWebsockets{
+	return &Active{
 		ctx:    ctx,
 		cancel: cancel,
 	}
 }
 
 // Accept accepts a websocket connection and calls f with the connection.
-// The function will be tracked by the ActiveWebsockets struct and will be
+// The function will be tracked by the Active struct and will be
 // closed when the parent context is canceled.
 // Steps:
 //  1. Ensure we are still accepting websocket connections, and not shutting down.
@@ -41,7 +41,7 @@ func NewActiveWebsockets(ctx context.Context) *ActiveWebsockets {
 //     4a. If there is an error, write the error to the response writer and return.
 //  5. Launch go routine to kill websocket if the parent context is canceled.
 //  6. Call 'f' with the websocket connection.
-func (a *ActiveWebsockets) Accept(rw http.ResponseWriter, r *http.Request, options *websocket.AcceptOptions, f func(conn *websocket.Conn)) {
+func (a *Active) Accept(rw http.ResponseWriter, r *http.Request, options *websocket.AcceptOptions, f func(conn *websocket.Conn)) {
 	// Ensure we are still accepting websocket connections, and not shutting down.
 	if err := a.ctx.Err(); err != nil {
 		httpapi.Write(context.Background(), rw, http.StatusBadRequest, codersdk.Response{
@@ -79,7 +79,7 @@ func (a *ActiveWebsockets) Accept(rw http.ResponseWriter, r *http.Request, optio
 // and close a websocket connection if that context is canceled.
 func closeConnOnContext(ctx context.Context, conn *websocket.Conn) {
 	// Labeling the go routine for goroutine dumps/debugging.
-	go pprof.Do(ctx, pprof.Labels("service", "api-server", "function", "ActiveWebsockets.track"), func(ctx context.Context) {
+	go pprof.Do(ctx, pprof.Labels("service", "ActiveWebsockets"), func(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			_ = conn.Close(websocket.StatusNormalClosure, "")
@@ -89,7 +89,7 @@ func closeConnOnContext(ctx context.Context, conn *websocket.Conn) {
 
 // Close will close all active websocket connections and wait for them to
 // finish.
-func (a *ActiveWebsockets) Close() {
+func (a *Active) Close() {
 	a.cancel()
 	a.wg.Wait()
 }

@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/buildinfo"
 
 	// Used to serve the Swagger endpoint
+	"github.com/coder/coder/coderd/activewebsockets"
 	_ "github.com/coder/coder/coderd/apidoc"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
@@ -315,7 +316,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore: options.TemplateScheduleStore,
 		Experiments:           experiments,
 		healthCheckGroup:      &singleflight.Group[string, *healthcheck.Report]{},
-		WebsocketWatch:        NewActiveWebsockets(ctx),
+		WebsocketWatch:        activewebsockets.New(ctx),
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -355,7 +356,7 @@ func New(options *Options) *API {
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
 
 	derpHandler := derphttp.Handler(api.DERPServer)
-	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
+	derpHandler = tailnet.WithWebsocketSupport(api.WebsocketWatch, api.DERPServer, derpHandler)
 
 	r.Use(
 		httpmw.Recover(api.Logger),
@@ -784,7 +785,7 @@ type API struct {
 
 	siteHandler http.Handler
 
-	WebsocketWatch *ActiveWebsockets
+	WebsocketWatch *activewebsockets.Active
 	derpCloseFunc  func()
 
 	metricsCache          *metricscache.Cache
