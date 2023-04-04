@@ -30,7 +30,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/agent"
+	"github.com/coder/coder/agent/agentssh"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/gitauth"
@@ -620,7 +620,7 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer ptNetConn.Close()
-	agent.Bicopy(ctx, wsNetConn, ptNetConn)
+	agentssh.Bicopy(ctx, wsNetConn, ptNetConn)
 }
 
 // @Summary Get listening ports for workspace agent

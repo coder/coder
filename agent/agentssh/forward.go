@@ -1,4 +1,4 @@
-package agent
+package agentssh
 
 import (
 	"context"
