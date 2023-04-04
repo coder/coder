@@ -146,55 +146,40 @@ func (s *OptionSet) FromYAML(n *yaml.Node) error {
 	return fromYAML(*s, nil, n)
 }
 
-func (s *OptionSet) groupMembers(wantGroup *Group) ([]*Option, []*Group) {
-	var (
-		opts      map[*Option]struct{}
-		subgroups map[*Group]struct{}
-	)
-
-	// HACK: If the parent group has no options, its sole purpose is to contain
-	// other groups, so we will not find it by looking at the options.
-	allSubGroups := make(map[*Group]struct{})
-	for _, opt := range *s {
-		allSubGroups[opt.Group] = struct{}{}
-	}
-	for g := range allSubGroups {
-		if g.Parent == nil {
-			continue
-		}
-
-		if g.Parent != wantGroup {
-			continue
-		}
-
-		_, parentGroupOpts := s.groupMembers(g.Parent)
-		if len(parentGroupOpts) > 0 {
-			continue
-		}
-
-		subgroups[g.Parent] = struct{}{}
-	}
-
+func (g *Group) filterOptionSet(s *OptionSet) []*Option {
+	var opts []*Option
 	for i := range *s {
-		opt := &(*s)[i]
-		if opt.Group == wantGroup {
-			opts[opt] = struct{}{}
+		opt := (*s)[i]
+		if opt.Group != g {
+			continue
 		}
+		opts = append(opts, &opt)
+	}
+	return opts
+}
 
-		if opt.Group.Parent != wantGroup {
+func (g *Group) subGroups(s *OptionSet) []*Group {
+	groups := make(map[*Group]struct{})
+	for _, opt := range *s {
+		if opt.Group == nil {
 			continue
 		}
 
-		subgroups[opt.Group] = struct{}{}
+		parent := opt.Group.Parent
 
-	}
+		if parent == g {
+			groups[opt.Group] = struct{}{}
+		}
 
-	for _, g := range subgroups {
-		if g.Parent != nil {
-			o, sgs := s.groupMembers(g.Parent)
+		if parent != nil {
+			// HACK: We need to check the grandparent in case the group exists
+			// just to contain other groups.
+			if pp := parent.Parent; pp == g {
+				groups[parent] = struct{}{}
+			}
 		}
 	}
-	return maps.Keys(opts), maps.Keys(subgroups)
+	return maps.Keys(groups)
 }
 
 func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
@@ -211,7 +196,17 @@ func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
 		return xerrors.Errorf("expected mapping node, got type %v, contents:\n%v", n.Kind, string(byt))
 	}
 
-	options, subgroups := os.groupMembers(ofGroup)
+	// We're only interested in options that can be YAML-ified.
+	var os2 OptionSet
+	for _, opt := range os {
+		if opt.YAML == "" {
+			continue
+		}
+		os2 = append(os2, opt)
+	}
+	os = os2
+
+	options, subgroups := ofGroup.filterOptionSet(&os), ofGroup.subGroups(&os)
 	var (
 		subGroupsByName = make(map[string]*Group)
 		optionsByName   = make(map[string]*Option)
