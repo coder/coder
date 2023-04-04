@@ -484,6 +484,11 @@ type OIDCConfig struct {
 	// AuthURLParams are additional parameters to be passed to the OIDC provider
 	// when requesting an access token.
 	AuthURLParams map[string]string
+	// IgnoreUserInfo causes Coder to only use claims from the ID token to
+	// process OIDC logins. This is useful if the OIDC provider does not
+	// support the userinfo endpoint, or if the userinfo endpoint causes
+	// undesirable behavior.
+	IgnoreUserInfo bool
 	// GroupField selects the claim field to be used as the created user's
 	// groups. If the group field is the empty string, then no group updates
 	// will ever come from the OIDC provider.
@@ -565,10 +570,10 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	// user info if required and merge the two claim sets to be sure we have
 	// all of the correct data.
 	//
-	// However, if we already have the required claims, we can just skip
-	// the UserInfo call.
-	needUserInfo := !requiredClaimsPresent(api.OIDCConfig, claims)
-	if needUserInfo {
+	// Some providers (e.g. ADFS) do not support custom OIDC claims in the
+	// UserInfo endpoint, so we allow users to disable it and only rely on the
+	// ID token.
+	if !api.OIDCConfig.IgnoreUserInfo {
 		userInfo, err := api.OIDCConfig.Provider.UserInfo(ctx, oauth2.StaticTokenSource(state.Token))
 		if err == nil {
 			userInfoClaims := map[string]interface{}{}
@@ -599,7 +604,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		} else if !strings.Contains(err.Error(), "user info endpoint is not supported by this provider") {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to obtain user information claims.",
-				Detail:  "The OIDC provider returned no claims as part of the `id_token`. The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
+				Detail:  "The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
 			})
 			return
 		} else {
@@ -799,27 +804,6 @@ func blankFields(claims map[string]interface{}) []string {
 	}
 	sort.Strings(fields)
 	return fields
-}
-
-// requiredClaimsPresent returns false if any of the following claims are missing:
-// - email (or the configured email field)
-// - username (or the configured username field)
-// - group (or the configured group field, unless GroupField is empty)
-// - email_verified (unless IgnoreEmailVerified is true)
-func requiredClaimsPresent(cfg *OIDCConfig, claims map[string]interface{}) bool {
-	if _, ok := claims[cfg.EmailField]; !ok {
-		return false
-	}
-	if _, ok := claims[cfg.UsernameField]; !ok {
-		return false
-	}
-	if _, hasGroupField := claims[cfg.GroupField]; !hasGroupField && cfg.GroupField != "" {
-		return false
-	}
-	if _, hasEmailVerifiedField := claims["email_verified"]; !hasEmailVerifiedField && !cfg.IgnoreEmailVerified {
-		return false
-	}
-	return true
 }
 
 // mergeClaims merges the claims from a and b and returns the merged set.

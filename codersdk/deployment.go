@@ -257,6 +257,7 @@ type OIDCConfig struct {
 	UsernameField       clibase.String                    `json:"username_field" typescript:",notnull"`
 	EmailField          clibase.String                    `json:"email_field" typescript:",notnull"`
 	AuthURLParams       clibase.Struct[map[string]string] `json:"auth_url_params" typescript:",notnull"`
+	IgnoreUserInfo      clibase.Bool                      `json:"ignore_user_info" typescript:",notnull"`
 	GroupField          clibase.String                    `json:"groups_field" typescript:",notnull"`
 	GroupMapping        clibase.Struct[map[string]string] `json:"group_mapping" typescript:",notnull"`
 	SignInText          clibase.String                    `json:"sign_in_text" typescript:",notnull"`
@@ -880,6 +881,16 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.AuthURLParams,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "authURLParams",
+		},
+		{
+			Name:        "OIDC Ignore UserInfo",
+			Description: "Ignore the userinfo endpoint and only use the ID token for user information.",
+			Flag:        "oidc-ignore-userinfo",
+			Env:         "CODER_OIDC_IGNORE_USERINFO",
+			Default:     "false",
+			Value:       &c.OIDC.IgnoreUserInfo,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "ignoreUserInfo",
 		},
 		{
 			Name:        "OIDC Group Field",

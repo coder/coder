@@ -7335,6 +7335,9 @@ const docTemplate = `{
                 "ignore_email_verified": {
                     "type": "boolean"
                 },
+                "ignore_user_info": {
+                    "type": "boolean"
+                },
                 "issuer_url": {
                     "type": "string"
                 },

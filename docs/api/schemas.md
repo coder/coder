@@ -1822,6 +1822,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
         "user": {}
       },
       "ignore_email_verified": true,
+      "ignore_user_info": true,
       "issuer_url": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
@@ -2170,6 +2171,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "user": {}
     },
     "ignore_email_verified": true,
+    "ignore_user_info": true,
     "issuer_url": "string",
     "scopes": ["string"],
     "sign_in_text": "string",
@@ -2836,6 +2838,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "user": {}
   },
   "ignore_email_verified": true,
+  "ignore_user_info": true,
   "issuer_url": "string",
   "scopes": ["string"],
   "sign_in_text": "string",
@@ -2857,6 +2860,7 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `groups_field`          | string                     | false    |              |             |
 | `icon_url`              | [clibase.URL](#clibaseurl) | false    |              |             |
 | `ignore_email_verified` | boolean                    | false    |              |             |
+| `ignore_user_info`      | boolean                    | false    |              |             |
 | `issuer_url`            | string                     | false    |              |             |
 | `scopes`                | array of string            | false    |              |             |
 | `sign_in_text`          | string                     | false    |              |             |

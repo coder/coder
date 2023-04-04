@@ -501,6 +501,7 @@ func TestUserOIDC(t *testing.T) {
 		AvatarURL           string
 		StatusCode          int
 		IgnoreEmailVerified bool
+		IgnoreUserInfo      bool
 	}{{
 		Name: "EmailOnly",
 		IDTokenClaims: jwt.MapClaims{
@@ -670,6 +671,21 @@ func TestUserOIDC(t *testing.T) {
 		AllowSignups:        true,
 		IgnoreEmailVerified: false,
 		StatusCode:          http.StatusInternalServerError,
+	}, {
+		Name: "IgnoreUserInfo",
+		IDTokenClaims: jwt.MapClaims{
+			"email":              "user@internal.domain",
+			"email_verified":     true,
+			"preferred_username": "user",
+		},
+		UserInfoClaims: jwt.MapClaims{
+			"email":              "user.mcname@external.domain",
+			"preferred_username": "Mr. User McName",
+		},
+		Username:       "user",
+		IgnoreUserInfo: true,
+		AllowSignups:   true,
+		StatusCode:     http.StatusTemporaryRedirect,
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
@@ -681,6 +697,7 @@ func TestUserOIDC(t *testing.T) {
 			config.AllowSignups = tc.AllowSignups
 			config.EmailDomain = tc.EmailDomain
 			config.IgnoreEmailVerified = tc.IgnoreEmailVerified
+			config.IgnoreUserInfo = tc.IgnoreUserInfo
 
 			client := coderdtest.New(t, &coderdtest.Options{
 				Auditor:    auditor,

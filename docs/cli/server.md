@@ -394,6 +394,16 @@ URL pointing to the icon to use on the OepnID Connect login button.
 
 Ignore the email_verified claim from the upstream provider.
 
+### --oidc-ignore-userinfo
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>bool</code>                        |
+| Environment | <code>$CODER_OIDC_IGNORE_USERINFO</code> |
+| Default     | <code>false</code>                       |
+
+Ignore the userinfo endpoint and only use the ID token for user information.
+
 ### --oidc-issuer-url
 
 |             |                                     |
