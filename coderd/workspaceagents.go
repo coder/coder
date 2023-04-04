@@ -435,9 +435,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
@@ -559,9 +557,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
 
 	appToken, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, workspaceapps.Request{
@@ -816,9 +812,7 @@ func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request
 func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
@@ -1096,31 +1090,25 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		}
 	}
 
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Add(1)
-	api.WebsocketWaitMutex.Unlock()
-	defer api.WebsocketWaitGroup.Done()
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 
-	conn, err := websocket.Accept(rw, r, nil)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
-	defer wsNetConn.Close()
+	api.WebsocketWatch.Accept(rw, r, nil, func(conn *websocket.Conn) {
+		ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+		defer wsNetConn.Close()
 
-	go httpapi.Heartbeat(ctx, conn)
+		// Track for graceful shutdown.
+		api.WebsocketWatch.Add(wsNetConn)
+		defer api.WebsocketWatch.Done()
 
-	defer conn.Close(websocket.StatusNormalClosure, "")
-	err = (*api.TailnetCoordinator.Load()).ServeClient(wsNetConn, uuid.New(), workspaceAgent.ID)
-	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, err.Error())
-		return
-	}
+		go httpapi.Heartbeat(ctx, conn)
+
+		defer conn.Close(websocket.StatusNormalClosure, "")
+		err := (*api.TailnetCoordinator.Load()).ServeClient(wsNetConn, uuid.New(), workspaceAgent.ID)
+		if err != nil {
+			_ = conn.Close(websocket.StatusInternalError, err.Error())
+			return
+		}
+	})
 }
 
 func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {

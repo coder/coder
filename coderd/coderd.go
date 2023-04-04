@@ -784,8 +784,8 @@ type API struct {
 
 	siteHandler http.Handler
 
-	WebsocketWaitMutex sync.Mutex
 	WebsocketWaitGroup sync.WaitGroup
+	WebsocketWatch     *ActiveWebsockets
 	derpCloseFunc      func()
 
 	metricsCache          *metricscache.Cache
@@ -805,9 +805,7 @@ func (api *API) Close() error {
 	api.cancel()
 	api.derpCloseFunc()
 
-	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Wait()
-	api.WebsocketWaitMutex.Unlock()
 
 	api.metricsCache.Close()
 	if api.updateChecker != nil {
