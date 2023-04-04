@@ -289,27 +289,25 @@ func fromYAML(os OptionSet, ofGroup *Group, n *yaml.Node) error {
 
 			unmarshaler, _ := opt.Value.(yaml.Unmarshaler)
 			switch {
-			case unmarshaler == nil && item.Kind == yaml.ScalarNode:
-				err := opt.Value.Set(item.Value)
-				if err != nil {
-					merr = errors.Join(merr, xerrors.Errorf("set %q: %w", opt.Name, err))
-				}
-			case unmarshaler == nil && item.Kind == yaml.SequenceNode:
-				// Item is an option with a slice value.
-				err := item.Decode(opt.Value)
-				if err != nil {
-					merr = errors.Join(merr, xerrors.Errorf("decode %q: %w", opt.Name, err))
-				}
 			case unmarshaler != nil:
 				err := unmarshaler.UnmarshalYAML(item)
 				if err != nil {
-					merr = errors.Join(merr, xerrors.Errorf("unmarshal %q: %w", opt.Name, err))
+					merr = errors.Join(merr, xerrors.Errorf("unmarshal %q: %w", opt.YAML, err))
+				}
+			case item.Kind == yaml.ScalarNode:
+				err := opt.Value.Set(item.Value)
+				if err != nil {
+					merr = errors.Join(merr, xerrors.Errorf("set %q: %w", opt.YAML, err))
+				}
+			case item.Kind == yaml.SequenceNode:
+				// Item is an option with a slice value.
+				err := item.Decode(opt.Value)
+				if err != nil {
+					merr = errors.Join(merr, xerrors.Errorf("decode %q: %w", opt.YAML, err))
 				}
 			default:
 				panic("unreachable?")
 			}
-			continue
-
 		default:
 			return xerrors.Errorf("unexpected kind for value %v", item.Kind)
 		}

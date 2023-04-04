@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -12,6 +13,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"net/http"
@@ -1450,7 +1452,8 @@ func TestServer(t *testing.T) {
 			fi, err := os.OpenFile(testutil.TempFile(t, "", "coder-config-test-*"), os.O_WRONLY|os.O_CREATE, 0o600)
 			require.NoError(t, err)
 			defer fi.Close()
-			inv.Stdout = fi
+			var conf bytes.Buffer
+			inv.Stdout = io.MultiWriter(fi, &conf)
 			t.Logf("%+v", inv.Args)
 			err = inv.Run()
 			require.NoError(t, err)
@@ -1461,7 +1464,7 @@ func TestServer(t *testing.T) {
 			w = clitest.StartWithWaiter(t, inv)
 			// The same client should work.
 			gotValues, err := client.DeploymentConfig(ctx)
-			require.NoError(t, err)
+			require.NoError(t, err, "config:\n%s", conf.String())
 			require.Equal(t, wantValues, gotValues)
 			w.RequireSuccess()
 		})
@@ -1536,6 +1539,10 @@ func TestServerYAMLConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	n, err := opts.ToYAML()
+	require.NoError(t, err)
+
+	// Sanity-check that we can read the config back in.
+	err = opts.FromYAML(n)
 	require.NoError(t, err)
 
 	wantByt, err := yaml.Marshal(n)
