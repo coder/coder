@@ -82,6 +82,7 @@ type Options struct {
 	Logger                 slog.Logger
 	AgentPorts             map[int]string
 	SSHMaxTimeout          time.Duration
+	TailnetListenPort      uint16
 }
 
 type Client interface {
@@ -118,6 +119,7 @@ func New(options Options) io.Closer {
 	}
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	a := &agent{
+		tailnetListenPort:      options.TailnetListenPort,
 		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
 		logger:                 options.Logger,
 		closeCancel:            cancelFunc,
@@ -139,12 +141,13 @@ func New(options Options) io.Closer {
 }
 
 type agent struct {
-	logger        slog.Logger
-	client        Client
-	exchangeToken func(ctx context.Context) (string, error)
-	filesystem    afero.Fs
-	logDir        string
-	tempDir       string
+	logger            slog.Logger
+	client            Client
+	exchangeToken     func(ctx context.Context) (string, error)
+	tailnetListenPort uint16
+	filesystem        afero.Fs
+	logDir            string
+	tempDir           string
 	// ignorePorts tells the api handler which ports to ignore when
 	// listing all listening ports. This is helpful to hide ports that
 	// are used by the agent, that the user does not care about.
@@ -606,9 +609,10 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 
 func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
-		DERPMap:   derpMap,
-		Logger:    a.logger.Named("tailnet"),
+		Addresses:  []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
+		DERPMap:    derpMap,
+		Logger:     a.logger.Named("tailnet"),
+		ListenPort: a.tailnetListenPort,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
