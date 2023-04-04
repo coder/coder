@@ -11,8 +11,8 @@ import { Link as RouterLink } from "react-router-dom"
 import { Workspace } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import {
-  autoStartDisplay,
-  autoStopDisplay,
+  autostartDisplay,
+  autostopDisplay,
   extractTimezone,
   Language as ScheduleLanguage,
 } from "../../util/schedule"
@@ -53,19 +53,19 @@ export const WorkspaceSchedule: FC<
         </div>
         <div>
           <span className={styles.scheduleLabel}>
-            {ScheduleLanguage.autoStartLabel}
+            {ScheduleLanguage.autostartLabel}
           </span>
           <span className={styles.scheduleValue}>
-            {autoStartDisplay(workspace.autostart_schedule)}
+            {autostartDisplay(workspace.autostart_schedule)}
           </span>
         </div>
         <div>
           <span className={styles.scheduleLabel}>
-            {ScheduleLanguage.autoStopLabel}
+            {ScheduleLanguage.autostopLabel}
           </span>
           <Stack direction="row">
             <span className={styles.scheduleValue}>
-              {autoStopDisplay(workspace)}
+              {autostopDisplay(workspace)}
             </span>
           </Stack>
         </div>

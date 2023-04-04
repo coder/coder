@@ -59,7 +59,9 @@ func (r *RootCmd) update() *clibase.Cmd {
 				ExistingRichParams: existingRichParams,
 				RichParameterFile:  richParameterFile,
 				NewWorkspaceName:   workspace.Name,
-				UpdateWorkspace:    true,
+
+				UpdateWorkspace: true,
+				WorkspaceID:     workspace.LatestBuild.ID,
 			})
 			if err != nil {
 				return nil
