@@ -692,7 +692,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 func TestWorkspaceAppsProxySubdomainPassthrough(t *testing.T) {
 	t.Parallel()
 
-	// No AppHostname set.
+	// No Hostname set.
 	client := coderdtest.New(t, &coderdtest.Options{
 		AppHostname: "",
 	})

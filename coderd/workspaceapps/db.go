@@ -32,12 +32,12 @@ type DBTokenProvider struct {
 	DeploymentValues              *codersdk.DeploymentValues
 	OAuth2Configs                 *httpmw.OAuth2Configs
 	WorkspaceAgentInactiveTimeout time.Duration
-	TokenSigningKey               AppSigningKey
+	TokenSigningKey               SigningKey
 }
 
 var _ SignedTokenProvider = &DBTokenProvider{}
 
-func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, workspaceAgentInactiveTimeout time.Duration, tokenSigningKey AppSigningKey) SignedTokenProvider {
+func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, workspaceAgentInactiveTimeout time.Duration, tokenSigningKey SigningKey) SignedTokenProvider {
 	if len(tokenSigningKey) != 64 {
 		panic("token signing key must be 64 bytes")
 	}

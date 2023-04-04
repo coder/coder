@@ -81,7 +81,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	// security purposes.
 	u.Scheme = api.AccessURL.Scheme
 
-	// Ensure that the redirect URI is a subdomain of api.AppHostname and is a
+	// Ensure that the redirect URI is a subdomain of api.Hostname and is a
 	// valid app subdomain.
 	subdomain, ok := httpapi.ExecuteHostnamePattern(api.AppHostnameRegex, u.Host)
 	if !ok {

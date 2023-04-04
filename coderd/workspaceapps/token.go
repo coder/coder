@@ -41,17 +41,17 @@ func (t SignedToken) MatchesRequest(req Request) bool {
 		t.AppSlugOrPort == req.AppSlugOrPort
 }
 
-// AppSigningKey is used for signing and encrypting app tokens and API keys.
+// SigningKey is used for signing and encrypting app tokens and API keys.
 // TODO: we cannot use the same key for signing and encrypting with two
 // different algorithms, that's a security issue. We should use a different key
 // for each.
 // OR
 // We get rid of signing and use encryption for both api keys and tickets.
 // Do this by switching to JWE.
-type AppSigningKey [64]byte
+type SigningKey [64]byte
 
-func KeyFromString(str string) (AppSigningKey, error) {
-	var key AppSigningKey
+func KeyFromString(str string) (SigningKey, error) {
+	var key SigningKey
 	decoded, err := hex.DecodeString(str)
 	if err != nil {
 		return key, xerrors.Errorf("decode key: %w", err)
@@ -67,7 +67,7 @@ func KeyFromString(str string) (AppSigningKey, error) {
 // SignToken generates a signed workspace app token with the given payload. If
 // the payload doesn't have an expiry, it will be set to the current time plus
 // the default expiry.
-func (k AppSigningKey) SignToken(payload SignedToken) (string, error) {
+func (k SigningKey) SignToken(payload SignedToken) (string, error) {
 	if payload.Expiry.IsZero() {
 		payload.Expiry = time.Now().Add(DefaultTokenExpiry)
 	}
@@ -100,7 +100,7 @@ func (k AppSigningKey) SignToken(payload SignedToken) (string, error) {
 // VerifySignedToken parses a signed workspace app token with the given key and
 // returns the payload. If the token is invalid or expired, an error is
 // returned.
-func (k AppSigningKey) VerifySignedToken(str string) (SignedToken, error) {
+func (k SigningKey) VerifySignedToken(str string) (SignedToken, error) {
 	object, err := jose.ParseSigned(str)
 	if err != nil {
 		return SignedToken{}, xerrors.Errorf("parse JWS: %w", err)
@@ -135,7 +135,7 @@ type EncryptedAPIKeyPayload struct {
 }
 
 // EncryptAPIKey encrypts an API key for subdomain token smuggling.
-func (k AppSigningKey) EncryptAPIKey(payload EncryptedAPIKeyPayload) (string, error) {
+func (k SigningKey) EncryptAPIKey(payload EncryptedAPIKeyPayload) (string, error) {
 	if payload.APIKey == "" {
 		return "", xerrors.New("API key is empty")
 	}
@@ -174,7 +174,7 @@ func (k AppSigningKey) EncryptAPIKey(payload EncryptedAPIKeyPayload) (string, er
 }
 
 // DecryptAPIKey undoes EncryptAPIKey and is used in the subdomain app handler.
-func (k AppSigningKey) DecryptAPIKey(encryptedAPIKey string) (string, error) {
+func (k SigningKey) DecryptAPIKey(encryptedAPIKey string) (string, error) {
 	encrypted, err := base64.RawURLEncoding.DecodeString(encryptedAPIKey)
 	if err != nil {
 		return "", xerrors.Errorf("base64 decode encrypted API key: %w", err)
