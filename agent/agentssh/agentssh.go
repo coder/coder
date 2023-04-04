@@ -136,8 +136,8 @@ func NewServer(ctx context.Context, logger slog.Logger, maxTimeout time.Duration
 }
 
 // SetManifest sets the manifest used for starting commands.
-func (a *Server) SetManifest(m *agentsdk.Manifest) {
-	a.manifest.Store(m)
+func (s *Server) SetManifest(m *agentsdk.Manifest) {
+	s.manifest.Store(m)
 }
 
 type ConnStats struct {
@@ -146,25 +146,25 @@ type ConnStats struct {
 	JetBrains int64
 }
 
-func (a *Server) ConnStats() ConnStats {
+func (s *Server) ConnStats() ConnStats {
 	return ConnStats{
-		Sessions:  a.connCountSSHSession.Load(),
-		VSCode:    a.connCountVSCode.Load(),
-		JetBrains: a.connCountJetBrains.Load(),
+		Sessions:  s.connCountSSHSession.Load(),
+		VSCode:    s.connCountVSCode.Load(),
+		JetBrains: s.connCountJetBrains.Load(),
 	}
 }
 
-func (a *Server) sessionHandler(session ssh.Session) {
+func (s *Server) sessionHandler(session ssh.Session) {
 	ctx := session.Context()
-	err := a.sessionStart(session)
+	err := s.sessionStart(session)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
-		a.logger.Debug(ctx, "ssh session returned", slog.Error(exitError))
+		s.logger.Debug(ctx, "ssh session returned", slog.Error(exitError))
 		_ = session.Exit(exitError.ExitCode())
 		return
 	}
 	if err != nil {
-		a.logger.Warn(ctx, "ssh session failed", slog.Error(err))
+		s.logger.Warn(ctx, "ssh session failed", slog.Error(err))
 		// This exit code is designed to be unlikely to be confused for a legit exit code
 		// from the process.
 		_ = session.Exit(MagicSessionErrorCode)
@@ -173,7 +173,7 @@ func (a *Server) sessionHandler(session ssh.Session) {
 	_ = session.Exit(0)
 }
 
-func (a *Server) sessionStart(session ssh.Session) (retErr error) {
+func (s *Server) sessionStart(session ssh.Session) (retErr error) {
 	ctx := session.Context()
 	env := session.Environ()
 	var magicType string
@@ -186,19 +186,19 @@ func (a *Server) sessionStart(session ssh.Session) (retErr error) {
 	}
 	switch magicType {
 	case MagicSessionTypeVSCode:
-		a.connCountVSCode.Add(1)
-		defer a.connCountVSCode.Add(-1)
+		s.connCountVSCode.Add(1)
+		defer s.connCountVSCode.Add(-1)
 	case MagicSessionTypeJetBrains:
-		a.connCountJetBrains.Add(1)
-		defer a.connCountJetBrains.Add(-1)
+		s.connCountJetBrains.Add(1)
+		defer s.connCountJetBrains.Add(-1)
 	case "":
-		a.connCountSSHSession.Add(1)
-		defer a.connCountSSHSession.Add(-1)
+		s.connCountSSHSession.Add(1)
+		defer s.connCountSSHSession.Add(-1)
 	default:
-		a.logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("type", magicType))
+		s.logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("type", magicType))
 	}
 
-	cmd, err := a.CreateCommand(ctx, session.RawCommand(), env)
+	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env)
 	if err != nil {
 		return err
 	}
@@ -220,14 +220,14 @@ func (a *Server) sessionStart(session ssh.Session) (retErr error) {
 		session.DisablePTYEmulation()
 
 		if !isQuietLogin(session.RawCommand()) {
-			manifest := a.manifest.Load()
+			manifest := s.manifest.Load()
 			if manifest != nil {
 				err = showMOTD(session, manifest.MOTDFile)
 				if err != nil {
-					a.logger.Error(ctx, "show MOTD", slog.Error(err))
+					s.logger.Error(ctx, "show MOTD", slog.Error(err))
 				}
 			} else {
-				a.logger.Warn(ctx, "metadata lookup failed, unable to show MOTD")
+				s.logger.Warn(ctx, "metadata lookup failed, unable to show MOTD")
 			}
 		}
 
@@ -236,7 +236,7 @@ func (a *Server) sessionStart(session ssh.Session) (retErr error) {
 		// The pty package sets `SSH_TTY` on supported platforms.
 		ptty, process, err := pty.Start(cmd, pty.WithPTYOption(
 			pty.WithSSHRequest(sshPty),
-			pty.WithLogger(slog.Stdlib(ctx, a.logger, slog.LevelInfo)),
+			pty.WithLogger(slog.Stdlib(ctx, s.logger, slog.LevelInfo)),
 		))
 		if err != nil {
 			return xerrors.Errorf("start command: %w", err)
@@ -246,7 +246,7 @@ func (a *Server) sessionStart(session ssh.Session) (retErr error) {
 			defer wg.Wait()
 			closeErr := ptty.Close()
 			if closeErr != nil {
-				a.logger.Warn(ctx, "failed to close tty", slog.Error(closeErr))
+				s.logger.Warn(ctx, "failed to close tty", slog.Error(closeErr))
 				if retErr == nil {
 					retErr = closeErr
 				}
@@ -257,7 +257,7 @@ func (a *Server) sessionStart(session ssh.Session) (retErr error) {
 				resizeErr := ptty.Resize(uint16(win.Height), uint16(win.Width))
 				// If the pty is closed, then command has exited, no need to log.
 				if resizeErr != nil && !errors.Is(resizeErr, pty.ErrClosed) {
-					a.logger.Warn(ctx, "failed to resize tty", slog.Error(resizeErr))
+					s.logger.Warn(ctx, "failed to resize tty", slog.Error(resizeErr))
 				}
 			}
 		}()
@@ -306,7 +306,7 @@ func (a *Server) sessionStart(session ssh.Session) (retErr error) {
 		// ExitErrors just mean the command we run returned a non-zero exit code, which is normal
 		// and not something to be concerned about.  But, if it's something else, we should log it.
 		if err != nil && !xerrors.As(err, &exitErr) {
-			a.logger.Warn(ctx, "wait error", slog.Error(err))
+			s.logger.Warn(ctx, "wait error", slog.Error(err))
 		}
 		return err
 	}
@@ -335,7 +335,7 @@ type readNopCloser struct{ io.Reader }
 // Close implements io.Closer.
 func (readNopCloser) Close() error { return nil }
 
-func (a *Server) sftpHandler(session ssh.Session) {
+func (s *Server) sftpHandler(session ssh.Session) {
 	ctx := session.Context()
 
 	// Typically sftp sessions don't request a TTY, but if they do,
@@ -349,14 +349,14 @@ func (a *Server) sftpHandler(session ssh.Session) {
 	// directory so that SFTP connections land there.
 	homedir, err := userHomeDir()
 	if err != nil {
-		a.logger.Warn(ctx, "get sftp working directory failed, unable to get home dir", slog.Error(err))
+		s.logger.Warn(ctx, "get sftp working directory failed, unable to get home dir", slog.Error(err))
 	} else {
 		opts = append(opts, sftp.WithServerWorkingDirectory(homedir))
 	}
 
 	server, err := sftp.NewServer(session, opts...)
 	if err != nil {
-		a.logger.Debug(ctx, "initialize sftp server", slog.Error(err))
+		s.logger.Debug(ctx, "initialize sftp server", slog.Error(err))
 		return
 	}
 	defer server.Close()
@@ -374,14 +374,14 @@ func (a *Server) sftpHandler(session ssh.Session) {
 		_ = session.Exit(0)
 		return
 	}
-	a.logger.Warn(ctx, "sftp server closed with error", slog.Error(err))
+	s.logger.Warn(ctx, "sftp server closed with error", slog.Error(err))
 	_ = session.Exit(1)
 }
 
 // CreateCommand processes raw command input with OpenSSH-like behavior.
 // If the script provided is empty, it will default to the users shell.
 // This injects environment variables specified by the user at launch too.
-func (a *Server) CreateCommand(ctx context.Context, script string, env []string) (*exec.Cmd, error) {
+func (s *Server) CreateCommand(ctx context.Context, script string, env []string) (*exec.Cmd, error) {
 	currentUser, err := user.Current()
 	if err != nil {
 		return nil, xerrors.Errorf("get current user: %w", err)
@@ -393,7 +393,7 @@ func (a *Server) CreateCommand(ctx context.Context, script string, env []string)
 		return nil, xerrors.Errorf("get user shell: %w", err)
 	}
 
-	manifest := a.manifest.Load()
+	manifest := s.manifest.Load()
 	if manifest == nil {
 		return nil, xerrors.Errorf("no metadata was provided")
 	}
@@ -446,7 +446,7 @@ func (a *Server) CreateCommand(ctx context.Context, script string, env []string)
 	cmd.Env = append(cmd.Env, fmt.Sprintf(`GIT_SSH_COMMAND=%s gitssh --`, unixExecutablePath))
 
 	// Specific Coder subcommands require the agent token exposed!
-	cmd.Env = append(cmd.Env, fmt.Sprintf("CODER_AGENT_TOKEN=%s", a.AgentToken()))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("CODER_AGENT_TOKEN=%s", s.AgentToken()))
 
 	// Set SSH connection environment variables (these are also set by OpenSSH
 	// and thus expected to be present by SSH clients). Since the agent does
@@ -475,22 +475,22 @@ func (a *Server) CreateCommand(ctx context.Context, script string, env []string)
 
 	// Agent-level environment variables should take over all!
 	// This is used for setting agent-specific variables like "CODER_AGENT_TOKEN".
-	for envKey, value := range a.Env {
+	for envKey, value := range s.Env {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envKey, value))
 	}
 
 	return cmd, nil
 }
 
-func (a *Server) Serve(l net.Listener) error {
-	a.serveWg.Add(1)
-	defer a.serveWg.Done()
-	return a.srv.Serve(l)
+func (s *Server) Serve(l net.Listener) error {
+	s.serveWg.Add(1)
+	defer s.serveWg.Done()
+	return s.srv.Serve(l)
 }
 
-func (a *Server) Close() error {
-	err := a.srv.Close()
-	a.serveWg.Wait()
+func (s *Server) Close() error {
+	err := s.srv.Close()
+	s.serveWg.Wait()
 	return err
 }
 
@@ -498,7 +498,7 @@ func (a *Server) Close() error {
 // accepting new connections.
 //
 // Shutdown is not implemented.
-func (a *Server) Shutdown(ctx context.Context) error {
+func (*Server) Shutdown(ctx context.Context) error {
 	// TODO(mafredri): Implement shutdown, SIGHUP running commands, etc.
 	return nil
 }
