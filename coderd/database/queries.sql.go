@@ -2803,6 +2803,198 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 	return err
 }
 
+const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
+SELECT
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+FROM
+	workspace_proxies
+WHERE
+	deleted = false
+`
+
+func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceProxies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceProxy
+	for rows.Next() {
+		var i WorkspaceProxy
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.DisplayName,
+			&i.Icon,
+			&i.Url,
+			&i.WildcardHostname,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Deleted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceProxyByID = `-- name: GetWorkspaceProxyByID :one
+SELECT
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+FROM
+	workspace_proxies
+WHERE
+	id = $1
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceProxyByID, id)
+	var i WorkspaceProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.WildcardHostname,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deleted,
+	)
+	return i, err
+}
+
+const insertWorkspaceProxy = `-- name: InsertWorkspaceProxy :one
+INSERT INTO
+	workspace_proxies (
+		id,
+		name,
+		display_name,
+		icon,
+		url,
+		wildcard_hostname,
+		created_at,
+		updated_at,
+		deleted
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6, $7, $8, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+`
+
+type InsertWorkspaceProxyParams struct {
+	ID               uuid.UUID `db:"id" json:"id"`
+	Name             string    `db:"name" json:"name"`
+	DisplayName      string    `db:"display_name" json:"display_name"`
+	Icon             string    `db:"icon" json:"icon"`
+	Url              string    `db:"url" json:"url"`
+	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceProxy,
+		arg.ID,
+		arg.Name,
+		arg.DisplayName,
+		arg.Icon,
+		arg.Url,
+		arg.WildcardHostname,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i WorkspaceProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.WildcardHostname,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deleted,
+	)
+	return i, err
+}
+
+const updateWorkspaceProxy = `-- name: UpdateWorkspaceProxy :one
+UPDATE
+	workspace_proxies
+SET
+	name = $1,
+	display_name = $2,
+	url = $3,
+	wildcard_hostname = $4,
+	icon = $5,
+	updated_at = Now()
+WHERE
+	id = $6
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted
+`
+
+type UpdateWorkspaceProxyParams struct {
+	Name             string    `db:"name" json:"name"`
+	DisplayName      string    `db:"display_name" json:"display_name"`
+	Url              string    `db:"url" json:"url"`
+	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
+	Icon             string    `db:"icon" json:"icon"`
+	ID               uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspaceProxyParams) (WorkspaceProxy, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceProxy,
+		arg.Name,
+		arg.DisplayName,
+		arg.Url,
+		arg.WildcardHostname,
+		arg.Icon,
+		arg.ID,
+	)
+	var i WorkspaceProxy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Url,
+		&i.WildcardHostname,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deleted,
+	)
+	return i, err
+}
+
+const updateWorkspaceProxyDeleted = `-- name: UpdateWorkspaceProxyDeleted :exec
+UPDATE
+	workspace_proxies
+SET
+	updated_at = Now(),
+	deleted = $1
+WHERE
+	id = $2
+`
+
+type UpdateWorkspaceProxyDeletedParams struct {
+	Deleted bool      `db:"deleted" json:"deleted"`
+	ID      uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceProxyDeleted(ctx context.Context, arg UpdateWorkspaceProxyDeletedParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceProxyDeleted, arg.Deleted, arg.ID)
+	return err
+}
+
 const getQuotaAllowanceForUser = `-- name: GetQuotaAllowanceForUser :one
 SELECT
 	coalesce(SUM(quota_allowance), 0)::BIGINT
