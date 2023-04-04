@@ -34,7 +34,7 @@ RETURNING *;
 UPDATE
 	workspace_proxies
 SET
-    updated_at = Now(),
+	updated_at = Now(),
 	deleted = @deleted
 WHERE
 	id = @id;
@@ -56,4 +56,4 @@ FROM
 	workspace_proxies
 WHERE
 	deleted = false
-    AND organization_id = @organization_id;
+	AND organization_id = @organization_id;
