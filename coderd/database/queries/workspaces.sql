@@ -393,7 +393,7 @@ SELECT
 	stopped_workspaces.count AS stopped_workspaces
 FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspaces, stopped_workspaces;
 
--- name: GetWorkspacesEligibleForAutostartStop :many
+-- name: GetWorkspacesEligibleForAutoStartStop :many
 SELECT
 	workspaces.*
 FROM

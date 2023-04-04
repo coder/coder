@@ -105,7 +105,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	// NOTE: If a workspace build is created with a given TTL and then the user either
 	//       changes or unsets the TTL, the deadline for the workspace build will not
 	//       have changed. This behavior is as expected per #2229.
-	workspaces, err := e.db.GetWorkspacesEligibleForAutostartStop(e.ctx, t)
+	workspaces, err := e.db.GetWorkspacesEligibleForAutoStartStop(e.ctx, t)
 	if err != nil {
 		e.log.Error(e.ctx, "get workspaces for autostart or autostop", slog.Error(err))
 		return stats
@@ -144,7 +144,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					return nil
 				}
 
-				if !isEligibleForAutostartStop(ws, priorHistory, templateSchedule) {
+				if !isEligibleForAutoStartStop(ws, priorHistory, templateSchedule) {
 					return nil
 				}
 
@@ -198,7 +198,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	return stats
 }
 
-func isEligibleForAutostartStop(ws database.Workspace, priorHistory database.WorkspaceBuild, templateSchedule schedule.TemplateScheduleOptions) bool {
+func isEligibleForAutoStartStop(ws database.Workspace, priorHistory database.WorkspaceBuild, templateSchedule schedule.TemplateScheduleOptions) bool {
 	if ws.Deleted {
 		return false
 	}
