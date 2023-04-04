@@ -849,6 +849,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				defer options.Telemetry.Close()
 			}
 
+			databaseStoreWithoutAuth := options.Database
+
+			// We use a separate coderAPICloser so the Enterprise API
+			// can have it's own close functions. This is cleaner
+			// than abstracting the Coder API itself.
+			coderAPI, coderAPICloser, err := newAPI(ctx, options)
+			if err != nil {
+				return xerrors.Errorf("create coder API: %w", err)
+			}
+
 			// This prevents the pprof import from being accidentally deleted.
 			_ = pprof.Handler
 			if cfg.Pprof.Enable {
@@ -871,7 +881,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				defer closeWorkspacesFunc()
 
-				closeAgentsFunc, err := prometheusmetrics.Agents(ctx, options.PrometheusRegistry, options.Database, 0)
+				closeAgentsFunc, err := prometheusmetrics.Agents(ctx, options.PrometheusRegistry, databaseStoreWithoutAuth, &coderAPI.TailnetCoordinator, options.DERPMap, 0)
 				if err != nil {
 					return xerrors.Errorf("register agents prometheus metric: %w", err)
 				}
@@ -885,14 +895,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if cfg.Swagger.Enable {
 				options.SwaggerEndpoint = cfg.Swagger.Enable.Value()
-			}
-
-			// We use a separate coderAPICloser so the Enterprise API
-			// can have it's own close functions. This is cleaner
-			// than abstracting the Coder API itself.
-			coderAPI, coderAPICloser, err := newAPI(ctx, options)
-			if err != nil {
-				return xerrors.Errorf("create coder API: %w", err)
 			}
 
 			client := codersdk.New(localURL)

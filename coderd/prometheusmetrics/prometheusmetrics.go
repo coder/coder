@@ -2,13 +2,20 @@ package prometheusmetrics
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"strconv"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/tailnet"
 )
 
 // ActiveUsers tracks the number of users that have authenticated within the past hour.
@@ -108,7 +115,7 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 }
 
 // Agents tracks the total number of workspaces with labels on status.
-func Agents(ctx context.Context, registerer prometheus.Registerer, db database.Store, duration time.Duration) (context.CancelFunc, error) {
+func Agents(ctx context.Context, registerer prometheus.Registerer, db database.Store, coordinator *atomic.Pointer[tailnet.Coordinator], derpMap *tailcfg.DERPMap, duration time.Duration) (context.CancelFunc, error) {
 	if duration == 0 {
 		duration = 15 * time.Second // TODO 5 * time.Minute
 	}
@@ -124,23 +131,26 @@ func Agents(ctx context.Context, registerer prometheus.Registerer, db database.S
 		return nil, err
 	}
 
-	agentsUserLatenciesHistogram := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	agentsUserLatenciesGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agents",
 		Name:      "user_latencies_seconds",
 		Help:      "The user's agent latency in seconds.",
-		Buckets:   []float64{0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.500, 1, 5, 10, 30},
-	}, []string{"agent_id", "workspace", "connection_type", "ide"})
-	err = registerer.Register(agentsUserLatenciesHistogram)
+	}, []string{"agent_id", "workspace_name", "derp_region", "preferred"})
+	err = registerer.Register(agentsUserLatenciesGauge)
 	if err != nil {
 		return nil, err
 	}
+
+	// FIXME connection_type ide
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	ticker := time.NewTicker(duration)
 	go func() {
 		defer ticker.Stop()
 		for {
+			log.Println("Agents!!!")
+
 			select {
 			case <-ctx.Done():
 				return
@@ -151,18 +161,22 @@ func Agents(ctx context.Context, registerer prometheus.Registerer, db database.S
 
 			builds, err := db.GetLatestWorkspaceBuilds(ctx)
 			if err != nil {
+				log.Println("1", err)
 				continue
 			}
 
 			agentsConnectionGauge.Reset()
+			agentsUserLatenciesGauge.Reset()
 			for _, build := range builds {
 				workspace, err := db.GetWorkspaceByID(ctx, build.WorkspaceID)
 				if err != nil {
+					log.Println("2", err)
 					continue
 				}
 
 				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, build.WorkspaceID)
 				if err != nil {
+					log.Println("3", err)
 					continue
 				}
 
@@ -170,11 +184,47 @@ func Agents(ctx context.Context, registerer prometheus.Registerer, db database.S
 					continue
 				}
 
+				// FIXME publish workspace even if no agents
+
 				for _, agent := range agents {
 					connectionStatus := agent.Status(6 * time.Second)
 
 					// FIXME AgentInactiveDisconnectTimeout
+					log.Println("with value " + agent.Name)
 					agentsConnectionGauge.WithLabelValues(agent.Name, workspace.Name, string(connectionStatus.Status)).Set(1)
+
+					node := (*coordinator.Load()).Node(agent.ID)
+					if node != nil {
+						log.Println("coordinator")
+
+						for rawRegion, latency := range node.DERPLatency {
+							log.Println(rawRegion, latency)
+
+							regionParts := strings.SplitN(rawRegion, "-", 2)
+							regionID, err := strconv.Atoi(regionParts[0])
+							if err != nil {
+								continue // xerrors.Errorf("convert derp region id %q: %w", rawRegion, err)
+							}
+							region, found := derpMap.Regions[regionID]
+							if !found {
+								// It's possible that a workspace agent is using an old DERPMap
+								// and reports regions that do not exist. If that's the case,
+								// report the region as unknown!
+								region = &tailcfg.DERPRegion{
+									RegionID:   regionID,
+									RegionName: fmt.Sprintf("Unnamed %d", regionID),
+								}
+							}
+
+							log.Println(region, latency)
+							agentsUserLatenciesGauge.WithLabelValues(agent.Name, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID)).Set(latency)
+						}
+					} else {
+						log.Println("node is null")
+					}
+
+					// FIXME publish agent even if DERP is missing
+					// FIXME IDE?
 				}
 			}
 		}
