@@ -879,6 +879,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			_, err = server.Database.InsertTemplateVersionParameter(ctx, database.InsertTemplateVersionParameterParams{
 				TemplateVersionID:   input.TemplateVersionID,
 				Name:                richParameter.Name,
+				DisplayName:         richParameter.DisplayName,
 				Description:         richParameter.Description,
 				Type:                richParameter.Type,
 				Mutable:             richParameter.Mutable,
@@ -985,9 +986,13 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			if err != nil {
 				return xerrors.Errorf("get template schedule options: %w", err)
 			}
-			if !templateSchedule.UserSchedulingEnabled {
-				// The user is not permitted to set their own TTL.
+			if !templateSchedule.UserAutostopEnabled {
+				// The user is not permitted to set their own TTL, so use the
+				// template default.
 				deadline = time.Time{}
+				if templateSchedule.DefaultTTL > 0 {
+					deadline = now.Add(templateSchedule.DefaultTTL)
+				}
 			}
 			if templateSchedule.MaxTTL > 0 {
 				maxDeadline = now.Add(templateSchedule.MaxTTL)
@@ -1276,6 +1281,21 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			return xerrors.Errorf("insert agent: %w", err)
 		}
 		snapshot.WorkspaceAgents = append(snapshot.WorkspaceAgents, telemetry.ConvertWorkspaceAgent(dbAgent))
+
+		for _, md := range prAgent.Metadata {
+			p := database.InsertWorkspaceAgentMetadataParams{
+				WorkspaceAgentID: agentID,
+				DisplayName:      md.DisplayName,
+				Script:           md.Script,
+				Key:              md.Key,
+				Timeout:          md.Timeout,
+				Interval:         md.Interval,
+			}
+			err := db.InsertWorkspaceAgentMetadata(ctx, p)
+			if err != nil {
+				return xerrors.Errorf("insert agent metadata: %w, params: %+v", err, p)
+			}
+		}
 
 		for _, app := range prAgent.Apps {
 			slug := app.Slug

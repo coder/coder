@@ -9,9 +9,8 @@ digraph {
 		"[root] provider[\"registry.terraform.io/hashicorp/null\"]" [label = "provider[\"registry.terraform.io/hashicorp/null\"]", shape = "diamond"]
 		"[root] coder_agent.main (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
 		"[root] coder_metadata.about_info (expand)" -> "[root] null_resource.about (expand)"
-		"[root] coder_metadata.about_info (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
+		"[root] null_resource.about (expand)" -> "[root] coder_agent.main (expand)"
 		"[root] null_resource.about (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
-		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_agent.main (expand)"
 		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_metadata.about_info (expand)"
 		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] null_resource.about (expand)"
 		"[root] root" -> "[root] provider[\"registry.terraform.io/coder/coder\"] (close)"

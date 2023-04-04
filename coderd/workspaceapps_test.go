@@ -273,7 +273,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 	if appHost != "" {
-		metadata, err := agentClient.Metadata(context.Background())
+		manifest, err := agentClient.Manifest(context.Background())
 		require.NoError(t, err)
 		proxyURL := fmt.Sprintf(
 			"http://{{port}}--%s--%s--%s%s",
@@ -285,7 +285,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 		if client.URL.Port() != "" {
 			proxyURL += fmt.Sprintf(":%s", client.URL.Port())
 		}
-		require.Equal(t, proxyURL, metadata.VSCodePortProxyURI)
+		require.Equal(t, proxyURL, manifest.VSCodePortProxyURI)
 	}
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
@@ -410,27 +410,27 @@ func TestWorkspaceAppsProxyPath(t *testing.T) {
 		require.Equal(t, proxyTestAppBody, string(body))
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
-		var sessionTicketCookie *http.Cookie
+		var appTokenCookie *http.Cookie
 		for _, c := range resp.Cookies() {
-			if c.Name == codersdk.DevURLSessionTicketCookie {
-				sessionTicketCookie = c
+			if c.Name == codersdk.DevURLSignedAppTokenCookie {
+				appTokenCookie = c
 				break
 			}
 		}
-		require.NotNil(t, sessionTicketCookie, "no session ticket in response")
-		require.Equal(t, sessionTicketCookie.Path, basePath, "incorrect path on session ticket cookie")
+		require.NotNil(t, appTokenCookie, "no signed app token cookie in response")
+		require.Equal(t, appTokenCookie.Path, basePath, "incorrect path on app token cookie")
 
-		// Ensure the session ticket cookie is valid.
-		ticketClient := codersdk.New(client.URL)
-		ticketClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
-		ticketClient.HTTPClient.Transport = client.HTTPClient.Transport
-		u, err := ticketClient.URL.Parse(path)
+		// Ensure the session token cookie is valid.
+		appTokenClient := codersdk.New(client.URL)
+		appTokenClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
+		appTokenClient.HTTPClient.Transport = client.HTTPClient.Transport
+		u, err := appTokenClient.URL.Parse(path)
 		require.NoError(t, err)
-		ticketClient.HTTPClient.Jar, err = cookiejar.New(nil)
+		appTokenClient.HTTPClient.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err)
-		ticketClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{sessionTicketCookie})
+		appTokenClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{appTokenCookie})
 
-		resp, err = requestWithRetries(ctx, t, ticketClient, http.MethodGet, path, nil)
+		resp, err = requestWithRetries(ctx, t, appTokenClient, http.MethodGet, path, nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err = io.ReadAll(resp.Body)
@@ -922,25 +922,25 @@ func TestWorkspaceAppsProxySubdomain(t *testing.T) {
 		require.Equal(t, proxyTestAppBody, string(body))
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
-		var sessionTicketCookie *http.Cookie
+		var appTokenCookie *http.Cookie
 		for _, c := range resp.Cookies() {
-			if c.Name == codersdk.DevURLSessionTicketCookie {
-				sessionTicketCookie = c
+			if c.Name == codersdk.DevURLSignedAppTokenCookie {
+				appTokenCookie = c
 				break
 			}
 		}
-		require.NotNil(t, sessionTicketCookie, "no session ticket in response")
-		require.Equal(t, sessionTicketCookie.Path, "/", "incorrect path on session ticket cookie")
+		require.NotNil(t, appTokenCookie, "no signed token cookie in response")
+		require.Equal(t, appTokenCookie.Path, "/", "incorrect path on signed token cookie")
 
-		// Ensure the session ticket cookie is valid.
-		ticketClient := codersdk.New(client.URL)
-		ticketClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
-		ticketClient.HTTPClient.Transport = client.HTTPClient.Transport
-		ticketClient.HTTPClient.Jar, err = cookiejar.New(nil)
+		// Ensure the session token cookie is valid.
+		appTokenClient := codersdk.New(client.URL)
+		appTokenClient.HTTPClient.CheckRedirect = client.HTTPClient.CheckRedirect
+		appTokenClient.HTTPClient.Transport = client.HTTPClient.Transport
+		appTokenClient.HTTPClient.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err)
-		ticketClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{sessionTicketCookie})
+		appTokenClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{appTokenCookie})
 
-		resp, err = requestWithRetries(ctx, t, ticketClient, http.MethodGet, uStr, nil)
+		resp, err = requestWithRetries(ctx, t, appTokenClient, http.MethodGet, uStr, nil)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		body, err = io.ReadAll(resp.Body)

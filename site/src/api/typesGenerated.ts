@@ -190,6 +190,8 @@ export interface CreateTemplateRequest {
   readonly default_ttl_ms?: number
   readonly max_ttl_ms?: number
   readonly allow_user_cancel_workspace_jobs?: boolean
+  readonly allow_user_autostart?: boolean
+  readonly allow_user_autostop?: boolean
 }
 
 // From codersdk/templateversions.go
@@ -786,6 +788,8 @@ export interface Template {
   readonly max_ttl_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
+  readonly allow_user_autostart: boolean
+  readonly allow_user_autostop: boolean
   readonly allow_user_cancel_workspace_jobs: boolean
 }
 
@@ -851,6 +855,7 @@ export interface TemplateVersionGitAuth {
 // From codersdk/templateversions.go
 export interface TemplateVersionParameter {
   readonly name: string
+  readonly display_name?: string
   readonly description: string
   readonly description_plaintext: string
   readonly type: string
@@ -952,6 +957,8 @@ export interface UpdateTemplateMeta {
   readonly icon?: string
   readonly default_ttl_ms?: number
   readonly max_ttl_ms?: number
+  readonly allow_user_autostart?: boolean
+  readonly allow_user_autostop?: boolean
   readonly allow_user_cancel_workspace_jobs?: boolean
 }
 
@@ -1085,6 +1092,29 @@ export interface WorkspaceAgentListeningPort {
 // From codersdk/workspaceagentconn.go
 export interface WorkspaceAgentListeningPortsResponse {
   readonly ports: WorkspaceAgentListeningPort[]
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentMetadata {
+  readonly result: WorkspaceAgentMetadataResult
+  readonly description: WorkspaceAgentMetadataDescription
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentMetadataDescription {
+  readonly display_name: string
+  readonly key: string
+  readonly script: string
+  readonly interval: number
+  readonly timeout: number
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentMetadataResult {
+  readonly collected_at: string
+  readonly age: number
+  readonly value: string
+  readonly error: string
 }
 
 // From codersdk/workspaceagents.go

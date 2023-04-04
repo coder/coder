@@ -110,6 +110,18 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
             >
               Summary
             </NavLink>
+            <NavLink
+              end
+              to={`/templates/${templateName}/docs`}
+              className={({ isActive }) =>
+                combineClasses([
+                  styles.tabItem,
+                  isActive ? styles.tabItemActive : undefined,
+                ])
+              }
+            >
+              Docs
+            </NavLink>
             {data.permissions.canUpdateTemplate && (
               <NavLink
                 to={`/templates/${templateName}/files`}
@@ -123,6 +135,17 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
                 Source Code
               </NavLink>
             )}
+            <NavLink
+              to={`/templates/${templateName}/versions`}
+              className={({ isActive }) =>
+                combineClasses([
+                  styles.tabItem,
+                  isActive ? styles.tabItemActive : undefined,
+                ])
+              }
+            >
+              Versions
+            </NavLink>
           </Stack>
         </Margins>
       </div>

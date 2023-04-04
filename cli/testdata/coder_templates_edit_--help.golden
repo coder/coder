@@ -3,6 +3,14 @@ Usage: coder templates edit [flags] <template>
 Edit the metadata of a template by name.
 
 [1mOptions[0m
+      --allow-user-autostart bool (default: true)
+          Allow users to configure autostart for workspaces on this template.
+          This can only be disabled in enterprise.
+
+      --allow-user-autostop bool (default: true)
+          Allow users to customize the autostop TTL for workspaces on this
+          template. This can only be disabled in enterprise.
+
       --allow-user-cancel-workspace-jobs bool (default: true)
           Allow users to cancel in-progress workspace jobs.
 

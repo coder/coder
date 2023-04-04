@@ -145,6 +145,7 @@ func Workspace(t testing.TB, db database.Store, orig database.Workspace) databas
 		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
 		OrganizationID:    takeFirst(orig.OrganizationID, uuid.New()),
 		TemplateID:        takeFirst(orig.TemplateID, uuid.New()),
+		LastUsedAt:        takeFirst(orig.LastUsedAt, database.Now()),
 		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		AutostartSchedule: orig.AutostartSchedule,
 		Ttl:               orig.Ttl,

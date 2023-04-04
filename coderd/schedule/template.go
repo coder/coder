@@ -10,8 +10,9 @@ import (
 )
 
 type TemplateScheduleOptions struct {
-	UserSchedulingEnabled bool          `json:"user_scheduling_enabled"`
-	DefaultTTL            time.Duration `json:"default_ttl"`
+	UserAutostartEnabled bool          `json:"user_autostart_enabled"`
+	UserAutostopEnabled  bool          `json:"user_autostop_enabled"`
+	DefaultTTL           time.Duration `json:"default_ttl"`
 	// If MaxTTL is set, the workspace must be stopped before this time or it
 	// will be stopped automatically.
 	//
@@ -41,8 +42,11 @@ func (*agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context
 	}
 
 	return TemplateScheduleOptions{
-		UserSchedulingEnabled: true,
-		DefaultTTL:            time.Duration(tpl.DefaultTTL),
+		// Disregard the values in the database, since user scheduling is an
+		// enterprise feature.
+		UserAutostartEnabled: true,
+		UserAutostopEnabled:  true,
+		DefaultTTL:           time.Duration(tpl.DefaultTTL),
 		// Disregard the value in the database, since MaxTTL is an enterprise
 		// feature.
 		MaxTTL: 0,
@@ -50,12 +54,19 @@ func (*agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context
 }
 
 func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts TemplateScheduleOptions) (database.Template, error) {
+	if int64(opts.DefaultTTL) == tpl.DefaultTTL {
+		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
+		return tpl, nil
+	}
+
 	return db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 		ID:         tpl.ID,
 		UpdatedAt:  database.Now(),
 		DefaultTTL: int64(opts.DefaultTTL),
 		// Don't allow changing it, but keep the value in the DB (to avoid
 		// clearing settings if the license has an issue).
-		MaxTTL: tpl.MaxTTL,
+		AllowUserAutostart: tpl.AllowUserAutostart,
+		AllowUserAutostop:  tpl.AllowUserAutostop,
+		MaxTTL:             tpl.MaxTTL,
 	})
 }

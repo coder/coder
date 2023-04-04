@@ -58,13 +58,9 @@ func TestDeploymentInsights(t *testing.T) {
 	daus, err := client.DeploymentDAUs(context.Background())
 	require.NoError(t, err)
 
-	require.Equal(t, &codersdk.DeploymentDAUsResponse{
-		Entries: []codersdk.DAUEntry{},
-	}, daus, "no DAUs when stats are empty")
-
 	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
-	assert.Zero(t, res.Workspaces[0].LastUsedAt)
+	assert.NotZero(t, res.Workspaces[0].LastUsedAt)
 
 	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
 		Logger: slogtest.Make(t, nil).Named("tailnet"),
