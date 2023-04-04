@@ -37,7 +37,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 				GetFn: func(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 					return schedule.TemplateScheduleOptions{
-						UserAutoStopEnabled: true,
+						UserAutostopEnabled: true,
 						DefaultTTL:          ttl,
 						MaxTTL:              maxTTL,
 					}, nil

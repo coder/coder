@@ -829,7 +829,7 @@ func TestCompleteJob(t *testing.T) {
 
 		cases := []struct {
 			name                  string
-			templateAllowAutoStop bool
+			templateAllowAutostop bool
 			templateDefaultTTL    time.Duration
 			templateMaxTTL        time.Duration
 			workspaceTTL          time.Duration
@@ -842,7 +842,7 @@ func TestCompleteJob(t *testing.T) {
 		}{
 			{
 				name:                  "OK",
-				templateAllowAutoStop: true,
+				templateAllowAutostop: true,
 				templateDefaultTTL:    0,
 				templateMaxTTL:        0,
 				workspaceTTL:          0,
@@ -852,7 +852,7 @@ func TestCompleteJob(t *testing.T) {
 			},
 			{
 				name:                  "Delete",
-				templateAllowAutoStop: true,
+				templateAllowAutostop: true,
 				templateDefaultTTL:    0,
 				templateMaxTTL:        0,
 				workspaceTTL:          0,
@@ -862,7 +862,7 @@ func TestCompleteJob(t *testing.T) {
 			},
 			{
 				name:                  "WorkspaceTTL",
-				templateAllowAutoStop: true,
+				templateAllowAutostop: true,
 				templateDefaultTTL:    0,
 				templateMaxTTL:        0,
 				workspaceTTL:          time.Hour,
@@ -872,7 +872,7 @@ func TestCompleteJob(t *testing.T) {
 			},
 			{
 				name:                  "TemplateDefaultTTLIgnored",
-				templateAllowAutoStop: true,
+				templateAllowAutostop: true,
 				templateDefaultTTL:    time.Hour,
 				templateMaxTTL:        0,
 				workspaceTTL:          0,
@@ -882,7 +882,7 @@ func TestCompleteJob(t *testing.T) {
 			},
 			{
 				name:                  "WorkspaceTTLOverridesTemplateDefaultTTL",
-				templateAllowAutoStop: true,
+				templateAllowAutostop: true,
 				templateDefaultTTL:    2 * time.Hour,
 				templateMaxTTL:        0,
 				workspaceTTL:          time.Hour,
@@ -892,7 +892,7 @@ func TestCompleteJob(t *testing.T) {
 			},
 			{
 				name:                  "TemplateMaxTTL",
-				templateAllowAutoStop: true,
+				templateAllowAutostop: true,
 				templateDefaultTTL:    0,
 				templateMaxTTL:        time.Hour,
 				workspaceTTL:          0,
@@ -902,7 +902,7 @@ func TestCompleteJob(t *testing.T) {
 			},
 			{
 				name:                  "TemplateMaxTTLOverridesWorkspaceTTL",
-				templateAllowAutoStop: true,
+				templateAllowAutostop: true,
 				templateDefaultTTL:    0,
 				templateMaxTTL:        2 * time.Hour,
 				workspaceTTL:          3 * time.Hour,
@@ -912,7 +912,7 @@ func TestCompleteJob(t *testing.T) {
 			},
 			{
 				name:                  "TemplateMaxTTLOverridesTemplateDefaultTTL",
-				templateAllowAutoStop: true,
+				templateAllowAutostop: true,
 				templateDefaultTTL:    3 * time.Hour,
 				templateMaxTTL:        2 * time.Hour,
 				workspaceTTL:          0,
@@ -922,7 +922,7 @@ func TestCompleteJob(t *testing.T) {
 			},
 			{
 				name:                  "TemplateBlockWorkspaceTTL",
-				templateAllowAutoStop: false,
+				templateAllowAutostop: false,
 				templateDefaultTTL:    3 * time.Hour,
 				templateMaxTTL:        6 * time.Hour,
 				workspaceTTL:          4 * time.Hour,
@@ -943,8 +943,8 @@ func TestCompleteJob(t *testing.T) {
 				var store schedule.TemplateScheduleStore = schedule.MockTemplateScheduleStore{
 					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 						return schedule.TemplateScheduleOptions{
-							UserAutoStartEnabled: false,
-							UserAutoStopEnabled:  c.templateAllowAutoStop,
+							UserAutostartEnabled: false,
+							UserAutostopEnabled:  c.templateAllowAutostop,
 							DefaultTTL:           c.templateDefaultTTL,
 							MaxTTL:               c.templateMaxTTL,
 						}, nil
@@ -960,7 +960,7 @@ func TestCompleteJob(t *testing.T) {
 				template, err := srv.Database.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 					ID:                 template.ID,
 					UpdatedAt:          database.Now(),
-					AllowUserAutoStart: c.templateAllowAutoStop,
+					AllowUserAutostart: c.templateAllowAutostop,
 					DefaultTTL:         int64(c.templateDefaultTTL),
 					MaxTTL:             int64(c.templateMaxTTL),
 				})

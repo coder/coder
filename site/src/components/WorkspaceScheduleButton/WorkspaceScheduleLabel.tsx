@@ -5,8 +5,8 @@ import { useTranslation } from "react-i18next"
 import { Workspace } from "../../api/typesGenerated"
 import { combineClasses } from "../../util/combineClasses"
 import {
-  autoStartDisplay,
-  autoStopDisplay,
+  autostartDisplay,
+  autostopDisplay,
   isShuttingDown,
 } from "../../util/schedule"
 import { isWorkspaceOn } from "../../util/workspace"
@@ -24,18 +24,18 @@ export const WorkspaceScheduleLabel: React.FC<{ workspace: Workspace }> = ({
           className={combineClasses([styles.labelText, "chromatic-ignore"])}
         >
           <Maybe condition={!isShuttingDown(workspace)}>
-            <strong>{t("schedule.autoStopLabel")}</strong>
+            <strong>{t("schedule.autostopLabel")}</strong>
           </Maybe>{" "}
-          <span className={styles.value}>{autoStopDisplay(workspace)}</span>
+          <span className={styles.value}>{autostopDisplay(workspace)}</span>
         </span>
       </Cond>
       <Cond>
         <span
           className={combineClasses([styles.labelText, "chromatic-ignore"])}
         >
-          <strong>{t("schedule.autoStartLabel")}</strong>{" "}
+          <strong>{t("schedule.autostartLabel")}</strong>{" "}
           <span className={styles.value}>
-            {autoStartDisplay(workspace.autostart_schedule)}
+            {autostartDisplay(workspace.autostart_schedule)}
           </span>
         </span>
       </Cond>

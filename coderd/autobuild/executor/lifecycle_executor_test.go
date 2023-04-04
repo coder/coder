@@ -443,7 +443,7 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 		workspace = mustProvisionWorkspace(t, client)
 	)
 
-	// Given: the user changes their mind and decides their workspace should not auto-stop
+	// Given: the user changes their mind and decides their workspace should not autostop
 	err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil})
 	require.NoError(t, err)
 
@@ -469,7 +469,7 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 	// Start the workspace again
 	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
 
-	// Given: the user changes their mind again and wants to enable auto-stop
+	// Given: the user changes their mind again and wants to enable autostop
 	newTTL := 8 * time.Hour
 	err = client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: ptr.Ref(newTTL.Milliseconds())})
 	require.NoError(t, err)
@@ -618,8 +618,8 @@ func TestExecutorAutostartTemplateDisabled(t *testing.T) {
 			TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 				GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 					return schedule.TemplateScheduleOptions{
-						UserAutoStartEnabled: false,
-						UserAutoStopEnabled:  true,
+						UserAutostartEnabled: false,
+						UserAutostopEnabled:  true,
 						DefaultTTL:           0,
 						MaxTTL:               0,
 					}, nil

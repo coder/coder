@@ -985,7 +985,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			if err != nil {
 				return xerrors.Errorf("get template schedule options: %w", err)
 			}
-			if !templateSchedule.UserAutoStopEnabled {
+			if !templateSchedule.UserAutostopEnabled {
 				// The user is not permitted to set their own TTL, so use the
 				// template default.
 				deadline = time.Time{}

@@ -229,17 +229,17 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 	var (
 		allowUserCancelWorkspaceJobs bool
-		allowUserAutoStart           = true
-		allowUserAutoStop            = true
+		allowUserAutostart           = true
+		allowUserAutostop            = true
 	)
 	if createTemplate.AllowUserCancelWorkspaceJobs != nil {
 		allowUserCancelWorkspaceJobs = *createTemplate.AllowUserCancelWorkspaceJobs
 	}
-	if createTemplate.AllowUserAutoStart != nil {
-		allowUserAutoStart = *createTemplate.AllowUserAutoStart
+	if createTemplate.AllowUserAutostart != nil {
+		allowUserAutostart = *createTemplate.AllowUserAutostart
 	}
-	if createTemplate.AllowUserAutoStop != nil {
-		allowUserAutoStop = *createTemplate.AllowUserAutoStop
+	if createTemplate.AllowUserAutostop != nil {
+		allowUserAutostop = *createTemplate.AllowUserAutostop
 	}
 
 	var dbTemplate database.Template
@@ -269,8 +269,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		}
 
 		dbTemplate, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
-			UserAutoStartEnabled: allowUserAutoStart,
-			UserAutoStopEnabled:  allowUserAutoStop,
+			UserAutostartEnabled: allowUserAutostart,
+			UserAutostopEnabled:  allowUserAutostop,
 			DefaultTTL:           defaultTTL,
 			MaxTTL:               maxTTL,
 		})
@@ -489,8 +489,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.Description == template.Description &&
 			req.DisplayName == template.DisplayName &&
 			req.Icon == template.Icon &&
-			req.AllowUserAutoStart == template.AllowUserAutoStart &&
-			req.AllowUserAutoStop == template.AllowUserAutoStop &&
+			req.AllowUserAutostart == template.AllowUserAutostart &&
+			req.AllowUserAutostop == template.AllowUserAutostop &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
 			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() {
@@ -530,14 +530,14 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
 			maxTTL != time.Duration(template.MaxTTL) ||
-			req.AllowUserAutoStart != template.AllowUserAutoStart ||
-			req.AllowUserAutoStop != template.AllowUserAutoStop {
+			req.AllowUserAutostart != template.AllowUserAutostart ||
+			req.AllowUserAutostop != template.AllowUserAutostop {
 			updated, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, updated, schedule.TemplateScheduleOptions{
 				// Some of these values are enterprise-only, but the
 				// TemplateScheduleStore will handle avoiding setting them if
 				// unlicensed.
-				UserAutoStartEnabled: req.AllowUserAutoStart,
-				UserAutoStopEnabled:  req.AllowUserAutoStop,
+				UserAutostartEnabled: req.AllowUserAutostart,
+				UserAutostopEnabled:  req.AllowUserAutostop,
 				DefaultTTL:           defaultTTL,
 				MaxTTL:               maxTTL,
 			})
@@ -680,8 +680,8 @@ func (api *API) convertTemplate(
 		MaxTTLMillis:                 time.Duration(template.MaxTTL).Milliseconds(),
 		CreatedByID:                  template.CreatedBy,
 		CreatedByName:                createdByName,
-		AllowUserAutoStart:           template.AllowUserAutoStart,
-		AllowUserAutoStop:            template.AllowUserAutoStop,
+		AllowUserAutostart:           template.AllowUserAutostart,
+		AllowUserAutostop:            template.AllowUserAutostop,
 		AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 	}
 }

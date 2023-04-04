@@ -1902,8 +1902,8 @@ func (q *fakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		if tpl.ID != arg.ID {
 			continue
 		}
-		tpl.AllowUserAutoStart = arg.AllowUserAutoStart
-		tpl.AllowUserAutoStop = arg.AllowUserAutoStop
+		tpl.AllowUserAutostart = arg.AllowUserAutostart
+		tpl.AllowUserAutostop = arg.AllowUserAutostop
 		tpl.UpdatedAt = database.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
 		tpl.MaxTTL = arg.MaxTTL
@@ -2905,8 +2905,8 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		DisplayName:                  arg.DisplayName,
 		Icon:                         arg.Icon,
 		AllowUserCancelWorkspaceJobs: arg.AllowUserCancelWorkspaceJobs,
-		AllowUserAutoStart:           true,
-		AllowUserAutoStop:            true,
+		AllowUserAutostart:           true,
+		AllowUserAutostop:            true,
 	}
 	q.templates = append(q.templates, template)
 	return template.DeepCopy(), nil
@@ -3980,7 +3980,7 @@ func (q *fakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter tim
 	return stats, nil
 }
 
-func (q *fakeQuerier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspacesEligibleForAutostartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 

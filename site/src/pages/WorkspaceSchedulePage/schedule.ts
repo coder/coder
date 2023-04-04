@@ -10,7 +10,7 @@ import { extractTimezone, stripTimezone } from "../../util/schedule"
 dayjs.extend(utc)
 dayjs.extend(timezone)
 
-export interface AutoStartSchedule {
+export interface AutostartSchedule {
   sunday: boolean
   monday: boolean
   tuesday: boolean
@@ -22,9 +22,9 @@ export interface AutoStartSchedule {
   timezone: string
 }
 
-export type AutoStart = {
-  autoStartEnabled: boolean
-} & AutoStartSchedule
+export type Autostart = {
+  autostartEnabled: boolean
+} & AutostartSchedule
 
 export const emptySchedule = {
   sunday: false,
@@ -39,7 +39,7 @@ export const emptySchedule = {
   timezone: "",
 }
 
-export const defaultSchedule = (): AutoStartSchedule => ({
+export const defaultSchedule = (): AutostartSchedule => ({
   sunday: false,
   monday: true,
   tuesday: true,
@@ -79,13 +79,13 @@ const transformSchedule = (schedule: string) => {
   }
 }
 
-export const scheduleToAutoStart = (schedule?: string): AutoStart => {
+export const scheduleToAutostart = (schedule?: string): Autostart => {
   if (schedule) {
     return {
-      autoStartEnabled: true,
+      autostartEnabled: true,
       ...transformSchedule(schedule),
     }
   } else {
-    return { autoStartEnabled: false, ...emptySchedule }
+    return { autostartEnabled: false, ...emptySchedule }
   }
 }

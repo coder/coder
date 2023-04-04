@@ -62,6 +62,7 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
+	"github.com/coder/coder/coderd/autobuild/executor"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbpurge"
@@ -1018,6 +1019,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
+
+			autobuildPoller := time.NewTicker(cfg.AutobuildPollInterval.Value())
+			defer autobuildPoller.Stop()
+			autobuildExecutor := executor.New(ctx, options.Database, coderAPI.TemplateScheduleStore, logger, autobuildPoller.C)
+			autobuildExecutor.Run()
 
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero

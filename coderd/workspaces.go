@@ -744,7 +744,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !templateSchedule.UserAutoStartEnabled {
+	if !templateSchedule.UserAutostartEnabled {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Autostart is not allowed for workspaces using this template.",
 			Validations: []codersdk.ValidationError{{Field: "schedule", Detail: "Autostart is not allowed for workspaces using this template."}},
@@ -807,12 +807,12 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("get template schedule: %w", err)
 		}
-		if !templateSchedule.UserAutoStopEnabled {
+		if !templateSchedule.UserAutostopEnabled {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: "Custom autostop TTL is not allowed for workspaces using this template."}
 		}
 
 		// don't override 0 ttl with template default here because it indicates
-		// disabled auto-stop
+		// disabled autostop
 		var validityErr error
 		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0, templateSchedule.MaxTTL)
 		if validityErr != nil {

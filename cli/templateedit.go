@@ -21,8 +21,8 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		defaultTTL                   time.Duration
 		maxTTL                       time.Duration
 		allowUserCancelWorkspaceJobs bool
-		allowUserAutoStart           bool
-		allowUserAutoStop            bool
+		allowUserAutostart           bool
+		allowUserAutostop            bool
 	)
 	client := new(codersdk.Client)
 
@@ -34,7 +34,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		),
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invocation) error {
-			if maxTTL != 0 || !allowUserAutoStart || !allowUserAutoStop {
+			if maxTTL != 0 || !allowUserAutostart || !allowUserAutostop {
 				entitlements, err := client.Entitlements(inv.Context())
 				var sdkErr *codersdk.Error
 				if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
@@ -66,8 +66,8 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				DefaultTTLMillis:             defaultTTL.Milliseconds(),
 				MaxTTLMillis:                 maxTTL.Milliseconds(),
 				AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
-				AllowUserAutoStart:           allowUserAutoStart,
-				AllowUserAutoStop:            allowUserAutoStop,
+				AllowUserAutostart:           allowUserAutostart,
+				AllowUserAutostop:            allowUserAutostop,
 			}
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
@@ -120,13 +120,13 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Flag:        "allow-user-autostart",
 			Description: "Allow users to configure autostart for workspaces on this template. This can only be disabled in enterprise.",
 			Default:     "true",
-			Value:       clibase.BoolOf(&allowUserAutoStart),
+			Value:       clibase.BoolOf(&allowUserAutostart),
 		},
 		{
 			Flag:        "allow-user-autostop",
 			Description: "Allow users to customize the autostop TTL for workspaces on this template. This can only be disabled in enterprise.",
 			Default:     "true",
-			Value:       clibase.BoolOf(&allowUserAutoStop),
+			Value:       clibase.BoolOf(&allowUserAutostop),
 		},
 		cliui.SkipPromptOption(),
 	}

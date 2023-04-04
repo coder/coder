@@ -1271,14 +1271,14 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 		})
 	}
 
-	t.Run("CustomAutoStartDisabledByTemplate", func(t *testing.T) {
+	t.Run("CustomAutostartDisabledByTemplate", func(t *testing.T) {
 		t.Parallel()
 		var (
 			tss = schedule.MockTemplateScheduleStore{
 				GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 					return schedule.TemplateScheduleOptions{
-						UserAutoStartEnabled: false,
-						UserAutoStopEnabled:  false,
+						UserAutostartEnabled: false,
+						UserAutostopEnabled:  false,
 						DefaultTTL:           0,
 						MaxTTL:               0,
 					}, nil
@@ -1438,14 +1438,14 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		})
 	}
 
-	t.Run("CustomAutoStopDisabledByTemplate", func(t *testing.T) {
+	t.Run("CustomAutostopDisabledByTemplate", func(t *testing.T) {
 		t.Parallel()
 		var (
 			tss = schedule.MockTemplateScheduleStore{
 				GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 					return schedule.TemplateScheduleOptions{
-						UserAutoStartEnabled: false,
-						UserAutoStopEnabled:  false,
+						UserAutostartEnabled: false,
+						UserAutostopEnabled:  false,
 						DefaultTTL:           0,
 						MaxTTL:               0,
 					}, nil

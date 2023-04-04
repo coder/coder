@@ -492,8 +492,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
-			assert.Equal(t, template.AllowUserAutoStart, updated.AllowUserAutoStart)
-			assert.Equal(t, template.AllowUserAutoStop, updated.AllowUserAutoStop)
+			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
+			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 		})
 
 		t.Run("BlockedNotEntitled", func(t *testing.T) {
@@ -578,8 +578,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
-			assert.Equal(t, template.AllowUserAutoStart, updated.AllowUserAutoStart)
-			assert.Equal(t, template.AllowUserAutoStop, updated.AllowUserAutoStop)
+			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
+			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 		})
 		t.Run("Entitled", func(t *testing.T) {
 			t.Parallel()
@@ -622,8 +622,8 @@ func TestTemplateEdit(t *testing.T) {
 					var req codersdk.UpdateTemplateMeta
 					err = json.Unmarshal(body, &req)
 					require.NoError(t, err)
-					assert.False(t, req.AllowUserAutoStart)
-					assert.False(t, req.AllowUserAutoStop)
+					assert.False(t, req.AllowUserAutostart)
+					assert.False(t, req.AllowUserAutostop)
 
 					r.Body = io.NopCloser(bytes.NewReader(body))
 					atomic.AddInt64(&updateTemplateCalled, 1)
@@ -668,8 +668,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
-			assert.Equal(t, template.AllowUserAutoStart, updated.AllowUserAutoStart)
-			assert.Equal(t, template.AllowUserAutoStop, updated.AllowUserAutoStop)
+			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
+			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 		})
 	})
 }

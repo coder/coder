@@ -306,8 +306,8 @@ func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.Get
 	return q.db.GetDeploymentWorkspaceStats(ctx)
 }
 
-func (q *querier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
-	return q.db.GetWorkspacesEligibleForAutoStartStop(ctx, now)
+func (q *querier) GetWorkspacesEligibleForAutostartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+	return q.db.GetWorkspacesEligibleForAutostartStop(ctx, now)
 }
 
 func (q *querier) GetParameterSchemasCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ParameterSchema, error) {

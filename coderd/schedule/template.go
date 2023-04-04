@@ -10,8 +10,8 @@ import (
 )
 
 type TemplateScheduleOptions struct {
-	UserAutoStartEnabled bool          `json:"user_auto_start_enabled"`
-	UserAutoStopEnabled  bool          `json:"user_auto_stop_enabled"`
+	UserAutostartEnabled bool          `json:"user_autostart_enabled"`
+	UserAutostopEnabled  bool          `json:"user_autostop_enabled"`
 	DefaultTTL           time.Duration `json:"default_ttl"`
 	// If MaxTTL is set, the workspace must be stopped before this time or it
 	// will be stopped automatically.
@@ -44,8 +44,8 @@ func (*agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context
 	return TemplateScheduleOptions{
 		// Disregard the values in the database, since user scheduling is an
 		// enterprise feature.
-		UserAutoStartEnabled: true,
-		UserAutoStopEnabled:  true,
+		UserAutostartEnabled: true,
+		UserAutostopEnabled:  true,
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
 		// Disregard the value in the database, since MaxTTL is an enterprise
 		// feature.
@@ -65,8 +65,8 @@ func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context
 		DefaultTTL: int64(opts.DefaultTTL),
 		// Don't allow changing it, but keep the value in the DB (to avoid
 		// clearing settings if the license has an issue).
-		AllowUserAutoStart: tpl.AllowUserAutoStart,
-		AllowUserAutoStop:  tpl.AllowUserAutoStop,
+		AllowUserAutostart: tpl.AllowUserAutostart,
+		AllowUserAutostop:  tpl.AllowUserAutostop,
 		MaxTTL:             tpl.MaxTTL,
 	})
 }

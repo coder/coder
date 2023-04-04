@@ -115,8 +115,8 @@ UPDATE
 	templates
 SET
 	updated_at = $2,
-	allow_user_auto_start = $3,
-	allow_user_auto_stop = $4,
+	allow_user_autostart = $3,
+	allow_user_autostop = $4,
 	default_ttl = $5,
 	max_ttl = $6
 WHERE

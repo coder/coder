@@ -244,10 +244,10 @@ func TestPostTemplateByOrganization(t *testing.T) {
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 						atomic.AddInt64(&setCalled, 1)
-						require.False(t, options.UserAutoStartEnabled)
-						require.False(t, options.UserAutoStopEnabled)
-						template.AllowUserAutoStart = options.UserAutoStartEnabled
-						template.AllowUserAutoStop = options.UserAutoStopEnabled
+						require.False(t, options.UserAutostartEnabled)
+						require.False(t, options.UserAutostopEnabled)
+						template.AllowUserAutostart = options.UserAutostartEnabled
+						template.AllowUserAutostop = options.UserAutostopEnabled
 						return template, nil
 					},
 				},
@@ -261,14 +261,14 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 				Name:               "testing",
 				VersionID:          version.ID,
-				AllowUserAutoStart: ptr.Ref(false),
-				AllowUserAutoStop:  ptr.Ref(false),
+				AllowUserAutostart: ptr.Ref(false),
+				AllowUserAutostop:  ptr.Ref(false),
 			})
 			require.NoError(t, err)
 
 			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
-			require.False(t, got.AllowUserAutoStart)
-			require.False(t, got.AllowUserAutoStop)
+			require.False(t, got.AllowUserAutostart)
+			require.False(t, got.AllowUserAutostop)
 		})
 
 		t.Run("IgnoredUnlicensed", func(t *testing.T) {
@@ -284,13 +284,13 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 				Name:               "testing",
 				VersionID:          version.ID,
-				AllowUserAutoStart: ptr.Ref(false),
-				AllowUserAutoStop:  ptr.Ref(false),
+				AllowUserAutostart: ptr.Ref(false),
+				AllowUserAutostop:  ptr.Ref(false),
 			})
 			require.NoError(t, err)
 			// ignored and use AGPL defaults
-			require.True(t, got.AllowUserAutoStart)
-			require.True(t, got.AllowUserAutoStop)
+			require.True(t, got.AllowUserAutostart)
+			require.True(t, got.AllowUserAutostop)
 		})
 	})
 
@@ -612,22 +612,22 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 			var (
 				setCalled      int64
-				allowAutoStart atomic.Bool
-				allowAutoStop  atomic.Bool
+				allowAutostart atomic.Bool
+				allowAutostop  atomic.Bool
 			)
-			allowAutoStart.Store(true)
-			allowAutoStop.Store(true)
+			allowAutostart.Store(true)
+			allowAutostop.Store(true)
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 						atomic.AddInt64(&setCalled, 1)
-						assert.Equal(t, allowAutoStart.Load(), options.UserAutoStartEnabled)
-						assert.Equal(t, allowAutoStop.Load(), options.UserAutoStopEnabled)
+						assert.Equal(t, allowAutostart.Load(), options.UserAutostartEnabled)
+						assert.Equal(t, allowAutostop.Load(), options.UserAutostopEnabled)
 
 						template.DefaultTTL = int64(options.DefaultTTL)
 						template.MaxTTL = int64(options.MaxTTL)
-						template.AllowUserAutoStart = options.UserAutoStartEnabled
-						template.AllowUserAutoStop = options.UserAutoStopEnabled
+						template.AllowUserAutostart = options.UserAutostartEnabled
+						template.AllowUserAutostop = options.UserAutostopEnabled
 						return template, nil
 					},
 				},
@@ -637,14 +637,14 @@ func TestPatchTemplateMeta(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 			})
-			require.Equal(t, allowAutoStart.Load(), template.AllowUserAutoStart)
-			require.Equal(t, allowAutoStop.Load(), template.AllowUserAutoStop)
+			require.Equal(t, allowAutostart.Load(), template.AllowUserAutostart)
+			require.Equal(t, allowAutostop.Load(), template.AllowUserAutostop)
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			allowAutoStart.Store(false)
-			allowAutoStop.Store(false)
+			allowAutostart.Store(false)
+			allowAutostop.Store(false)
 			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 				Name:                         template.Name,
 				DisplayName:                  template.DisplayName,
@@ -653,14 +653,14 @@ func TestPatchTemplateMeta(t *testing.T) {
 				DefaultTTLMillis:             template.DefaultTTLMillis,
 				MaxTTLMillis:                 template.MaxTTLMillis,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-				AllowUserAutoStart:           allowAutoStart.Load(),
-				AllowUserAutoStop:            allowAutoStop.Load(),
+				AllowUserAutostart:           allowAutostart.Load(),
+				AllowUserAutostop:            allowAutostop.Load(),
 			})
 			require.NoError(t, err)
 
 			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
-			require.Equal(t, allowAutoStart.Load(), got.AllowUserAutoStart)
-			require.Equal(t, allowAutoStop.Load(), got.AllowUserAutoStop)
+			require.Equal(t, allowAutostart.Load(), got.AllowUserAutostart)
+			require.Equal(t, allowAutostop.Load(), got.AllowUserAutostop)
 		})
 
 		t.Run("IgnoredUnlicensed", func(t *testing.T) {
@@ -685,12 +685,12 @@ func TestPatchTemplateMeta(t *testing.T) {
 				DefaultTTLMillis:             template.DefaultTTLMillis + 1,
 				MaxTTLMillis:                 template.MaxTTLMillis,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-				AllowUserAutoStart:           false,
-				AllowUserAutoStop:            false,
+				AllowUserAutostart:           false,
+				AllowUserAutostop:            false,
 			})
 			require.NoError(t, err)
-			require.True(t, got.AllowUserAutoStart)
-			require.True(t, got.AllowUserAutoStop)
+			require.True(t, got.AllowUserAutostart)
+			require.True(t, got.AllowUserAutostop)
 		})
 	})
 
@@ -714,8 +714,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			Description:        template.Description,
 			Icon:               template.Icon,
 			DefaultTTLMillis:   template.DefaultTTLMillis,
-			AllowUserAutoStart: template.AllowUserAutoStart,
-			AllowUserAutoStop:  template.AllowUserAutoStop,
+			AllowUserAutostart: template.AllowUserAutostart,
+			AllowUserAutostop:  template.AllowUserAutostop,
 		}
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.ErrorContains(t, err, "not modified")
