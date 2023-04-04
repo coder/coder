@@ -243,6 +243,16 @@ CODER_OIDC_GROUP_MAPPING='{"myOIDCGroupID": "myCoderGroupName"}'
 --oidc-group-mapping '{"myOIDCGroupID": "myCoderGroupName"}'
 ```
 
+Below is an example mapping in the Coder Helm chart:
+
+```yaml
+coder:
+  env:
+  - name: CODER_OIDC_GROUP_MAPPING
+    value: >
+      {"myOIDCGroupID": "myCoderGroupName"}
+```
+
 From the example above, users that belong to the `myOIDCGroupID` group in your
 OIDC provider will be added to the `myCoderGroupName` group in Coder.
 
