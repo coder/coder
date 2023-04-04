@@ -70,11 +70,10 @@ resource "coder_agent" "main" {
 distributions and provides virtual memory, CPU and IO statistics. Running `top`
 produces output that looks like:
 
-
 ```
 %Cpu(s): 65.8 us,  4.4 sy,  0.0 ni, 29.3 id,  0.3 wa,  0.0 hi,  0.2 si,  0.0 st
 MiB Mem :  16009.0 total,    493.7 free,   4624.8 used,  10890.5 buff/cache
-MiB Swap:      0.0 total,      0.0 free,      0.0 used.  11021.3 avail Mem 
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.  11021.3 avail Mem
 ```
 
 [vmstat](https://linux.die.net/man/8/vmstat) is available in most Linux
