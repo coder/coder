@@ -1,4 +1,4 @@
-import axios, { AxiosRequestHeaders } from "axios"
+import axios from "axios"
 import dayjs from "dayjs"
 import * as Types from "./types"
 import { DeploymentConfig } from "./types"
@@ -65,7 +65,7 @@ if (token !== null && token.getAttribute("content") !== null) {
   }
 }
 
-const CONTENT_TYPE_JSON: AxiosRequestHeaders = {
+const CONTENT_TYPE_JSON = {
   "Content-Type": "application/json",
 }
 
@@ -973,6 +973,41 @@ export class MissingBuildParameters extends Error {
     super("Missing build parameters.")
     this.parameters = parameters
   }
+}
+
+/** Steps to change the workspace version
+ * - Get the latest template to access the latest active version
+ * - Get the current build parameters
+ * - Get the template parameters
+ * - Update the build parameters and check if there are missed parameters for the new version
+ *   - If there are missing parameters raise an error
+ * - Create a build with the version and updated build parameters
+ */
+export const changeWorkspaceVersion = async (
+  workspace: TypesGen.Workspace,
+  templateVersionId: string,
+  newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+): Promise<TypesGen.WorkspaceBuild> => {
+  const [currentBuildParameters, templateParameters] = await Promise.all([
+    getWorkspaceBuildParameters(workspace.latest_build.id),
+    getTemplateVersionRichParameters(templateVersionId),
+  ])
+
+  const missingParameters = getMissingParameters(
+    currentBuildParameters,
+    newBuildParameters,
+    templateParameters,
+  )
+
+  if (missingParameters.length > 0) {
+    throw new MissingBuildParameters(missingParameters)
+  }
+
+  return postWorkspaceBuild(workspace.id, {
+    transition: "start",
+    template_version_id: templateVersionId,
+    rich_parameter_values: newBuildParameters,
+  })
 }
 
 /** Steps to update the workspace
