@@ -2,7 +2,6 @@
 INSERT INTO
 	workspace_proxies (
 		id,
-		organization_id,
 		name,
 		display_name,
 		icon,
@@ -13,7 +12,7 @@ INSERT INTO
 		deleted
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, false) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, false) RETURNING *;
 
 -- name: UpdateWorkspaceProxy :one
 UPDATE
@@ -55,5 +54,4 @@ SELECT
 FROM
 	workspace_proxies
 WHERE
-	deleted = false
-	AND organization_id = @organization_id;
+	deleted = false;

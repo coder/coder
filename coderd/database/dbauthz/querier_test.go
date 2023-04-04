@@ -464,13 +464,9 @@ func (s *MethodTestSuite) TestWorkspaceProxy() {
 		}).Asserts(p, rbac.ActionDelete)
 	}))
 	s.Run("GetWorkspaceProxies", s.Subtest(func(db database.Store, check *expects) {
-		p1 := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{
-			OrganizationID: uuid.New(),
-		})
-		p2 := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{
-			OrganizationID: p1.OrganizationID,
-		})
-		check.Args(p1.OrganizationID).Asserts(p1, rbac.ActionRead, p2, rbac.ActionRead).Returns(slice.New(p1, p2))
+		p1 := dbgen.WorkspaceProxy(s.T(), db, database.WorkspacseProxy{})
+		p2 := dbgen.WorkspaceProxy(s.T(), db, database.WorkspaceProxy{})
+		check.Args().Asserts(p1, rbac.ActionRead, p2, rbac.ActionRead).Returns(slice.New(p1, p2))
 	}))
 }
 

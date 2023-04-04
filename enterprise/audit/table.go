@@ -162,7 +162,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	},
 	&database.WorkspaceProxy{}: {
 		"id":                ActionTrack,
-		"organization_id":   ActionTrack,
 		"name":              ActionTrack,
 		"display_name":      ActionTrack,
 		"icon":              ActionTrack,

@@ -631,7 +631,6 @@ CREATE TABLE workspace_builds (
 
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
-    organization_id uuid NOT NULL,
     name text NOT NULL,
     display_name text NOT NULL,
     icon text NOT NULL,
@@ -874,7 +873,7 @@ CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (au
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
 
-CREATE UNIQUE INDEX workspace_proxies_organization_id_name_idx ON workspace_proxies USING btree (organization_id, name) WHERE (deleted = false);
+CREATE UNIQUE INDEX workspace_proxies_name_idx ON workspace_proxies USING btree (name) WHERE (deleted = false);
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
 

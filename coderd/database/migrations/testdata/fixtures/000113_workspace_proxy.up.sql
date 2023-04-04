@@ -1,9 +1,8 @@
 INSERT INTO workspace_proxies
-	(id, organization_id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted)
+	(id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted)
 VALUES
 	(
 		 'cf8ede8c-ff47-441f-a738-d92e4e34a657',
-		 'bb640d07-ca8a-4869-b6bc-ae61ebb2fda1',
 	 	 'us',
 	 	 'United States',
 		 '/emojis/us.png',

@@ -183,8 +183,7 @@ func (p ProvisionerDaemon) RBACObject() rbac.Object {
 
 func (w WorkspaceProxy) RBACObject() rbac.Object {
 	return rbac.ResourceWorkspaceProxy.
-		WithID(w.ID).
-		InOrg(w.OrganizationID)
+		WithID(w.ID)
 }
 
 func (f File) RBACObject() rbac.Object {

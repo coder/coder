@@ -4952,15 +4952,13 @@ func (q *fakeQuerier) UpdateWorkspaceAgentStartupLogOverflowByID(_ context.Conte
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceProxies(_ context.Context, organizationID uuid.UUID) ([]database.WorkspaceProxy, error) {
+func (q *fakeQuerier) GetWorkspaceProxies(_ context.Context) ([]database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	cpy := make([]database.WorkspaceProxy, 0, len(q.workspaceProxies))
 	for _, p := range q.workspaceProxies {
-		if p.OrganizationID == organizationID && !p.Deleted {
-			cpy = append(cpy, p)
-		}
+		cpy = append(cpy, p)
 	}
 	return cpy, nil
 }
@@ -4982,14 +4980,13 @@ func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 	defer q.mutex.Unlock()
 
 	for _, p := range q.workspaceProxies {
-		if !p.Deleted && p.OrganizationID == arg.OrganizationID && p.Name == arg.Name {
+		if !p.Deleted && p.Name == arg.Name {
 			return database.WorkspaceProxy{}, errDuplicateKey
 		}
 	}
 
 	p := database.WorkspaceProxy{
 		ID:               arg.ID,
-		OrganizationID:   arg.OrganizationID,
 		Name:             arg.Name,
 		Icon:             arg.Icon,
 		Url:              arg.Url,

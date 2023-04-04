@@ -1685,8 +1685,10 @@ func (q *querier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceApp
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
 }
 
-func (q *querier) GetWorkspaceProxies(ctx context.Context, organizationID uuid.UUID) ([]database.WorkspaceProxy, error) {
-	return fetchWithPostFilter(q.auth, q.db.GetWorkspaceProxies)(ctx, organizationID)
+func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
+	return fetchWithPostFilter(q.auth, func(ctx context.Context, _ interface{}) ([]database.WorkspaceProxy, error) {
+		return q.db.GetWorkspaceProxies(ctx)
+	})(ctx, nil)
 }
 
 func (q *querier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (database.WorkspaceProxy, error) {
@@ -1694,7 +1696,7 @@ func (q *querier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (data
 }
 
 func (q *querier) InsertWorkspaceProxy(ctx context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
-	return insert(q.log, q.auth, rbac.ResourceWorkspaceProxy.InOrg(arg.OrganizationID), q.db.InsertWorkspaceProxy)(ctx, arg)
+	return insert(q.log, q.auth, rbac.ResourceWorkspaceProxy, q.db.InsertWorkspaceProxy)(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {

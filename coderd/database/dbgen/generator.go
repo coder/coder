@@ -329,7 +329,6 @@ func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.
 func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProxy) database.WorkspaceProxy {
 	resource, err := db.InsertWorkspaceProxy(context.Background(), database.InsertWorkspaceProxyParams{
 		ID:               takeFirst(orig.ID, uuid.New()),
-		OrganizationID:   takeFirst(orig.OrganizationID, uuid.New()),
 		Name:             takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		DisplayName:      takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
 		Icon:             takeFirst(orig.Icon, namesgenerator.GetRandomName(1)),

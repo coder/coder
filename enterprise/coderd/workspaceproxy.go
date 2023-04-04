@@ -11,25 +11,22 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 	"github.com/google/uuid"
 )
 
-// @Summary Create workspace proxy for organization
-// @ID create-workspace-proxy-for-organization
+// @Summary Create workspace proxy
+// @ID create-workspace-proxy
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Templates
 // @Param request body codersdk.CreateWorkspaceProxyRequest true "Create workspace proxy request"
-// @Param organization path string true "Organization ID"
 // @Success 201 {object} codersdk.WorkspaceProxy
-// @Router /organizations/{organization}/workspaceproxies [post]
-func (api *API) postWorkspaceProxyByOrganization(rw http.ResponseWriter, r *http.Request) {
+// @Router /organizations/workspaceproxies [post]
+func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		org               = httpmw.OrganizationParam(r)
 		auditor           = api.AGPL.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.WorkspaceProxy](rw, &audit.RequestParams{
 			Audit:   *auditor,
@@ -63,7 +60,6 @@ func (api *API) postWorkspaceProxyByOrganization(rw http.ResponseWriter, r *http
 
 	proxy, err := api.Database.InsertWorkspaceProxy(ctx, database.InsertWorkspaceProxyParams{
 		ID:               uuid.New(),
-		OrganizationID:   org.ID,
 		Name:             req.Name,
 		DisplayName:      req.DisplayName,
 		Icon:             req.Icon,
@@ -107,16 +103,14 @@ func validateProxyURL(u string) error {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} codersdk.WorkspaceProxy
-// @Router /organizations/{organization}/workspaceproxies [get]
-func (api *API) workspaceProxiesByOrganization(rw http.ResponseWriter, r *http.Request) {
+// @Router /workspaceproxies [get]
+func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx = r.Context()
-		org = httpmw.OrganizationParam(r)
 	)
 
-	proxies, err := api.Database.GetWorkspaceProxies(ctx, org.ID)
+	proxies, err := api.Database.GetWorkspaceProxies(ctx)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -136,7 +130,6 @@ func convertProxies(p []database.WorkspaceProxy) []codersdk.WorkspaceProxy {
 func convertProxy(p database.WorkspaceProxy) codersdk.WorkspaceProxy {
 	return codersdk.WorkspaceProxy{
 		ID:               p.ID,
-		OrganizationID:   p.OrganizationID,
 		Name:             p.Name,
 		Icon:             p.Icon,
 		URL:              p.Url,
