@@ -74,34 +74,44 @@
       ]
     },
     {
-      "title": "Quickstart",
-      "description": "Create your first template and workspace",
-      "path": "./quickstart.md",
+      "title": "Platforms",
+      "description": "Platform-specific guides using Coder",
+      "path": "./platforms.md",
       "icon_path": "./images/icons/star.svg",
       "children": [
         {
           "title": "Docker",
-          "description": "Setup Coder with Docker",
-          "path": "./quickstart/docker.md",
+          "description": "Set up Coder with Docker",
+          "path": "./platforms/docker.md",
           "icon_path": "./images/icons/docker.svg"
         },
         {
-          "title": "Google Cloud Platform",
-          "description": "Setup Coder on a GCP Compute Engine VM",
-          "path": "./quickstart/google-cloud-platform.md",
-          "icon_path": "./images/google-cloud.svg"
-        },
-        {
           "title": "AWS",
-          "description": "Setup Coder on an AWS EC2 VM",
-          "path": "./quickstart/aws.md",
+          "description": "Set up Coder on an AWS EC2 VM",
+          "path": "./platforms/aws.md",
           "icon_path": "./images/aws.svg"
         },
         {
+          "title": "GCP",
+          "description": "Set up Coder on a GCP Compute Engine VM",
+          "path": "./platforms/google-cloud-platform.md",
+          "icon_path": "./images/google-cloud.svg"
+        },
+        {
           "title": "Azure",
-          "description": "Setup Coder on an Azure VM",
-          "path": "./quickstart/azure.md",
+          "description": "Set up Coder on an Azure VM",
+          "path": "./platforms/azure.md",
           "icon_path": "./images/azure.svg"
+        },
+        {
+          "title": "Kubernetes",
+          "description": "Set up Coder on Kubernetes",
+          "path": "./platforms/kubernetes.md"
+        },
+        {
+          "title": "Other platforms",
+          "description": "Set up Coder on an another provider",
+          "path": "./platforms/other.md"
         }
       ]
     },
@@ -329,13 +339,6 @@
           "description": "Learn what usage telemetry Coder collects",
           "path": "./admin/telemetry.md",
           "icon_path": "./images/icons/science.svg"
-        },
-        {
-          "title": "Support Links",
-          "description": "Learn how to configure Support Links",
-          "path": "./admin/support-links.md",
-          "icon_path": "./images/icons/link.svg",
-          "state": "enterprise"
         }
       ]
     },

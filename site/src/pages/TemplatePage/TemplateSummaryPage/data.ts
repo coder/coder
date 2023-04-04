@@ -1,23 +1,17 @@
 import { useQuery } from "@tanstack/react-query"
-import {
-  getTemplateVersionResources,
-  getTemplateVersions,
-  getTemplateDAUs,
-} from "api/api"
+import { getTemplateVersionResources, getTemplateDAUs } from "api/api"
 
 const fetchTemplateSummary = async (
   templateId: string,
   activeVersionId: string,
 ) => {
-  const [resources, versions, daus] = await Promise.all([
+  const [resources, daus] = await Promise.all([
     getTemplateVersionResources(activeVersionId),
-    getTemplateVersions(templateId),
     getTemplateDAUs(templateId),
   ])
 
   return {
     resources,
-    versions,
     daus,
   }
 }

@@ -84,8 +84,9 @@ message RichParameter {
     int32 validation_min = 10;
     int32 validation_max = 11;
     string validation_monotonic = 12;
-	bool required = 13;
-	string legacy_variable_name = 14;
+    bool required = 13;
+    string legacy_variable_name = 14;
+    string display_name = 15;
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.

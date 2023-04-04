@@ -24,7 +24,7 @@ func StripCoderCookies(header string) string {
 			name == codersdk.OAuth2StateCookie ||
 			name == codersdk.OAuth2RedirectCookie ||
 			name == codersdk.DevURLSessionTokenCookie ||
-			name == codersdk.DevURLSessionTicketCookie {
+			name == codersdk.DevURLSignedAppTokenCookie {
 			continue
 		}
 		cookies = append(cookies, part)

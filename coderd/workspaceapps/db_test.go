@@ -218,8 +218,8 @@ func Test_ResolveRequest(t *testing.T) {
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
 
-				// Try resolving a request for each app as the owner, without a ticket,
-				// then use the ticket to resolve each app.
+				// Try resolving a request for each app as the owner, without a
+				// token, then use the token to resolve each app.
 				for _, app := range allApps {
 					req := workspaceapps.Request{
 						AccessMethod:      workspaceapps.AccessMethodPath,
@@ -235,8 +235,8 @@ func Test_ResolveRequest(t *testing.T) {
 					r := httptest.NewRequest("GET", "/app", nil)
 					r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-					// Try resolving the request without a ticket.
-					ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+					// Try resolving the request without a token.
+					token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 					w := rw.Result()
 					if !assert.True(t, ok) {
 						dump, err := httputil.DumpResponse(w, true)
@@ -246,35 +246,41 @@ func Test_ResolveRequest(t *testing.T) {
 					}
 					_ = w.Body.Close()
 
-					require.Equal(t, &workspaceapps.Ticket{
+					require.Equal(t, &workspaceapps.SignedToken{
 						Request:     req,
-						Expiry:      ticket.Expiry, // ignored to avoid flakiness
+						Expiry:      token.Expiry, // ignored to avoid flakiness
 						UserID:      me.ID,
 						WorkspaceID: workspace.ID,
 						AgentID:     agentID,
 						AppURL:      appURL,
-					}, ticket)
-					require.NotZero(t, ticket.Expiry)
-					require.InDelta(t, time.Now().Add(workspaceapps.TicketExpiry).Unix(), ticket.Expiry, time.Minute.Seconds())
+					}, token)
+					require.NotZero(t, token.Expiry)
+					require.WithinDuration(t, time.Now().Add(workspaceapps.DefaultTokenExpiry), token.Expiry, time.Minute)
 
-					// Check that the ticket was set in the response and is valid.
+					// Check that the token was set in the response and is valid.
 					require.Len(t, w.Cookies(), 1)
 					cookie := w.Cookies()[0]
-					require.Equal(t, codersdk.DevURLSessionTicketCookie, cookie.Name)
+					require.Equal(t, codersdk.DevURLSignedAppTokenCookie, cookie.Name)
 					require.Equal(t, req.BasePath, cookie.Path)
 
-					parsedTicket, err := api.WorkspaceAppsProvider.ParseTicket(cookie.Value)
+					parsedToken, err := workspaceapps.ParseToken(api.AppSigningKey, cookie.Value)
 					require.NoError(t, err)
-					require.Equal(t, ticket, &parsedTicket)
+					// normalize expiry
+					require.WithinDuration(t, token.Expiry, parsedToken.Expiry, 2*time.Second)
+					parsedToken.Expiry = token.Expiry
+					require.Equal(t, token, &parsedToken)
 
-					// Try resolving the request with the ticket only.
+					// Try resolving the request with the token only.
 					rw = httptest.NewRecorder()
 					r = httptest.NewRequest("GET", "/app", nil)
 					r.AddCookie(cookie)
 
-					secondTicket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+					secondToken, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 					require.True(t, ok)
-					require.Equal(t, ticket, secondTicket)
+					// normalize expiry
+					require.WithinDuration(t, token.Expiry, secondToken.Expiry, 2*time.Second)
+					secondToken.Expiry = token.Expiry
+					require.Equal(t, token, secondToken)
 				}
 			})
 		}
@@ -298,18 +304,18 @@ func Test_ResolveRequest(t *testing.T) {
 			r := httptest.NewRequest("GET", "/app", nil)
 			r.Header.Set(codersdk.SessionTokenHeader, secondUserClient.SessionToken())
 
-			ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+			token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 			w := rw.Result()
 			_ = w.Body.Close()
 			if app == appNameOwner {
 				require.False(t, ok)
-				require.Nil(t, ticket)
+				require.Nil(t, token)
 				require.NotZero(t, w.StatusCode)
 				require.Equal(t, http.StatusNotFound, w.StatusCode)
 				return
 			}
 			require.True(t, ok)
-			require.NotNil(t, ticket)
+			require.NotNil(t, token)
 			require.Zero(t, w.StatusCode)
 		}
 	})
@@ -330,11 +336,11 @@ func Test_ResolveRequest(t *testing.T) {
 			t.Log("app", app)
 			rw := httptest.NewRecorder()
 			r := httptest.NewRequest("GET", "/app", nil)
-			ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+			token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 			w := rw.Result()
 			if app != appNamePublic {
 				require.False(t, ok)
-				require.Nil(t, ticket)
+				require.Nil(t, token)
 				require.NotZero(t, rw.Code)
 				require.NotEqual(t, http.StatusOK, rw.Code)
 			} else {
@@ -344,7 +350,7 @@ func Test_ResolveRequest(t *testing.T) {
 					t.Log(string(dump))
 					return
 				}
-				require.NotNil(t, ticket)
+				require.NotNil(t, token)
 				if rw.Code != 0 && rw.Code != http.StatusOK {
 					t.Fatalf("expected 200 (or unset) response code, got %d", rw.Code)
 				}
@@ -361,9 +367,9 @@ func Test_ResolveRequest(t *testing.T) {
 		}
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
-		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+		token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 		require.False(t, ok)
-		require.Nil(t, ticket)
+		require.Nil(t, token)
 	})
 
 	t.Run("SplitWorkspaceAndAgent", func(t *testing.T) {
@@ -435,7 +441,7 @@ func Test_ResolveRequest(t *testing.T) {
 				r := httptest.NewRequest("GET", "/app", nil)
 				r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-				ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+				token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 				w := rw.Result()
 				if !assert.Equal(t, c.ok, ok) {
 					dump, err := httputil.DumpResponse(w, true)
@@ -444,23 +450,23 @@ func Test_ResolveRequest(t *testing.T) {
 					return
 				}
 				if c.ok {
-					require.NotNil(t, ticket)
-					require.Equal(t, ticket.WorkspaceNameOrID, c.workspace)
-					require.Equal(t, ticket.AgentNameOrID, c.agent)
-					require.Equal(t, ticket.WorkspaceID, workspace.ID)
-					require.Equal(t, ticket.AgentID, agentID)
+					require.NotNil(t, token)
+					require.Equal(t, token.WorkspaceNameOrID, c.workspace)
+					require.Equal(t, token.AgentNameOrID, c.agent)
+					require.Equal(t, token.WorkspaceID, workspace.ID)
+					require.Equal(t, token.AgentID, agentID)
 				} else {
-					require.Nil(t, ticket)
+					require.Nil(t, token)
 				}
 				_ = w.Body.Close()
 			})
 		}
 	})
 
-	t.Run("TicketDoesNotMatchRequest", func(t *testing.T) {
+	t.Run("TokenDoesNotMatchRequest", func(t *testing.T) {
 		t.Parallel()
 
-		badTicket := workspaceapps.Ticket{
+		badToken := workspaceapps.SignedToken{
 			Request: workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/app",
@@ -470,13 +476,13 @@ func Test_ResolveRequest(t *testing.T) {
 				// App name differs
 				AppSlugOrPort: appNamePublic,
 			},
-			Expiry:      time.Now().Add(time.Minute).Unix(),
+			Expiry:      time.Now().Add(time.Minute),
 			UserID:      me.ID,
 			WorkspaceID: workspace.ID,
 			AgentID:     agentID,
 			AppURL:      appURL,
 		}
-		badTicketStr, err := api.WorkspaceAppsProvider.GenerateTicket(badTicket)
+		badTokenStr, err := workspaceapps.GenerateToken(api.AppSigningKey, badToken)
 		require.NoError(t, err)
 
 		req := workspaceapps.Request{
@@ -493,28 +499,28 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 		r.AddCookie(&http.Cookie{
-			Name:  codersdk.DevURLSessionTicketCookie,
-			Value: badTicketStr,
+			Name:  codersdk.DevURLSignedAppTokenCookie,
+			Value: badTokenStr,
 		})
 
-		// Even though the ticket is invalid, we should still perform request
-		// resolution.
-		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+		// Even though the token is invalid, we should still perform request
+		// resolution without failure since we'll just ignore the bad token.
+		token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 		require.True(t, ok)
-		require.NotNil(t, ticket)
-		require.Equal(t, appNameOwner, ticket.AppSlugOrPort)
+		require.NotNil(t, token)
+		require.Equal(t, appNameOwner, token.AppSlugOrPort)
 
 		// Cookie should be set in response, and it should be a different
-		// ticket.
+		// token.
 		w := rw.Result()
 		_ = w.Body.Close()
 		cookies := w.Cookies()
 		require.Len(t, cookies, 1)
-		require.Equal(t, cookies[0].Name, codersdk.DevURLSessionTicketCookie)
-		require.NotEqual(t, cookies[0].Value, badTicketStr)
-		parsedTicket, err := api.WorkspaceAppsProvider.ParseTicket(cookies[0].Value)
+		require.Equal(t, cookies[0].Name, codersdk.DevURLSignedAppTokenCookie)
+		require.NotEqual(t, cookies[0].Value, badTokenStr)
+		parsedToken, err := workspaceapps.ParseToken(api.AppSigningKey, cookies[0].Value)
 		require.NoError(t, err)
-		require.Equal(t, appNameOwner, parsedTicket.AppSlugOrPort)
+		require.Equal(t, appNameOwner, parsedToken.AppSlugOrPort)
 	})
 
 	t.Run("PortPathBlocked", func(t *testing.T) {
@@ -533,9 +539,9 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+		token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 		require.False(t, ok)
-		require.Nil(t, ticket)
+		require.Nil(t, token)
 	})
 
 	t.Run("PortSubdomain", func(t *testing.T) {
@@ -554,10 +560,10 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+		token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 		require.True(t, ok)
-		require.Equal(t, req.AppSlugOrPort, ticket.AppSlugOrPort)
-		require.Equal(t, "http://127.0.0.1:9090", ticket.AppURL)
+		require.Equal(t, req.AppSlugOrPort, token.AppSlugOrPort)
+		require.Equal(t, "http://127.0.0.1:9090", token.AppURL)
 	})
 
 	t.Run("Terminal", func(t *testing.T) {
@@ -573,15 +579,15 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+		token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 		require.True(t, ok)
-		require.Equal(t, req.AccessMethod, ticket.AccessMethod)
-		require.Equal(t, req.BasePath, ticket.BasePath)
-		require.Empty(t, ticket.UsernameOrID)
-		require.Empty(t, ticket.WorkspaceNameOrID)
-		require.Equal(t, req.AgentNameOrID, ticket.Request.AgentNameOrID)
-		require.Empty(t, ticket.AppSlugOrPort)
-		require.Empty(t, ticket.AppURL)
+		require.Equal(t, req.AccessMethod, token.AccessMethod)
+		require.Equal(t, req.BasePath, token.BasePath)
+		require.Empty(t, token.UsernameOrID)
+		require.Empty(t, token.WorkspaceNameOrID)
+		require.Equal(t, req.AgentNameOrID, token.Request.AgentNameOrID)
+		require.Empty(t, token.AppSlugOrPort)
+		require.Empty(t, token.AppURL)
 	})
 
 	t.Run("InsufficientPermissions", func(t *testing.T) {
@@ -600,9 +606,9 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, secondUserClient.SessionToken())
 
-		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+		token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 		require.False(t, ok)
-		require.Nil(t, ticket)
+		require.Nil(t, token)
 	})
 
 	t.Run("UserNotFound", func(t *testing.T) {
@@ -620,9 +626,9 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+		token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 		require.False(t, ok)
-		require.Nil(t, ticket)
+		require.Nil(t, token)
 	})
 
 	t.Run("RedirectSubdomainAuth", func(t *testing.T) {
@@ -641,9 +647,9 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/some-path", nil)
 		r.Host = "app.com"
 
-		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+		token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 		require.False(t, ok)
-		require.Nil(t, ticket)
+		require.Nil(t, token)
 
 		w := rw.Result()
 		defer w.Body.Close()
@@ -681,9 +687,9 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+		token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 		require.False(t, ok, "request succeeded even though agent is not connected")
-		require.Nil(t, ticket)
+		require.Nil(t, token)
 
 		w := rw.Result()
 		defer w.Body.Close()
@@ -735,9 +741,9 @@ func Test_ResolveRequest(t *testing.T) {
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-		ticket, ok := api.WorkspaceAppsProvider.ResolveRequest(rw, r, req)
+		token, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, req)
 		require.False(t, ok, "request succeeded even though app is unhealthy")
-		require.Nil(t, ticket)
+		require.Nil(t, token)
 
 		w := rw.Result()
 		defer w.Body.Close()

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"go.nhat.io/otelsql"
-	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 )

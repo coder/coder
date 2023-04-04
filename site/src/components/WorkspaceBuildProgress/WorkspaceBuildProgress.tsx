@@ -3,6 +3,7 @@ import makeStyles from "@material-ui/core/styles/makeStyles"
 import { TransitionStats, Template, Workspace } from "api/typesGenerated"
 import dayjs, { Dayjs } from "dayjs"
 import { FC, useEffect, useState } from "react"
+import capitalize from "lodash/capitalize"
 
 import duration from "dayjs/plugin/duration"
 
@@ -125,7 +126,9 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
         classes={{ bar: styles.noTransition }}
       />
       <div className={styles.barHelpers}>
-        <div className={styles.label}>{`Build ${job.status}`}</div>
+        <div className={styles.label}>
+          {capitalize(workspace.latest_build.status)} workspace...
+        </div>
         <div className={styles.label} data-chromatic="ignore">
           {progressText}
         </div>

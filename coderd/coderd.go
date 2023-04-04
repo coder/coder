@@ -33,6 +33,7 @@ import (
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
+	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
@@ -46,6 +47,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/healthcheck"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/metricscache"
@@ -123,7 +125,10 @@ type Options struct {
 	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 	// AppSigningKey denotes the symmetric key to use for signing app tickets.
 	// The key must be 64 bytes long.
-	AppSigningKey []byte
+	AppSigningKey      []byte
+	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
+	HealthcheckTimeout time.Duration
+	HealthcheckRefresh time.Duration
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
@@ -239,6 +244,19 @@ func New(options *Options) *API {
 	if len(options.AppSigningKey) != 64 {
 		panic("coderd: AppSigningKey must be 64 bytes long")
 	}
+	if options.HealthcheckFunc == nil {
+		options.HealthcheckFunc = func(ctx context.Context) (*healthcheck.Report, error) {
+			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
+				DERPMap: options.DERPMap.Clone(),
+			})
+		}
+	}
+	if options.HealthcheckTimeout == 0 {
+		options.HealthcheckTimeout = 30 * time.Second
+	}
+	if options.HealthcheckRefresh == 0 {
+		options.HealthcheckRefresh = 10 * time.Minute
+	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -283,7 +301,7 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		WorkspaceAppsProvider: workspaceapps.New(
+		WorkspaceAppsProvider: workspaceapps.NewDBTokenProvider(
 			options.Logger.Named("workspaceapps"),
 			options.AccessURL,
 			options.Authorizer,
@@ -297,6 +315,7 @@ func New(options *Options) *API {
 		Auditor:               atomic.Pointer[audit.Auditor]{},
 		TemplateScheduleStore: options.TemplateScheduleStore,
 		Experiments:           experiments,
+		healthCheckGroup:      &singleflight.Group[string, *healthcheck.Report]{},
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -626,7 +645,7 @@ func New(options *Options) *API {
 				r.Post("/metadata/{key}", api.workspaceAgentPostMetadata)
 			})
 			// No middleware on the PTY endpoint since it uses workspace
-			// application auth and tickets.
+			// application auth and signed app tokens.
 			r.Get("/{workspaceagent}/pty", api.workspaceAgentPTY)
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -721,6 +740,7 @@ func New(options *Options) *API {
 			)
 
 			r.Get("/coordinator", api.debugCoordinator)
+			r.Get("/health", api.debugDeploymentHealth)
 		})
 	})
 
@@ -771,11 +791,13 @@ type API struct {
 	metricsCache          *metricscache.Cache
 	workspaceAgentCache   *wsconncache.Cache
 	updateChecker         *updatecheck.Checker
-	WorkspaceAppsProvider *workspaceapps.Provider
+	WorkspaceAppsProvider workspaceapps.SignedTokenProvider
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
+
+	healthCheckGroup *singleflight.Group[string, *healthcheck.Report]
 }
 
 // Close waits for all WebSocket connections to drain before returning.
