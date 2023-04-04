@@ -123,8 +123,8 @@ type Options struct {
 	SwaggerEndpoint       bool
 	SetUserGroups         func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
 	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
-	// AppSigningKey denotes the symmetric key to use for signing app tickets.
-	// The key must be 64 bytes long.
+	// AppSigningKey denotes the symmetric key to use for signing temporary app
+	// tokens. The key must be 64 bytes long.
 	AppSigningKey      []byte
 	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
 	HealthcheckTimeout time.Duration
