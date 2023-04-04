@@ -141,12 +141,8 @@ const signIn = async (
 }
 
 const signOut = async () => {
-  // Get app hostname so we can see if we need to log out of app URLs.
-  // We need to load this before we log out of the API as this is an
-  // authenticated endpoint.
-  const appHost = await API.getApplicationsHost()
   const [authMethods] = await Promise.all([
-    API.getAuthMethods(), // Antecipate and load the auth methods
+    API.getAuthMethods(), // Anticipate and load the auth methods
     API.logout(),
   ])
 
@@ -372,7 +368,7 @@ export const authMachine =
           updateProfileError: (_) => undefined,
         }),
         redirect: (_, { data }) => {
-            window.location.href = location.origin
+          window.location.href = location.origin
         },
       },
       guards: {
