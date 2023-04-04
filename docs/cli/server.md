@@ -29,16 +29,6 @@ coder server [flags]
 
 The URL that users will use to access the Coder deployment.
 
-### --audit-logging
-
-|             |                                   |
-| ----------- | --------------------------------- |
-| Type        | <code>bool</code>                 |
-| Environment | <code>$CODER_AUDIT_LOGGING</code> |
-| Default     | <code>true</code>                 |
-
-Specifies whether audit logging is enabled.
-
 ### --browser-only
 
 |             |                                  |

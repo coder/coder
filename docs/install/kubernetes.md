@@ -168,6 +168,5 @@ See [troubleshooting templates](../templates.md#creating-and-troubleshooting-tem
 
 ## Next steps
 
-- [Quickstart](../quickstart.md)
 - [Configuring Coder](../admin/configure.md)
 - [Templates](../templates.md)

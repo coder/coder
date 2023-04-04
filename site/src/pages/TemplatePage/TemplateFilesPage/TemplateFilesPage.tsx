@@ -8,11 +8,11 @@ import { useOrganizationId } from "hooks/useOrganizationId"
 import { useTab } from "hooks/useTab"
 import { FC, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
-import { pageTitle } from "util/page"
 import {
   getTemplateVersionFiles,
   TemplateVersionFiles,
 } from "util/templateVersion"
+import { getTemplatePageTitle } from "../utils"
 
 const fetchTemplateFiles = async (
   organizationId: string,
@@ -80,7 +80,7 @@ const TemplateFilesPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`${template?.name} · Source Code`)}</title>
+        <title>{getTemplatePageTitle("Source Code", template)}</title>
       </Helmet>
 
       {templateFiles && tab.isLoaded ? (

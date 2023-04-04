@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -60,6 +61,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/healthcheck"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -79,7 +81,7 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-// AppSigningKey is a 64-byte key used to sign JWTs for workspace app tickets in
+// AppSigningKey is a 64-byte key used to sign JWTs for workspace app tokens in
 // tests.
 var AppSigningKey = must(hex.DecodeString("64656164626565666465616462656566646561646265656664656164626565666465616462656566646561646265656664656164626565666465616462656566"))
 
@@ -104,6 +106,10 @@ type Options struct {
 	GitAuthConfigs        []*gitauth.Config
 	TrialGenerator        func(context.Context, string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
+
+	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
+	HealthcheckTimeout time.Duration
+	HealthcheckRefresh time.Duration
 
 	// All rate limits default to -1 (unlimited) in tests if not set.
 	APIRateLimit   int
@@ -209,10 +215,17 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 		options.FilesRateLimit = -1
 	}
 
+	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
+	if options.TemplateScheduleStore == nil {
+		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
+	}
+	templateScheduleStore.Store(&options.TemplateScheduleStore)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := executor.New(
 		ctx,
 		options.Database,
+		&templateScheduleStore,
 		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
@@ -306,7 +319,7 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			FilesRateLimit:        options.FilesRateLimit,
 			Authorizer:            options.Authorizer,
 			Telemetry:             telemetry.NewNoop(),
-			TemplateScheduleStore: options.TemplateScheduleStore,
+			TemplateScheduleStore: &templateScheduleStore,
 			TLSCertificates:       options.TLSCertificates,
 			TrialGenerator:        options.TrialGenerator,
 			DERPMap: &tailcfg.DERPMap{
@@ -335,6 +348,9 @@ func NewOptions(t *testing.T, options *Options) (func(http.Handler), context.Can
 			SwaggerEndpoint:             options.SwaggerEndpoint,
 			AppSigningKey:               AppSigningKey,
 			SSHConfig:                   options.ConfigSSH,
+			HealthcheckFunc:             options.HealthcheckFunc,
+			HealthcheckTimeout:          options.HealthcheckTimeout,
+			HealthcheckRefresh:          options.HealthcheckRefresh,
 		}
 }
 

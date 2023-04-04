@@ -33,6 +33,7 @@ import (
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
+	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/buildinfo"
@@ -46,6 +47,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
+	"github.com/coder/coder/coderd/healthcheck"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/metricscache"
@@ -120,10 +122,13 @@ type Options struct {
 	DERPMap               *tailcfg.DERPMap
 	SwaggerEndpoint       bool
 	SetUserGroups         func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
-	TemplateScheduleStore schedule.TemplateScheduleStore
-	// AppSigningKey denotes the symmetric key to use for signing app tickets.
-	// The key must be 64 bytes long.
-	AppSigningKey []byte
+	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
+	// AppSigningKey denotes the symmetric key to use for signing temporary app
+	// tokens. The key must be 64 bytes long.
+	AppSigningKey      []byte
+	HealthcheckFunc    func(ctx context.Context) (*healthcheck.Report, error)
+	HealthcheckTimeout time.Duration
+	HealthcheckRefresh time.Duration
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
@@ -230,10 +235,27 @@ func New(options *Options) *API {
 		}
 	}
 	if options.TemplateScheduleStore == nil {
-		options.TemplateScheduleStore = schedule.NewAGPLTemplateScheduleStore()
+		options.TemplateScheduleStore = &atomic.Pointer[schedule.TemplateScheduleStore]{}
+	}
+	if options.TemplateScheduleStore.Load() == nil {
+		v := schedule.NewAGPLTemplateScheduleStore()
+		options.TemplateScheduleStore.Store(&v)
 	}
 	if len(options.AppSigningKey) != 64 {
 		panic("coderd: AppSigningKey must be 64 bytes long")
+	}
+	if options.HealthcheckFunc == nil {
+		options.HealthcheckFunc = func(ctx context.Context) (*healthcheck.Report, error) {
+			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
+				DERPMap: options.DERPMap.Clone(),
+			})
+		}
+	}
+	if options.HealthcheckTimeout == 0 {
+		options.HealthcheckTimeout = 30 * time.Second
+	}
+	if options.HealthcheckRefresh == 0 {
+		options.HealthcheckRefresh = 10 * time.Minute
 	}
 
 	siteCacheDir := options.CacheDir
@@ -279,7 +301,7 @@ func New(options *Options) *API {
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
 		},
-		WorkspaceAppsProvider: workspaceapps.New(
+		WorkspaceAppsProvider: workspaceapps.NewDBTokenProvider(
 			options.Logger.Named("workspaceapps"),
 			options.AccessURL,
 			options.Authorizer,
@@ -291,8 +313,9 @@ func New(options *Options) *API {
 		),
 		metricsCache:          metricsCache,
 		Auditor:               atomic.Pointer[audit.Auditor]{},
-		TemplateScheduleStore: atomic.Pointer[schedule.TemplateScheduleStore]{},
+		TemplateScheduleStore: options.TemplateScheduleStore,
 		Experiments:           experiments,
+		healthCheckGroup:      &singleflight.Group[string, *healthcheck.Report]{},
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -308,7 +331,6 @@ func New(options *Options) *API {
 	}
 
 	api.Auditor.Store(&options.Auditor)
-	api.TemplateScheduleStore.Store(&options.TemplateScheduleStore)
 	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
 
@@ -623,7 +645,7 @@ func New(options *Options) *API {
 				r.Post("/metadata/{key}", api.workspaceAgentPostMetadata)
 			})
 			// No middleware on the PTY endpoint since it uses workspace
-			// application auth and tickets.
+			// application auth and signed app tokens.
 			r.Get("/{workspaceagent}/pty", api.workspaceAgentPTY)
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -718,6 +740,7 @@ func New(options *Options) *API {
 			)
 
 			r.Get("/coordinator", api.debugCoordinator)
+			r.Get("/health", api.debugDeploymentHealth)
 		})
 	})
 
@@ -750,7 +773,7 @@ type API struct {
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
-	TemplateScheduleStore             atomic.Pointer[schedule.TemplateScheduleStore]
+	TemplateScheduleStore             *atomic.Pointer[schedule.TemplateScheduleStore]
 
 	HTTPAuth *HTTPAuthorizer
 
@@ -768,11 +791,13 @@ type API struct {
 	metricsCache          *metricscache.Cache
 	workspaceAgentCache   *wsconncache.Cache
 	updateChecker         *updatecheck.Checker
-	WorkspaceAppsProvider *workspaceapps.Provider
+	WorkspaceAppsProvider workspaceapps.SignedTokenProvider
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
+
+	healthCheckGroup *singleflight.Group[string, *healthcheck.Report]
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -860,7 +885,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		Tags:                  tags,
 		QuotaCommitter:        &api.QuotaCommitter,
 		Auditor:               &api.Auditor,
-		TemplateScheduleStore: &api.TemplateScheduleStore,
+		TemplateScheduleStore: api.TemplateScheduleStore,
 		AcquireJobDebounce:    debounce,
 		Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
 	})

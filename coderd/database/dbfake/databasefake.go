@@ -1902,6 +1902,8 @@ func (q *fakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		if tpl.ID != arg.ID {
 			continue
 		}
+		tpl.AllowUserAutostart = arg.AllowUserAutostart
+		tpl.AllowUserAutostop = arg.AllowUserAutostop
 		tpl.UpdatedAt = database.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
 		tpl.MaxTTL = arg.MaxTTL
@@ -2903,6 +2905,8 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		DisplayName:                  arg.DisplayName,
 		Icon:                         arg.Icon,
 		AllowUserCancelWorkspaceJobs: arg.AllowUserCancelWorkspaceJobs,
+		AllowUserAutostart:           true,
+		AllowUserAutostop:            true,
 	}
 	q.templates = append(q.templates, template)
 	return template.DeepCopy(), nil
@@ -2944,6 +2948,7 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 	param := database.TemplateVersionParameter{
 		TemplateVersionID:   arg.TemplateVersionID,
 		Name:                arg.Name,
+		DisplayName:         arg.DisplayName,
 		Description:         arg.Description,
 		Type:                arg.Type,
 		Mutable:             arg.Mutable,
@@ -3356,6 +3361,7 @@ func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWork
 		Name:              arg.Name,
 		AutostartSchedule: arg.AutostartSchedule,
 		Ttl:               arg.Ttl,
+		LastUsedAt:        arg.LastUsedAt,
 	}
 	q.workspaces = append(q.workspaces, workspace)
 	return workspace, nil
@@ -3974,6 +3980,31 @@ func (q *fakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter tim
 		stats = append(stats, agent)
 	}
 	return stats, nil
+}
+
+func (q *fakeQuerier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaces := []database.Workspace{}
+	for _, workspace := range q.workspaces {
+		build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		if build.Transition == database.WorkspaceTransitionStart && !build.Deadline.IsZero() && build.Deadline.Before(now) {
+			workspaces = append(workspaces, workspace)
+			continue
+		}
+
+		if build.Transition == database.WorkspaceTransitionStop && workspace.AutostartSchedule.Valid {
+			workspaces = append(workspaces, workspace)
+			continue
+		}
+	}
+
+	return workspaces, nil
 }
 
 func (q *fakeQuerier) UpdateWorkspaceTTLToBeWithinTemplateMax(_ context.Context, arg database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error {

@@ -1,5 +1,5 @@
-export interface AutoStop {
-  autoStopEnabled: boolean
+export interface Autostop {
+  autostopEnabled: boolean
   ttl: number
 }
 
@@ -7,7 +7,7 @@ export const emptyTTL = 0
 
 const msToHours = (ms: number) => Math.round(ms / (1000 * 60 * 60))
 
-export const ttlMsToAutoStop = (ttl_ms?: number): AutoStop =>
+export const ttlMsToAutostop = (ttl_ms?: number): Autostop =>
   ttl_ms
-    ? { autoStopEnabled: true, ttl: msToHours(ttl_ms) }
-    : { autoStopEnabled: false, ttl: 0 }
+    ? { autostopEnabled: true, ttl: msToHours(ttl_ms) }
+    : { autostopEnabled: false, ttl: 0 }

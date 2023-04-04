@@ -514,7 +514,7 @@ coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) 
 	./scripts/apidocgen/generate.sh
 	yarn run --cwd=site format:write:only ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json
 
-update-golden-files: cli/testdata/.gen-golden helm/tests/testdata/.gen-golden
+update-golden-files: cli/testdata/.gen-golden helm/tests/testdata/.gen-golden scripts/ci-report/testdata/.gen-golden
 .PHONY: update-golden-files
 
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES)
@@ -523,6 +523,10 @@ cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl
 
 helm/tests/testdata/.gen-golden: $(wildcard helm/tests/testdata/*.golden) $(GO_SRC_FILES)
 	go test ./helm/tests -run=TestUpdateGoldenFiles -update
+	touch "$@"
+
+scripts/ci-report/testdata/.gen-golden: $(wildcard scripts/ci-report/testdata/*) $(wildcard scripts/ci-report/*.go)
+	go test ./scripts/ci-report -run=TestOutputMatchesGoldenFile -update
 	touch "$@"
 
 # Generate a prettierrc for the site package that uses relative paths for
@@ -596,6 +600,7 @@ test-postgres: test-clean test-postgres-docker
 	# more consistent execution.
 	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum \
 		--junitfile="gotests.xml" \
+		--jsonfile="gotests.json" \
 		--packages="./..." -- \
 		-covermode=atomic -coverprofile="gotests.coverage" -timeout=20m \
 		-parallel=4 \

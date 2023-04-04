@@ -1302,6 +1302,8 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ```json
 {
+  "allow_user_autostart": true,
+  "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
   "default_ttl_ms": 0,
   "description": "string",
@@ -1324,17 +1326,19 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 
 ### Properties
 
-| Name                                                                                                                                                                                      | Type                                                                        | Required | Restrictions | Description                                                                                                |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------- |
-| `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean                                                                     | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                   |
-| `default_ttl_ms`                                                                                                                                                                          | integer                                                                     | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template. |
-| `description`                                                                                                                                                                             | string                                                                      | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                |
-| `display_name`                                                                                                                                                                            | string                                                                      | false    |              | Display name is the displayed name of the template.                                                        |
-| `icon`                                                                                                                                                                                    | string                                                                      | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.           |
-| `max_ttl_ms`                                                                                                                                                                              | integer                                                                     | false    |              | Max ttl ms allows optionally specifying the max lifetime for workspaces created from this template.        |
-| `name`                                                                                                                                                                                    | string                                                                      | true     |              | Name is the name of the template.                                                                          |
-| `parameter_values`                                                                                                                                                                        | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.]                         |
-| `template_version_id`                                                                                                                                                                     | string                                                                      | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.       |
+| Name                                                                                                                                                                                      | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allow_user_autostart`                                                                                                                                                                    | boolean                                                                     | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                            |
+| `allow_user_autostop`                                                                                                                                                                     | boolean                                                                     | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license. |
+| `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean                                                                     | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                                                                                                                                                              |
+| `default_ttl_ms`                                                                                                                                                                          | integer                                                                     | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                            |
+| `description`                                                                                                                                                                             | string                                                                      | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                           |
+| `display_name`                                                                                                                                                                            | string                                                                      | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                   |
+| `icon`                                                                                                                                                                                    | string                                                                      | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                      |
+| `max_ttl_ms`                                                                                                                                                                              | integer                                                                     | false    |              | Max ttl ms allows optionally specifying the max lifetime for workspaces created from this template.                                                                                                                                                   |
+| `name`                                                                                                                                                                                    | string                                                                      | true     |              | Name is the name of the template.                                                                                                                                                                                                                     |
+| `parameter_values`                                                                                                                                                                        | array of [codersdk.CreateParameterRequest](#codersdkcreateparameterrequest) | false    |              | Parameter values is a structure used to create a new parameter value for a scope.]                                                                                                                                                                    |
+| `template_version_id`                                                                                                                                                                     | string                                                                      | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                  |
 | This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users. |
 
 ## codersdk.CreateTemplateVersionDryRunRequest
@@ -1781,7 +1785,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
       "user": {}
     },
     "agent_stat_refresh_interval": 0,
-    "audit_logging": true,
     "autobuild_poll_interval": 0,
     "browser_only": true,
     "cache_directory": "string",
@@ -2133,7 +2136,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
     "user": {}
   },
   "agent_stat_refresh_interval": 0,
-  "audit_logging": true,
   "autobuild_poll_interval": 0,
   "browser_only": true,
   "cache_directory": "string",
@@ -2352,7 +2354,6 @@ CreateParameterRequest is a structure used to create a new parameter value for a
 | `address`                            | [clibase.HostPort](#clibasehostport)                                                       | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
 | `agent_fallback_troubleshooting_url` | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                    | false    |              |                                                                    |
-| `audit_logging`                      | boolean                                                                                    | false    |              |                                                                    |
 | `autobuild_poll_interval`            | integer                                                                                    | false    |              |                                                                    |
 | `browser_only`                       | boolean                                                                                    | false    |              |                                                                    |
 | `cache_directory`                    | string                                                                                     | false    |              |                                                                    |
@@ -3653,6 +3654,8 @@ Parameter represents a set value for the scope.
 {
   "active_user_count": 0,
   "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+  "allow_user_autostart": true,
+  "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
   "build_time_stats": {
     "property1": {
@@ -3682,25 +3685,27 @@ Parameter represents a set value for the scope.
 
 ### Properties
 
-| Name                               | Type                                                               | Required | Restrictions | Description                                                                                                                               |
-| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading.                                                                                              |
-| `active_version_id`                | string                                                             | false    |              |                                                                                                                                           |
-| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                                                                                                                           |
-| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                           |
-| `created_at`                       | string                                                             | false    |              |                                                                                                                                           |
-| `created_by_id`                    | string                                                             | false    |              |                                                                                                                                           |
-| `created_by_name`                  | string                                                             | false    |              |                                                                                                                                           |
-| `default_ttl_ms`                   | integer                                                            | false    |              |                                                                                                                                           |
-| `description`                      | string                                                             | false    |              |                                                                                                                                           |
-| `display_name`                     | string                                                             | false    |              |                                                                                                                                           |
-| `icon`                             | string                                                             | false    |              |                                                                                                                                           |
-| `id`                               | string                                                             | false    |              |                                                                                                                                           |
-| `max_ttl_ms`                       | integer                                                            | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature. |
-| `name`                             | string                                                             | false    |              |                                                                                                                                           |
-| `organization_id`                  | string                                                             | false    |              |                                                                                                                                           |
-| `provisioner`                      | string                                                             | false    |              |                                                                                                                                           |
-| `updated_at`                       | string                                                             | false    |              |                                                                                                                                           |
+| Name                               | Type                                                               | Required | Restrictions | Description                                                                                                                                                             |
+| ---------------------------------- | ------------------------------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `active_user_count`                | integer                                                            | false    |              | Active user count is set to -1 when loading.                                                                                                                            |
+| `active_version_id`                | string                                                             | false    |              |                                                                                                                                                                         |
+| `allow_user_autostart`             | boolean                                                            | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature. |
+| `allow_user_autostop`              | boolean                                                            | false    |              |                                                                                                                                                                         |
+| `allow_user_cancel_workspace_jobs` | boolean                                                            | false    |              |                                                                                                                                                                         |
+| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats) | false    |              |                                                                                                                                                                         |
+| `created_at`                       | string                                                             | false    |              |                                                                                                                                                                         |
+| `created_by_id`                    | string                                                             | false    |              |                                                                                                                                                                         |
+| `created_by_name`                  | string                                                             | false    |              |                                                                                                                                                                         |
+| `default_ttl_ms`                   | integer                                                            | false    |              |                                                                                                                                                                         |
+| `description`                      | string                                                             | false    |              |                                                                                                                                                                         |
+| `display_name`                     | string                                                             | false    |              |                                                                                                                                                                         |
+| `icon`                             | string                                                             | false    |              |                                                                                                                                                                         |
+| `id`                               | string                                                             | false    |              |                                                                                                                                                                         |
+| `max_ttl_ms`                       | integer                                                            | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature.                               |
+| `name`                             | string                                                             | false    |              |                                                                                                                                                                         |
+| `organization_id`                  | string                                                             | false    |              |                                                                                                                                                                         |
+| `provisioner`                      | string                                                             | false    |              |                                                                                                                                                                         |
+| `updated_at`                       | string                                                             | false    |              |                                                                                                                                                                         |
 
 #### Enumerated Values
 
@@ -3923,6 +3928,7 @@ Parameter represents a set value for the scope.
   "default_value": "string",
   "description": "string",
   "description_plaintext": "string",
+  "display_name": "string",
   "icon": "string",
   "legacy_variable_name": "string",
   "mutable": true,
@@ -3952,6 +3958,7 @@ Parameter represents a set value for the scope.
 | `default_value`         | string                                                                                      | false    |              |             |
 | `description`           | string                                                                                      | false    |              |             |
 | `description_plaintext` | string                                                                                      | false    |              |             |
+| `display_name`          | string                                                                                      | false    |              |             |
 | `icon`                  | string                                                                                      | false    |              |             |
 | `legacy_variable_name`  | string                                                                                      | false    |              |             |
 | `mutable`               | boolean                                                                                     | false    |              |             |
@@ -5490,6 +5497,523 @@ Parameter represents a set value for the scope.
 | ------ |
 | `none` |
 | `data` |
+
+## healthcheck.DERPNodeReport
+
+```json
+{
+  "can_exchange_messages": true,
+  "client_errs": [[null]],
+  "client_logs": [["string"]],
+  "healthy": true,
+  "node": {
+    "certName": "string",
+    "derpport": 0,
+    "forceHTTP": true,
+    "hostName": "string",
+    "insecureForTests": true,
+    "ipv4": "string",
+    "ipv6": "string",
+    "name": "string",
+    "regionID": 0,
+    "stunonly": true,
+    "stunport": 0,
+    "stuntestIP": "string"
+  },
+  "round_trip_ping": 0,
+  "stun": {
+    "canSTUN": true,
+    "enabled": true,
+    "error": null
+  },
+  "uses_websocket": true
+}
+```
+
+### Properties
+
+| Name                    | Type                                                     | Required | Restrictions | Description |
+| ----------------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
+| `can_exchange_messages` | boolean                                                  | false    |              |             |
+| `client_errs`           | array of array                                           | false    |              |             |
+| `client_logs`           | array of array                                           | false    |              |             |
+| `healthy`               | boolean                                                  | false    |              |             |
+| `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
+| `round_trip_ping`       | integer                                                  | false    |              |             |
+| `stun`                  | [healthcheck.DERPStunReport](#healthcheckderpstunreport) | false    |              |             |
+| `uses_websocket`        | boolean                                                  | false    |              |             |
+
+## healthcheck.DERPRegionReport
+
+```json
+{
+  "healthy": true,
+  "node_reports": [
+    {
+      "can_exchange_messages": true,
+      "client_errs": [[null]],
+      "client_logs": [["string"]],
+      "healthy": true,
+      "node": {
+        "certName": "string",
+        "derpport": 0,
+        "forceHTTP": true,
+        "hostName": "string",
+        "insecureForTests": true,
+        "ipv4": "string",
+        "ipv6": "string",
+        "name": "string",
+        "regionID": 0,
+        "stunonly": true,
+        "stunport": 0,
+        "stuntestIP": "string"
+      },
+      "round_trip_ping": 0,
+      "stun": {
+        "canSTUN": true,
+        "enabled": true,
+        "error": null
+      },
+      "uses_websocket": true
+    }
+  ],
+  "region": {
+    "avoid": true,
+    "embeddedRelay": true,
+    "nodes": [
+      {
+        "certName": "string",
+        "derpport": 0,
+        "forceHTTP": true,
+        "hostName": "string",
+        "insecureForTests": true,
+        "ipv4": "string",
+        "ipv6": "string",
+        "name": "string",
+        "regionID": 0,
+        "stunonly": true,
+        "stunport": 0,
+        "stuntestIP": "string"
+      }
+    ],
+    "regionCode": "string",
+    "regionID": 0,
+    "regionName": "string"
+  }
+}
+```
+
+### Properties
+
+| Name           | Type                                                              | Required | Restrictions | Description |
+| -------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `healthy`      | boolean                                                           | false    |              |             |
+| `node_reports` | array of [healthcheck.DERPNodeReport](#healthcheckderpnodereport) | false    |              |             |
+| `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                          | false    |              |             |
+
+## healthcheck.DERPReport
+
+```json
+{
+  "healthy": true,
+  "netcheck": {
+    "captivePortal": "string",
+    "globalV4": "string",
+    "globalV6": "string",
+    "hairPinning": "string",
+    "icmpv4": true,
+    "ipv4": true,
+    "ipv4CanSend": true,
+    "ipv6": true,
+    "ipv6CanSend": true,
+    "mappingVariesByDestIP": "string",
+    "oshasIPv6": true,
+    "pcp": "string",
+    "pmp": "string",
+    "preferredDERP": 0,
+    "regionLatency": {
+      "property1": 0,
+      "property2": 0
+    },
+    "regionV4Latency": {
+      "property1": 0,
+      "property2": 0
+    },
+    "regionV6Latency": {
+      "property1": 0,
+      "property2": 0
+    },
+    "udp": true,
+    "upnP": "string"
+  },
+  "netcheck_logs": ["string"],
+  "regions": {
+    "property1": {
+      "healthy": true,
+      "node_reports": [
+        {
+          "can_exchange_messages": true,
+          "client_errs": [[null]],
+          "client_logs": [["string"]],
+          "healthy": true,
+          "node": {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          },
+          "round_trip_ping": 0,
+          "stun": {
+            "canSTUN": true,
+            "enabled": true,
+            "error": null
+          },
+          "uses_websocket": true
+        }
+      ],
+      "region": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      }
+    },
+    "property2": {
+      "healthy": true,
+      "node_reports": [
+        {
+          "can_exchange_messages": true,
+          "client_errs": [[null]],
+          "client_logs": [["string"]],
+          "healthy": true,
+          "node": {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          },
+          "round_trip_ping": 0,
+          "stun": {
+            "canSTUN": true,
+            "enabled": true,
+            "error": null
+          },
+          "uses_websocket": true
+        }
+      ],
+      "region": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      }
+    }
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                         | Required | Restrictions | Description |
+| ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `healthy`          | boolean                                                      | false    |              |             |
+| `netcheck`         | [netcheck.Report](#netcheckreport)                           | false    |              |             |
+| `netcheck_logs`    | array of string                                              | false    |              |             |
+| `regions`          | object                                                       | false    |              |             |
+| » `[any property]` | [healthcheck.DERPRegionReport](#healthcheckderpregionreport) | false    |              |             |
+
+## healthcheck.DERPStunReport
+
+```json
+{
+  "canSTUN": true,
+  "enabled": true,
+  "error": null
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+| --------- | ------- | -------- | ------------ | ----------- |
+| `canSTUN` | boolean | false    |              |             |
+| `enabled` | boolean | false    |              |             |
+| `error`   | any     | false    |              |             |
+
+## healthcheck.Report
+
+```json
+{
+  "derp": {
+    "healthy": true,
+    "netcheck": {
+      "captivePortal": "string",
+      "globalV4": "string",
+      "globalV6": "string",
+      "hairPinning": "string",
+      "icmpv4": true,
+      "ipv4": true,
+      "ipv4CanSend": true,
+      "ipv6": true,
+      "ipv6CanSend": true,
+      "mappingVariesByDestIP": "string",
+      "oshasIPv6": true,
+      "pcp": "string",
+      "pmp": "string",
+      "preferredDERP": 0,
+      "regionLatency": {
+        "property1": 0,
+        "property2": 0
+      },
+      "regionV4Latency": {
+        "property1": 0,
+        "property2": 0
+      },
+      "regionV6Latency": {
+        "property1": 0,
+        "property2": 0
+      },
+      "udp": true,
+      "upnP": "string"
+    },
+    "netcheck_logs": ["string"],
+    "regions": {
+      "property1": {
+        "healthy": true,
+        "node_reports": [
+          {
+            "can_exchange_messages": true,
+            "client_errs": [[null]],
+            "client_logs": [["string"]],
+            "healthy": true,
+            "node": {
+              "certName": "string",
+              "derpport": 0,
+              "forceHTTP": true,
+              "hostName": "string",
+              "insecureForTests": true,
+              "ipv4": "string",
+              "ipv6": "string",
+              "name": "string",
+              "regionID": 0,
+              "stunonly": true,
+              "stunport": 0,
+              "stuntestIP": "string"
+            },
+            "round_trip_ping": 0,
+            "stun": {
+              "canSTUN": true,
+              "enabled": true,
+              "error": null
+            },
+            "uses_websocket": true
+          }
+        ],
+        "region": {
+          "avoid": true,
+          "embeddedRelay": true,
+          "nodes": [
+            {
+              "certName": "string",
+              "derpport": 0,
+              "forceHTTP": true,
+              "hostName": "string",
+              "insecureForTests": true,
+              "ipv4": "string",
+              "ipv6": "string",
+              "name": "string",
+              "regionID": 0,
+              "stunonly": true,
+              "stunport": 0,
+              "stuntestIP": "string"
+            }
+          ],
+          "regionCode": "string",
+          "regionID": 0,
+          "regionName": "string"
+        }
+      },
+      "property2": {
+        "healthy": true,
+        "node_reports": [
+          {
+            "can_exchange_messages": true,
+            "client_errs": [[null]],
+            "client_logs": [["string"]],
+            "healthy": true,
+            "node": {
+              "certName": "string",
+              "derpport": 0,
+              "forceHTTP": true,
+              "hostName": "string",
+              "insecureForTests": true,
+              "ipv4": "string",
+              "ipv6": "string",
+              "name": "string",
+              "regionID": 0,
+              "stunonly": true,
+              "stunport": 0,
+              "stuntestIP": "string"
+            },
+            "round_trip_ping": 0,
+            "stun": {
+              "canSTUN": true,
+              "enabled": true,
+              "error": null
+            },
+            "uses_websocket": true
+          }
+        ],
+        "region": {
+          "avoid": true,
+          "embeddedRelay": true,
+          "nodes": [
+            {
+              "certName": "string",
+              "derpport": 0,
+              "forceHTTP": true,
+              "hostName": "string",
+              "insecureForTests": true,
+              "ipv4": "string",
+              "ipv6": "string",
+              "name": "string",
+              "regionID": 0,
+              "stunonly": true,
+              "stunport": 0,
+              "stuntestIP": "string"
+            }
+          ],
+          "regionCode": "string",
+          "regionID": 0,
+          "regionName": "string"
+        }
+      }
+    }
+  },
+  "pass": true,
+  "time": "string"
+}
+```
+
+### Properties
+
+| Name   | Type                                             | Required | Restrictions | Description                                      |
+| ------ | ------------------------------------------------ | -------- | ------------ | ------------------------------------------------ |
+| `derp` | [healthcheck.DERPReport](#healthcheckderpreport) | false    |              |                                                  |
+| `pass` | boolean                                          | false    |              | Healthy is true if the report returns no errors. |
+| `time` | string                                           | false    |              | Time is the time the report was generated at.    |
+
+## netcheck.Report
+
+```json
+{
+  "captivePortal": "string",
+  "globalV4": "string",
+  "globalV6": "string",
+  "hairPinning": "string",
+  "icmpv4": true,
+  "ipv4": true,
+  "ipv4CanSend": true,
+  "ipv6": true,
+  "ipv6CanSend": true,
+  "mappingVariesByDestIP": "string",
+  "oshasIPv6": true,
+  "pcp": "string",
+  "pmp": "string",
+  "preferredDERP": 0,
+  "regionLatency": {
+    "property1": 0,
+    "property2": 0
+  },
+  "regionV4Latency": {
+    "property1": 0,
+    "property2": 0
+  },
+  "regionV6Latency": {
+    "property1": 0,
+    "property2": 0
+  },
+  "udp": true,
+  "upnP": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description                                                                                                                        |
+| ----------------------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `captivePortal`         | string  | false    |              | Captiveportal is set when we think there's a captive portal that is intercepting HTTP traffic.                                     |
+| `globalV4`              | string  | false    |              | ip:port of global IPv4                                                                                                             |
+| `globalV6`              | string  | false    |              | [ip]:port of global IPv6                                                                                                           |
+| `hairPinning`           | string  | false    |              | Hairpinning is whether the router supports communicating between two local devices through the NATted public IP address (on IPv4). |
+| `icmpv4`                | boolean | false    |              | an ICMPv4 round trip completed                                                                                                     |
+| `ipv4`                  | boolean | false    |              | an IPv4 STUN round trip completed                                                                                                  |
+| `ipv4CanSend`           | boolean | false    |              | an IPv4 packet was able to be sent                                                                                                 |
+| `ipv6`                  | boolean | false    |              | an IPv6 STUN round trip completed                                                                                                  |
+| `ipv6CanSend`           | boolean | false    |              | an IPv6 packet was able to be sent                                                                                                 |
+| `mappingVariesByDestIP` | string  | false    |              | Mappingvariesbydestip is whether STUN results depend which STUN server you're talking to (on IPv4).                                |
+| `oshasIPv6`             | boolean | false    |              | could bind a socket to ::1                                                                                                         |
+| `pcp`                   | string  | false    |              | Pcp is whether PCP appears present on the LAN. Empty means not checked.                                                            |
+| `pmp`                   | string  | false    |              | Pmp is whether NAT-PMP appears present on the LAN. Empty means not checked.                                                        |
+| `preferredDERP`         | integer | false    |              | or 0 for unknown                                                                                                                   |
+| `regionLatency`         | object  | false    |              | keyed by DERP Region ID                                                                                                            |
+| » `[any property]`      | integer | false    |              |                                                                                                                                    |
+| `regionV4Latency`       | object  | false    |              | keyed by DERP Region ID                                                                                                            |
+| » `[any property]`      | integer | false    |              |                                                                                                                                    |
+| `regionV6Latency`       | object  | false    |              | keyed by DERP Region ID                                                                                                            |
+| » `[any property]`      | integer | false    |              |                                                                                                                                    |
+| `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                                                    |
+| `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                                                          |
 
 ## parameter.ComputedValue
 

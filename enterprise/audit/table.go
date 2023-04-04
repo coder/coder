@@ -71,6 +71,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_by":                       ActionTrack,
 		"group_acl":                        ActionTrack,
 		"user_acl":                         ActionTrack,
+		"allow_user_autostart":             ActionTrack,
+		"allow_user_autostop":              ActionTrack,
 		"allow_user_cancel_workspace_jobs": ActionTrack,
 		"max_ttl":                          ActionTrack,
 	},

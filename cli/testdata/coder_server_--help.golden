@@ -360,9 +360,6 @@ telemetrywhen required by your organization's security policy.
 [1mEnterprise Options[0m 
 These options are only available in the Enterprise Edition.
 
-      --audit-logging bool, $CODER_AUDIT_LOGGING (default: true)
-          Specifies whether audit logging is enabled.
-
       --browser-only bool, $CODER_BROWSER_ONLY
           Whether Coder only allows connections to workspaces via the browser.
 

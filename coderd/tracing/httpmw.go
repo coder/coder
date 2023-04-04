@@ -8,7 +8,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
-	semconv "go.opentelemetry.io/otel/semconv/v1.11.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
+	"go.opentelemetry.io/otel/semconv/v1.14.0/httpconv"
+	"go.opentelemetry.io/otel/semconv/v1.14.0/netconv"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/coder/coder/coderd/httpmw/patternmatcher"
@@ -78,9 +80,8 @@ func EndHTTPSpan(r *http.Request, status int, span trace.Span) {
 	// set the resource name as we get it only once the handler is executed
 	route := chi.RouteContext(r.Context()).RoutePattern()
 	span.SetName(fmt.Sprintf("%s %s", r.Method, route))
-	span.SetAttributes(semconv.NetAttributesFromHTTPRequest("tcp", r)...)
-	span.SetAttributes(semconv.EndUserAttributesFromHTTPRequest(r)...)
-	span.SetAttributes(semconv.HTTPServerAttributesFromHTTPRequest("", route, r)...)
+	span.SetAttributes(netconv.Transport("tcp"))
+	span.SetAttributes(httpconv.ServerRequest("coderd", r)...)
 	span.SetAttributes(semconv.HTTPRouteKey.String(route))
 
 	// 0 status means one has not yet been sent in which case net/http library will write StatusOK
@@ -88,7 +89,7 @@ func EndHTTPSpan(r *http.Request, status int, span trace.Span) {
 		status = http.StatusOK
 	}
 	span.SetAttributes(semconv.HTTPStatusCodeKey.Int(status))
-	span.SetStatus(semconv.SpanStatusFromHTTPStatusCodeAndSpanKind(status, trace.SpanKindServer))
+	span.SetStatus(httpconv.ServerStatus(status))
 
 	// finally end span
 	span.End()

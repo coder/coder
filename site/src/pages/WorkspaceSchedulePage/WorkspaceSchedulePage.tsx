@@ -5,8 +5,8 @@ import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Loader } from "components/Loader/Loader"
 import { Margins } from "components/Margins/Margins"
 import dayjs from "dayjs"
-import { scheduleToAutoStart } from "pages/WorkspaceSchedulePage/schedule"
-import { ttlMsToAutoStop } from "pages/WorkspaceSchedulePage/ttl"
+import { scheduleToAutostart } from "pages/WorkspaceSchedulePage/schedule"
+import { ttlMsToAutostop } from "pages/WorkspaceSchedulePage/ttl"
 import { useEffect, FC } from "react"
 import { useTranslation } from "react-i18next"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
@@ -16,14 +16,14 @@ import { WorkspaceScheduleForm } from "../../components/WorkspaceScheduleForm/Wo
 import { firstOrItem } from "../../util/array"
 import { workspaceSchedule } from "../../xServices/workspaceSchedule/workspaceScheduleXService"
 import {
-  formValuesToAutoStartRequest,
+  formValuesToAutostartRequest,
   formValuesToTTLRequest,
 } from "./formToRequest"
 
-const getAutoStart = (workspace?: TypesGen.Workspace) =>
-  scheduleToAutoStart(workspace?.autostart_schedule)
-const getAutoStop = (workspace?: TypesGen.Workspace) =>
-  ttlMsToAutoStop(workspace?.ttl_ms)
+const getAutostart = (workspace?: TypesGen.Workspace) =>
+  scheduleToAutostart(workspace?.autostart_schedule)
+const getAutostop = (workspace?: TypesGen.Workspace) =>
+  ttlMsToAutostop(workspace?.ttl_ms)
 
 const useStyles = makeStyles((theme) => ({
   topMargin: {
@@ -102,8 +102,8 @@ export const WorkspaceSchedulePage: FC = () => {
       <WorkspaceScheduleForm
         submitScheduleError={submitScheduleError}
         initialValues={{
-          ...getAutoStart(workspace),
-          ...getAutoStop(workspace),
+          ...getAutostart(workspace),
+          ...getAutostop(workspace),
         }}
         isLoading={scheduleState.tags.has("loading")}
         defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
@@ -113,10 +113,10 @@ export const WorkspaceSchedulePage: FC = () => {
         onSubmit={(values) => {
           scheduleSend({
             type: "SUBMIT_SCHEDULE",
-            autoStart: formValuesToAutoStartRequest(values),
+            autostart: formValuesToAutostartRequest(values),
             ttl: formValuesToTTLRequest(values),
-            autoStartChanged: scheduleChanged(getAutoStart(workspace), values),
-            autoStopChanged: scheduleChanged(getAutoStop(workspace), values),
+            autostartChanged: scheduleChanged(getAutostart(workspace), values),
+            autostopChanged: scheduleChanged(getAutostop(workspace), values),
           })
         }}
       />

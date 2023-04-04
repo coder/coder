@@ -3195,7 +3195,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop
 FROM
 	templates
 WHERE
@@ -3225,13 +3225,15 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.DisplayName,
 		&i.AllowUserCancelWorkspaceJobs,
 		&i.MaxTTL,
+		&i.AllowUserAutostart,
+		&i.AllowUserAutostop,
 	)
 	return i, err
 }
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop
 FROM
 	templates
 WHERE
@@ -3269,12 +3271,14 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.DisplayName,
 		&i.AllowUserCancelWorkspaceJobs,
 		&i.MaxTTL,
+		&i.AllowUserAutostart,
+		&i.AllowUserAutostop,
 	)
 	return i, err
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl FROM templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop FROM templates
 ORDER BY (name, id) ASC
 `
 
@@ -3305,6 +3309,8 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.DisplayName,
 			&i.AllowUserCancelWorkspaceJobs,
 			&i.MaxTTL,
+			&i.AllowUserAutostart,
+			&i.AllowUserAutostop,
 		); err != nil {
 			return nil, err
 		}
@@ -3321,7 +3327,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop
 FROM
 	templates
 WHERE
@@ -3389,6 +3395,8 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.DisplayName,
 			&i.AllowUserCancelWorkspaceJobs,
 			&i.MaxTTL,
+			&i.AllowUserAutostart,
+			&i.AllowUserAutostop,
 		); err != nil {
 			return nil, err
 		}
@@ -3422,7 +3430,7 @@ INSERT INTO
 		allow_user_cancel_workspace_jobs
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop
 `
 
 type InsertTemplateParams struct {
@@ -3478,6 +3486,8 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		&i.DisplayName,
 		&i.AllowUserCancelWorkspaceJobs,
 		&i.MaxTTL,
+		&i.AllowUserAutostart,
+		&i.AllowUserAutostop,
 	)
 	return i, err
 }
@@ -3491,7 +3501,7 @@ SET
 WHERE
 	id = $3
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop
 `
 
 type UpdateTemplateACLByIDParams struct {
@@ -3521,6 +3531,8 @@ func (q *sqlQuerier) UpdateTemplateACLByID(ctx context.Context, arg UpdateTempla
 		&i.DisplayName,
 		&i.AllowUserCancelWorkspaceJobs,
 		&i.MaxTTL,
+		&i.AllowUserAutostart,
+		&i.AllowUserAutostop,
 	)
 	return i, err
 }
@@ -3580,7 +3592,7 @@ SET
 WHERE
 	id = $1
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop
 `
 
 type UpdateTemplateMetaByIDParams struct {
@@ -3622,6 +3634,8 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		&i.DisplayName,
 		&i.AllowUserCancelWorkspaceJobs,
 		&i.MaxTTL,
+		&i.AllowUserAutostart,
+		&i.AllowUserAutostop,
 	)
 	return i, err
 }
@@ -3631,25 +3645,31 @@ UPDATE
 	templates
 SET
 	updated_at = $2,
-	default_ttl = $3,
-	max_ttl = $4
+	allow_user_autostart = $3,
+	allow_user_autostop = $4,
+	default_ttl = $5,
+	max_ttl = $6
 WHERE
 	id = $1
 RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop
 `
 
 type UpdateTemplateScheduleByIDParams struct {
-	ID         uuid.UUID `db:"id" json:"id"`
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
-	DefaultTTL int64     `db:"default_ttl" json:"default_ttl"`
-	MaxTTL     int64     `db:"max_ttl" json:"max_ttl"`
+	ID                 uuid.UUID `db:"id" json:"id"`
+	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
+	AllowUserAutostart bool      `db:"allow_user_autostart" json:"allow_user_autostart"`
+	AllowUserAutostop  bool      `db:"allow_user_autostop" json:"allow_user_autostop"`
+	DefaultTTL         int64     `db:"default_ttl" json:"default_ttl"`
+	MaxTTL             int64     `db:"max_ttl" json:"max_ttl"`
 }
 
 func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) (Template, error) {
 	row := q.db.QueryRowContext(ctx, updateTemplateScheduleByID,
 		arg.ID,
 		arg.UpdatedAt,
+		arg.AllowUserAutostart,
+		arg.AllowUserAutostop,
 		arg.DefaultTTL,
 		arg.MaxTTL,
 	)
@@ -3672,12 +3692,14 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		&i.DisplayName,
 		&i.AllowUserCancelWorkspaceJobs,
 		&i.MaxTTL,
+		&i.AllowUserAutostart,
+		&i.AllowUserAutostop,
 	)
 	return i, err
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name FROM template_version_parameters WHERE template_version_id = $1
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name FROM template_version_parameters WHERE template_version_id = $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -3705,6 +3727,7 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.ValidationMonotonic,
 			&i.Required,
 			&i.LegacyVariableName,
+			&i.DisplayName,
 		); err != nil {
 			return nil, err
 		}
@@ -3736,7 +3759,8 @@ INSERT INTO
         validation_error,
         validation_monotonic,
         required,
-        legacy_variable_name
+        legacy_variable_name,
+        display_name
     )
 VALUES
     (
@@ -3754,8 +3778,9 @@ VALUES
         $12,
         $13,
         $14,
-        $15
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name
+        $15,
+		$16
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name
 `
 
 type InsertTemplateVersionParameterParams struct {
@@ -3774,6 +3799,7 @@ type InsertTemplateVersionParameterParams struct {
 	ValidationMonotonic string          `db:"validation_monotonic" json:"validation_monotonic"`
 	Required            bool            `db:"required" json:"required"`
 	LegacyVariableName  string          `db:"legacy_variable_name" json:"legacy_variable_name"`
+	DisplayName         string          `db:"display_name" json:"display_name"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -3793,6 +3819,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.ValidationMonotonic,
 		arg.Required,
 		arg.LegacyVariableName,
+		arg.DisplayName,
 	)
 	var i TemplateVersionParameter
 	err := row.Scan(
@@ -3811,6 +3838,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.ValidationMonotonic,
 		&i.Required,
 		&i.LegacyVariableName,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -7417,7 +7445,7 @@ WITH workspaces_with_jobs AS (
 			build_number DESC
 		LIMIT
 			1
-	) latest_build ON TRUE
+	) latest_build ON TRUE WHERE deleted = false
 ), pending_workspaces AS (
 	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
 		started_at IS NULL
@@ -7425,8 +7453,8 @@ WITH workspaces_with_jobs AS (
 	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
 		started_at IS NOT NULL AND
 		canceled_at IS NULL AND
-		updated_at - INTERVAL '30 seconds' < NOW() AND
-		completed_at IS NULL
+		completed_at IS NULL AND
+		updated_at - INTERVAL '30 seconds' < NOW()
 ), running_workspaces AS (
 	SELECT COUNT(*) AS count FROM workspaces_with_jobs WHERE
 		completed_at IS NOT NULL AND
@@ -7900,6 +7928,81 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 	return items, nil
 }
 
+const getWorkspacesEligibleForAutoStartStop = `-- name: GetWorkspacesEligibleForAutoStartStop :many
+SELECT
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at
+FROM
+	workspaces
+LEFT JOIN
+	workspace_builds ON workspace_builds.workspace_id = workspaces.id
+WHERE
+	workspace_builds.build_number = (
+		SELECT
+			MAX(build_number)
+		FROM
+			workspace_builds
+		WHERE
+			workspace_builds.workspace_id = workspaces.id
+	) AND
+
+	(
+		-- If the workspace build was a start transition, the workspace is
+		-- potentially eligible for autostop if it's past the deadline. The
+		-- deadline is computed at build time upon success and is bumped based
+		-- on activity (up the max deadline if set). We don't need to check
+		-- license here since that's done when the values are written to the build.
+		(
+			workspace_builds.transition = 'start'::workspace_transition AND
+			workspace_builds.deadline IS NOT NULL AND
+			workspace_builds.deadline < $1 :: timestamptz
+		) OR
+
+		-- If the workspace build was a stop transition, the workspace is
+		-- potentially eligible for autostart if it has a schedule set. The
+		-- caller must check if the template allows autostart in a license-aware
+		-- fashion as we cannot check it here.
+		(
+			workspace_builds.transition = 'stop'::workspace_transition AND
+			workspaces.autostart_schedule IS NOT NULL
+		)
+	)
+`
+
+func (q *sqlQuerier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesEligibleForAutoStartStop, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Workspace
+	for rows.Next() {
+		var i Workspace
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.TemplateID,
+			&i.Deleted,
+			&i.Name,
+			&i.AutostartSchedule,
+			&i.Ttl,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertWorkspace = `-- name: InsertWorkspace :one
 INSERT INTO
 	workspaces (
@@ -7911,10 +8014,11 @@ INSERT INTO
 		template_id,
 		name,
 		autostart_schedule,
-		ttl
+		ttl,
+		last_used_at
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
 `
 
 type InsertWorkspaceParams struct {
@@ -7927,6 +8031,7 @@ type InsertWorkspaceParams struct {
 	Name              string         `db:"name" json:"name"`
 	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
 	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
+	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
 }
 
 func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error) {
@@ -7940,6 +8045,7 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		arg.Name,
 		arg.AutostartSchedule,
 		arg.Ttl,
+		arg.LastUsedAt,
 	)
 	var i Workspace
 	err := row.Scan(
