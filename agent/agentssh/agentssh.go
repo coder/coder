@@ -47,8 +47,6 @@ const (
 )
 
 type Server struct {
-	ctx     context.Context
-	cancel  context.CancelFunc
 	serveWg sync.WaitGroup
 	logger  slog.Logger
 
@@ -80,10 +78,7 @@ func NewServer(ctx context.Context, logger slog.Logger, maxTimeout time.Duration
 	forwardHandler := &ssh.ForwardedTCPHandler{}
 	unixForwardHandler := &forwardedUnixHandler{log: logger}
 
-	sCtx, sCancel := context.WithCancel(context.Background())
 	s := &Server{
-		ctx:    sCtx,
-		cancel: sCancel,
 		logger: logger,
 	}
 
