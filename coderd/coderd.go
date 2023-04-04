@@ -405,7 +405,7 @@ func New(options *Options) *API {
 
 	// Attach workspace apps routes.
 	r.Group(func(r chi.Router) {
-		r.Use(apiKeyMiddleware)
+		r.Use(apiRateLimiter)
 		workspaceAppServer.Attach(r)
 	})
 
