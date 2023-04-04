@@ -8,15 +8,17 @@ import (
 	"nhooyr.io/websocket"
 	"tailscale.com/derp"
 	"tailscale.com/net/wsconn"
-
-	"github.com/coder/coder/coderd/activewebsockets"
 )
+
+type HandleWebsocket func(rw http.ResponseWriter, r *http.Request, options *websocket.AcceptOptions, f func(conn *websocket.Conn))
 
 // WithWebsocketSupport returns an http.Handler that upgrades
 // connections to the "derp" subprotocol to WebSockets and
 // passes them to the DERP server.
 // Taken from: https://github.com/tailscale/tailscale/blob/e3211ff88ba85435f70984cf67d9b353f3d650d8/cmd/derper/websocket.go#L21
-func WithWebsocketSupport(sockets *activewebsockets.Active, s *derp.Server, base http.Handler) http.Handler {
+// The accept function is used to accept the websocket connection and allows the caller to
+// also affect the lifecycle of the websocket connection. (Eg. to close the connection on shutdown)
+func WithWebsocketSupport(accept HandleWebsocket, s *derp.Server, base http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		up := strings.ToLower(r.Header.Get("Upgrade"))
 
@@ -28,7 +30,7 @@ func WithWebsocketSupport(sockets *activewebsockets.Active, s *derp.Server, base
 			return
 		}
 
-		sockets.Accept(w, r, &websocket.AcceptOptions{
+		accept(w, r, &websocket.AcceptOptions{
 			Subprotocols:   []string{"derp"},
 			OriginPatterns: []string{"*"},
 			// Disable compression because we transmit WireGuard messages that

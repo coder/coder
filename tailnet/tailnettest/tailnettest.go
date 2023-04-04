@@ -78,7 +78,7 @@ func RunDERPOnlyWebSockets(t *testing.T) *tailcfg.DERPMap {
 	defer cancel()
 	sockets := activewebsockets.New(ctx)
 
-	handler = tailnet.WithWebsocketSupport(sockets, d, handler)
+	handler = tailnet.WithWebsocketSupport(sockets.Accept, d, handler)
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/derp" {
 			handler.ServeHTTP(w, r)

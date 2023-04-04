@@ -132,7 +132,7 @@ func TestDERP(t *testing.T) {
 		defer derpSrv.Close()
 
 		sockets := activewebsockets.New(ctx)
-		handler := tailnet.WithWebsocketSupport(sockets, derpSrv, derphttp.Handler(derpSrv))
+		handler := tailnet.WithWebsocketSupport(sockets.Accept, derpSrv, derphttp.Handler(derpSrv))
 		defer sockets.Close()
 
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
