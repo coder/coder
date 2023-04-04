@@ -780,7 +780,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 
 // claimFields returns the sorted list of fields in the claims map.
 func claimFields(claims map[string]interface{}) []string {
-	var fields []string
+	fields := []string{}
 	for field := range claims {
 		fields = append(fields, field)
 	}

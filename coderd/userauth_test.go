@@ -658,6 +658,18 @@ func TestUserOIDC(t *testing.T) {
 		AllowSignups:        true,
 		IgnoreEmailVerified: false,
 		StatusCode:          http.StatusTemporaryRedirect,
+	}, {
+		Name: "InvalidUserInfo",
+		IDTokenClaims: jwt.MapClaims{
+			"email":          "internaluser@internal.domain",
+			"email_verified": false,
+		},
+		UserInfoClaims: jwt.MapClaims{
+			"email": 1,
+		},
+		AllowSignups:        true,
+		IgnoreEmailVerified: false,
+		StatusCode:          http.StatusInternalServerError,
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
