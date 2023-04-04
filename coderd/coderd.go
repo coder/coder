@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -316,6 +315,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore: options.TemplateScheduleStore,
 		Experiments:           experiments,
 		healthCheckGroup:      &singleflight.Group[string, *healthcheck.Report]{},
+		WebsocketWatch:        NewActiveWebsockets(ctx),
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -784,9 +784,8 @@ type API struct {
 
 	siteHandler http.Handler
 
-	WebsocketWaitGroup sync.WaitGroup
-	WebsocketWatch     *ActiveWebsockets
-	derpCloseFunc      func()
+	WebsocketWatch *ActiveWebsockets
+	derpCloseFunc  func()
 
 	metricsCache          *metricscache.Cache
 	workspaceAgentCache   *wsconncache.Cache
@@ -805,7 +804,7 @@ func (api *API) Close() error {
 	api.cancel()
 	api.derpCloseFunc()
 
-	api.WebsocketWaitGroup.Wait()
+	api.WebsocketWatch.Close()
 
 	api.metricsCache.Close()
 	if api.updateChecker != nil {

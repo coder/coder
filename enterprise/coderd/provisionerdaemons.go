@@ -185,69 +185,60 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	api.AGPL.WebsocketWaitGroup.Add(1)
-	defer api.AGPL.WebsocketWaitGroup.Done()
-
-	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+	api.AGPL.WebsocketWatch.Accept(rw, r, &websocket.AcceptOptions{
 		// Need to disable compression to avoid a data-race.
 		CompressionMode: websocket.CompressionDisabled,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Internal error accepting websocket connection.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	// Align with the frame size of yamux.
-	conn.SetReadLimit(256 * 1024)
+	}, func(conn *websocket.Conn) {
+		// Align with the frame size of yamux.
+		conn.SetReadLimit(256 * 1024)
 
-	// Multiplexes the incoming connection using yamux.
-	// This allows multiple function calls to occur over
-	// the same connection.
-	config := yamux.DefaultConfig()
-	config.LogOutput = io.Discard
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
-	defer wsNetConn.Close()
-	session, err := yamux.Server(wsNetConn, config)
-	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("multiplex server: %s", err))
-		return
-	}
-	mux := drpcmux.New()
-	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
-		AccessURL:             api.AccessURL,
-		GitAuthConfigs:        api.GitAuthConfigs,
-		OIDCConfig:            api.OIDCConfig,
-		ID:                    daemon.ID,
-		Database:              api.Database,
-		Pubsub:                api.Pubsub,
-		Provisioners:          daemon.Provisioners,
-		Telemetry:             api.Telemetry,
-		Auditor:               &api.AGPL.Auditor,
-		TemplateScheduleStore: api.AGPL.TemplateScheduleStore,
-		Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
-		Tags:                  rawTags,
+		// Multiplexes the incoming connection using yamux.
+		// This allows multiple function calls to occur over
+		// the same connection.
+		config := yamux.DefaultConfig()
+		config.LogOutput = io.Discard
+		ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+		defer wsNetConn.Close()
+		session, err := yamux.Server(wsNetConn, config)
+		if err != nil {
+			_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("multiplex server: %s", err))
+			return
+		}
+		mux := drpcmux.New()
+		err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
+			AccessURL:             api.AccessURL,
+			GitAuthConfigs:        api.GitAuthConfigs,
+			OIDCConfig:            api.OIDCConfig,
+			ID:                    daemon.ID,
+			Database:              api.Database,
+			Pubsub:                api.Pubsub,
+			Provisioners:          daemon.Provisioners,
+			Telemetry:             api.Telemetry,
+			Auditor:               &api.AGPL.Auditor,
+			TemplateScheduleStore: api.AGPL.TemplateScheduleStore,
+			Logger:                api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+			Tags:                  rawTags,
+		})
+		if err != nil {
+			_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))
+			return
+		}
+		server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+			Log: func(err error) {
+				if xerrors.Is(err, io.EOF) {
+					return
+				}
+				api.Logger.Debug(ctx, "drpc server error", slog.Error(err))
+			},
+		})
+		err = server.Serve(ctx, session)
+		if err != nil && !xerrors.Is(err, io.EOF) {
+			api.Logger.Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
+			_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
+			return
+		}
+		_ = conn.Close(websocket.StatusGoingAway, "")
 	})
-	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))
-		return
-	}
-	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
-		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) {
-				return
-			}
-			api.Logger.Debug(ctx, "drpc server error", slog.Error(err))
-		},
-	})
-	err = server.Serve(ctx, session)
-	if err != nil && !xerrors.Is(err, io.EOF) {
-		api.Logger.Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
-		return
-	}
-	_ = conn.Close(websocket.StatusGoingAway, "")
 }
 
 func convertProvisionerDaemon(daemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {

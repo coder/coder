@@ -113,69 +113,61 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		logs = []database.ProvisionerJobLog{}
 	}
 
-	api.WebsocketWaitGroup.Add(1)
-	defer api.WebsocketWaitGroup.Done()
-	conn, err := websocket.Accept(rw, r, nil)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	go httpapi.Heartbeat(ctx, conn)
+	api.WebsocketWatch.Accept(rw, r, nil, func(conn *websocket.Conn) {
+		go httpapi.Heartbeat(ctx, conn)
 
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
-	defer wsNetConn.Close() // Also closes conn.
+		ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
+		defer wsNetConn.Close() // Also closes conn.
 
-	logIdsDone := make(map[int64]bool)
+		logIdsDone := make(map[int64]bool)
 
-	// The Go stdlib JSON encoder appends a newline character after message write.
-	encoder := json.NewEncoder(wsNetConn)
-	for _, provisionerJobLog := range logs {
-		logIdsDone[provisionerJobLog.ID] = true
-		err = encoder.Encode(convertProvisionerJobLog(provisionerJobLog))
-		if err != nil {
-			return
-		}
-	}
-	job, err = api.Database.GetProvisionerJobByID(ctx, job.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if job.CompletedAt.Valid {
-		// job was complete before we queried the database for historical logs
-		return
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Debug(context.Background(), "job logs context canceled")
-			return
-		case log, ok := <-bufferedLogs:
-			// A nil log is sent when complete!
-			if !ok || log == nil {
-				logger.Debug(context.Background(), "reached the end of published logs")
+		// The Go stdlib JSON encoder appends a newline character after message write.
+		encoder := json.NewEncoder(wsNetConn)
+		for _, provisionerJobLog := range logs {
+			logIdsDone[provisionerJobLog.ID] = true
+			err = encoder.Encode(convertProvisionerJobLog(provisionerJobLog))
+			if err != nil {
 				return
 			}
-			if logIdsDone[log.ID] {
-				logger.Debug(ctx, "subscribe duplicated log",
-					slog.F("stage", log.Stage))
-			} else {
-				logger.Debug(ctx, "subscribe encoding log",
-					slog.F("stage", log.Stage))
-				err = encoder.Encode(convertProvisionerJobLog(*log))
-				if err != nil {
+		}
+		job, err = api.Database.GetProvisionerJobByID(ctx, job.ID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching provisioner job.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if job.CompletedAt.Valid {
+			// job was complete before we queried the database for historical logs
+			return
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				logger.Debug(context.Background(), "job logs context canceled")
+				return
+			case log, ok := <-bufferedLogs:
+				// A nil log is sent when complete!
+				if !ok || log == nil {
+					logger.Debug(context.Background(), "reached the end of published logs")
 					return
+				}
+				if logIdsDone[log.ID] {
+					logger.Debug(ctx, "subscribe duplicated log",
+						slog.F("stage", log.Stage))
+				} else {
+					logger.Debug(ctx, "subscribe encoding log",
+						slog.F("stage", log.Stage))
+					err = encoder.Encode(convertProvisionerJobLog(*log))
+					if err != nil {
+						return
+					}
 				}
 			}
 		}
-	}
+	})
 }
 
 func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob) {

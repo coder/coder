@@ -435,113 +435,105 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	api.WebsocketWaitGroup.Add(1)
-	defer api.WebsocketWaitGroup.Done()
-	conn, err := websocket.Accept(rw, r, nil)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	go httpapi.Heartbeat(ctx, conn)
+	api.WebsocketWatch.Accept(rw, r, nil, func(conn *websocket.Conn) {
+		go httpapi.Heartbeat(ctx, conn)
 
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
-	defer wsNetConn.Close() // Also closes conn.
+		ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
+		defer wsNetConn.Close() // Also closes conn.
 
-	// The Go stdlib JSON encoder appends a newline character after message write.
-	encoder := json.NewEncoder(wsNetConn)
-	err = encoder.Encode(convertWorkspaceAgentStartupLogs(logs))
-	if err != nil {
-		return
-	}
-	if workspaceAgent.LifecycleState == database.WorkspaceAgentLifecycleStateReady {
-		// The startup script has finished running, so we can close the connection.
-		return
-	}
-
-	var (
-		bufferedLogs  = make(chan []database.WorkspaceAgentStartupLog, 128)
-		endOfLogs     atomic.Bool
-		lastSentLogID atomic.Int64
-	)
-
-	sendLogs := func(logs []database.WorkspaceAgentStartupLog) {
-		select {
-		case bufferedLogs <- logs:
-			lastSentLogID.Store(logs[len(logs)-1].ID)
-		default:
-			logger.Warn(ctx, "workspace agent startup log overflowing channel")
-		}
-	}
-
-	closeSubscribe, err := api.Pubsub.Subscribe(
-		agentsdk.StartupLogsNotifyChannel(workspaceAgent.ID),
-		func(ctx context.Context, message []byte) {
-			if endOfLogs.Load() {
-				return
-			}
-			jlMsg := agentsdk.StartupLogsNotifyMessage{}
-			err := json.Unmarshal(message, &jlMsg)
-			if err != nil {
-				logger.Warn(ctx, "invalid startup logs notify message", slog.Error(err))
-				return
-			}
-
-			if jlMsg.CreatedAfter != 0 {
-				logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(dbauthz.As(ctx, actor), database.GetWorkspaceAgentStartupLogsAfterParams{
-					AgentID:      workspaceAgent.ID,
-					CreatedAfter: jlMsg.CreatedAfter,
-				})
-				if err != nil {
-					logger.Warn(ctx, "failed to get workspace agent startup logs after", slog.Error(err))
-					return
-				}
-				sendLogs(logs)
-			}
-
-			if jlMsg.EndOfLogs {
-				endOfLogs.Store(true)
-				logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(dbauthz.As(ctx, actor), database.GetWorkspaceAgentStartupLogsAfterParams{
-					AgentID:      workspaceAgent.ID,
-					CreatedAfter: lastSentLogID.Load(),
-				})
-				if err != nil {
-					logger.Warn(ctx, "get workspace agent startup logs after", slog.Error(err))
-					return
-				}
-				sendLogs(logs)
-				bufferedLogs <- nil
-			}
-		},
-	)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to subscribe to startup logs.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	defer closeSubscribe()
-
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Debug(context.Background(), "job logs context canceled")
+		// The Go stdlib JSON encoder appends a newline character after message write.
+		encoder := json.NewEncoder(wsNetConn)
+		err = encoder.Encode(convertWorkspaceAgentStartupLogs(logs))
+		if err != nil {
 			return
-		case logs, ok := <-bufferedLogs:
-			// A nil log is sent when complete!
-			if !ok || logs == nil {
-				logger.Debug(context.Background(), "reached the end of published logs")
-				return
-			}
-			err = encoder.Encode(convertWorkspaceAgentStartupLogs(logs))
-			if err != nil {
-				return
+		}
+		if workspaceAgent.LifecycleState == database.WorkspaceAgentLifecycleStateReady {
+			// The startup script has finished running, so we can close the connection.
+			return
+		}
+
+		var (
+			bufferedLogs  = make(chan []database.WorkspaceAgentStartupLog, 128)
+			endOfLogs     atomic.Bool
+			lastSentLogID atomic.Int64
+		)
+
+		sendLogs := func(logs []database.WorkspaceAgentStartupLog) {
+			select {
+			case bufferedLogs <- logs:
+				lastSentLogID.Store(logs[len(logs)-1].ID)
+			default:
+				logger.Warn(ctx, "workspace agent startup log overflowing channel")
 			}
 		}
-	}
+
+		closeSubscribe, err := api.Pubsub.Subscribe(
+			agentsdk.StartupLogsNotifyChannel(workspaceAgent.ID),
+			func(ctx context.Context, message []byte) {
+				if endOfLogs.Load() {
+					return
+				}
+				jlMsg := agentsdk.StartupLogsNotifyMessage{}
+				err := json.Unmarshal(message, &jlMsg)
+				if err != nil {
+					logger.Warn(ctx, "invalid startup logs notify message", slog.Error(err))
+					return
+				}
+
+				if jlMsg.CreatedAfter != 0 {
+					logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(dbauthz.As(ctx, actor), database.GetWorkspaceAgentStartupLogsAfterParams{
+						AgentID:      workspaceAgent.ID,
+						CreatedAfter: jlMsg.CreatedAfter,
+					})
+					if err != nil {
+						logger.Warn(ctx, "failed to get workspace agent startup logs after", slog.Error(err))
+						return
+					}
+					sendLogs(logs)
+				}
+
+				if jlMsg.EndOfLogs {
+					endOfLogs.Store(true)
+					logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(dbauthz.As(ctx, actor), database.GetWorkspaceAgentStartupLogsAfterParams{
+						AgentID:      workspaceAgent.ID,
+						CreatedAfter: lastSentLogID.Load(),
+					})
+					if err != nil {
+						logger.Warn(ctx, "get workspace agent startup logs after", slog.Error(err))
+						return
+					}
+					sendLogs(logs)
+					bufferedLogs <- nil
+				}
+			},
+		)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to subscribe to startup logs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		defer closeSubscribe()
+
+		for {
+			select {
+			case <-ctx.Done():
+				logger.Debug(context.Background(), "job logs context canceled")
+				return
+			case logs, ok := <-bufferedLogs:
+				// A nil log is sent when complete!
+				if !ok || logs == nil {
+					logger.Debug(context.Background(), "reached the end of published logs")
+					return
+				}
+				err = encoder.Encode(convertWorkspaceAgentStartupLogs(logs))
+				if err != nil {
+					return
+				}
+			}
+		}
+	})
 }
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
@@ -556,9 +548,6 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 // @Router /workspaceagents/{workspaceagent}/pty [get]
 func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	api.WebsocketWaitGroup.Add(1)
-	defer api.WebsocketWaitGroup.Done()
 
 	appToken, ok := workspaceapps.ResolveRequest(api.Logger, api.AccessURL, api.WorkspaceAppsProvider, rw, r, workspaceapps.Request{
 		AccessMethod:  workspaceapps.AccessMethodTerminal,
@@ -588,35 +577,26 @@ func (api *API) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		width = 80
 	}
 
-	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
-		CompressionMode: websocket.CompressionDisabled,
+	api.WebsocketWatch.Accept(rw, r, nil, func(conn *websocket.Conn) {
+		ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+		defer wsNetConn.Close() // Also closes conn.
+
+		go httpapi.Heartbeat(ctx, conn)
+
+		agentConn, release, err := api.workspaceAgentCache.Acquire(appToken.AgentID)
+		if err != nil {
+			_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
+			return
+		}
+		defer release()
+		ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"))
+		if err != nil {
+			_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
+			return
+		}
+		defer ptNetConn.Close()
+		agent.Bicopy(ctx, wsNetConn, ptNetConn)
 	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
-	defer wsNetConn.Close() // Also closes conn.
-
-	go httpapi.Heartbeat(ctx, conn)
-
-	agentConn, release, err := api.workspaceAgentCache.Acquire(appToken.AgentID)
-	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
-		return
-	}
-	defer release()
-	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"))
-	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
-		return
-	}
-	defer ptNetConn.Close()
-	agent.Bicopy(ctx, wsNetConn, ptNetConn)
 }
 
 // @Summary Get listening ports for workspace agent
@@ -812,8 +792,6 @@ func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request
 func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	api.WebsocketWaitGroup.Add(1)
-	defer api.WebsocketWaitGroup.Done()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
 	if err != nil {
@@ -877,189 +855,182 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	conn, err := websocket.Accept(rw, r, nil)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	api.WebsocketWatch.Accept(rw, r, nil, func(conn *websocket.Conn) {
+		ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+		defer wsNetConn.Close()
 
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
-	defer wsNetConn.Close()
+		// We use a custom heartbeat routine here instead of `httpapi.Heartbeat`
+		// because we want to log the agent's last ping time.
+		lastPing := time.Now() // Since the agent initiated the request, assume it's alive.
+		var pingMu sync.Mutex
+		go pprof.Do(ctx, pprof.Labels("agent", workspaceAgent.ID.String()), func(ctx context.Context) {
+			// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
+			t := time.NewTicker(api.AgentConnectionUpdateFrequency)
+			defer t.Stop()
 
-	// We use a custom heartbeat routine here instead of `httpapi.Heartbeat`
-	// because we want to log the agent's last ping time.
-	lastPing := time.Now() // Since the agent initiated the request, assume it's alive.
-	var pingMu sync.Mutex
-	go pprof.Do(ctx, pprof.Labels("agent", workspaceAgent.ID.String()), func(ctx context.Context) {
-		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
-		t := time.NewTicker(api.AgentConnectionUpdateFrequency)
-		defer t.Stop()
+			for {
+				select {
+				case <-t.C:
+				case <-ctx.Done():
+					return
+				}
 
-		for {
-			select {
-			case <-t.C:
-			case <-ctx.Done():
-				return
+				// We don't need a context that times out here because the ping will
+				// eventually go through. If the context times out, then other
+				// websocket read operations will receive an error, obfuscating the
+				// actual problem.
+				err := conn.Ping(ctx)
+				if err != nil {
+					return
+				}
+				pingMu.Lock()
+				lastPing = time.Now()
+				pingMu.Unlock()
 			}
-
-			// We don't need a context that times out here because the ping will
-			// eventually go through. If the context times out, then other
-			// websocket read operations will receive an error, obfuscating the
-			// actual problem.
-			err := conn.Ping(ctx)
-			if err != nil {
-				return
-			}
-			pingMu.Lock()
-			lastPing = time.Now()
-			pingMu.Unlock()
-		}
-	})
-
-	firstConnectedAt := workspaceAgent.FirstConnectedAt
-	if !firstConnectedAt.Valid {
-		firstConnectedAt = sql.NullTime{
-			Time:  database.Now(),
-			Valid: true,
-		}
-	}
-	lastConnectedAt := sql.NullTime{
-		Time:  database.Now(),
-		Valid: true,
-	}
-	disconnectedAt := workspaceAgent.DisconnectedAt
-	updateConnectionTimes := func(ctx context.Context) error {
-		err = api.Database.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
-			ID:               workspaceAgent.ID,
-			FirstConnectedAt: firstConnectedAt,
-			LastConnectedAt:  lastConnectedAt,
-			DisconnectedAt:   disconnectedAt,
-			UpdatedAt:        database.Now(),
-			LastConnectedReplicaID: uuid.NullUUID{
-				UUID:  api.ID,
-				Valid: true,
-			},
 		})
-		if err != nil {
-			return err
-		}
-		return nil
-	}
 
-	defer func() {
-		// If connection closed then context will be canceled, try to
-		// ensure our final update is sent. By waiting at most the agent
-		// inactive disconnect timeout we ensure that we don't block but
-		// also guarantee that the agent will be considered disconnected
-		// by normal status check.
-		//
-		// Use a system context as the agent has disconnected and that token
-		// may no longer be valid.
-		//nolint:gocritic
-		ctx, cancel := context.WithTimeout(dbauthz.AsSystemRestricted(api.ctx), api.AgentInactiveDisconnectTimeout)
-		defer cancel()
-
-		// Only update timestamp if the disconnect is new.
-		if !disconnectedAt.Valid {
-			disconnectedAt = sql.NullTime{
+		firstConnectedAt := workspaceAgent.FirstConnectedAt
+		if !firstConnectedAt.Valid {
+			firstConnectedAt = sql.NullTime{
 				Time:  database.Now(),
 				Valid: true,
 			}
 		}
-		err := updateConnectionTimes(ctx)
-		if err != nil {
-			// This is a bug with unit tests that cancel the app context and
-			// cause this error log to be generated. We should fix the unit tests
-			// as this is a valid log.
-			//
-			// The pq error occurs when the server is shutting down.
-			if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
-				api.Logger.Error(ctx, "failed to update agent disconnect time",
-					slog.Error(err),
-					slog.F("workspace", build.WorkspaceID),
-				)
+		lastConnectedAt := sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		}
+		disconnectedAt := workspaceAgent.DisconnectedAt
+		updateConnectionTimes := func(ctx context.Context) error {
+			err = api.Database.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+				ID:               workspaceAgent.ID,
+				FirstConnectedAt: firstConnectedAt,
+				LastConnectedAt:  lastConnectedAt,
+				DisconnectedAt:   disconnectedAt,
+				UpdatedAt:        database.Now(),
+				LastConnectedReplicaID: uuid.NullUUID{
+					UUID:  api.ID,
+					Valid: true,
+				},
+			})
+			if err != nil {
+				return err
 			}
-		}
-		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
-	}()
-
-	err = updateConnectionTimes(ctx)
-	if err != nil {
-		_ = conn.Close(websocket.StatusGoingAway, err.Error())
-		return
-	}
-	api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
-
-	// End span so we don't get long lived trace data.
-	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
-	// Ignore all trace spans after this.
-	ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
-
-	api.Logger.Info(ctx, "accepting agent", slog.F("agent", workspaceAgent))
-
-	defer conn.Close(websocket.StatusNormalClosure, "")
-
-	closeChan := make(chan struct{})
-	go func() {
-		defer close(closeChan)
-		err := (*api.TailnetCoordinator.Load()).ServeAgent(wsNetConn, workspaceAgent.ID,
-			fmt.Sprintf("%s-%s-%s", owner.Username, workspace.Name, workspaceAgent.Name),
-		)
-		if err != nil {
-			api.Logger.Warn(ctx, "tailnet coordinator agent error", slog.Error(err))
-			_ = conn.Close(websocket.StatusInternalError, err.Error())
-			return
-		}
-	}()
-	ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-closeChan:
-			return
-		case <-ticker.C:
+			return nil
 		}
 
-		pingMu.Lock()
-		lastPing := lastPing
-		pingMu.Unlock()
+		defer func() {
+			// If connection closed then context will be canceled, try to
+			// ensure our final update is sent. By waiting at most the agent
+			// inactive disconnect timeout we ensure that we don't block but
+			// also guarantee that the agent will be considered disconnected
+			// by normal status check.
+			//
+			// Use a system context as the agent has disconnected and that token
+			// may no longer be valid.
+			//nolint:gocritic
+			ctx, cancel := context.WithTimeout(dbauthz.AsSystemRestricted(api.ctx), api.AgentInactiveDisconnectTimeout)
+			defer cancel()
 
-		var connectionStatusChanged bool
-		if time.Since(lastPing) > api.AgentInactiveDisconnectTimeout {
+			// Only update timestamp if the disconnect is new.
 			if !disconnectedAt.Valid {
-				connectionStatusChanged = true
 				disconnectedAt = sql.NullTime{
 					Time:  database.Now(),
 					Valid: true,
 				}
 			}
-		} else {
-			connectionStatusChanged = disconnectedAt.Valid
-			// TODO(mafredri): Should we update it here or allow lastConnectedAt to shadow it?
-			disconnectedAt = sql.NullTime{}
-			lastConnectedAt = sql.NullTime{
-				Time:  database.Now(),
-				Valid: true,
+			err := updateConnectionTimes(ctx)
+			if err != nil {
+				// This is a bug with unit tests that cancel the app context and
+				// cause this error log to be generated. We should fix the unit tests
+				// as this is a valid log.
+				//
+				// The pq error occurs when the server is shutting down.
+				if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
+					api.Logger.Error(ctx, "failed to update agent disconnect time",
+						slog.Error(err),
+						slog.F("workspace", build.WorkspaceID),
+					)
+				}
 			}
-		}
+			api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
+		}()
+
 		err = updateConnectionTimes(ctx)
 		if err != nil {
 			_ = conn.Close(websocket.StatusGoingAway, err.Error())
 			return
 		}
-		if connectionStatusChanged {
-			api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
+		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
+
+		// End span so we don't get long lived trace data.
+		tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
+		// Ignore all trace spans after this.
+		ctx = trace.ContextWithSpan(ctx, tracing.NoopSpan)
+
+		api.Logger.Info(ctx, "accepting agent", slog.F("agent", workspaceAgent))
+
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		closeChan := make(chan struct{})
+		go func() {
+			defer close(closeChan)
+			err := (*api.TailnetCoordinator.Load()).ServeAgent(wsNetConn, workspaceAgent.ID,
+				fmt.Sprintf("%s-%s-%s", owner.Username, workspace.Name, workspaceAgent.Name),
+			)
+			if err != nil {
+				api.Logger.Warn(ctx, "tailnet coordinator agent error", slog.Error(err))
+				_ = conn.Close(websocket.StatusInternalError, err.Error())
+				return
+			}
+		}()
+		ticker := time.NewTicker(api.AgentConnectionUpdateFrequency)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-closeChan:
+				return
+			case <-ticker.C:
+			}
+
+			pingMu.Lock()
+			lastPing := lastPing
+			pingMu.Unlock()
+
+			var connectionStatusChanged bool
+			if time.Since(lastPing) > api.AgentInactiveDisconnectTimeout {
+				if !disconnectedAt.Valid {
+					connectionStatusChanged = true
+					disconnectedAt = sql.NullTime{
+						Time:  database.Now(),
+						Valid: true,
+					}
+				}
+			} else {
+				connectionStatusChanged = disconnectedAt.Valid
+				// TODO(mafredri): Should we update it here or allow lastConnectedAt to shadow it?
+				disconnectedAt = sql.NullTime{}
+				lastConnectedAt = sql.NullTime{
+					Time:  database.Now(),
+					Valid: true,
+				}
+			}
+			err = updateConnectionTimes(ctx)
+			if err != nil {
+				_ = conn.Close(websocket.StatusGoingAway, err.Error())
+				return
+			}
+			if connectionStatusChanged {
+				api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
+			}
+			err := ensureLatestBuild()
+			if err != nil {
+				// Disconnect agents that are no longer valid.
+				_ = conn.Close(websocket.StatusGoingAway, "")
+				return
+			}
 		}
-		err := ensureLatestBuild()
-		if err != nil {
-			// Disconnect agents that are no longer valid.
-			_ = conn.Close(websocket.StatusGoingAway, "")
-			return
-		}
-	}
+	})
 }
 
 // workspaceAgentClientCoordinate accepts a WebSocket that reads node network updates.
@@ -1095,10 +1066,6 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	api.WebsocketWatch.Accept(rw, r, nil, func(conn *websocket.Conn) {
 		ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 		defer wsNetConn.Close()
-
-		// Track for graceful shutdown.
-		api.WebsocketWatch.Add(wsNetConn)
-		defer api.WebsocketWatch.Done()
 
 		go httpapi.Heartbeat(ctx, conn)
 
