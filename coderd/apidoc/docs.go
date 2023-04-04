@@ -6795,7 +6795,7 @@ const docTemplate = `{
                 "url": {
                     "type": "string"
                 },
-                "wildcard_url": {
+                "wildcard_hostname": {
                     "type": "string"
                 }
             }
@@ -9479,8 +9479,8 @@ const docTemplate = `{
                     "description": "Full url including scheme of the proxy api url: https://us.example.com",
                     "type": "string"
                 },
-                "wildcard_url": {
-                    "description": "URL with the wildcard for subdomain based app hosting: https://*.us.example.com",
+                "wildcard_hostname": {
+                    "description": "WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com",
                     "type": "string"
                 }
             }

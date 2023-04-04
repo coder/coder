@@ -636,7 +636,7 @@ CREATE TABLE workspace_proxies (
     display_name text NOT NULL,
     icon text NOT NULL,
     url text NOT NULL,
-    wildcard_url text NOT NULL,
+    wildcard_hostname text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted boolean NOT NULL
@@ -644,7 +644,7 @@ CREATE TABLE workspace_proxies (
 
 COMMENT ON COLUMN workspace_proxies.url IS 'Full url including scheme of the proxy api url: https://us.example.com';
 
-COMMENT ON COLUMN workspace_proxies.wildcard_url IS 'URL with the wildcard for subdomain based app hosting: https://*.us.example.com';
+COMMENT ON COLUMN workspace_proxies.wildcard_hostname IS 'Hostname with the wildcard for subdomain based app hosting: *.us.example.com';
 
 CREATE TABLE workspace_resource_metadata (
     workspace_resource_id uuid NOT NULL,

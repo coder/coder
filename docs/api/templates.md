@@ -665,7 +665,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/worksp
   "icon": "string",
   "name": "string",
   "url": "string",
-  "wildcard_url": "string"
+  "wildcard_hostname": "string"
 }
 ```
 
@@ -690,7 +690,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/worksp
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
-  "wildcard_url": "string"
+  "wildcard_hostname": "string"
 }
 ```
 

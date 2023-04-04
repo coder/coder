@@ -7,7 +7,7 @@ INSERT INTO
 		display_name,
 		icon,
 		url,
-		wildcard_url,
+		wildcard_hostname,
 		created_at,
 		updated_at,
 		deleted
@@ -22,7 +22,7 @@ SET
 	name = @name,
 	display_name = @display_name,
 	url = @url,
-	wildcard_url = @wildcard_url,
+	wildcard_hostname = @wildcard_hostname,
 	icon = @icon,
 	updated_at = Now()
 WHERE

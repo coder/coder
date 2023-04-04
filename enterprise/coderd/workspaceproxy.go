@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"golang.org/x/xerrors"
 
@@ -46,7 +45,7 @@ func (api *API) postWorkspaceProxyByOrganization(rw http.ResponseWriter, r *http
 		return
 	}
 
-	if err := validateProxyURL(req.URL, false); err != nil {
+	if err := validateProxyURL(req.URL); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "URL is invalid.",
 			Detail:  err.Error(),
@@ -54,7 +53,7 @@ func (api *API) postWorkspaceProxyByOrganization(rw http.ResponseWriter, r *http
 		return
 	}
 
-	if err := validateProxyURL(req.WildcardURL, true); err != nil {
+	if _, err := httpapi.CompileHostnamePattern(req.WildcardHostname); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Wildcard URL is invalid.",
 			Detail:  err.Error(),
@@ -63,16 +62,15 @@ func (api *API) postWorkspaceProxyByOrganization(rw http.ResponseWriter, r *http
 	}
 
 	proxy, err := api.Database.InsertWorkspaceProxy(ctx, database.InsertWorkspaceProxyParams{
-		ID:             uuid.New(),
-		OrganizationID: org.ID,
-		Name:           req.Name,
-		DisplayName:    req.DisplayName,
-		Icon:           req.Icon,
-		// TODO: validate URLs
-		Url:         req.URL,
-		WildcardUrl: req.WildcardURL,
-		CreatedAt:   database.Now(),
-		UpdatedAt:   database.Now(),
+		ID:               uuid.New(),
+		OrganizationID:   org.ID,
+		Name:             req.Name,
+		DisplayName:      req.DisplayName,
+		Icon:             req.Icon,
+		Url:              req.URL,
+		WildcardHostname: req.WildcardHostname,
+		CreatedAt:        database.Now(),
+		UpdatedAt:        database.Now(),
 	})
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
@@ -90,7 +88,7 @@ func (api *API) postWorkspaceProxyByOrganization(rw http.ResponseWriter, r *http
 }
 
 // nolint:revive
-func validateProxyURL(u string, wildcard bool) error {
+func validateProxyURL(u string) error {
 	p, err := url.Parse(u)
 	if err != nil {
 		return err
@@ -100,11 +98,6 @@ func validateProxyURL(u string, wildcard bool) error {
 	}
 	if !(p.Path == "/" || p.Path == "") {
 		return xerrors.New("path must be empty or /")
-	}
-	if wildcard {
-		if !strings.HasPrefix(p.Host, "*.") {
-			return xerrors.Errorf("wildcard URL must have a wildcard subdomain (e.g. *.example.com)")
-		}
 	}
 	return nil
 }
@@ -142,14 +135,14 @@ func convertProxies(p []database.WorkspaceProxy) []codersdk.WorkspaceProxy {
 
 func convertProxy(p database.WorkspaceProxy) codersdk.WorkspaceProxy {
 	return codersdk.WorkspaceProxy{
-		ID:             p.ID,
-		OrganizationID: p.OrganizationID,
-		Name:           p.Name,
-		Icon:           p.Icon,
-		URL:            p.Url,
-		WildcardURL:    p.WildcardUrl,
-		CreatedAt:      p.CreatedAt,
-		UpdatedAt:      p.UpdatedAt,
-		Deleted:        p.Deleted,
+		ID:               p.ID,
+		OrganizationID:   p.OrganizationID,
+		Name:             p.Name,
+		Icon:             p.Icon,
+		URL:              p.Url,
+		WildcardHostname: p.WildcardHostname,
+		CreatedAt:        p.CreatedAt,
+		UpdatedAt:        p.UpdatedAt,
+		Deleted:          p.Deleted,
 	}
 }

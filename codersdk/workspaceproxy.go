@@ -13,11 +13,11 @@ import (
 )
 
 type CreateWorkspaceProxyRequest struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"display_name"`
-	Icon        string `json:"icon"`
-	URL         string `json:"url"`
-	WildcardURL string `json:"wildcard_url"`
+	Name             string `json:"name"`
+	DisplayName      string `json:"display_name"`
+	Icon             string `json:"icon"`
+	URL              string `json:"url"`
+	WildcardHostname string `json:"wildcard_hostname"`
 }
 
 type WorkspaceProxy struct {
@@ -27,11 +27,11 @@ type WorkspaceProxy struct {
 	Icon           string    `db:"icon" json:"icon"`
 	// Full url including scheme of the proxy api url: https://us.example.com
 	URL string `db:"url" json:"url"`
-	// URL with the wildcard for subdomain based app hosting: https://*.us.example.com
-	WildcardURL string    `db:"wildcard_url" json:"wildcard_url"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at" format:"date-time"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at" format:"date-time"`
-	Deleted     bool      `db:"deleted" json:"deleted"`
+	// WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com
+	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at" format:"date-time"`
+	Deleted          bool      `db:"deleted" json:"deleted"`
 }
 
 func (c *Client) CreateWorkspaceProxy(ctx context.Context, orgID uuid.UUID, req CreateWorkspaceProxyRequest) (WorkspaceProxy, error) {

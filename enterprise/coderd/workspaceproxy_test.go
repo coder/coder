@@ -37,10 +37,10 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		proxy, err := client.CreateWorkspaceProxy(ctx, user.OrganizationID, codersdk.CreateWorkspaceProxyRequest{
-			Name:        namesgenerator.GetRandomName(1),
-			Icon:        "/emojis/flag.png",
-			URL:         "https://" + namesgenerator.GetRandomName(1) + ".com",
-			WildcardURL: "https://*." + namesgenerator.GetRandomName(1) + ".com",
+			Name:             namesgenerator.GetRandomName(1),
+			Icon:             "/emojis/flag.png",
+			URL:              "https://" + namesgenerator.GetRandomName(1) + ".com",
+			WildcardHostname: "*." + namesgenerator.GetRandomName(1) + ".com",
 		})
 		require.NoError(t, err)
 

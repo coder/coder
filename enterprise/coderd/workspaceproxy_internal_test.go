@@ -12,55 +12,36 @@ func Test_validateProxyURL(t *testing.T) {
 	testcases := []struct {
 		Name          string
 		URL           string
-		Wild          bool
 		ExpectedError bool
 	}{
 		{
 			Name:          "Empty",
 			URL:           "",
-			Wild:          false,
 			ExpectedError: true,
 		},
 		{
 			Name:          "EmptyWild",
 			URL:           "",
-			Wild:          true,
 			ExpectedError: true,
 		},
 		{
 			Name:          "URL",
 			URL:           "https://example.com",
-			Wild:          false,
 			ExpectedError: false,
-		},
-		{
-			Name:          "WildcardURL",
-			URL:           "https://*.example.com",
-			Wild:          true,
-			ExpectedError: false,
-		},
-		{
-			Name:          "URLMissingWild",
-			URL:           "https://example.com",
-			Wild:          true,
-			ExpectedError: true,
 		},
 		{
 			Name:          "NoScheme",
-			URL:           "*.example.com",
-			Wild:          true,
+			URL:           "example.com",
 			ExpectedError: true,
 		},
 		{
 			Name:          "BadScheme",
-			URL:           "ssh://*.example.com",
-			Wild:          true,
+			URL:           "ssh://example.com",
 			ExpectedError: true,
 		},
 		{
 			Name:          "IncludePaths",
-			URL:           "https://*.example.com/test",
-			Wild:          true,
+			URL:           "https://example.com/test",
 			ExpectedError: true,
 		},
 	}
@@ -70,7 +51,7 @@ func Test_validateProxyURL(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 
-			err := validateProxyURL(tt.URL, tt.Wild)
+			err := validateProxyURL(tt.URL)
 			if tt.ExpectedError {
 				require.Error(t, err)
 			} else {

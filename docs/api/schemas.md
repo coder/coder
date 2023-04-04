@@ -1547,19 +1547,19 @@ CreateParameterRequest is a structure used to create a new parameter value for a
   "icon": "string",
   "name": "string",
   "url": "string",
-  "wildcard_url": "string"
+  "wildcard_hostname": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-| -------------- | ------ | -------- | ------------ | ----------- |
-| `display_name` | string | false    |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | false    |              |             |
-| `url`          | string | false    |              |             |
-| `wildcard_url` | string | false    |              |             |
+| Name                | Type   | Required | Restrictions | Description |
+| ------------------- | ------ | -------- | ------------ | ----------- |
+| `display_name`      | string | false    |              |             |
+| `icon`              | string | false    |              |             |
+| `name`              | string | false    |              |             |
+| `url`               | string | false    |              |             |
+| `wildcard_hostname` | string | false    |              |             |
 
 ## codersdk.CreateWorkspaceRequest
 
@@ -5115,23 +5115,23 @@ Parameter represents a set value for the scope.
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "updated_at": "2019-08-24T14:15:22Z",
   "url": "string",
-  "wildcard_url": "string"
+  "wildcard_hostname": "string"
 }
 ```
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                               |
-| ----------------- | ------- | -------- | ------------ | ----------------------------------------------------------------------------------------- |
-| `created_at`      | string  | false    |              |                                                                                           |
-| `deleted`         | boolean | false    |              |                                                                                           |
-| `icon`            | string  | false    |              |                                                                                           |
-| `id`              | string  | false    |              |                                                                                           |
-| `name`            | string  | false    |              |                                                                                           |
-| `organization_id` | string  | false    |              |                                                                                           |
-| `updated_at`      | string  | false    |              |                                                                                           |
-| `url`             | string  | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                    |
-| `wildcard_url`    | string  | false    |              | Wildcard URL with the wildcard for subdomain based app hosting: https://\*.us.example.com |
+| Name                | Type    | Required | Restrictions | Description                                                                            |
+| ------------------- | ------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
+| `created_at`        | string  | false    |              |                                                                                        |
+| `deleted`           | boolean | false    |              |                                                                                        |
+| `icon`              | string  | false    |              |                                                                                        |
+| `id`                | string  | false    |              |                                                                                        |
+| `name`              | string  | false    |              |                                                                                        |
+| `organization_id`   | string  | false    |              |                                                                                        |
+| `updated_at`        | string  | false    |              |                                                                                        |
+| `url`               | string  | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                 |
+| `wildcard_hostname` | string  | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com |
 
 ## codersdk.WorkspaceQuota
 

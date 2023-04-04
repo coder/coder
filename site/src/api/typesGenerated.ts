@@ -257,7 +257,7 @@ export interface CreateWorkspaceProxyRequest {
   readonly display_name: string
   readonly icon: string
   readonly url: string
-  readonly wildcard_url: string
+  readonly wildcard_hostname: string
 }
 
 // From codersdk/organizations.go
@@ -1212,7 +1212,7 @@ export interface WorkspaceProxy {
   readonly name: string
   readonly icon: string
   readonly url: string
-  readonly wildcard_url: string
+  readonly wildcard_hostname: string
   readonly created_at: string
   readonly updated_at: string
   readonly deleted: boolean

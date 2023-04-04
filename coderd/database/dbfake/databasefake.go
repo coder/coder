@@ -4988,15 +4988,15 @@ func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 	}
 
 	p := database.WorkspaceProxy{
-		ID:             arg.ID,
-		OrganizationID: arg.OrganizationID,
-		Name:           arg.Name,
-		Icon:           arg.Icon,
-		Url:            arg.Url,
-		WildcardUrl:    arg.WildcardUrl,
-		CreatedAt:      arg.CreatedAt,
-		UpdatedAt:      arg.UpdatedAt,
-		Deleted:        false,
+		ID:               arg.ID,
+		OrganizationID:   arg.OrganizationID,
+		Name:             arg.Name,
+		Icon:             arg.Icon,
+		Url:              arg.Url,
+		WildcardHostname: arg.WildcardHostname,
+		CreatedAt:        arg.CreatedAt,
+		UpdatedAt:        arg.UpdatedAt,
+		Deleted:          false,
 	}
 	q.workspaceProxies = append(q.workspaceProxies, p)
 	return p, nil
@@ -5011,7 +5011,7 @@ func (q *fakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.Updat
 			p.Name = arg.Name
 			p.Icon = arg.Icon
 			p.Url = arg.Url
-			p.WildcardUrl = arg.WildcardUrl
+			p.WildcardHostname = arg.WildcardHostname
 			p.UpdatedAt = database.Now()
 			q.workspaceProxies[i] = p
 			return p, nil

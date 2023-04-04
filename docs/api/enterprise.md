@@ -772,7 +772,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/workspa
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "updated_at": "2019-08-24T14:15:22Z",
     "url": "string",
-    "wildcard_url": "string"
+    "wildcard_hostname": "string"
   }
 ]
 ```
@@ -787,18 +787,18 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/workspa
 
 Status Code **200**
 
-| Name                | Type              | Required | Restrictions | Description                                                                               |
-| ------------------- | ----------------- | -------- | ------------ | ----------------------------------------------------------------------------------------- |
-| `[array item]`      | array             | false    |              |                                                                                           |
-| `» created_at`      | string(date-time) | false    |              |                                                                                           |
-| `» deleted`         | boolean           | false    |              |                                                                                           |
-| `» icon`            | string            | false    |              |                                                                                           |
-| `» id`              | string(uuid)      | false    |              |                                                                                           |
-| `» name`            | string            | false    |              |                                                                                           |
-| `» organization_id` | string(uuid)      | false    |              |                                                                                           |
-| `» updated_at`      | string(date-time) | false    |              |                                                                                           |
-| `» url`             | string            | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                    |
-| `» wildcard_url`    | string            | false    |              | Wildcard URL with the wildcard for subdomain based app hosting: https://\*.us.example.com |
+| Name                  | Type              | Required | Restrictions | Description                                                                            |
+| --------------------- | ----------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
+| `[array item]`        | array             | false    |              |                                                                                        |
+| `» created_at`        | string(date-time) | false    |              |                                                                                        |
+| `» deleted`           | boolean           | false    |              |                                                                                        |
+| `» icon`              | string            | false    |              |                                                                                        |
+| `» id`                | string(uuid)      | false    |              |                                                                                        |
+| `» name`              | string            | false    |              |                                                                                        |
+| `» organization_id`   | string(uuid)      | false    |              |                                                                                        |
+| `» updated_at`        | string(date-time) | false    |              |                                                                                        |
+| `» url`               | string            | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                 |
+| `» wildcard_hostname` | string            | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
