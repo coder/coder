@@ -2,6 +2,8 @@ package prometheusmetrics
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -257,7 +259,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 
 					// Collect information about registered applications
 					apps, err := db.GetWorkspaceAppsByAgentID(ctx, agent.ID)
-					if err != nil {
+					if err != nil && !errors.Is(err, sql.ErrNoRows) {
 						logger.Error(ctx, "can't get workspace apps", slog.F("agent_id", agent.ID), slog.Error(err))
 						continue
 					}
