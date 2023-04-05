@@ -12,10 +12,11 @@ coder version [flags]
 
 ## Options
 
-### --json
+### -o, --output
 
-|      |                   |
-| ---- | ----------------- |
-| Type | <code>bool</code> |
+|         |                     |
+| ------- | ------------------- |
+| Type    | <code>string</code> |
+| Default | <code>text</code>   |
 
-Emit version information in machine-readable JSON format.
+Output format. Available formats: text, json.
