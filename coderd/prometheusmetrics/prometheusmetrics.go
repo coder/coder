@@ -122,24 +122,24 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		duration = 15 * time.Second // TODO 5 * time.Minute
 	}
 
-	workspaceAgentsGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	agentsGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agents",
 		Name:      "up",
 		Help:      "The number of active agents per workspace.",
 	}, []string{"username", "workspace_name"})
-	err := registerer.Register(workspaceAgentsGauge)
+	err := registerer.Register(agentsGauge)
 	if err != nil {
 		return nil, err
 	}
 
-	agentsConnectionGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	agentsConnectionsGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "agents",
 		Name:      "connections",
 		Help:      "Agent connections with statuses.",
 	}, []string{"agent_name", "username", "workspace_name", "status", "lifecycle_state", "tailnet_node"})
-	err = registerer.Register(agentsConnectionGauge)
+	err = registerer.Register(agentsConnectionsGauge)
 	if err != nil {
 		return nil, err
 	}
@@ -151,6 +151,17 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Help:      "Agent connection latencies in seconds.",
 	}, []string{"agent_id", "username", "workspace_name", "derp_region", "preferred"})
 	err = registerer.Register(agentsConnectionLatenciesGauge)
+	if err != nil {
+		return nil, err
+	}
+
+	agentsAppsGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agents",
+		Name:      "apps",
+		Help:      "Agent applications with statuses.",
+	}, []string{"agent_name", "username", "workspace_name", "app_name", "health"})
+	err = registerer.Register(agentsAppsGauge)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +178,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			case <-ticker.C:
 			}
 
-			logger.Info(ctx, "Collect agent metrics now")
+			logger.Debug(ctx, "Collect agent metrics now")
 
 			workspaceRows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
 				AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
@@ -177,34 +188,35 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 				continue
 			}
 
-			workspaceAgentsGauge.Reset()
-			agentsConnectionGauge.Reset()
+			agentsGauge.Reset()
+			agentsConnectionsGauge.Reset()
 			agentsConnectionLatenciesGauge.Reset()
+			agentsAppsGauge.Reset()
 
 			for _, workspace := range workspaceRows {
 				user, err := db.GetUserByID(ctx, workspace.OwnerID)
 				if err != nil {
-					logger.Error(ctx, "can't get user", slog.Error(err), slog.F("user_id", workspace.OwnerID))
-					workspaceAgentsGauge.WithLabelValues(user.Username, workspace.Name).Add(0)
+					logger.Error(ctx, "can't get user", slog.F("user_id", workspace.OwnerID), slog.Error(err))
+					agentsGauge.WithLabelValues(user.Username, workspace.Name).Add(0)
 					continue
 				}
 
 				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
 				if err != nil {
-					logger.Error(ctx, "can't get workspace agents", slog.F("workspace_name", workspace.Name), slog.Error(err))
-					workspaceAgentsGauge.WithLabelValues(user.Username, workspace.Name).Add(0)
+					logger.Error(ctx, "can't get workspace agents", slog.F("workspace_id", workspace.ID), slog.Error(err))
+					agentsGauge.WithLabelValues(user.Username, workspace.Name).Add(0)
 					continue
 				}
 
 				if len(agents) == 0 {
-					logger.Info(ctx, "workspace agents are unavailable", slog.F("workspace_name", workspace.Name))
-					workspaceAgentsGauge.WithLabelValues(user.Username, workspace.Name).Add(0)
+					logger.Debug(ctx, "workspace agents are unavailable", slog.F("workspace_id", workspace.ID))
+					agentsGauge.WithLabelValues(user.Username, workspace.Name).Add(0)
 					continue
 				}
 
 				for _, agent := range agents {
 					// Collect information about agents
-					workspaceAgentsGauge.WithLabelValues(user.Username, workspace.Name).Add(1)
+					agentsGauge.WithLabelValues(user.Username, workspace.Name).Add(1)
 
 					connectionStatus := agent.Status(agentInactiveDisconnectTimeout)
 					node := (*coordinator.Load()).Node(agent.ID)
@@ -214,37 +226,46 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 						tailnetNode = node.ID.String()
 					}
 
-					agentsConnectionGauge.WithLabelValues(agent.Name, user.Username, workspace.Name, string(connectionStatus.Status), string(agent.LifecycleState), tailnetNode).Set(1)
+					agentsConnectionsGauge.WithLabelValues(agent.Name, user.Username, workspace.Name, string(connectionStatus.Status), string(agent.LifecycleState), tailnetNode).Set(1)
 
 					if node == nil {
-						logger.Info(ctx, "can't read in-memory node for agent", slog.F("workspace_name", workspace.Name), slog.F("agent_name", agent.Name))
+						logger.Debug(ctx, "can't read in-memory node for agent", slog.F("agent_id", agent.ID))
+						continue
+					} else {
+						// Collect information about connection latencies
+						for rawRegion, latency := range node.DERPLatency {
+							regionParts := strings.SplitN(rawRegion, "-", 2)
+							regionID, err := strconv.Atoi(regionParts[0])
+							if err != nil {
+								logger.Error(ctx, "can't convert DERP region", slog.F("agent_id", agent.ID), slog.F("raw_region", rawRegion), slog.Error(err))
+								continue
+							}
+
+							region, found := derpMap.Regions[regionID]
+							if !found {
+								// It's possible that a workspace agent is using an old DERPMap
+								// and reports regions that do not exist. If that's the case,
+								// report the region as unknown!
+								region = &tailcfg.DERPRegion{
+									RegionID:   regionID,
+									RegionName: fmt.Sprintf("Unnamed %d", regionID),
+								}
+							}
+
+							agentsConnectionLatenciesGauge.WithLabelValues(agent.Name, user.Username, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID)).Set(latency)
+						}
+					}
+
+					// Collect information about registered applications
+					apps, err := db.GetWorkspaceAppsByAgentID(ctx, agent.ID)
+					if err != nil {
+						logger.Error(ctx, "can't get workspace apps", slog.F("agent_id", agent.ID), slog.Error(err))
 						continue
 					}
 
-					// Collect information about connection latencies
-					for rawRegion, latency := range node.DERPLatency {
-						regionParts := strings.SplitN(rawRegion, "-", 2)
-						regionID, err := strconv.Atoi(regionParts[0])
-						if err != nil {
-							logger.Error(ctx, "can't convert DERP region", slog.Error(err), slog.F("agent_name", agent.Name), slog.F("raw_region", rawRegion))
-							continue
-						}
-						region, found := derpMap.Regions[regionID]
-						if !found {
-							// It's possible that a workspace agent is using an old DERPMap
-							// and reports regions that do not exist. If that's the case,
-							// report the region as unknown!
-							region = &tailcfg.DERPRegion{
-								RegionID:   regionID,
-								RegionName: fmt.Sprintf("Unnamed %d", regionID),
-							}
-						}
-
-						agentsConnectionLatenciesGauge.WithLabelValues(agent.Name, user.Username, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID)).Set(latency)
+					for _, app := range apps {
+						agentsAppsGauge.WithLabelValues(agent.Name, user.Username, workspace.Name, app.DisplayName, string(app.Health)).Add(1)
 					}
-
-					// FIXME IDE?
-					// FIXME connection_type ide
 				}
 			}
 		}
