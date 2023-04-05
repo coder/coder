@@ -41,7 +41,7 @@ coder:
       readOnly: true
 ```
 
- [Upgrade Coder](http://localhost:3000/docs/v2/latest/install/kubernetes#upgrading-coder-via-helm) with these new values.
+[Upgrade Coder](http://localhost:3000/docs/v2/latest/install/kubernetes#upgrading-coder-via-helm) with these new values.
 
 ### VM control plane
 
