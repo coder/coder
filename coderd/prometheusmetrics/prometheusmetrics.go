@@ -190,6 +190,8 @@ func Agents(ctx context.Context, registerer prometheus.Registerer, db database.S
 					connectionStatus := agent.Status(6 * time.Second)
 
 					// FIXME AgentInactiveDisconnectTimeout
+					//  ? connection_timeout_seconds
+					// obok latency lifecycle_state
 					log.Println("with value " + agent.Name)
 					agentsConnectionGauge.WithLabelValues(agent.Name, workspace.Name, string(connectionStatus.Status)).Set(1)
 
@@ -225,6 +227,7 @@ func Agents(ctx context.Context, registerer prometheus.Registerer, db database.S
 
 					// FIXME publish agent even if DERP is missing
 					// FIXME IDE?
+					// FIXME agent connection zero
 				}
 			}
 		}
