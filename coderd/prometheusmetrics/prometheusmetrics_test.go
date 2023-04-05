@@ -6,16 +6,22 @@ import (
 	"testing"
 	"time"
 
+	"sync/atomic"
+
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/tailnet/tailnettest"
 	"github.com/coder/coder/testutil"
 )
 
@@ -238,4 +244,38 @@ func TestWorkspaces(t *testing.T) {
 			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
+}
+
+func TestAgents(t *testing.T) {
+	t.Parallel()
+
+	// given
+	db := dbfake.New()
+
+	coordinator := tailnet.NewCoordinator()
+	coordinatorPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordinatorPtr.Store(&coordinator)
+	derpMap := tailnettest.RunDERPAndSTUN(t)
+	agentInactiveDisconnectTimeout := 1 * time.Hour
+	registry := prometheus.NewRegistry()
+
+	// when
+	cancel, err := prometheusmetrics.Agents(context.Background(), slogtest.Make(t, nil), registry, db, &coordinatorPtr, derpMap, agentInactiveDisconnectTimeout, time.Millisecond)
+	t.Cleanup(cancel)
+
+	// then
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		metrics, err := registry.Gather()
+		assert.NoError(t, err)
+
+		if len(metrics) < 1 {
+			return false
+		}
+
+		for _, metric := range metrics[0].Metric {
+			panic(metric)
+		}
+		return true
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
