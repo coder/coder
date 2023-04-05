@@ -370,36 +370,6 @@ func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
 	return l, ok
 }
 
-// version prints the coder version
-func (*RootCmd) version() *clibase.Cmd {
-	return &clibase.Cmd{
-		Use:   "version",
-		Short: "Show coder version",
-		Handler: func(inv *clibase.Invocation) error {
-			var str strings.Builder
-			_, _ = str.WriteString("Coder ")
-			if buildinfo.IsAGPL() {
-				_, _ = str.WriteString("(AGPL) ")
-			}
-			_, _ = str.WriteString(buildinfo.Version())
-			buildTime, valid := buildinfo.Time()
-			if valid {
-				_, _ = str.WriteString(" " + buildTime.Format(time.UnixDate))
-			}
-			_, _ = str.WriteString("\r\n" + buildinfo.ExternalURL() + "\r\n\r\n")
-
-			if buildinfo.IsSlim() {
-				_, _ = str.WriteString(fmt.Sprintf("Slim build of Coder, does not support the %s subcommand.\n", cliui.Styles.Code.Render("server")))
-			} else {
-				_, _ = str.WriteString(fmt.Sprintf("Full build of Coder, supports the %s subcommand.\n", cliui.Styles.Code.Render("server")))
-			}
-
-			_, _ = fmt.Fprint(inv.Stdout, str.String())
-			return nil
-		},
-	}
-}
-
 func isTest() bool {
 	return flag.Lookup("test.v") != nil
 }
