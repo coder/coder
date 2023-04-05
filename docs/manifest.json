@@ -1,5 +1,7 @@
 {
-  "versions": ["main"],
+  "versions": [
+    "main"
+  ],
   "routes": [
     {
       "title": "About",
@@ -106,7 +108,14 @@
         {
           "title": "Kubernetes",
           "description": "Set up Coder on Kubernetes",
-          "path": "./platforms/kubernetes.md"
+          "path": "./platforms/kubernetes/index.md",
+          "children": [
+            {
+              "title": "Additional clusters",
+              "description": "Deploy workspaces on additional Kubernetes clusters",
+              "path": "./platforms/kubernetes/additional-clusters.md"
+            }
+          ]
         },
         {
           "title": "Other platforms",
