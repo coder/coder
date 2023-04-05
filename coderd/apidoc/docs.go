@@ -587,44 +587,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/groups": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Get groups",
-                "operationId": "get-groups",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.Group"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/groups/{group}": {
             "get": {
                 "security": [
