@@ -361,7 +361,7 @@ Change the OIDC default 'groups' claim field. By default, will be 'groups' if pr
 |             |                                        |
 | ----------- | -------------------------------------- |
 | Type        | <code>struct[map[string]string]</code> |
-| Environment | <code>$OIDC_GROUP_MAPPING</code>       |
+| Environment | <code>$CODER_OIDC_GROUP_MAPPING</code> |
 | Default     | <code>{}</code>                        |
 
 A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.
@@ -383,6 +383,16 @@ URL pointing to the icon to use on the OepnID Connect login button.
 | Environment | <code>$CODER_OIDC_IGNORE_EMAIL_VERIFIED</code> |
 
 Ignore the email_verified claim from the upstream provider.
+
+### --oidc-ignore-userinfo
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>bool</code>                        |
+| Environment | <code>$CODER_OIDC_IGNORE_USERINFO</code> |
+| Default     | <code>false</code>                       |
+
+Ignore the userinfo endpoint and only use the ID token for user information.
 
 ### --oidc-issuer-url
 
