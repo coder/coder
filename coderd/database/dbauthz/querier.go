@@ -379,14 +379,14 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	return q.db.GetLogoURL(ctx)
 }
 
-func (q *querier) GetAppSigningKey(ctx context.Context) (string, error) {
+func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {
 	// No authz checks
-	return q.db.GetAppSigningKey(ctx)
+	return q.db.GetAppSecurityKey(ctx)
 }
 
-func (q *querier) InsertAppSigningKey(ctx context.Context, data string) error {
+func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
 	// No authz checks as this is done during startup
-	return q.db.InsertAppSigningKey(ctx, data)
+	return q.db.UpsertAppSecurityKey(ctx, data)
 }
 
 func (q *querier) GetServiceBanner(ctx context.Context) (string, error) {
@@ -992,6 +992,16 @@ func (q *querier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]dat
 		return nil, err
 	}
 	return q.db.GetTemplateUserRoles(ctx, id)
+}
+
+func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
+	// TODO: This is not 100% correct because it omits apikey IDs.
+	err := q.authorizeContext(ctx, rbac.ActionDelete,
+		rbac.ResourceAPIKey.WithOwner(userID.String()))
+	if err != nil {
+		return err
+	}
+	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 }
 
 func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {

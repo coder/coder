@@ -143,7 +143,7 @@ type data struct {
 	lastUpdateCheck []byte
 	serviceBanner   []byte
 	logoURL         string
-	appSigningKey   string
+	appSecurityKey  string
 	lastLicenseID   int32
 }
 
@@ -677,6 +677,19 @@ func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (q *fakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context, userID uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i := len(q.apiKeys) - 1; i >= 0; i-- {
+		if q.apiKeys[i].UserID == userID && q.apiKeys[i].Scope == database.APIKeyScopeApplicationConnect {
+			q.apiKeys = append(q.apiKeys[:i], q.apiKeys[i+1:]...)
+		}
+	}
+
+	return nil
 }
 
 func (q *fakeQuerier) DeleteAPIKeysByUserID(_ context.Context, userID uuid.UUID) error {
@@ -4463,18 +4476,18 @@ func (q *fakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	return q.logoURL, nil
 }
 
-func (q *fakeQuerier) GetAppSigningKey(_ context.Context) (string, error) {
+func (q *fakeQuerier) GetAppSecurityKey(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return q.appSigningKey, nil
+	return q.appSecurityKey, nil
 }
 
-func (q *fakeQuerier) InsertAppSigningKey(_ context.Context, data string) error {
+func (q *fakeQuerier) UpsertAppSecurityKey(_ context.Context, data string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	q.appSigningKey = data
+	q.appSecurityKey = data
 	return nil
 }
 

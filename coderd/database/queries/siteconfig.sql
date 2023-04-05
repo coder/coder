@@ -31,8 +31,9 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'logo_url';
 -- name: GetLogoURL :one
 SELECT value FROM site_configs WHERE key = 'logo_url';
 
--- name: GetAppSigningKey :one
+-- name: GetAppSecurityKey :one
 SELECT value FROM site_configs WHERE key = 'app_signing_key';
 
--- name: InsertAppSigningKey :exec
-INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1);
+-- name: UpsertAppSecurityKey :exec
+INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
+ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing_key';

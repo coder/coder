@@ -195,48 +195,17 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Deployments should not host app tokens on the same domain as the
-	// primary deployment. But in the case they are, we should also delete this
-	// token.
-	if appCookie, _ := r.Cookie(codersdk.DevURLSessionTokenCookie); appCookie != nil {
-		appCookieRemove := &http.Cookie{
-			// MaxAge < 0 means to delete the cookie now.
-			MaxAge: -1,
-			Name:   codersdk.DevURLSessionTokenCookie,
-			Path:   "/",
-			Domain: "." + api.AccessURL.Hostname(),
-		}
-		http.SetCookie(rw, appCookieRemove)
-
-		id, _, err := httpmw.SplitAPIToken(appCookie.Value)
-		if err == nil {
-			err = api.Database.DeleteAPIKeyByID(ctx, id)
-			if err != nil {
-				// Don't block logout, just log any errors.
-				api.Logger.Warn(r.Context(), "failed to delete devurl token on logout",
-					slog.Error(err),
-					slog.F("id", id),
-				)
-			}
-		}
-	}
-
-	// This code should be removed after Jan 1 2023.
-	// This code logs out of the old session cookie before we renamed it
-	// if it is a valid coder token. Otherwise, this old cookie hangs around
-	// and we never log out of the user.
-	oldCookie, err := r.Cookie("session_token")
-	if err == nil && oldCookie != nil {
-		_, _, err := httpmw.SplitAPIToken(oldCookie.Value)
-		if err == nil {
-			cookie := &http.Cookie{
-				// MaxAge < 0 means to delete the cookie now.
-				MaxAge: -1,
-				Name:   "session_token",
-				Path:   "/",
-			}
-			http.SetCookie(rw, cookie)
-		}
+	// Invalidate all subdomain app tokens. This saves us from having to
+	// track which app tokens are associated which this browser session and
+	// doesn't inconvenience the user as they'll just get redirected if they try
+	// to access the app again.
+	err = api.Database.DeleteApplicationConnectAPIKeysByUserID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting app tokens.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	aReq.New = database.APIKey{}

@@ -668,8 +668,7 @@ func TestServer(t *testing.T) {
 				if c.tlsListener {
 					accessURLParsed, err := url.Parse(c.requestURL)
 					require.NoError(t, err)
-					client := codersdk.New(accessURLParsed)
-					client.HTTPClient = &http.Client{
+					client := &http.Client{
 						CheckRedirect: func(req *http.Request, via []*http.Request) error {
 							return http.ErrUseLastResponse
 						},
@@ -682,11 +681,15 @@ func TestServer(t *testing.T) {
 							},
 						},
 					}
-					defer client.HTTPClient.CloseIdleConnections()
-					_, err = client.HasFirstUser(ctx)
-					if err != nil {
-						require.ErrorContains(t, err, "Invalid application URL")
-					}
+					defer client.CloseIdleConnections()
+
+					req, err := http.NewRequestWithContext(ctx, http.MethodGet, accessURLParsed.String(), nil)
+					require.NoError(t, err)
+					resp, err := client.Do(req)
+					// We don't care much about the response, just that TLS
+					// worked.
+					require.NoError(t, err)
+					defer resp.Body.Close()
 				}
 			})
 		}

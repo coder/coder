@@ -1,16 +1,18 @@
 package workspaceapps_test
 
 import (
-	"encoding/hex"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/square/go-jose.v2"
 
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/workspaceapps"
+	"github.com/coder/coder/cryptorand"
 )
 
 func Test_TokenMatchesRequest(t *testing.T) {
@@ -164,7 +166,7 @@ func Test_GenerateToken(t *testing.T) {
 	t.Run("SetExpiry", func(t *testing.T) {
 		t.Parallel()
 
-		tokenStr, err := workspaceapps.GenerateToken(coderdtest.AppSigningKey, workspaceapps.SignedToken{
+		tokenStr, err := coderdtest.AppSecurityKey.SignToken(workspaceapps.SignedToken{
 			Request: workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/app",
@@ -182,7 +184,7 @@ func Test_GenerateToken(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		token, err := workspaceapps.ParseToken(coderdtest.AppSigningKey, tokenStr)
+		token, err := coderdtest.AppSecurityKey.VerifySignedToken(tokenStr)
 		require.NoError(t, err)
 
 		require.WithinDuration(t, time.Now().Add(time.Minute), token.Expiry, 15*time.Second)
@@ -260,13 +262,13 @@ func Test_GenerateToken(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			str, err := workspaceapps.GenerateToken(coderdtest.AppSigningKey, c.token)
+			str, err := coderdtest.AppSecurityKey.SignToken(c.token)
 			require.NoError(t, err)
 
 			// Tokens aren't deterministic as they have a random nonce, so we
 			// can't compare them directly.
 
-			token, err := workspaceapps.ParseToken(coderdtest.AppSigningKey, str)
+			token, err := coderdtest.AppSecurityKey.VerifySignedToken(str)
 			if c.parseErrContains != "" {
 				require.Error(t, err)
 				require.ErrorContains(t, err, c.parseErrContains)
@@ -289,7 +291,7 @@ func Test_ParseToken(t *testing.T) {
 	t.Run("InvalidJWS", func(t *testing.T) {
 		t.Parallel()
 
-		token, err := workspaceapps.ParseToken(coderdtest.AppSigningKey, "invalid")
+		token, err := coderdtest.AppSecurityKey.VerifySignedToken("invalid")
 		require.Error(t, err)
 		require.ErrorContains(t, err, "parse JWS")
 		require.Equal(t, workspaceapps.SignedToken{}, token)
@@ -299,12 +301,14 @@ func Test_ParseToken(t *testing.T) {
 		t.Parallel()
 
 		// Create a valid token using a different key.
-		otherKey, err := hex.DecodeString("62656566646561646265656664656164626565666465616462656566646561646265656664656164626565666465616462656566646561646265656664656164")
-		require.NoError(t, err)
-		require.NotEqual(t, coderdtest.AppSigningKey, otherKey)
-		require.Len(t, otherKey, 64)
+		var otherKey workspaceapps.SecurityKey
+		copy(otherKey[:], coderdtest.AppSecurityKey[:])
+		for i := range otherKey {
+			otherKey[i] ^= 0xff
+		}
+		require.NotEqual(t, coderdtest.AppSecurityKey, otherKey)
 
-		tokenStr, err := workspaceapps.GenerateToken(otherKey, workspaceapps.SignedToken{
+		tokenStr, err := otherKey.SignToken(workspaceapps.SignedToken{
 			Request: workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/app",
@@ -323,7 +327,7 @@ func Test_ParseToken(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify the token is invalid.
-		token, err := workspaceapps.ParseToken(coderdtest.AppSigningKey, tokenStr)
+		token, err := coderdtest.AppSecurityKey.VerifySignedToken(tokenStr)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "verify JWS")
 		require.Equal(t, workspaceapps.SignedToken{}, token)
@@ -333,16 +337,86 @@ func Test_ParseToken(t *testing.T) {
 		t.Parallel()
 
 		// Create a signature for an invalid body.
-		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS512, Key: coderdtest.AppSigningKey}, nil)
+		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS512, Key: coderdtest.AppSecurityKey[:64]}, nil)
 		require.NoError(t, err)
 		signedObject, err := signer.Sign([]byte("hi"))
 		require.NoError(t, err)
 		serialized, err := signedObject.CompactSerialize()
 		require.NoError(t, err)
 
-		token, err := workspaceapps.ParseToken(coderdtest.AppSigningKey, serialized)
+		token, err := coderdtest.AppSecurityKey.VerifySignedToken(serialized)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "unmarshal payload")
 		require.Equal(t, workspaceapps.SignedToken{}, token)
+	})
+}
+
+func TestAPIKeyEncryption(t *testing.T) {
+	t.Parallel()
+
+	genAPIKey := func(t *testing.T) string {
+		id, _ := cryptorand.String(10)
+		secret, _ := cryptorand.String(22)
+
+		return fmt.Sprintf("%s-%s", id, secret)
+	}
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		key := genAPIKey(t)
+		encrypted, err := coderdtest.AppSecurityKey.EncryptAPIKey(workspaceapps.EncryptedAPIKeyPayload{
+			APIKey: key,
+		})
+		require.NoError(t, err)
+
+		decryptedKey, err := coderdtest.AppSecurityKey.DecryptAPIKey(encrypted)
+		require.NoError(t, err)
+		require.Equal(t, key, decryptedKey)
+	})
+
+	t.Run("Verifies", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Expiry", func(t *testing.T) {
+			t.Parallel()
+
+			key := genAPIKey(t)
+			encrypted, err := coderdtest.AppSecurityKey.EncryptAPIKey(workspaceapps.EncryptedAPIKeyPayload{
+				APIKey:    key,
+				ExpiresAt: database.Now().Add(-1 * time.Hour),
+			})
+			require.NoError(t, err)
+
+			decryptedKey, err := coderdtest.AppSecurityKey.DecryptAPIKey(encrypted)
+			require.Error(t, err)
+			require.ErrorContains(t, err, "expired")
+			require.Empty(t, decryptedKey)
+		})
+
+		t.Run("EncryptionKey", func(t *testing.T) {
+			t.Parallel()
+
+			// Create a valid token using a different key.
+			var otherKey workspaceapps.SecurityKey
+			copy(otherKey[:], coderdtest.AppSecurityKey[:])
+			for i := range otherKey {
+				otherKey[i] ^= 0xff
+			}
+			require.NotEqual(t, coderdtest.AppSecurityKey, otherKey)
+
+			// Encrypt with the other key.
+			key := genAPIKey(t)
+			encrypted, err := otherKey.EncryptAPIKey(workspaceapps.EncryptedAPIKeyPayload{
+				APIKey: key,
+			})
+			require.NoError(t, err)
+
+			// Decrypt with the original key.
+			decryptedKey, err := coderdtest.AppSecurityKey.DecryptAPIKey(encrypted)
+			require.Error(t, err)
+			require.ErrorContains(t, err, "decrypt API key")
+			require.Empty(t, decryptedKey)
+		})
 	})
 }
