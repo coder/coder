@@ -531,6 +531,7 @@ export interface OIDCConfig {
   // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly auth_url_params: any
+  readonly ignore_user_info: boolean
   readonly groups_field: string
   // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type

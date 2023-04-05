@@ -17,8 +17,7 @@ import (
 )
 
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
-DELETE
-FROM
+DELETE FROM
 	api_keys
 WHERE
 	id = $1
@@ -38,6 +37,19 @@ WHERE
 
 func (q *sqlQuerier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteAPIKeysByUserID, userID)
+	return err
+}
+
+const deleteApplicationConnectAPIKeysByUserID = `-- name: DeleteApplicationConnectAPIKeysByUserID :exec
+DELETE FROM
+	api_keys
+WHERE
+	user_id = $1 AND
+	scope = 'application_connect'::api_key_scope
+`
+
+func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteApplicationConnectAPIKeysByUserID, userID)
 	return err
 }
 
@@ -3202,12 +3214,12 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 	return i, err
 }
 
-const getAppSigningKey = `-- name: GetAppSigningKey :one
+const getAppSecurityKey = `-- name: GetAppSecurityKey :one
 SELECT value FROM site_configs WHERE key = 'app_signing_key'
 `
 
-func (q *sqlQuerier) GetAppSigningKey(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getAppSigningKey)
+func (q *sqlQuerier) GetAppSecurityKey(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getAppSecurityKey)
 	var value string
 	err := row.Scan(&value)
 	return value, err
@@ -3268,15 +3280,6 @@ func (q *sqlQuerier) GetServiceBanner(ctx context.Context) (string, error) {
 	return value, err
 }
 
-const insertAppSigningKey = `-- name: InsertAppSigningKey :exec
-INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
-`
-
-func (q *sqlQuerier) InsertAppSigningKey(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, insertAppSigningKey, value)
-	return err
-}
-
 const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
 INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1)
 `
@@ -3292,6 +3295,16 @@ INSERT INTO site_configs (key, value) VALUES ('deployment_id', $1)
 
 func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, insertDeploymentID, value)
+	return err
+}
+
+const upsertAppSecurityKey = `-- name: UpsertAppSecurityKey :exec
+INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
+ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing_key'
+`
+
+func (q *sqlQuerier) UpsertAppSecurityKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertAppSecurityKey, value)
 	return err
 }
 

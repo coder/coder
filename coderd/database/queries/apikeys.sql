@@ -66,11 +66,17 @@ WHERE
 	id = $1;
 
 -- name: DeleteAPIKeyByID :exec
-DELETE
-FROM
+DELETE FROM
 	api_keys
 WHERE
 	id = $1;
+
+-- name: DeleteApplicationConnectAPIKeysByUserID :exec
+DELETE FROM
+	api_keys
+WHERE
+	user_id = $1 AND
+	scope = 'application_connect'::api_key_scope;
 
 -- name: DeleteAPIKeysByUserID :exec
 DELETE FROM
